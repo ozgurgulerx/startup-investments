@@ -28,8 +28,8 @@ interface TopDealsChartProps {
 }
 
 const COLORS = {
-  genai: 'hsl(217, 91%, 60%)',
-  traditional: 'hsl(240, 5%, 50%)',
+  genai: 'hsl(187, 94%, 43%)',
+  traditional: 'hsl(230, 12%, 35%)',
 };
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -73,14 +73,14 @@ export function TopDealsChart({ data, height = 500, onBarClick }: TopDealsChartP
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(240, 3.7%, 15.9%)"
+            stroke="hsl(230, 12%, 14%)"
             horizontal={true}
             vertical={false}
           />
           <XAxis
             type="number"
-            stroke="hsl(240, 5%, 64.9%)"
-            fontSize={11}
+            stroke="hsl(230, 10%, 40%)"
+            fontSize={10}
             tickLine={false}
             axisLine={false}
             tickFormatter={(value) => formatCurrency(value, true)}
@@ -88,13 +88,13 @@ export function TopDealsChart({ data, height = 500, onBarClick }: TopDealsChartP
           <YAxis
             type="category"
             dataKey="shortName"
-            stroke="hsl(240, 5%, 64.9%)"
-            fontSize={11}
+            stroke="hsl(230, 10%, 40%)"
+            fontSize={10}
             tickLine={false}
             axisLine={false}
-            width={95}
+            width={90}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(240, 3.7%, 15.9%)', opacity: 0.5 }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(230, 12%, 14%)', opacity: 0.5 }} />
           <Bar
             dataKey="funding"
             radius={[0, 4, 4, 0]}

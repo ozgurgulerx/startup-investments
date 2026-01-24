@@ -60,14 +60,14 @@ async function DashboardContent() {
       initialPeriod={DEFAULT_PERIOD}
       availablePeriods={periods.map((p) => p.period)}
     >
-      <div className="space-y-8">
+      <div className="space-y-6">
         {/* Page Header */}
-        <div className="py-2">
-          <h1 className="text-2xl font-semibold text-foreground">
+        <div className="pb-3 border-b border-border/30">
+          <h1 className="text-lg font-medium text-foreground">
             Dashboard
           </h1>
-          <p className="text-sm text-muted-foreground">
-            AI Startup Funding Intelligence for January 2026
+          <p className="text-xs text-muted-foreground mono-numbers">
+            AI Startup Funding Intelligence — January 2026
           </p>
         </div>
 
@@ -80,115 +80,116 @@ async function DashboardContent() {
         />
 
         {/* Top 20 Deals */}
-        <Card>
-          <CardHeader>
+        <Card className="glow-card border-border/50 overflow-hidden relative">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary/40 to-sky-500/40" />
+          <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
                 Top 20 Deals
-              </CardTitle>
+              </span>
               <a
                 href="/startups"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[10px] text-primary/70 hover:text-primary transition-colors uppercase tracking-wider"
               >
                 View all →
               </a>
             </div>
           </CardHeader>
-          <CardContent>
-            <TopDealsChart data={topDeals} height={550} />
+          <CardContent className="pt-0">
+            <TopDealsChart data={topDeals} height={500} />
           </CardContent>
         </Card>
 
         {/* Highlights & Patterns */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-3">
           {/* Highlights */}
           <HighlightsWrapper
-            title="January Highlights"
+            title="Key Insights"
             highlights={highlights}
             className="lg:col-span-1"
           />
 
           {/* Pattern Distribution Chart */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-muted-foreground" />
+          <Card className="lg:col-span-2 glow-card border-border/50 overflow-hidden relative">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary/40 to-sky-500/40" />
+            <CardHeader className="pb-2">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
                 Build Patterns
-              </CardTitle>
+              </span>
             </CardHeader>
-            <CardContent>
-              <PatternBarChart data={patternData} height={280} />
+            <CardContent className="pt-0">
+              <PatternBarChart data={patternData} height={260} />
             </CardContent>
           </Card>
         </div>
 
         {/* Vertical Analysis Section */}
         <div>
-          <h2 className="text-base font-medium mb-4 flex items-center gap-2 text-muted-foreground">
-            <Building2 className="h-4 w-4" />
+          <div className="section-header">
             Market & Vertical Analysis
-          </h2>
+          </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             {/* GenAI Adoption vs Market Activity Bubble Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">GenAI Adoption vs Market Activity</CardTitle>
+            <Card className="glow-card border-border/50">
+              <CardHeader className="pb-2">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+                  GenAI Adoption vs Activity
+                </span>
               </CardHeader>
-              <CardContent>
-                <VerticalBubbleChart data={verticalStats} height={380} />
+              <CardContent className="pt-0">
+                <VerticalBubbleChart data={verticalStats} height={350} />
               </CardContent>
             </Card>
 
             {/* Investment by Vertical */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Investment by Vertical</CardTitle>
+            <Card className="glow-card border-border/50">
+              <CardHeader className="pb-2">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+                  Investment by Vertical
+                </span>
               </CardHeader>
-              <CardContent>
-                <VerticalInvestmentChart data={verticalInvestment} height={380} maxItems={8} />
+              <CardContent className="pt-0">
+                <VerticalInvestmentChart data={verticalInvestment} height={350} maxItems={8} />
               </CardContent>
             </Card>
           </div>
         </div>
 
         {/* AI Sub-verticals & Model Usage */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           {/* AI/ML Sub-verticals */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-muted-foreground" />
+          <Card className="glow-card border-border/50">
+            <CardHeader className="pb-2">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
                 AI/ML Sub-verticals
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">Breakdown of horizontal AI investments</p>
+              </span>
+              <p className="text-[10px] text-muted-foreground/60 mt-0.5">Horizontal AI investment breakdown</p>
             </CardHeader>
-            <CardContent>
-              <VerticalInvestmentChart data={aiSubVerticals} height={350} maxItems={10} />
+            <CardContent className="pt-0">
+              <VerticalInvestmentChart data={aiSubVerticals} height={320} maxItems={10} />
             </CardContent>
           </Card>
 
           {/* Model Usage */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                Funding by Model Provider
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Only startups that disclosed model usage ({modelUsage.reduce((sum, m) => sum + m.startupCount, 0)} startups)
+          <Card className="glow-card border-border/50">
+            <CardHeader className="pb-2">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+                Model Provider Funding
+              </span>
+              <p className="text-[10px] text-muted-foreground/60 mt-0.5 mono-numbers">
+                {modelUsage.reduce((sum, m) => sum + m.startupCount, 0)} startups disclosed
               </p>
             </CardHeader>
-            <CardContent>
-              <ModelUsageChart data={modelUsage} height={300} />
+            <CardContent className="pt-0">
+              <ModelUsageChart data={modelUsage} height={280} />
               {/* Top startups by model */}
-              <div className="mt-4 space-y-3 p-3 rounded-lg bg-muted/30 border border-border/50">
-                <p className="text-xs font-medium text-muted-foreground">Top startups by model provider:</p>
+              <div className="mt-3 space-y-2 p-2.5 rounded bg-muted/20 border border-border/30">
+                <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Top by provider</p>
                 {modelUsage.slice(0, 3).map((model) => (
-                  <div key={model.provider} className="text-xs">
-                    <p className="font-medium text-foreground mb-1.5">{model.displayName}:</p>
-                    <div className="flex flex-wrap gap-1.5">
+                  <div key={model.provider} className="text-[10px]">
+                    <p className="font-medium text-foreground/80 mb-1">{model.displayName}:</p>
+                    <div className="flex flex-wrap gap-1">
                       {model.startups.slice(0, 4).map((s) => (
                         <a
                           key={s.slug}
@@ -197,15 +198,15 @@ async function DashboardContent() {
                         >
                           <Badge
                             variant="outline"
-                            className="text-xs hover:bg-muted transition-colors cursor-pointer"
+                            className="text-[9px] py-0 h-5 hover:border-primary/40 hover:text-primary transition-colors cursor-pointer"
                           >
                             {s.name}
                           </Badge>
                         </a>
                       ))}
                       {model.startups.length > 4 && (
-                        <Badge variant="secondary" className="text-xs">
-                          +{model.startups.length - 4} more
+                        <Badge variant="secondary" className="text-[9px] py-0 h-5">
+                          +{model.startups.length - 4}
                         </Badge>
                       )}
                     </div>
@@ -217,24 +218,28 @@ async function DashboardContent() {
         </div>
 
         {/* Funding Charts */}
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           {/* Funding by Stage */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Funding by Stage</CardTitle>
+          <Card className="glow-card border-border/50">
+            <CardHeader className="pb-2">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+                Funding by Stage
+              </span>
             </CardHeader>
-            <CardContent>
-              <FundingDonutChart data={stats.funding_by_stage} height={280} />
+            <CardContent className="pt-0">
+              <FundingDonutChart data={stats.funding_by_stage} height={260} />
             </CardContent>
           </Card>
 
           {/* Geographic Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Funding by Region</CardTitle>
+          <Card className="glow-card border-border/50">
+            <CardHeader className="pb-2">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+                Funding by Region
+              </span>
             </CardHeader>
-            <CardContent>
-              <GeographicChart data={stats.funding_by_continent} height={250} />
+            <CardContent className="pt-0">
+              <GeographicChart data={stats.funding_by_continent} height={230} />
             </CardContent>
           </Card>
         </div>

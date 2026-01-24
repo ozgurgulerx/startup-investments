@@ -24,15 +24,16 @@ interface PatternBarChartProps {
   height?: number;
 }
 
+// Cyan/sky gradient palette
 const CHART_COLORS = [
-  'hsl(217, 91%, 60%)',  // Primary blue
-  'hsl(199, 89%, 48%)',  // Cyan
-  'hsl(172, 66%, 50%)',  // Teal
-  'hsl(142, 71%, 45%)',  // Green
-  'hsl(47, 96%, 53%)',   // Yellow
-  'hsl(27, 96%, 61%)',   // Orange
-  'hsl(348, 83%, 47%)',  // Red
-  'hsl(262, 83%, 58%)',  // Purple
+  'hsl(187, 94%, 43%)',  // Cyan-500
+  'hsl(187, 85%, 50%)',  // Cyan-400
+  'hsl(199, 89%, 48%)',  // Sky-500
+  'hsl(199, 80%, 55%)',  // Sky-400
+  'hsl(187, 70%, 58%)',  // Cyan-300
+  'hsl(199, 70%, 62%)',  // Sky-300
+  'hsl(187, 60%, 65%)',  // Cyan-200
+  'hsl(199, 60%, 68%)',  // Sky-200
 ];
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -98,27 +99,27 @@ export function PatternBarChart({ data, height = 300 }: PatternBarChartProps) {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(240, 3.7%, 15.9%)"
+            stroke="hsl(230, 12%, 14%)"
             horizontal={true}
             vertical={false}
           />
           <XAxis
             type="number"
-            stroke="hsl(240, 5%, 64.9%)"
-            fontSize={12}
+            stroke="hsl(230, 10%, 40%)"
+            fontSize={10}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             type="category"
             dataKey="shortName"
-            stroke="hsl(240, 5%, 64.9%)"
-            fontSize={12}
+            stroke="hsl(230, 10%, 40%)"
+            fontSize={10}
             tickLine={false}
             axisLine={false}
-            width={75}
+            width={70}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(240, 3.7%, 15.9%)', opacity: 0.5 }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(230, 12%, 14%)', opacity: 0.5 }} />
           <Bar
             dataKey="count"
             radius={[0, 4, 4, 0]}

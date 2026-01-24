@@ -30,7 +30,7 @@ function Sparkline({ data, index = 0 }: { data: number[]; index?: number }) {
   const range = max - min || 1;
 
   return (
-    <div className="flex items-end gap-0.5 h-6">
+    <div className="flex items-end gap-px h-5">
       {data.map((value, i) => {
         const height = ((value - min) / range) * 100;
         return (
@@ -38,8 +38,8 @@ function Sparkline({ data, index = 0 }: { data: number[]; index?: number }) {
             key={i}
             initial={{ height: 0 }}
             animate={{ height: `${Math.max(height, 10)}%` }}
-            transition={{ delay: index * 0.1 + 0.4 + i * 0.05, duration: 0.3 }}
-            className="flex-1 rounded-sm bg-foreground/20 dark:bg-foreground/15"
+            transition={{ delay: index * 0.1 + 0.4 + i * 0.04, duration: 0.25 }}
+            className="flex-1 rounded-sm bg-primary/30"
           />
         );
       })}
@@ -61,48 +61,52 @@ export function MetricsCard({
 }: MetricsCardProps) {
   const cardContent = (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.1 }}
-      whileHover={{ y: -2 }}
+      transition={{ duration: 0.25, delay: index * 0.08 }}
       className="h-full"
     >
       <Card
         className={cn(
-          'relative p-5 border border-border/60 bg-card hover:border-border transition-all duration-200 h-full',
+          'relative p-4 border border-border/50 bg-card glow-card overflow-hidden h-full',
           className
         )}
       >
+        {/* Accent bar at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary/60 to-sky-500/60" />
+
         <div className="relative z-10">
-          {/* Header with icon and title */}
-          <div className="flex items-center gap-2.5 mb-3">
+          {/* Header row with icon and title */}
+          <div className="flex items-center gap-2 mb-2">
             {(Icon || icon) && (
-              <div className="p-2 rounded-lg bg-muted/50 dark:bg-muted/30">
+              <div className="p-1.5 rounded bg-muted/40">
                 {Icon ? (
-                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <Icon className="h-3.5 w-3.5 text-primary/70" strokeWidth={1.5} />
                 ) : (
                   icon
                 )}
               </div>
             )}
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
               {title}
-            </p>
+            </span>
           </div>
 
-          {/* Main value */}
-          <motion.p
-            initial={{ scale: 0.9, opacity: 0 }}
+          {/* Main value with glow */}
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: index * 0.1 + 0.2, duration: 0.3 }}
-            className="text-3xl font-semibold tabular-nums text-foreground mb-3"
+            transition={{ delay: index * 0.08 + 0.15, duration: 0.2 }}
+            className="mb-2"
           >
-            {value}
-          </motion.p>
+            <span className="text-2xl font-semibold mono-numbers text-foreground glow-text-subtle">
+              {value}
+            </span>
+          </motion.div>
 
           {/* Sparkline */}
           {sparkline && sparkline.length > 0 && (
-            <div className="mb-3">
+            <div className="mb-2">
               <Sparkline data={sparkline} index={index} />
             </div>
           )}
@@ -113,21 +117,21 @@ export function MetricsCard({
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ delay: index * 0.1 + 0.3, type: 'spring' }}
+                transition={{ delay: index * 0.08 + 0.2, type: 'spring', stiffness: 300 }}
                 className={cn(
-                  'flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
-                  change.direction === 'up' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-                  change.direction === 'down' && 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+                  'flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium',
+                  change.direction === 'up' && 'bg-emerald-500/15 text-emerald-400',
+                  change.direction === 'down' && 'bg-rose-500/15 text-rose-400',
                   change.direction === 'neutral' && 'bg-muted text-muted-foreground'
                 )}
               >
-                {change.direction === 'up' && <ArrowUpRight className="h-3 w-3" />}
-                {change.direction === 'down' && <ArrowDownRight className="h-3 w-3" />}
-                {change.direction === 'neutral' && <Minus className="h-3 w-3" />}
+                {change.direction === 'up' && <ArrowUpRight className="h-2.5 w-2.5" />}
+                {change.direction === 'down' && <ArrowDownRight className="h-2.5 w-2.5" />}
+                {change.direction === 'neutral' && <Minus className="h-2.5 w-2.5" />}
                 <span>{change.value}</span>
               </motion.div>
               {subtitle && (
-                <span className="text-xs text-muted-foreground">{subtitle}</span>
+                <span className="text-[10px] text-muted-foreground">{subtitle}</span>
               )}
             </div>
           )}
@@ -142,7 +146,7 @@ export function MetricsCard({
         <Tooltip>
           <TooltipTrigger asChild>{cardContent}</TooltipTrigger>
           <TooltipContent>
-            <p>{tooltip}</p>
+            <p className="text-xs">{tooltip}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
