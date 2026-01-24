@@ -1,0 +1,687 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Light mode (default) */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 9%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.5rem;
+
+    /* Chart colors for light mode */
+    --chart-1: 217 91% 60%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 262 83% 58%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 0 84% 60%;
+  }
+
+  /* Dark mode */
+  .dark {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 64%;
+
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 9%;
+
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 217 91% 60%;
+
+    /* Chart colors for dark mode */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Number formatting */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(
+    to right,
+    hsl(var(--primary)),
+    hsl(217 91% 75%)
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card hover effect */
+.card-hover {
+  @apply transition-all duration-300;
+}
+
+.card-hover:hover {
+  @apply border-primary/30 shadow-xl;
+  transform: translateY(-4px);
+}
+
+/* Focus visible */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+}
+
+/* Animate on scroll */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.5s ease-out,
+    transform 0.5s ease-out;
+}
+
+.animate-on-scroll.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Pattern badge colors - Light mode */
+.pattern-agentic {
+  @apply bg-blue-100 text-blue-700 border-blue-200;
+}
+.dark .pattern-agentic {
+  @apply bg-blue-500/10 text-blue-400 border-blue-500/20;
+}
+
+.pattern-vertical-data {
+  @apply bg-green-100 text-green-700 border-green-200;
+}
+.dark .pattern-vertical-data {
+  @apply bg-green-500/10 text-green-400 border-green-500/20;
+}
+
+.pattern-rag {
+  @apply bg-purple-100 text-purple-700 border-purple-200;
+}
+.dark .pattern-rag {
+  @apply bg-purple-500/10 text-purple-400 border-purple-500/20;
+}
+
+.pattern-micro-model {
+  @apply bg-orange-100 text-orange-700 border-orange-200;
+}
+.dark .pattern-micro-model {
+  @apply bg-orange-500/10 text-orange-400 border-orange-500/20;
+}
+
+.pattern-flywheel {
+  @apply bg-cyan-100 text-cyan-700 border-cyan-200;
+}
+.dark .pattern-flywheel {
+  @apply bg-cyan-500/10 text-cyan-400 border-cyan-500/20;
+}
+
+.pattern-guardrail {
+  @apply bg-red-100 text-red-700 border-red-200;
+}
+.dark .pattern-guardrail {
+  @apply bg-red-500/10 text-red-400 border-red-500/20;
+}
+
+/* Stage badge colors - Light mode */
+.stage-seed {
+  @apply bg-emerald-100 text-emerald-700;
+}
+.dark .stage-seed {
+  @apply bg-emerald-500/10 text-emerald-400;
+}
+
+.stage-series-a {
+  @apply bg-blue-100 text-blue-700;
+}
+.dark .stage-series-a {
+  @apply bg-blue-500/10 text-blue-400;
+}
+
+.stage-series-b {
+  @apply bg-violet-100 text-violet-700;
+}
+.dark .stage-series-b {
+  @apply bg-violet-500/10 text-violet-400;
+}
+
+.stage-series-c {
+  @apply bg-amber-100 text-amber-700;
+}
+.dark .stage-series-c {
+  @apply bg-amber-500/10 text-amber-400;
+}
+
+.stage-series-d {
+  @apply bg-rose-100 text-rose-700;
+}
+.dark .stage-series-d {
+  @apply bg-rose-500/10 text-rose-400;
+}
+
+/* Chart styling */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: hsl(var(--border));
+}
+
+.recharts-text {
+  fill: hsl(var(--muted-foreground));
+  font-size: 12px;
+}
+
+/* Metric card gradient backgrounds */
+.metric-gradient-blue {
+  @apply bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200;
+}
+.dark .metric-gradient-blue {
+  @apply bg-gradient-to-br from-blue-950/50 to-cyan-950/50 border-blue-800/50;
+}
+
+.metric-gradient-green {
+  @apply bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200;
+}
+.dark .metric-gradient-green {
+  @apply bg-gradient-to-br from-emerald-950/50 to-teal-950/50 border-emerald-800/50;
+}
+
+.metric-gradient-purple {
+  @apply bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200;
+}
+.dark .metric-gradient-purple {
+  @apply bg-gradient-to-br from-purple-950/50 to-pink-950/50 border-purple-800/50;
+}
+
+.metric-gradient-orange {
+  @apply bg-gradient-to-br from-orange-50 to-red-50 border-orange-200;
+}
+.dark .metric-gradient-orange {
+  @apply bg-gradient-to-br from-orange-950/50 to-red-950/50 border-orange-800/50;
+}
+
+/* Icon glow effects */
+.icon-glow-blue {
+  @apply bg-gradient-to-br from-blue-600 to-cyan-600 shadow-lg shadow-blue-500/25;
+}
+
+.icon-glow-green {
+  @apply bg-gradient-to-br from-emerald-600 to-teal-600 shadow-lg shadow-emerald-500/25;
+}
+
+.icon-glow-purple {
+  @apply bg-gradient-to-br from-purple-600 to-pink-600 shadow-lg shadow-purple-500/25;
+}
+
+.icon-glow-orange {
+  @apply bg-gradient-to-br from-orange-600 to-red-600 shadow-lg shadow-orange-500/25;
+}
+
+/* Animation utilities */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+/* ============================================
+   Newsletter Styles
+   ============================================ */
+
+.newsletter-card {
+  @apply border-primary/10;
+}
+.dark .newsletter-card {
+  @apply bg-gradient-to-br from-card to-card/80;
+}
+
+.newsletter-content {
+  @apply text-muted-foreground leading-relaxed;
+}
+
+.newsletter-h1 {
+  @apply text-3xl md:text-4xl font-bold text-foreground mt-2 mb-6;
+  @apply bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent;
+}
+
+.newsletter-h2 {
+  @apply text-2xl font-semibold text-foreground mt-10 mb-4;
+  @apply pb-2 border-b border-border/50;
+}
+
+.newsletter-h3 {
+  @apply text-xl font-medium text-foreground mt-6 mb-3;
+}
+
+.newsletter-h4 {
+  @apply text-lg font-medium mt-4 mb-2;
+}
+.newsletter-h4 {
+  @apply text-foreground/90;
+}
+.dark .newsletter-h4 {
+  @apply text-foreground/90;
+}
+
+.newsletter-paragraph {
+  @apply my-4 text-muted-foreground;
+}
+
+.newsletter-blockquote {
+  @apply pl-4 border-l-4 border-primary/50 my-4 py-2;
+  @apply text-muted-foreground italic rounded-r-lg pr-4;
+}
+.newsletter-blockquote {
+  @apply bg-primary/5;
+}
+.dark .newsletter-blockquote {
+  @apply bg-primary/5;
+}
+
+.newsletter-bold {
+  @apply text-foreground font-semibold;
+}
+
+.newsletter-italic {
+  @apply text-muted-foreground/80;
+}
+
+.newsletter-inline-code {
+  @apply px-1.5 py-0.5 rounded text-sm font-mono;
+}
+.newsletter-inline-code {
+  @apply bg-muted text-primary;
+}
+.dark .newsletter-inline-code {
+  @apply bg-muted text-primary;
+}
+
+.newsletter-codeblock {
+  @apply p-4 rounded-lg my-4 overflow-x-auto;
+  @apply text-sm font-mono;
+  @apply border border-border/50;
+}
+.newsletter-codeblock {
+  @apply bg-muted/50 text-foreground/90;
+}
+.dark .newsletter-codeblock {
+  @apply bg-muted/70 text-foreground/90;
+}
+
+.newsletter-table {
+  @apply w-full my-6 border-collapse rounded-lg overflow-hidden;
+  @apply border border-border/50;
+}
+
+/* Header row styling */
+.newsletter-table-row:first-child .newsletter-table-cell {
+  @apply font-semibold text-foreground;
+  @apply bg-muted/50;
+}
+.dark .newsletter-table-row:first-child .newsletter-table-cell {
+  @apply bg-muted/30;
+}
+
+/* Alternating row colors */
+.newsletter-table-row:nth-child(even) .newsletter-table-cell {
+  @apply bg-muted/20;
+}
+.dark .newsletter-table-row:nth-child(even) .newsletter-table-cell {
+  @apply bg-muted/10;
+}
+
+.newsletter-table-row:nth-child(odd):not(:first-child) .newsletter-table-cell {
+  @apply bg-transparent;
+}
+
+.newsletter-table-cell {
+  @apply border-b border-r border-border/30 px-4 py-2.5 text-sm;
+  @apply text-muted-foreground;
+}
+
+.newsletter-table-cell:last-child {
+  @apply border-r-0;
+}
+
+.newsletter-table-row:last-child .newsletter-table-cell {
+  @apply border-b-0;
+}
+
+.newsletter-list {
+  @apply my-4 pl-6 space-y-2;
+  list-style-type: disc;
+}
+
+.newsletter-list-numbered {
+  @apply my-4 pl-6 space-y-2;
+  list-style-type: decimal;
+}
+
+.newsletter-list-item,
+.newsletter-list-item-numbered {
+  @apply text-muted-foreground;
+}
+
+.newsletter-divider {
+  @apply my-10 border-t border-border/30;
+  @apply relative;
+}
+
+.newsletter-divider::after {
+  content: '';
+  @apply absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2;
+  @apply w-8 h-1 bg-gradient-to-r from-primary/50 to-blue-500/50 rounded-full;
+}
+
+/* ============================================
+   Startup Brief Styles
+   ============================================ */
+
+.brief-h1 {
+  @apply text-2xl font-bold text-foreground mt-4 mb-4;
+}
+
+.brief-h2 {
+  @apply text-lg font-semibold text-foreground mt-6 mb-3;
+  @apply pb-1.5 border-b border-border/40;
+}
+
+.brief-h3 {
+  @apply text-base font-medium text-foreground mt-4 mb-2;
+}
+
+.brief-h4 {
+  @apply text-sm font-medium mt-3 mb-1.5;
+}
+.brief-h4 {
+  @apply text-foreground/90;
+}
+.dark .brief-h4 {
+  @apply text-foreground/90;
+}
+
+.brief-paragraph {
+  @apply my-3 text-sm text-muted-foreground;
+}
+
+.brief-blockquote {
+  @apply pl-3 border-l-2 border-primary/40 my-3 py-1;
+  @apply text-sm text-muted-foreground rounded-r pr-3;
+}
+.brief-blockquote {
+  @apply bg-primary/5;
+}
+.dark .brief-blockquote {
+  @apply bg-primary/5;
+}
+
+.brief-bold {
+  @apply text-foreground font-medium;
+}
+
+.brief-italic {
+  @apply text-muted-foreground/80;
+}
+
+.brief-inline-code {
+  @apply px-1 py-0.5 rounded text-xs font-mono;
+}
+.brief-inline-code {
+  @apply bg-muted text-primary/90;
+}
+.dark .brief-inline-code {
+  @apply bg-muted text-primary/90;
+}
+
+.brief-codeblock {
+  @apply p-3 rounded-lg my-3 overflow-x-auto;
+  @apply text-xs font-mono;
+}
+.brief-codeblock {
+  @apply bg-muted/30 text-foreground/80;
+}
+.dark .brief-codeblock {
+  @apply bg-muted/50 text-foreground/80;
+}
+
+.brief-table {
+  @apply w-full my-4 border-collapse text-sm rounded-lg overflow-hidden;
+  @apply border border-border/40;
+}
+
+/* Header row styling */
+.brief-table-row:first-child .brief-table-cell {
+  @apply font-medium text-foreground;
+  @apply bg-muted/40;
+}
+.dark .brief-table-row:first-child .brief-table-cell {
+  @apply bg-muted/25;
+}
+
+/* Alternating row colors */
+.brief-table-row:nth-child(even) .brief-table-cell {
+  @apply bg-muted/15;
+}
+.dark .brief-table-row:nth-child(even) .brief-table-cell {
+  @apply bg-muted/10;
+}
+
+.brief-table-row:nth-child(odd):not(:first-child) .brief-table-cell {
+  @apply bg-transparent;
+}
+
+.brief-table-cell {
+  @apply border-b border-r border-border/30 px-3 py-2;
+  @apply text-muted-foreground;
+}
+
+.brief-table-cell:last-child {
+  @apply border-r-0;
+}
+
+.brief-table-row:last-child .brief-table-cell {
+  @apply border-b-0;
+}
+
+.brief-list {
+  @apply my-3 pl-5 space-y-1.5;
+  list-style-type: disc;
+}
+
+.brief-list-numbered {
+  @apply my-3 pl-5 space-y-1.5;
+  list-style-type: decimal;
+}
+
+.brief-list-item,
+.brief-list-item-num {
+  @apply text-sm text-muted-foreground;
+}
+
+.brief-divider {
+  @apply my-6 border-t border-border/30;
+}
+
+/* Confidence bar styling for patterns */
+.confidence-bar {
+  @apply h-1.5 rounded-full overflow-hidden;
+}
+.confidence-bar {
+  @apply bg-muted;
+}
+.dark .confidence-bar {
+  @apply bg-muted;
+}
+
+.confidence-bar-fill {
+  @apply h-full bg-gradient-to-r from-primary to-blue-400 rounded-full;
+  transition: width 0.5s ease-out;
+}
+
+/* Moat badge styling */
+.moat-strong {
+  @apply font-semibold;
+}
+.moat-strong {
+  @apply text-green-600;
+}
+.dark .moat-strong {
+  @apply text-green-400;
+}
+
+.moat-medium {
+  @apply font-medium;
+}
+.moat-medium {
+  @apply text-yellow-600;
+}
+.dark .moat-medium {
+  @apply text-yellow-400;
+}
+
+.moat-weak {
+  @apply text-red-500;
+}
+.dark .moat-weak {
+  @apply text-red-400;
+}
