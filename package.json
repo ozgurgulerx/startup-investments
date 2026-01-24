@@ -1,15 +1,28 @@
 {
-  "name": "startup-intelligence",
+  "name": "startup-investments",
   "version": "0.1.0",
   "private": true,
-  "description": "AI Startup Intelligence Platform - Monthly funding analysis and insights",
+  "description": "Startup Investments Platform - Full-stack funding analysis and insights",
   "scripts": {
     "dev": "pnpm --filter web dev",
-    "build": "pnpm --filter web build",
+    "dev:api": "pnpm --filter @startup-investments/api dev",
+    "dev:all": "./scripts/dev-start.sh",
+    "build": "pnpm --filter web build && pnpm --filter @startup-investments/api build",
+    "build:web": "pnpm --filter web build",
+    "build:api": "pnpm --filter @startup-investments/api build",
     "start": "pnpm --filter web start",
-    "lint": "pnpm --filter web lint",
+    "start:api": "pnpm --filter @startup-investments/api start",
+    "lint": "pnpm -r lint",
     "type-check": "pnpm --filter web type-check",
-    "clean": "pnpm -r exec rm -rf node_modules .next .turbo dist"
+    "clean": "pnpm -r exec rm -rf node_modules .next .turbo dist",
+    "setup": "./scripts/dev-setup.sh",
+    "db:start": "docker-compose up -d postgres",
+    "db:stop": "docker-compose down",
+    "db:seed": "./scripts/db-seed.sh",
+    "db:reset": "docker-compose down -v && docker-compose up -d postgres && sleep 5 && ./scripts/db-seed.sh",
+    "db:logs": "docker-compose logs -f postgres",
+    "docker:full": "docker-compose --profile full up -d",
+    "docker:tools": "docker-compose --profile tools up -d"
   },
   "keywords": [
     "ai",
