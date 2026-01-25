@@ -2,88 +2,66 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  LayoutDashboard,
-  Building2,
-  Layers,
-  TrendingUp,
-  Newspaper,
-  MessageSquare,
-  Settings,
-} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui';
 
 interface NavItem {
   label: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { label: 'Startups', href: '/startups', icon: Building2 },
-  { label: 'Patterns', href: '/patterns', icon: Layers },
-  { label: 'Trends', href: '/trends', icon: TrendingUp },
-  { label: 'Newsletter', href: '/newsletter', icon: Newspaper },
+  { label: 'Briefing', href: '/' },
+  { label: 'Company Intelligence', href: '/startups' },
+  { label: 'Build Signals', href: '/patterns' },
+  { label: 'Capital & Momentum', href: '/trends' },
+  { label: 'AI Landscape Brief', href: '/newsletter' },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-background">
+    <aside className="fixed left-0 top-0 z-40 h-screen w-56 border-r border-border/50 bg-background">
       <div className="flex h-full flex-col">
-        {/* Logo */}
-        <div className="flex h-16 items-center border-b border-border px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Layers className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold">Build Patterns</span>
-              <span className="text-xs text-muted-foreground">Intelligence</span>
-            </div>
+        {/* Logo - Minimal */}
+        <div className="px-6 py-8">
+          <Link href="/" className="block">
+            <span className="text-sm font-medium text-foreground tracking-tight">
+              Build Patterns
+            </span>
+            <span className="block text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
+              Intelligence
+            </span>
           </Link>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-4">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link key={item.href} href={item.href}>
-                <Button
-                  variant={isActive ? 'secondary' : 'ghost'}
+        {/* Navigation - Quiet */}
+        <nav className="flex-1 px-4">
+          <div className="space-y-0.5">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href ||
+                (item.href !== '/' && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
                   className={cn(
-                    'w-full justify-start gap-3',
-                    isActive && 'bg-primary/10 text-primary'
+                    'nav-item rounded-sm',
+                    isActive && 'active'
                   )}
                 >
-                  <item.icon className="h-4 w-4" />
                   {item.label}
-                </Button>
-              </Link>
-            );
-          })}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
 
-        {/* Bottom section */}
-        <div className="border-t border-border p-4">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 text-muted-foreground"
-          >
-            <MessageSquare className="h-4 w-4" />
-            Ask AI
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 text-muted-foreground"
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </Button>
+        {/* Footer - Minimal */}
+        <div className="px-6 py-6 border-t border-border/30">
+          <p className="text-[10px] text-muted-foreground/60">
+            January 2026
+          </p>
         </div>
       </div>
     </aside>
