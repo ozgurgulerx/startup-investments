@@ -1,4 +1,4 @@
-name: Deploy Frontend to Azure Static Web Apps
+name: Deploy Frontend to Azure App Service
 
 on:
   push:
@@ -7,23 +7,20 @@ on:
     paths:
       - 'apps/web/**'
       - 'packages/shared/**'
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-    branches:
-      - main
-    paths:
-      - 'apps/web/**'
-      - 'packages/shared/**'
+      - '.github/workflows/frontend-deploy.yml'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: buildatlas-web
+  NODE_VERSION: '20.x'
 
 jobs:
-  build_and_deploy:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+  build-and-deploy:
     runs-on: ubuntu-latest
     name: Build and Deploy
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -33,44 +30,38 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build frontend (hybrid mode)
+      - name: Build frontend
         run: pnpm --filter web build
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
-          API_KEY: ${{ secrets.API_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          # No STATIC_EXPORT - use hybrid mode for auth support
 
-      - name: Deploy to Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          action: "upload"
-          app_location: "apps/web"
-          output_location: ".next"
-          skip_app_build: true
-        env:
-          NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      - name: Prepare deployment package
+        run: |
+          cd apps/web
+          # Copy standalone output
+          mkdir -p deploy
+          cp -r .next/standalone/. deploy/
+          # Copy static files
+          mkdir -p deploy/.next/static
+          cp -r .next/static/. deploy/.next/static/
+          cp -r public deploy/public
+          # Create package.json for Azure
+          echo '{"scripts":{"start":"node server.js"}}' > deploy/package.json
 
-  close_pull_request:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    name: Close Pull Request
-    steps:
-      - name: Close Pull Request
-        uses: Azure/static-web-apps-deploy@v1
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          action: "close"
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: apps/web/deploy
