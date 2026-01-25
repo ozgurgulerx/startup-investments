@@ -1,10 +1,33 @@
 # Claude Code Guidelines
 
+## Git Workflow
+
+**Push code after every change.** Do not accumulate changes locally.
+
+```bash
+git add -A && git commit -m "Description of change" && git push
+```
+
+- Commit messages should be concise and descriptive
+- Push immediately after completing each task or fix
+- CI/CD will auto-deploy based on changed paths
+
 ## Database Safety
 
 - **Never delete any data from the database unless explicitly asked**
 - Even when explicitly asked to delete data, always ask for confirmation before executing the deletion
 - Prefer soft deletes (marking records as inactive/deleted) over hard deletes when possible
+
+## API Security Architecture
+
+**Direct access to the API is blocked.** All requests must go through Azure Front Door.
+
+- **Production URL**: `https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net`
+- **API Key required**: Include `X-API-Key` header on all `/api/*` requests
+- **Health endpoint**: `/health` is public (no auth) for K8s probes
+- **AKS IP (172.211.176.100)**: Direct access returns 403 Forbidden
+
+When making API calls from frontend code, always use the Front Door URL and include the API key header.
 
 ## Backend (API) Deployment to AKS
 
@@ -47,21 +70,29 @@ az postgres flexible-server start --resource-group aistartupstr --name aistartup
 ```
 
 ### API Endpoints
-- **Health**: `http://172.211.176.100/health` (no auth required)
-- **API**: `http://172.211.176.100/api/v1/*` (requires `X-API-Key` header)
+- **Front Door (production)**: `https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net`
+- **Direct (blocked except health)**: `http://172.211.176.100`
+- **Health**: `/health` (no auth required, for K8s probes)
+- **API**: `/api/v1/*` (requires `X-API-Key` header)
+
+### Security Layers
+1. **Front Door ID validation** - Direct access to AKS is blocked; must go through Front Door
+2. **API Key authentication** - All API requests require `X-API-Key` header
+3. **CORS** - Browser requests restricted to allowed origins
 
 ### Secrets (in K8s)
 ```bash
-# Update secrets
+# Update secrets (includes Front Door ID)
 kubectl create secret generic startup-investments-secrets \
   --from-literal=database-url="$DATABASE_URL" \
   --from-literal=api-key="$API_KEY" \
+  --from-literal=front-door-id="$FRONT_DOOR_ID" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ### CI/CD
 Backend auto-deploys on push to `main` when `apps/api/**` or `infrastructure/kubernetes/**` changes.
-Required GitHub secrets: `AZURE_CREDENTIALS`, `DATABASE_URL`, `API_KEY`
+Required GitHub secrets: `AZURE_CREDENTIALS`, `DATABASE_URL`, `API_KEY`, `FRONT_DOOR_ID`
 
 ## Azure Static Web Apps Deployment
 
