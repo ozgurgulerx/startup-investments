@@ -11,3 +11,4 @@ export { TrendingStartups } from './trending-startups';
 export { NewsletterRenderer } from './newsletter-renderer';
 export { BriefingClient } from './briefing-client';
 export type { BriefingData } from './briefing-client';
+export { IntelligenceBrief } from './intelligence-brief';

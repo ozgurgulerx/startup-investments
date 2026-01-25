@@ -228,20 +228,37 @@ async function generateBriefing(period: string): Promise<BriefingData> {
 async function main() {
   console.log('Generating briefing JSON files...');
 
-  // Ensure output directory exists
+  // Ensure output directories exist
   await fs.mkdir(OUTPUT_PATH, { recursive: true });
+  const BRIEFS_PATH = path.join(process.cwd(), 'public', 'data', 'briefs');
+  await fs.mkdir(BRIEFS_PATH, { recursive: true });
 
   // Get all available periods
   const periods = await getAvailablePeriods();
   console.log(`Found ${periods.length} periods:`, periods);
 
+  // Import the new brief generator
+  const { generateMonthlyBrief } = await import('../lib/data/generate-monthly-brief');
+
   // Generate briefing for each period
   for (const period of periods) {
     try {
+      // Generate old format (for backward compatibility)
       const briefing = await generateBriefing(period);
       const outputFile = path.join(OUTPUT_PATH, `${period}.json`);
       await fs.writeFile(outputFile, JSON.stringify(briefing, null, 2));
-      console.log(`  ✓ Generated ${period}.json`);
+      console.log(`  ✓ Generated briefings/${period}.json (legacy)`);
+
+      // Generate new Intelligence Brief format
+      const brief = await generateMonthlyBrief(period);
+      const briefFile = path.join(BRIEFS_PATH, `${period}.json`);
+      await fs.writeFile(briefFile, JSON.stringify(brief, null, 2));
+      console.log(`  ✓ Generated briefs/${period}.json (new)`);
+
+      // Also save to data directory for server-side use
+      const dataOutputPath = path.join(DATA_PATH, period, 'output', 'monthly_brief.json');
+      await fs.writeFile(dataOutputPath, JSON.stringify(brief, null, 2));
+      console.log(`  ✓ Generated data/${period}/output/monthly_brief.json`);
     } catch (error) {
       console.error(`  ✗ Failed to generate ${period}:`, error);
     }
