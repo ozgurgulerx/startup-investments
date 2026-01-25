@@ -12,6 +12,19 @@ dotenv.config();
 const app: Express = express();
 const PORT = process.env.PORT || 3001;
 
+// Health check endpoint - MUST be before any auth middleware for K8s probes
+app.get('/health', async (req, res) => {
+  const dbConnected = await testConnection(1, 0);
+  const poolStats = getPoolStats();
+
+  res.json({
+    status: dbConnected ? 'healthy' : 'degraded',
+    timestamp: new Date().toISOString(),
+    database: dbConnected ? 'connected' : 'disconnected',
+    pool: poolStats,
+  });
+});
+
 // API Key for authentication
 const API_KEY = process.env.API_KEY;
 
@@ -130,19 +143,6 @@ app.use((req, res, next) => {
   }
 
   next();
-});
-
-// Health check endpoint
-app.get('/health', async (req, res) => {
-  const dbConnected = await testConnection(1, 0); // Single quick check for health endpoint
-  const poolStats = getPoolStats();
-
-  res.json({
-    status: dbConnected ? 'healthy' : 'degraded',
-    timestamp: new Date().toISOString(),
-    database: dbConnected ? 'connected' : 'disconnected',
-    pool: poolStats,
-  });
 });
 
 // =============================================================================
