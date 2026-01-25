@@ -796,28 +796,13 @@ function MethodologySection({
 
       {isOpen && (
         <div className="mt-4 p-4 border border-border/30 rounded-lg bg-muted/10">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="text-sm font-medium mb-2">How We Analyzed</h4>
-              <ul className="space-y-1">
-                {methodology.bullets.map((bullet, i) => (
-                  <li key={i} className="text-xs text-muted-foreground">
-                    • {bullet}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium mb-2">Data Sources</h4>
-              <ul className="space-y-1">
-                {methodology.dataSources.map((source, i) => (
-                  <li key={i} className="text-xs text-muted-foreground">
-                    • {source}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          <ul className="space-y-1">
+            {methodology.bullets.map((bullet, i) => (
+              <li key={i} className="text-xs text-muted-foreground">
+                • {bullet}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </section>

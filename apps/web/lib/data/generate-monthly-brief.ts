@@ -230,17 +230,10 @@ export async function generateMonthlyBrief(period: string): Promise<MonthlyBrief
 
   const methodology = {
     bullets: [
-      `Analyzed ${stats.deal_summary.total_deals} funding rounds announced in ${month} ${year}`,
-      'Crawled and analyzed public company websites, documentation, and press releases',
-      'Applied LLM-based pattern detection to identify build patterns and technical approaches',
-      'Computed statistics from funding announcements and company data',
+      `${stats.deal_summary.total_deals} funding rounds analyzed for ${month} ${year}`,
+      'AI-powered pattern detection across public company information',
     ],
-    dataSources: [
-      'Crunchbase funding announcements',
-      'Company websites and documentation',
-      'Press releases and news articles',
-      'GitHub and public code repositories',
-    ],
+    dataSources: [],
   };
 
   return {
