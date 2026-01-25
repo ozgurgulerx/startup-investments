@@ -12,7 +12,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   {
-    label: 'Atlas Brief',
+    label: 'Brief',
     href: '/app/brief',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,7 +39,7 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    label: 'Capital Flows',
+    label: 'Capital',
     href: '/app/capital',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,7 +77,8 @@ export function AppSidebar() {
       <div className="flex h-full flex-col">
         {/* Logo */}
         <div className="px-6 py-6">
-          <Link href="/" className="block">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-accent" />
             <span className="text-sm font-medium text-foreground tracking-tight">
               Build Atlas
             </span>

@@ -12,10 +12,10 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Atlas Brief', href: '/brief' },
+  { label: 'Brief', href: '/brief' },
   { label: 'Dossiers', href: '/dealbook' },
   { label: 'Signals', href: '/signals' },
-  { label: 'Capital Flows', href: '/capital' },
+  { label: 'Capital', href: '/capital' },
   { label: 'Library', href: '/library' },
   { label: 'Watchlist', href: '/watchlist', showBadge: true },
 ];
@@ -28,7 +28,8 @@ export function Sidebar() {
       <div className="flex h-full flex-col">
         {/* Logo - Minimal */}
         <div className="px-6 py-8">
-          <Link href="/" className="block">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-accent" />
             <span className="text-sm font-medium text-foreground tracking-tight">
               Build Atlas
             </span>

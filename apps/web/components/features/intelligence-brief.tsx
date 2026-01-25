@@ -110,8 +110,8 @@ export function IntelligenceBrief({
       {/* Featured Spotlight */}
       {brief.spotlight && <SpotlightSection spotlight={brief.spotlight} />}
 
-      {/* Builder Lessons & What We're Watching */}
-      <BuilderInsights
+      {/* Implications & What We're Watching */}
+      <Implications
         lessons={brief.builderLessons}
         watching={brief.whatWatching}
       />
@@ -362,7 +362,7 @@ function PatternLandscape({
             className="p-4 border border-border/30 rounded-lg bg-muted/20"
           >
             <p className="text-xs text-accent mb-1">
-              #{i + 1} Builder Signal
+              #{i + 1} Signal
             </p>
             <p className="font-medium text-sm mb-2">{signal.pattern}</p>
             <p className="text-xs text-muted-foreground">{signal.signal}</p>
@@ -710,7 +710,7 @@ function SpotlightSection({
             <p className="text-sm">{spotlight.risk}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Builder Takeaway</p>
+            <p className="text-xs text-muted-foreground mb-1">Key Takeaway</p>
             <p className="text-sm">{spotlight.builderTakeaway}</p>
           </div>
         </div>
@@ -719,7 +719,7 @@ function SpotlightSection({
   );
 }
 
-function BuilderInsights({
+function Implications({
   lessons,
   watching,
 }: {
@@ -729,10 +729,10 @@ function BuilderInsights({
   return (
     <section className="section">
       <div className="grid md:grid-cols-2 gap-8">
-        {/* Builder Lessons */}
+        {/* Implications */}
         <div>
           <h3 className="text-lg font-medium text-foreground mb-4">
-            Builder Lessons
+            Implications
           </h3>
           <div className="space-y-4">
             {lessons.map((lesson, i) => (

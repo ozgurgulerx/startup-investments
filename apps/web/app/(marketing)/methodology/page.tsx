@@ -5,9 +5,11 @@ export default function MethodologyPage() {
     <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/30">
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent/60 via-accent to-accent/60" />
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="text-base font-medium text-foreground tracking-tight">
-            Build Atlas
+          <Link href="/" className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-accent" />
+            <span className="text-base font-medium text-foreground tracking-tight">Build Atlas</span>
           </Link>
           <div className="flex items-center gap-6">
             <Link
@@ -39,7 +41,7 @@ export default function MethodologyPage() {
 
           <p className="text-lg text-muted-foreground mb-12 leading-relaxed">
             Build Atlas combines automated data collection, architecture detection,
-            and editorial review to decode how AI startups are built.
+            and editorial review to deliver actionable startup intelligence for builders and investors.
           </p>
 
           <div className="space-y-12">
@@ -104,7 +106,7 @@ export default function MethodologyPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent">•</span>
-                  <strong className="text-foreground">Builder implications:</strong> Implementation considerations and tradeoffs
+                  <strong className="text-foreground">Implications:</strong> Considerations for builders and investors
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent">•</span>
@@ -137,7 +139,7 @@ export default function MethodologyPage() {
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">3</span>
-                  <span>Generate thesis and builder implications using LLM synthesis</span>
+                  <span>Generate thesis and implications for builders and investors using LLM synthesis</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">4</span>
@@ -193,7 +195,17 @@ export default function MethodologyPage() {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-border/30">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <span className="text-sm font-medium text-foreground">Build Atlas</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-accent" />
+            <span className="text-sm font-medium text-foreground">Build Atlas</span>
+          </div>
+          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <Link href="/methodology" className="text-foreground">Methodology</Link>
+            <Link href="/brief" className="hover:text-accent transition-colors">Brief</Link>
+            <Link href="/dealbook" className="hover:text-accent transition-colors">Dossiers</Link>
+            <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+          </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas
           </p>

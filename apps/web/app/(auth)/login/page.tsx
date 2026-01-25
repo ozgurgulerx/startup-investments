@@ -1,8 +1,16 @@
+'use client';
+
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { LoginForm } from '@/components/auth/login-form';
+import { useAudience } from '@/lib/audience-context';
+import { AudienceToggle } from '@/components/ui/audience-toggle';
+import { COPY, SUPPORTING_LINE, METRICS, SIGN_IN_COPY } from '@/lib/copy';
 
 function LoginPageContent() {
+  const { audience } = useAudience();
+  const copy = COPY[audience];
+
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left side - Branding */}
@@ -20,30 +28,34 @@ function LoginPageContent() {
 
         {/* Value proposition */}
         <div className="space-y-8 max-w-md">
+          {/* Audience Toggle */}
+          <AudienceToggle />
+
           <div>
             <h1 className="text-4xl font-light tracking-tight text-foreground mb-4 leading-tight">
-              How AI startups are{' '}
-              <span className="text-accent">really</span> built.
+              {copy.heroHeadline}
             </h1>
-            <p className="body-lg">
-              Build Atlas decodes funded AI startups into clear dossiers:
-              product wedge, architecture, data moat, and go-to-market.
+            <p className="body-lg mb-6">
+              {copy.heroSubhead}
+            </p>
+            <p className="text-sm text-muted-foreground/80">
+              {SUPPORTING_LINE}
             </p>
           </div>
 
           {/* Stats with accent border */}
           <div className="flex gap-10 pt-6 border-t border-accent/30">
             <div>
-              <p className="text-3xl font-light tabular-nums text-foreground">201</p>
-              <p className="label-xs mt-1">Dossiers</p>
+              <p className="text-3xl font-light tabular-nums text-foreground">{METRICS.companies.value}</p>
+              <p className="label-xs mt-1">{METRICS.companies.shortLabel}</p>
             </div>
             <div>
-              <p className="text-3xl font-light tabular-nums text-foreground">$31.1B</p>
-              <p className="label-xs mt-1">Capital Tracked</p>
+              <p className="text-3xl font-light tabular-nums text-accent">{METRICS.capital.value}</p>
+              <p className="label-xs mt-1">{METRICS.capital.shortLabel}</p>
             </div>
             <div>
-              <p className="text-3xl font-light tabular-nums text-foreground">6</p>
-              <p className="label-xs mt-1">Patterns</p>
+              <p className="text-3xl font-light tabular-nums text-foreground">{METRICS.patterns.value}</p>
+              <p className="label-xs mt-1">{METRICS.patterns.shortLabel}</p>
             </div>
           </div>
         </div>
@@ -58,15 +70,18 @@ function LoginPageContent() {
       <div className="flex-1 flex items-center justify-center p-8 lg:p-12">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
-          <Link href="/" className="text-base font-medium text-foreground tracking-tight mb-10 block lg:hidden">
-            Build Atlas
+          <Link href="/" className="flex items-center gap-2 mb-10 lg:hidden">
+            <span className="w-2 h-2 rounded-full bg-accent" />
+            <span className="text-base font-medium text-foreground tracking-tight">
+              Build Atlas
+            </span>
           </Link>
 
           <div className="space-y-8">
             <div>
               <h2 className="headline-md mb-2">Sign in</h2>
               <p className="body-md">
-                Access full dossiers, filters, and exports
+                {SIGN_IN_COPY.subtitle}
               </p>
             </div>
 
@@ -78,7 +93,7 @@ function LoginPageContent() {
               <p className="body-sm text-center">
                 Don&apos;t have an account?{' '}
                 <Link href="/dealbook" className="text-foreground hover:text-accent transition-colors">
-                  Browse dossiers
+                  {copy.primaryCTA}
                 </Link>
               </p>
             </div>
