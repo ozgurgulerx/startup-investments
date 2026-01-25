@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 
+// API URL is inlined at build time by Next.js
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 interface CompanyLogoProps {
   slug: string;
   companyName: string;
@@ -12,7 +15,7 @@ interface CompanyLogoProps {
 export function CompanyLogo({
   slug,
   companyName,
-  apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  apiUrl = API_URL,
   className = 'w-16 h-16 rounded-lg object-contain bg-muted/30 flex-shrink-0'
 }: CompanyLogoProps) {
   const [hasError, setHasError] = useState(false);
