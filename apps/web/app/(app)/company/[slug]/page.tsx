@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CompanyLogo } from '@/components/ui/company-logo';
+import { CompanyActions } from './company-actions';
 import {
   getStartup,
   getStartupBrief,
@@ -155,15 +156,21 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
 
       {/* Section 1: Company Thesis Header */}
       <header className="briefing-header">
-        <div className="flex items-start gap-4 mb-4">
-          {/* Company Logo - served from API */}
-          <CompanyLogo
-            slug={startup.company_slug}
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-start gap-4">
+            {/* Company Logo - served from API */}
+            <CompanyLogo
+              slug={startup.company_slug}
+              companyName={startup.company_name}
+            />
+            <h1 className="text-2xl font-light tracking-tight text-foreground">
+              {startup.company_name}
+            </h1>
+          </div>
+          <CompanyActions
+            companySlug={startup.company_slug}
             companyName={startup.company_name}
           />
-          <h1 className="text-2xl font-light tracking-tight text-foreground">
-            {startup.company_name}
-          </h1>
         </div>
 
         <p className="headline-md text-foreground/90 max-w-2xl mb-6 leading-relaxed">

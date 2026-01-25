@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { PRICING, PLAN_INFO } from '@/lib/pricing';
 
 export default function LandingPage() {
   return (
@@ -19,11 +18,8 @@ export default function LandingPage() {
             <Link href="/methodology" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Methodology
             </Link>
-            <Link href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Pricing
-            </Link>
             <Link
-              href="/brief"
+              href="/login"
               className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
             >
               Sign In
@@ -59,13 +55,13 @@ export default function LandingPage() {
               href="/brief"
               className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
             >
-              Subscribe Now
+              Get Started
             </Link>
             <Link
-              href="/brief"
+              href="/dealbook"
               className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
             >
-              View Sample Brief
+              Browse Dealbook
             </Link>
           </div>
         </div>
@@ -103,7 +99,7 @@ export default function LandingPage() {
               What You Get
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              Every month, receive a comprehensive intelligence brief covering the AI startup ecosystem.
+              Comprehensive intelligence covering the AI startup ecosystem — completely open.
             </p>
           </div>
 
@@ -191,90 +187,34 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-light text-foreground mb-4">
-              Simple Pricing
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Choose the plan that fits your needs. Cancel anytime.
-            </p>
+      {/* Sign In for Personalization */}
+      <section id="personalize" className="py-20 px-6">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent/10 flex items-center justify-center">
+            <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {/* Free */}
-            <div className="p-6 border border-border/30 rounded-lg">
-              <h3 className="text-lg font-medium text-foreground mb-1">Free</h3>
-              <p className="text-sm text-muted-foreground mb-4">Get started</p>
-              <p className="text-3xl font-light text-foreground mb-6">$0<span className="text-sm text-muted-foreground">/mo</span></p>
-              <ul className="space-y-3 mb-6">
-                {PLAN_INFO.free.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <svg className="w-4 h-4 text-muted-foreground/50 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/brief"
-                className="block w-full py-2.5 text-center text-sm font-medium border border-border/50 rounded hover:bg-muted/30 transition-colors"
-              >
-                Get Started
-              </Link>
-            </div>
-
-            {/* Pro */}
-            <div className="p-6 border-2 border-accent/50 rounded-lg relative">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-accent text-accent-foreground text-xs font-medium rounded-full">
-                Most Popular
-              </div>
-              <h3 className="text-lg font-medium text-foreground mb-1">Pro</h3>
-              <p className="text-sm text-muted-foreground mb-4">For individuals</p>
-              <p className="text-3xl font-light text-foreground mb-1">${PRICING.pro.monthly}<span className="text-sm text-muted-foreground">/mo</span></p>
-              <p className="text-xs text-muted-foreground mb-6">or ${PRICING.pro.annual}/year (save 32%)</p>
-              <ul className="space-y-3 mb-6">
-                {PLAN_INFO.pro.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <svg className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <button
-                className="block w-full py-2.5 text-center text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
-              >
-                Subscribe
-              </button>
-            </div>
-
-            {/* Team */}
-            <div className="p-6 border border-border/30 rounded-lg">
-              <h3 className="text-lg font-medium text-foreground mb-1">Team</h3>
-              <p className="text-sm text-muted-foreground mb-4">For organizations</p>
-              <p className="text-3xl font-light text-foreground mb-1">${PRICING.team.monthly}<span className="text-sm text-muted-foreground">/mo</span></p>
-              <p className="text-xs text-muted-foreground mb-6">or ${PRICING.team.annual}/year</p>
-              <ul className="space-y-3 mb-6">
-                {PLAN_INFO.team.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <svg className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <button
-                className="block w-full py-2.5 text-center text-sm font-medium border border-border/50 rounded hover:bg-muted/30 transition-colors"
-              >
-                Contact Sales
-              </button>
-            </div>
+          <h2 className="text-3xl font-light text-foreground mb-4">
+            Sign in to personalize
+          </h2>
+          <p className="text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
+            Create watchlists, save filters, and get a tailored feed.
+            All content remains free — signing in just unlocks personal features.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/login"
+              className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/brief"
+              className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
+            >
+              Continue Browsing
+            </Link>
           </div>
         </div>
       </section>
@@ -334,7 +274,15 @@ export default function LandingPage() {
             <div className="pb-6 border-b border-border/30">
               <h3 className="text-base font-medium text-foreground mb-2">Can I export the data?</h3>
               <p className="text-sm text-muted-foreground">
-                Pro and Team plans include CSV export of the dealbook. PDF exports of monthly briefs are also available.
+                Yes! CSV export of the dealbook is available to all users. PDF exports of monthly briefs
+                are also included.
+              </p>
+            </div>
+            <div className="pb-6 border-b border-border/30">
+              <h3 className="text-base font-medium text-foreground mb-2">What do I get by signing in?</h3>
+              <p className="text-sm text-muted-foreground">
+                Signing in unlocks personal features like watchlists, saved filters, and a personalized feed.
+                All content is accessible without an account — sign-in is optional.
               </p>
             </div>
           </div>
@@ -350,8 +298,8 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/methodology" className="hover:text-foreground transition-colors">Methodology</Link>
-            <Link href="#pricing" className="hover:text-foreground transition-colors">Pricing</Link>
-            <Link href="/brief" className="hover:text-foreground transition-colors">Sign In</Link>
+            <Link href="/brief" className="hover:text-foreground transition-colors">Browse</Link>
+            <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Patterns Intelligence

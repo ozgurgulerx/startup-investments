@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { WatchlistBadge } from '@/components/ui/watchlist-button';
 
 interface NavItem {
   label: string;
   href: string;
+  showBadge?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -15,7 +17,7 @@ const navItems: NavItem[] = [
   { label: 'Signals', href: '/signals' },
   { label: 'Capital Flows', href: '/capital' },
   { label: 'Library', href: '/library' },
-  { label: 'Watchlist', href: '/watchlist' },
+  { label: 'Watchlist', href: '/watchlist', showBadge: true },
 ];
 
 export function Sidebar() {
@@ -47,11 +49,12 @@ export function Sidebar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'nav-item rounded-sm',
+                    'nav-item rounded-sm flex items-center justify-between',
                     isActive && 'active'
                   )}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  {item.showBadge && <WatchlistBadge />}
                 </Link>
               );
             })}

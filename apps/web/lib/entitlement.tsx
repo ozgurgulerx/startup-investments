@@ -1,15 +1,12 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { FEATURE_ACCESS, type Plan, type Feature } from './pricing';
+import { createContext, useContext, ReactNode } from 'react';
+import { type Feature, canAccessFeature } from './pricing';
 
-// Re-export types and constants for convenience
-export type { Plan, Feature };
-export { PLAN_INFO, PRICING, FEATURE_ACCESS } from './pricing';
+// Re-export Feature type for convenience
+export type { Feature };
 
 interface EntitlementContextType {
-  plan: Plan;
-  setPlan: (plan: Plan) => void;
   canAccess: (feature: Feature) => boolean;
   isLoading: boolean;
 }
@@ -20,38 +17,14 @@ interface EntitlementProviderProps {
   children: ReactNode;
 }
 
+// Simplified provider - all features are open
 export function EntitlementProvider({ children }: EntitlementProviderProps) {
-  const [plan, setPlanState] = useState<Plan>('free');
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Check environment variable first (for testing)
-    const envPlan = process.env.NEXT_PUBLIC_USER_PLAN as Plan;
-    if (envPlan && ['free', 'pro', 'team'].includes(envPlan)) {
-      setPlanState(envPlan);
-      setIsLoading(false);
-      return;
-    }
-
-    // Check localStorage for persisted plan (demo purposes)
-    const storedPlan = localStorage.getItem('user_plan') as Plan;
-    if (storedPlan && ['free', 'pro', 'team'].includes(storedPlan)) {
-      setPlanState(storedPlan);
-    }
-    setIsLoading(false);
-  }, []);
-
-  const setPlan = (newPlan: Plan) => {
-    setPlanState(newPlan);
-    localStorage.setItem('user_plan', newPlan);
-  };
-
   const canAccess = (feature: Feature): boolean => {
-    return FEATURE_ACCESS[feature]?.includes(plan) ?? false;
+    return canAccessFeature(feature);
   };
 
   return (
-    <EntitlementContext.Provider value={{ plan, setPlan, canAccess, isLoading }}>
+    <EntitlementContext.Provider value={{ canAccess, isLoading: false }}>
       {children}
     </EntitlementContext.Provider>
   );
@@ -60,7 +33,11 @@ export function EntitlementProvider({ children }: EntitlementProviderProps) {
 export function useEntitlement() {
   const context = useContext(EntitlementContext);
   if (context === undefined) {
-    throw new Error('useEntitlement must be used within an EntitlementProvider');
+    // Return a default that allows all access if used outside provider
+    return {
+      canAccess: () => true,
+      isLoading: false,
+    };
   }
   return context;
 }

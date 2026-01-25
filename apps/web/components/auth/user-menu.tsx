@@ -9,7 +9,7 @@ import {
   Settings,
   LogOut,
   ChevronDown,
-  CreditCard,
+  Bookmark,
   LogIn,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -98,6 +98,13 @@ export function UserMenu() {
 
               {/* Menu items */}
               <MenuItem
+                href="/watchlist"
+                icon={Bookmark}
+                onClick={() => setIsOpen(false)}
+              >
+                Watchlist
+              </MenuItem>
+              <MenuItem
                 href="/settings/profile"
                 icon={User}
                 onClick={() => setIsOpen(false)}
@@ -110,13 +117,6 @@ export function UserMenu() {
                 onClick={() => setIsOpen(false)}
               >
                 Settings
-              </MenuItem>
-              <MenuItem
-                href="/settings/billing"
-                icon={CreditCard}
-                onClick={() => setIsOpen(false)}
-              >
-                Billing
               </MenuItem>
 
               <div className="border-t border-border mt-1 pt-1">

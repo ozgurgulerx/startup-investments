@@ -11,10 +11,11 @@ param apiHostname string
 param environment string = 'prod'
 
 var baseName = 'aistartuptr'
+var uniqueSuffix = uniqueString(resourceGroup().id)
 
 // Azure Front Door Standard for API protection
 resource frontDoor 'Microsoft.Cdn/profiles@2023-05-01' = {
-  name: 'afd-${baseName}-${environment}'
+  name: 'afd-${baseName}-${uniqueSuffix}'
   location: 'global'
   sku: {
     name: 'Standard_AzureFrontDoor'

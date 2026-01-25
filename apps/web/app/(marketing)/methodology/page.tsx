@@ -15,11 +15,8 @@ export default function MethodologyPage() {
             </span>
           </Link>
           <div className="flex items-center gap-6">
-            <Link href="/#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Pricing
-            </Link>
             <Link
-              href="/brief"
+              href="/login"
               className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
             >
               Sign In
@@ -206,13 +203,13 @@ export default function MethodologyPage() {
 
           <div className="mt-16 p-6 bg-muted/10 border border-border/30 rounded-lg text-center">
             <p className="text-muted-foreground mb-4">
-              Ready to access AI startup intelligence?
+              Ready to explore AI startup intelligence?
             </p>
             <Link
-              href="/#pricing"
+              href="/brief"
               className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
             >
-              View Pricing
+              Get Started
             </Link>
           </div>
         </div>
