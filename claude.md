@@ -1,5 +1,96 @@
 # Claude Code Guidelines
 
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              BUILD ATLAS                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────┐         ┌──────────────────────────────────────────────┐  │
+│  │   Users     │         │              AZURE FRONT DOOR                │  │
+│  │  (Browser)  │────────▶│  startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net │  │
+│  └─────────────┘         └──────────────────┬───────────────────────────┘  │
+│                                             │                               │
+│                                             ▼                               │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                         AZURE APP SERVICE                             │  │
+│  │                         (buildatlas-web)                              │  │
+│  │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│  │  │                    NEXT.JS APP (Standalone)                     │  │  │
+│  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │  │  │
+│  │  │  │  Marketing   │  │     App      │  │        Auth          │  │  │  │
+│  │  │  │   Pages      │  │    Pages     │  │    (NextAuth.js)     │  │  │  │
+│  │  │  │  /, /login   │  │ /brief       │  │  Google OAuth        │  │  │  │
+│  │  │  │  /terms      │  │ /dealbook    │  │                      │  │  │  │
+│  │  │  │  /privacy    │  │ /signals     │  └──────────────────────┘  │  │  │
+│  │  │  │  /methodology│  │ /capital     │                            │  │  │
+│  │  │  └──────────────┘  │ /library     │                            │  │  │
+│  │  │                    │ /watchlist   │                            │  │  │
+│  │  │                    │ /company/[x] │                            │  │  │
+│  │  │                    └──────────────┘                            │  │  │
+│  │  └────────────────────────────────────────────────────────────────┘  │  │
+│  │  URL: https://buildatlas.net | https://buildatlas-web.azurewebsites.net│ │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                             │                               │
+│                                             ▼                               │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    AZURE KUBERNETES SERVICE (AKS)                     │  │
+│  │                         (aks-aistartuptr)                             │  │
+│  │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│  │  │                     EXPRESS.JS API                              │  │  │
+│  │  │              startup-investments-api:latest                     │  │  │
+│  │  │  ┌────────────────┐  ┌─────────────────────────────────────┐   │  │  │
+│  │  │  │  /health       │  │  /api/v1/*                          │   │  │  │
+│  │  │  │  (public)      │  │  (requires X-API-Key header)        │   │  │  │
+│  │  │  └────────────────┘  │  - /startups, /investors, /stats    │   │  │  │
+│  │  │                      │  - /patterns, /monthly-summary      │   │  │  │
+│  │  │                      └─────────────────────────────────────┘   │  │  │
+│  │  └────────────────────────────────────────────────────────────────┘  │  │
+│  │  ACR: aistartuptr.azurecr.io                                         │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                             │                               │
+│                                             ▼                               │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                  AZURE POSTGRESQL FLEXIBLE SERVER                     │  │
+│  │                        (aistartupstr)                                 │  │
+│  │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│  │  │  Tables: startups, investors, funding_rounds, patterns, etc.   │  │  │
+│  │  └────────────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+CI/CD: GitHub Actions
+- Frontend: Push to main (apps/web/**) → Build → Deploy to App Service
+- Backend:  Push to main (apps/api/**) → Build → Push to ACR → Deploy to AKS
+```
+
+## Project Structure
+
+```
+startup-analysis/
+├── apps/
+│   ├── web/                    # Next.js frontend (App Service)
+│   │   ├── app/
+│   │   │   ├── (marketing)/    # Public pages: /, /methodology, /terms, /privacy
+│   │   │   ├── (auth)/         # Auth pages: /login
+│   │   │   └── (app)/          # Protected pages: /brief, /dealbook, /signals, etc.
+│   │   ├── components/
+│   │   ├── lib/
+│   │   │   ├── copy.ts         # Central copy config (dual-audience messaging)
+│   │   │   ├── audience-context.tsx  # Audience state (builders/investors)
+│   │   │   └── ...
+│   │   └── data/               # Static JSON data for briefs
+│   └── api/                    # Express.js backend (AKS)
+├── infrastructure/
+│   └── kubernetes/             # K8s manifests for AKS
+├── database/
+│   └── migrations/             # SQL migrations
+└── packages/
+    └── shared/                 # Shared types/utilities
+```
+
 ## Git Workflow
 
 **Push code after every change.** Do not accumulate changes locally.
@@ -157,3 +248,41 @@ Frontend auto-deploys on push to `main` when `apps/web/**` changes.
 - Use bright/saturated colors
 - Add decorative elements or excessive styling
 - Override the existing design tokens
+
+## Dual-Audience Messaging System
+
+The site supports two audience modes: **Builders** (default) and **Investors**.
+
+### Copy Configuration (`lib/copy.ts`)
+All user-facing copy is centralized in `COPY` object:
+```typescript
+import { COPY, METRICS, FAQ_ITEMS, SIGN_IN_COPY, SUPPORTING_LINE } from '@/lib/copy';
+
+const copy = COPY[audience]; // 'builders' | 'investors'
+copy.heroHeadline;
+copy.heroSubhead;
+copy.heroBullets;
+copy.primaryCTA;
+copy.secondaryCTA;
+```
+
+### Audience Context (`lib/audience-context.tsx`)
+```typescript
+import { useAudience } from '@/lib/audience-context';
+
+const { audience, setAudience } = useAudience();
+// Persists to localStorage key: "ba_audience"
+```
+
+### Audience Toggle Component
+```tsx
+import { AudienceToggle } from '@/components/ui/audience-toggle';
+
+<AudienceToggle /> // Renders "Builders | Investors" pill toggle
+```
+
+### Key Principles
+- **No pricing/gating language** - All content is free to browse
+- **Sign-in is for personalization only** - Watchlists, saved filters
+- **Consistent terminology**: Brief, Dossiers, Signals, Capital, Library, Watchlist
+- **Metrics labels are standardized**: "Funded companies tracked", "Capital mapped", "GenAI adoption", "Build patterns detected"
