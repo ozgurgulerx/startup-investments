@@ -99,8 +99,107 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
   }
 }
 
+// Public IP for AKS Load Balancer (stable IP for Front Door origin)
+resource aksPublicIp 'Microsoft.Network/publicIPAddresses@2023-05-01' = {
+  name: 'pip-aks-${resourceSuffix}'
+  location: location
+  sku: {
+    name: 'Standard'
+    tier: 'Regional'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    dnsSettings: {
+      domainNameLabel: 'api-${resourceSuffix}'
+    }
+  }
+}
+
+// Azure Front Door Standard for API protection
+resource frontDoor 'Microsoft.Cdn/profiles@2023-05-01' = {
+  name: 'afd-${resourceSuffix}'
+  location: 'global'
+  sku: {
+    name: 'Standard_AzureFrontDoor'
+  }
+}
+
+// Front Door Endpoint
+resource frontDoorEndpoint 'Microsoft.Cdn/profiles/afdEndpoints@2023-05-01' = {
+  parent: frontDoor
+  name: 'api-endpoint'
+  location: 'global'
+  properties: {
+    enabledState: 'Enabled'
+  }
+}
+
+// Front Door Origin Group
+resource frontDoorOriginGroup 'Microsoft.Cdn/profiles/originGroups@2023-05-01' = {
+  parent: frontDoor
+  name: 'api-origin-group'
+  properties: {
+    loadBalancingSettings: {
+      sampleSize: 4
+      successfulSamplesRequired: 3
+      additionalLatencyInMilliseconds: 50
+    }
+    healthProbeSettings: {
+      probePath: '/health'
+      probeRequestType: 'GET'
+      probeProtocol: 'Http'
+      probeIntervalInSeconds: 30
+    }
+    sessionAffinityState: 'Disabled'
+  }
+}
+
+// Front Door Origin (points to AKS Load Balancer)
+resource frontDoorOrigin 'Microsoft.Cdn/profiles/originGroups/origins@2023-05-01' = {
+  parent: frontDoorOriginGroup
+  name: 'aks-origin'
+  properties: {
+    hostName: aksPublicIp.properties.dnsSettings.fqdn
+    httpPort: 80
+    httpsPort: 443
+    originHostHeader: aksPublicIp.properties.dnsSettings.fqdn
+    priority: 1
+    weight: 1000
+    enabledState: 'Enabled'
+  }
+}
+
+// Front Door Route
+resource frontDoorRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2023-05-01' = {
+  parent: frontDoorEndpoint
+  name: 'api-route'
+  properties: {
+    originGroup: {
+      id: frontDoorOriginGroup.id
+    }
+    supportedProtocols: [
+      'Http'
+      'Https'
+    ]
+    patternsToMatch: [
+      '/*'
+    ]
+    forwardingProtocol: 'HttpOnly'
+    linkToDefaultDomain: 'Enabled'
+    httpsRedirect: 'Enabled'
+    enabledState: 'Enabled'
+  }
+  dependsOn: [
+    frontDoorOrigin
+  ]
+}
+
 // Outputs
 output acrLoginServer string = acr.properties.loginServer
 output aksName string = aks.name
 output postgresHost string = postgres.properties.fullyQualifiedDomainName
 output staticWebAppUrl string = staticWebApp.properties.defaultHostname
+output aksPublicIp string = aksPublicIp.properties.ipAddress
+output aksPublicIpResourceId string = aksPublicIp.id
+output frontDoorEndpoint string = frontDoorEndpoint.properties.hostName
+output frontDoorId string = frontDoor.properties.frontDoorId

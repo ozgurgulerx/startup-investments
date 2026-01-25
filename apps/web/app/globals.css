@@ -3,102 +3,85 @@
 @tailwind utilities;
 
 @layer base {
-  /* Light mode (default) */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Light mode - warm editorial */
+    --background: 40 20% 98%;
+    --foreground: 30 10% 15%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 40 15% 99%;
+    --card-foreground: 30 10% 15%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 40 15% 99%;
+    --popover-foreground: 30 10% 15%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 30 15% 25%;
+    --primary-foreground: 40 20% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 40 10% 94%;
+    --secondary-foreground: 30 10% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 40 10% 94%;
+    --muted-foreground: 30 8% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 35 70% 48%;
+    --accent-foreground: 30 10% 15%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 65% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --success: 142 76% 36%;
+    --success: 145 50% 40%;
     --success-foreground: 0 0% 98%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 9%;
+    --warning: 35 70% 48%;
+    --warning-foreground: 30 10% 15%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 217 91% 60%;
+    --border: 40 10% 88%;
+    --input: 40 10% 88%;
+    --ring: 30 15% 25%;
 
-    --radius: 0.5rem;
-
-    /* Chart colors for light mode */
-    --chart-1: 217 91% 60%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 262 83% 58%;
-    --chart-4: 38 92% 50%;
-    --chart-5: 0 84% 60%;
+    --radius: 0.25rem;
   }
 
-  /* Dark mode - Bloomberg-inspired minimal */
+  /* Dark mode - Obsidian editorial */
   .dark {
-    /* Near-black with blue tint */
-    --background: 230 20% 4%;
-    --foreground: 240 5% 90%;
+    /* Deep obsidian base */
+    --background: 220 15% 7%;
+    --foreground: 40 8% 85%;
 
-    /* Dark slate surfaces */
-    --card: 230 15% 8%;
-    --card-foreground: 240 5% 90%;
+    /* Slightly elevated surfaces */
+    --card: 220 12% 10%;
+    --card-foreground: 40 8% 85%;
 
-    --popover: 230 15% 8%;
-    --popover-foreground: 240 5% 90%;
+    --popover: 220 12% 10%;
+    --popover-foreground: 40 8% 85%;
 
-    /* Cyan accent */
-    --primary: 187 94% 43%;
-    --primary-foreground: 0 0% 100%;
+    /* Warm text as primary */
+    --primary: 40 8% 85%;
+    --primary-foreground: 220 15% 7%;
 
-    --secondary: 230 12% 12%;
-    --secondary-foreground: 240 5% 90%;
+    --secondary: 220 10% 14%;
+    --secondary-foreground: 40 6% 75%;
 
-    --muted: 230 12% 14%;
-    --muted-foreground: 240 5% 45%;
+    --muted: 220 10% 14%;
+    --muted-foreground: 40 5% 50%;
 
-    --accent: 230 12% 12%;
-    --accent-foreground: 240 5% 90%;
+    /* Single accent - warm amber, used sparingly */
+    --accent: 38 65% 52%;
+    --accent-foreground: 220 15% 7%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 55% 55%;
     --destructive-foreground: 0 0% 98%;
 
-    --success: 142 76% 42%;
-    --success-foreground: 0 0% 98%;
+    --success: 145 40% 48%;
+    --success-foreground: 220 15% 7%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 9%;
+    --warning: 38 65% 52%;
+    --warning-foreground: 220 15% 7%;
 
     /* Subtle borders */
-    --border: 230 12% 14%;
-    --input: 230 12% 14%;
-    --ring: 187 94% 43%;
-
-    /* Chart colors - cyan/sky unified palette */
-    --chart-1: 187 94% 43%;
-    --chart-2: 199 89% 48%;
-    --chart-3: 187 80% 55%;
-    --chart-4: 199 75% 60%;
-    --chart-5: 187 70% 65%;
-
-    /* Custom glow colors */
-    --glow-primary: 187 94% 43%;
-    --glow-secondary: 199 89% 48%;
+    --border: 220 10% 16%;
+    --input: 220 10% 16%;
+    --ring: 38 65% 52%;
   }
 }
 
@@ -107,600 +90,507 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings:
-      'rlig' 1,
-      'calt' 1;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Custom scrollbar */
+/* ============================================
+   Typography System - Editorial
+   ============================================ */
+
+.headline-xl {
+  @apply text-3xl font-light tracking-tight text-foreground;
+  letter-spacing: -0.025em;
+}
+
+.headline-lg {
+  @apply text-2xl font-light tracking-tight text-foreground;
+  letter-spacing: -0.02em;
+}
+
+.headline-md {
+  @apply text-xl font-normal text-foreground;
+  letter-spacing: -0.015em;
+}
+
+.headline-sm {
+  @apply text-lg font-normal text-foreground;
+  letter-spacing: -0.01em;
+}
+
+.body-lg {
+  @apply text-base leading-relaxed text-muted-foreground;
+}
+
+.body-md {
+  @apply text-sm leading-relaxed text-muted-foreground;
+}
+
+.body-sm {
+  @apply text-xs leading-relaxed text-muted-foreground;
+}
+
+/* Financial numbers */
+.num-display {
+  @apply font-light tabular-nums tracking-tight text-foreground;
+  font-feature-settings: 'tnum' 1;
+}
+
+.num-lg {
+  @apply text-2xl font-light tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.num-md {
+  @apply text-lg tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.num-sm {
+  @apply text-sm tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Labels */
+.label-sm {
+  @apply text-[11px] font-medium uppercase tracking-widest text-muted-foreground;
+}
+
+.label-xs {
+  @apply text-[10px] font-medium uppercase tracking-wider text-muted-foreground;
+}
+
+/* ============================================
+   Scrollbar - Minimal
+   ============================================ */
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 4px;
+  background: hsl(var(--border));
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground));
+  background: hsl(var(--muted-foreground) / 0.3);
 }
 
-/* Number formatting */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
+/* ============================================
+   Briefing Header
+   ============================================ */
+
+.briefing-header {
+  @apply pb-10 mb-10 border-b border-border/60;
 }
 
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(
-    to right,
-    hsl(var(--primary)),
-    hsl(217 91% 75%)
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.briefing-date {
+  @apply label-sm mb-4 block;
 }
 
-/* Card hover effect */
-.card-hover {
-  @apply transition-all duration-300;
+.briefing-headline {
+  @apply headline-lg mb-5 max-w-2xl leading-snug;
 }
 
-.card-hover:hover {
-  @apply border-primary/30 shadow-xl;
-  transform: translateY(-4px);
+.briefing-subhead {
+  @apply body-lg max-w-xl;
 }
 
-/* Focus visible */
-.focus-ring {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+.briefing-stats {
+  @apply flex gap-12 mt-8 pt-6 border-t border-border/40;
 }
 
-/* Animate on scroll */
-.animate-on-scroll {
-  opacity: 0;
-  transform: translateY(20px);
-  transition:
-    opacity 0.5s ease-out,
-    transform 0.5s ease-out;
+.briefing-stat {
+  @apply flex flex-col;
 }
 
-.animate-on-scroll.visible {
-  opacity: 1;
-  transform: translateY(0);
+.briefing-stat-value {
+  @apply num-lg text-foreground;
 }
 
-/* Pattern badge colors - Light mode */
-.pattern-agentic {
-  @apply bg-blue-100 text-blue-700 border-blue-200;
-}
-.dark .pattern-agentic {
-  @apply bg-blue-500/10 text-blue-400 border-blue-500/20;
+.briefing-stat-label {
+  @apply label-xs mt-1;
 }
 
-.pattern-vertical-data {
-  @apply bg-green-100 text-green-700 border-green-200;
-}
-.dark .pattern-vertical-data {
-  @apply bg-green-500/10 text-green-400 border-green-500/20;
+/* ============================================
+   Intelligence Callout (Signature Feature)
+   ============================================ */
+
+.intel-callout {
+  @apply border-l-2 border-accent/70 pl-5 py-1 my-6;
 }
 
-.pattern-rag {
-  @apply bg-purple-100 text-purple-700 border-purple-200;
-}
-.dark .pattern-rag {
-  @apply bg-purple-500/10 text-purple-400 border-purple-500/20;
+.intel-callout-label {
+  @apply label-xs text-accent mb-2 block;
 }
 
-.pattern-micro-model {
-  @apply bg-orange-100 text-orange-700 border-orange-200;
-}
-.dark .pattern-micro-model {
-  @apply bg-orange-500/10 text-orange-400 border-orange-500/20;
+.intel-callout-text {
+  @apply text-sm text-foreground/90 leading-relaxed;
 }
 
-.pattern-flywheel {
-  @apply bg-cyan-100 text-cyan-700 border-cyan-200;
-}
-.dark .pattern-flywheel {
-  @apply bg-cyan-500/10 text-cyan-400 border-cyan-500/20;
+/* What this enables */
+.intel-enables {
+  @apply bg-card border border-border/50 rounded p-5 mt-6;
 }
 
-.pattern-guardrail {
-  @apply bg-red-100 text-red-700 border-red-200;
-}
-.dark .pattern-guardrail {
-  @apply bg-red-500/10 text-red-400 border-red-500/20;
+.intel-enables-label {
+  @apply label-xs text-accent mb-3 block;
 }
 
-/* Stage badge colors - Light mode */
-.stage-seed {
-  @apply bg-emerald-100 text-emerald-700;
-}
-.dark .stage-seed {
-  @apply bg-emerald-500/10 text-emerald-400;
+.intel-enables-text {
+  @apply body-md text-foreground/85;
 }
 
-.stage-series-a {
-  @apply bg-blue-100 text-blue-700;
-}
-.dark .stage-series-a {
-  @apply bg-blue-500/10 text-blue-400;
+/* ============================================
+   Section Styles
+   ============================================ */
+
+.section {
+  @apply py-10;
 }
 
-.stage-series-b {
-  @apply bg-violet-100 text-violet-700;
-}
-.dark .stage-series-b {
-  @apply bg-violet-500/10 text-violet-400;
+.section + .section {
+  @apply border-t border-border/50;
 }
 
-.stage-series-c {
-  @apply bg-amber-100 text-amber-700;
-}
-.dark .stage-series-c {
-  @apply bg-amber-500/10 text-amber-400;
+.section-header {
+  @apply flex items-center justify-between mb-8;
 }
 
-.stage-series-d {
-  @apply bg-rose-100 text-rose-700;
-}
-.dark .stage-series-d {
-  @apply bg-rose-500/10 text-rose-400;
+.section-title {
+  @apply label-sm;
 }
 
-/* Chart styling */
+.section-link {
+  @apply text-xs text-muted-foreground hover:text-foreground transition-colors;
+}
+
+/* ============================================
+   Editorial List
+   ============================================ */
+
+.editorial-list {
+  @apply divide-y divide-border/40;
+}
+
+.editorial-row {
+  @apply py-5 flex items-start gap-6;
+  @apply transition-all duration-150;
+}
+
+.editorial-row:hover {
+  @apply bg-muted/30;
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* ============================================
+   Startup Row - Minimal
+   ============================================ */
+
+.startup-row {
+  @apply py-6 flex items-start gap-8 border-b border-border/40;
+  @apply transition-colors duration-150 cursor-pointer;
+}
+
+.startup-row:last-child {
+  @apply border-0;
+}
+
+.startup-row:hover {
+  @apply bg-muted/25;
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.startup-name {
+  @apply text-base font-medium text-foreground;
+}
+
+.startup-insight {
+  @apply text-sm text-muted-foreground mt-1 max-w-lg leading-relaxed;
+}
+
+.startup-meta {
+  @apply flex items-center gap-4 mt-2 text-xs text-muted-foreground/70;
+}
+
+.startup-amount {
+  @apply num-md text-foreground/80 text-right whitespace-nowrap;
+}
+
+.startup-tag {
+  @apply text-xs text-muted-foreground/70;
+}
+
+/* ============================================
+   Signal/Pattern Card
+   ============================================ */
+
+.signal-item {
+  @apply py-8 border-b border-border/40 last:border-0;
+}
+
+.signal-header {
+  @apply flex items-start justify-between gap-8 mb-4;
+}
+
+.signal-name {
+  @apply headline-sm;
+}
+
+.signal-conviction {
+  @apply flex items-center gap-2 text-sm;
+}
+
+.signal-conviction-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.signal-conviction-dot.high {
+  @apply bg-foreground;
+}
+
+.signal-conviction-dot.medium {
+  @apply bg-muted-foreground;
+}
+
+.signal-conviction-dot.emerging {
+  @apply bg-muted-foreground/40;
+}
+
+.signal-thesis {
+  @apply body-md mb-6 max-w-2xl;
+}
+
+.signal-meta {
+  @apply flex gap-8 text-xs text-muted-foreground/70;
+}
+
+.signal-meta-item {
+  @apply flex flex-col gap-1;
+}
+
+.signal-meta-label {
+  @apply label-xs;
+}
+
+.signal-meta-value {
+  @apply text-sm text-foreground/80;
+}
+
+/* ============================================
+   Card Styles - Sections
+   ============================================ */
+
+.card-section {
+  @apply bg-card border border-border/50 rounded;
+}
+
+.card-header {
+  @apply px-6 py-5 border-b border-border/40;
+}
+
+.card-body {
+  @apply px-6 py-5;
+}
+
+.card-footer {
+  @apply px-6 py-4 border-t border-border/40 bg-muted/20;
+}
+
+/* ============================================
+   Accent Usage - Sparingly
+   ============================================ */
+
+.accent-dot {
+  @apply inline-block w-1.5 h-1.5 rounded-full bg-accent mr-2;
+}
+
+.accent-text {
+  @apply text-accent;
+}
+
+.accent-border-l {
+  @apply border-l-2 border-accent/60;
+}
+
+/* ============================================
+   Table - Financial
+   ============================================ */
+
+.table-editorial {
+  @apply w-full;
+}
+
+.table-editorial thead th {
+  @apply label-xs text-left pb-4 border-b border-border;
+}
+
+.table-editorial tbody td {
+  @apply py-4 border-b border-border/30 text-sm;
+}
+
+.table-editorial tbody tr:last-child td {
+  @apply border-0;
+}
+
+.table-editorial tbody tr:hover {
+  @apply bg-muted/20;
+}
+
+/* ============================================
+   Navigation - Quiet
+   ============================================ */
+
+.nav-quiet {
+  @apply space-y-1;
+}
+
+.nav-item {
+  @apply flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground rounded;
+  @apply transition-colors duration-150;
+}
+
+.nav-item:hover {
+  @apply text-foreground bg-muted/30;
+}
+
+.nav-item.active {
+  @apply text-foreground bg-muted/50;
+}
+
+.nav-item-icon {
+  @apply w-4 h-4 opacity-60;
+}
+
+/* ============================================
+   Micro Visualization
+   ============================================ */
+
+.micro-bar {
+  @apply h-1 bg-muted rounded-full overflow-hidden;
+}
+
+.micro-bar-fill {
+  @apply h-full bg-foreground/30 rounded-full;
+}
+
+.micro-sparkline {
+  @apply h-6 opacity-40;
+}
+
+/* ============================================
+   Top Deals Table
+   ============================================ */
+
+.deals-table {
+  @apply w-full;
+}
+
+.deals-row {
+  @apply flex items-center gap-4 py-4 border-b border-border/30 last:border-0;
+  @apply transition-colors duration-150 cursor-pointer;
+}
+
+.deals-row:hover {
+  @apply bg-muted/20;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.deals-rank {
+  @apply w-6 text-xs text-muted-foreground/50 num-sm;
+}
+
+.deals-name {
+  @apply flex-1 text-sm font-medium text-foreground;
+}
+
+.deals-vertical {
+  @apply text-xs text-muted-foreground/70 hidden sm:block;
+}
+
+.deals-amount {
+  @apply num-sm text-foreground/80 text-right;
+}
+
+/* ============================================
+   Chart Container
+   ============================================ */
+
+.chart-container {
+  @apply rounded bg-card/30 p-4 border border-border/30;
+}
+
+/* ============================================
+   Recharts Overrides
+   ============================================ */
+
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-  stroke: hsl(var(--border));
+  stroke: hsl(var(--border) / 0.4);
 }
 
 .recharts-text {
   fill: hsl(var(--muted-foreground));
-  font-size: 12px;
+  font-size: 10px;
+}
+
+.recharts-tooltip-wrapper {
+  @apply !outline-none;
 }
 
 /* ============================================
-   Bloomberg-Inspired Glow Effects
+   Animations - Minimal
    ============================================ */
 
-/* Text glow for key metrics */
-.glow-text {
-  text-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
-}
-
-.glow-text-subtle {
-  text-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
-}
-
-/* Card glow on hover */
-.glow-card {
-  transition: box-shadow 0.3s ease, border-color 0.3s ease;
-}
-
-.glow-card:hover {
-  box-shadow: 0 0 30px rgba(6, 182, 212, 0.08);
-  border-color: rgba(6, 182, 212, 0.2);
-}
-
-/* Accent bar (bottom border glow) */
-.accent-bar {
-  position: relative;
-}
-
-.accent-bar::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, hsl(var(--primary)), hsl(199 89% 48%));
-  opacity: 0.6;
-}
-
-/* Monospace numbers */
-.mono-numbers {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
-/* Dense card styling */
-.card-dense {
-  @apply p-4;
-}
-
-/* Section header Bloomberg style */
-.section-header {
-  @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
-  @apply pb-2 mb-4 border-b border-border/50;
-}
-
-/* Animation utilities */
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out;
-}
-
-.animate-fade-up {
-  animation: fade-up 0.4s ease-out;
-}
-
-.animate-slide-in-right {
-  animation: slide-in-right 0.3s ease-out;
-}
-
-.animate-scale-in {
-  animation: scale-in 0.3s ease-out;
+.animate-fade {
+  animation: fade-in 0.25s ease-out;
 }
 
 /* ============================================
-   Newsletter Styles
+   Utility Classes
    ============================================ */
 
-.newsletter-card {
-  @apply border-primary/10;
-}
-.dark .newsletter-card {
-  @apply bg-gradient-to-br from-card to-card/80;
+.max-w-prose {
+  max-width: 65ch;
 }
 
-.newsletter-content {
-  @apply text-muted-foreground leading-relaxed;
-}
-
-.newsletter-h1 {
-  @apply text-3xl md:text-4xl font-bold text-foreground mt-2 mb-6;
-  @apply bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent;
-}
-
-.newsletter-h2 {
-  @apply text-2xl font-semibold text-foreground mt-10 mb-4;
-  @apply pb-2 border-b border-border/50;
-}
-
-.newsletter-h3 {
-  @apply text-xl font-medium text-foreground mt-6 mb-3;
-}
-
-.newsletter-h4 {
-  @apply text-lg font-medium mt-4 mb-2;
-}
-.newsletter-h4 {
-  @apply text-foreground/90;
-}
-.dark .newsletter-h4 {
-  @apply text-foreground/90;
-}
-
-.newsletter-paragraph {
-  @apply my-4 text-muted-foreground;
-}
-
-.newsletter-blockquote {
-  @apply pl-4 border-l-4 border-primary/50 my-4 py-2;
-  @apply text-muted-foreground italic rounded-r-lg pr-4;
-}
-.newsletter-blockquote {
-  @apply bg-primary/5;
-}
-.dark .newsletter-blockquote {
-  @apply bg-primary/5;
-}
-
-.newsletter-bold {
-  @apply text-foreground font-semibold;
-}
-
-.newsletter-italic {
-  @apply text-muted-foreground/80;
-}
-
-.newsletter-inline-code {
-  @apply px-1.5 py-0.5 rounded text-sm font-mono;
-}
-.newsletter-inline-code {
-  @apply bg-muted text-primary;
-}
-.dark .newsletter-inline-code {
-  @apply bg-muted text-primary;
-}
-
-.newsletter-codeblock {
-  @apply p-4 rounded-lg my-4 overflow-x-auto;
-  @apply text-sm font-mono;
-  @apply border border-border/50;
-}
-.newsletter-codeblock {
-  @apply bg-muted/50 text-foreground/90;
-}
-.dark .newsletter-codeblock {
-  @apply bg-muted/70 text-foreground/90;
-}
-
-.newsletter-table {
-  @apply w-full my-6 border-collapse rounded-lg overflow-hidden;
-  @apply border border-border/50;
-}
-
-/* Header row styling */
-.newsletter-table-row:first-child .newsletter-table-cell {
-  @apply font-semibold text-foreground;
-  @apply bg-muted/50;
-}
-.dark .newsletter-table-row:first-child .newsletter-table-cell {
-  @apply bg-muted/30;
-}
-
-/* Alternating row colors */
-.newsletter-table-row:nth-child(even) .newsletter-table-cell {
-  @apply bg-muted/20;
-}
-.dark .newsletter-table-row:nth-child(even) .newsletter-table-cell {
-  @apply bg-muted/10;
-}
-
-.newsletter-table-row:nth-child(odd):not(:first-child) .newsletter-table-cell {
-  @apply bg-transparent;
-}
-
-.newsletter-table-cell {
-  @apply border-b border-r border-border/30 px-4 py-2.5 text-sm;
-  @apply text-muted-foreground;
-}
-
-.newsletter-table-cell:last-child {
-  @apply border-r-0;
-}
-
-.newsletter-table-row:last-child .newsletter-table-cell {
-  @apply border-b-0;
-}
-
-.newsletter-list {
-  @apply my-4 pl-6 space-y-2;
-  list-style-type: disc;
-}
-
-.newsletter-list-numbered {
-  @apply my-4 pl-6 space-y-2;
-  list-style-type: decimal;
-}
-
-.newsletter-list-item,
-.newsletter-list-item-numbered {
-  @apply text-muted-foreground;
-}
-
-.newsletter-divider {
-  @apply my-10 border-t border-border/30;
-  @apply relative;
-}
-
-.newsletter-divider::after {
-  content: '';
-  @apply absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2;
-  @apply w-8 h-1 bg-gradient-to-r from-primary/50 to-blue-500/50 rounded-full;
+.divide-subtle > * + * {
+  @apply border-t border-border/30;
 }
 
 /* ============================================
-   Startup Brief Styles
+   Print
    ============================================ */
 
-.brief-h1 {
-  @apply text-2xl font-bold text-foreground mt-4 mb-4;
-}
-
-.brief-h2 {
-  @apply text-lg font-semibold text-foreground mt-6 mb-3;
-  @apply pb-1.5 border-b border-border/40;
-}
-
-.brief-h3 {
-  @apply text-base font-medium text-foreground mt-4 mb-2;
-}
-
-.brief-h4 {
-  @apply text-sm font-medium mt-3 mb-1.5;
-}
-.brief-h4 {
-  @apply text-foreground/90;
-}
-.dark .brief-h4 {
-  @apply text-foreground/90;
-}
-
-.brief-paragraph {
-  @apply my-3 text-sm text-muted-foreground;
-}
-
-.brief-blockquote {
-  @apply pl-3 border-l-2 border-primary/40 my-3 py-1;
-  @apply text-sm text-muted-foreground rounded-r pr-3;
-}
-.brief-blockquote {
-  @apply bg-primary/5;
-}
-.dark .brief-blockquote {
-  @apply bg-primary/5;
-}
-
-.brief-bold {
-  @apply text-foreground font-medium;
-}
-
-.brief-italic {
-  @apply text-muted-foreground/80;
-}
-
-.brief-inline-code {
-  @apply px-1 py-0.5 rounded text-xs font-mono;
-}
-.brief-inline-code {
-  @apply bg-muted text-primary/90;
-}
-.dark .brief-inline-code {
-  @apply bg-muted text-primary/90;
-}
-
-.brief-codeblock {
-  @apply p-3 rounded-lg my-3 overflow-x-auto;
-  @apply text-xs font-mono;
-}
-.brief-codeblock {
-  @apply bg-muted/30 text-foreground/80;
-}
-.dark .brief-codeblock {
-  @apply bg-muted/50 text-foreground/80;
-}
-
-.brief-table {
-  @apply w-full my-4 border-collapse text-sm rounded-lg overflow-hidden;
-  @apply border border-border/40;
-}
-
-/* Header row styling */
-.brief-table-row:first-child .brief-table-cell {
-  @apply font-medium text-foreground;
-  @apply bg-muted/40;
-}
-.dark .brief-table-row:first-child .brief-table-cell {
-  @apply bg-muted/25;
-}
-
-/* Alternating row colors */
-.brief-table-row:nth-child(even) .brief-table-cell {
-  @apply bg-muted/15;
-}
-.dark .brief-table-row:nth-child(even) .brief-table-cell {
-  @apply bg-muted/10;
-}
-
-.brief-table-row:nth-child(odd):not(:first-child) .brief-table-cell {
-  @apply bg-transparent;
-}
-
-.brief-table-cell {
-  @apply border-b border-r border-border/30 px-3 py-2;
-  @apply text-muted-foreground;
-}
-
-.brief-table-cell:last-child {
-  @apply border-r-0;
-}
-
-.brief-table-row:last-child .brief-table-cell {
-  @apply border-b-0;
-}
-
-.brief-list {
-  @apply my-3 pl-5 space-y-1.5;
-  list-style-type: disc;
-}
-
-.brief-list-numbered {
-  @apply my-3 pl-5 space-y-1.5;
-  list-style-type: decimal;
-}
-
-.brief-list-item,
-.brief-list-item-num {
-  @apply text-sm text-muted-foreground;
-}
-
-.brief-divider {
-  @apply my-6 border-t border-border/30;
-}
-
-/* Confidence bar styling for patterns */
-.confidence-bar {
-  @apply h-1.5 rounded-full overflow-hidden;
-}
-.confidence-bar {
-  @apply bg-muted;
-}
-.dark .confidence-bar {
-  @apply bg-muted;
-}
-
-.confidence-bar-fill {
-  @apply h-full bg-gradient-to-r from-primary to-blue-400 rounded-full;
-  transition: width 0.5s ease-out;
-}
-
-/* Moat badge styling */
-.moat-strong {
-  @apply font-semibold;
-}
-.moat-strong {
-  @apply text-green-600;
-}
-.dark .moat-strong {
-  @apply text-green-400;
-}
-
-.moat-medium {
-  @apply font-medium;
-}
-.moat-medium {
-  @apply text-yellow-600;
-}
-.dark .moat-medium {
-  @apply text-yellow-400;
-}
-
-.moat-weak {
-  @apply text-red-500;
-}
-.dark .moat-weak {
-  @apply text-red-400;
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
 }

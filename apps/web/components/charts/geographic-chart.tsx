@@ -15,14 +15,29 @@ interface GeographicChartProps {
   height?: number;
 }
 
+// Cyan/sky gradient palette for Bloomberg-inspired theme
 const CONTINENT_COLORS: Record<string, string> = {
-  'North America': 'hsl(217, 91%, 60%)',
-  'Europe': 'hsl(142, 71%, 45%)',
-  'Asia': 'hsl(348, 83%, 47%)',
-  'South America': 'hsl(27, 96%, 61%)',
-  'Africa': 'hsl(47, 96%, 53%)',
-  'Oceania': 'hsl(199, 89%, 48%)',
-  'Unknown': 'hsl(240, 5%, 64.9%)',
+  'north_america': 'hsl(187, 94%, 43%)',   // Cyan-500 - brightest for largest
+  'asia': 'hsl(187, 85%, 50%)',             // Cyan-400
+  'europe': 'hsl(199, 89%, 48%)',           // Sky-500
+  'africa': 'hsl(199, 80%, 55%)',           // Sky-400
+  'oceania': 'hsl(187, 70%, 58%)',          // Cyan-300
+  'south_america': 'hsl(199, 70%, 62%)',    // Sky-300
+  'unknown': 'hsl(230, 20%, 35%)',          // Muted slate
+};
+
+// Format continent names for display
+const formatContinentName = (name: string): string => {
+  const names: Record<string, string> = {
+    'north_america': 'North America',
+    'south_america': 'South America',
+    'asia': 'Asia',
+    'europe': 'Europe',
+    'africa': 'Africa',
+    'oceania': 'Oceania',
+    'unknown': 'Unknown',
+  };
+  return names[name.toLowerCase()] || name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 };
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -48,11 +63,12 @@ export function GeographicChart({ data, height = 250 }: GeographicChartProps) {
 
   const chartData = Object.entries(data)
     .map(([continent, { total_usd, count }]) => ({
-      name: continent,
+      name: formatContinentName(continent),
+      rawName: continent.toLowerCase(),
       funding: total_usd,
       count,
       percentage: (total_usd / totalFunding) * 100,
-      color: CONTINENT_COLORS[continent] || CONTINENT_COLORS.Unknown,
+      color: CONTINENT_COLORS[continent.toLowerCase()] || CONTINENT_COLORS['unknown'],
     }))
     .sort((a, b) => b.funding - a.funding);
 
@@ -65,24 +81,24 @@ export function GeographicChart({ data, height = 250 }: GeographicChartProps) {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(240, 3.7%, 15.9%)"
+            stroke="hsl(230, 12%, 14%)"
             vertical={false}
           />
           <XAxis
             dataKey="name"
-            stroke="hsl(240, 5%, 64.9%)"
-            fontSize={11}
+            stroke="hsl(230, 10%, 40%)"
+            fontSize={10}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
-            stroke="hsl(240, 5%, 64.9%)"
-            fontSize={11}
+            stroke="hsl(230, 10%, 40%)"
+            fontSize={10}
             tickLine={false}
             axisLine={false}
             tickFormatter={(value) => formatCurrency(value, true)}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(240, 3.7%, 15.9%)', opacity: 0.5 }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(230, 12%, 14%)', opacity: 0.5 }} />
           <Bar
             dataKey="funding"
             radius={[4, 4, 0, 0]}

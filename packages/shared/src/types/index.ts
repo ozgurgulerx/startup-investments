@@ -179,6 +179,7 @@ export interface StartupAnalysis {
   company_name: string;
   company_slug: string;
   website?: string;
+  logo_url?: string;
   description?: string;
   funding_amount?: number;
   funding_stage?: FundingStage;

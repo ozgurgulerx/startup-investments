@@ -16,17 +16,32 @@ spec:
     spec:
       containers:
         - name: api
-          image: ${ACR_NAME}.azurecr.io/startup-investments-api:latest
+          image: aistartuptr.azurecr.io/startup-investments-api:latest
           ports:
             - containerPort: 3001
           env:
             - name: NODE_ENV
               value: "production"
+            - name: PORT
+              value: "3001"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: startup-investments-secrets
                   key: database-url
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: api-key
+            - name: FRONT_DOOR_ID
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: front-door-id
+                  optional: true
+            - name: FRONTEND_URL
+              value: "https://startup-investments.azurestaticapps.net"
           resources:
             requests:
               memory: "128Mi"
@@ -38,7 +53,7 @@ spec:
             httpGet:
               path: /health
               port: 3001
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
             periodSeconds: 30
           readinessProbe:
             httpGet:
@@ -51,6 +66,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: startup-investments-api
+  annotations:
+    # Use static public IP created by Bicep template
+    # Replace with actual IP from: az network public-ip show -g <rg> -n pip-aks-startupinv-prod --query ipAddress
+    service.beta.kubernetes.io/azure-load-balancer-resource-group: "aistartuptr"
+    # Uncomment and set after deploying Bicep:
+    # service.beta.kubernetes.io/azure-load-balancer-ipv4: "<PUBLIC_IP_FROM_BICEP>"
 spec:
   selector:
     app: startup-investments-api
@@ -58,28 +79,4 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 3001
-  type: ClusterIP
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: startup-investments-api-ingress
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-spec:
-  tls:
-    - hosts:
-        - api.startup-investments.example.com
-      secretName: startup-investments-api-tls
-  rules:
-    - host: api.startup-investments.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: startup-investments-api
-                port:
-                  number: 80
+  type: LoadBalancer

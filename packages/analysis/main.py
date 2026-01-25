@@ -7,6 +7,7 @@ Analyze startups for GenAI usage patterns and build insights.
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Optional, List
 
@@ -26,6 +27,7 @@ from src.reports.generator import (
     create_analysis_only_csv,
     create_enriched_csv,
     generate_batch_summary_report,
+    get_logo_path_for_company,
 )
 
 app = typer.Typer(help="Startup GenAI Analysis Tool")
@@ -231,8 +233,11 @@ async def _run_full_analysis(
                 analysis = await analyzer.analyze_startup(startup)
                 results.append(analysis)
 
-                # Save individual brief
-                brief_path = save_startup_brief(analysis, startup, output_path)
+                # Get logo path if available
+                logo_path = get_logo_path_for_company(startup.name)
+
+                # Save individual brief with logo
+                brief_path = save_startup_brief(analysis, startup, output_path, logo_path)
                 console.print(f"  [dim]Generated brief: {brief_path.name}[/dim]")
 
                 # Print summary
@@ -1014,6 +1019,69 @@ def intelligence(
                 console.print(f"    Accelerators: {', '.join(accels)}")
             if programs:
                 console.print(f"    Tech programs: {', '.join(programs)}")
+
+
+@app.command("extract-logos")
+def extract_logos(
+    use_database: bool = typer.Option(True, "--db/--local", help="Save to PostgreSQL database (default) or local files"),
+    max_concurrent: int = typer.Option(5, "--concurrent", "-c", help="Maximum concurrent extractions"),
+):
+    """Extract and save company logos for existing startups.
+
+    Extracts logos from company websites using multiple strategies:
+    - Open Graph images (og:image)
+    - Twitter card images
+    - HTML logo tags
+    - Apple touch icons
+    - Clearbit Logo API (fallback)
+
+    By default, saves to PostgreSQL database (served via /api/startups/:slug/logo).
+    Use --local to save to local files instead.
+
+    Requires DATABASE_URL environment variable to be set.
+
+    Examples:
+        python -m main extract-logos
+        python -m main extract-logos --local
+        python -m main extract-logos --concurrent 10
+    """
+    from src.crawler.logo_extractor import extract_logos_for_existing_startups
+
+    console.print(Panel.fit(
+        "[bold blue]Logo Extraction[/bold blue]",
+        border_style="blue"
+    ))
+
+    storage_type = "PostgreSQL database" if use_database else "Local storage"
+    console.print(f"[bold]Storage:[/bold] {storage_type}")
+    console.print(f"[bold]Concurrent:[/bold] {max_concurrent}")
+
+    if use_database and not os.getenv("DATABASE_URL"):
+        console.print("[red]Error: DATABASE_URL not set. Cannot save to database.[/red]")
+        console.print("[yellow]Tip: Set DATABASE_URL or use --local to save locally.[/yellow]")
+        raise typer.Exit(1)
+
+    async def run_extraction():
+        results = await extract_logos_for_existing_startups(
+            use_database=use_database,
+            max_concurrent=max_concurrent
+        )
+        return results
+
+    results = asyncio.run(run_extraction())
+
+    # Display summary
+    console.print(f"\n[bold green]Logo extraction complete![/bold green]")
+    console.print(f"\n[bold]Results:[/bold]")
+    console.print(f"  [green]Success:[/green] {len(results['success'])}")
+    console.print(f"  [red]Failed:[/red] {len(results['failed'])}")
+    console.print(f"  [yellow]Skipped:[/yellow] {len(results['skipped'])}")
+
+    # Show some successful extractions
+    if results['success'][:5]:
+        console.print(f"\n[bold]Sample logos extracted:[/bold]")
+        for item in results['success'][:5]:
+            console.print(f"  {item['name']}: {item['logo_url']}")
 
 
 if __name__ == "__main__":

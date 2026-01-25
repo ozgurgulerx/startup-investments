@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npx tsx scripts/generate-briefings.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "generate-briefings": "npx tsx scripts/generate-briefings.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
@@ -21,19 +23,27 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@startup-intelligence/shared": "workspace:*",
     "ai": "^3.0.0",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.312.0",
     "next": "14.1.0",
+    "next-auth": "5.0.0-beta.30",
+    "pg": "^8.17.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^2.10.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@azure/static-web-apps-cli": "^2.0.7",
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20.11.0",
+    "@types/pg": "^8.16.0",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "autoprefixer": "^10.4.17",
@@ -41,6 +51,7 @@
     "eslint-config-next": "14.1.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
 }

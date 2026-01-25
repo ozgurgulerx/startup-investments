@@ -10,11 +10,12 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Briefing', href: '/' },
-  { label: 'Company Intelligence', href: '/startups' },
-  { label: 'Build Signals', href: '/patterns' },
-  { label: 'Capital & Momentum', href: '/trends' },
-  { label: 'AI Landscape Brief', href: '/newsletter' },
+  { label: 'Monthly Brief', href: '/brief' },
+  { label: 'Dealbook', href: '/dealbook' },
+  { label: 'Signals', href: '/signals' },
+  { label: 'Capital Flows', href: '/capital' },
+  { label: 'Library', href: '/library' },
+  { label: 'Watchlist', href: '/watchlist' },
 ];
 
 export function Sidebar() {

@@ -7,3 +7,4 @@ export { TopDealsChart } from './top-deals-chart';
 export { VerticalInvestmentChart } from './vertical-investment-chart';
 export { VerticalBubbleChart } from './vertical-bubble-chart';
 export { ModelUsageChart } from './model-usage-chart';
+export { MarketBreakdownChart } from './market-breakdown-chart';

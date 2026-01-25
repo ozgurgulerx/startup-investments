@@ -3,6 +3,7 @@
 import { Search, Sparkles } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
 import { MonthSelector } from './month-selector';
+import { UserMenu } from '@/components/auth/user-menu';
 
 interface HeaderProps {
   currentPeriod: string;
@@ -38,6 +39,9 @@ export function Header({
           <Sparkles className="h-4 w-4" />
           Ask AI
         </Button>
+
+        {/* User Menu */}
+        <UserMenu />
       </div>
     </header>
   );

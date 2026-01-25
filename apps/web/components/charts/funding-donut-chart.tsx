@@ -15,16 +15,17 @@ interface FundingDonutChartProps {
   height?: number;
 }
 
+// Cyan/sky gradient palette for Bloomberg-inspired theme
 const STAGE_COLORS: Record<string, string> = {
-  seed: 'hsl(172, 66%, 50%)',
-  series_a: 'hsl(199, 89%, 48%)',
-  series_b: 'hsl(217, 91%, 60%)',
-  series_c: 'hsl(262, 83%, 58%)',
-  series_d: 'hsl(27, 96%, 61%)',
-  series_e: 'hsl(348, 83%, 47%)',
-  growth: 'hsl(142, 71%, 45%)',
-  pre_seed: 'hsl(47, 96%, 53%)',
-  unknown: 'hsl(240, 5%, 64.9%)',
+  series_d_plus: 'hsl(187, 94%, 43%)',  // Cyan-500 - brightest for largest
+  series_c: 'hsl(187, 85%, 50%)',        // Cyan-400
+  series_b: 'hsl(199, 89%, 48%)',        // Sky-500
+  series_a: 'hsl(199, 80%, 55%)',        // Sky-400
+  seed: 'hsl(187, 70%, 58%)',            // Cyan-300
+  pre_seed: 'hsl(199, 70%, 62%)',        // Sky-300
+  growth: 'hsl(160, 84%, 39%)',          // Emerald
+  late_stage: 'hsl(187, 60%, 48%)',      // Cyan variant
+  unknown: 'hsl(230, 20%, 35%)',         // Muted slate - less prominent
 };
 
 const formatStageName = (stage: string) => {
@@ -54,14 +55,14 @@ const CustomTooltip = ({ active, payload }: any) => {
 
 const CustomLegend = ({ payload }: any) => {
   return (
-    <div className="flex flex-wrap justify-center gap-3 mt-2">
+    <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-3 px-2">
       {payload?.map((entry: any, index: number) => (
         <div key={`legend-${index}`} className="flex items-center gap-1.5">
           <div
-            className="w-3 h-3 rounded-sm"
+            className="w-2.5 h-2.5 rounded-full"
             style={{ backgroundColor: entry.color }}
           />
-          <span className="text-xs text-muted-foreground">{entry.value}</span>
+          <span className="text-[10px] text-muted-foreground">{entry.value}</span>
         </div>
       ))}
     </div>
@@ -88,12 +89,12 @@ export function FundingDonutChart({ data, height = 300 }: FundingDonutChartProps
           <Pie
             data={chartData}
             cx="50%"
-            cy="45%"
-            innerRadius={60}
-            outerRadius={90}
+            cy="42%"
+            innerRadius={55}
+            outerRadius={85}
             paddingAngle={2}
             dataKey="value"
-            stroke="hsl(0, 0%, 8%)"
+            stroke="hsl(230, 20%, 8%)"
             strokeWidth={2}
           >
             {chartData.map((entry, index) => (

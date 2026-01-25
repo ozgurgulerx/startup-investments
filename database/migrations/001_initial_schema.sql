@@ -1,12 +1,12 @@
 -- Initial schema for Startup Investments database
 -- Run: psql -d startupinvestments -f 001_initial_schema.sql
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Note: Using gen_random_uuid() which is built-in since PostgreSQL 13+
+-- No extension needed for Azure PostgreSQL Flexible Server
 
 -- Startups table
 CREATE TABLE IF NOT EXISTS startups (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     website VARCHAR(500),
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS startups (
 
 -- Funding rounds table
 CREATE TABLE IF NOT EXISTS funding_rounds (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     startup_id UUID NOT NULL REFERENCES startups(id) ON DELETE CASCADE,
     round_type VARCHAR(50) NOT NULL,
     amount_usd BIGINT,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS funding_rounds (
 
 -- Investors table
 CREATE TABLE IF NOT EXISTS investors (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL UNIQUE,
     type VARCHAR(50), -- VC, Angel, Corporate, etc.
     website VARCHAR(500),
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS investors (
 
 -- Investment junction table
 CREATE TABLE IF NOT EXISTS investments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     funding_round_id UUID NOT NULL REFERENCES funding_rounds(id) ON DELETE CASCADE,
     investor_id UUID NOT NULL REFERENCES investors(id) ON DELETE CASCADE,
     is_lead BOOLEAN DEFAULT FALSE,
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS investments (
 
 -- Newsletters table (for generated content)
 CREATE TABLE IF NOT EXISTS newsletters (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(500) NOT NULL,
     content TEXT NOT NULL,
     period_start DATE NOT NULL,

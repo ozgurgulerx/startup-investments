@@ -44,7 +44,7 @@ ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS period VARCHAR(20);
 
 -- Create startup_briefs table for versioned briefs
 CREATE TABLE IF NOT EXISTS startup_briefs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     startup_id UUID NOT NULL REFERENCES startups(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     version INTEGER DEFAULT 1,

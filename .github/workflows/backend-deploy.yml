@@ -7,12 +7,13 @@ on:
     paths:
       - 'apps/api/**'
       - 'packages/shared/**'
+      - 'infrastructure/kubernetes/**'
   workflow_dispatch:
 
 env:
-  ACR_NAME: ${{ vars.ACR_NAME }}
-  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
-  AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }}
+  ACR_NAME: aistartuptr
+  AKS_CLUSTER_NAME: aks-aistartuptr
+  AKS_RESOURCE_GROUP: aistartuptr
   IMAGE_NAME: startup-investments-api
 
 jobs:
@@ -53,9 +54,61 @@ jobs:
           resource-group: ${{ env.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
 
+      - name: Create/Update Kubernetes Secret
+        run: |
+          kubectl create secret generic startup-investments-secrets \
+            --from-literal=database-url="${{ secrets.DATABASE_URL }}" \
+            --from-literal=api-key="${{ secrets.API_KEY }}" \
+            --from-literal=front-door-id="${{ secrets.FRONT_DOOR_ID }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Deploy to AKS
         run: |
-          # Update image tag in deployment
-          sed -i 's|${ACR_NAME}|${{ env.ACR_NAME }}|g' infrastructure/kubernetes/api-deployment.yaml
           kubectl apply -f infrastructure/kubernetes/api-deployment.yaml
-          kubectl rollout status deployment/startup-investments-api
+          kubectl rollout status deployment/startup-investments-api --timeout=300s
+
+      - name: Get Service External IP
+        id: get-ip
+        run: |
+          echo "Waiting for LoadBalancer IP..."
+          for i in {1..30}; do
+            IP=$(kubectl get service startup-investments-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+            if [ -n "$IP" ]; then
+              echo "API available at: http://$IP"
+              echo "api_ip=$IP" >> $GITHUB_OUTPUT
+              break
+            fi
+            sleep 10
+          done
+
+      - name: Wait for API to be healthy
+        run: |
+          API_URL="http://${{ steps.get-ip.outputs.api_ip }}"
+          echo "Waiting for API to be healthy at $API_URL..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "API is healthy!"
+              break
+            fi
+            echo "Attempt $i: Status $STATUS, waiting..."
+            sleep 10
+          done
+
+      - name: Trigger Logo Extraction
+        run: |
+          API_URL="http://${{ steps.get-ip.outputs.api_ip }}"
+          echo "Triggering logo extraction..."
+
+          # First check logo status
+          echo "Current logo status:"
+          curl -s -H "x-admin-key: ${{ secrets.API_KEY }}" "$API_URL/api/admin/logo-status" | jq .
+
+          # Trigger extraction (only for startups without logos)
+          echo "Starting logo extraction..."
+          RESULT=$(curl -s -X POST -H "x-admin-key: ${{ secrets.API_KEY }}" "$API_URL/api/admin/extract-logos")
+          echo "$RESULT" | jq .
+
+          # Show final status
+          echo "Final logo status:"
+          curl -s -H "x-admin-key: ${{ secrets.API_KEY }}" "$API_URL/api/admin/logo-status" | jq .

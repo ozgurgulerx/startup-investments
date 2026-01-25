@@ -2,10 +2,31 @@
 
 import csv
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 
 from src.data.models import StartupAnalysis, StartupInput
+from src.config import settings
+
+
+def get_logo_path_for_company(company_name: str) -> Optional[str]:
+    """Get the logo path for a company if it exists.
+
+    Args:
+        company_name: The company name
+
+    Returns:
+        Path to the logo file, or None if not found
+    """
+    slug = company_name.lower().replace(" ", "-").replace(".", "").replace(",", "").replace("&", "and")
+    logos_dir = settings.data_output_dir / "logos"
+
+    for ext in [".png", ".jpg", ".svg", ".webp", ".gif", ".ico"]:
+        logo_path = logos_dir / f"{slug}{ext}"
+        if logo_path.exists():
+            return str(logo_path)
+
+    return None
 
 
 def _format_competitors(analysis: StartupAnalysis) -> str:
@@ -69,8 +90,21 @@ def _format_secret_sauce(analysis: StartupAnalysis) -> str:
     return "\n".join(lines).strip() if lines else "*No secret sauce identified*"
 
 
-def generate_startup_brief(analysis: StartupAnalysis, startup_input: StartupInput) -> str:
-    """Generate a markdown brief for a startup covering all analysis points."""
+def generate_startup_brief(
+    analysis: StartupAnalysis,
+    startup_input: StartupInput,
+    logo_path: Optional[str] = None
+) -> str:
+    """Generate a markdown brief for a startup covering all analysis points.
+
+    Args:
+        analysis: The startup analysis data
+        startup_input: The original startup input data
+        logo_path: Optional path to the company logo image
+
+    Returns:
+        Markdown formatted brief
+    """
 
     # Format funding
     funding_str = f"${analysis.funding_amount:,.0f}" if analysis.funding_amount else "Undisclosed"
@@ -129,8 +163,13 @@ def generate_startup_brief(analysis: StartupAnalysis, startup_input: StartupInpu
     else:
         nl_badge = nl_potential
 
-    brief = f"""# {analysis.company_name}
+    # Format logo section if available
+    logo_section = ""
+    if logo_path:
+        logo_section = f'\n<img src="{logo_path}" alt="{analysis.company_name} logo" width="120" height="120" style="border-radius: 8px;" />\n'
 
+    brief = f"""# {analysis.company_name}
+{logo_section}
 > **GenAI Analysis Brief** | Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
 
 ---
@@ -240,9 +279,24 @@ def generate_startup_brief(analysis: StartupAnalysis, startup_input: StartupInpu
     return brief
 
 
-def save_startup_brief(analysis: StartupAnalysis, startup_input: StartupInput, output_dir: Path) -> Path:
-    """Save the startup brief to a markdown file."""
-    brief = generate_startup_brief(analysis, startup_input)
+def save_startup_brief(
+    analysis: StartupAnalysis,
+    startup_input: StartupInput,
+    output_dir: Path,
+    logo_path: Optional[str] = None
+) -> Path:
+    """Save the startup brief to a markdown file.
+
+    Args:
+        analysis: The startup analysis data
+        startup_input: The original startup input data
+        output_dir: Directory to save the brief
+        logo_path: Optional path to the company logo image
+
+    Returns:
+        Path to the saved brief file
+    """
+    brief = generate_startup_brief(analysis, startup_input, logo_path)
 
     # Create briefs directory
     briefs_dir = output_dir / "briefs"

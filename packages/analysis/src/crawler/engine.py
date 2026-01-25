@@ -13,6 +13,7 @@ from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 
 from src.config import settings
 from src.data.models import CrawledSource, StartupInput
+from src.crawler.logo_extractor import LogoExtractor
 
 
 def get_company_slug(name: str) -> str:
@@ -299,6 +300,7 @@ class StartupCrawler:
         self.github_client = GitHubClient() if settings.crawler.enable_github else None
         self.news_client = NewsClient() if settings.crawler.enable_news else None
         self.youtube_client = YouTubeClient() if settings.crawler.enable_web_search else None  # Use web_search setting
+        self.logo_extractor = LogoExtractor()
 
     async def crawl_startup(self, startup: StartupInput) -> List[CrawledSource]:
         """Crawl all available URLs for a startup with multi-source enrichment."""
@@ -363,6 +365,11 @@ class StartupCrawler:
         if self.youtube_client:
             youtube_sources = await self._crawl_youtube(startup)
             crawled_sources.extend(youtube_sources)
+
+        # Phase 6: Extract and save company logo
+        logo_source = await self._extract_logo(startup)
+        if logo_source:
+            crawled_sources.append(logo_source)
 
         return crawled_sources
 
@@ -598,6 +605,36 @@ class StartupCrawler:
             print(f"YouTube crawl error for {startup.name}: {e}")
 
         return sources
+
+    async def _extract_logo(self, startup: StartupInput) -> Optional[CrawledSource]:
+        """Extract and save company logo."""
+        try:
+            # Get cached HTML content from main website if available
+            html_content = None
+            if startup.website:
+                html_content = self.get_cached_content(startup.name, startup.website)
+
+            # Extract and save logo
+            logo_path = await self.logo_extractor.extract_and_save(
+                company_name=startup.name,
+                website=startup.website,
+                html_content=html_content
+            )
+
+            if logo_path:
+                return CrawledSource(
+                    url=f"logo://{startup.name}",
+                    source_type="logo",
+                    crawled_at=datetime.now(timezone.utc),
+                    success=True,
+                    content_length=0,
+                    title=f"Logo: {logo_path}",
+                )
+
+        except Exception as e:
+            print(f"Logo extraction error for {startup.name}: {e}")
+
+        return None
 
     async def _crawl_single(self, crawler: AsyncWebCrawler, url: str) -> Dict[str, Any]:
         """Crawl a single URL."""
@@ -872,6 +909,8 @@ class StartupCrawler:
             await self.news_client.close()
         if self.youtube_client:
             await self.youtube_client.close()
+        if self.logo_extractor:
+            await self.logo_extractor.close()
 
 
 async def crawl_startup_batch(startups: List[StartupInput], max_concurrent: int = 3) -> Dict[str, List[CrawledSource]]:
