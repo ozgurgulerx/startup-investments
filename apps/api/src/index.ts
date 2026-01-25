@@ -40,13 +40,10 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // In production, require origin header
+    // No origin = server-to-server call (will be authenticated via API key)
+    // CORS is a browser security feature, not for server-side protection
     if (!origin) {
-      // Allow health checks and server-to-server calls in development only
-      if (process.env.NODE_ENV !== 'production') {
-        return callback(null, true);
-      }
-      return callback(new Error('Origin header required'), false);
+      return callback(null, true);
     }
 
     // Check if origin is in allowed list or matches Azure Static Web Apps pattern
@@ -77,33 +74,10 @@ const limiter = rateLimit({
 // Apply rate limiting to API routes
 app.use('/api/', limiter);
 
-// Security middleware - validate requests
-app.use((req, res, next) => {
-  // Skip health checks (needed for K8s probes)
-  if (req.path === '/health') {
-    return next();
-  }
-
-  // In production, validate Origin or Referer
-  if (process.env.NODE_ENV === 'production') {
-    const origin = req.headers.origin || '';
-    const referer = req.headers.referer || '';
-
-    const isValidOrigin =
-      origin.endsWith('.azurestaticapps.net') ||
-      referer.includes('.azurestaticapps.net') ||
-      origin.endsWith('.azurewebsites.net') ||
-      referer.includes('.azurewebsites.net') ||
-      allowedOrigins.some(allowed => origin === allowed || referer.includes(allowed));
-
-    if (!isValidOrigin) {
-      console.warn(`Blocked request - Origin: ${origin}, Referer: ${referer}`);
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-  }
-
-  next();
-});
+// Security is now handled by:
+// 1. CORS - blocks browser requests from unauthorized origins
+// 2. API Key - authenticates all non-health API requests
+// 3. Front Door ID - ensures requests come through Azure Front Door (when configured)
 
 // Front Door ID validation middleware (ensures requests come through Front Door)
 app.use((req, res, next) => {

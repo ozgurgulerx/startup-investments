@@ -40,10 +40,13 @@ export default function LandingPage() {
             January 2026 Brief Available
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-6 leading-tight">
-            AI Startup Intelligence<br />
-            <span className="text-muted-foreground">for Serious Investors</span>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-4 leading-tight">
+            Build Patterns
           </h1>
+
+          <p className="text-base sm:text-lg text-muted-foreground/80 tracking-wide mb-8">
+            AI-driven startup intelligence for builders & investors
+          </p>
 
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
             Monthly analysis of 200+ AI startup funding rounds. Pattern detection,
