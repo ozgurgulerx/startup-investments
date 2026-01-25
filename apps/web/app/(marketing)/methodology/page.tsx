@@ -6,13 +6,8 @@ export default function MethodologyPage() {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/30">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-base font-medium text-foreground tracking-tight">
-              Build Patterns
-            </span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-              Intelligence
-            </span>
+          <Link href="/" className="text-base font-medium text-foreground tracking-tight">
+            Build Atlas
           </Link>
           <div className="flex items-center gap-6">
             <Link
@@ -39,49 +34,31 @@ export default function MethodologyPage() {
           </Link>
 
           <h1 className="text-4xl font-light text-foreground mb-6">
-            Our Methodology
+            How We Decode Startups
           </h1>
 
           <p className="text-lg text-muted-foreground mb-12 leading-relaxed">
-            Build Patterns Intelligence combines automated data collection, AI-powered analysis,
-            and human editorial oversight to deliver actionable startup intelligence.
+            Build Atlas combines automated data collection, architecture detection,
+            and editorial review to decode how AI startups are built.
           </p>
 
           <div className="space-y-12">
             <section>
               <h2 className="text-xl font-medium text-foreground mb-4">Data Collection</h2>
               <p className="text-muted-foreground mb-4 leading-relaxed">
-                We continuously monitor 50+ data sources including funding announcements,
-                company websites, technical documentation, blog posts, press releases,
-                and industry publications. Our crawlers collect structured and unstructured
-                data that feeds into our analysis pipeline.
+                We monitor 50+ sources including funding announcements,
+                company websites, technical docs, job postings, and press releases.
+                Our crawlers extract structured and unstructured data that feeds
+                into the analysis pipeline.
               </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
-                  Funding data from Crunchbase, PitchBook, and direct announcements
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
-                  Company websites and technical documentation
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
-                  GitHub repositories and developer content
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
-                  Press releases and news coverage
-                </li>
-              </ul>
             </section>
 
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">AI-Powered Analysis</h2>
+              <h2 className="text-xl font-medium text-foreground mb-4">Architecture Detection</h2>
               <p className="text-muted-foreground mb-4 leading-relaxed">
-                Each company goes through a multi-stage analysis pipeline using large language models.
-                We extract structured information, identify build patterns, assess GenAI intensity,
-                and generate competitive positioning insights.
+                Each company goes through a multi-stage analysis using large language models.
+                We extract stack signals, identify build patterns, assess GenAI depth,
+                and surface implementation tradeoffs.
               </p>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="p-4 border border-border/30 rounded-lg">
@@ -92,23 +69,22 @@ export default function MethodologyPage() {
                   </p>
                 </div>
                 <div className="p-4 border border-border/30 rounded-lg">
-                  <h3 className="text-sm font-medium text-foreground mb-2">GenAI Assessment</h3>
+                  <h3 className="text-sm font-medium text-foreground mb-2">Stack Analysis</h3>
                   <p className="text-xs text-muted-foreground">
                     Classifies companies by GenAI integration depth: core, significant,
                     supplementary, or none.
                   </p>
                 </div>
                 <div className="p-4 border border-border/30 rounded-lg">
-                  <h3 className="text-sm font-medium text-foreground mb-2">Competitive Analysis</h3>
+                  <h3 className="text-sm font-medium text-foreground mb-2">Positioning</h3>
                   <p className="text-xs text-muted-foreground">
-                    Identifies competitors, differentiators, and defensibility factors
-                    for each company.
+                    Identifies product wedge, competitive landscape, and defensibility factors.
                   </p>
                 </div>
                 <div className="p-4 border border-border/30 rounded-lg">
                   <h3 className="text-sm font-medium text-foreground mb-2">Evidence Extraction</h3>
                   <p className="text-xs text-muted-foreground">
-                    Captures source quotes and citations to back every claim
+                    Captures source quotes and citations to back every signal
                     with verifiable evidence.
                   </p>
                 </div>
@@ -128,7 +104,7 @@ export default function MethodologyPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent">•</span>
-                  <strong className="text-foreground">What it enables:</strong> Business capabilities unlocked
+                  <strong className="text-foreground">Builder implications:</strong> Implementation considerations and tradeoffs
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent">•</span>
@@ -136,20 +112,19 @@ export default function MethodologyPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent">•</span>
-                  <strong className="text-foreground">Primary risk:</strong> What could derail adoption
+                  <strong className="text-foreground">Failure modes:</strong> What could derail the approach
                 </li>
               </ul>
               <p className="text-muted-foreground leading-relaxed">
-                Current patterns include: Agentic Architectures, Vertical Data Moats,
-                RAG (Retrieval-Augmented Generation), Micro-model Meshes,
-                Continuous-learning Flywheels, and Guardrail-as-LLM.
+                Current patterns: Agentic Architectures, Vertical Data Moats,
+                RAG, Micro-model Meshes, Continuous-learning Flywheels, Guardrail-as-LLM.
               </p>
             </section>
 
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Monthly Brief Process</h2>
+              <h2 className="text-xl font-medium text-foreground mb-4">Atlas Brief Process</h2>
               <p className="text-muted-foreground mb-4 leading-relaxed">
-                Each month, we synthesize individual company analyses into an intelligence brief:
+                Each month, we synthesize individual company dossiers into an Atlas Brief:
               </p>
               <ol className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex items-start gap-3">
@@ -162,11 +137,11 @@ export default function MethodologyPage() {
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">3</span>
-                  <span>Generate thesis statement and implications using LLM synthesis</span>
+                  <span>Generate thesis and builder implications using LLM synthesis</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">4</span>
-                  <span>Human editorial review for accuracy and insight quality</span>
+                  <span>Editorial review for accuracy and signal quality</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">5</span>
@@ -176,9 +151,9 @@ export default function MethodologyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Trust & Transparency</h2>
+              <h2 className="text-xl font-medium text-foreground mb-4">Evidence & Confidence</h2>
               <p className="text-muted-foreground mb-4 leading-relaxed">
-                Every company analysis includes:
+                Every company dossier includes:
               </p>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
@@ -203,13 +178,13 @@ export default function MethodologyPage() {
 
           <div className="mt-16 p-6 bg-muted/10 border border-border/30 rounded-lg text-center">
             <p className="text-muted-foreground mb-4">
-              Ready to explore AI startup intelligence?
+              Ready to explore company dossiers?
             </p>
             <Link
-              href="/brief"
+              href="/dealbook"
               className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
             >
-              Get Started
+              Explore Dossiers
             </Link>
           </div>
         </div>
@@ -218,12 +193,9 @@ export default function MethodologyPage() {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-border/30">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">Build Patterns</span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Intelligence</span>
-          </div>
+          <span className="text-sm font-medium text-foreground">Build Atlas</span>
           <p className="text-xs text-muted-foreground/60">
-            © 2026 Build Patterns Intelligence
+            © 2026 Build Atlas
           </p>
         </div>
       </footer>

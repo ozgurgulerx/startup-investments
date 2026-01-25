@@ -16,14 +16,14 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'AI Startup Intelligence | Build Patterns Monthly',
+  title: 'Build Atlas — How AI startups are really built',
   description:
-    'Monthly AI startup funding analysis and insights. Discover build patterns, track trends, and get actionable intelligence.',
-  keywords: ['AI', 'startups', 'funding', 'venture capital', 'build patterns', 'GenAI'],
-  authors: [{ name: 'AI Startup Intelligence' }],
+    'Build Atlas decodes how AI startups are really built. Monthly dossiers, architecture signals, and reusable build blueprints.',
+  keywords: ['AI', 'startups', 'architecture', 'build patterns', 'GenAI', 'dossiers'],
+  authors: [{ name: 'Build Atlas' }],
   openGraph: {
-    title: 'AI Startup Intelligence',
-    description: 'Monthly AI startup funding analysis and insights',
+    title: 'Build Atlas — How AI startups are really built',
+    description: 'Build Atlas decodes how AI startups are really built. Monthly dossiers, architecture signals, and reusable build blueprints.',
     type: 'website',
   },
 };

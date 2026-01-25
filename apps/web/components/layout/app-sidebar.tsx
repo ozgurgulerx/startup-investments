@@ -12,7 +12,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   {
-    label: 'Monthly Brief',
+    label: 'Atlas Brief',
     href: '/app/brief',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -21,7 +21,7 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    label: 'Dealbook',
+    label: 'Dossiers',
     href: '/app/dealbook',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -79,10 +79,7 @@ export function AppSidebar() {
         <div className="px-6 py-6">
           <Link href="/" className="block">
             <span className="text-sm font-medium text-foreground tracking-tight">
-              Build Patterns
-            </span>
-            <span className="block text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
-              Intelligence
+              Build Atlas
             </span>
           </Link>
         </div>
@@ -143,7 +140,7 @@ export function AppSidebar() {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border/30">
           <p className="text-[10px] text-muted-foreground/50">
-            © 2026 Build Patterns
+            © 2026 Build Atlas
           </p>
         </div>
       </div>

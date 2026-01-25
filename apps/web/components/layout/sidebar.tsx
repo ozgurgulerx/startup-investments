@@ -12,8 +12,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Monthly Brief', href: '/brief' },
-  { label: 'Dealbook', href: '/dealbook' },
+  { label: 'Atlas Brief', href: '/brief' },
+  { label: 'Dossiers', href: '/dealbook' },
   { label: 'Signals', href: '/signals' },
   { label: 'Capital Flows', href: '/capital' },
   { label: 'Library', href: '/library' },
@@ -30,10 +30,7 @@ export function Sidebar() {
         <div className="px-6 py-8">
           <Link href="/" className="block">
             <span className="text-sm font-medium text-foreground tracking-tight">
-              Build Patterns
-            </span>
-            <span className="block text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
-              Intelligence
+              Build Atlas
             </span>
           </Link>
         </div>

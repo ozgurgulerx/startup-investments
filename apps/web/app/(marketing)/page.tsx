@@ -6,13 +6,8 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/30">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-base font-medium text-foreground tracking-tight">
-              Build Patterns
-            </span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-              Intelligence
-            </span>
+          <Link href="/" className="text-base font-medium text-foreground tracking-tight">
+            Build Atlas
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/methodology" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -33,35 +28,30 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 text-xs text-accent bg-accent/10 rounded-full">
             <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
-            January 2026 Brief Available
+            January 2026 Atlas Brief
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-4 leading-tight">
-            Build Patterns
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-6 leading-tight">
+            How AI startups are really built.
           </h1>
 
-          <p className="text-base sm:text-lg text-muted-foreground/80 tracking-wide mb-8">
-            AI-driven startup intelligence for builders & investors
-          </p>
-
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            Monthly analysis of 200+ AI startup funding rounds. Pattern detection,
-            competitive signals, and evidence-backed insights — delivered in a format
-            built for investment decisions.
+            Build Atlas decodes funded AI startups into clear dossiers: product wedge,
+            architecture, data moat, and go-to-market.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/brief"
+              href="/dealbook"
               className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
             >
-              Get Started
+              Explore Dossiers
             </Link>
             <Link
-              href="/dealbook"
+              href="/brief"
               className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
             >
-              Browse Dealbook
+              Read the January Brief
             </Link>
           </div>
         </div>
@@ -72,20 +62,20 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div>
+              <p className="text-3xl font-light text-foreground tabular-nums">201</p>
+              <p className="text-sm text-muted-foreground mt-1">Companies Decoded</p>
+            </div>
+            <div>
               <p className="text-3xl font-light text-foreground tabular-nums">$31.1B</p>
               <p className="text-sm text-muted-foreground mt-1">Capital Tracked</p>
             </div>
             <div>
-              <p className="text-3xl font-light text-foreground tabular-nums">201</p>
-              <p className="text-sm text-muted-foreground mt-1">Deals Analyzed</p>
+              <p className="text-3xl font-light text-foreground tabular-nums">6</p>
+              <p className="text-sm text-muted-foreground mt-1">Architecture Patterns</p>
             </div>
             <div>
               <p className="text-3xl font-light text-foreground tabular-nums">55%</p>
-              <p className="text-sm text-muted-foreground mt-1">GenAI Adoption</p>
-            </div>
-            <div>
-              <p className="text-3xl font-light text-foreground tabular-nums">6</p>
-              <p className="text-sm text-muted-foreground mt-1">Build Patterns</p>
+              <p className="text-sm text-muted-foreground mt-1">GenAI Stack</p>
             </div>
           </div>
         </div>
@@ -99,7 +89,7 @@ export default function LandingPage() {
               What You Get
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              Comprehensive intelligence covering the AI startup ecosystem — completely open.
+              Browse highlights for free. Pro unlocks full dossiers, advanced filters, archives, and exports.
             </p>
           </div>
 
@@ -110,10 +100,9 @@ export default function LandingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">Monthly Brief</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">Atlas Brief</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Thesis-driven analysis of capital flows, dominant patterns, and market implications.
-                Includes KPIs, notable rounds, and builder plays.
+                A concise monthly thesis on what changed, why it matters, and the builder implications.
               </p>
             </div>
 
@@ -123,10 +112,9 @@ export default function LandingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">Full Dealbook</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">Company Dossiers</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Complete database of analyzed companies with advanced filters. Export to CSV,
-                add to watchlist, and track across months.
+                Searchable company-level breakdowns with architecture, stack, positioning, and confidence-scored signals.
               </p>
             </div>
 
@@ -136,10 +124,9 @@ export default function LandingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">Pattern Signals</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">Architecture Signals</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                AI-detected build patterns with conviction levels, time horizons, and risk factors.
-                See which architectures are gaining traction.
+                Emerging build and stack signals detected across startups, with confidence levels and failure modes.
               </p>
             </div>
           </div>
@@ -151,43 +138,43 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-light text-foreground mb-4">
-              Intelligence, Not Noise
+              Analysis, Not Noise
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              Every insight is backed by evidence. Every pattern is detected from real data.
+              Every dossier is backed by evidence. Every signal is detected from real implementation data.
             </p>
           </div>
 
           {/* Mock Brief Preview */}
           <div className="max-w-3xl mx-auto p-8 bg-card border border-border/30 rounded-lg">
-            <div className="label-xs text-muted-foreground mb-4">JANUARY 2026 ANALYSIS</div>
+            <div className="label-xs text-muted-foreground mb-4">JANUARY 2026 ATLAS BRIEF</div>
             <h3 className="text-xl font-light text-foreground mb-4 leading-relaxed">
-              Capital concentrated around agentic architectures, with 55% of funded startups
-              building on generative AI infrastructure.
+              Agentic architectures dominate new funding, with 55% of startups building
+              on generative AI infrastructure and multi-model orchestration.
             </h3>
             <p className="text-sm text-muted-foreground mb-6">
-              Average deal size reached $154.6M, suggesting investors are concentrating bets
-              on fewer, more capital-intensive infrastructure plays.
+              Average deal size reached $154.6M. Capital is concentrating on fewer,
+              more infrastructure-heavy plays. Builder implication: the middleware layer is heating up.
             </p>
             <div className="flex gap-8 pt-4 border-t border-border/30">
               <div>
-                <p className="text-2xl font-light text-foreground tabular-nums">$31.1B</p>
-                <p className="text-xs text-muted-foreground mt-1">Total Capital</p>
-              </div>
-              <div>
                 <p className="text-2xl font-light text-foreground tabular-nums">201</p>
-                <p className="text-xs text-muted-foreground mt-1">Deals</p>
+                <p className="text-xs text-muted-foreground mt-1">Dossiers</p>
               </div>
               <div>
-                <p className="text-2xl font-light text-foreground tabular-nums">55%</p>
-                <p className="text-xs text-muted-foreground mt-1">GenAI Adoption</p>
+                <p className="text-2xl font-light text-foreground tabular-nums">$31.1B</p>
+                <p className="text-xs text-muted-foreground mt-1">Capital</p>
+              </div>
+              <div>
+                <p className="text-2xl font-light text-foreground tabular-nums">6</p>
+                <p className="text-xs text-muted-foreground mt-1">Patterns</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Sign In for Personalization */}
+      {/* Sign In for Pro */}
       <section id="personalize" className="py-20 px-6">
         <div className="max-w-2xl mx-auto text-center">
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent/10 flex items-center justify-center">
@@ -196,11 +183,10 @@ export default function LandingPage() {
             </svg>
           </div>
           <h2 className="text-3xl font-light text-foreground mb-4">
-            Sign in to personalize
+            Unlock Full Access
           </h2>
           <p className="text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
-            Create watchlists, save filters, and get a tailored feed.
-            All content remains free — signing in just unlocks personal features.
+            Browse highlights for free. Pro unlocks full dossiers, advanced filters, archives, and exports.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -223,12 +209,12 @@ export default function LandingPage() {
       <section className="py-20 px-6 bg-muted/10 border-y border-border/30">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl font-light text-foreground mb-4">
-            AI-Powered Analysis
+            How We Decode Startups
           </h2>
           <p className="text-muted-foreground mb-8 leading-relaxed">
-            Our methodology combines automated data collection from 50+ sources with
-            LLM-powered pattern detection and human editorial oversight. Every company
-            analysis includes evidence counts and source attribution.
+            Build Atlas combines automated data collection from 50+ sources with
+            LLM-powered architecture detection. Every dossier includes evidence counts,
+            confidence scores, and source attribution.
           </p>
           <Link
             href="/methodology"
@@ -251,38 +237,38 @@ export default function LandingPage() {
 
           <div className="space-y-6">
             <div className="pb-6 border-b border-border/30">
-              <h3 className="text-base font-medium text-foreground mb-2">How often is the data updated?</h3>
+              <h3 className="text-base font-medium text-foreground mb-2">How often is Build Atlas updated?</h3>
               <p className="text-sm text-muted-foreground">
-                We publish a comprehensive monthly brief by the 5th of each month covering the previous month's activity.
-                Company data is continuously refreshed as new information becomes available.
+                We publish a new Atlas Brief by the 5th of each month covering the previous month.
+                Company dossiers are refreshed continuously as new information surfaces.
               </p>
             </div>
             <div className="pb-6 border-b border-border/30">
               <h3 className="text-base font-medium text-foreground mb-2">What funding stages do you cover?</h3>
               <p className="text-sm text-muted-foreground">
-                We track Seed through Series D rounds, with a focus on AI and AI-adjacent companies.
-                We include deals $1M+ to ensure signal quality.
+                Seed through Series D, with a focus on AI and AI-adjacent companies.
+                We include deals $1M+ to maintain signal quality.
               </p>
             </div>
             <div className="pb-6 border-b border-border/30">
-              <h3 className="text-base font-medium text-foreground mb-2">How are patterns detected?</h3>
+              <h3 className="text-base font-medium text-foreground mb-2">How are architecture signals detected?</h3>
               <p className="text-sm text-muted-foreground">
-                Our AI system analyzes company websites, documentation, press releases, and technical content
-                to identify build patterns. Each pattern assignment includes a confidence score and evidence citations.
+                Our system analyzes company websites, documentation, job postings, and technical content
+                to identify stack choices and architecture patterns. Each signal includes a confidence score.
               </p>
             </div>
             <div className="pb-6 border-b border-border/30">
               <h3 className="text-base font-medium text-foreground mb-2">Can I export the data?</h3>
               <p className="text-sm text-muted-foreground">
-                Yes! CSV export of the dealbook is available to all users. PDF exports of monthly briefs
-                are also included.
+                Pro users can export dossiers to CSV and download PDF briefs.
+                Free users can browse highlights and summaries.
               </p>
             </div>
             <div className="pb-6 border-b border-border/30">
-              <h3 className="text-base font-medium text-foreground mb-2">What do I get by signing in?</h3>
+              <h3 className="text-base font-medium text-foreground mb-2">What&apos;s the difference between free and Pro?</h3>
               <p className="text-sm text-muted-foreground">
-                Signing in unlocks personal features like watchlists, saved filters, and a personalized feed.
-                All content is accessible without an account — sign-in is optional.
+                Free gives you access to highlights and the current month&apos;s brief summary.
+                Pro unlocks full dossiers, advanced filters, historical archives, and data exports.
               </p>
             </div>
           </div>
@@ -292,17 +278,15 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-border/30">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">Build Patterns</span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Intelligence</span>
-          </div>
+          <span className="text-sm font-medium text-foreground">Build Atlas</span>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/methodology" className="hover:text-foreground transition-colors">Methodology</Link>
-            <Link href="/brief" className="hover:text-foreground transition-colors">Browse</Link>
+            <Link href="/brief" className="hover:text-foreground transition-colors">Atlas Brief</Link>
+            <Link href="/dealbook" className="hover:text-foreground transition-colors">Dossiers</Link>
             <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
-            © 2026 Build Patterns Intelligence
+            © 2026 Build Atlas
           </p>
         </div>
       </footer>

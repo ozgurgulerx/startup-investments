@@ -8,47 +8,42 @@ function LoginPageContent() {
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-border/30">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-base font-medium text-foreground tracking-tight">
-            Build Patterns
-          </span>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-            Intelligence
-          </span>
+        <Link href="/" className="text-base font-medium text-foreground tracking-tight">
+          Build Atlas
         </Link>
 
         {/* Value proposition */}
         <div className="space-y-8 max-w-md">
           <div>
             <h1 className="headline-xl mb-4">
-              AI Startup Intelligence
+              How AI startups are really built.
             </h1>
             <p className="body-lg">
-              Monthly analysis of AI startup funding, build patterns, and market trends.
-              Data-driven insights for investors and founders.
+              Build Atlas decodes funded AI startups into clear dossiers:
+              product wedge, architecture, data moat, and go-to-market.
             </p>
           </div>
 
           {/* Stats */}
           <div className="flex gap-10 pt-6 border-t border-border/40">
             <div>
+              <p className="num-lg text-foreground">201</p>
+              <p className="label-xs mt-1">Dossiers</p>
+            </div>
+            <div>
               <p className="num-lg text-foreground">$31.1B</p>
               <p className="label-xs mt-1">Capital Tracked</p>
             </div>
             <div>
-              <p className="num-lg text-foreground">201</p>
-              <p className="label-xs mt-1">Deals Analyzed</p>
-            </div>
-            <div>
               <p className="num-lg text-foreground">6</p>
-              <p className="label-xs mt-1">Build Patterns</p>
+              <p className="label-xs mt-1">Patterns</p>
             </div>
           </div>
         </div>
 
         {/* Footer */}
         <p className="text-xs text-muted-foreground/60">
-          © 2026 Build Patterns Intelligence
+          © 2026 Build Atlas
         </p>
       </div>
 
@@ -56,20 +51,15 @@ function LoginPageContent() {
       <div className="flex-1 flex items-center justify-center p-8 lg:p-12">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
-          <Link href="/" className="flex items-center gap-2 mb-10 lg:hidden">
-            <span className="text-base font-medium text-foreground tracking-tight">
-              Build Patterns
-            </span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-              Intelligence
-            </span>
+          <Link href="/" className="text-base font-medium text-foreground tracking-tight mb-10 block lg:hidden">
+            Build Atlas
           </Link>
 
           <div className="space-y-8">
             <div>
               <h2 className="headline-md mb-2">Sign in</h2>
               <p className="body-md">
-                Access your watchlist and personalized insights
+                Access full dossiers, filters, and exports
               </p>
             </div>
 
@@ -80,8 +70,8 @@ function LoginPageContent() {
             <div className="pt-6 border-t border-border/30">
               <p className="body-sm text-center">
                 Don&apos;t have an account?{' '}
-                <Link href="/brief" className="text-foreground hover:text-accent transition-colors">
-                  Browse as guest
+                <Link href="/dealbook" className="text-foreground hover:text-accent transition-colors">
+                  Browse dossiers
                 </Link>
               </p>
             </div>
