@@ -94,23 +94,35 @@ kubectl create secret generic startup-investments-secrets \
 Backend auto-deploys on push to `main` when `apps/api/**` or `infrastructure/kubernetes/**` changes.
 Required GitHub secrets: `AZURE_CREDENTIALS`, `DATABASE_URL`, `API_KEY`, `FRONT_DOOR_ID`
 
-## Azure Static Web Apps Deployment
+## Azure App Service Deployment
 
 Frontend auto-deploys on push to `main` when `apps/web/**` changes.
 
-### Static Export Mode
-- Uses `STATIC_EXPORT=true` (set in workflow env)
-- Output: `apps/web/out/`
-- Auth disabled (backups in `apps/web/*.bak`, `apps/web/api.bak/`)
+### Deployment Mode
+- Uses Next.js standalone mode (supports auth)
+- Deployed via OIDC authentication to Azure App Service
+- App Service Plan: `asp-startup-analysis` (B1 tier)
 
-### Required Secret
-- `AZURE_STATIC_WEB_APPS_API_TOKEN`
+### Required GitHub Secrets
+- `DATABASE_URL` - PostgreSQL connection string
+- `NEXTAUTH_SECRET` - NextAuth.js secret
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
 
-### Live URL
-https://ambitious-stone-01ca3c903.2.azurestaticapps.net
+### Required GitHub Variables
+- `AZURE_CLIENT_ID` - Service principal client ID
+- `AZURE_TENANT_ID` - Azure AD tenant ID
+- `AZURE_SUBSCRIPTION_ID` - Azure subscription ID
+- `NEXTAUTH_URL` - Production URL (https://buildatlas.net)
 
-### Re-enabling Auth
-Restore backups and deploy to Vercel/Azure App Service instead (SWA has warmup timeout with standalone mode).
+### Live URLs
+- **Production**: https://buildatlas.net
+- **Azure Default**: https://buildatlas-web.azurewebsites.net
+
+### Authentication
+- Google OAuth enabled
+- Protected routes: `/startups`, `/patterns`, `/trends`, `/newsletter`, `/brief`
+- Login page: `/login`
 
 ## Frontend Styling Guidelines
 
