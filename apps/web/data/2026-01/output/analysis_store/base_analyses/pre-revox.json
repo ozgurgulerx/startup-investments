@@ -1,0 +1,257 @@
+{
+  "company_name": "Pre Revox",
+  "company_slug": "pre-revox",
+  "website": "https://www.getrevox.com",
+  "description": "Use Voice AI to automate your outbound calls",
+  "funding_amount": 3491250.0,
+  "funding_stage": "pre_seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.9,
+      "evidence": [
+        "You are a virtual assistant calling candidates to inform them about a job opportunity.",
+        "Handle scheduling and callbacks automatically.",
+        "Launch outbound voice AI calls at scale.",
+        "Integrate voice AI into your application with a single HTTP request.",
+        "Calls branch automatically based on who answers."
+      ],
+      "description": "Revox implements agentic architectures by providing autonomous voice AI agents capable of making outbound calls, handling scheduling, branching conversations based on call recipient type (human, IVR, voicemail), and integrating with external systems via webhooks for multi-step reasoning and orchestration."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.7,
+      "evidence": [
+        "Choose from pre-trained realistic voices in more than +50 languages.",
+        "Answering Machine Detection: Sub-second analysis distinguishes between voicemail, IVR, and humans with 98% accuracy.",
+        "Calls branch automatically based on who answers."
+      ],
+      "description": "The system appears to use specialized models for different tasks, such as voice synthesis in multiple languages and answering machine detection, indicating a mesh of micro-models for specific subtasks within the call pipeline."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.6,
+      "evidence": [
+        "Scale instantly to 1000+ concurrent calls",
+        "10x cheaper than human freelancers",
+        "includes recording & transcription"
+      ],
+      "description": "Revox leverages proprietary call data, including recordings and transcriptions, to build domain expertise in outbound voice AI for business use cases such as debt recovery and appointment scheduling, suggesting a vertical data moat."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.8,
+      "evidence": [
+        "Smart Retry Logic: Timezone-aware scheduling. Failed calls are automatically re-queued for the optimal next slot, respecting local business hours.",
+        "Retrieve information from the call.",
+        "Turn conversations into JSON. Define a schema (interest_level, email, next_step) and receive clean data via webhook immediately."
+      ],
+      "description": "The orchestration of retries, scheduling, and structured data extraction from calls shows autonomous agent behavior with tool use and multi-step reasoning."
+    }
+  ],
+  "market_type": "horizontal",
+  "vertical": "developer_tools",
+  "sub_vertical": "Voice AI infrastructure/API for outbound calling",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 6,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Public API with versioning (v1.0) is available",
+      "Comprehensive API documentation is linked and promoted",
+      "Clear cURL example for API usage",
+      "Real-time webhooks and analytics features",
+      "Transparent pricing and usage model",
+      "Focus on developer integration and ease of onboarding"
+    ]
+  },
+  "unique_findings": [
+    "Sub-second answering machine detection with 98% accuracy: Most voice AI platforms struggle with reliably distinguishing between humans, IVR, and voicemail in real-time. Revox claims sub-second, highly accurate detection, enabling dynamic call branching\u2014a technical challenge involving low-latency audio processing and robust ML models.",
+    "Structured data extraction from live calls into user-defined JSON schemas: Instead of generic transcripts, Revox lets developers define the schema (e.g., interest_level, email, next_step) and delivers clean, structured data via webhook immediately after the call. This is more developer-centric and actionable than typical call analytics.",
+    "Timezone-aware smart retry logic: Failed calls are automatically rescheduled for optimal slots, respecting local business hours. This orchestration layer is non-trivial, requiring real-time calendar logic, user context, and carrier integration.",
+    "Plug-and-play API with sub-500ms latency and real-time webhooks: The platform promises developer integration with a single HTTP request, instant feedback, and analytics. Achieving this at scale (1000+ concurrent calls) is technically demanding due to telephony, AI, and infrastructure constraints.",
+    "Automatic mapping of CSV lead data to campaign logic: The UI abstracts away manual mapping, reducing friction for non-technical users and hinting at robust backend data normalization."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Plug-and-Play Voice AI: How Revox Built a Developer-First Telephony Stack",
+      "summary": "Revox\u2019s architecture abstracts away the messy edge cases of telephony\u2014latency, carrier logic, and answering machine detection\u2014so developers can launch AI-powered outbound calls with a single HTTP request. Their agentic architecture and orchestration layers enable sub-500ms latency and real-time analytics, making scalable voice AI accessible to any app.",
+      "evidence": [
+        "Plug-and-play system handles edge cases, latency, and carrier logic",
+        "Single HTTP request integration with real-time webhooks and analytics"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "data",
+      "headline": "From Call to Clean JSON: Revox\u2019s Secret Sauce in Structured Data Extraction",
+      "summary": "Revox turns every conversation into structured, developer-ready JSON, letting teams define custom schemas and receive actionable data instantly via webhook. This vertical data moat not only powers automation but also gives users a proprietary edge in extracting insights from voice interactions.",
+      "evidence": [
+        "Structured data extraction with user-defined schemas",
+        "Immediate webhook delivery of conversation data"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "10x Cheaper Than Human Callers: How Revox Scales Outbound Voice AI for Pennies",
+      "summary": "With transparent per-minute pricing and the ability to scale to 1,000+ concurrent calls, Revox claims to be an order of magnitude cheaper than hiring freelancers. Their automation-first approach slashes costs and setup time, making high-volume voice campaigns viable for any team.",
+      "evidence": [
+        "$0.10/minute pricing, no setup fees or subscriptions",
+        "Instantly scales to 1,000+ concurrent calls"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Revox Is Betting on Voice AI Infrastructure\u2014Not Chatbots",
+      "summary": "While most AI startups chase text-based chatbots, Revox is doubling down on voice as the next frontier for automation. Their focus on outbound call infrastructure, rather than conversational UIs, positions them to capture value in industries where real-time voice still dominates.",
+      "evidence": [
+        "Emphasis on outbound voice AI, not chat or text",
+        "Positioned for industries reliant on phone-based workflows"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "The core offering appears to be a thin API layer for launching outbound voice AI calls, with no evidence of proprietary voice models or infrastructure beyond orchestration and integration. The example cURL request suggests reliance on external LLMs or voice providers, with no mention of custom models.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary LLMs or voice synthesis technology.",
+        "API usage pattern is generic and could be replicated with existing cloud APIs.",
+        "No details on unique model architectures or training data."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The product is essentially outbound voice calling with AI prompts and scheduling, which is a feature that could be absorbed by larger platforms (Twilio, OpenAI, Google Cloud). There is no clear path to a broader product ecosystem.",
+      "severity": "medium",
+      "evidence": [
+        "Core value is launching calls with AI prompts and basic analytics.",
+        "No evidence of a platform or extensible product suite.",
+        "Feature set is limited to call orchestration, retry logic, and data extraction."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear data moat or technical differentiation. The structured data extraction and answering machine detection are useful but not unique, and could be implemented by competitors using similar APIs.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary datasets or data network effects.",
+        "No unique technical claims beyond orchestration and integration.",
+        "Pricing is purely usage-based, suggesting commodity infrastructure."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing uses terms like 'AI-powered', '98% accuracy', and 'sub-500ms latency' without technical substantiation. Claims of 'plug and play' and 'edge case handling' are vague.",
+      "severity": "low",
+      "evidence": [
+        "Buzzword-heavy marketing copy.",
+        "No technical details or benchmarks provided.",
+        "No model transparency or architecture discussion."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The product operates in a crowded space (voice AI, outbound calling, call analytics) with no clear unique angle or positioning. The offering overlaps with existing telephony and AI platforms.",
+      "severity": "medium",
+      "evidence": [
+        "Similar features to Twilio, Google Cloud, and other voice AI startups.",
+        "No clear vertical focus or unique use case.",
+        "Generic claims of scalability and developer friendliness."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Twilio (Programmable Voice, Autopilot)",
+        "similarity": "Both offer APIs for voice calls, automation, and integration into business workflows.",
+        "how_different": "Pre Revox focuses on AI-powered outbound calls with built-in answering machine detection, smart retry logic, and structured data extraction out-of-the-box, whereas Twilio provides more general-purpose telephony APIs requiring more development effort for similar features."
+      },
+      {
+        "name": "Five9",
+        "similarity": "Both provide cloud-based outbound calling solutions for businesses.",
+        "how_different": "Five9 is a full-featured contact center platform, while Pre Revox is developer-centric, API-first, and emphasizes rapid setup and AI-driven automation for outbound campaigns."
+      },
+      {
+        "name": "Observe.AI",
+        "similarity": "Both use AI for voice interactions and analytics.",
+        "how_different": "Observe.AI focuses on call center agent coaching and analytics, while Pre Revox automates the outbound call process itself with AI agents."
+      },
+      {
+        "name": "Replicant",
+        "similarity": "Both offer AI voice agents for automating phone conversations.",
+        "how_different": "Replicant targets enterprise inbound and outbound automation with custom solutions, while Pre Revox emphasizes instant setup, self-serve API, and transparent per-minute pricing."
+      },
+      {
+        "name": "Vocalcom",
+        "similarity": "Both provide voice automation for outbound campaigns.",
+        "how_different": "Vocalcom is a legacy contact center provider, while Pre Revox is API-first, developer-focused, and leverages recent advances in AI voice synthesis and orchestration."
+      }
+    ],
+    "differentiation": {
+      "primary": "Pre Revox differentiates by offering a plug-and-play, API-driven voice AI platform for outbound calls that can be set up in seconds without deep technical expertise.",
+      "technical": "They provide sub-500ms latency, 98% accurate answering machine detection, timezone-aware smart retry logic, and structured data extraction to JSON via webhooks. Their system handles edge cases, carrier logic, and scales to 1000+ concurrent calls instantly.",
+      "business": "Transparent, usage-based pricing with no setup fees or subscriptions. Developer-friendly onboarding with free credits, instant integration, and no need to build AI or telephony infrastructure from scratch.",
+      "positioning": "Positioned as the fastest way for developers and businesses to launch scalable, AI-powered outbound call campaigns\u2014'Stop building AI from scratch. Start making calls now.'"
+    },
+    "secret_sauce": {
+      "core_advantage": "A developer-first, API-centric voice AI infrastructure that abstracts away telephony complexity and delivers real-time, scalable outbound calling with advanced AI features (answering machine detection, smart retries, structured data extraction).",
+      "defensibility": "Combines deep telephony integration, real-time AI orchestration, and developer experience. The technical stack (latency, accuracy, orchestration) and ease of integration are difficult for legacy providers or generic API platforms to match quickly.",
+      "evidence": [
+        "Sub-500ms latency and 98% accuracy in answering machine detection.",
+        "Automatic mapping of CSV leads, instant campaign launch, and real-time analytics.",
+        "Plug-and-play API with structured data extraction and smart retry logic.",
+        "Founders from Apple, EPFL, Dust, and Y Combinator (implying strong technical and business pedigree)."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Pre Revox's moat is based on technical execution (latency, accuracy, orchestration), developer experience, and rapid deployment. While the space is competitive and large players (Twilio, Five9) have resources, Pre Revox's focus on instant setup, advanced AI features, and transparent pricing gives it a defensible position among developers and fast-moving businesses. However, the moat is not 'high' because larger incumbents could replicate features over time, and switching costs are moderate.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Voice AI Infrastructure",
+    "Launch outbound voice AI calls at scale",
+    "Set up AI-powered call campaigns in seconds",
+    "configure the AI, and launch call campaigns",
+    "Choose from pre-trained realistic voices in more than +50 languages",
+    "Turn conversations into JSON. Define a schema (interest_level, email, next_step) and receive clean data via webhook immediately.",
+    "\"assistant\": { \"prompt\": \"You are a virtual assistant calling candidates to inform them about a job opportunity.\", \"first_sentence\": \"Hi, this is Sarah from TechCorp. Do you have a moment?\" }",
+    "Stop building AI from scratch. Start making calls now.",
+    "Integrate voice AI into your application with a single HTTP request.",
+    "Sub-second answering machine detection with automatic conversation branching.",
+    "Real-time structured data extraction from voice conversations into JSON via webhook.",
+    "Plug-and-play telephony infrastructure abstracting carrier logic and latency for AI-powered operations."
+  ],
+  "analyzed_at": "2026-01-23 04:10:14.164091+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 5147
+}

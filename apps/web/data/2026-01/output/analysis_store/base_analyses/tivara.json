@@ -1,0 +1,274 @@
+{
+  "company_name": "Tivara",
+  "company_slug": "tivara",
+  "website": "https://www.tivara.com/",
+  "description": "Tivara designs software to help doctors quickly automate prior authorization requests, so care is delivered faster.",
+  "funding_amount": 3600000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Agentic Architectures",
+      "confidence": 1.0,
+      "evidence": [
+        "Automate patient phone calls across scheduling, refills, intake, and after-hours workflows.",
+        "AI agents answer instantly, triage accurately, and keep your phone lines running 24/7.",
+        "Fill cancellations and reduce abandoned calls with specialty specific agents trained on your practice's workflows.",
+        "Our AI agents handle scheduling calls by verifying provider availability in real time, and booking appointments directly into your EMR.",
+        "AI agents collect demographics, insurance, and diagnosis information before a patient's first visit.",
+        "AI agents proactively confirm appointments, handle reschedules, and reduce no-shows."
+      ],
+      "description": "Tivara uses autonomous AI agents to handle complex, multi-step patient communication tasks, including scheduling, intake, triage, and reminders. These agents interact with external tools (EMR, PMS) and execute workflows end-to-end."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "Fill cancellations and reduce abandoned calls with specialty specific agents trained on your practice's workflows.",
+        "Custom Workflow Automation",
+        "Our platform is fully HIPAA and SOC 2 Type 2 compliant, ensuring the highest standards of security when dealing with patient data.",
+        "Tivara is purpose-built for healthcare and designed to handle PHI securely.",
+        "We have enterprise agreements with our AI model providers to ensure no patient data is used to train their models."
+      ],
+      "description": "Tivara leverages healthcare-specific data, workflows, and compliance requirements to build proprietary, domain-specialized AI agents. This creates a data moat based on medical practice operations and patient data."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.8,
+      "evidence": [
+        "Our platform is fully HIPAA and SOC 2 Type 2 compliant, ensuring the highest standards of security when dealing with patient data.",
+        "Tivara is designed to be patient-safe by default. When a call is out-of-scope, low-confidence, or requires clinical judgment, the AI agent can escalate calls to your team via live transfer.",
+        "We have enterprise agreements with our AI model providers to ensure no patient data is used to train their models."
+      ],
+      "description": "Tivara implements compliance and safety guardrails, including HIPAA/SOC2 controls and escalation for low-confidence or out-of-scope requests, acting as a moderation layer on top of LLM outputs."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.7,
+      "evidence": [
+        "specialty specific agents trained on your practice's workflows",
+        "Custom Workflow Automation",
+        "AI agents answer instantly, triage accurately, and keep your phone lines running 24/7."
+      ],
+      "description": "Multiple specialized agents are tailored to different medical workflows and specialties, suggesting a mesh of micro-models for task-specific automation."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 1.0,
+      "evidence": [
+        "Automate patient phone calls across scheduling, refills, intake, and after-hours workflows.",
+        "AI agents answer instantly, triage accurately, and keep your phone lines running 24/7.",
+        "Fill cancellations and reduce abandoned calls with specialty specific agents trained on your practice's workflows.",
+        "Our AI agents handle scheduling calls by verifying provider availability in real time, and booking appointments directly into your EMR.",
+        "AI agents collect demographics, insurance, and diagnosis information before a patient's first visit.",
+        "AI agents proactively confirm appointments, handle reschedules, and reduce no-shows."
+      ],
+      "description": "Tivara uses autonomous AI agents to handle complex, multi-step patient communication tasks, including scheduling, intake, triage, and reminders. These agents interact with external tools (EMR, PMS) and execute workflows end-to-end."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "healthcare",
+  "sub_vertical": "clinical workflow automation and patient communication",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Mentions of integration with EHR/PM systems via APIs and HL7 interfaces",
+      "Claims of HIPAA and SOC 2 Type 2 compliance",
+      "Backed by reputable VCs (Y Combinator, etc.)"
+    ]
+  },
+  "unique_findings": [
+    "Tivara claims real-time integration with leading EMR and Practice Management Systems (Epic, Cerner, Athena, etc.) for direct scheduling, intake, and workflow automation. While many AI healthcare tools offer integrations, real-time, end-to-end workflow automation (e.g., booking directly into EMRs, creating new patient charts, surfacing requests in the patient chart) is technically challenging and less commonly achieved at scale.",
+    "The platform is designed to operate on top of existing telephony infrastructure, meaning clinics do not need to replace their phone systems. This is a pragmatic technical choice that reduces friction for adoption but requires robust middleware to bridge legacy telephony with modern AI agents.",
+    "Tivara emphasizes patient safety by default: AI agents escalate calls to humans when out-of-scope, low-confidence, or requiring clinical judgment. The escalation logic, if implemented robustly, is a non-trivial engineering and compliance challenge, especially in after-hours scenarios.",
+    "They claim enterprise agreements with AI model providers to ensure no patient data is used to train models. This is a defensibility signal, as it addresses a major compliance concern and may be a barrier for competitors using off-the-shelf LLM APIs.",
+    "The promise of going live in 3-4 weeks for end-to-end workflows suggests a highly templatized or modular integration layer, which, if true, is a significant technical achievement given the diversity of EMR/PM systems."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Inside Tivara\u2019s Agentic Architecture: Building Healthcare AI That Actually Answers the Phone",
+      "summary": "Tivara leverages agentic architectures and a micro-model mesh to automate patient phone workflows, aiming for true end-to-end coverage. Their approach prioritizes real-time integration with EMRs and telephony, rather than just chatbots or web forms, raising the bar for operational AI in clinical settings.",
+      "evidence": [
+        "Explicit mention of 'Agentic Architectures' and 'Micro-model Meshes' in build patterns",
+        "AI agents handle scheduling, intake, refills, and after-hours calls directly via phone"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: How Tivara\u2019s AI Gets Smarter on Practice-Specific Workflows",
+      "summary": "Tivara claims a 'vertical data moat' by training specialty-specific agents on practice workflows, capturing nuanced data from real patient interactions. This proprietary dataset could be the key to outperforming generic LLMs in healthcare operations.",
+      "evidence": [
+        "Build pattern: 'Vertical Data Moats' detected",
+        "Agents are trained on practice-specific workflows and handle real patient calls"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "From 24-Hour Waits to Instant Answers: Tivara\u2019s AI Slashes Patient Call Times",
+      "summary": "By automating routine patient calls and triage, Tivara promises to reduce wait times and abandoned calls, freeing up staff for clinical care. The pitch: AI agents that never sleep, never miss a call, and integrate with existing systems without ripping out legacy telephony.",
+      "evidence": [
+        "Marketing claims: '24/7 patient engagement', 'never miss another patient call', 'reduce abandoned calls'",
+        "Platform overlays existing phone systems, minimizing integration friction"
+      ],
+      "uniqueness_score": 5
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Tivara Thinks the Phone Isn\u2019t Dead\u2014And Built AI for It",
+      "summary": "While most healthtech startups chase web and app-based patient engagement, Tivara doubles down on phone calls, arguing that the phone remains the backbone of clinical operations. Their bet: AI that works with, not against, entrenched workflows and infrastructure.",
+      "evidence": [
+        "Platform focuses on automating phone calls, not just digital channels",
+        "Explicit claim: 'you don\u2019t need to rip out your phone system; our platform works on top of the telephony infrastructure you already have in place'"
+      ],
+      "uniqueness_score": 8
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "The product appears to be a thin layer over LLM APIs, with no mention of proprietary models or unique technology. The language focuses on 'AI agents' automating phone calls, but there is no detail on in-house NLP, speech, or agentic innovation.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary LLMs or AI models; tech stack is unknown.",
+        "All features described (call triage, scheduling, reminders) are achievable via existing LLM APIs.",
+        "No specifics on unique algorithms, data, or infrastructure."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The offering is highly focused on automating patient phone workflows, which is a single feature that could be easily absorbed by EHR/PM incumbents or telephony providers.",
+      "severity": "medium",
+      "evidence": [
+        "Core value proposition is automating phone calls (scheduling, refills, intake, reminders).",
+        "No evidence of broader platform or extensibility beyond phone workflow automation.",
+        "Incumbents (EHRs, telephony) could add similar features natively."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear data advantage or technical differentiation. Integration with EHRs is table stakes, and security claims (HIPAA/SOC2) are necessary but not unique. The product is easily replicable by others with access to LLM APIs.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary data, unique datasets, or vertical data moats.",
+        "Integration logos are standard for the market.",
+        "No evidence of unique technical guardrails, micro-models, or agentic architectures beyond marketing claims."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing is heavy on 'AI-powered' and 'agent' buzzwords, but lacks technical substance or specifics. Claims of 'vertical data moats' and 'agentic architectures' are not substantiated in the content.",
+      "severity": "medium",
+      "evidence": [
+        "Repeated claims of 'AI agents' and 'agentic architectures' without technical detail.",
+        "No explanation of how AI agents are built, trained, or differentiated.",
+        "Security and compliance claims are standard, not unique."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The solution is in a crowded space (AI for healthcare operations) and does not present a unique angle or clear differentiation from other 'AI phone agent' offerings.",
+      "severity": "medium",
+      "evidence": [
+        "Features (scheduling, reminders, intake) are common in the market.",
+        "No clear unique selling proposition or technical innovation.",
+        "Heavy repetition of standard integration and compliance logos."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Nabla Copilot",
+        "similarity": "AI-powered automation for healthcare workflows, including patient communication and documentation.",
+        "how_different": "Tivara emphasizes voice-based AI agents for phone calls, real-time EMR integration, and end-to-end automation of phone workflows, whereas Nabla focuses more on clinical documentation and digital assistants for providers."
+      },
+      {
+        "name": "Syllable",
+        "similarity": "AI agents that automate patient phone calls, scheduling, and intake for healthcare providers.",
+        "how_different": "Tivara highlights specialty-specific agents, rapid go-live (3-4 weeks), and deep integrations with a wide range of EMR/PMS systems, while Syllable is more focused on large health systems and may require more customization."
+      },
+      {
+        "name": "Hyro",
+        "similarity": "Conversational AI for healthcare, automating patient engagement over phone and digital channels.",
+        "how_different": "Tivara claims seamless integration with existing phone systems (no rip-and-replace), and workflow automation tailored to specialty practices, while Hyro often emphasizes omnichannel (web, SMS, phone) and larger enterprise deployments."
+      },
+      {
+        "name": "Lifelink Systems",
+        "similarity": "AI-powered conversational agents for patient engagement, including scheduling and intake.",
+        "how_different": "Tivara's differentiator is real-time phone-based AI that books directly into EMR, with a focus on automating routine phone tasks and after-hours triage, whereas Lifelink is more focused on chatbots and digital engagement."
+      },
+      {
+        "name": "Notable Health",
+        "similarity": "AI automation for healthcare workflows, including patient intake, scheduling, and reminders.",
+        "how_different": "Tivara focuses on phone-based workflows with AI agents that interact via voice, while Notable is more known for digital-first and mobile-first patient engagement."
+      }
+    ],
+    "differentiation": {
+      "primary": "Tivara provides AI agents that autonomously handle patient phone calls for scheduling, refills, intake, and after-hours workflows, integrating directly with EMR/PMS systems and existing telephony infrastructure.",
+      "technical": "Real-time integration with leading EMR and Practice Management Systems (via APIs and HL7), HIPAA and SOC 2 Type II compliance, and AI agents that can escalate calls to staff when needed. No need to replace existing phone systems.",
+      "business": "Rapid go-live (3-4 weeks), works with existing phone systems (no rip-and-replace), and offers specialty-specific workflow automation. Backed by top VCs (Y Combinator, Mischief, Day One Ventures).",
+      "positioning": "Tivara positions itself as the fastest way for practices to automate phone-based patient workflows with AI, improving access, reducing wait times, and lowering costs, with a focus on security and seamless integration."
+    },
+    "secret_sauce": {
+      "core_advantage": "Seamless, real-time AI-powered automation of patient phone workflows that integrates directly with major EMR/PMS systems and works on top of existing telephony infrastructure.",
+      "defensibility": "Deep technical integration with leading EMR/PMS vendors, HIPAA/SOC 2 compliance, and the ability to deploy rapidly without requiring changes to existing phone systems. Customizable, specialty-specific workflows increase stickiness.",
+      "evidence": [
+        "Our AI agents handle scheduling calls by verifying provider availability in real time, and booking appointments directly into your EMR.",
+        "Tivara connects to your EMR and PM System to handle phone call workflows end-to-end: patient look-up, checking provider availability, booking appointments, and task creation.",
+        "You don\u2019t need to rip out your phone system; our platform works on top of the telephony infrastructure you already have in place.",
+        "Fully HIPAA and SOC 2 Type 2 compliant.",
+        "Go live with AI agents that handle your end-to-end workflows in 3-4 weeks."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Tivara's defensibility comes from its technical integrations, compliance posture, and rapid deployment model, which lower switching costs and barriers for healthcare practices. However, the AI-powered patient communication space is crowded, and larger competitors with similar integrations and compliance may be able to replicate core features. Custom workflow automation and seamless use of existing phone infrastructure provide some additional stickiness, but the moat is not high due to the pace of innovation and competition in healthcare AI.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Transform Patient Communication with AI Agents",
+    "Automate patient phone calls across scheduling, refills, intake, and after-hours workflows.",
+    "24/7 patient engagement, powered by AI",
+    "Our AI resolves common requests autonomously, delivering faster answers and a better patient experience at scale.",
+    "AI agents answer instantly, triage accurately, and keep your phone lines running 24/7.",
+    "Fill cancellations and reduce abandoned calls with specialty specific agents trained on your practice's workflows.",
+    "Our AI agents handle scheduling calls by verifying provider availability in real time, and booking appointments directly into your EMR.",
+    "AI agents collect required details and surface the request within the patient's chart.",
+    "AI agents collect demographics, insurance, and diagnosis information before a patient's first visit.",
+    "AI agents proactively confirm appointments, handle reschedules, and reduce no-shows.",
+    "We can go live with AI agents that handle your end-to-end workflows in 3-4 weeks.",
+    "When a call is out-of-scope, low-confidence, or requires clinical judgment, the AI agent can escalate calls to your team via live transfer.",
+    "We have enterprise agreements with our AI model providers to ensure no patient data is used to train their models.",
+    "Integration with existing telephony infrastructure and direct EMR/PMS interfaces for workflow automation without requiring system replacement.",
+    "Escalation logic for low-confidence or clinical judgment scenarios, blending automation with human-in-the-loop safety."
+  ],
+  "analyzed_at": "2026-01-23 04:02:55.730595+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 21888
+}

@@ -1,0 +1,234 @@
+{
+  "company_name": "Cosine",
+  "company_slug": "cosine",
+  "website": "https://www.cosine.sh",
+  "description": "Cosine is an AI knowledge engine that understands your codebase.",
+  "funding_amount": 534426.0,
+  "funding_stage": "unknown",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [
+    "Davinci-2",
+    "GPT-5",
+    "Claude",
+    "gpt-oss-120B",
+    "OpenAI"
+  ],
+  "build_patterns": [],
+  "market_type": "horizontal",
+  "vertical": "developer_tools",
+  "sub_vertical": "AI-powered coding assistants and developer productivity platforms",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [
+      "OpenAI"
+    ],
+    "llm_models": [
+      "GPT-5",
+      "Davinci-2",
+      "gpt-oss-120B"
+    ],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "AWS",
+      "Azure",
+      "GCP",
+      "Self-hosted",
+      "On-premise",
+      "VPC"
+    ],
+    "approach": "fine_tuning",
+    "uses_open_source_models": true,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 8,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": true,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Extensive and frequently updated engineering blog with deep technical content",
+      "Technical reports and changelogs describing engineering improvements and releases",
+      "Detailed explanations of architecture choices (e.g., air-gapped deployments, custom model post-training)",
+      "Clear focus on developer workflows and integration with major tools (GitHub, Bitbucket, GitLab, Jira, Slack, etc.)",
+      "Transparent about model training, evaluation scores, and collaboration with OpenAI",
+      "Multiple customer testimonials highlighting technical differentiation",
+      "Active communication of new features and product improvements",
+      "Publicly available starter guides and changelogs"
+    ]
+  },
+  "unique_findings": [
+    "Cosine emphasizes post-training AI models on high-quality human coding data, specifically in collaboration with OpenAI, which is a step beyond standard fine-tuning. This post-training is applied to both open-source and proprietary models, including GPT-5, and can be customized for customer-specific contexts (e.g., legacy languages like COBOL or Fortran).",
+    "Cosine offers fully air-gapped, on-premise deployments with zero data egress, including the ability to bring your own GPU hardware and custom model weights. This is rare among coding agents and signals a deep focus on regulated industries and data sovereignty.",
+    "The platform supports asynchronous, multithreaded feature development and agentic programming, mirroring how human engineers reason through complexity. This is reinforced by their 'Research Mode' for technical planning and investigation before coding, which is not a common feature in most developer AI tools.",
+    "Cosine integrates natively with a wide range of enterprise developer tools (Jira, Linear, Trello, Asana, GitHub, Bitbucket, GitLab, Slack), enabling direct task assignment and execution, which suggests a tightly coupled workflow automation architecture.",
+    "The team claims best-in-class coding accuracy, outperforming OpenAI and Anthropic in coding tasks, and has achieved the highest eval score on SWE-Bench. This suggests a focus on measurable, benchmark-driven technical progress.",
+    "Cosine's approach is maximalist and candid, with a small, highly experienced team that has scaled multiple unicorns. Their hiring philosophy (obsession, optimism, antifragility) may contribute to a culture of technical excellence and rapid iteration."
+  ],
+  "technical_depth": "unknown",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Cosine Codifies Human Reasoning to Build Autonomous AI Engineers",
+      "summary": "Cosine\u2019s approach flips the script on typical LLM agent design by explicitly codifying human reasoning patterns before teaching them to AI. This method allows their Genie agent to mirror how real engineers reason through complexity, resulting in more reliable and context-aware code generation.",
+      "evidence": [
+        "Cosine describes itself as a 'Human Reasoning Lab' focused on codifying human task execution for AI.",
+        "Genie achieved the highest eval score on SWE-Bench, attributed to its reasoning-centric architecture."
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "data",
+      "headline": "Cosine\u2019s Secret Weapon: Post-Training on High-Quality Human Coding Data",
+      "summary": "Rather than relying solely on generic LLMs, Cosine post-trains open-source and proprietary models on curated, high-quality human coding data\u2014sometimes in collaboration with OpenAI. This yields coding agents that outperform even GPT-5 and Anthropic on real-world developer tasks.",
+      "evidence": [
+        "Cosine post-trains models on high-quality human coding data, including customer-specific repos and legacy languages.",
+        "Their default model, post-trained on GPT-5, reportedly surpasses OpenAI and Anthropic in coding accuracy."
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Cosine Rejects the \u2018Spaghetti at the Wall\u2019 Approach to AI Agents",
+      "summary": "While most AI coding tools iterate rapidly and hope for emergent capabilities, Cosine\u2019s founders insist on a candid, maximalist, and methodical process: codify, test, and expand human-like reasoning. This contrarian stance has led to a smaller, more focused team\u2014and a product that\u2019s winning technical benchmarks.",
+      "evidence": [
+        "Cosine positions itself as the opposite of 'throwing spaghetti at the wall,' emphasizing deliberate research.",
+        "The team is only five people, yet they\u2019ve achieved industry-leading eval scores."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "From Cloud to Air-Gapped: Cosine Delivers Enterprise-Grade AI Coding Agents Anywhere",
+      "summary": "Cosine\u2019s platform is engineered for maximum flexibility and privacy, running seamlessly in the cloud, on-premises, or fully air-gapped for regulated industries. This allows enterprises to deploy state-of-the-art AI agents without sacrificing data control or security.",
+      "evidence": [
+        "Cosine supports cloud, VPC, and fully on-premise, air-gapped deployments.",
+        "Custom post-training and zero data egress make it suitable for finance and healthcare."
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "Cosine heavily emphasizes post-training and fine-tuning on top of existing LLMs (GPT-5, Davinci-2, gpt-oss-120B), which raises concern that the core technology is a thin layer over third-party models rather than a proprietary foundation.",
+      "severity": "medium",
+      "evidence": [
+        "References to 'post-trained on GPT-5', 'fine-tuned', and 'collaboration with OpenAI'",
+        "No mention of proprietary model architecture or novel LLM development"
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Many features (agentic coding, integrations, documentation automation, bug scanning) are presented as standalone capabilities, which could be absorbed by larger platforms or added as features to existing IDEs and cloud providers.",
+      "severity": "medium",
+      "evidence": [
+        "Long list of features (e.g., CI/CD optimization, bug scanning, integrations) without clear product-level differentiation",
+        "Direct comparisons to other coding agents and IDE plugins"
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "Cosine's moat is described as 'medium', and the technical differentiation is primarily in fine-tuning and integrations, which are replicable by competitors with access to similar models and data. No unique data advantage is articulated.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary datasets or exclusive data partnerships",
+        "Claims of 'best-in-class accuracy' rely on post-training open-source or OpenAI models"
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing language is strong ('foundational leap', 'highest eval score in the world', 'state-of-the-art'), but technical specifics and benchmarks are vague or absent. Claims of outperforming OpenAI/Anthropic lack published, peer-reviewed evidence.",
+      "severity": "medium",
+      "evidence": [
+        "Statements like 'outperforms OpenAI and Anthropic in coding accuracy and reliability'",
+        "No links to published benchmarks or third-party validation"
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The product operates in a crowded market (AI coding agents, IDE plugins, automation tools) and the positioning is not sharply distinct from competitors like Cursor, Devin, Codex, Claude, etc.",
+      "severity": "medium",
+      "evidence": [
+        "Multiple blog posts comparing Cosine to Cursor, Codex, Devin, Claude, and others",
+        "No clear unique angle beyond 'human reasoning lab' philosophy"
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Devin (by Cognition)",
+        "similarity": "Both offer autonomous AI software engineers capable of end-to-end coding tasks, PR generation, and integration with developer workflows.",
+        "how_different": "Cosine emphasizes post-training on high-quality human coding data, custom model deployment (including air-gapped/on-premise), and claims higher SWE-Bench eval scores. Cosine also offers multi-agent task decomposition and deep context adaptation."
+      },
+      {
+        "name": "Cursor",
+        "similarity": "Both provide AI-powered developer tools, codebase understanding, and integration with IDEs and developer workflows.",
+        "how_different": "Cosine positions itself as an autonomous teammate rather than just an IDE enhancement, with a focus on multi-agent reasoning, enterprise deployment options, and custom model fine-tuning."
+      },
+      {
+        "name": "OpenAI Codex",
+        "similarity": "Both use large language models for code generation, completion, and developer productivity.",
+        "how_different": "Cosine claims to outperform Codex in coding accuracy, offers post-training on customer codebases, and supports air-gapped and self-hosted deployments for enterprise/regulated industries."
+      },
+      {
+        "name": "Anthropic Claude",
+        "similarity": "Both provide LLM-based code generation and reasoning capabilities.",
+        "how_different": "Cosine claims superior coding accuracy and reliability, with a focus on agentic programming and fine-tuning for specific enterprise contexts."
+      },
+      {
+        "name": "Windsurf",
+        "similarity": "Both are AI coding assistants targeting developer productivity.",
+        "how_different": "Cosine differentiates through its autonomous multi-agent system, enterprise-grade deployment flexibility, and custom post-training."
+      },
+      {
+        "name": "Lovable",
+        "similarity": "Both offer AI agents for code generation and software engineering tasks.",
+        "how_different": "Cosine emphasizes its research lab roots, custom model fine-tuning, and enterprise-ready deployments."
+      }
+    ],
+    "differentiation": {
+      "primary": "Cosine is a research-driven platform focused on codifying human reasoning for software engineering, delivering a fully autonomous, multi-agent AI teammate that can be deployed flexibly (cloud, VPC, or air-gapped/on-premise) and fine-tuned on customer-specific data.",
+      "technical": "Cosine post-trains open-source or proprietary LLMs (including GPT-5) on high-quality human coding data and customer codebases, enabling context-aware, multi-agent task decomposition and execution. It supports custom model weights, maximum GPU efficiency, and deep integration with developer tools and workflows.",
+      "business": "Cosine offers flexible deployment (cloud, managed cloud, self-hosted, air-gapped), enterprise features (SSO, audit trails), and custom model training for regulated industries. They position as a partner for highly regulated sectors (finance, healthcare) and offer direct collaboration with customers.",
+      "positioning": "Cosine positions itself as a 'Human Reasoning Lab' and an autonomous AI teammate, not just a coding tool or IDE plugin. They claim best-in-class accuracy, enterprise readiness, and the ability to adapt to any codebase or workflow."
+    },
+    "secret_sauce": {
+      "core_advantage": "Cosine's unique advantage is its research-driven approach to codifying human reasoning for software engineering, realized through custom post-training of LLMs on high-quality human data and customer codebases, and its flexible, enterprise-ready deployment (including air-gapped/self-hosted).",
+      "defensibility": "This is hard to replicate due to the combination of proprietary post-training techniques, close collaboration with OpenAI, deep expertise in model fine-tuning for coding, and a focus on enterprise deployment and compliance.",
+      "evidence": [
+        "Genie is a fully autonomous Software Engineering colleague that has achieved the highest eval score in the world on SWE-Bench.",
+        "Cosine isn\u2019t just a coding agent. We\u2019re also a machine learning research lab that post-trains AI models on high-quality human coding data, in collaboration with OpenAI.",
+        "Our default model - post-trained on GPT-5 - already outperforms OpenAI and Anthropic in coding accuracy and reliability.",
+        "Run Cosine where you need it - on our cloud, your VPC, or fully on-premise, airgapped.",
+        "We can train a model on your own repos, frameworks, or specific languages (like COBOL or Fortran), creating an agent with a deep understanding of your internal systems and legacy code.",
+        "Ideal for highly regulated industries, such as finance, healthcare, where data privacy is a top priority."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Cosine's defensibility is moderate: their technical edge (custom post-training, multi-agent architecture, enterprise deployment) is meaningful, especially for regulated industries and customers needing on-premise/air-gapped solutions. However, the space is rapidly evolving, and larger competitors (OpenAI, Anthropic, Cognition/Devin) have significant resources and could replicate features over time. Cosine's research focus, SWE-Bench leadership, and enterprise flexibility provide a solid but not unassailable moat.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Genie is a fully autonomous Software Engineering colleague that has achieved the highest eval score in the world on SWE-Bench.",
+    "We\u2019re researching how to codify exactly how a human would perform tasks, then teaching AI to mimic, excel at and expand on the same jobs.",
+    "Cosine isn\u2019t just a coding agent. We\u2019re also a machine learning research lab that post-trains AI models on high-quality human coding data, in collaboration with OpenAI.",
+    "Our default model - post-trained on GPT-5 - already outperforms OpenAI and Anthropic in coding accuracy and reliability.",
+    "We can train a model on your own repos, frameworks, or specific languages (like COBOL or Fortran), creating an agent with a deep understanding of your internal systems and legacy code.",
+    "Cosine Now Runs on GPT-5: Multi-Agent Becomes The Default",
+    "A Practical Comparison of Cosine, Cursor, Claude, and Lovable \u2014 Which AI Engineer Delivers?",
+    "First look: Post-training gpt-oss-120B for fully air-gapped enterprise deployments"
+  ],
+  "analyzed_at": "2026-01-23 08:05:58.852828+00:00",
+  "confidence_score": 1.0,
+  "raw_content_analyzed": 54105
+}

@@ -1,0 +1,237 @@
+{
+  "company_name": "Aliado",
+  "company_slug": "aliado",
+  "website": "https://alia.do",
+  "description": "Aliado uses AI to analyze in-store interactions, find why sales fail, and deliver instant micro-training to retail staff.",
+  "funding_amount": 2408121.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.95,
+      "evidence": [
+        "Personalized feedback after each service, directly on the salesperson's phone",
+        "AI trained with your guidelines",
+        "We monitor individual evolution of each salesperson over time",
+        "Monthly Evolution",
+        "Continuous Learning",
+        "Personalized AI trains salespeople based on your guidelines and best practices"
+      ],
+      "description": "Aliado captures real-time sales interactions and provides instant, personalized feedback to salespeople. The system monitors performance over time, indicating a feedback loop where user interactions and outcomes are used to refine AI recommendations and training, characteristic of a continuous-learning flywheel."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "Artificial intelligence trained for each client, with immediate processing based on history",
+        "We train AI with your sales playbook",
+        "AI compares service with company's ideal standard and suggests improvements",
+        "Segments Served: Consultative sales retail such as Fashion, Health, Beauty, Wellness, Auto, Real Estate, and more."
+      ],
+      "description": "Aliado leverages client-specific sales playbooks and historical interaction data to train its AI, creating a proprietary, industry-specific dataset that forms a competitive moat. The focus on retail verticals and customization for each client reinforces this pattern."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.6,
+      "evidence": [
+        "Personalized AI trains salespeople based on your guidelines and best practices",
+        "Artificial intelligence trained for each client"
+      ],
+      "description": "There are indications that Aliado uses multiple specialized models or configurations per client or use case (e.g., each client\u2019s playbook and guidelines), suggesting a mesh of smaller, specialized models rather than a single general model."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "ecommerce",
+  "sub_vertical": "brick-and-mortar retail enablement",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "AWS"
+    ],
+    "approach": "fine_tuning",
+    "uses_open_source_models": false,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 4,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Presence of a public API endpoint (Aliado Recorder API)",
+      "Leadership team with strong SaaS and technical backgrounds",
+      "Recognition by reputable technology programs (Cubo Ita\u00fa, NVIDIA Inception, AWS Startup Programs)",
+      "Claims of proprietary AI algorithms and real-time feedback systems"
+    ]
+  },
+  "unique_findings": [
+    "Aliado applies real-time AI-driven analysis to in-store sales conversations, providing immediate, actionable feedback directly to salespeople's mobile devices (via WhatsApp or app) without requiring IT integration. This is a rare, low-friction deployment model for physical retail.",
+    "The system claims to personalize AI models for each client, training on historical data and company-specific sales playbooks, enabling tailored feedback and benchmarking against ideal sales standards. This per-client model customization is technically complex and not widely seen in retail AI.",
+    "Aliado\u2019s feedback loop is continuous and granular: after each customer interaction, the salesperson receives a personalized micro-assessment and improvement suggestions. This level of real-time, individualized coaching is unusual in physical retail environments.",
+    "The solution monitors and analyzes live conversations (likely audio or text), identifies objections and lost-sale risks, and suggests recovery strategies in real time. This requires robust, low-latency NLP and possibly speech-to-text pipelines, which are challenging to implement reliably in noisy, dynamic retail settings.",
+    "The platform emphasizes zero IT involvement for onboarding and operation, suggesting a plug-and-play architecture that circumvents typical enterprise integration hurdles\u2014a significant technical and go-to-market differentiator."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Aliado\u2019s Micro-Model Mesh: Rethinking AI Feedback Loops for Brick-and-Mortar Retail",
+      "summary": "Aliado leverages a mesh of client-specific micro-models to deliver real-time, personalized sales training directly to retail staff. This approach bypasses traditional monolithic LLM deployments, enabling rapid iteration and continuous learning tailored to each store\u2019s playbook.",
+      "evidence": [
+        "AI trained for each client, with immediate processing based on history",
+        "Continuous-learning flywheel and vertical data moat patterns detected"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Turning In-Store Conversations into a Vertical Data Moat: Aliado\u2019s Proprietary Sales Intelligence",
+      "summary": "By capturing and analyzing every customer interaction in physical stores, Aliado builds a unique dataset that rivals digital ecommerce intelligence. This proprietary data fuels its AI models, creating a defensible advantage in consultative retail segments.",
+      "evidence": [
+        "AI listens to in-store customer service and identifies causes of non-sales",
+        "Segments served include Fashion, Health, Beauty, Auto, Real Estate\u2014domains with little structured conversational data"
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Why Deep Retail Expertise Matters: Aliado\u2019s Founders Are Betting on AI for Physical Store Sales",
+      "summary": "Aliado\u2019s leadership brings hands-on experience scaling B2B SaaS and HR Tech, now applying that know-how to the nuances of brick-and-mortar retail. Their domain fluency enables them to design AI that understands real-world sales objections and conversion tactics.",
+      "evidence": [
+        "CEO founded Dialog, an HR Tech with 120+ enterprise clients and 420,000 users",
+        "CTO led tech for major brands and specializes in systems architecture for large-scale marketing solutions"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "No IT Team Needed: Aliado\u2019s Contrarian Approach to AI Rollout in Retail",
+      "summary": "While most enterprise AI solutions require heavy IT involvement, Aliado promises plug-and-play deployment for physical stores. This bet against the complexity trend could unlock adoption in a sector notorious for slow digital transformation.",
+      "evidence": [
+        "All without involving your IT team",
+        "Salespeople receive AI feedback from day one via WhatsApp or app"
+      ],
+      "uniqueness_score": 8
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core offering\u2014real-time AI feedback for salespeople\u2014is essentially a feature that could be absorbed by larger retail platforms or CRM incumbents. The product scope appears narrow, focusing primarily on sales training and feedback, which risks being seen as a bolt-on rather than a standalone platform.",
+      "severity": "medium",
+      "evidence": [
+        "Emphasis on 'real-time feedback', 'personalized AI', and 'instant guidance' as the main value proposition.",
+        "No evidence of broader platform capabilities beyond sales coaching."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is limited evidence of a defensible data moat or proprietary technology. While the product claims to train AI for each client, there is no mention of unique datasets, proprietary algorithms, or technical differentiation that would make replication difficult for competitors.",
+      "severity": "medium",
+      "evidence": [
+        "Marketing language focuses on 'AI trained with your guidelines' and 'immediate processing based on history', but lacks detail on proprietary data or technology.",
+        "No mention of exclusive partnerships, unique integrations, or data flywheel effects."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing materials are heavy on AI buzzwords ('AI for physical stores', 'proprietary algorithms', 'real-time analysis'), but provide little technical substance or explanation of how the AI works, what models are used, or what makes the solution unique.",
+      "severity": "medium",
+      "evidence": [
+        "Claims of 'proprietary algorithms' and 'AI trained for each client' without technical specifics.",
+        "No mention of model architecture, data sources, or technical benchmarks."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The solution operates in a crowded market (retail sales enablement, AI coaching) and does not present a clear, unique angle or positioning. The described features are similar to those offered by other sales enablement tools, and there is no visible vertical specialization or deep integration.",
+      "severity": "medium",
+      "evidence": [
+        "Generic claims about improving sales conversions and providing feedback.",
+        "No clear vertical moat or distinctive product features."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Creyos (formerly Cognilab)",
+        "similarity": "AI-driven in-store analytics and sales training for retail teams.",
+        "how_different": "Creyos focuses more on cognitive assessments and general employee enablement, while Aliado is specialized in real-time, conversational AI feedback for frontline retail salespeople, tailored to each retailer's playbook."
+      },
+      {
+        "name": "Salesfloor",
+        "similarity": "Provides tools for in-store associates to improve customer engagement and sales performance.",
+        "how_different": "Salesfloor emphasizes omnichannel clienteling and digital engagement, whereas Aliado delivers AI-powered, real-time micro-training and feedback based on live conversations, with no IT integration required."
+      },
+      {
+        "name": "Observe.AI",
+        "similarity": "AI analyzes customer interactions to improve sales and service performance.",
+        "how_different": "Observe.AI is focused on call centers and voice-of-customer analytics, not physical retail. Aliado is purpose-built for brick-and-mortar stores and delivers instant, actionable coaching to sales staff on the floor."
+      },
+      {
+        "name": "Pathlight",
+        "similarity": "Real-time performance management and coaching for customer-facing teams.",
+        "how_different": "Pathlight is broader, covering digital and call center teams, and is less focused on in-person retail and real-time conversational analysis. Aliado is tailored for physical retail and integrates AI feedback directly into the sales process."
+      },
+      {
+        "name": "RetailNext",
+        "similarity": "Provides analytics for physical retail stores to boost sales and optimize operations.",
+        "how_different": "RetailNext focuses on traffic, video analytics, and store operations, not on analyzing conversations or providing instant sales coaching. Aliado's differentiation is in real-time, AI-driven micro-training based on live customer interactions."
+      }
+    ],
+    "differentiation": {
+      "primary": "Aliado delivers real-time, AI-powered micro-training and feedback to in-store salespeople, personalized to each retailer's sales playbook, with no IT integration required.",
+      "technical": "Proprietary AI models analyze live conversations between salespeople and customers, understand context and intent, and deliver instant, actionable suggestions. The AI is trained on each client's historical data and guidelines, enabling personalized and adaptive feedback.",
+      "business": "Aliado offers a turnkey SaaS solution for physical retail, requiring no IT involvement for deployment. It targets consultative sales in verticals like fashion, health, beauty, auto, and real estate, and provides immediate ROI through measurable conversion uplift.",
+      "positioning": "Aliado positions itself as the fastest way for physical retailers to boost in-store sales using AI, emphasizing instant impact, ease of deployment, and actionable insights for both salespeople and managers."
+    },
+    "secret_sauce": {
+      "core_advantage": "Real-time, AI-driven analysis of in-store conversations with instant, personalized feedback and micro-training for salespeople, fully tailored to each retailer's playbook and delivered without IT integration.",
+      "defensibility": "Combines deep retail domain expertise, proprietary conversational AI models, and seamless integration into frontline workflows (e.g., WhatsApp/app delivery). The ability to personalize AI to each client's sales process and deliver immediate, actionable coaching is difficult for generalist platforms to replicate.",
+      "evidence": [
+        "\u201cAI for physical stores: Aliado listens to in-store customer service, identifies causes of non-sales, and trains salespeople immediately. All without involving your IT team.\u201d",
+        "\u201cArtificial intelligence trained for each client, with immediate processing based on history\u201d",
+        "\u201cPersonalized feedback after each service, directly on the salesperson's phone\u201d",
+        "\u201cAI compares service with company's ideal standard and suggests improvements\u201d",
+        "\u201cWe monitor individual evolution of each salesperson over time\u201d"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Aliado's moat is based on its proprietary AI tuned for in-store retail conversations, seamless workflow integration, and ability to deliver measurable sales improvements without IT friction. While the technical approach and retail focus are defensible, larger players with access to similar data and resources could potentially build comparable solutions. The moat is strengthened by Aliado's retail domain expertise and rapid deployment model, but could be challenged by well-funded competitors or platform expansions from established retail tech providers.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "transforming brick-and-mortar retail through artificial intelligence",
+    "AI for physical stores",
+    "Artificial intelligence trained for each client, with immediate processing based on history",
+    "Aliado listens to in-store customer service, identifies causes of non-sales, and trains salespeople immediately",
+    "Real-time feedback",
+    "AI trained with your guidelines",
+    "AI compares service with company's ideal standard and suggests improvements",
+    "Personalized AI trains salespeople based on your guidelines and best practices",
+    "AI technology that transforms every customer service into a maximized sales opportunity",
+    "Intelligent Listening: AI captures and analyzes conversations between salespeople and customers in real time",
+    "Proprietary algorithms understand context, intent and sales opportunities",
+    "Instant Feedback: Guidance appears on the salesperson's screen: what questions to ask, objections to overcome",
+    "Your employees receive AI feedback from day 1",
+    "Real-time, in-store conversational analysis with immediate, actionable feedback delivered via WhatsApp or app to salespeople, minimizing IT involvement and enabling rapid adoption in physical retail environments."
+  ],
+  "analyzed_at": "2026-01-23 04:47:06.797057+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 25859
+}

@@ -2,10 +2,13 @@
 # DATA FILES - NEVER COMMIT
 # =============================================================================
 data/
+!apps/web/data/
+apps/web/data/**/raw_content/
 *.csv
 !apps/**/*.csv
+!apps/web/data/**/*.csv
 
-# Exclude all JSON except config files
+# Exclude all JSON except config files and web data
 *.json
 !package.json
 !package-lock.json
@@ -14,6 +17,7 @@ data/
 !*.config.json
 !components.json
 !turbo.json
+!apps/web/data/**/*.json
 
 # =============================================================================
 # Environment Variables

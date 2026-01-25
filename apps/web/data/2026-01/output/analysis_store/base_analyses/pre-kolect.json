@@ -1,0 +1,243 @@
+{
+  "company_name": "Pre KOLECT",
+  "company_slug": "pre-kolect",
+  "website": "https://kolect.info/",
+  "description": "Kolect is a crypto quantitative trading platform to build, backtest, and deploy strategies using market and social data.",
+  "funding_amount": 1200000.0,
+  "funding_stage": "pre_seed",
+  "uses_genai": false,
+  "genai_intensity": "none",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.95,
+      "evidence": [
+        "Track 2000+ KOLs and integrate media, on-chain and market data.",
+        "KOLect is a sentiment\u2011powered quant platform that transforms social signals into executable trading strategies.",
+        "Kolect is a modular quantitative trading platform that enables users to build, test, and deploy trading strategies based on social sentiment and market data.",
+        "Our platform helps you identify which cryptocurrency influencers to trust by tracking their prediction accuracy with real data."
+      ],
+      "description": "Kolect leverages proprietary, domain-specific datasets (KOL/influencer signals, on-chain data, market data) to power its quant trading platform. The focus on social sentiment and influencer performance in crypto creates a unique, defensible data asset."
+    },
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.7,
+      "evidence": [
+        "Provide zero-code strategy builder, back-test & trading execution.",
+        "configurable strategy frameworks that users can customize, backtest, and deploy"
+      ],
+      "description": "The platform offers a zero-code strategy builder, allowing users to construct and parameterize trading strategies without programming, likely via natural language or simple UI, translating user intent into executable logic."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.6,
+      "evidence": [
+        "tracking their prediction accuracy with real data",
+        "users validate whether a KOL-influenced strategy is sharp insight or just social noise",
+        "full visibility into performance metrics and strategy logic"
+      ],
+      "description": "By tracking influencer performance and user strategy outcomes, the platform can iteratively improve its models and recommendations, creating a feedback loop between real-world results and platform intelligence."
+    },
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.5,
+      "evidence": [
+        "integrate media, on-chain and market data",
+        "supports strategy research, simulation, and live execution across multiple trading environments"
+      ],
+      "description": "The platform appears to combine multiple data sources (social, on-chain, market) for strategy generation and backtesting, suggesting retrieval-augmented approaches, though not explicitly stated."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.4,
+      "evidence": [
+        "users can customize, backtest, and deploy",
+        "multiple execution paths, including simulation, private execution, and funding-based deployment"
+      ],
+      "description": "There are hints of agentic workflows (autonomous execution, simulation, and deployment), but no explicit mention of autonomous agents or tool use."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "financial_services",
+  "sub_vertical": "quantitative trading platforms (crypto-focused)",
+  "target_market": "b2c",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "GCP"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 6,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Dedicated documentation section linked from website",
+      "Technical FAQ explaining platform architecture and differentiation",
+      "Clear technical positioning (modular quant platform, strategy builder, backtesting, execution)",
+      "Transparency about strategy lifecycle and user customization"
+    ]
+  },
+  "unique_findings": [
+    "Kolect transforms social sentiment from 3000+ KOLs (Key Opinion Leaders) into parameterized, executable trading strategies, not just signals or dashboards. This is a step beyond typical social sentiment analytics, requiring robust data ingestion, normalization, and real-time processing pipelines.",
+    "The platform offers a zero-code quant infrastructure, enabling users to build, backtest, and deploy strategies without programming. This democratizes quant trading, but also suggests a complex abstraction layer that translates user intent into safe, executable code\u2014an area where hidden technical complexity often lurks.",
+    "Real-time backtesting is emphasized, simulating strategies on both historical and live data with immediate feedback. Achieving this at scale (with social and market data) is non-trivial, demanding efficient data warehousing, low-latency computation, and careful state management.",
+    "Kolect is not a copy trading platform. Instead, it provides configurable frameworks where users interact with strategies, not individuals. This architectural choice increases transparency and customizability, but also requires a modular, extensible backend that can support arbitrary strategy logic and user-defined parameters.",
+    "The fundraising module allows users to create social crypto funds, attract investors, and share fees/profits. This blends DeFi-style fund management with social signal-driven quant, introducing regulatory, security, and technical hurdles (e.g., smart contract management, investor tracking, fee distribution)."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Inside Kolect: Agentic Architectures Powering Modular Quant for Social Crypto Trading",
+      "summary": "Kolect's platform leverages agentic architectures and modular quant infrastructure to let users build, backtest, and deploy trading strategies based on social sentiment. Unlike traditional quant stacks, Kolect integrates real-time backtesting and zero-code strategy builders, enabling rapid experimentation and execution for technical users.",
+      "evidence": [
+        "Modular quantitative trading platform with strategy research, simulation, and live execution",
+        "Agentic architectures and continuous-learning flywheels detected in build patterns"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Kolect\u2019s Vertical Data Moat: Tracking 3,000+ KOLs for Real-Time Sentiment-Driven Alpha",
+      "summary": "Kolect\u2019s proprietary dataset aggregates signals from over 3,000 crypto influencers, integrating media, on-chain, and market data. This vertical data moat enables unique sentiment-driven strategies that are difficult for competitors to replicate, giving builders a new edge in quant research.",
+      "evidence": [
+        "Tracks 3,000+ KOLs and integrates media, on-chain, and market data",
+        "Real-time backtesting module validates KOL-influenced strategies with historical and live data"
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Kolect Rejects Copy Trading: Betting on Configurable, Transparent Quant Frameworks",
+      "summary": "While most platforms chase copy trading, Kolect takes a contrarian stance by offering configurable strategy frameworks instead. Users interact with parameterized strategies, not manual trader actions, prioritizing transparency, customization, and full visibility into performance metrics.",
+      "evidence": [
+        "Kolect does not provide direct copy trading; focuses on strategy frameworks",
+        "Supports multiple execution paths and full visibility into strategy logic"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Zero-Code, Real-Time Backtesting: Kolect\u2019s 10x Faster Path from Social Signal to Execution",
+      "summary": "Kolect\u2019s zero-code strategy builder and instant backtesting module allow technical users to validate and deploy sentiment-driven strategies in minutes, not days. This efficiency leap streamlines the quant workflow, reducing friction for both prototyping and live trading.",
+      "evidence": [
+        "Zero-code strategy builder and real-time backtesting module",
+        "Simulates trade signals and outcomes instantly using actual historical and live market data"
+      ],
+      "uniqueness_score": 8
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "The platform uses heavy buzzwords (e.g., 'modular quantitative trading platform', 'sentiment-powered quant platform', 'vertical data moats', 'agentic architectures') without providing concrete details on proprietary technology, unique algorithms, or technical implementation. Claims of 'real-time backtesting' and 'zero-code strategy builder' are not substantiated with technical specifics.",
+      "severity": "medium",
+      "evidence": [
+        "Marketing language such as 'vertical data moats', 'continuous-learning flywheels', and 'agentic architectures' without explanation.",
+        "No details on underlying models, data pipelines, or unique IP.",
+        "No mention of proprietary LLMs or custom AI models."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core offering (tracking KOLs, backtesting strategies, fundraising module) could be implemented as a feature by larger trading or analytics platforms. There is no clear evidence of a defensible, broad product vision beyond these features.",
+      "severity": "medium",
+      "evidence": [
+        "Key features (KOL tracking, sentiment analysis, backtesting) are common in crypto analytics and trading platforms.",
+        "No clear ecosystem or platform lock-in described.",
+        "Could be absorbed by existing exchange or analytics platforms."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is limited evidence of a strong data or technical moat. The platform tracks KOLs and aggregates data, but this is not unique or hard to replicate. No mention of exclusive data partnerships, proprietary datasets, or unique model performance.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary data sources or exclusive partnerships.",
+        "KOL tracking and sentiment analysis are widely available features.",
+        "No technical differentiation described."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The platform operates in a crowded space (crypto analytics, social trading, quant platforms) and does not clearly articulate a unique angle or differentiation from incumbents.",
+      "severity": "medium",
+      "evidence": [
+        "Comparison to KAITO and exchange strategies highlights similarities, not unique advantages.",
+        "No clear unique selling proposition.",
+        "Heavy repetition of features and investor/partner logos without depth."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "KAITO",
+        "similarity": "Both platforms leverage social and market data for crypto research and trading insights.",
+        "how_different": "KAITO focuses on information discovery and narrative analysis, while Kolect is centered on actionable strategy creation, backtesting, and execution. Kolect enables users to build, test, and deploy strategies, not just analyze trends."
+      },
+      {
+        "name": "Exchange-Provided Strategy Platforms (e.g., Binance Strategy Marketplace, Bitget Copy Trading)",
+        "similarity": "Both provide tools for users to access or deploy algorithmic or social-driven trading strategies.",
+        "how_different": "Exchange platforms offer predefined, closed strategies with little transparency or customization. Kolect offers a zero-code, modular framework with full transparency, customization, and multi-venue deployment, not limited to a single exchange."
+      },
+      {
+        "name": "Shrimpy",
+        "similarity": "Both allow users to automate crypto trading strategies and connect with social signals.",
+        "how_different": "Shrimpy is primarily a copy trading and portfolio rebalancing tool, while Kolect focuses on transforming influencer sentiment into parameterized, backtestable strategies and does not offer direct copy trading."
+      },
+      {
+        "name": "Token Metrics",
+        "similarity": "Both use AI and social sentiment to inform crypto trading and investment decisions.",
+        "how_different": "Token Metrics provides research, ratings, and signals, but does not offer a zero-code, modular quant infrastructure for strategy building, real-time backtesting, or a fundraising module for social funds."
+      }
+    ],
+    "differentiation": {
+      "primary": "Kolect uniquely combines large-scale KOL (Key Opinion Leader) tracking, real-time sentiment analysis, and a zero-code quant platform to build, backtest, and fund social-driven crypto strategies.",
+      "technical": "Kolect tracks 3000+ KOLs, integrates media, on-chain, and market data, and provides a modular, zero-code strategy builder with real-time backtesting. The platform transforms social signals into executable, parameterized strategies, not just insights.",
+      "business": "Kolect enables users to create and fund social crypto funds, share fees and profits, and attract investors. Unlike copy trading, it offers a framework for strategy creation and monetization, appealing to both strategy creators and investors.",
+      "positioning": "Kolect positions itself as the execution-focused, transparent, and customizable alternative to both information-only platforms (like KAITO) and closed, exchange-provided strategy products. It is the 'quant platform for social crypto funds.'"
+    },
+    "secret_sauce": {
+      "core_advantage": "Kolect's core advantage is its modular quant infrastructure that transforms real-time social sentiment from thousands of KOLs into executable, customizable trading strategies with instant backtesting and funding capabilities.",
+      "defensibility": "The scale of KOL tracking, integration of diverse data sources (media, on-chain, market), and the seamless, zero-code strategy lifecycle (from research to funding) create a high technical barrier. The platform's transparency and flexibility are hard to match by closed or single-purpose competitors.",
+      "evidence": [
+        "Tracks 3000+ KOLs and integrates media, on-chain, and market data.",
+        "Provides zero-code strategy builder, back-test & trading execution.",
+        "Real-time Backtesting Module lets users instantly see how their social crypto strategies would have performed using actual historical and live market data.",
+        "Not a copy trading platform; users interact with customizable strategies.",
+        "Supports strategy research, simulation, live execution, and fundraising in one stack."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Kolect's moat is based on its technical integration of large-scale social sentiment, modular quant infrastructure, and real-time backtesting/funding workflow. While the data and platform are defensible, competitors with strong data engineering and quant capabilities could eventually replicate core features. However, Kolect's current breadth (KOL tracking, strategy lifecycle, fundraising) and execution focus provide a meaningful lead over information-only or closed-system alternatives.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "No mention of LLMs, GPT, Claude, language models, generative AI, embeddings, RAG, agents, fine-tuning, prompts, or similar terminology.",
+    "Platform is described as a sentiment-powered quant platform that transforms social signals into executable trading strategies.",
+    "Features focus on sentiment & market data integration, quant infrastructure, strategy backtesting, and fundraising modules.",
+    "FAQ and product descriptions emphasize quantitative trading, social sentiment analysis, and strategy lifecycle, with no explicit reference to generative AI technologies.",
+    "Social-driven quant strategies: The platform uniquely fuses social sentiment (KOL/influencer signals) with quant trading infrastructure, creating a new vertical for strategy development.",
+    "Leaderboard and real-time backtesting for influencer strategies: Publicly ranking KOLs by ROI and providing instant backtesting for social-driven strategies is an innovative blend of social analytics and quant tooling."
+  ],
+  "analyzed_at": "2026-01-23 07:18:49.005771+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 174982
+}

@@ -1,0 +1,194 @@
+{
+  "company_name": "Pre Squid",
+  "company_slug": "pre-squid",
+  "website": "https://www.squid.energy",
+  "description": "Squid offers a workspace for planning, modeling, and testing power grid networks with tools for network analysis and simulation.",
+  "funding_amount": 500000.0,
+  "funding_stage": "pre_seed",
+  "uses_genai": false,
+  "genai_intensity": "unclear",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "We have spent years inside National Grid, Octopus Energy, and AWS, building and learning what breaks.",
+        "Squid is AI powered grid planning in your browser.",
+        "Trusted by National Grid, Octopus Energy"
+      ],
+      "description": "Squid leverages deep domain expertise and likely proprietary data from the electricity grid sector, using industry-specific knowledge as a competitive advantage for AI-powered grid planning."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "industrial",
+  "sub_vertical": "energy grid planning and simulation",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "AWS"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Company is backed by Y Combinator",
+      "Claims of AI-powered grid planning",
+      "Trusted by notable organizations (National Grid, Octopus Energy)",
+      "Founders have relevant industry experience"
+    ]
+  },
+  "unique_findings": [
+    "Squid positions itself as an 'AI-powered grid planning' tool that operates entirely in the browser. This suggests a commitment to cloud-native, possibly serverless or edge-compute architectures, which is unusual in the traditionally desktop-bound, on-premises world of grid simulation and planning.",
+    "Their thesis centers on a 'unified, trusted network model' for electricity grids, aiming to replace fragmented workflows (spreadsheets, static reports) with a collaborative, real-time, AI-augmented environment. This is a non-trivial data engineering challenge, involving versioning, consensus, and possibly graph-based data structures for grid topology.",
+    "The team claims deep domain experience (ex-National Grid, Octopus, AWS), which hints at insider knowledge of legacy pain points and the technical hurdles of grid modeling at scale.",
+    "The product appears to target high-trust, enterprise-grade use cases (National Grid, Octopus Energy as references), which implies a focus on security, auditability, and explainability of AI-driven recommendations\u2014an area where most AI SaaS tools fall short.",
+    "There is no public codebase or open-source footprint, and the website is gated (waitlist only), suggesting a closed, proprietary approach with possible custom infrastructure."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Why Squid Is Rebuilding Grid Planning in the Browser\u2014From Spreadsheets to AI",
+      "summary": "Squid is tackling the legacy of spreadsheet-based grid planning by offering a unified, browser-based platform powered by AI. Their approach aims to modernize the workflow for grid operators, but the technical details of their stack and architecture remain opaque.",
+      "evidence": [
+        "Squid positions itself as 'AI powered grid planning in your browser'",
+        "Emphasis on moving away from 'spreadsheets and static reports' to a unified model"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "data",
+      "headline": "Squid\u2019s Vertical Data Moat: The Hidden Value of Unified Grid Models",
+      "summary": "By building a proprietary, unified network model, Squid is creating a vertical data moat that could become a critical asset for grid planning. Their years of experience inside National Grid and Octopus Energy suggest access to valuable operational data, though specifics are not disclosed.",
+      "evidence": [
+        "Company claims 'better decisions come from one unified, trusted network model'",
+        "Founders have direct experience at National Grid and Octopus Energy"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "From National Grid to AI Startups: Squid\u2019s Founders Bring Deep Power Sector Chops",
+      "summary": "Squid\u2019s founding team has spent years inside major energy organizations, giving them rare insight into the pain points of grid planning. This deep domain expertise is driving their product vision, but translating industry knowledge into scalable software is a challenge.",
+      "evidence": [
+        "Founders previously worked at National Grid, Octopus Energy, and AWS",
+        "Company thesis centers on solving problems they 'wished existed'"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Squid\u2019s Contrarian Bet: Why They\u2019re Ignoring Open Source and Building a Proprietary Grid Platform",
+      "summary": "While many AI startups tout open source and community-driven data, Squid is focused on building a closed, proprietary platform for grid planning. This contrarian stance may enable stronger data control but risks slower ecosystem adoption.",
+      "evidence": [
+        "No public repos or followers on GitHub profile",
+        "Emphasis on proprietary unified model and vertical data moat"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "The product is repeatedly described as 'AI-powered' and 'modern', but there are no specifics about the underlying technology, models, or proprietary methods. The technical claims are vague and buzzword-heavy.",
+      "severity": "medium",
+      "evidence": [
+        "Phrases like 'AI powered grid planning in your browser' and 'Model the network. Test the stress. Unlock progress.' are used without technical detail.",
+        "No mention of specific AI/ML techniques, models, or unique algorithms.",
+        "No evidence of proprietary technology or data pipelines."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear data advantage or technical differentiation described. The offering could be replicated by others with access to similar data and APIs.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of unique or proprietary datasets.",
+        "No description of technical barriers to entry.",
+        "No public code or open source presence (0 GitHub repos)."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core value proposition appears to be a unified network model for grid planning, which could be absorbed by larger incumbents as a feature rather than a standalone product.",
+      "severity": "medium",
+      "evidence": [
+        "The main differentiator is a 'unified, trusted network model', which could be implemented by existing grid software providers.",
+        "No evidence of a broader platform or ecosystem."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "ETAP",
+        "similarity": "Both provide software for power grid modeling, analysis, and simulation.",
+        "how_different": "Pre Squid emphasizes AI-powered, browser-based collaboration and unified network models, whereas ETAP is traditionally desktop-based and less focused on real-time collaboration or AI."
+      },
+      {
+        "name": "DIgSILENT PowerFactory",
+        "similarity": "Both offer advanced grid simulation and planning tools for utilities and grid operators.",
+        "how_different": "Pre Squid differentiates with a modern, web-based workspace and a focus on unified, collaborative network models, while PowerFactory is more traditional and desktop-centric."
+      },
+      {
+        "name": "Siemens PSS\u00aeE",
+        "similarity": "Both target grid planning and analysis for large utilities and grid operators.",
+        "how_different": "Pre Squid is cloud-native, AI-driven, and designed for collaborative workflows, whereas PSS\u00aeE is legacy software with less emphasis on browser-based, collaborative features."
+      },
+      {
+        "name": "Opus One Solutions",
+        "similarity": "Both offer grid analytics and planning tools, leveraging modern software approaches.",
+        "how_different": "Pre Squid highlights a unified, trusted network model and AI-powered browser experience, while Opus One focuses more on distributed energy resources and grid optimization."
+      },
+      {
+        "name": "Quanta Technology",
+        "similarity": "Both provide consulting and software for grid planning and analysis.",
+        "how_different": "Pre Squid is a product company with a SaaS/browser-first approach, while Quanta is primarily a consulting firm with custom solutions."
+      }
+    ],
+    "differentiation": {
+      "primary": "Pre Squid offers AI-powered grid planning in the browser, enabling collaborative, unified, and transparent network modeling for utilities and grid operators.",
+      "technical": "Cloud-native, browser-based workspace; AI-powered modeling and analysis; unified, trusted network model for all stakeholders; real-time collaboration; modern UX/UI compared to legacy tools.",
+      "business": "SaaS delivery model, targeting rapid onboarding and collaboration for teams; focus on replacing spreadsheets and static reports with dynamic, shared models; early traction with major utilities (National Grid, Octopus Energy).",
+      "positioning": "Pre Squid positions itself as the modern, collaborative, and AI-driven alternative to legacy grid planning tools, emphasizing transparency, speed, and unified decision-making."
+    },
+    "secret_sauce": {
+      "core_advantage": "Unified, AI-powered network model in a browser-based collaborative workspace, built by founders with deep experience inside leading grid and energy companies.",
+      "defensibility": "Combines proprietary AI/ML for grid modeling, cloud-native architecture, and insider knowledge of utility pain points; strong early relationships with major industry players; rapid iteration enabled by SaaS model.",
+      "evidence": [
+        "\u2018Better decisions come from one unified, trusted network model. When everyone works from the same model, planning becomes consistent, assumptions are visible, and progress stops getting lost in spreadsheets and static reports.\u2019",
+        "\u2018Squid is AI powered grid planning in your browser. We have spent years inside National Grid, Octopus Energy, and AWS, building and learning what breaks. Now we are building what we wished existed.\u2019",
+        "Trusted by National Grid and Octopus Energy (early customer validation)."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Pre Squid\u2019s defensibility comes from its modern, cloud-native, AI-driven approach and deep domain expertise, but the market has established players and switching costs are high for utilities. The unified, collaborative browser-based model is a strong differentiator, but could be replicated by well-funded incumbents over time. Early traction with major utilities and Y Combinator backing strengthen its position.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Squid is AI powered grid planning in your browser.",
+    "AI-powered grid planning in your browser",
+    "Browser-based AI grid planning platform focused on unified, trusted network models for grid operators and planners."
+  ],
+  "analyzed_at": "2026-01-23 08:17:10.498504+00:00",
+  "confidence_score": 0.3,
+  "raw_content_analyzed": 9310
+}
