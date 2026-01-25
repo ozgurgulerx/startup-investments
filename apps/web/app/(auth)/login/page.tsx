@@ -6,17 +6,24 @@ function LoginPageContent() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-border/30">
-        {/* Logo */}
-        <Link href="/" className="text-base font-medium text-foreground tracking-tight">
-          Build Atlas
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-border/30 relative overflow-hidden">
+        {/* Subtle gradient accent */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-accent/80 via-accent to-accent/40" />
+
+        {/* Logo with accent dot */}
+        <Link href="/" className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-accent" />
+          <span className="text-base font-medium text-foreground tracking-tight">
+            Build Atlas
+          </span>
         </Link>
 
         {/* Value proposition */}
         <div className="space-y-8 max-w-md">
           <div>
-            <h1 className="headline-xl mb-4">
-              How AI startups are really built.
+            <h1 className="text-4xl font-light tracking-tight text-foreground mb-4 leading-tight">
+              How AI startups are{' '}
+              <span className="text-accent">really</span> built.
             </h1>
             <p className="body-lg">
               Build Atlas decodes funded AI startups into clear dossiers:
@@ -24,18 +31,18 @@ function LoginPageContent() {
             </p>
           </div>
 
-          {/* Stats */}
-          <div className="flex gap-10 pt-6 border-t border-border/40">
+          {/* Stats with accent border */}
+          <div className="flex gap-10 pt-6 border-t border-accent/30">
             <div>
-              <p className="num-lg text-foreground">201</p>
+              <p className="text-3xl font-light tabular-nums text-foreground">201</p>
               <p className="label-xs mt-1">Dossiers</p>
             </div>
             <div>
-              <p className="num-lg text-foreground">$31.1B</p>
+              <p className="text-3xl font-light tabular-nums text-foreground">$31.1B</p>
               <p className="label-xs mt-1">Capital Tracked</p>
             </div>
             <div>
-              <p className="num-lg text-foreground">6</p>
+              <p className="text-3xl font-light tabular-nums text-foreground">6</p>
               <p className="label-xs mt-1">Patterns</p>
             </div>
           </div>

@@ -5,9 +5,12 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/30">
+        {/* Accent top line */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent/60 via-accent to-accent/60" />
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="text-base font-medium text-foreground tracking-tight">
-            Build Atlas
+          <Link href="/" className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-accent" />
+            <span className="text-base font-medium text-foreground tracking-tight">Build Atlas</span>
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/methodology" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -32,7 +35,7 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-6 leading-tight">
-            How AI startups are really built.
+            How AI startups are <span className="text-accent">really</span> built.
           </h1>
 
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
@@ -58,15 +61,15 @@ export default function LandingPage() {
       </section>
 
       {/* Stats Bar */}
-      <section className="py-12 border-y border-border/30 bg-muted/10">
+      <section className="py-12 border-y border-accent/20 bg-muted/10">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div>
+            <div className="relative">
               <p className="text-3xl font-light text-foreground tabular-nums">201</p>
               <p className="text-sm text-muted-foreground mt-1">Companies Decoded</p>
             </div>
             <div>
-              <p className="text-3xl font-light text-foreground tabular-nums">$31.1B</p>
+              <p className="text-3xl font-light text-accent tabular-nums">$31.1B</p>
               <p className="text-sm text-muted-foreground mt-1">Capital Tracked</p>
             </div>
             <div>
@@ -146,23 +149,25 @@ export default function LandingPage() {
           </div>
 
           {/* Mock Brief Preview */}
-          <div className="max-w-3xl mx-auto p-8 bg-card border border-border/30 rounded-lg">
-            <div className="label-xs text-muted-foreground mb-4">JANUARY 2026 ATLAS BRIEF</div>
+          <div className="max-w-3xl mx-auto p-8 bg-card border border-border/30 rounded-lg relative overflow-hidden">
+            {/* Accent left border */}
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-accent via-accent/60 to-accent/20" />
+            <div className="label-xs text-accent mb-4">JANUARY 2026 ATLAS BRIEF</div>
             <h3 className="text-xl font-light text-foreground mb-4 leading-relaxed">
-              Agentic architectures dominate new funding, with 55% of startups building
+              Agentic architectures dominate new funding, with <span className="text-accent">55%</span> of startups building
               on generative AI infrastructure and multi-model orchestration.
             </h3>
             <p className="text-sm text-muted-foreground mb-6">
               Average deal size reached $154.6M. Capital is concentrating on fewer,
-              more infrastructure-heavy plays. Builder implication: the middleware layer is heating up.
+              more infrastructure-heavy plays. <span className="text-foreground/90">Builder implication:</span> the middleware layer is heating up.
             </p>
-            <div className="flex gap-8 pt-4 border-t border-border/30">
+            <div className="flex gap-8 pt-4 border-t border-accent/30">
               <div>
                 <p className="text-2xl font-light text-foreground tabular-nums">201</p>
                 <p className="text-xs text-muted-foreground mt-1">Dossiers</p>
               </div>
               <div>
-                <p className="text-2xl font-light text-foreground tabular-nums">$31.1B</p>
+                <p className="text-2xl font-light text-accent tabular-nums">$31.1B</p>
                 <p className="text-xs text-muted-foreground mt-1">Capital</p>
               </div>
               <div>
@@ -278,12 +283,15 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-border/30">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <span className="text-sm font-medium text-foreground">Build Atlas</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-accent" />
+            <span className="text-sm font-medium text-foreground">Build Atlas</span>
+          </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <Link href="/methodology" className="hover:text-foreground transition-colors">Methodology</Link>
-            <Link href="/brief" className="hover:text-foreground transition-colors">Atlas Brief</Link>
-            <Link href="/dealbook" className="hover:text-foreground transition-colors">Dossiers</Link>
-            <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>
+            <Link href="/methodology" className="hover:text-accent transition-colors">Methodology</Link>
+            <Link href="/brief" className="hover:text-accent transition-colors">Atlas Brief</Link>
+            <Link href="/dealbook" className="hover:text-accent transition-colors">Dossiers</Link>
+            <Link href="/login" className="hover:text-accent transition-colors">Sign In</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas
