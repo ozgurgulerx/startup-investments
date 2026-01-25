@@ -86,6 +86,11 @@ app.use((req, res, next) => {
     return next();
   }
 
+  // Skip logo endpoints (public images, allow direct access for browser requests)
+  if (req.path.match(/^\/api\/startups\/[^/]+\/logo$/)) {
+    return next();
+  }
+
   // In production, validate Front Door ID if configured
   if (process.env.NODE_ENV === 'production' && FRONT_DOOR_ID) {
     const frontDoorId = req.headers['x-azure-fdid'] as string;
@@ -103,6 +108,11 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   // Skip health checks (needed for K8s probes)
   if (req.path === '/health') {
+    return next();
+  }
+
+  // Skip logo endpoints (public images, no auth needed)
+  if (req.path.match(/^\/api\/startups\/[^/]+\/logo$/)) {
     return next();
   }
 

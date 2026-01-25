@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { WatchlistButton } from '@/components/ui/watchlist-button';
+import { CompanyLogo } from '@/components/ui/company-logo';
 import { formatCurrency } from '@/lib/utils';
 
 interface CompanyRowProps {
@@ -25,6 +26,11 @@ export function CompanyRow({ startup }: CompanyRowProps) {
 
   return (
     <div className="startup-row group relative">
+      <CompanyLogo
+        slug={startup.company_slug}
+        companyName={startup.company_name}
+        className="w-10 h-10 rounded-md object-contain bg-muted/20 flex-shrink-0"
+      />
       <Link
         href={`/company/${startup.company_slug}`}
         className="flex-1 min-w-0 block"
