@@ -1,119 +1,99 @@
-'use client';
-
 import { Suspense } from 'react';
-import { motion } from 'framer-motion';
-import { Layers, Sparkles, TrendingUp, Building2 } from 'lucide-react';
+import Link from 'next/link';
 import { LoginForm } from '@/components/auth/login-form';
-import { Card } from '@/components/ui/card';
 
 function LoginPageContent() {
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Left side - Branding (hidden on mobile) */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden"
-      >
-        {/* Gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-
+      {/* Left side - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-border/30">
         {/* Logo */}
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-            <Layers className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div>
-            <span className="text-lg font-semibold">Build Patterns</span>
-            <span className="text-sm text-muted-foreground ml-2">Intelligence</span>
-          </div>
-        </div>
+        <Link href="/" className="flex items-center gap-2">
+          <span className="text-base font-medium text-foreground tracking-tight">
+            Build Patterns
+          </span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+            Intelligence
+          </span>
+        </Link>
 
         {/* Value proposition */}
-        <div className="relative z-10 space-y-8">
+        <div className="space-y-8 max-w-md">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight glow-text-subtle">
-              AI Startup
-              <br />
-              Intelligence
+            <h1 className="headline-xl mb-4">
+              AI Startup Intelligence
             </h1>
-            <p className="mt-4 text-lg text-muted-foreground max-w-md">
+            <p className="body-lg">
               Monthly analysis of AI startup funding, build patterns, and market trends.
               Data-driven insights for investors and founders.
             </p>
           </div>
 
-          {/* Feature highlights */}
-          <div className="space-y-4">
-            {[
-              { icon: Building2, text: 'Track 100+ AI startups monthly' },
-              { icon: TrendingUp, text: 'Analyze funding patterns & trends' },
-              { icon: Sparkles, text: 'Discover emerging build patterns' },
-            ].map((item, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + i * 0.1 }}
-                className="flex items-center gap-3 text-muted-foreground"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                  <item.icon className="h-4 w-4 text-primary" />
-                </div>
-                <span>{item.text}</span>
-              </motion.div>
-            ))}
+          {/* Stats */}
+          <div className="flex gap-10 pt-6 border-t border-border/40">
+            <div>
+              <p className="num-lg text-foreground">$31.1B</p>
+              <p className="label-xs mt-1">Capital Tracked</p>
+            </div>
+            <div>
+              <p className="num-lg text-foreground">201</p>
+              <p className="label-xs mt-1">Deals Analyzed</p>
+            </div>
+            <div>
+              <p className="num-lg text-foreground">6</p>
+              <p className="label-xs mt-1">Build Patterns</p>
+            </div>
           </div>
         </div>
 
-        {/* Testimonial/social proof */}
-        <div className="relative z-10 text-sm text-muted-foreground">
-          <p className="italic">&ldquo;The most comprehensive AI startup intelligence platform.&rdquo;</p>
-          <p className="mt-2 text-xs opacity-60">Trusted by VCs and founders worldwide</p>
-        </div>
-      </motion.div>
+        {/* Footer */}
+        <p className="text-xs text-muted-foreground/60">
+          © 2026 Build Patterns Intelligence
+        </p>
+      </div>
 
       {/* Right side - Login Form */}
       <div className="flex-1 flex items-center justify-center p-8 lg:p-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="w-full max-w-md"
-        >
+        <div className="w-full max-w-sm">
           {/* Mobile logo */}
-          <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-              <Layers className="h-5 w-5 text-primary-foreground" />
+          <Link href="/" className="flex items-center gap-2 mb-10 lg:hidden">
+            <span className="text-base font-medium text-foreground tracking-tight">
+              Build Patterns
+            </span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+              Intelligence
+            </span>
+          </Link>
+
+          <div className="space-y-8">
+            <div>
+              <h2 className="headline-md mb-2">Sign in</h2>
+              <p className="body-md">
+                Access your watchlist and personalized insights
+              </p>
             </div>
-            <span className="text-lg font-semibold">Build Patterns Intelligence</span>
+
+            <Suspense fallback={<div className="h-40 animate-pulse bg-muted/30 rounded" />}>
+              <LoginForm />
+            </Suspense>
+
+            <div className="pt-6 border-t border-border/30">
+              <p className="body-sm text-center">
+                Don&apos;t have an account?{' '}
+                <Link href="/brief" className="text-foreground hover:text-accent transition-colors">
+                  Browse as guest
+                </Link>
+              </p>
+            </div>
           </div>
 
-          <Card className="p-8 glow-card border-border/50">
-            <div className="space-y-6">
-              <div className="text-center lg:text-left">
-                <h2 className="text-2xl font-semibold">Welcome back</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Sign in to access AI startup intelligence
-                </p>
-              </div>
-
-              <Suspense fallback={<div className="h-40 animate-pulse bg-muted rounded-lg" />}>
-                <LoginForm />
-              </Suspense>
-            </div>
-          </Card>
-
-          <p className="mt-6 text-center text-xs text-muted-foreground">
+          <p className="mt-10 text-center text-xs text-muted-foreground/60">
             By signing in, you agree to our{' '}
-            <a href="/terms" className="text-primary hover:underline">Terms</a>
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
             {' '}and{' '}
-            <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
           </p>
-        </motion.div>
+        </div>
       </div>
     </div>
   );
@@ -123,7 +103,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="h-6 w-6 border border-border/50 rounded-full animate-pulse" />
       </div>
     }>
       <LoginPageContent />

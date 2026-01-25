@@ -46,14 +46,14 @@ export function OAuthButtons({ callbackUrl }: OAuthButtonsProps) {
       <Button
         type="button"
         variant="outline"
-        className="w-full h-12 gap-3 text-base font-medium hover:bg-primary/5 hover:border-primary/30 transition-all"
+        className="w-full h-11 gap-3 text-sm font-medium border-border/50 hover:bg-muted/30 hover:border-border transition-colors"
         onClick={handleGoogleSignIn}
         disabled={isLoadingGoogle}
       >
         {isLoadingGoogle ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <GoogleIcon className="h-5 w-5" />
+          <GoogleIcon className="h-4 w-4" />
         )}
         Continue with Google
       </Button>
