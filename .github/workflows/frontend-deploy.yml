@@ -39,15 +39,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build frontend
+      - name: Build frontend (hybrid mode)
         run: pnpm --filter web build
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
           API_KEY: ${{ secrets.API_KEY }}
-          STATIC_EXPORT: "true"
-
-      - name: Copy config to output
-        run: cp apps/web/staticwebapp.config.json apps/web/out/
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          # No STATIC_EXPORT - use hybrid mode for auth support
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
@@ -55,8 +57,12 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "apps/web/out"
+          app_location: "apps/web"
+          output_location: ".next"
           skip_app_build: true
+        env:
+          NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
 
   close_pull_request:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
