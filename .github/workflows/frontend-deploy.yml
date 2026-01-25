@@ -54,10 +54,21 @@ jobs:
         run: |
           cd apps/web
           mkdir -p deploy
-          cp -r .next/standalone/. deploy/
+
+          # Copy the web app from standalone (monorepo structure: standalone/apps/web)
+          cp -r .next/standalone/apps/web/. deploy/
+
+          # Copy shared node_modules from root standalone
+          cp -r .next/standalone/node_modules/. deploy/node_modules/
+
+          # Copy static files
           mkdir -p deploy/.next/static
           cp -r .next/static/. deploy/.next/static/
+
+          # Copy public folder
           cp -r public deploy/public
+
+          # Zip for deployment
           cd deploy && zip -r ../deploy.zip . && cd ..
 
       - name: Azure Login (OIDC)
