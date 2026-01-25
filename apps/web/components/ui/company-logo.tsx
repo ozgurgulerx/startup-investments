@@ -30,3 +30,4 @@ export function CompanyLogo({
     />
   );
 }
+// Logo API URL: Front Door
