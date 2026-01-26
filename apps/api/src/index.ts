@@ -123,6 +123,13 @@ app.use((req, res, next) => {
     return next();
   }
 
+  // Allow localhost for admin endpoints (internal pod access)
+  const ip = req.ip || req.socket.remoteAddress || '';
+  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  if (isLocalhost && req.path.startsWith('/api/admin')) {
+    return next();
+  }
+
   // In production, require API key for all API routes
   if (process.env.NODE_ENV === 'production' && API_KEY) {
     const providedKey = req.headers['x-api-key'] as string;
@@ -301,10 +308,16 @@ const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
 
 // Extract logos for all startups (admin only)
 app.post('/api/admin/extract-logos', async (req, res) => {
-  // Validate admin key
-  const providedKey = req.headers['x-admin-key'] as string;
-  if (!providedKey || providedKey !== ADMIN_KEY) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  // Allow localhost without admin key (internal pod access)
+  const ip = req.ip || req.socket.remoteAddress || '';
+  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+
+  // Validate admin key (skip for localhost)
+  if (!isLocalhost) {
+    const providedKey = req.headers['x-admin-key'] as string;
+    if (!providedKey || providedKey !== ADMIN_KEY) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+    }
   }
 
   const force = req.query.force === 'true';
