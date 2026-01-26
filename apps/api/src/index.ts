@@ -91,6 +91,13 @@ app.use((req, res, next) => {
     return next();
   }
 
+  // Allow localhost for admin endpoints (internal pod access)
+  const ip = req.ip || req.socket.remoteAddress || '';
+  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  if (isLocalhost && req.path.startsWith('/api/admin')) {
+    return next();
+  }
+
   // In production, validate Front Door ID if configured
   if (process.env.NODE_ENV === 'production' && FRONT_DOOR_ID) {
     const frontDoorId = req.headers['x-azure-fdid'] as string;
