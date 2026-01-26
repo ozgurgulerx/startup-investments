@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 
-// API URL is inlined at build time by Next.js
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// API URL - hardcoded for Front Door
+const API_URL = 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net';
 
 interface CompanyLogoProps {
   slug: string;
