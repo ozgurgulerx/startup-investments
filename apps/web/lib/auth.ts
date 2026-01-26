@@ -16,7 +16,25 @@ interface DbUser {
   last_login: Date | null;
 }
 
+// Check if users table exists (for graceful degradation)
+async function checkUsersTableExists(): Promise<boolean> {
+  try {
+    const result = await query<{ exists: boolean }>(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'users'
+      )`
+    );
+    return result.rows[0]?.exists ?? false;
+  } catch {
+    return false;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  debug: process.env.NODE_ENV === 'development',
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -67,7 +85,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: user.role,
           };
         } catch (error) {
-          console.error('Auth error:', error);
+          console.error('Credentials auth error:', error);
           return null;
         }
       },
@@ -89,6 +107,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const emailLower = email.toLowerCase();
 
         try {
+          // Check if users table exists
+          const tableExists = await checkUsersTableExists();
+          if (!tableExists) {
+            console.warn('Users table does not exist. Run migration 006_add_users_table.sql');
+            // Allow sign-in but skip database operations
+            // User will get a temporary ID from the OAuth provider
+            return true;
+          }
+
           // Check if user exists
           const existingUser = await query<DbUser>(
             'SELECT id FROM users WHERE email_lower = $1',
@@ -114,7 +141,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
         } catch (error) {
           console.error('Error in signIn callback:', error);
-          return false;
+          // Allow sign-in even if database fails - user just won't have persistent ID
+          return true;
         }
       }
       return true;

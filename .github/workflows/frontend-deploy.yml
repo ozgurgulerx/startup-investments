@@ -81,6 +81,21 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Configure App Service settings
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          app-settings-json: |
+            [
+              { "name": "DATABASE_URL", "value": "${{ secrets.DATABASE_URL }}", "slotSetting": false },
+              { "name": "AUTH_SECRET", "value": "${{ secrets.NEXTAUTH_SECRET }}", "slotSetting": false },
+              { "name": "NEXTAUTH_SECRET", "value": "${{ secrets.NEXTAUTH_SECRET }}", "slotSetting": false },
+              { "name": "NEXTAUTH_URL", "value": "${{ vars.NEXTAUTH_URL }}", "slotSetting": false },
+              { "name": "GOOGLE_CLIENT_ID", "value": "${{ secrets.GOOGLE_CLIENT_ID }}", "slotSetting": false },
+              { "name": "GOOGLE_CLIENT_SECRET", "value": "${{ secrets.GOOGLE_CLIENT_SECRET }}", "slotSetting": false },
+              { "name": "NODE_ENV", "value": "production", "slotSetting": false }
+            ]
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
