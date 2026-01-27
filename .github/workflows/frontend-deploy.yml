@@ -79,31 +79,33 @@ jobs:
           # We need to fix all broken/missing packages at root node_modules level
           echo "=== Fixing pnpm symlink resolution ==="
 
-          # Function to fix a package by copying from .pnpm store
+          # Function to fix a package by copying from .pnpm store or full node_modules
           fix_package() {
             local PKG=$1
             local PKG_PATH="deploy/node_modules/$PKG"
+            local PKG_NAME=$(basename "$PKG")
 
             # Check if package is missing, a broken symlink, or a symlink (not a real dir)
             if [ ! -e "$PKG_PATH" ] || [ -L "$PKG_PATH" ]; then
               echo "Fixing $PKG..."
               rm -rf "$PKG_PATH"
 
-              # Find the package in .pnpm store
-              local PKG_NAME=$(basename "$PKG")
+              # Try to find the package in the standalone's .pnpm store first
               local PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+
+              # If not found in standalone, try the full project node_modules
+              if [ -z "$PKG_SRC" ]; then
+                PKG_SRC=$(find ../../node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+              fi
 
               if [ -n "$PKG_SRC" ]; then
                 mkdir -p "$(dirname "$PKG_PATH")"
-                cp -r "$PKG_SRC" "$PKG_PATH"
+                cp -rL "$PKG_SRC" "$PKG_PATH"
                 echo "  -> Copied from $PKG_SRC"
-                return 0
               else
-                echo "  -> Warning: $PKG not found in .pnpm store"
-                return 1
+                echo "  -> Warning: $PKG not found (may not be needed)"
               fi
             fi
-            return 0
           }
 
           # Fix critical packages required by Next.js runtime
