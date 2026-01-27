@@ -34,6 +34,7 @@ const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
 // CORS configuration - allow frontend domains
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  'https://buildatlas.net',
   'http://localhost:3000',
   'http://localhost:3002',
 ].filter(Boolean) as string[];
