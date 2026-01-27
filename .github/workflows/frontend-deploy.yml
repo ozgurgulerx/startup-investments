@@ -58,28 +58,29 @@ jobs:
           cd apps/web
           mkdir -p deploy
 
-          # Copy the web app from standalone (monorepo structure: standalone/apps/web)
-          # Use -L to dereference symlinks (important for pnpm's symlinked node_modules)
-          cp -rL .next/standalone/apps/web/. deploy/
-
-          # Copy shared node_modules from root standalone (with symlink dereferencing)
-          cp -rL .next/standalone/node_modules/. deploy/node_modules/
+          # Use rsync with --copy-links to fully dereference all pnpm symlinks
+          # This resolves nested symlinks that cp -L misses
+          rsync -a --copy-links .next/standalone/apps/web/ deploy/
+          rsync -a --copy-links .next/standalone/node_modules/ deploy/node_modules/
 
           # Copy static files
           mkdir -p deploy/.next/static
-          cp -r .next/static/. deploy/.next/static/
+          rsync -a .next/static/ deploy/.next/static/
 
           # Copy public folder
-          cp -r public deploy/public
+          rsync -a public/ deploy/public/
 
           # Remove any files that might trigger Oryx behaviors
           rm -f deploy/node_modules.tar.gz
           rm -f deploy/oryx-manifest.toml
           rm -f deploy/.oryx-manifest.toml
 
-          # Debug: list what's in node_modules
-          echo "=== deploy/node_modules contents ==="
-          ls -la deploy/node_modules/ | head -20
+          # Debug: verify styled-jsx exists (it's required by next)
+          echo "=== Checking for styled-jsx ==="
+          ls -la deploy/node_modules/.pnpm/styled-jsx*/node_modules/styled-jsx/ 2>/dev/null | head -5 || echo "styled-jsx not found in pnpm"
+          ls -la deploy/node_modules/styled-jsx/ 2>/dev/null | head -5 || echo "styled-jsx not found at root"
+          echo "=== Checking next's internal node_modules ==="
+          ls -la deploy/node_modules/.pnpm/next*/node_modules/ 2>/dev/null | head -20 || echo "next pnpm folder not found"
 
           # Zip for deployment
           cd deploy && zip -r ../deploy.zip . && cd ..
