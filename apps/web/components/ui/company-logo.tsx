@@ -12,6 +12,15 @@ interface CompanyLogoProps {
   className?: string;
 }
 
+// Generate initials from company name (max 2 characters)
+function getInitials(name: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length === 1) {
+    return words[0].substring(0, 2).toUpperCase();
+  }
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
 export function CompanyLogo({
   slug,
   companyName,
@@ -20,8 +29,18 @@ export function CompanyLogo({
 }: CompanyLogoProps) {
   const [hasError, setHasError] = useState(false);
 
+  // Fallback: show initials when logo fails to load
   if (hasError) {
-    return null;
+    return (
+      <div
+        className={className.replace('object-contain', 'flex items-center justify-center')}
+        aria-label={`${companyName} logo placeholder`}
+      >
+        <span className="text-muted-foreground/60 font-medium text-sm">
+          {getInitials(companyName)}
+        </span>
+      </div>
+    );
   }
 
   return (
