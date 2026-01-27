@@ -12,6 +12,17 @@ const nextConfig = {
   env: {
     DATA_PATH: process.env.DATA_PATH || './data',
   },
+  // Ensure output file tracing includes monorepo root dependencies
+  experimental: {
+    outputFileTracingRoot: require('path').join(__dirname, '../../'),
+  },
+  outputFileTracingIncludes: {
+    '/*': [
+      './node_modules/.pnpm/next-auth*/**/*',
+      './node_modules/.pnpm/@auth*/**/*',
+      './node_modules/next-auth/**/*',
+    ],
+  },
 };
 
 module.exports = nextConfig;
