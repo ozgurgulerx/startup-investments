@@ -7,6 +7,11 @@ supporting the following containers:
 - analysis-snapshots: LLM analysis outputs with versioning
 - briefs: Generated markdown briefs with versioning
 - periods: Period-based aggregations (monthly stats, indexes)
+
+Authentication:
+- Supports both connection string and Azure AD (DefaultAzureCredential)
+- Azure AD auth is required when storage account has shared key access disabled
+- In GitHub Actions, uses OIDC with Azure AD
 """
 
 import os
@@ -26,6 +31,14 @@ from azure.storage.blob import (
 )
 from azure.core.exceptions import ResourceNotFoundError
 
+# Try to import Azure Identity for AAD auth (optional)
+try:
+    from azure.identity import DefaultAzureCredential
+    HAS_AZURE_IDENTITY = True
+except ImportError:
+    HAS_AZURE_IDENTITY = False
+    DefaultAzureCredential = None
+
 
 class ContainerName(str, Enum):
     """Available blob storage containers."""
@@ -41,6 +54,9 @@ class StorageConfig:
     """Configuration for blob storage."""
     connection_string: str = field(default_factory=lambda: os.getenv("AZURE_STORAGE_CONNECTION_STRING", ""))
     account_name: str = field(default_factory=lambda: os.getenv("AZURE_STORAGE_ACCOUNT_NAME", "buildatlasstorage"))
+
+    # Authentication mode: "connection_string", "aad", or "auto" (try both)
+    auth_mode: str = field(default_factory=lambda: os.getenv("AZURE_STORAGE_AUTH_MODE", "auto"))
 
     # Container-specific prefixes
     csv_incoming_prefix: str = "incoming/"
@@ -68,17 +84,62 @@ class BlobStorageClient:
 
     @property
     def blob_service(self) -> Optional[BlobServiceClient]:
-        """Lazy initialization of blob service client."""
-        if self._blob_service is None and self.config.connection_string:
-            self._blob_service = BlobServiceClient.from_connection_string(
-                self.config.connection_string
-            )
+        """Lazy initialization of blob service client.
+
+        Supports multiple authentication methods:
+        - connection_string: Uses connection string (requires shared key access enabled)
+        - aad: Uses Azure AD via DefaultAzureCredential
+        - auto: Tries connection string first, falls back to AAD
+        """
+        if self._blob_service is not None:
+            return self._blob_service
+
+        auth_mode = self.config.auth_mode.lower()
+
+        # Try connection string first (if configured and mode allows)
+        if auth_mode in ("connection_string", "auto") and self.config.connection_string:
+            try:
+                self._blob_service = BlobServiceClient.from_connection_string(
+                    self.config.connection_string
+                )
+                # Test the connection by listing containers (take first only)
+                for _ in self._blob_service.list_containers():
+                    break
+                return self._blob_service
+            except Exception as e:
+                if auth_mode == "connection_string":
+                    print(f"Error connecting with connection string: {e}")
+                    return None
+                # In auto mode, fall through to try AAD
+                if "KeyBasedAuthenticationNotPermitted" not in str(e):
+                    print(f"Connection string auth failed, trying Azure AD: {e}")
+
+        # Try Azure AD authentication
+        if auth_mode in ("aad", "auto") and HAS_AZURE_IDENTITY:
+            try:
+                account_url = f"https://{self.config.account_name}.blob.core.windows.net"
+                credential = DefaultAzureCredential()
+                self._blob_service = BlobServiceClient(
+                    account_url=account_url,
+                    credential=credential,
+                )
+                # Test the connection (take first only)
+                for _ in self._blob_service.list_containers():
+                    break
+                return self._blob_service
+            except Exception as e:
+                print(f"Error connecting with Azure AD: {e}")
+                return None
+
         return self._blob_service
 
     @property
     def is_configured(self) -> bool:
         """Check if blob storage is properly configured."""
-        return bool(self.config.connection_string)
+        # Either connection string or AAD auth must be available
+        has_conn_string = bool(self.config.connection_string)
+        has_aad = HAS_AZURE_IDENTITY and bool(self.config.account_name)
+        return has_conn_string or has_aad
 
     def get_container(self, container: ContainerName) -> Optional[ContainerClient]:
         """Get or create a container client.
