@@ -59,10 +59,11 @@ jobs:
           mkdir -p deploy
 
           # Copy the web app from standalone (monorepo structure: standalone/apps/web)
-          cp -r .next/standalone/apps/web/. deploy/
+          # Use -L to dereference symlinks (important for pnpm's symlinked node_modules)
+          cp -rL .next/standalone/apps/web/. deploy/
 
-          # Copy shared node_modules from root standalone
-          cp -r .next/standalone/node_modules/. deploy/node_modules/
+          # Copy shared node_modules from root standalone (with symlink dereferencing)
+          cp -rL .next/standalone/node_modules/. deploy/node_modules/
 
           # Copy static files
           mkdir -p deploy/.next/static
@@ -76,8 +77,9 @@ jobs:
           rm -f deploy/oryx-manifest.toml
           rm -f deploy/.oryx-manifest.toml
 
-          # Create a simple oryx-manifest to disable tar.gz extraction
-          echo 'DisableTarGzExtraction=true' > deploy/oryx-manifest.toml
+          # Debug: list what's in node_modules
+          echo "=== deploy/node_modules contents ==="
+          ls -la deploy/node_modules/ | head -20
 
           # Zip for deployment
           cd deploy && zip -r ../deploy.zip . && cd ..
