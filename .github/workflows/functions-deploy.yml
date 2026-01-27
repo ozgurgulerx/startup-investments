@@ -10,6 +10,10 @@ on:
       - '.github/workflows/functions-deploy.yml'
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   AZURE_FUNCTIONAPP_NAME: buildatlas-functions
   AZURE_FUNCTIONAPP_PACKAGE_PATH: 'infrastructure/azure-functions'
@@ -39,10 +43,12 @@ jobs:
           # Copy the analysis package to be available in Functions
           cp -r packages/analysis ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/packages_analysis
 
-      - name: Login to Azure
-        uses: azure/login@v1
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
