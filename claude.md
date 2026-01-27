@@ -64,7 +64,93 @@
 CI/CD: GitHub Actions
 - Frontend: Push to main (apps/web/**) → Build → Deploy to App Service
 - Backend:  Push to main (apps/api/**) → Build → Push to ACR → Deploy to AKS
+- Functions: Push to main (infrastructure/azure-functions/**) → Deploy to Azure Functions
 ```
+
+## Azure Functions Automation
+
+Azure Functions handle automated data processing and monitoring:
+
+### Timer-Triggered Functions
+
+| Function | Schedule | Purpose |
+|----------|----------|---------|
+| `check_pending_blobs` | Every 30 min | Safety net for CSV processing |
+| `monitor_websites` | Every 6 hours | Detect website content changes |
+| `consume_rss_feeds` | Every hour | TechCrunch, VentureBeat RSS monitoring |
+| `process_startup_events` | Every 15 min | Route events to handlers |
+| `process_research_queue` | Every 30 min | LLM-based deep analysis |
+| `compute_pattern_correlations` | Daily 2 AM | Pattern co-occurrence stats |
+
+### Event-Triggered Functions
+
+| Function | Trigger | Purpose |
+|----------|---------|---------|
+| `process_csv_blob` | Blob upload to `startup-csvs/incoming/` | Process new startup data |
+
+### Manual HTTP Triggers
+
+All automation can be manually triggered via HTTP endpoints:
+
+```bash
+# Website monitoring
+POST /api/trigger/websites
+Body: {"limit": 50}
+
+# RSS feed consumption
+POST /api/trigger/rss
+Body: {"lookback_hours": 24}
+
+# Event processing
+POST /api/trigger/events
+Body: {"batch_size": 50}
+
+# Deep research queue
+POST /api/trigger/research
+Body: {"batch_size": 5, "max_concurrent": 2}
+
+# Pattern correlations
+POST /api/trigger/correlations
+Body: {"period": "2026-01"}
+```
+
+### Automation Components
+
+Location: `packages/analysis/src/automation/`
+
+- **DeepResearchConsumer**: Processes LLM-based deep analysis queue
+- **StartupEventProcessor**: Routes events to appropriate handlers
+- **WebsiteContentMonitor**: Detects website content changes via hash comparison
+- **RSSFeedConsumer**: Monitors TechCrunch, VentureBeat, HN for mentions
+- **PatternCorrelator**: Computes pattern co-occurrence statistics
+
+### Data Flow
+
+```
+CSV Upload → Blob Storage → process_csv_blob → Delta Processing → Database
+                                                      ↓
+                                              startup_events created
+                                                      ↓
+RSS Feeds → consume_rss_feeds → startup_events ←─────┘
+                                       ↓
+Website Changes → monitor_websites ────┘
+                                       ↓
+                            process_startup_events
+                                       ↓
+                    deep_research_queue (if reanalysis needed)
+                                       ↓
+                            process_research_queue
+                                       ↓
+                              LLM Analysis Output
+```
+
+### Required GitHub Secrets for Functions
+
+- `AZURE_CREDENTIALS` - Azure service principal
+- `AZURE_STORAGE_CONNECTION_STRING` - Blob storage connection
+- `AZURE_OPENAI_API_KEY` - OpenAI API key
+- `AZURE_OPENAI_ENDPOINT` - OpenAI endpoint URL
+- `DATABASE_URL` - PostgreSQL connection string
 
 ## Project Structure
 
@@ -84,11 +170,26 @@ startup-analysis/
 │   │   └── data/               # Static JSON data for briefs
 │   └── api/                    # Express.js backend (AKS)
 ├── infrastructure/
-│   └── kubernetes/             # K8s manifests for AKS
+│   ├── kubernetes/             # K8s manifests for AKS
+│   └── azure-functions/        # Azure Functions (automation)
+│       ├── function_app.py     # All function definitions
+│       ├── host.json           # Runtime configuration
+│       └── requirements.txt    # Python dependencies
 ├── database/
 │   └── migrations/             # SQL migrations
 └── packages/
-    └── shared/                 # Shared types/utilities
+    ├── shared/                 # Shared types/utilities
+    └── analysis/               # Python analysis package
+        └── src/
+            ├── automation/     # Automation components
+            │   ├── db.py                    # Database helper
+            │   ├── deep_research_consumer.py
+            │   ├── event_processor.py
+            │   ├── website_monitor.py
+            │   ├── rss_consumer.py
+            │   └── pattern_correlator.py
+            ├── pipeline/       # CSV processing pipeline
+            └── crawler/        # Web crawling & enrichment
 ```
 
 ## Git Workflow

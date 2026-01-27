@@ -1,0 +1,82 @@
+name: Deploy Azure Functions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/azure-functions/**'
+      - 'packages/analysis/**'
+      - '.github/workflows/functions-deploy.yml'
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_NAME: buildatlas-functions
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'infrastructure/azure-functions'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+
+      - name: Copy analysis package
+        run: |
+          # Copy the analysis package to be available in Functions
+          cp -r packages/analysis ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/packages_analysis
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          scm-do-build-during-deployment: false
+          enable-oryx-build: false
+
+      - name: Configure Function App Settings
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          app-settings-json: |
+            [
+              { "name": "AzureWebJobsStorage", "value": "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}", "slotSetting": false },
+              { "name": "FUNCTIONS_WORKER_RUNTIME", "value": "python", "slotSetting": false },
+              { "name": "AZURE_OPENAI_API_KEY", "value": "${{ secrets.AZURE_OPENAI_API_KEY }}", "slotSetting": false },
+              { "name": "AZURE_OPENAI_ENDPOINT", "value": "${{ secrets.AZURE_OPENAI_ENDPOINT }}", "slotSetting": false },
+              { "name": "DATABASE_URL", "value": "${{ secrets.DATABASE_URL }}", "slotSetting": false },
+              { "name": "BLOB_CONTAINER_NAME", "value": "startup-csvs", "slotSetting": false }
+            ]
+
+      - name: Health Check
+        run: |
+          FUNC_URL="https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net"
+          echo "Waiting for Functions to be healthy..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FUNC_URL/api/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Functions are healthy!"
+              exit 0
+            fi
+            echo "Attempt $i: Status $STATUS, waiting..."
+            sleep 10
+          done
+          echo "Warning: Health check didn't return 200, but deployment completed"
