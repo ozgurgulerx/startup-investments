@@ -83,19 +83,19 @@ jobs:
           fix_package() {
             local PKG=$1
             local PKG_PATH="deploy/node_modules/$PKG"
-            local PKG_NAME=$(basename "$PKG")
 
             # Check if package is missing, a broken symlink, or a symlink (not a real dir)
             if [ ! -e "$PKG_PATH" ] || [ -L "$PKG_PATH" ]; then
               echo "Fixing $PKG..."
               rm -rf "$PKG_PATH"
 
-              # Try to find the package in the standalone's .pnpm store first
-              local PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+              # For scoped packages (@scope/name), search using full path pattern
+              # pnpm stores them as @scope/name inside node_modules
+              local PKG_SRC=$(find deploy/node_modules/.pnpm -type d -path "*node_modules/$PKG" 2>/dev/null | head -1)
 
               # If not found in standalone, try the full project node_modules
               if [ -z "$PKG_SRC" ]; then
-                PKG_SRC=$(find ../../node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+                PKG_SRC=$(find ../../node_modules/.pnpm -type d -path "*node_modules/$PKG" 2>/dev/null | head -1)
               fi
 
               if [ -n "$PKG_SRC" ]; then
