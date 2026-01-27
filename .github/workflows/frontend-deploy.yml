@@ -59,7 +59,6 @@ jobs:
           mkdir -p deploy
 
           # Use rsync with --copy-links to fully dereference all pnpm symlinks
-          # This resolves nested symlinks that cp -L misses
           rsync -a --copy-links .next/standalone/apps/web/ deploy/
           rsync -a --copy-links .next/standalone/node_modules/ deploy/node_modules/
 
@@ -75,12 +74,46 @@ jobs:
           rm -f deploy/oryx-manifest.toml
           rm -f deploy/.oryx-manifest.toml
 
-          # Debug: verify styled-jsx exists (it's required by next)
-          echo "=== Checking for styled-jsx ==="
-          ls -la deploy/node_modules/.pnpm/styled-jsx*/node_modules/styled-jsx/ 2>/dev/null | head -5 || echo "styled-jsx not found in pnpm"
-          ls -la deploy/node_modules/styled-jsx/ 2>/dev/null | head -5 || echo "styled-jsx not found at root"
-          echo "=== Checking next's internal node_modules ==="
-          ls -la deploy/node_modules/.pnpm/next*/node_modules/ 2>/dev/null | head -20 || echo "next pnpm folder not found"
+          # Fix pnpm symlink resolution issue: ensure critical packages are at root node_modules
+          # pnpm uses symlinks like node_modules/pkg -> .pnpm/pkg@version/node_modules/pkg
+          # If the symlink target isn't included in standalone output, the symlink breaks
+          echo "=== Fixing pnpm symlink resolution ==="
+
+          # styled-jsx is required by next at runtime
+          if [ ! -d "deploy/node_modules/styled-jsx" ] || [ -L "deploy/node_modules/styled-jsx" ]; then
+            echo "Fixing styled-jsx..."
+            rm -rf deploy/node_modules/styled-jsx
+            STYLED_JSX_SRC=$(find deploy/node_modules/.pnpm -type d -name "styled-jsx" -path "*node_modules/styled-jsx" 2>/dev/null | head -1)
+            if [ -n "$STYLED_JSX_SRC" ]; then
+              cp -r "$STYLED_JSX_SRC" deploy/node_modules/styled-jsx
+              echo "Copied styled-jsx from $STYLED_JSX_SRC"
+            else
+              echo "ERROR: styled-jsx not found in .pnpm store!"
+              exit 1
+            fi
+          fi
+
+          # next-auth packages are required for auth
+          for PKG in next-auth @auth/core; do
+            PKG_DIR=$(echo "$PKG" | tr '/' '-')
+            if [ ! -d "deploy/node_modules/$PKG" ] || [ -L "deploy/node_modules/$PKG" ]; then
+              echo "Fixing $PKG..."
+              rm -rf "deploy/node_modules/$PKG"
+              PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$(basename $PKG)" -path "*node_modules/$(basename $PKG)" 2>/dev/null | grep -v "node_modules/.*node_modules" | head -1)
+              if [ -n "$PKG_SRC" ]; then
+                mkdir -p "deploy/node_modules/$(dirname $PKG)"
+                cp -r "$PKG_SRC" "deploy/node_modules/$PKG"
+                echo "Copied $PKG from $PKG_SRC"
+              else
+                echo "Warning: $PKG not found in .pnpm store (may not be needed)"
+              fi
+            fi
+          done
+
+          # Debug: verify critical packages exist
+          echo "=== Verifying critical packages ==="
+          ls -la deploy/node_modules/styled-jsx/package.json 2>/dev/null || echo "MISSING: styled-jsx"
+          ls -la deploy/node_modules/next/package.json 2>/dev/null || echo "MISSING: next"
 
           # Zip for deployment
           cd deploy && zip -r ../deploy.zip . && cd ..
