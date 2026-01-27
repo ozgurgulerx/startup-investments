@@ -71,8 +71,13 @@ jobs:
           # Copy public folder
           cp -r public deploy/public
 
-          # Remove any node_modules.tar.gz that might confuse Oryx
+          # Remove any files that might trigger Oryx behaviors
           rm -f deploy/node_modules.tar.gz
+          rm -f deploy/oryx-manifest.toml
+          rm -f deploy/.oryx-manifest.toml
+
+          # Create a simple oryx-manifest to disable tar.gz extraction
+          echo 'DisableTarGzExtraction=true' > deploy/oryx-manifest.toml
 
           # Zip for deployment
           cd deploy && zip -r ../deploy.zip . && cd ..
@@ -97,7 +102,8 @@ jobs:
               { "name": "GOOGLE_CLIENT_ID", "value": "${{ secrets.GOOGLE_CLIENT_ID }}", "slotSetting": false },
               { "name": "GOOGLE_CLIENT_SECRET", "value": "${{ secrets.GOOGLE_CLIENT_SECRET }}", "slotSetting": false },
               { "name": "NODE_ENV", "value": "production", "slotSetting": false },
-              { "name": "WEBSITE_RUN_FROM_PACKAGE", "value": "1", "slotSetting": false }
+              { "name": "WEBSITE_RUN_FROM_PACKAGE", "value": "1", "slotSetting": false },
+              { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "false", "slotSetting": false }
             ]
 
       - name: Deploy to Azure Web App
