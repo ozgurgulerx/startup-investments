@@ -71,6 +71,9 @@ jobs:
           # Copy public folder
           cp -r public deploy/public
 
+          # Remove any node_modules.tar.gz that might confuse Oryx
+          rm -f deploy/node_modules.tar.gz
+
           # Zip for deployment
           cd deploy && zip -r ../deploy.zip . && cd ..
 
@@ -93,7 +96,8 @@ jobs:
               { "name": "NEXTAUTH_URL", "value": "${{ vars.NEXTAUTH_URL }}", "slotSetting": false },
               { "name": "GOOGLE_CLIENT_ID", "value": "${{ secrets.GOOGLE_CLIENT_ID }}", "slotSetting": false },
               { "name": "GOOGLE_CLIENT_SECRET", "value": "${{ secrets.GOOGLE_CLIENT_SECRET }}", "slotSetting": false },
-              { "name": "NODE_ENV", "value": "production", "slotSetting": false }
+              { "name": "NODE_ENV", "value": "production", "slotSetting": false },
+              { "name": "WEBSITE_RUN_FROM_PACKAGE", "value": "1", "slotSetting": false }
             ]
 
       - name: Deploy to Azure Web App
