@@ -74,38 +74,69 @@ jobs:
           rm -f deploy/oryx-manifest.toml
           rm -f deploy/.oryx-manifest.toml
 
-          # Fix pnpm symlink resolution issue: ensure critical packages are at root node_modules
-          # pnpm uses symlinks like node_modules/pkg -> .pnpm/pkg@version/node_modules/pkg
-          # If the symlink target isn't included in standalone output, the symlink breaks
+          # Fix pnpm symlink resolution issue
+          # pnpm uses symlinks that may point outside the standalone output
+          # We need to fix all broken/missing packages at root node_modules level
           echo "=== Fixing pnpm symlink resolution ==="
 
-          # styled-jsx is required by next at runtime
-          if [ ! -d "deploy/node_modules/styled-jsx" ] || [ -L "deploy/node_modules/styled-jsx" ]; then
-            echo "Fixing styled-jsx..."
-            rm -rf deploy/node_modules/styled-jsx
-            STYLED_JSX_SRC=$(find deploy/node_modules/.pnpm -type d -name "styled-jsx" -path "*node_modules/styled-jsx" 2>/dev/null | head -1)
-            if [ -n "$STYLED_JSX_SRC" ]; then
-              cp -r "$STYLED_JSX_SRC" deploy/node_modules/styled-jsx
-              echo "Copied styled-jsx from $STYLED_JSX_SRC"
-            else
-              echo "ERROR: styled-jsx not found in .pnpm store!"
-              exit 1
-            fi
-          fi
+          # Function to fix a package by copying from .pnpm store
+          fix_package() {
+            local PKG=$1
+            local PKG_PATH="deploy/node_modules/$PKG"
 
-          # next-auth packages are required for auth
-          for PKG in next-auth @auth/core; do
-            PKG_DIR=$(echo "$PKG" | tr '/' '-')
-            if [ ! -d "deploy/node_modules/$PKG" ] || [ -L "deploy/node_modules/$PKG" ]; then
+            # Check if package is missing, a broken symlink, or a symlink (not a real dir)
+            if [ ! -e "$PKG_PATH" ] || [ -L "$PKG_PATH" ]; then
               echo "Fixing $PKG..."
-              rm -rf "deploy/node_modules/$PKG"
-              PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$(basename $PKG)" -path "*node_modules/$(basename $PKG)" 2>/dev/null | grep -v "node_modules/.*node_modules" | head -1)
+              rm -rf "$PKG_PATH"
+
+              # Find the package in .pnpm store
+              local PKG_NAME=$(basename "$PKG")
+              local PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+
               if [ -n "$PKG_SRC" ]; then
-                mkdir -p "deploy/node_modules/$(dirname $PKG)"
-                cp -r "$PKG_SRC" "deploy/node_modules/$PKG"
-                echo "Copied $PKG from $PKG_SRC"
+                mkdir -p "$(dirname "$PKG_PATH")"
+                cp -r "$PKG_SRC" "$PKG_PATH"
+                echo "  -> Copied from $PKG_SRC"
+                return 0
               else
-                echo "Warning: $PKG not found in .pnpm store (may not be needed)"
+                echo "  -> Warning: $PKG not found in .pnpm store"
+                return 1
+              fi
+            fi
+            return 0
+          }
+
+          # Fix critical packages required by Next.js runtime
+          # These are the packages that Next.js needs but pnpm's symlinks break
+          CRITICAL_PACKAGES=(
+            "styled-jsx"
+            "@swc/helpers"
+            "client-only"
+            "server-only"
+            "next-auth"
+            "@auth/core"
+            "@panva/hkdf"
+            "jose"
+            "oauth4webapi"
+            "preact"
+            "preact-render-to-string"
+          )
+
+          for PKG in "${CRITICAL_PACKAGES[@]}"; do
+            fix_package "$PKG"
+          done
+
+          # Also fix any remaining broken symlinks at the root level
+          echo "=== Checking for other broken symlinks ==="
+          for LINK in $(find deploy/node_modules -maxdepth 2 -type l 2>/dev/null); do
+            if [ ! -e "$LINK" ]; then
+              PKG_NAME=$(basename "$LINK")
+              echo "Found broken symlink: $LINK"
+              rm -f "$LINK"
+              PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+              if [ -n "$PKG_SRC" ]; then
+                cp -r "$PKG_SRC" "$LINK"
+                echo "  -> Fixed from $PKG_SRC"
               fi
             fi
           done
@@ -113,6 +144,7 @@ jobs:
           # Debug: verify critical packages exist
           echo "=== Verifying critical packages ==="
           ls -la deploy/node_modules/styled-jsx/package.json 2>/dev/null || echo "MISSING: styled-jsx"
+          ls -la deploy/node_modules/@swc/helpers/package.json 2>/dev/null || echo "MISSING: @swc/helpers"
           ls -la deploy/node_modules/next/package.json 2>/dev/null || echo "MISSING: next"
 
           # Zip for deployment
