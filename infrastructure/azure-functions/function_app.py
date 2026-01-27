@@ -8,6 +8,8 @@ Includes:
 - Event processing (timer-triggered, every 15 min)
 - Deep research queue processing (timer-triggered, every 30 min)
 - Pattern correlation computation (timer-triggered, daily)
+- Staleness check (timer-triggered, daily)
+- Deploy trigger with batching (timer-triggered, every 30 min)
 """
 
 import os
@@ -525,6 +527,273 @@ async def manual_pattern_correlator(req: func.HttpRequest) -> func.HttpResponse:
             }),
             mimetype="application/json"
         )
+
+    except Exception as e:
+        return func.HttpResponse(
+            json.dumps({"error": str(e)}),
+            status_code=500,
+            mimetype="application/json"
+        )
+
+
+# =============================================================================
+# STALENESS CHECK
+# =============================================================================
+
+@app.timer_trigger(
+    schedule="0 0 3 * * *",  # Daily at 3 AM
+    arg_name="timer",
+    run_on_startup=False
+)
+async def check_staleness(timer: func.TimerRequest):
+    """Check for stale startups that need re-crawling.
+
+    Runs daily to identify startups not updated in 90+ days.
+    Queues them for re-analysis via the deep research queue.
+    """
+    logging.info("Timer trigger: Starting staleness check...")
+
+    try:
+        _setup_analysis_path()
+        from src.storage import SnapshotManager
+        from src.automation.db import DatabaseManager
+
+        snapshot_manager = SnapshotManager()
+        db = DatabaseManager()
+
+        # Get stale startups (90+ days since last analysis)
+        stale_startups = snapshot_manager.get_stale_startups(max_days=90, limit=50)
+        logging.info(f"Found {len(stale_startups)} stale startups")
+
+        if not stale_startups:
+            logging.info("No stale startups found")
+            return
+
+        # Queue them for re-analysis
+        queued = 0
+        async with db.get_connection() as conn:
+            for startup in stale_startups:
+                try:
+                    # Get startup ID from slug
+                    result = await conn.fetchrow(
+                        "SELECT id FROM startups WHERE slug = $1",
+                        startup["slug"]
+                    )
+                    if not result:
+                        continue
+
+                    startup_id = result["id"]
+
+                    # Check if already queued
+                    existing = await conn.fetchrow(
+                        """SELECT id FROM deep_research_queue
+                           WHERE startup_id = $1 AND status IN ('pending', 'processing')""",
+                        startup_id
+                    )
+                    if existing:
+                        continue
+
+                    # Add to deep research queue
+                    await conn.execute(
+                        """INSERT INTO deep_research_queue
+                           (startup_id, priority, trigger_reason, created_at)
+                           VALUES ($1, $2, $3, $4)""",
+                        startup_id,
+                        3,  # Medium priority for staleness refresh
+                        "staleness_refresh",
+                        datetime.now(timezone.utc)
+                    )
+                    queued += 1
+
+                except Exception as e:
+                    logging.warning(f"Error queueing {startup['slug']}: {e}")
+
+        logging.info(f"Staleness check complete: {queued} startups queued for refresh")
+
+    except Exception as e:
+        logging.error(f"Staleness check error: {str(e)}")
+
+
+@app.route(route="trigger/staleness", methods=["POST"])
+async def manual_staleness_check(req: func.HttpRequest) -> func.HttpResponse:
+    """Manual trigger for staleness check.
+
+    POST /api/trigger/staleness
+    Body: {"max_days": 90, "limit": 50}
+    """
+    try:
+        body = req.get_json() if req.get_body() else {}
+        max_days = body.get("max_days", 90)
+        limit = body.get("limit", 50)
+
+        _setup_analysis_path()
+        from src.storage import SnapshotManager
+
+        snapshot_manager = SnapshotManager()
+        stale_startups = snapshot_manager.get_stale_startups(max_days=max_days, limit=limit)
+
+        return func.HttpResponse(
+            json.dumps({
+                "status": "completed",
+                "stale_count": len(stale_startups),
+                "max_days": max_days,
+                "stale_startups": [
+                    {
+                        "slug": s["slug"],
+                        "last_analyzed": s["last_analyzed"],
+                        "days_since": s["days_since"]
+                    }
+                    for s in stale_startups[:20]  # Limit response size
+                ]
+            }),
+            mimetype="application/json"
+        )
+
+    except Exception as e:
+        return func.HttpResponse(
+            json.dumps({"error": str(e)}),
+            status_code=500,
+            mimetype="application/json"
+        )
+
+
+# =============================================================================
+# DEPLOY TRIGGER WITH BATCHING
+# =============================================================================
+
+# Track pending changes for batching
+_pending_changes_key = "pending_deploy_changes"
+
+
+@app.timer_trigger(
+    schedule="0 */30 * * * *",  # Every 30 minutes
+    arg_name="timer",
+    run_on_startup=False
+)
+async def check_deploy_trigger(timer: func.TimerRequest):
+    """Check for pending changes and trigger deploy if needed.
+
+    Runs every 30 minutes as a batching window to avoid excessive deploys.
+    Triggers GitHub Actions workflow via repository_dispatch.
+    """
+    logging.info("Timer trigger: Checking for pending deploy changes...")
+
+    try:
+        _setup_analysis_path()
+        from src.automation.db import DatabaseManager
+
+        db = DatabaseManager()
+
+        # Check for recent changes that need syncing
+        # Look for analyses updated in last 30 minutes
+        async with db.get_connection() as conn:
+            recent_changes = await conn.fetch(
+                """SELECT COUNT(*) as count, MAX(updated_at) as last_update
+                   FROM startups
+                   WHERE updated_at > NOW() - INTERVAL '30 minutes'"""
+            )
+
+            change_count = recent_changes[0]["count"] if recent_changes else 0
+            last_update = recent_changes[0]["last_update"] if recent_changes else None
+
+        if change_count == 0:
+            logging.info("No pending changes, skipping deploy trigger")
+            return
+
+        logging.info(f"Found {change_count} changes, triggering deploy...")
+
+        # Trigger GitHub Actions via repository_dispatch
+        import aiohttp
+
+        github_token = os.environ.get("GITHUB_TOKEN")
+        repo = os.environ.get("GITHUB_REPO", "buildatlas/startup-analysis")
+
+        if not github_token:
+            logging.warning("GITHUB_TOKEN not configured, skipping deploy trigger")
+            return
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"https://api.github.com/repos/{repo}/dispatches",
+                headers={
+                    "Authorization": f"Bearer {github_token}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+                json={
+                    "event_type": "data-updated",
+                    "client_payload": {
+                        "changes": change_count,
+                        "last_update": last_update.isoformat() if last_update else None,
+                        "trigger": "batched_timer",
+                    }
+                }
+            ) as response:
+                if response.status == 204:
+                    logging.info(f"Deploy triggered successfully for {change_count} changes")
+                else:
+                    error = await response.text()
+                    logging.error(f"Failed to trigger deploy: {response.status} - {error}")
+
+    except Exception as e:
+        logging.error(f"Deploy trigger error: {str(e)}")
+
+
+@app.route(route="trigger/deploy", methods=["POST"])
+async def manual_deploy_trigger(req: func.HttpRequest) -> func.HttpResponse:
+    """Manual trigger for deploy (bypasses batching).
+
+    POST /api/trigger/deploy
+    Body: {"force": true}
+    """
+    try:
+        body = req.get_json() if req.get_body() else {}
+        force = body.get("force", False)
+
+        import aiohttp
+
+        github_token = os.environ.get("GITHUB_TOKEN")
+        repo = os.environ.get("GITHUB_REPO", "buildatlas/startup-analysis")
+
+        if not github_token:
+            return func.HttpResponse(
+                json.dumps({"error": "GITHUB_TOKEN not configured"}),
+                status_code=500,
+                mimetype="application/json"
+            )
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"https://api.github.com/repos/{repo}/dispatches",
+                headers={
+                    "Authorization": f"Bearer {github_token}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+                json={
+                    "event_type": "sync-data",
+                    "client_payload": {
+                        "force": force,
+                        "trigger": "manual",
+                        "triggered_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                }
+            ) as response:
+                if response.status == 204:
+                    return func.HttpResponse(
+                        json.dumps({
+                            "status": "triggered",
+                            "message": "Deploy workflow triggered successfully"
+                        }),
+                        mimetype="application/json"
+                    )
+                else:
+                    error = await response.text()
+                    return func.HttpResponse(
+                        json.dumps({"error": f"GitHub API error: {error}"}),
+                        status_code=response.status,
+                        mimetype="application/json"
+                    )
 
     except Exception as e:
         return func.HttpResponse(

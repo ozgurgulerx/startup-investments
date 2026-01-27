@@ -4,13 +4,14 @@ Handles:
 - Downloading CSV from Azure Blob Storage
 - Parsing and processing startups
 - Moving blobs between folders (incoming -> processed/failed)
+- Saving crawl and analysis snapshots to blob storage
 """
 
 import os
 import csv
 import io
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from azure.storage.blob import BlobServiceClient, BlobClient
 from src.config import settings
 from src.data.models import StartupInput
 from src.data.store import AnalysisStore
+from src.storage import BlobStorageClient, SnapshotManager, ContainerName
 from .delta_processor import DeltaProcessor, BatchResult
 
 
@@ -56,7 +58,8 @@ class BlobProcessor:
         self,
         config: Optional[BlobConfig] = None,
         store: Optional[AnalysisStore] = None,
-        output_dir: Optional[Path] = None
+        output_dir: Optional[Path] = None,
+        storage_client: Optional[BlobStorageClient] = None,
     ):
         """Initialize blob processor.
 
@@ -64,6 +67,7 @@ class BlobProcessor:
             config: Blob storage configuration (uses env vars if not provided)
             store: AnalysisStore instance
             output_dir: Output directory for results
+            storage_client: BlobStorageClient for multi-container storage
         """
         self.config = config or BlobConfig(
             connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING", ""),
@@ -76,9 +80,16 @@ class BlobProcessor:
 
         self.store = store or AnalysisStore()
         self.output_dir = output_dir or settings.data_output_dir
+
+        # Initialize new storage infrastructure
+        self.storage_client = storage_client or BlobStorageClient()
+        self.snapshot_manager = SnapshotManager(self.storage_client)
+
         self.delta_processor = DeltaProcessor(
             store=self.store,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
+            storage_client=self.storage_client,
+            snapshot_manager=self.snapshot_manager,
         )
 
     async def process_blob(self, blob_name: str) -> ProcessingReport:

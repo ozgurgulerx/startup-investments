@@ -4,11 +4,16 @@ Routes startups to appropriate processing based on classification:
 - NEW: Full pipeline (crawl, analyze, brief)
 - CHANGED: Smart delta (re-analyze, LLM merge, update brief)
 - UNCHANGED: Skip (just update last_seen timestamp)
+
+Now with blob storage integration for:
+- Crawl snapshots (versioned raw data)
+- Analysis snapshots (versioned with merge history)
+- Brief storage (versioned markdown)
 """
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,10 +22,13 @@ from src.data.models import StartupInput, StartupAnalysis
 from src.data.store import AnalysisStore
 from src.crawler.engine import StartupCrawler
 from src.analysis.genai_detector import GenAIAnalyzer
-from src.reports.generator import save_startup_brief, get_logo_path_for_company
+from src.reports.generator import save_startup_brief, get_logo_path_for_company, generate_startup_brief
 
 from .classifier import StartupClassifier, ClassifiedStartup, StartupStatus
 from .llm_merger import LLMContextMerger
+
+if TYPE_CHECKING:
+    from src.storage import BlobStorageClient, SnapshotManager
 
 
 @dataclass
@@ -55,7 +63,9 @@ class DeltaProcessor:
         store: AnalysisStore,
         output_dir: Optional[Path] = None,
         max_concurrent_new: int = 3,
-        max_concurrent_updates: int = 5
+        max_concurrent_updates: int = 5,
+        storage_client: Optional["BlobStorageClient"] = None,
+        snapshot_manager: Optional["SnapshotManager"] = None,
     ):
         """Initialize processor.
 
@@ -64,11 +74,17 @@ class DeltaProcessor:
             output_dir: Output directory for briefs
             max_concurrent_new: Max concurrent new startup processing
             max_concurrent_updates: Max concurrent update processing
+            storage_client: BlobStorageClient for multi-container storage
+            snapshot_manager: SnapshotManager for reconciliation
         """
         self.store = store
         self.output_dir = output_dir or settings.data_output_dir
         self.max_concurrent_new = max_concurrent_new
         self.max_concurrent_updates = max_concurrent_updates
+
+        # Initialize blob storage (lazy - may be None if not configured)
+        self.storage_client = storage_client
+        self.snapshot_manager = snapshot_manager
 
         # Initialize components
         self.classifier = StartupClassifier(store)
@@ -187,10 +203,15 @@ class DeltaProcessor:
 
         try:
             print(f"  [NEW] {startup.name}...")
+            slug = StartupAnalysis.to_slug(startup.name)
+            crawl_data: Dict[str, Any] = {}
 
             # 1. Crawl (unless skipped)
             if not skip_crawl:
-                await self.crawler.crawl_startup(startup)
+                crawl_result = await self.crawler.crawl_startup(startup)
+                # Collect crawl data for snapshot
+                if crawl_result:
+                    crawl_data = self._extract_crawl_data(crawl_result)
 
             # 2. Analyze
             analysis = await self.analyzer.analyze_startup(startup)
@@ -201,8 +222,17 @@ class DeltaProcessor:
             logo_path = get_logo_path_for_company(startup.name)
             save_startup_brief(analysis, startup, briefs_dir, logo_path)
 
-            # 4. Save to store
+            # 4. Save to store (local filesystem)
             self.store.save_base_analysis(analysis, startup)
+
+            # 5. Save to blob storage (if configured)
+            await self._save_to_blob_storage(
+                slug=slug,
+                crawl_data=crawl_data,
+                analysis=analysis,
+                startup=startup,
+                trigger_reason="new_startup",
+            )
 
             end_time = datetime.now(timezone.utc)
             return ProcessingResult(
@@ -259,14 +289,21 @@ class DeltaProcessor:
         start_time = datetime.now(timezone.utc)
         startup = classified.startup_input
         existing_analysis = classified.existing_analysis or {}
+        slug = classified.existing_slug or StartupAnalysis.to_slug(startup.name)
+        crawl_data: Dict[str, Any] = {}
 
         try:
             change_type = f"{classified.change_significance}_update"
             print(f"  [{change_type.upper()}] {startup.name}...")
 
+            # Determine trigger reason for blob storage
+            trigger_reason = self._determine_trigger_reason(classified)
+
             # 1. Re-crawl if major change
             if classified.change_significance == "major" and not skip_crawl:
-                await self.crawler.crawl_startup(startup)
+                crawl_result = await self.crawler.crawl_startup(startup)
+                if crawl_result:
+                    crawl_data = self._extract_crawl_data(crawl_result)
 
             # 2. Re-analyze
             new_analysis = await self.analyzer.analyze_startup(startup)
@@ -281,10 +318,10 @@ class DeltaProcessor:
             )
 
             # 4. Load existing brief
-            existing_brief = self._load_existing_brief(classified.existing_slug)
+            existing_brief = self._load_existing_brief(slug)
 
             # 5. Decide if brief needs regeneration
-            should_regen, reason = await self.merger.should_regenerate_brief(
+            should_regen, _ = await self.merger.should_regenerate_brief(
                 changes=[{"field": c.field, "old_value": c.old_value, "new_value": c.new_value}
                          for c in classified.changes],
                 existing_analysis=existing_analysis,
@@ -292,9 +329,10 @@ class DeltaProcessor:
             )
 
             # 6. Update brief
+            updated_brief_content: Optional[str] = None
             if existing_brief:
                 update_type = "major" if should_regen else "minor"
-                updated_brief = await self.merger.update_brief(
+                updated_brief_content = await self.merger.update_brief(
                     existing_brief=existing_brief,
                     new_analysis=merged_analysis,
                     changes=[{"field": c.field, "old_value": c.old_value, "new_value": c.new_value}
@@ -303,18 +341,37 @@ class DeltaProcessor:
                     update_type=update_type
                 )
                 # Save updated brief
-                self._save_brief(classified.existing_slug, updated_brief)
+                self._save_brief(slug, updated_brief_content)
             else:
                 # Generate new brief if none exists
                 briefs_dir = self.output_dir / "briefs"
                 briefs_dir.mkdir(parents=True, exist_ok=True)
-                # Create a temporary StartupAnalysis from merged data
                 logo_path = get_logo_path_for_company(startup.name)
                 save_startup_brief(new_analysis, startup, briefs_dir, logo_path)
+                # Also generate content for blob storage
+                updated_brief_content = generate_startup_brief(new_analysis, startup, logo_path)
 
-            # 7. Save merged analysis to store
-            # Update the store with merged analysis
-            self._save_merged_analysis(classified.existing_slug, merged_analysis, startup)
+            # 7. Save merged analysis to store (local filesystem)
+            self._save_merged_analysis(slug, merged_analysis, startup)
+
+            # 8. Save to blob storage (if configured)
+            # Determine what changed for reconciliation
+            funding_changed = any(c.field in ("funding_amount", "funding_stage") for c in classified.changes)
+            website_changed = any(c.field == "website_hash" for c in classified.changes)
+            description_changed = any(c.field == "description" for c in classified.changes)
+
+            await self._save_to_blob_storage(
+                slug=slug,
+                crawl_data=crawl_data,
+                analysis=new_analysis,
+                startup=startup,
+                trigger_reason=trigger_reason,
+                merged_analysis=merged_analysis,
+                brief_content=updated_brief_content,
+                funding_changed=funding_changed,
+                website_changed=website_changed,
+                description_changed=description_changed,
+            )
 
             end_time = datetime.now(timezone.utc)
             return ProcessingResult(
@@ -391,3 +448,155 @@ class DeltaProcessor:
                 datetime.now(timezone.utc).isoformat()
             )
             self.store._save_index()
+
+    # =========================================================================
+    # Blob storage helper methods
+    # =========================================================================
+
+    def _extract_crawl_data(self, crawl_result: Any) -> Dict[str, Any]:
+        """Extract crawl data from crawler result for blob storage.
+
+        Args:
+            crawl_result: Result from StartupCrawler
+
+        Returns:
+            Dict with website, github, news, jobs content
+        """
+        crawl_data: Dict[str, Any] = {}
+
+        if crawl_result is None:
+            return crawl_data
+
+        # Extract website content
+        if hasattr(crawl_result, "pages") and crawl_result.pages:
+            crawl_data["website"] = {
+                "pages": [
+                    {
+                        "url": p.url if hasattr(p, "url") else str(p),
+                        "title": p.title if hasattr(p, "title") else None,
+                        "content": p.content if hasattr(p, "content") else str(p),
+                    }
+                    for p in crawl_result.pages
+                ],
+                "crawled_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        # Extract GitHub content
+        if hasattr(crawl_result, "github") and crawl_result.github:
+            crawl_data["github"] = crawl_result.github
+
+        # Extract news content
+        if hasattr(crawl_result, "news") and crawl_result.news:
+            crawl_data["news"] = crawl_result.news
+
+        # Extract jobs content
+        if hasattr(crawl_result, "jobs") and crawl_result.jobs:
+            crawl_data["jobs"] = crawl_result.jobs
+
+        return crawl_data
+
+    def _determine_trigger_reason(self, classified: ClassifiedStartup) -> str:
+        """Determine the trigger reason for reconciliation.
+
+        Args:
+            classified: ClassifiedStartup with change information
+
+        Returns:
+            Trigger reason string
+        """
+        if classified.status == StartupStatus.NEW:
+            return "new_startup"
+
+        # Check specific changes
+        for change in classified.changes:
+            if change.field in ("funding_amount", "funding_stage"):
+                return "funding_changed"
+            if change.field == "website_hash":
+                return "website_changed"
+            if change.field == "description":
+                return "description_changed"
+
+        return f"{classified.change_significance}_update"
+
+    async def _save_to_blob_storage(
+        self,
+        slug: str,
+        crawl_data: Dict[str, Any],
+        analysis: StartupAnalysis,
+        startup: StartupInput,
+        trigger_reason: str,
+        merged_analysis: Optional[Dict[str, Any]] = None,
+        brief_content: Optional[str] = None,
+        funding_changed: bool = False,
+        website_changed: bool = False,
+        description_changed: bool = False,
+    ) -> Dict[str, Optional[str]]:
+        """Save crawl, analysis, and brief snapshots to blob storage.
+
+        Args:
+            slug: Startup slug
+            crawl_data: Crawl data to save
+            analysis: StartupAnalysis object
+            startup: StartupInput object
+            trigger_reason: What triggered this save
+            merged_analysis: Optional merged analysis dict
+            brief_content: Optional brief markdown content
+            funding_changed: Whether funding changed
+            website_changed: Whether website changed
+            description_changed: Whether description changed
+
+        Returns:
+            Dict mapping file types to blob URLs
+        """
+        if not self.storage_client or not self.snapshot_manager:
+            return {}
+
+        urls: Dict[str, Optional[str]] = {}
+
+        try:
+            # Prepare analysis data
+            analysis_data = merged_analysis if merged_analysis else analysis.model_dump()
+
+            # Use snapshot manager for full reconciliation if we have crawl data
+            if crawl_data:
+                _, snapshot_urls = await self.snapshot_manager.reconcile_startup(
+                    slug=slug,
+                    new_crawl=crawl_data,
+                    new_analysis=analysis_data,
+                    trigger_reason=trigger_reason,
+                    funding_changed=funding_changed,
+                    website_changed=website_changed,
+                    description_changed=description_changed,
+                )
+                urls.update(snapshot_urls)
+            else:
+                # Just save analysis snapshot
+                analysis_urls = self.storage_client.save_analysis_snapshot(
+                    slug=slug,
+                    analysis=analysis_data,
+                )
+                urls.update({f"analysis_{k}": v for k, v in analysis_urls.items()})
+
+            # Save brief if provided
+            if brief_content:
+                brief_urls = self.storage_client.save_brief(
+                    slug=slug,
+                    brief_content=brief_content,
+                )
+                urls.update({f"brief_{k}": v for k, v in brief_urls.items()})
+            else:
+                # Generate and save brief
+                logo_path = get_logo_path_for_company(startup.name)
+                brief = generate_startup_brief(analysis, startup, logo_path)
+                brief_urls = self.storage_client.save_brief(
+                    slug=slug,
+                    brief_content=brief,
+                )
+                urls.update({f"brief_{k}": v for k, v in brief_urls.items()})
+
+            print(f"  [BLOB] Saved snapshots for {slug}: {list(urls.keys())}")
+
+        except Exception as e:
+            print(f"  [BLOB] Error saving snapshots for {slug}: {e}")
+
+        return urls

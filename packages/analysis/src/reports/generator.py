@@ -1,12 +1,19 @@
-"""Report generation for newsletter output and CSV enrichment."""
+"""Report generation for newsletter output and CSV enrichment.
+
+Supports saving briefs to both local filesystem and Azure Blob Storage.
+"""
 
 import csv
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
+
 from datetime import datetime, timezone
 
 from src.data.models import StartupAnalysis, StartupInput
 from src.config import settings
+
+if TYPE_CHECKING:
+    from src.storage import BlobStorageClient
 
 
 def get_logo_path_for_company(company_name: str) -> Optional[str]:
@@ -283,15 +290,17 @@ def save_startup_brief(
     analysis: StartupAnalysis,
     startup_input: StartupInput,
     output_dir: Path,
-    logo_path: Optional[str] = None
+    logo_path: Optional[str] = None,
+    storage_client: Optional["BlobStorageClient"] = None,
 ) -> Path:
-    """Save the startup brief to a markdown file.
+    """Save the startup brief to a markdown file and optionally to blob storage.
 
     Args:
         analysis: The startup analysis data
         startup_input: The original startup input data
         output_dir: Directory to save the brief
         logo_path: Optional path to the company logo image
+        storage_client: Optional BlobStorageClient for blob storage
 
     Returns:
         Path to the saved brief file
@@ -302,12 +311,59 @@ def save_startup_brief(
     briefs_dir = output_dir / "briefs"
     briefs_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save brief
+    # Save brief to local filesystem
     brief_path = briefs_dir / f"{analysis.company_slug}_brief.md"
     with open(brief_path, "w") as f:
         f.write(brief)
 
+    # Also save to blob storage if configured
+    if storage_client and storage_client.is_configured:
+        try:
+            storage_client.save_brief(
+                slug=analysis.company_slug,
+                brief_content=brief,
+            )
+        except Exception as e:
+            print(f"Warning: Failed to save brief to blob storage: {e}")
+
     return brief_path
+
+
+def save_briefs_batch(
+    analyses: List[StartupAnalysis],
+    startup_inputs: Dict[str, StartupInput],
+    output_dir: Path,
+    storage_client: Optional["BlobStorageClient"] = None,
+) -> List[Path]:
+    """Save multiple briefs to filesystem and optionally blob storage.
+
+    Args:
+        analyses: List of StartupAnalysis objects
+        startup_inputs: Dict mapping company name to StartupInput
+        output_dir: Directory to save briefs
+        storage_client: Optional BlobStorageClient
+
+    Returns:
+        List of paths to saved brief files
+    """
+    saved_paths = []
+
+    for analysis in analyses:
+        startup = startup_inputs.get(analysis.company_name)
+        if not startup:
+            continue
+
+        logo_path = get_logo_path_for_company(analysis.company_name)
+        path = save_startup_brief(
+            analysis=analysis,
+            startup_input=startup,
+            output_dir=output_dir,
+            logo_path=logo_path,
+            storage_client=storage_client,
+        )
+        saved_paths.append(path)
+
+    return saved_paths
 
 
 def get_analysis_csv_columns() -> List[str]:
