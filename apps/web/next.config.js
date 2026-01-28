@@ -6,6 +6,8 @@ const nextConfig = {
   // Use 'export' for fully static deployment (disables API routes & auth)
   output: process.env.STATIC_EXPORT === 'true' ? 'export' : 'standalone',
   trailingSlash: true,
+  // Skip trailing slash redirect for API routes (required for NextAuth)
+  skipTrailingSlashRedirect: true,
   images: {
     unoptimized: true,
   },
@@ -15,13 +17,13 @@ const nextConfig = {
   // Ensure output file tracing includes monorepo root dependencies
   experimental: {
     outputFileTracingRoot: require('path').join(__dirname, '../../'),
-  },
-  outputFileTracingIncludes: {
-    '/*': [
-      './node_modules/.pnpm/next-auth*/**/*',
-      './node_modules/.pnpm/@auth*/**/*',
-      './node_modules/next-auth/**/*',
-    ],
+    outputFileTracingIncludes: {
+      '/*': [
+        './node_modules/.pnpm/next-auth*/**/*',
+        './node_modules/.pnpm/@auth*/**/*',
+        './node_modules/next-auth/**/*',
+      ],
+    },
   },
 };
 
