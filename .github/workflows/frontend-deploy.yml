@@ -113,6 +113,7 @@ jobs:
           CRITICAL_PACKAGES=(
             "styled-jsx"
             "@swc/helpers"
+            "@next/env"
             "client-only"
             "server-only"
             "next-auth"
@@ -122,6 +123,8 @@ jobs:
             "oauth4webapi"
             "preact"
             "preact-render-to-string"
+            "caniuse-lite"
+            "postcss"
           )
 
           for PKG in "${CRITICAL_PACKAGES[@]}"; do
