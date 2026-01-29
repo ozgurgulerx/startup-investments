@@ -1,12 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { useAudience } from '@/lib/audience-context';
 import { AudienceToggle } from '@/components/ui/audience-toggle';
+import { UserMenu } from '@/components/auth/user-menu';
 import { COPY, SUPPORTING_LINE, METRICS, FAQ_ITEMS, SIGN_IN_COPY } from '@/lib/copy';
 
 export default function LandingPage() {
   const { audience } = useAudience();
+  const { data: session, status } = useSession();
   const copy = COPY[audience];
 
   return (
@@ -24,12 +27,18 @@ export default function LandingPage() {
             <Link href="/methodology" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Methodology
             </Link>
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
-            >
-              Sign In
-            </Link>
+            {status === 'loading' ? (
+              <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
+            ) : session?.user ? (
+              <UserMenu />
+            ) : (
+              <Link
+                href="/login"
+                className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
+              >
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
       </nav>
