@@ -96,7 +96,7 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
     }
 
     try {
-      const response = await fetch('/api/watchlist');
+      const response = await fetch('/api/watchlist/');
 
       if (response.ok) {
         const data = await response.json();
@@ -188,7 +188,7 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
     });
 
     try {
-      const response = await fetch('/api/watchlist', {
+      const response = await fetch('/api/watchlist/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companySlug }),
@@ -236,7 +236,7 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
     });
 
     try {
-      const response = await fetch(`/api/watchlist?slug=${encodeURIComponent(companySlug)}`, {
+      const response = await fetch(`/api/watchlist/?slug=${encodeURIComponent(companySlug)}`, {
         method: 'DELETE',
       });
 
