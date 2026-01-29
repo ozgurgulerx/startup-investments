@@ -8,6 +8,7 @@ export interface WatchlistItem {
   companySlug: string;
   companyName: string;
   addedAt: string;
+  notes?: string;
 }
 
 export interface Watchlist {
@@ -26,23 +27,24 @@ interface WatchlistContextType {
   removeFromWatchlist: (companySlug: string) => Promise<boolean>;
   requiresAuth: boolean;
   itemCount: number;
+  refresh: () => Promise<void>;
 }
 
 const WatchlistContext = createContext<WatchlistContextType | undefined>(undefined);
 
-// Storage key for localStorage
-const WATCHLIST_KEY = 'build_patterns_watchlist';
+// Storage key for localStorage (used as cache)
+const WATCHLIST_CACHE_KEY = 'build_atlas_watchlist_cache';
 
 // Generate a simple ID
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-// Get watchlist from localStorage
-function getStoredWatchlist(userId: string): Watchlist | null {
+// Get cached watchlist from localStorage
+function getCachedWatchlist(userId: string): Watchlist | null {
   if (typeof window === 'undefined') return null;
 
-  const key = `${WATCHLIST_KEY}_${userId}`;
+  const key = `${WATCHLIST_CACHE_KEY}_${userId}`;
   const stored = localStorage.getItem(key);
   if (!stored) return null;
 
@@ -53,21 +55,21 @@ function getStoredWatchlist(userId: string): Watchlist | null {
   }
 }
 
-// Save watchlist to localStorage
-function saveWatchlist(userId: string, watchlist: Watchlist): void {
+// Save watchlist to localStorage cache
+function cacheWatchlist(userId: string, watchlist: Watchlist): void {
   if (typeof window === 'undefined') return;
 
-  const key = `${WATCHLIST_KEY}_${userId}`;
+  const key = `${WATCHLIST_CACHE_KEY}_${userId}`;
   localStorage.setItem(key, JSON.stringify(watchlist));
 }
 
-// Create default watchlist
-function createDefaultWatchlist(): Watchlist {
+// Create default watchlist structure
+function createDefaultWatchlist(items: WatchlistItem[] = []): Watchlist {
   const now = new Date().toISOString();
   return {
     id: generateId(),
     name: 'My Watchlist',
-    items: [],
+    items,
     createdAt: now,
     updatedAt: now,
   };
@@ -82,9 +84,58 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
   const [watchlist, setWatchlist] = useState<Watchlist | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // User ID - use session user id or 'anonymous' for localStorage
   const userId = session?.user?.id || 'anonymous';
   const isAuthenticated = status === 'authenticated';
+
+  // Fetch watchlist from API
+  const fetchWatchlist = useCallback(async () => {
+    if (!isAuthenticated) {
+      setWatchlist(null);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/watchlist');
+
+      if (response.ok) {
+        const data = await response.json();
+        const items: WatchlistItem[] = data.items.map((item: {
+          companySlug: string;
+          companyName: string;
+          addedAt: string;
+          notes?: string;
+        }) => ({
+          companySlug: item.companySlug,
+          companyName: item.companyName,
+          addedAt: item.addedAt,
+          notes: item.notes,
+        }));
+
+        const newWatchlist = createDefaultWatchlist(items);
+        setWatchlist(newWatchlist);
+        cacheWatchlist(userId, newWatchlist);
+      } else if (response.status === 401) {
+        // Not authenticated - clear watchlist
+        setWatchlist(null);
+      } else {
+        // API error - try to use cached data
+        const cached = getCachedWatchlist(userId);
+        if (cached) {
+          setWatchlist(cached);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch watchlist:', error);
+      // Use cached data as fallback
+      const cached = getCachedWatchlist(userId);
+      if (cached) {
+        setWatchlist(cached);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, userId]);
 
   // Load watchlist on mount or when user changes
   useEffect(() => {
@@ -92,21 +143,18 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
 
     setIsLoading(true);
 
-    // For authenticated users, try to load their watchlist
-    // For anonymous users, we still allow viewing but show prompt to sign in
-    const stored = getStoredWatchlist(userId);
-
-    if (stored) {
-      setWatchlist(stored);
-    } else if (isAuthenticated) {
-      // Create default watchlist for authenticated users
-      const defaultWatchlist = createDefaultWatchlist();
-      setWatchlist(defaultWatchlist);
-      saveWatchlist(userId, defaultWatchlist);
+    // For authenticated users, first show cached data, then fetch from API
+    if (isAuthenticated) {
+      const cached = getCachedWatchlist(userId);
+      if (cached) {
+        setWatchlist(cached);
+      }
+      fetchWatchlist();
+    } else {
+      setWatchlist(null);
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
-  }, [userId, status, isAuthenticated]);
+  }, [userId, status, isAuthenticated, fetchWatchlist]);
 
   // Check if a company is in watchlist
   const isInWatchlist = useCallback((companySlug: string): boolean => {
@@ -117,21 +165,14 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
   // Add to watchlist
   const addToWatchlist = useCallback(async (companySlug: string, companyName: string): Promise<boolean> => {
     if (!isAuthenticated) {
-      return false; // Caller should show sign-in prompt
+      return false;
     }
 
+    // Optimistic update
     const now = new Date().toISOString();
-
     setWatchlist(current => {
       if (!current) {
-        // Create new watchlist
-        const newWatchlist: Watchlist = {
-          ...createDefaultWatchlist(),
-          items: [{ companySlug, companyName, addedAt: now }],
-          updatedAt: now,
-        };
-        saveWatchlist(userId, newWatchlist);
-        return newWatchlist;
+        return createDefaultWatchlist([{ companySlug, companyName, addedAt: now }]);
       }
 
       // Check if already exists
@@ -139,18 +180,42 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
         return current;
       }
 
-      // Add to existing
-      const updated: Watchlist = {
+      return {
         ...current,
         items: [...current.items, { companySlug, companyName, addedAt: now }],
         updatedAt: now,
       };
-      saveWatchlist(userId, updated);
-      return updated;
     });
 
-    return true;
-  }, [isAuthenticated, userId]);
+    try {
+      const response = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companySlug }),
+      });
+
+      if (!response.ok) {
+        // Revert optimistic update on failure
+        await fetchWatchlist();
+        return false;
+      }
+
+      // Update cache with current state
+      setWatchlist(current => {
+        if (current) {
+          cacheWatchlist(userId, current);
+        }
+        return current;
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Failed to add to watchlist:', error);
+      // Revert optimistic update
+      await fetchWatchlist();
+      return false;
+    }
+  }, [isAuthenticated, userId, fetchWatchlist]);
 
   // Remove from watchlist
   const removeFromWatchlist = useCallback(async (companySlug: string): Promise<boolean> => {
@@ -158,22 +223,45 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
       return false;
     }
 
+    // Optimistic update
     const now = new Date().toISOString();
-
     setWatchlist(current => {
       if (!current) return null;
 
-      const updated: Watchlist = {
+      return {
         ...current,
         items: current.items.filter(item => item.companySlug !== companySlug),
         updatedAt: now,
       };
-      saveWatchlist(userId, updated);
-      return updated;
     });
 
-    return true;
-  }, [isAuthenticated, watchlist, userId]);
+    try {
+      const response = await fetch(`/api/watchlist?slug=${encodeURIComponent(companySlug)}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        // Revert optimistic update on failure
+        await fetchWatchlist();
+        return false;
+      }
+
+      // Update cache with current state
+      setWatchlist(current => {
+        if (current) {
+          cacheWatchlist(userId, current);
+        }
+        return current;
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Failed to remove from watchlist:', error);
+      // Revert optimistic update
+      await fetchWatchlist();
+      return false;
+    }
+  }, [isAuthenticated, watchlist, userId, fetchWatchlist]);
 
   const value: WatchlistContextType = {
     watchlist,
@@ -183,6 +271,7 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
     removeFromWatchlist,
     requiresAuth: !isAuthenticated,
     itemCount: watchlist?.items.length || 0,
+    refresh: fetchWatchlist,
   };
 
   return (
@@ -204,6 +293,7 @@ export function useWatchlist() {
       removeFromWatchlist: async () => false,
       requiresAuth: true,
       itemCount: 0,
+      refresh: async () => {},
     };
   }
   return context;
