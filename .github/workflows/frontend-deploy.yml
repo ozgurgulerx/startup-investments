@@ -147,18 +147,38 @@ jobs:
             fix_package "$PKG"
           done
 
-          # Also fix any remaining broken symlinks at the root level
-          echo "=== Checking for other broken symlinks ==="
-          for LINK in $(find deploy/node_modules -maxdepth 2 -type l 2>/dev/null); do
-            if [ ! -e "$LINK" ]; then
-              PKG_NAME=$(basename "$LINK")
-              echo "Found broken symlink: $LINK"
-              rm -f "$LINK"
-              PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
-              if [ -n "$PKG_SRC" ]; then
-                cp -r "$PKG_SRC" "$LINK"
-                echo "  -> Fixed from $PKG_SRC"
+          # Fix ALL broken symlinks recursively (not just root level)
+          echo "=== Checking for all broken symlinks recursively ==="
+          MAX_ITERATIONS=5
+          for i in $(seq 1 $MAX_ITERATIONS); do
+            FOUND_BROKEN=0
+            echo "Pass $i: Scanning for broken symlinks..."
+            while IFS= read -r LINK; do
+              if [ -n "$LINK" ] && [ ! -e "$LINK" ]; then
+                FOUND_BROKEN=1
+                PKG_NAME=$(basename "$LINK")
+                PARENT_DIR=$(dirname "$LINK")
+                echo "Found broken symlink: $LINK"
+                rm -f "$LINK"
+
+                # Try to find in .pnpm store
+                PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+
+                # If not found, try root project node_modules
+                if [ -z "$PKG_SRC" ]; then
+                  PKG_SRC=$(find ../../node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+                fi
+
+                if [ -n "$PKG_SRC" ]; then
+                  cp -rL "$PKG_SRC" "$LINK"
+                  echo "  -> Fixed from $PKG_SRC"
+                fi
               fi
+            done < <(find deploy/node_modules -type l 2>/dev/null)
+
+            if [ $FOUND_BROKEN -eq 0 ]; then
+              echo "No more broken symlinks found after pass $i"
+              break
             fi
           done
 
