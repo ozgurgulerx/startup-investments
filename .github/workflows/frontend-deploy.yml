@@ -80,12 +80,15 @@ jobs:
           echo "=== Fixing pnpm symlink resolution ==="
 
           # Function to fix a package by copying from .pnpm store or full node_modules
+          # For critical packages, ALWAYS recopy to ensure completeness
+          # (rsync --copy-links can create incomplete directories when symlinks point outside)
           fix_package() {
             local PKG=$1
             local PKG_PATH="deploy/node_modules/$PKG"
+            local FORCE=${2:-false}
 
-            # Check if package is missing, a broken symlink, or a symlink (not a real dir)
-            if [ ! -e "$PKG_PATH" ] || [ -L "$PKG_PATH" ]; then
+            # Check if package needs fixing: missing, is a symlink, or forced
+            if [ ! -e "$PKG_PATH" ] || [ -L "$PKG_PATH" ] || [ "$FORCE" = "true" ]; then
               echo "Fixing $PKG..."
               rm -rf "$PKG_PATH"
 
@@ -148,7 +151,7 @@ jobs:
           )
 
           for PKG in "${CRITICAL_PACKAGES[@]}"; do
-            fix_package "$PKG"
+            fix_package "$PKG" true  # Force recopy critical packages
           done
 
           # Fix ALL broken symlinks recursively (not just root level)
@@ -191,6 +194,9 @@ jobs:
           ls -la deploy/node_modules/styled-jsx/package.json 2>/dev/null || echo "MISSING: styled-jsx"
           ls -la deploy/node_modules/@swc/helpers/package.json 2>/dev/null || echo "MISSING: @swc/helpers"
           ls -la deploy/node_modules/next/package.json 2>/dev/null || echo "MISSING: next"
+          ls -la deploy/node_modules/xtend/mutable.js 2>/dev/null || echo "MISSING: xtend/mutable.js"
+          ls -la deploy/node_modules/postgres-interval/package.json 2>/dev/null || echo "MISSING: postgres-interval"
+          ls -la deploy/node_modules/pg/package.json 2>/dev/null || echo "MISSING: pg"
 
           # Zip for deployment
           cd deploy && zip -r ../deploy.zip . && cd ..
