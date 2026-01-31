@@ -39,21 +39,6 @@ export function AudienceToggle({ className }: AudienceToggleProps) {
     >
       <button
         role="tab"
-        aria-selected={audience === 'builders'}
-        tabIndex={0}
-        onClick={() => setAudience('builders')}
-        onKeyDown={(e) => handleKeyDown(e, 'builders')}
-        className={cn(
-          "px-4 py-1.5 text-xs font-medium rounded-full transition-all duration-150",
-          audience === 'builders'
-            ? "bg-accent text-accent-foreground"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        Builders
-      </button>
-      <button
-        role="tab"
         aria-selected={audience === 'investors'}
         tabIndex={0}
         onClick={() => setAudience('investors')}
@@ -66,6 +51,21 @@ export function AudienceToggle({ className }: AudienceToggleProps) {
         )}
       >
         Investors
+      </button>
+      <button
+        role="tab"
+        aria-selected={audience === 'builders'}
+        tabIndex={0}
+        onClick={() => setAudience('builders')}
+        onKeyDown={(e) => handleKeyDown(e, 'builders')}
+        className={cn(
+          "px-4 py-1.5 text-xs font-medium rounded-full transition-all duration-150",
+          audience === 'builders'
+            ? "bg-accent text-accent-foreground"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        Builders
       </button>
     </div>
   );
