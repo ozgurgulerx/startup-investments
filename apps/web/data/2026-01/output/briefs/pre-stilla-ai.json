@@ -1,0 +1,259 @@
+{
+  "company_name": "Pre Stilla AI",
+  "company_slug": "pre-stilla-ai",
+  "website": "https://stilla.ai/",
+  "description": "Stilla is an AI agent that quietly keeps track of everything \u2014 what was said, what needs doing, and what\u2019s already in motion.",
+  "funding_amount": 5000000.0,
+  "funding_stage": "pre_seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.95,
+      "evidence": [
+        "orchestrating action between humans and AI agents so speed translates to progress",
+        "Stilla keeps Linear in sync with what you decide\u2014so you never have to groom issues again",
+        "The AI teammate that works, right where you work",
+        "Talk to Stilla in Slack, Linear, and GitHub like a teammate",
+        "Stilla remembers what you decided across meetings and tools. It updates issues, drafts code, keeps docs in sync, and much more."
+      ],
+      "description": "Stilla is described as an autonomous agent that coordinates actions between humans and other software tools, acting as a teammate that performs multi-step reasoning and orchestration across meetings and integrations."
+    },
+    {
+      "name": "Knowledge Graphs",
+      "confidence": 0.7,
+      "evidence": [
+        "maintains shared context across an organization's tools",
+        "Collaborative AI notes: One shared doc for notes and decisions. Your team edits live. Stilla refines as you go.",
+        "Stilla connects across your stack and keeps your team\u2019s context in sync.",
+        "Permissions: Control access at every level. SSO, roles, per-meeting settings, and audit logs."
+      ],
+      "description": "Stilla appears to maintain a permission-aware, shared context graph across tools and meetings, supporting RBAC and entity relationships for collaborative intelligence."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.6,
+      "evidence": [
+        "No training on your data. Your data stays yours. Stilla, and subprocessors don't train on it.",
+        "SOC2 (Type 2): Independently audited controls, verified against industry standards.",
+        "Trusted by the world's fastest-growing companies"
+      ],
+      "description": "While Stilla emphasizes privacy and does not train on user data, the platform's focus on team collaboration and integration with enterprise tools suggests the potential for vertical data moats, especially if proprietary workflows or metadata are used for model improvement."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.95,
+      "evidence": [
+        "orchestrating action between humans and AI agents so speed translates to progress",
+        "Stilla keeps Linear in sync with what you decide\u2014so you never have to groom issues again",
+        "The AI teammate that works, right where you work",
+        "Talk to Stilla in Slack, Linear, and GitHub like a teammate",
+        "Stilla remembers what you decided across meetings and tools. It updates issues, drafts code, keeps docs in sync, and much more."
+      ],
+      "description": "Stilla is described as an autonomous agent that coordinates actions between humans and other software tools, acting as a teammate that performs multi-step reasoning and orchestration across meetings and integrations."
+    }
+  ],
+  "market_type": "horizontal",
+  "vertical": "enterprise_saas",
+  "sub_vertical": "AI-powered productivity and collaboration tools",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "Edge/On-device"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 5,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Public API is referenced",
+      "Help docs are available",
+      "SOC2 Type 2 compliance is claimed",
+      "Integrations with tools like Slack, Linear, GitHub are highlighted",
+      "Trust portal and status page are present"
+    ]
+  },
+  "unique_findings": [
+    "Device-level meeting capture: Stilla listens on your device rather than joining calls as a bot. This avoids the common 'ghost participant' problem, improves privacy, and likely requires deep OS-level integration for audio capture and context awareness across all video platforms.",
+    "Real-time, collaborative AI notes: Notes are editable live by the team, with Stilla refining them in real time. This suggests a sophisticated backend for multi-user document synchronization and AI-driven summarization, blending collaborative editing (like Google Docs) with AI augmentation.",
+    "Persistent, cross-tool context: Stilla claims to 'remember what you decided across meetings and tools' and updates issues, drafts code, and keeps docs in sync. This implies a context engine that unifies data and decisions from disparate sources (Slack, Linear, GitHub, Notion, etc.), which is technically challenging due to data heterogeneity and the need for accurate, persistent memory.",
+    "No data training on user content: Explicitly stating that neither Stilla nor subprocessors train on user data is a privacy-forward stance, requiring a technical architecture that isolates user data from model training pipelines\u2014potentially limiting some AI capabilities but increasing trust.",
+    "Automated action orchestration: Beyond note-taking, Stilla automates downstream actions (e.g., drafting PRs from conversations, syncing Linear issues, updating Notion, launching Cursor). This is more than summarization\u2014it's workflow automation driven by semantic understanding of meetings, which is a step beyond most AI meeting tools."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Inside Stilla\u2019s Agentic Architecture: Building the Multiplayer AI for Teams",
+      "summary": "Stilla is betting on agentic architectures and knowledge graphs to orchestrate seamless collaboration between humans and AI agents. Their platform aims to maintain shared context across tools, a technical challenge most AI SaaS products sidestep. We break down how their approach could redefine team workflows\u2014and where it might fall short.",
+      "evidence": [
+        "Explicit mention of 'agentic architectures' and 'knowledge graphs' as build patterns",
+        "Mission to orchestrate action between humans and AI agents, maintaining shared context"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: How Stilla Plans to Outpace Generic AI with Proprietary Context",
+      "summary": "Stilla\u2019s focus on vertical data moats suggests a strategy to build defensibility through proprietary organizational context. By integrating deeply with enterprise tools and capturing unique team workflows, Stilla could create data advantages that generic LLM-based solutions can\u2019t match.",
+      "evidence": [
+        "Build pattern: 'vertical data moats'",
+        "Emphasis on maintaining shared context across an organization's tools"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Stilla Is Doubling Down on Human-AI Alignment\u2014Not Just Automation",
+      "summary": "While most AI SaaS startups chase full automation, Stilla is positioning itself as the 'intelligence layer' that keeps humans and AI aligned. This bet against the pure-autonomy trend could be a differentiator\u2014or a risk if the market moves faster toward agent-only workflows.",
+      "evidence": [
+        "Stilla\u2019s stated mission is to keep humans and AI aligned, not replace humans",
+        "Positioning as a collaborative intelligence platform rather than a pure automation tool"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Can Stilla\u2019s Context Engine 10x Team Productivity\u2014or Is It Just Another Layer?",
+      "summary": "Stilla claims to eliminate the coordination and context-switching that slows teams down, promising a step-change in productivity. But with an engineering quality score of 5/10, can their platform deliver on speed and efficiency, or is it adding complexity?",
+      "evidence": [
+        "Mission to handle coordination and context-switching for teams",
+        "Engineering quality score: 5/10 (potential gap between vision and execution)"
+      ],
+      "uniqueness_score": 5
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "There is no evidence of proprietary LLMs or unique AI infrastructure; the tech stack is unknown and may rely on third-party APIs, suggesting a potential thin wrapper over existing AI services.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary models or technology.",
+        "No technical specifics provided about underlying AI.",
+        "References to 'agentic architectures' and 'knowledge graphs' are generic and could be implemented via API calls."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The platform's described value\u2014maintaining shared context and orchestrating actions between humans and AI agents\u2014could be implemented as a feature within larger platforms (e.g., Slack, Notion, Microsoft Teams) rather than a standalone product.",
+      "severity": "medium",
+      "evidence": [
+        "Positioned as 'the multiplayer AI for teams', which is a common feature direction for incumbents.",
+        "No evidence of a broad platform or ecosystem; focus appears narrow."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear data advantage, proprietary technology, or unique technical differentiation visible. The stated 'vertical data moats' are not substantiated with examples or evidence.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary data, unique datasets, or exclusive integrations.",
+        "Moat described as 'medium' in context, but not justified."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing language is heavy on buzzwords (e.g., 'collaborative intelligence', 'agentic architectures', 'intelligence layer'), but lacks technical depth or concrete product details.",
+      "severity": "medium",
+      "evidence": [
+        "No technical documentation or product specifics provided.",
+        "Claims of 'orchestrating action between humans and AI agents' are not backed by technical explanations."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The market for AI collaboration and orchestration tools is crowded, and Stilla's positioning does not clearly distinguish it from other 'AI for teams' solutions.",
+      "severity": "medium",
+      "evidence": [
+        "Generic claims about team productivity and AI alignment.",
+        "No unique angle or clear differentiation articulated."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Otter.ai",
+        "similarity": "Automated meeting transcription, note-taking, and AI-powered summaries.",
+        "how_different": "Stilla emphasizes real-time collaborative notes, deep integrations with productivity tools (Linear, GitHub, Notion, Slack), and operates without joining meetings as a bot. Stilla also positions itself as an 'AI teammate' that orchestrates actions post-meeting, not just note-taking."
+      },
+      {
+        "name": "Fireflies.ai",
+        "similarity": "AI meeting assistant for transcription, note-taking, and workflow automation.",
+        "how_different": "Stilla does not require a bot to join calls, offers live collaborative editing, and focuses on syncing context and decisions across multiple tools automatically. It also claims stronger privacy (no training on user data) and SOC2 Type 2 compliance."
+      },
+      {
+        "name": "Supernormal",
+        "similarity": "AI-powered meeting notes, summaries, and integrations with productivity tools.",
+        "how_different": "Stilla's differentiation is in its 'multiplayer' approach\u2014shared live docs, team collaboration during meetings, and persistent context across tools and threads. It also highlights more advanced post-meeting automation (e.g., updating Linear, drafting PRs, updating Notion, etc.)."
+      },
+      {
+        "name": "Fathom",
+        "similarity": "Automated meeting summaries, transcripts, and CRM integrations.",
+        "how_different": "Stilla positions itself as an orchestration layer for both humans and AI agents, not just a meeting summary tool. It integrates more deeply with engineering and product tools, and supports real-time collaboration."
+      },
+      {
+        "name": "Notion AI",
+        "similarity": "AI-powered documentation, note-taking, and knowledge management.",
+        "how_different": "Stilla is focused on meetings and action orchestration, not just documentation. It claims to keep context in sync across multiple tools and workflows, acting as an active teammate rather than a passive knowledge base."
+      }
+    ],
+    "differentiation": {
+      "primary": "Stilla acts as a 'multiplayer AI teammate' that maintains shared context, orchestrates actions across tools, and enables real-time team collaboration before, during, and after meetings.",
+      "technical": "Runs locally (no bot required in meetings), offers live collaborative notes, integrates deeply with a wide range of productivity/developer tools, maintains persistent context across meetings and threads, SOC2 Type 2 compliance, and does not train on user data.",
+      "business": "Focuses on high-velocity, product-centric teams (startups to public companies), offers a free trial, and positions itself as a central intelligence layer for teams. Emphasizes privacy and security as a selling point.",
+      "positioning": "Stilla is positioned as the 'AI teammate' for teams, not just a meeting assistant. It claims to go beyond transcription/notes to automate follow-up actions, keep context in sync, and reduce coordination overhead."
+    },
+    "secret_sauce": {
+      "core_advantage": "Stilla's unique advantage is its ability to maintain and orchestrate shared context across an organization's tools, enabling seamless collaboration and automated action from meetings to execution\u2014without bots joining calls.",
+      "defensibility": "This is hard to replicate due to the breadth and depth of integrations, real-time collaborative architecture, privacy-first approach (no data used for training), and the persistent context engine that links conversations to actions across tools.",
+      "evidence": [
+        "Works on all video tools without bot\u2014Stilla listens on your device, so no bot ever joins the call.",
+        "Collaborative AI notes\u2014One shared doc for notes and decisions. Your team edits live. Stilla refines as you go.",
+        "Stilla keeps Linear in sync with what you decide\u2014so you never have to groom issues again.",
+        "Talk to Stilla in Slack, Linear, and GitHub like a teammate. Your whole team can join the same thread. Stilla remembers what you decided across meetings and tools.",
+        "No training on your data\u2014Your data stays yours. Stilla, and subprocessors don't train on it.",
+        "SOC2 (Type 2)\u2014Independently audited controls, verified against industry standards."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Stilla's competitive position is defensible due to its privacy-centric architecture (no bots, no training on user data), deep and broad integrations, and real-time collaborative features. However, the meeting AI space is crowded, and larger incumbents or well-funded startups could replicate integrations and workflow automation. The persistent context and orchestration layer provide some defensibility, but ongoing innovation and ecosystem lock-in will be necessary to maintain a strong moat.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "The multiplayer AI for teams",
+    "Stilla takes meeting notes. And does the work.",
+    "Collaborative AI notes",
+    "Chat with Stilla in a private sidebar",
+    "Stilla refines as you go",
+    "Real time shared transcript",
+    "Talk to Stilla in Slack, Linear, and GitHub like a teammate",
+    "Stilla remembers what you decided across meetings and tools. It updates issues, drafts code, keeps docs in sync, and much more.",
+    "orchestrating action between humans and AI agents",
+    "Device-local meeting listening (no bot joins the call), which is a privacy-centric technical choice not commonly seen in agentic architectures.",
+    "Real-time shared transcript with speaker labels and timestamps, tightly integrated with collaborative note-taking and live editing.",
+    "Multi-tool orchestration (Slack, Linear, GitHub, Notion, Cursor) with context persistence across tools and meetings."
+  ],
+  "analyzed_at": "2026-01-23 03:25:23.382041+00:00",
+  "confidence_score": 0.9,
+  "raw_content_analyzed": 63548
+}

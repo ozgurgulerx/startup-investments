@@ -1,0 +1,237 @@
+{
+  "company_name": "SkyFi\u00ae",
+  "company_slug": "skyfi\u00ae",
+  "website": "https://www.skyfi.com",
+  "description": "SkyFi\u00ae is an earth intelligence platform that provides satellite imagery and analytics to help interpret and analyze planetary data.",
+  "funding_amount": 12700000.0,
+  "funding_stage": "series_a",
+  "uses_genai": false,
+  "genai_intensity": "none",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 1.0,
+      "evidence": [
+        "SkyFi offers access to Sentinel-2 multispectral imagery.",
+        "SkyFi\u2019s suite of offerings all focus on the mission of providing access to a diverse array of sensors, resolutions, and integrated analytics",
+        "proprietary datasets, industry-specific training, domain expertise",
+        "Financial institutions use SkyFi to access verified, high-frequency Earth intelligence that reveals real economic activity in near real time.",
+        "From agriculture to urban planning, environmental monitoring to disaster response, our Earth intelligence platform delivers essential insights for informed decision-making, empowering organizations of any size, in any sector."
+      ],
+      "description": "SkyFi leverages proprietary and industry-specific geospatial, satellite, and maritime datasets to deliver analytics and insights tailored to verticals such as financial services, agriculture, insurance, energy, and more. This forms a strong vertical data moat by aggregating and curating unique, domain-specific data assets."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.7,
+      "evidence": [
+        "Our platform delivers pivotal insights across industries with advanced tools like object detection, hyperspectral signature analysis, and commodity stockpile measurement",
+        "advanced analytics derived from high-resolution spatial imagery, providing precise and timely insights through cutting-edge satellite technology",
+        "The platform merges satellite, terrestrial, and shipborne AIS feeds to deliver worldwide visibility, anomaly detection, and dark-ship tracking"
+      ],
+      "description": "SkyFi appears to use multiple specialized analytics models (e.g., object detection, hyperspectral analysis, anomaly detection for maritime data) tailored to specific data types and use cases, suggesting a micro-model mesh approach for task-specific intelligence."
+    },
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.6,
+      "evidence": [
+        "Effortlessly access global Earth observation imagery, derive analytics, and tap into open data.",
+        "Transform raw images and datasets into real answers with SkyFi Analytics.",
+        "Our platform unifies satellite imagery, analytics, and maritime data from the world\u2019s top providers"
+      ],
+      "description": "While not explicitly stated, SkyFi\u2019s integration of large archives of imagery, open data, and analytics suggests retrieval-augmented workflows, where relevant data is retrieved and then analyzed or processed for user queries."
+    }
+  ],
+  "market_type": "horizontal",
+  "vertical": "industrial",
+  "sub_vertical": "geospatial analytics and earth observation for infrastructure, energy, agriculture, mining, and logistics",
+  "target_market": "b2b2c",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 6,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Public API is advertised and accessible via the website",
+      "Clear and transparent pricing for API and data products",
+      "Dedicated documentation section for imagery details/specs",
+      "SOC 2 Type II compliance badge indicates attention to security and process maturity",
+      "Platform offers a variety of technical products (analytics, tasking, open data, plugins)",
+      "API is referenced as a primary way to access services"
+    ]
+  },
+  "unique_findings": [
+    "SkyFi's platform aggregates and unifies a wide array of geospatial data sources\u2014including commercial, open, and partner-proprietary satellite imagery (e.g., Vantor, Maxar, Planet, ICEYE)\u2014into a single self-service interface with transparent, market-low pricing. This level of sensor and provider diversity, with instant tasking and recurring orders, is rare in geospatial SaaS.",
+    "The integration of analytics (object detection, change detection, hyperspectral analysis, commodity measurement, etc.) directly into the ordering workflow, with pricing starting as low as $5, suggests a highly automated backend that abstracts away the complexity of satellite tasking, data normalization, and analytics orchestration.",
+    "SkyFi offers free, frequently refreshed (every 5 days) Sentinel-2 multispectral imagery alongside paid high-res commercial data. The open data program is seamlessly blended with premium offerings, lowering the barrier for analytics prototyping and onboarding.",
+    "The platform supports direct API access and plugin integration (e.g., for ATAK, a field ops tool), indicating a developer-first and operationally flexible architecture. This is not common among legacy satellite data providers.",
+    "SkyFi merges satellite, terrestrial, and shipborne AIS feeds for maritime analytics, including anomaly and 'dark ship' detection, which implies a sophisticated data fusion pipeline for real-time multi-source tracking.",
+    "The checkout and delivery process is modeled after consumer e-commerce (select, checkout, receive), eliminating traditional sales friction and contracts\u2014a notable UX/technical choice in a domain often plagued by opaque, slow procurement."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How SkyFi Built a Frictionless Geospatial Data Marketplace\u2014No Sales Calls Required",
+      "summary": "SkyFi\u2019s platform eliminates the traditional sales, education, and contracting barriers in geospatial data by offering instant, self-serve access to satellite imagery and analytics. Their architecture enables users to select, purchase, and receive high-res Earth observation data as easily as online shopping, with transparent pricing and API-first integration.",
+      "evidence": [
+        "No commitments or contracts required; instant checkout and delivery",
+        "API and web interfaces for direct access to imagery and analytics"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "SkyFi\u2019s Secret Weapon: Open and Commercial Satellite Data at Unprecedented Granularity",
+      "summary": "By aggregating diverse data sources\u2014including free Sentinel-2 multispectral, commercial SAR, optical, and partner constellations\u2014SkyFi creates a vertical data moat that powers advanced analytics and industry-specific insights. This breadth and refresh rate of data unlocks new use cases in agriculture, finance, and disaster response.",
+      "evidence": [
+        "Free, frequently refreshed Sentinel-2 imagery (every 5 days)",
+        "Access to SAR, optical, multispectral, and 3D terrain data from multiple partners"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Why SkyFi\u2019s Transparent Pricing Model is Disrupting the $50B Geospatial Data Market",
+      "summary": "SkyFi\u2019s market-low, upfront pricing\u2014starting at $25 for optical imagery and $5 for analytics\u2014removes opaque cost structures and minimum order sizes that have long plagued the industry. This efficiency democratizes access for startups, SMBs, and technical teams who previously faced prohibitive barriers.",
+      "evidence": [
+        "Optical imagery starting at $25, analytics at $5, and free open data",
+        "No hidden fees or minimum order sizes; pricing based on image size, sensor, and resolution"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Betting Against Gatekeeping: SkyFi\u2019s All-in-One Platform Rejects the Enterprise-Only Model",
+      "summary": "While most geospatial data providers focus on large enterprise and government contracts, SkyFi\u2019s contrarian bet is on radical accessibility\u2014serving users in 179 countries with no account management or sales friction. This approach challenges the status quo and aims to expand the market beyond traditional buyers.",
+      "evidence": [
+        "User base in 179 countries, no lengthy commitments or complex contracts",
+        "Self-serve ordering and delivery for both commercial and open data"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "no_moat",
+      "description": "SkyFi aggregates and resells satellite and geospatial data, including free/open data (e.g., Sentinel-2), and provides analytics built on top of third-party sources. The platform's value appears to be in aggregation, UI, and pricing transparency, but there is limited evidence of proprietary data or unique technical differentiation.",
+      "severity": "medium",
+      "evidence": [
+        "Offers free Sentinel-2 data and resells commercial imagery from partners like Maxar, Planet, ICEYE, Vantor.",
+        "No mention of proprietary satellite constellation or exclusive data sources.",
+        "Analytics features (object detection, change detection, etc.) are common in the geospatial analytics space."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Many features (transparent pricing, easy ordering, analytics dashboard) could be absorbed by incumbent geospatial data providers or platforms. The platform risks being seen as a UI/UX layer rather than a standalone product with defensible depth.",
+      "severity": "medium",
+      "evidence": [
+        "Emphasis on 'no contracts', 'transparent pricing', and 'easy checkout' as differentiators.",
+        "Incumbents like Maxar, Planet, and ICEYE could implement similar ordering and analytics experiences.",
+        "No clear evidence of a vertical data moat or proprietary model mesh."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The market for geospatial data aggregation and analytics is crowded, with several established players and new entrants. SkyFi's positioning is not strongly differentiated beyond UI/UX and pricing.",
+      "severity": "medium",
+      "evidence": [
+        "Product offerings (imagery, analytics, open data) are similar to those of other geospatial platforms.",
+        "Heavy reliance on partner data and APIs.",
+        "No mention of unique algorithms, models, or exclusive partnerships."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing language emphasizes 'cutting-edge satellite technology', 'Earth intelligence', and 'advanced analytics', but lacks specifics on proprietary AI/ML, unique technical capabilities, or novel approaches.",
+      "severity": "low",
+      "evidence": [
+        "Buzzword-heavy descriptions (e.g., 'Earth intelligence platform', 'pivotal insights', 'cutting-edge satellite technology').",
+        "No technical detail on analytics stack, AI/ML models, or unique retrieval-augmented generation (RAG) approaches."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Planet Labs",
+        "similarity": "Provides satellite imagery, analytics, and Earth observation data for commercial and government users.",
+        "how_different": "SkyFi aggregates data from multiple providers (including Planet) and offers a unified, self-service platform with transparent, low pricing and no contracts, whereas Planet primarily sells its own constellation's data and often requires enterprise contracts."
+      },
+      {
+        "name": "Maxar Technologies",
+        "similarity": "Offers high-resolution satellite imagery, analytics, and geospatial solutions to commercial and government clients.",
+        "how_different": "SkyFi acts as a reseller/aggregator for Maxar data and others, providing instant access, transparent pricing, and analytics in a single platform, whereas Maxar focuses on its own data and typically targets enterprise/government contracts."
+      },
+      {
+        "name": "ICEYE",
+        "similarity": "Provides SAR (Synthetic Aperture Radar) satellite imagery and analytics for persistent monitoring.",
+        "how_different": "SkyFi integrates ICEYE data into its platform, enabling multi-provider access and analytics, while ICEYE is focused on its proprietary SAR constellation and direct sales."
+      },
+      {
+        "name": "Airbus Intelligence",
+        "similarity": "Delivers commercial satellite imagery and geospatial analytics.",
+        "how_different": "SkyFi offers a virtual constellation approach, aggregating data from Airbus and other providers, with a consumer-friendly, API-driven, and transparent pricing model."
+      },
+      {
+        "name": "UP42",
+        "similarity": "Marketplace for geospatial data and analytics, aggregating multiple providers.",
+        "how_different": "SkyFi emphasizes instant checkout, lowest-in-market transparent pricing, and no contract or sales friction, targeting a broader audience (including SMBs and individuals), while UP42 focuses more on developers and enterprise integrations."
+      },
+      {
+        "name": "Descartes Labs",
+        "similarity": "Provides geospatial analytics and access to multi-source satellite data.",
+        "how_different": "SkyFi focuses on ease of use, instant access, and transparent pricing for imagery and analytics, while Descartes Labs emphasizes custom analytics and enterprise solutions."
+      }
+    ],
+    "differentiation": {
+      "primary": "SkyFi unifies access to multi-provider satellite imagery and analytics in a single, easy-to-use platform with transparent, market-low pricing and no contract or sales friction.",
+      "technical": "Aggregates data from leading satellite providers (Planet, Maxar, ICEYE, etc.) into a 'virtual constellation', offers advanced analytics (object detection, change detection, DSM, etc.), and provides API and plugin integrations (e.g., ATAK plugin for field ops).",
+      "business": "Self-service, e-commerce-like experience with instant checkout, no minimums, no contracts, and transparent pricing; supports both commercial and open/free data; partners with major providers to expand reach.",
+      "positioning": "Positions itself as the most accessible, affordable, and comprehensive geospatial data/analytics hub\u2014removing friction, democratizing access, and serving both enterprise and non-enterprise customers globally."
+    },
+    "secret_sauce": {
+      "core_advantage": "SkyFi's virtual constellation and unified marketplace model, which aggregates best-in-class data from multiple providers and delivers it through a frictionless, transparent, and highly accessible platform.",
+      "defensibility": "Building and maintaining partnerships with top-tier satellite operators, offering a seamless self-service interface, and providing advanced analytics in a single workflow is difficult to replicate due to the need for deep integrations, trust, and technical infrastructure.",
+      "evidence": [
+        "\u2018Our platform unifies satellite imagery, analytics, and maritime data from the world\u2019s top providers\u2026\u2019",
+        "\u2018Expanding market reach for industry-leading geospatial partners. With a user base that grows daily in 179 countries\u2026\u2019",
+        "\u2018No commitments or contracts required\u2026 purchasing data and analytics is as easy as online shopping\u2026 from your phone, computer OR API.\u2019",
+        "\u2018Only Pay for What You Need with Lowest-in-Market, Transparent Pricing\u2019",
+        "\u2018The world\u2019s leading Earth observation companies rely on SkyFi\u2019s technology to power their own platforms.\u2019"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "SkyFi's moat is based on its aggregation of leading data sources, seamless user experience, and transparent pricing model. While the technical platform and partnerships create switching costs and a degree of defensibility, the underlying data is not exclusive and other aggregators or direct providers could replicate aspects of the model. However, SkyFi's execution on user experience, breadth of data, and analytics integration gives it a meaningful, but not insurmountable, competitive edge.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "No mention of LLMs, GPT, Claude, language models, generative AI, embeddings, RAG, agents, fine-tuning, prompts, etc.",
+    "Descriptions focus on analytics derived from satellite imagery (e.g., object detection, hyperspectral analysis, change detection), but do not reference generative AI technologies.",
+    "No product or feature is described as using generative AI or related terminology.",
+    "Unified platform offering both commercial and open geospatial data with on-demand analytics and direct tasking of satellites.",
+    "Self-service, API-driven ordering and delivery of satellite imagery and analytics, reducing friction and traditional sales barriers.",
+    "Integration with third-party satellite constellations (e.g., Vantor, Maxar, ICEYE, Planet) and real-time maritime data feeds into a single analytics platform."
+  ],
+  "analyzed_at": "2026-01-23 01:37:36.888605+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 36599
+}

@@ -1,0 +1,239 @@
+{
+  "company_name": "Emobi",
+  "company_slug": "emobi",
+  "website": "https://www.emobi.ai",
+  "logo_url": null,
+  "description": "Emobi is an electric vehicle company that designs, manufactures, and markets zero-emission urban mobility solutions.",
+  "funding_amount": 3400000.0,
+  "funding_stage": "seed",
+  "uses_genai": false,
+  "genai_intensity": "unclear",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.95,
+      "evidence": [
+        "Our mission is to revolutionize the EV charging industry with AI",
+        "We are proud to be trusted by EV automakers, fleet operators, app makers, and government agencies for our EV charging technology",
+        "Expand your coverage to 140,000+ chargers across 30+ networks instantly with one API integration",
+        "Over 120,000+ charging ports are integrated into Emobi today",
+        "Emobi unifies the fragmented EV charging market in North America"
+      ],
+      "description": "Emobi leverages proprietary, industry-specific datasets from EV charging networks, automakers, fleet operators, and government agencies. Their platform integrates data from over 140,000 chargers and 30+ networks, creating a significant vertical data moat in the e-mobility and EV charging domain."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.7,
+      "evidence": [
+        "Emobi JustPlugTM: A cloud-based ISO 15118 Plug&Charge that enables secure and automatic charging capability on all type of vehicles and chargers, including legacy and wireless, without requiring hardware or firmware upgrades",
+        "Enable automation",
+        "Enabling automated charging for EV drivers with Emobi JustPlug"
+      ],
+      "description": "The JustPlug solution suggests autonomous agent-like behavior, enabling secure, automatic charging and orchestration across heterogeneous hardware. The automation and orchestration of charging processes imply agentic architectures where software agents interact with physical infrastructure."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.6,
+      "evidence": [
+        "Our software solutions unify the fragmented EV charging space, enabling interoperability, automation, and cybersecurity",
+        "Emobi spearheads three areas of research with industry experts and cybersecurity professors across the nation, collectively transforming EV charging technologies",
+        "Interoperability Lab",
+        "JustPlug Center",
+        "V2G Lab"
+      ],
+      "description": "The presence of multiple research labs focused on different aspects (interoperability, automation, V2G, cybersecurity) and the need to unify fragmented networks suggest the use of specialized models for different tasks (e.g., interoperability, security, automation) that may be orchestrated together."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.5,
+      "evidence": [
+        "Alwayz uses Emobi to identify down chargers and troubleshoot issues through software or hardware fixes",
+        "Bovlabs optimize energy usage and achieve demand response across energy assets using Emobi"
+      ],
+      "description": "References to troubleshooting and optimization imply feedback loops where system usage and operational data are used to improve the platform, though explicit mention of model retraining or A/B testing is absent."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "industrial",
+  "sub_vertical": "EV charging infrastructure and mobility platforms",
+  "target_market": "b2b2c",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 5,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Public API documentation links are present (https://docs.emobi.ai/, https://pnc.docs.emobi.ai/)",
+      "Product offerings clearly target integration use cases (one API for 30+ networks)",
+      "References to interoperability labs and research centers suggest technical investment",
+      "Trusted by major industry players (Stellantis, US DoE, Parkopedia, etc.)"
+    ]
+  },
+  "unique_findings": [
+    "Emobi's 'JustPlug' solution claims to offer ISO 15118 Plug&Charge capability for all vehicle and charger types\u2014including legacy and wireless\u2014without requiring hardware or firmware upgrades. This is highly unusual, as Plug&Charge typically requires specific hardware support and cryptographic modules. Achieving this via a cloud-based approach suggests a novel abstraction or middleware layer that emulates or proxies the Plug&Charge protocol, potentially using cloud-based credential management and dynamic certificate provisioning.",
+    "The platform unifies 30+ fragmented North American charging networks into a single API, promising instant access and streamlined activation. While aggregation is not new, the scale and the claim of 'one API' for both EMSPs (e-mobility service providers) and CPOs (charge point operators), with cross-network billing/reconciliation, hints at a complex middleware that normalizes disparate protocols, data schemas, and billing systems. This is a non-trivial technical challenge, especially given the lack of industry standardization.",
+    "Emobi highlights active research collaborations with cybersecurity professors and the presence of an 'Interoperability Lab' and 'V2G Lab' (vehicle-to-grid). This signals a focus on security, protocol compatibility, and next-gen features like V2G, which are technically complex and require deep integration with both hardware and grid operators."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Emobi Built a Universal EV Charging API on a Mesh of Micro-Models",
+      "summary": "Emobi's approach to integrating 30+ charging networks through a single API leverages a mesh of micro-models and agentic architectures, aiming to solve the notorious fragmentation in North American EV charging. Their modular, continuously-learning system promises streamlined charger activation and robust data delivery for enterprise clients.",
+      "evidence": [
+        "Mentions of 'Micro-model Meshes' and 'Agentic Architectures' in their build patterns",
+        "API provides instant access to 30+ fragmented charging networks"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Emobi\u2019s Vertical Data Moats: The Secret Sauce Behind Seamless EV Roaming",
+      "summary": "Emobi claims a proprietary advantage by aggregating and harmonizing data from over 120,000 charging ports and 30+ networks, creating a vertical data moat that powers their AI-driven platform. This rich, real-time dataset enables advanced features like charger status, booking, and payment automation, setting them apart from less integrated competitors.",
+      "evidence": [
+        "120k+ integrated charging ports",
+        "Vertical Data Moats listed as a core build pattern"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Inside Emobi\u2019s Deep Domain Play: Standardizing US EV Charging with the DoE",
+      "summary": "Emobi\u2019s collaborations with the US Department of Energy and leading automakers highlight their role as a technical domain expert in the industrial EV charging space. Their work on interoperability and standardization positions them as a key infrastructure player, not just a SaaS API vendor.",
+      "evidence": [
+        "DoE partnership to standardize EV charging in the US",
+        "Trusted by major automakers like Stellantis, Chrysler, and Fiat"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Emobi Bets on Agentic AI Over Monolithic LLMs for Industrial IoT",
+      "summary": "While much of the AI world chases ever-larger LLMs, Emobi\u2019s focus on agentic architectures and micro-models for industrial EV charging is a contrarian technical bet. This approach could offer better reliability, explainability, and real-time performance for mission-critical infrastructure.",
+      "evidence": [
+        "Build patterns emphasize agentic architectures and micro-model meshes",
+        "No mention of LLMs in their stack, despite AI focus"
+      ],
+      "uniqueness_score": 8
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "The company repeatedly claims to be 'AI-powered' and to 'revolutionize' the EV charging industry with AI, but provides no technical details, proprietary models, or evidence of unique AI capabilities. The language is buzzword-heavy without substantiation.",
+      "severity": "medium",
+      "evidence": [
+        "Phrases like 'revolutionize the EV charging industry with AI' and 'AI-driven technology' are used throughout, but there is no mention of specific AI models, algorithms, or technical differentiators.",
+        "No LLMs or proprietary AI stack is described.",
+        "No technical documentation or whitepapers linked from main pages."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core offering appears to be a unified API for fragmented EV charging networks, which is a valuable feature but could be easily integrated or replicated by larger incumbents or platforms as a feature rather than a standalone product.",
+      "severity": "medium",
+      "evidence": [
+        "Tagline: '30+ Charging Networks. One API.'",
+        "Positioned as a gateway/aggregator rather than a platform with deep proprietary technology.",
+        "No evidence of a broader ecosystem or platform lock-in beyond API aggregation."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear evidence of a defensible data moat, proprietary technology, or technical differentiation. The value proposition is based on aggregation and partnerships, which are susceptible to competition and integration by others.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of unique datasets, exclusive data partnerships, or proprietary technology.",
+        "Moat is described as 'medium' in provided context.",
+        "No evidence of continuous learning flywheels or vertical data moats in action."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The solution is positioned as an aggregator in a market where similar offerings exist, and there is no clear unique angle or technical differentiation presented.",
+      "severity": "medium",
+      "evidence": [
+        "Market for EV charging aggregation is increasingly crowded.",
+        "No clear articulation of why Emobi is better or different from other aggregators.",
+        "Heavy reliance on logos and partnerships rather than technical substance."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "ChargePoint",
+        "similarity": "Both provide EV charging infrastructure and network access for drivers and fleets.",
+        "how_different": "Emobi acts as a unifying API gateway across 30+ networks, while ChargePoint is primarily a charging network/operator. Emobi focuses on interoperability and automation, not owning physical infrastructure."
+      },
+      {
+        "name": "Monta",
+        "similarity": "Both offer software solutions for EV charging management, including for fleets and operators.",
+        "how_different": "Emobi positions itself as a universal API for multi-network integration and automation, whereas Monta is more focused on fleet management and charging network operation."
+      },
+      {
+        "name": "Shell Recharge",
+        "similarity": "Both enable access to a large network of EV chargers and provide roaming capabilities.",
+        "how_different": "Shell Recharge is a network/operator, Emobi is a platform for integrating many networks via a single API, emphasizing seamless interoperability and automation."
+      },
+      {
+        "name": "Hubject",
+        "similarity": "Both provide roaming and interoperability solutions for EV charging networks.",
+        "how_different": "Emobi claims cloud-based ISO 15118 Plug&Charge for all vehicle/charger types without hardware/firmware upgrades, and focuses on North American market fragmentation. Hubject is more established in Europe and requires hardware compliance."
+      },
+      {
+        "name": "EV Connect",
+        "similarity": "Both offer software platforms for managing and accessing EV charging infrastructure.",
+        "how_different": "Emobi differentiates with AI-driven automation, universal API integration, and legacy/wireless charger support without hardware changes."
+      }
+    ],
+    "differentiation": {
+      "primary": "Emobi offers a single API gateway to 30+ charging networks, enabling universal access and streamlined activation for customers, with a strong focus on interoperability and automation.",
+      "technical": "Cloud-based ISO 15118 Plug&Charge that works with all vehicle and charger types (including legacy and wireless) without hardware or firmware upgrades; robust AI-driven automation; interoperability lab research; instant integration with 120k+ charging ports.",
+      "business": "Enterprise SaaS/API model targeting automakers, fleet operators, app makers, navigation systems, and government agencies; accelerates go-to-market and reduces operational overhead for EMSPs and CPOs; cost-free integration for CPOs.",
+      "positioning": "Emobi positions itself as the universal gateway to fragmented North American EV charging, trusted by major automakers and government agencies, and as the enabler of seamless, automated, and secure charging experiences."
+    },
+    "secret_sauce": {
+      "core_advantage": "Universal, cloud-based Plug&Charge (ISO 15118) that enables secure, automated charging for any vehicle or charger\u2014including legacy and wireless\u2014without hardware or firmware upgrades, delivered via a single API integrating 30+ networks.",
+      "defensibility": "Requires deep technical expertise in interoperability, cybersecurity, and AI; strong industry partnerships; proprietary research labs; and a growing network effect as more networks and customers integrate with Emobi.",
+      "evidence": [
+        "Emobi JustPlugTM: 'cloud-based ISO 15118 Plug&Charge that enables secure and automatic charging capability on all type of vehicles and chargers, including legacy and wireless, without requiring hardware or firmware upgrades.'",
+        "'Expand your coverage to 140,000+ chargers across 30+ networks instantly with one API integration.'",
+        "'Trusted by EV automakers, fleet operators, app makers, and government agencies.'",
+        "Customer testimonials highlight rapid integration, reliable data, and support for hyper-location and demand response."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Emobi's defensibility comes from its technical innovation (universal Plug&Charge, AI-driven automation, cloud-based integration), industry partnerships, and network effects. However, the space is competitive, with other platforms and networks able to pursue similar integrations and standards over time. Their moat is strengthened by proprietary research labs and early traction with enterprise clients, but could be challenged by larger incumbents or standards evolution.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Our mission is to revolutionize the EV charging industry with AI",
+    "First U.S.-based Plug & Charge ecosystem that... leveraging AI",
+    "advance EV charging with AI-driven technology",
+    "AI Icon.png",
+    "Universal API integration across 30+ fragmented EV charging networks for instant coverage and streamlined activation",
+    "Cloud-based Plug&Charge enabling legacy hardware compatibility without firmware upgrades"
+  ],
+  "analyzed_at": "2026-01-31 10:26:18.271472+00:00",
+  "confidence_score": 0.3,
+  "raw_content_analyzed": 47067
+}

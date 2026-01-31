@@ -1,0 +1,171 @@
+{
+  "company_name": "OpenEvidence",
+  "company_slug": "openevidence",
+  "website": "https://www.openevidence.com",
+  "description": "OpenEvidence is a medical AI company that builds a search engine to support clinicians in making evidence-based decisions.",
+  "funding_amount": 250000000.0,
+  "funding_stage": "series_d_plus",
+  "uses_genai": false,
+  "genai_intensity": "unclear",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.7,
+      "evidence": [
+        "We\u2019re sorry, OpenEvidence is not available in your country at this time."
+      ],
+      "description": "The repeated message indicates the presence of a geographic or jurisdictional access control mechanism, likely enforced by a guardrail or moderation layer that checks user location or compliance before allowing access to the service."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "healthcare",
+  "sub_vertical": "clinical decision support",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 1,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": []
+  },
+  "unique_findings": [
+    "The only observable technical implementation is a robust geo-blocking mechanism, consistently returning an access restriction message across all content surfaces. This suggests a centralized enforcement of regional access policies, potentially at the application or CDN layer.",
+    "The repetition and uniformity of the access message hints at either a static site generation approach or aggressive caching, possibly at the edge, to minimize resource usage for blocked regions."
+  ],
+  "technical_depth": "low",
+  "newsletter_potential": "low",
+  "story_angles": [
+    {
+      "angle_type": "contrarian",
+      "headline": "Why OpenEvidence Is Shutting Out Entire Countries: The Risks and Rewards of Hyper-Selective AI Deployment",
+      "summary": "OpenEvidence\u2019s decision to restrict access in multiple countries bucks the trend of global AI expansion. This contrarian approach raises questions about regulatory risk management, data sovereignty, and the technical challenges of geo-fencing large-scale healthcare LLMs.",
+      "evidence": [
+        "Repeated geo-blocking message: 'OpenEvidence is not available in your country at this time.'",
+        "Healthcare vertical often faces strict compliance and data residency requirements."
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "architecture",
+      "headline": "Guardrail-as-LLM: Is OpenEvidence\u2019s Ultra-Conservative Architecture Stifling Innovation?",
+      "summary": "OpenEvidence appears to rely heavily on guardrails, possibly at the expense of LLM flexibility and user experience. Builders will want to know if this approach is a necessary tradeoff for healthcare compliance, or if it signals technical stagnation despite massive funding.",
+      "evidence": [
+        "Build pattern detected: Guardrail-as-LLM.",
+        "Engineering quality score: 1/10, suggesting technical limitations."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Can $250M Buy Healthcare AI That Actually Works? OpenEvidence\u2019s Engineering Score Raises Eyebrows",
+      "summary": "Despite a $250M Series D, OpenEvidence\u2019s engineering quality is rated just 1/10. Is this a case of funding outpacing technical execution, or are there hidden efficiency breakthroughs yet to be revealed?",
+      "evidence": [
+        "Funding: $250,000,000 Series D.",
+        "Engineering quality: Score 1/10."
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Healthcare AI\u2019s Toughest Gatekeeper: What OpenEvidence\u2019s Access Restrictions Reveal About Domain Complexity",
+      "summary": "OpenEvidence\u2019s strict country-level access controls may reflect deep domain expertise in healthcare compliance and risk management. Technical teams should examine whether these measures are justified by unique regulatory challenges or signal broader industry trends.",
+      "evidence": [
+        "Vertical: healthcare.",
+        "Access restrictions likely tied to compliance and risk."
+      ],
+      "uniqueness_score": 6
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The repeated message 'OpenEvidence is not available in your country at this time' across all content suggests a lack of product depth, features, or differentiation. There is no evidence of unique technology, proprietary data, or a distinct value proposition.",
+      "severity": "high",
+      "evidence": [
+        "All content is identical and consists solely of an access restriction message.",
+        "No technical details, features, or differentiation presented."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The absence of any described features or product capabilities raises concern that OpenEvidence may be a single-feature offering or lacks a broader product vision.",
+      "severity": "medium",
+      "evidence": [
+        "No features or product scope described.",
+        "No indication of extensibility or platform ambitions."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "No information is provided regarding proprietary technology, data advantage, or technical differentiation. This suggests the offering could be easily replicated by competitors.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of unique data, algorithms, or technical capabilities.",
+        "No evidence of barriers to entry."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "UpToDate (Wolters Kluwer)",
+        "similarity": "Both provide evidence-based medical information and decision support tools for clinicians.",
+        "how_different": "OpenEvidence positions itself as an AI-powered search engine, likely offering more dynamic, real-time evidence synthesis compared to UpToDate's curated, editorial content."
+      },
+      {
+        "name": "IBM Watson Health",
+        "similarity": "Both leverage AI to support clinical decision-making and evidence-based medicine.",
+        "how_different": "OpenEvidence appears to focus on search and real-time evidence aggregation, while Watson Health offers broader analytics and workflow tools."
+      },
+      {
+        "name": "Google Health / Google Search (Medical)",
+        "similarity": "Both use advanced search technologies to surface medical information for clinicians.",
+        "how_different": "OpenEvidence is specialized for clinical evidence and decision support, whereas Google Health is broader and less tailored to clinical trial data."
+      },
+      {
+        "name": "EvidenceCare",
+        "similarity": "Both offer clinical decision support and evidence-based recommendations.",
+        "how_different": "OpenEvidence claims to use AI for search and synthesis, potentially enabling faster and more comprehensive evidence retrieval."
+      }
+    ],
+    "differentiation": {
+      "primary": "OpenEvidence differentiates itself by providing an AI-powered search engine specifically designed to support clinicians in making evidence-based decisions, focusing on clinical trial data and real-time synthesis.",
+      "technical": "Likely uses advanced AI models (e.g., LLMs, retrieval-augmented generation) to aggregate and synthesize medical evidence from clinical trials and literature, enabling dynamic, up-to-date decision support.",
+      "business": "SaaS model targeting clinicians and healthcare organizations; large Series D funding suggests aggressive scaling and enterprise focus.",
+      "positioning": "Positions itself as the next-generation, AI-first clinical evidence search engine, emphasizing speed, comprehensiveness, and accuracy over traditional curated databases."
+    },
+    "secret_sauce": {
+      "core_advantage": "AI-driven real-time search and synthesis of clinical evidence tailored for clinicians, potentially leveraging proprietary models and data pipelines.",
+      "defensibility": "Requires deep expertise in both AI and medical informatics, access to high-quality clinical trial data, and ongoing model refinement; large funding enables rapid iteration and data acquisition.",
+      "evidence": [
+        "Company description: 'builds a search engine to support clinicians in making evidence-based decisions.'",
+        "Industry focus: AI, Clinical Trials, Medical, SaaS, Search Engine",
+        "Series D funding ($250M) suggests ability to scale data and model resources quickly."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "OpenEvidence's moat is based on technical expertise in AI and access to clinical trial data, but competitors with similar resources (e.g., UpToDate, IBM Watson Health) can potentially replicate core features. Their defensibility is enhanced by speed of innovation and focus on real-time synthesis, but long-term moat depends on exclusive data partnerships, superior model performance, and clinician adoption.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [],
+  "analyzed_at": "2026-01-22 22:02:41.327323+00:00",
+  "confidence_score": 0.0,
+  "raw_content_analyzed": 3273
+}

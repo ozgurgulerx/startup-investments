@@ -1,0 +1,195 @@
+{
+  "company_name": "Atome",
+  "company_slug": "atome",
+  "website": "https://www.atome.sg",
+  "description": "Atome is a fintech platform offering Buy Now, Pay Later services, enabling consumers to split payments into installments.",
+  "funding_amount": 345000000.0,
+  "funding_stage": "unknown",
+  "uses_genai": false,
+  "genai_intensity": "none",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.7,
+      "evidence": [
+        "Featured: ... [Sephora] ... [Secretlab] ... [ZALORA] ... [SHEIN]",
+        "Beauty: [Fresh] [Innisfree] [L'OCCITANE En Provence] [Cocomo]",
+        "Fashion: [Charles & Keith] [Coach] [Michael Kors] [Club21]",
+        "Step into a truly impeccable experiences and bespoke privileges when you shop, dine or travel with Atome+.",
+        "Partner with Atome for bigger baskets, better conversions and brand new customers."
+      ],
+      "description": "Atome leverages a deep integration with industry-specific (retail, beauty, fashion, electronics) merchant data and customer behavior, building a proprietary dataset and domain expertise around BNPL (Buy Now Pay Later) in Southeast Asia. This vertical focus enables tailored offers, rewards, and user experiences, creating a data moat."
+    }
+  ],
+  "market_type": "horizontal",
+  "vertical": "financial_services",
+  "sub_vertical": "consumer lending (Buy Now, Pay Later)",
+  "target_market": "b2b2c",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 5,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Dedicated developer portal (https://partner.apaylater.com/)",
+      "Clear separation between business and developer resources",
+      "Regulatory compliance stated (BNPL Standards)",
+      "Contact information for technical/business support"
+    ]
+  },
+  "unique_findings": [
+    "Atome exposes a dedicated developer portal (https://partner.apaylater.com/) suggesting a platform-first approach to BNPL, enabling deep merchant integration and potentially custom workflows. This is less common among consumer-focused BNPLs, which often treat developer APIs as secondary.",
+    "The Atome+ loyalty and gamification layer (in-app games, points, instant cashback, exclusive rewards) is tightly coupled with payments, indicating a modular architecture that blends financial services with engagement mechanics. This integration is technically non-trivial, especially with real-time rewards and cross-vertical merchant support.",
+    "Multi-channel merchant onboarding (in-store, online, travel, prestige, accessories, etc.) hints at a backend capable of handling diverse transaction types, settlement flows, and compliance requirements, which increases hidden complexity compared to single-vertical BNPLs.",
+    "Regulatory compliance is foregrounded (BNPL Code, trustmark icon, deferred agreement, license number), suggesting a system designed for auditable, standards-driven operations. This may involve automated compliance checks, reporting, and contract management, which are difficult to retrofit.",
+    "The use of deep links (onelink.me) for app downloads and campaign tracking implies a sophisticated attribution and user acquisition stack, likely integrated with rewards and voucher systems for closed-loop marketing.",
+    "The platform's ability to split payments into '3 or more' installments with dynamic fee structures (interest-free or with small fee for longer terms) suggests a flexible rules engine for payment scheduling and risk management, which is more advanced than fixed-term BNPL models."
+  ],
+  "technical_depth": "low",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Atome Built a Modular BNPL Platform for Multi-Vertical Expansion",
+      "summary": "Atome's platform supports a wide range of verticals\u2014from beauty and fashion to electronics and travel\u2014by architecting a modular system that can onboard new merchant categories rapidly. This flexibility enables Atome to scale across diverse retail segments without major rewrites, a feat that many BNPL competitors struggle to match.",
+      "evidence": [
+        "Supports 14+ verticals including in-store, travel, and prestige merchants",
+        "Unified experience for both shoppers and retailers, with APIs for developers"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: Atome\u2019s Secret Weapon for BNPL Risk and Reward",
+      "summary": "By aggregating proprietary transaction data across verticals like beauty, electronics, and travel, Atome is building a vertical data moat that powers smarter risk models and personalized offers. This data-centric approach could be the differentiator in a crowded BNPL market where underwriting and loyalty are everything.",
+      "evidence": [
+        "Explicit build pattern: Vertical Data Moats",
+        "Integrated rewards (Atome+) and in-app games leverage user behavior data"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Deep Domain Play: Why Atome\u2019s BNPL Succeeds Where Generalists Fail",
+      "summary": "Atome\u2019s focus on deep partnerships with top brands in each vertical\u2014like Sephora, Secretlab, and Cathay Pacific\u2014demonstrates a level of domain expertise that goes beyond generic BNPL. Their curated merchant network and tailored consumer experiences suggest Atome understands the nuances of each vertical, not just the payment rails.",
+      "evidence": [
+        "Top brands across beauty, electronics, travel, and fashion are featured",
+        "Custom experiences and rewards (Atome+) for different shopper types"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Atome Is Doubling Down on In-Store and Prestige Retail in a Digital-First World",
+      "summary": "While most BNPL players chase pure-play e-commerce, Atome is investing in in-store and high-end 'prestige' retail partnerships. This contrarian bet could unlock new data streams and customer segments, especially as omnichannel shopping rebounds post-pandemic.",
+      "evidence": [
+        "Dedicated verticals for In-Store and Prestige merchants",
+        "Partnerships with luxury and travel brands like Cathay Pacific and Club21"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Atome's core offering\u2014splitting purchases into 3 interest-free payments\u2014is a feature that can be easily replicated by banks, credit card companies, or e-commerce incumbents. There is limited evidence of broader product innovation or ecosystem lock-in.",
+      "severity": "medium",
+      "evidence": [
+        "The main value proposition is '3 easy payments, 0% interest', which is a standard BNPL feature.",
+        "No mention of unique technology, proprietary algorithms, or platform extensibility."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear data or technical moat. The offering is based on partnerships and merchant integrations, which are not exclusive and can be matched by competitors.",
+      "severity": "medium",
+      "evidence": [
+        "No evidence of proprietary data, unique risk models, or technical differentiation.",
+        "Merchant list and rewards are based on partnerships, not exclusive technology."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "Atome operates in a crowded BNPL market with little to distinguish itself from other providers. The product and marketing language are similar to competitors, and there is no clear unique angle.",
+      "severity": "medium",
+      "evidence": [
+        "Standard BNPL messaging and reward features.",
+        "Heavy focus on merchant partnerships and app downloads, similar to other BNPLs."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing uses terms like 'empowered shopping' and 'impeccable experiences' without substantiating with technical or product specifics. Claims of 'control' and 'bespoke privileges' are not backed by unique features.",
+      "severity": "low",
+      "evidence": [
+        "Phrases like 'empowered shopping' and 'endless possibilities' are not tied to concrete differentiators.",
+        "No technical explanation of how Atome+ or rewards are unique."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Hoolah",
+        "similarity": "Both offer Buy Now, Pay Later (BNPL) services in Singapore and Southeast Asia, allowing consumers to split payments into interest-free installments.",
+        "how_different": "Atome differentiates with its Atome+ rewards program, exclusive brand partnerships (e.g., Sephora, ZALORA, Samsung), and in-app gamification. Atome also highlights compliance with BNPL standards and offers instant cashback and vouchers."
+      },
+      {
+        "name": "Grab PayLater",
+        "similarity": "Both provide BNPL solutions, mobile app-based payments, and are integrated with major e-commerce and retail brands in Southeast Asia.",
+        "how_different": "Atome focuses on a broader range of lifestyle categories (fashion, travel, electronics, etc.) and emphasizes exclusive rewards, gamification, and partnerships with global brands. Grab PayLater is more deeply integrated into the Grab superapp ecosystem (ride-hailing, food delivery, etc.)."
+      },
+      {
+        "name": "Pace",
+        "similarity": "Both are fintech startups offering BNPL services in Singapore and the region, targeting similar merchant and consumer segments.",
+        "how_different": "Atome has a more extensive merchant network, visible brand partnerships, and a loyalty program (Atome+) with in-app games and instant cashback. Atome also highlights regulatory compliance and trust marks."
+      },
+      {
+        "name": "ShopBack PayLater",
+        "similarity": "Both provide installment payment options at checkout for e-commerce and retail purchases.",
+        "how_different": "Atome offers a standalone app with exclusive merchant offers, rewards, and gamification, while ShopBack PayLater is integrated into the broader ShopBack cashback ecosystem."
+      }
+    ],
+    "differentiation": {
+      "primary": "Atome differentiates through a robust rewards and loyalty ecosystem (Atome+), exclusive brand partnerships, and a strong focus on customer empowerment and gamified shopping experiences.",
+      "technical": "Atome offers an integrated app platform with in-app games, instant cashback, and the ability to split payments into three or more installments. They provide developer APIs for merchant integration and emphasize compliance with BNPL standards.",
+      "business": "Atome partners with top global and regional brands, offers exclusive vouchers and cashback for app users, and positions itself as a growth partner for retailers by promising bigger baskets and better conversions.",
+      "positioning": "Atome positions itself as an empowering, lifestyle-focused BNPL platform, promising 'empowered shopping' and 'bespoke privileges' for consumers, and as a compliant, trusted partner for merchants."
+    },
+    "secret_sauce": {
+      "core_advantage": "A combination of an extensive, exclusive merchant network (including top global brands), a differentiated rewards ecosystem (Atome+), and a gamified, app-centric user experience.",
+      "defensibility": "Exclusive partnerships with high-profile brands, a proprietary rewards and gamification platform, and regulatory compliance create switching costs for both consumers and merchants.",
+      "evidence": [
+        "Exclusive brand partnerships with Sephora, ZALORA, Samsung, SHEIN, Agoda, etc.",
+        "Atome+ rewards program: 'Redeem exclusive rewards', 'Get instant cashback', 'Play in-app games with Atome+ points and win big!'",
+        "Compliant with BNPL Standards: '![](https://www.atome.sg/common/ic-trustmark.svg)We are compliant with BNPL Standards.'"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Atome's competitive position is defensible due to its exclusive brand partnerships, rewards ecosystem, and regulatory compliance, which create moderate switching costs and user stickiness. However, the BNPL space is competitive, and core payment installment features are relatively easy to replicate by well-funded competitors. The moat is strengthened by Atome+'s loyalty and gamification features, but not insurmountable.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Gamification of loyalty (in-app games with Atome+ points and rewards), which, while not a core AI build pattern, could generate unique behavioral data for future AI personalization."
+  ],
+  "analyzed_at": "2026-01-22 21:52:09.121192+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 230252
+}

@@ -1,0 +1,222 @@
+{
+  "company_name": "IrisGo.AI",
+  "company_slug": "irisgoai",
+  "website": "https://irisgo.ai",
+  "logo_url": null,
+  "description": "IrisGo serves up instant answers, smart plans, and hands-free automation\u2014so you can focus on the big stuff while it handles the routine.",
+  "funding_amount": 2800000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.8,
+      "evidence": [
+        "IrisGo serves up instant answers, smart plans, and hands-free automation",
+        "IrisGo combines powerful AI with intuitive design to create a digital butler that anticipates your needs and handles tasks before you even ask.",
+        "Tell IrisGo what you're trying to achieve. It drafts the steps, juggles dependencies, and checks them off while you watch.",
+        "Hit 'Watch,' walk through your task once, and IrisGo will replicate it perfectly every time you press 'Run.'"
+      ],
+      "description": "IrisGo is described as a digital butler capable of autonomous actions, multi-step planning, and task execution, indicating an agentic architecture where the AI can orchestrate and automate user tasks."
+    },
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.6,
+      "evidence": [
+        "Ask IrisGo anything\u2014from dinner ideas to daily enquiries\u2014and get answers in milliseconds.",
+        "Tell IrisGo what you're trying to achieve. It drafts the steps, juggles dependencies, and checks them off while you watch."
+      ],
+      "description": "The system appears to interpret natural language instructions and convert them into actionable plans or routines, suggesting a natural-language-to-code or rules capability."
+    }
+  ],
+  "market_type": "horizontal",
+  "vertical": "consumer",
+  "sub_vertical": "personal productivity assistants",
+  "target_market": "b2c",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "Edge/On-device"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Product claims private beta status",
+      "Basic product marketing site with feature descriptions"
+    ]
+  },
+  "unique_findings": [
+    "IrisGo positions itself as a 'digital butler' with instant answers, smart plans, and hands-free automation, suggesting a unified interface for personal productivity, but the technical implementation details are notably absent.",
+    "The 'Teach, Then Let Go' feature hints at user-driven task automation via demonstration (potentially leveraging program synthesis or RPA-like techniques), which is a technically challenging area if implemented robustly, but no specifics are provided.",
+    "The emphasis on 'Chat Anywhere' and skipping the browser/cloud implies possible local inference or edge AI deployment, which would be unusual and technically complex if true, but there is no evidence or detail supporting this claim.",
+    "Frequent 404 errors and lack of substantive technical documentation suggest either a very early-stage product or a marketing-heavy landing page with little revealed about actual architecture or implementation."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "low",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Agentic Architectures: How IrisGo Built a Digital Butler That Anticipates Your Needs",
+      "summary": "IrisGo leverages agentic architectures and natural-language-to-code patterns to create a digital assistant that not only responds to queries but proactively manages tasks and dependencies. This approach aims to move beyond simple chatbots, offering hands-free automation and smart planning for users.",
+      "evidence": [
+        "Build Patterns Detected: Agentic Architectures, Natural-Language-to-Code",
+        "Feature: 'Teach, Then Let Go' enables users to train the assistant on custom workflows"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why IrisGo Skips the Cloud: Betting on Localized, Privacy-First AI Assistants",
+      "summary": "Unlike most digital assistants that rely heavily on cloud infrastructure, IrisGo emphasizes privacy and speed by allowing users to interact without browser or cloud dependencies. This contrarian bet could appeal to privacy-conscious users and those seeking instant responses.",
+      "evidence": [
+        "Feature: 'Chat Anywhere' claims users can skip the browser and cloud",
+        "Privacy messaging: 'We respect your privacy. Unsubscribe at any time.'"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Milliseconds to Answers: IrisGo\u2019s Promise of Real-Time AI Automation",
+      "summary": "IrisGo touts instant answers and hands-free automation, aiming to deliver responses in milliseconds. If substantiated, this could set a new standard for speed and efficiency in consumer AI assistants, especially for routine task management.",
+      "evidence": [
+        "Marketing claim: 'Get answers in milliseconds'",
+        "Hands-free automation and smart planning features"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Can IrisGo Crack Consumer AI? The Challenge of Building a Truly Useful Digital Butler",
+      "summary": "With $2.8M in seed funding and a focus on consumer verticals, IrisGo is betting it can deliver a digital assistant that goes beyond novelty. The real test will be whether its agentic approach and automation features solve real pain points for everyday users.",
+      "evidence": [
+        "Vertical: consumer",
+        "Seed funding: $2,800,000"
+      ],
+      "uniqueness_score": 5
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "The offering appears to be a thin layer over existing LLM APIs, with no clear evidence of proprietary technology or unique capabilities beyond what OpenAI/Anthropic provide.",
+      "severity": "high",
+      "evidence": [
+        "No mention of custom models, data, or infrastructure.",
+        "Features (instant answers, smart plans, automation) are standard capabilities of LLM APIs.",
+        "No technical details provided about implementation."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The product is positioned as a digital assistant with features that could be easily integrated into larger platforms or absorbed by incumbents.",
+      "severity": "medium",
+      "evidence": [
+        "Single-feature focus (digital butler/assistant) without broader ecosystem or extensibility.",
+        "No clear path to platform or defensible product."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no visible data advantage, technical differentiation, or defensible IP. The solution is easily replicable by competitors.",
+      "severity": "high",
+      "evidence": [
+        "No mention of proprietary data, unique algorithms, or technical barriers.",
+        "Market positioning relies on UI/UX rather than core technology."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing language is buzzword-heavy ('AI-powered', 'digital butler', 'instant answers') with little technical substance or specifics.",
+      "severity": "medium",
+      "evidence": [
+        "Claims of 'hands-free automation' and 'anticipates your needs' are not backed by technical explanation.",
+        "No details on how automation or planning is achieved."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The product is in a crowded market (AI assistants) without a clear unique angle or positioning.",
+      "severity": "medium",
+      "evidence": [
+        "No clear differentiation from existing digital assistants.",
+        "No unique features or user segments identified."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "OpenAI ChatGPT",
+        "similarity": "Both provide AI-powered digital assistants capable of answering questions and automating tasks.",
+        "how_different": "IrisGo emphasizes hands-free automation, anticipatory task handling, and local/private execution ('skip the browser and the cloud'), whereas ChatGPT is primarily a conversational AI accessed via cloud and browser."
+      },
+      {
+        "name": "Google Assistant",
+        "similarity": "Both offer digital assistant capabilities for answering questions, planning, and automating routines.",
+        "how_different": "IrisGo positions itself as a more proactive 'digital butler' that anticipates needs and automates tasks, with a focus on privacy and local execution, while Google Assistant is tightly integrated with Google\u2019s ecosystem and cloud services."
+      },
+      {
+        "name": "Apple Siri",
+        "similarity": "Both are personal assistants designed to help users manage daily tasks and information.",
+        "how_different": "IrisGo claims more advanced automation (teach and repeat workflows), and emphasizes instant answers and smart plans, whereas Siri is more limited in custom automation and is tied to Apple\u2019s hardware ecosystem."
+      },
+      {
+        "name": "Microsoft Copilot",
+        "similarity": "Both leverage generative AI to assist with planning, answering questions, and automating workflows.",
+        "how_different": "IrisGo offers a 'digital butler' experience with hands-free automation and proactive task management, while Copilot is focused on productivity within Microsoft\u2019s suite of products."
+      },
+      {
+        "name": "Zapier",
+        "similarity": "Both enable automation of routine tasks and workflows.",
+        "how_different": "IrisGo uses AI to learn and replicate tasks from user demonstration ('Teach, Then Let Go'), whereas Zapier relies on manual setup of integrations and workflows between apps."
+      }
+    ],
+    "differentiation": {
+      "primary": "IrisGo positions itself as a proactive, hands-free digital butler that anticipates needs and automates tasks before the user asks, with a focus on privacy and local execution.",
+      "technical": "Key technical differentiators include instant answers (low latency), local/private execution (not cloud-dependent), and the ability to learn and replicate user-taught workflows ('Teach, Then Let Go').",
+      "business": "Currently in private beta with a waitlist, targeting early adopters interested in advanced personal automation. Emphasizes privacy and user control, potentially appealing to privacy-conscious segments.",
+      "positioning": "IrisGo is positioned as a next-generation digital assistant that goes beyond reactive Q&A to proactive, anticipatory automation, differentiating from mainstream assistants and workflow tools."
+    },
+    "secret_sauce": {
+      "core_advantage": "The ability to learn tasks from user demonstration and automate them hands-free, combined with instant answers and local/private execution.",
+      "defensibility": "This approach to automation\u2014where the assistant can be 'taught' new workflows by user demonstration\u2014requires advanced AI modeling, seamless UX, and robust local processing, making it harder to replicate than simple rule-based or cloud-only assistants.",
+      "evidence": [
+        "Hit 'Watch,' walk through your task once, and IrisGo will replicate it perfectly every time you press 'Run.'",
+        "Skip the browser and the cloud. Ask IrisGo anything\u2014from dinner ideas to daily enquiries\u2014and get answers in milliseconds.",
+        "IrisGo combines powerful AI with intuitive design to create a digital butler that anticipates your needs and handles tasks before you even ask."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "IrisGo\u2019s defensibility is based on its unique approach to user-taught automation and privacy-focused, local execution. While these features are technically challenging and differentiate IrisGo from mainstream assistants, there are few explicit ecosystem or data moats, and larger players could potentially replicate core features. The moat is strengthened by UX and technical execution, but not yet high due to lack of network effects or proprietary data.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "IrisGo serves up instant answers, smart plans, and hands-free automation",
+    "IrisGo combines powerful AI with intuitive design to create a digital butler that anticipates your needs and handles tasks before you even ask",
+    "Chat Anywhere: Skip the browser and the cloud. Ask IrisGo anything\u2014from dinner ideas to daily enquiries\u2014and get answers in milliseconds",
+    "Plan Like a Pro: Tell IrisGo what you're trying to achieve. It drafts the steps, juggles dependencies, and checks them off while you watch",
+    "Teach, Then Let Go: Hit 'Watch,' walk through your task once, and IrisGo will replicate it perfectly every time you press 'Run.'",
+    "Teach, Then Let Go: The 'Watch' feature allows users to demonstrate a task once, after which the AI can replicate it autonomously. This blends demonstration learning with agentic execution, which is a relatively unique user-facing approach."
+  ],
+  "analyzed_at": "2026-01-31 11:42:56.483053+00:00",
+  "confidence_score": 0.8,
+  "raw_content_analyzed": 4251
+}

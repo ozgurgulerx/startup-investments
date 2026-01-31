@@ -1,0 +1,266 @@
+{
+  "company_name": "Midship",
+  "company_slug": "midship",
+  "website": "https://midship.ai/",
+  "logo_url": null,
+  "description": "Midship is an AI-powered application that automates the extraction of data from various documents",
+  "funding_amount": 4150000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Agentic Architectures",
+      "confidence": 1.0,
+      "evidence": [
+        "Midship's AI autonomously performs SOX testing & beyond. Our agents follow your audit plan, perform tests and create fully documented work papers.",
+        "AI agents follow your audit procedures to extract support and test control attributes, documenting every step they take.",
+        "Our platform is designed to give full transparency into what work our AI agents are performing at every step of an engagement"
+      ],
+      "description": "Midship implements agentic architectures by deploying autonomous AI agents that execute audit procedures, extract supporting evidence, perform control testing, and generate documentation. These agents are orchestrated to follow user-defined audit plans and provide step-by-step traceability."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "Midship analyzes your RCM to identify controls ready for automation",
+        "Supports everything from ITGC to manual financial reviews",
+        "Built in the field, not in theory. Midship customers automate up to 87% of their SOX programs.",
+        "At Midship, we're on a mission to augment audit professionals with AI. Our team comes from Big 4 and Fortune 500 firms"
+      ],
+      "description": "Midship leverages industry-specific (audit/SOX) data and domain expertise, likely using proprietary datasets and workflows tailored for financial audits and compliance, creating a vertical data moat."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.7,
+      "evidence": [
+        "Uncompromising Security, Built for Audit",
+        "Independent Audits & Continuous Validation",
+        "SOC 2 Type 2 compliant",
+        "Our Security Addendum formalizes our commitment to protecting your data, ensuring compliance with industry regulations and external financial audits."
+      ],
+      "description": "Midship emphasizes security, compliance, and auditability, suggesting the presence of guardrail layers (such as compliance validation and security checks) around their AI outputs, especially given the regulatory context."
+    },
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.6,
+      "evidence": [
+        "Drop in a document dump. Midship parses and classifies each document, then matches it to relevant samples.",
+        "Review work papers with every value linked to source documents",
+        "Structures client documents, matches supporting records, runs audit tests, and generates audit-ready workpapers with full traceability"
+      ],
+      "description": "The system appears to retrieve and link supporting documents and evidence to generated workpapers, indicating a retrieval-augmented workflow, though explicit mention of embeddings or vector search is absent."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.5,
+      "evidence": [
+        "Built in the field, not in theory. Midship customers automate up to 87% of their SOX programs.",
+        "Market-leading AI data input automation. Midship takes any document and extracts the data you need, integrated with your existing business processes."
+      ],
+      "description": "There are hints that the system improves through real-world usage and integration, but no explicit mention of feedback loops or model retraining from user data."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "financial_services",
+  "sub_vertical": "audit automation and SOX compliance",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 4,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "API endpoint responds with a welcome message, indicating some public API surface",
+      "Emphasis on security and compliance (SOC 2 Type II, audits, data residency)",
+      "Team background includes Big 4/Fortune 500/AI professionals",
+      "Product integrates with Excel and existing business processes"
+    ]
+  },
+  "unique_findings": [
+    "Midship claims to automate 85-87% of SOX controls, including both ITGC and manual financial reviews, using AI agents that follow custom audit plans and generate audit-ready workpapers with full traceability. The specificity of automating such a high percentage of controls, especially in a highly regulated domain, is unusual and suggests deep process integration.",
+    "The platform emphasizes 'testing that starts at the review,' reversing the traditional audit workflow by having AI agents generate workpapers first, with every value linked to source documents. This approach enables auditors to review and validate AI-generated evidence, rather than manually assembling it\u2014a novel workflow for audit automation.",
+    "Midship offers an Excel Add-in that allows users to review supporting evidence directly within spreadsheets, reducing friction for audit teams who rely heavily on Excel. This signals a pragmatic integration strategy rather than forcing users into a new UI or platform.",
+    "The platform supports 'bring your own storage' for data residency, allowing clients to use their own cloud or storage solutions. This is a rare feature for SaaS audit tools and addresses a key enterprise concern around data control and compliance.",
+    "Midship claims to be 'built in the field, not in theory,' with automation validated across live audits. This suggests a focus on real-world adaptability and rapid iteration with actual customer data, which is a defensibility signal if true.",
+    "The company highlights full transparency into AI agent actions, with every step documented and linked to evidence. This level of traceability is critical for audit defensibility and regulatory acceptance, and is technically challenging to implement robustly."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Agentic AI Meets SOX: How Midship Rebuilt Audit Automation from the Ground Up",
+      "summary": "Midship leverages agentic architectures and continuous-learning flywheels to automate up to 87% of SOX controls, a feat rarely seen in regulated financial workflows. Their approach blends RAG, vertical data moats, and guardrail-as-LLM techniques to ensure both accuracy and compliance, setting a new bar for enterprise audit automation.",
+      "evidence": [
+        "Built-in agentic architectures and continuous validation",
+        "Automates up to 87% of SOX controls in live audits"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: Midship\u2019s Proprietary Audit Evidence Engine",
+      "summary": "Midship\u2019s secret weapon is its ability to parse, classify, and match client documents to audit samples, creating a proprietary data moat that powers its AI agents. This vertical-specific dataset enables high-fidelity automation and traceability, giving Midship a defensible edge over generic LLM-based audit tools.",
+      "evidence": [
+        "Structures client documents and matches supporting records automatically",
+        "Generates audit-ready workpapers with full traceability"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Deep SOX Domain: Why Midship\u2019s AI Understands Auditors Better Than Auditors",
+      "summary": "Midship\u2019s platform is built in the field, not in theory, supporting everything from ITGC to manual financial reviews. Their deep integration with SOX workflows and public company requirements reflects a level of vertical expertise that most horizontal AI automation platforms lack.",
+      "evidence": [
+        "Supports ITGC, business process, and manual financial controls",
+        "Trusted by public companies for SOX testing"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "From Weeks to Hours: Midship\u2019s AI Slashes SOX Audit Time by 10x",
+      "summary": "Midship claims to automate 85%+ of SOX controls and enables auditors to focus on high-judgement tasks, drastically reducing grunt work and co-sourcing costs. Their Excel integration and instant workpaper generation offer a tangible, workflow-native speed advantage for technical teams.",
+      "evidence": [
+        "Automates 85%+ of SOX controls, up to 87% in practice",
+        "Excel add-in enables direct review and instant workpaper downloads"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "There is little evidence of proprietary technology or unique LLM models; the product appears to orchestrate existing LLM capabilities for SOX testing and audit automation, which could be replicated by others using OpenAI/Anthropic APIs.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of custom LLMs or proprietary ML models.",
+        "Heavy emphasis on agentic workflows, document parsing, and Excel integration, which are typical applications of existing LLM APIs.",
+        "No technical details on unique algorithms or architectures."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core value proposition\u2014automating SOX testing and workpaper generation\u2014could be absorbed by larger audit or workflow automation platforms as a feature rather than a standalone product.",
+      "severity": "medium",
+      "evidence": [
+        "Focus on automating SOX controls and generating workpapers.",
+        "Incumbents in audit software could add similar features.",
+        "No clear indication of expansion beyond SOX and audit automation."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear data moat or technical differentiation; the solution relies on process automation and LLM orchestration, which are not defensible against well-resourced competitors.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary datasets or unique vertical data moats.",
+        "Claims of 'built in the field' but no specifics on unique data or learning flywheels.",
+        "SOC2 compliance and security are table stakes, not moats."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "The marketing is heavy on security and automation buzzwords, with repeated claims of 'uncompromising security' and 'AI agents,' but lacks technical depth or specifics on how these are achieved.",
+      "severity": "medium",
+      "evidence": [
+        "Repetitive use of phrases like 'uncompromising security' and 'AI agents' without technical substantiation.",
+        "No architectural diagrams, benchmarks, or technical whitepapers.",
+        "Multiple duplicate sections and claims."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The product is positioned as an AI-powered SOX automation tool, but the market for audit automation is crowded and the offering does not clearly stand out.",
+      "severity": "medium",
+      "evidence": [
+        "No clear unique selling proposition versus other audit automation tools.",
+        "Heavy repetition of standard audit and security features.",
+        "No mention of unique integrations, partnerships, or exclusive capabilities."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "AuditBoard",
+        "similarity": "Both provide software platforms for SOX compliance, audit automation, and workpaper management.",
+        "how_different": "Midship focuses on agentic AI to autonomously perform SOX testing and generate fully documented workpapers, claiming to automate up to 87% of controls. AuditBoard is more workflow-driven and less focused on autonomous AI-driven testing."
+      },
+      {
+        "name": "Workiva",
+        "similarity": "Both offer cloud-based solutions for audit, risk, and compliance management, including SOX documentation and evidence management.",
+        "how_different": "Midship emphasizes AI agents that follow audit procedures and automate evidence extraction, while Workiva relies more on user-driven workflows and integrations. Midship claims deeper automation and Excel compatibility."
+      },
+      {
+        "name": "MindBridge",
+        "similarity": "Both use AI to automate audit procedures and analyze financial data for risk and compliance.",
+        "how_different": "Midship positions itself as automating the entire SOX testing workflow, including document parsing and workpaper generation, whereas MindBridge focuses on anomaly detection and analytics rather than full workflow automation."
+      },
+      {
+        "name": "Big 4 Consulting Firms (Deloitte, PwC, EY, KPMG)",
+        "similarity": "All provide SOX testing, audit services, and co-sourcing for compliance.",
+        "how_different": "Midship aims to replace costly external consultants by automating SOX controls with AI, reducing reliance on manual labor and co-sourcing."
+      },
+      {
+        "name": "FloQast",
+        "similarity": "Both streamline accounting and audit workflows, including evidence collection and workpaper management.",
+        "how_different": "Midship claims to automate the extraction and matching of evidence using AI agents, while FloQast is more focused on workflow management and reconciliation."
+      }
+    ],
+    "differentiation": {
+      "primary": "Midship's agentic AI autonomously performs SOX testing, matches supporting records, and generates audit-ready workpapers with full traceability, automating up to 87% of SOX controls.",
+      "technical": "AI agents follow audit plans, extract support, test control attributes, and document every step. Market-leading document parsing and classification. Excel Add-in for direct review. SOC 2 Type II compliance, configurable data residency, and automated retention controls.",
+      "business": "ROI from Day 1, free trial with real data, integrates with existing tech stack (no need to migrate entire practice), targets audit teams at public companies, and aims to replace expensive co-sourcing.",
+      "positioning": "Positioned as the most automated, transparent, and secure solution for SOX testing and audit workpapers, built by professionals from Big 4 and Fortune 500 firms, and trusted by public companies for live audits."
+    },
+    "secret_sauce": {
+      "core_advantage": "Agentic AI that autonomously executes SOX testing end-to-end, including evidence extraction, matching, and workpaper generation, with full traceability and Excel compatibility.",
+      "defensibility": "Requires deep audit expertise, robust AI models trained on real audit workflows, and enterprise-grade security/compliance. Integration with existing business processes and Excel is non-trivial for competitors.",
+      "evidence": [
+        "Midship's AI autonomously performs SOX testing & beyond. Our agents follow your audit plan, perform tests and create fully documented work papers.",
+        "Automate 85%+ of SOX controls. Midship analyzes your RCM to identify controls ready for automation.",
+        "Built in the field, not in theory. Midship customers automate up to 87% of their SOX programs.",
+        "Our platform is designed to give full transparency into what work our AI agents are performing at every step of an engagement, so you can trust the evidence, not the assertion.",
+        "Midship\u2019s work papers are fully compatible with Excel. The Midship Excel Add-in lets you directly review support from inside your spreadsheets.",
+        "SOC 2 Type 2 compliant. Midship meets the highest industry standards for data security, confidentiality, and integrity."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Midship's moat is built on proprietary agentic AI workflows, deep audit expertise, and strong compliance/security posture. The integration with existing tech stacks and Excel is a practical differentiator. However, large incumbents (AuditBoard, Workiva, Big 4) have resources to build similar automation, and AI-driven audit is a rapidly evolving space. Midship's defensibility depends on continued technical innovation, real-world automation rates, and customer trust in AI-driven audit transparency.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Midship's AI autonomously performs SOX testing & beyond. Our agents follow your audit plan, perform tests and create fully documented work papers.",
+    "AI agents follow your audit procedures to extract support and test control attributes, documenting every step they take.",
+    "At Midship, we're on a mission to augment audit professionals with AI.",
+    "Market-leading AI data input automation. Midship takes any document and extracts the data you need, integrated with your existing business processes.",
+    "Structures client documents, matches supporting records, runs audit tests, and generates audit-ready workpapers with full traceability\u2014streamlining audits from data to review.",
+    "Announcing our $4.1m seed round, led by Costanoa Ventures, Y Combinator & Seguin Ventures",
+    "automating SOX testing with agentic AI",
+    "Full audit traceability: Every AI action and conclusion is linked to source documents, providing transparency and auditability.",
+    "Excel-native integration: Workpapers and evidence can be reviewed directly within Excel via an add-in, reducing workflow friction for auditors.",
+    "Autonomous end-to-end audit workflow: The platform automates from document ingestion, evidence extraction, control testing, to workpaper generation, all orchestrated by agents."
+  ],
+  "analyzed_at": "2026-01-31 10:36:27.486987+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 44022
+}

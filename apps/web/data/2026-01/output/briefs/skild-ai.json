@@ -1,0 +1,238 @@
+{
+  "company_name": "Skild AI",
+  "company_slug": "skild-ai",
+  "website": "https://www.skild.ai",
+  "description": "Skild AI develops artificial intelligence systems that enable robots to act in physical environments.",
+  "funding_amount": 1400000000.0,
+  "funding_stage": "series_c",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.8,
+      "evidence": [
+        "We are building AI that will interact with and affect change in the real world.",
+        "unified, omni-bodied brain to control any robot for any task.",
+        "The Skild Brain enables robots to navigate unstructured, dangerous environments",
+        "Our AI can execute low-level skills like grasping, handover, and navigation on mobile platforms.",
+        "Our AI can learn highly precise and dexterous skills."
+      ],
+      "description": "Skild AI describes a unified AI brain capable of controlling various robots for diverse tasks, implying agentic autonomy, tool use, and multi-step reasoning in physical environments."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.7,
+      "evidence": [
+        "Our model learns by watching human videos. This is a scalable solution for the robotics data problem.",
+        "Real-time Adaption from Vision",
+        "Learns from Humans"
+      ],
+      "description": "Skild AI leverages human demonstration videos to continuously improve its models, indicating a feedback loop where new data refines capabilities over time."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.6,
+      "evidence": [
+        "Physical reality is far more information rich, and automating physical tasks offers immense returns.",
+        "robot applications that deliver tangible, real-world value.",
+        "robotics data problem"
+      ],
+      "description": "Skild AI focuses on robotics and physical world data, building proprietary datasets from real-world robot applications and human demonstrations, creating an industry-specific data moat."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.5,
+      "evidence": [
+        "Our AI can execute low-level skills like grasping, handover, and navigation on mobile platforms. These skills are abstracted away using an API call."
+      ],
+      "description": "The mention of abstracted low-level skills suggests the possible use of specialized models for different robotic functions, though not explicitly confirmed."
+    }
+  ],
+  "market_type": "horizontal",
+  "vertical": "industrial",
+  "sub_vertical": "robotics automation for manufacturing, logistics, and inspection",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Ambitious technical vision (omni-bodied AI for robotics)",
+      "Backed by prominent investors indicating strong resources"
+    ]
+  },
+  "unique_findings": [
+    "Skild AI is pursuing an 'omni-bodied' approach: their core thesis is that physical AI should be able to control any robot for any task, rather than being specialized for a single hardware type or use case. This is a significant departure from most robotics AI, which is typically tailored to specific platforms or domains.",
+    "They abstract low-level robotic skills (grasping, handover, navigation) behind API calls, allowing application developers to build on top of their platform without needing to manage the complexity of unstructured real-world environments. This abstraction layer is technically challenging and rarely seen at this level of generality.",
+    "Their data acquisition strategy involves learning from human videos ('Learns from Humans'), which is a scalable solution to the robotics data bottleneck. Most robotics companies rely on expensive, manually labeled sensor data or simulation, but Skild is leveraging passive human demonstrations for training embodied AI.",
+    "The platform is designed for real-time adaptation from vision, which implies a high degree of sensor fusion and online learning capability. This is non-trivial, especially for general-purpose robotics.",
+    "Despite the technical claims, the public-facing content is heavily marketing-focused and lacks concrete details about model architectures, software stack, or deployment strategies. There is little evidence of open-source contributions or technical transparency (GitHub profile is empty)."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Omni-bodied AI: Skild\u2019s Unified Brain for Any Robot, Any Task",
+      "summary": "Skild AI is tackling the robotics problem in its full generality, building a unified, omni-bodied AI brain that can control any robot for any task. This approach challenges the fragmented, single-purpose architectures common in robotics and aims for true cross-platform intelligence.",
+      "evidence": [
+        "Skild\u2019s thesis: 'Physical AI should be omni-bodied.'",
+        "Claims to build a 'unified, omni-bodied brain to control any robot for any task.'"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Learning from Human Videos: Skild\u2019s Scalable Solution to Robotics Data Scarcity",
+      "summary": "Instead of relying on expensive, hand-engineered datasets, Skild AI\u2019s model learns by watching human videos. This continuous-learning flywheel could be a game-changer for embodied AI, enabling rapid skill acquisition and adaptation to real-world environments.",
+      "evidence": [
+        "Model learns by watching human videos.",
+        "Positioned as a scalable solution for the robotics data problem."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Industrial-Grade AI: Skild\u2019s Security and Inspection Robots Take on Dangerous Environments",
+      "summary": "Skild AI is applying its technology to high-stakes industrial domains, such as security and inspection in unstructured, hazardous environments. Their robots promise to free humans from manual, risky tasks, demonstrating deep domain expertise in industrial automation.",
+      "evidence": [
+        "Security/Inspection Robot Platform enables navigation in dangerous environments.",
+        "Vertical focus: industrial automation and inspection."
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Betting on Generality: Why Skild Rejects Single-Purpose Robotics",
+      "summary": "While most robotics startups optimize for narrow, task-specific solutions, Skild AI is betting on a generalist approach\u2014building AI that is not limited by robot or task type. This contrarian stance could either unlock massive scale or prove too ambitious for practical deployment.",
+      "evidence": [
+        "Explicit rejection of limiting AI by robot or task type.",
+        "Focus on 'full generality' in robotics problem-solving."
+      ],
+      "uniqueness_score": 8
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "The site uses significant marketing language (e.g., 'unified, omni-bodied brain', 'AI that truly understands the physical world') with little technical detail or evidence of proprietary technology, making it difficult to assess the actual technical depth or differentiation.",
+      "severity": "medium",
+      "evidence": [
+        "Phrases like 'Powering robotics with the intelligence they need to navigate the real world', 'AI that truly understands the physical world', and 'unified, omni-bodied brain to control any robot for any task' are used without technical substantiation.",
+        "No technical documentation, publications, or open source code is referenced.",
+        "No mention of specific algorithms, architectures, or unique approaches."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear evidence of a proprietary data advantage, technical differentiation, or unique platform. The claims are broad and could be replicated by other well-funded robotics or AI companies.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of unique datasets, proprietary models, or technical breakthroughs.",
+        "The approach is described in general terms (e.g., 'learns by watching human videos'), which is a common technique in robotics/AI.",
+        "Competitive position is described as 'Moat: medium', suggesting only moderate defensibility."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The value proposition is broad and overlaps with many other robotics/AI companies. There is no clear unique angle or vertical focus beyond general statements about 'omni-bodied' AI.",
+      "severity": "medium",
+      "evidence": [
+        "Product descriptions (security/inspection robots, mobile manipulation, autonomous packing) are standard verticals in robotics.",
+        "No clear evidence of a unique approach or vertical specialization.",
+        "The company claims to solve robotics 'in its full generality', which is ambitious but lacks focus."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Some platform claims (e.g., 'skills are abstracted away using an API call') could be implemented by incumbents or as features in larger platforms.",
+      "severity": "low",
+      "evidence": [
+        "API-based abstraction of robotics skills is a common approach and could be subsumed by larger robotics/AI platforms.",
+        "No evidence that the platform is defensible as a standalone product."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Covariant",
+        "similarity": "Both focus on AI-powered robotics for real-world tasks, including manipulation and automation.",
+        "how_different": "Skild AI emphasizes a unified, omni-bodied brain for any robot and any task, whereas Covariant typically focuses on warehouse automation and specific robot types."
+      },
+      {
+        "name": "Intrinsic (Alphabet)",
+        "similarity": "Both develop general-purpose AI for robotics, aiming to enable robots to perform a wide range of tasks.",
+        "how_different": "Skild AI claims to tackle robotics in full generality with a single brain, while Intrinsic focuses on modular software for industrial robots."
+      },
+      {
+        "name": "Boston Dynamics AI Institute",
+        "similarity": "Both are advancing embodied AI for robots to operate in complex, unstructured environments.",
+        "how_different": "Skild AI\u2019s approach centers on a unified control system and learning from human videos, while Boston Dynamics emphasizes hardware innovation and task-specific intelligence."
+      },
+      {
+        "name": "Nvidia Isaac",
+        "similarity": "Both provide AI platforms and APIs for robotics, enabling navigation and manipulation in physical spaces.",
+        "how_different": "Skild AI abstracts low-level skills into API calls for any robot, while Nvidia Isaac is more focused on simulation, hardware integration, and developer tools."
+      },
+      {
+        "name": "OpenAI (Embodied AI research)",
+        "similarity": "Both pursue general-purpose embodied AI that learns from human demonstrations and operates across multiple robot types.",
+        "how_different": "Skild AI positions its 'omni-bodied' brain as universally applicable, whereas OpenAI\u2019s work is more research-oriented and not yet productized for commercial deployment."
+      }
+    ],
+    "differentiation": {
+      "primary": "Skild AI is building a unified, omni-bodied AI brain that can control any robot for any task, rather than focusing on specific robot types or applications.",
+      "technical": "Their model learns by watching human videos, enabling scalable data acquisition and generalization across robots and tasks. They abstract low-level robotic skills into API calls, allowing rapid application development without deep robotics expertise.",
+      "business": "Skild AI delivers real-world value through vertical solutions (security/inspection, mobile manipulation, autonomous packing) while maintaining a horizontal platform approach. Their GTM is platform-first, enabling partners to build on top of their unified API.",
+      "positioning": "They position themselves as solving the robotics problem in its full generality, aiming to be the foundational intelligence layer for all embodied AI applications, not just niche verticals."
+    },
+    "secret_sauce": {
+      "core_advantage": "A unified, omni-bodied AI brain that learns from human videos and can control any robot for any task, abstracting complex skills into simple API calls.",
+      "defensibility": "Learning from human videos provides scalable, diverse training data that is hard to replicate. The unified architecture and abstraction layer lower integration friction for partners and customers.",
+      "evidence": [
+        "Physical AI should be omni-bodied.",
+        "An AI that truly understands the physical world should not be limited by robot or task type.",
+        "Our model learns by watching human videos. This is a scalable solution for the robotics data problem.",
+        "We are building a unified, omni-bodied brain to control any robot for any task.",
+        "These skills are abstracted away using an API call, allowing users to build applications without worrying about details of the unstructured, messy real world."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Skild AI\u2019s competitive position is defensible due to its scalable data strategy (learning from human videos), unified architecture, and abstraction of robotic skills. However, the embodied AI space is highly competitive, with well-funded players pursuing similar general-purpose approaches. Their moat will depend on execution, data scale, and ecosystem adoption.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "We are building AI that will interact with and affect change in the real world.",
+    "We are building a unified, omni-bodied brain to control any robot for any task.",
+    "Our AI can execute low-level skills like grasping, handover, and navigation on mobile platforms.",
+    "Our AI can learn highly precise and dexterous skills.",
+    "Our model learns by watching human videos. This is a scalable solution for the robotics data problem.",
+    "Real-time Adaption from Vision",
+    "Learns from Humans",
+    "Omni-bodied AI brain: The concept of a single AI system capable of controlling any robot for any task, rather than siloed solutions, is a unique technical ambition.",
+    "Learning from human demonstration videos at scale for robotics, addressing the data bottleneck in embodied AI."
+  ],
+  "analyzed_at": "2026-01-22 21:45:05.684337+00:00",
+  "confidence_score": 0.85,
+  "raw_content_analyzed": 30704
+}

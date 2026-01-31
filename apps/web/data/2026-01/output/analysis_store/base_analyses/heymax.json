@@ -1,0 +1,194 @@
+{
+  "company_name": "HeyMax",
+  "company_slug": "heymax",
+  "website": "https://heymax.ai/",
+  "logo_url": null,
+  "description": "HeyMax is a platform for travel rewards and loyalty.",
+  "funding_amount": 11000000.0,
+  "funding_stage": "series_a",
+  "uses_genai": false,
+  "genai_intensity": "none",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.7,
+      "evidence": [
+        "HeyMax, a leading loyalty and travel rewards platform headquartered in Singapore",
+        "exclusive deals, like earning Max Miles on partners such as Amazon, Grab, and Shopee",
+        "discovering cutting-edge features like Card Maximiser for real-time rewards tracking",
+        "Here are ways to use IHG points, a HeyMax transfer option",
+        "HeyMax Adds Vietnam Airlines Lotusmiles as Transfer Option"
+      ],
+      "description": "HeyMax leverages proprietary and industry-specific data from loyalty, travel rewards, and financial transactions, building a data moat around travel and rewards optimization. Their integrations with partners (Amazon, Grab, Shopee, airlines, hotels) and features like Card Maximiser suggest a focus on domain-specific data and expertise."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "financial_services",
+  "sub_vertical": "loyalty and rewards platforms (FinTech)",
+  "target_market": "b2c",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Mobile apps available on iOS and Android",
+      "Active blog with product and travel content",
+      "Recent Series A funding indicating ongoing product development"
+    ]
+  },
+  "unique_findings": [
+    "Integration of real-time rewards tracking ('Card Maximiser') directly into the user experience, suggesting a backend architecture that interfaces with financial data sources or APIs to provide up-to-date points/miles optimization. This is more sophisticated than static guides and requires robust, secure data handling.",
+    "The platform appears to offer multi-partner rewards aggregation (Amazon, Grab, Shopee, Octopus Payments, Vietnam Airlines Lotusmiles, etc.), implying a complex system for handling disparate loyalty programs, transfer options, and potentially real-time balance synchronization\u2014an integration challenge not trivial to scale.",
+    "Heavy use of social and app-based onboarding (QR codes, app downloads, direct links to app stores), indicating a mobile-first, growth-hacking approach that leverages network effects and viral loops, but not necessarily a unique technical architecture.",
+    "Visible use of third-party analytics and ad tracking (Twitter Ads, analytics.twitter.com) embedded throughout, but no evidence of proprietary analytics or AI-driven personalization on the newsletter/blog surface\u2014suggesting reliance on external platforms for user insights rather than in-house ML/AI."
+  ],
+  "technical_depth": "low",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "data",
+      "headline": "HeyMax\u2019s Vertical Data Moat: Turning Everyday Spending into Proprietary Loyalty Intelligence",
+      "summary": "HeyMax leverages a unique stream of transactional and loyalty data from over 100,000 users, building a proprietary dataset that powers smarter rewards and redemption insights. This vertical data moat enables HeyMax to offer tailored recommendations and optimize rewards in ways generic platforms can\u2019t match.",
+      "evidence": [
+        "Over 100,000 users generating real-world spending and redemption data",
+        "Positioned as a leading loyalty and travel rewards platform in Southeast Asia"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "architecture",
+      "headline": "Why HeyMax\u2019s Engineering Stack Scores Just 2/10\u2014And What That Means for Scaling AI Loyalty Platforms",
+      "summary": "Despite rapid growth and a recent $11M Series A, HeyMax\u2019s engineering quality is rated just 2/10, raising questions about technical debt and scalability. This story dives into the architectural tradeoffs and what it takes to build robust, AI-powered financial services in a fast-moving vertical.",
+      "evidence": [
+        "Engineering Quality: Score: 2/10",
+        "Recent $11M Series A funding to accelerate product development"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Cracking the Loyalty Code: How HeyMax\u2019s Deep Domain Expertise Drives Next-Gen Rewards",
+      "summary": "HeyMax\u2019s team demonstrates a nuanced understanding of airline alliances, points transfer, and regional rewards ecosystems, enabling features like Card Maximiser and unique transfer partnerships. Their domain expertise is the engine behind user-centric innovations in a notoriously complex space.",
+      "evidence": [
+        "Guides on maximizing airline alliances and transfer options (e.g., Vietnam Airlines Lotusmiles, Flying Blue)",
+        "Features like Card Maximiser for real-time rewards tracking"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Betting on Loyalty in a Fragmented Market: Why HeyMax Doubled Down on Southeast Asia",
+      "summary": "While many fintechs chase global scale, HeyMax is focused on building a regional data moat and deep local integrations in Southeast Asia. This contrarian bet on vertical depth over breadth could be the key to defensibility in the loyalty space.",
+      "evidence": [
+        "Headquartered in Singapore, with regional expansion as a stated goal",
+        "Integration with local payment ecosystems like Octopus in Hong Kong"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no evidence of a defensible data advantage or technical differentiation. The platform aggregates and facilitates loyalty and rewards, a space with low barriers to entry and many incumbents.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary algorithms, unique datasets, or exclusive partnerships.",
+        "The product appears to be a rewards aggregator, which is a common model.",
+        "Marketing focuses on features (e.g., Card Maximiser, earning miles on purchases) that are not technically unique."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core value proposition (turning spending into miles, tracking rewards) could be absorbed by banks, airlines, or payment platforms as a feature rather than a standalone product.",
+      "severity": "medium",
+      "evidence": [
+        "No clear platform lock-in or ecosystem effects.",
+        "Incumbents (banks, airlines, payment apps) could easily replicate or integrate similar features."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The offering is not clearly differentiated from other rewards or loyalty aggregators. The market is crowded with similar solutions.",
+      "severity": "medium",
+      "evidence": [
+        "No unique angle or technology highlighted.",
+        "Heavy reliance on standard loyalty program features.",
+        "No mention of exclusive partnerships or unique user experiences."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing uses terms like 'cutting-edge features' and 'real-time rewards tracking' without technical substantiation. There are references to 'AI' but no details on models, data, or proprietary technology.",
+      "severity": "low",
+      "evidence": [
+        "References to 'AI-powered' and 'Card Maximiser' lack technical explanation.",
+        "No mention of in-house LLMs or unique AI capabilities."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Mileslife",
+        "similarity": "Both are platforms that allow users to earn airline miles through everyday spending and shopping.",
+        "how_different": "HeyMax emphasizes exclusive deals with partners like Amazon, Grab, and Shopee, and offers real-time rewards tracking via Card Maximiser. HeyMax also highlights regional integrations, such as Octopus Payments in Hong Kong."
+      },
+      {
+        "name": "Revolut",
+        "similarity": "Both offer fintech solutions that include rewards, loyalty, and travel benefits integrated with payments.",
+        "how_different": "HeyMax is focused specifically on maximizing travel rewards and loyalty points, with a strong emphasis on airline miles and travel partners, whereas Revolut is broader, covering banking, currency exchange, and general financial services."
+      },
+      {
+        "name": "AwardWallet",
+        "similarity": "Both help users track and maximize loyalty points and miles across multiple programs.",
+        "how_different": "HeyMax offers direct earning and transfer options with partners, exclusive deals, and a regional focus (Asia), while AwardWallet is primarily a tracking tool without direct earning or redemption capabilities."
+      },
+      {
+        "name": "ShopBack",
+        "similarity": "Both enable users to earn rewards from shopping, with integrations to e-commerce platforms.",
+        "how_different": "HeyMax converts shopping rewards directly into airline miles and travel points, and is positioned as a travel-first loyalty solution, whereas ShopBack focuses on cashback and general rewards."
+      }
+    ],
+    "differentiation": {
+      "primary": "HeyMax stands out by directly integrating shopping, payments, and travel rewards, enabling users to earn airline miles from everyday purchases and providing exclusive deals with major e-commerce and payment partners.",
+      "technical": "The Card Maximiser feature offers real-time rewards tracking and optimization, likely leveraging AI to recommend best card usage and maximize miles earned. Integration with payment platforms (e.g., Octopus in Hong Kong) and direct transfer options to airline programs (e.g., Vietnam Airlines Lotusmiles) are technical differentiators.",
+      "business": "HeyMax partners with top e-commerce and payment platforms (Amazon, Grab, Shopee, Octopus), securing exclusive deals and transfer options. Their GTM focuses on travel-savvy users in Asia, leveraging regional partnerships and a mobile-first app experience.",
+      "positioning": "HeyMax positions itself as the leading loyalty and travel rewards platform in Asia, emphasizing the ability to turn everyday spending into dream vacations and maximize travel experiences through smart rewards management."
+    },
+    "secret_sauce": {
+      "core_advantage": "Deep integration with both e-commerce and payment platforms, enabling seamless conversion of everyday spending into airline miles and travel rewards, combined with real-time optimization via Card Maximiser.",
+      "defensibility": "Exclusive regional partnerships (e.g., Octopus Payments in Hong Kong), direct transfer options to airline programs, and proprietary real-time rewards optimization technology make it difficult for competitors to replicate the same breadth and depth of integrations.",
+      "evidence": [
+        "HeyMax and Octopus Bring Miles to Octopus Payments for the First Time in Hong Kong",
+        "Exclusive deals on partners such as Amazon, Grab, and Shopee",
+        "Cutting-edge features like Card Maximiser for real-time rewards tracking",
+        "HeyMax Adds Vietnam Airlines Lotusmiles as Transfer Option"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "HeyMax's defensibility comes from its exclusive regional integrations and technical features like Card Maximiser, but the loyalty and rewards space is crowded and partnerships can be replicated by well-funded competitors. Their focus on Asia and travel-specific rewards gives them an edge, but continued innovation and partnership expansion are needed to maintain and grow their moat.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [],
+  "analyzed_at": "2026-01-31 10:39:50.937668+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 13121
+}

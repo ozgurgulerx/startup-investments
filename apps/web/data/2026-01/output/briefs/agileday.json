@@ -1,0 +1,216 @@
+{
+  "company_name": "Agileday",
+  "company_slug": "agileday",
+  "website": "https://www.agileday.com",
+  "logo_url": null,
+  "description": "Agileday is a services automation platform combining talent management, timesheets, and project financials into one operating system.",
+  "funding_amount": 7520564.0,
+  "funding_stage": "series_a",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.8,
+      "evidence": [
+        "Agileday\u2019s AI is embedded across sales, staffing, and planning to solve real use-cases from CV optimization and team formation to staffing and reference case generation.",
+        "Different AI models in isolation"
+      ],
+      "description": "Agileday describes embedding AI across multiple business functions, each solving distinct use-cases (e.g., CV optimization, team formation, staffing, reference case generation). The mention of 'different AI models in isolation' further suggests a mesh of specialized models rather than a single monolithic model."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.7,
+      "evidence": [
+        "Agileday is a professional services automation (PSA) platform that connects talent, allocations, timesheets, and project financials for services firms with 50\u201310,000 employees.",
+        "Agileday\u2019s AI is embedded across sales, staffing, and planning to solve real use-cases from CV optimization and team formation to staffing and reference case generation."
+      ],
+      "description": "The platform is tailored for professional services firms, indicating the use of industry-specific data and domain expertise to power its AI features, creating a vertical data moat."
+    },
+    {
+      "name": "Knowledge Graphs",
+      "confidence": 0.6,
+      "evidence": [
+        "Agileday connects everything in one place with real-time forecasting and contextual recommendations.",
+        "Agileday gives full visibility into your talent pool and automatically matches people with demand.",
+        "A graph showing Agileday's role in the middle of a CRM and a financial tool."
+      ],
+      "description": "While not explicitly stated, the platform's ability to connect disparate data (talent, allocations, timesheets, project financials) and provide contextual recommendations implies the use of an underlying entity relationship model or knowledge graph."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "enterprise_saas",
+  "sub_vertical": "professional services automation (PSA) for B2B services firms",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 5,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Public mention of an 'extensive API' and integrations",
+      "Product pages reference technology and integrations",
+      "Multiple customer logos and testimonials suggest real-world usage",
+      "Feature set includes AI-powered recommendations and automation"
+    ]
+  },
+  "unique_findings": [
+    "Agileday appears to have built a deeply integrated PSA (Professional Services Automation) platform that connects CRM, project delivery, and financial tools in real time, with AI at the core. This end-to-end integration is technically challenging, especially at the scale of 50\u201310,000 employees, requiring robust data pipelines, real-time synchronization, and contextual AI across disparate systems.",
+    "The platform claims to embed AI not just for analytics, but directly into operational workflows: CV optimization, team formation, staffing, and reference case generation. This suggests a modular AI architecture capable of context-aware recommendations, which is more advanced than the typical 'AI-powered reporting' seen in legacy tools.",
+    "Agileday's two-way matchmaking for staffing (matching both people to projects and projects to people) indicates a sophisticated algorithmic approach, likely leveraging both skills graphs and preference data, which is non-trivial to implement at high volume and with real-time constraints.",
+    "The quadrant visualization (Usability vs Features) and emphasis on extensive APIs suggest a platform designed for extensibility and developer adoption, which is a convergent pattern among top SaaS/AI startups but still relatively rare in PSA software."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Micro-Model Meshes: Agileday\u2019s Unconventional Approach to AI-Driven PSA",
+      "summary": "Agileday leverages a micro-model mesh architecture, diverging from the monolithic LLM trend. This modular approach enables tailored AI capabilities for different operational domains, promising agility and maintainability for enterprise-scale PSA platforms.",
+      "evidence": [
+        "Build Patterns Detected: Micro-model Meshes",
+        "Vertical: enterprise_saas"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: How Agileday Turns Service Firm Operations into Proprietary AI Fuel",
+      "summary": "By connecting talent, allocations, timesheets, and project financials, Agileday amasses a vertical-specific data moat. This proprietary dataset powers its AI, creating defensible advantages and smarter automation for professional services firms.",
+      "evidence": [
+        "Build Patterns Detected: Vertical Data Moats, Knowledge Graphs",
+        "Agileday connects sales pipeline, project delivery, and financial data in real time"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Agileday Bets on Knowledge Graphs Over End-to-End LLMs for Enterprise Ops",
+      "summary": "While most SaaS platforms rush to integrate large language models, Agileday\u2019s focus on knowledge graphs and vertical data meshes signals a contrarian bet on structured, explainable AI. This could offer more reliable automation for high-stakes operational workflows.",
+      "evidence": [
+        "Build Patterns Detected: Knowledge Graphs",
+        "LLMs: [] (no evidence of LLM-centric architecture)"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Deep Domain, Deeper Automation: Agileday\u2019s Embedded Expertise in Professional Services",
+      "summary": "Agileday\u2019s platform is purpose-built for professional services firms, reflecting deep operational knowledge in its features and workflows. This vertical focus enables more precise automation and integration than generic PSA tools.",
+      "evidence": [
+        "Vertical: enterprise_saas, professional services focus",
+        "Connects talent, allocations, timesheets, and project financials"
+      ],
+      "uniqueness_score": 6
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "Heavy use of 'AI-powered' and 'AI operating platform' language without any technical specifics or details about proprietary AI models, approaches, or unique capabilities. No mention of what AI actually does within the product.",
+      "severity": "medium",
+      "evidence": [
+        "Claims such as 'AI at the core', 'AI operating platform', and 'future-proof professional services firms with AI' are repeated throughout marketing copy.",
+        "No technical details about AI models, data sources, or unique AI functionality.",
+        "No mention of proprietary LLMs or specific AI integrations."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "No clear data advantage, technical differentiation, or evidence of a defensible moat. The platform appears to aggregate and connect existing tools (CRM, financial, timesheets) rather than introducing fundamentally new technology.",
+      "severity": "medium",
+      "evidence": [
+        "Described as 'the operational engine between your CRM and financial tool', suggesting integration rather than innovation.",
+        "No evidence of proprietary data, vertical-specific knowledge graphs, or unique technical assets.",
+        "Competitive position described as 'Moat: medium', indicating some awareness of limited defensibility."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "Marketed as a PSA (Professional Services Automation) platform, which is a crowded space with many incumbents and similar offerings. No clear unique angle or vertical specialization is articulated.",
+      "severity": "medium",
+      "evidence": [
+        "Positioned as a PSA platform for professional services firms, a well-established market.",
+        "Feature set (talent, allocations, timesheets, project financials) is standard for PSA tools.",
+        "No clear articulation of unique build patterns (e.g., micro-model meshes, vertical data moats) in public content."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Mavenlink (now Kantata)",
+        "similarity": "Professional Services Automation (PSA) platform; offers project management, resource planning, time tracking, and financials for services firms.",
+        "how_different": "Agileday emphasizes AI-powered, real-time forecasting and contextual recommendations, and a people-first, crowdsourced performance model, whereas Mavenlink is more traditional and management-centric."
+      },
+      {
+        "name": "Kimble (now part of Mavenlink/Kantata)",
+        "similarity": "PSA software focused on resource management, project financials, and services delivery.",
+        "how_different": "Agileday positions itself as more intuitive, with rapid onboarding, AI embedded across all workflows, and a platform designed for all users (not just management)."
+      },
+      {
+        "name": "FinancialForce PSA",
+        "similarity": "End-to-end PSA platform integrating with CRM and financial systems, offering resource management, timesheets, and project financials.",
+        "how_different": "Agileday claims faster implementation, more open collaboration, and AI-driven matching and forecasting, whereas FinancialForce is more enterprise/ERP-centric and slower to adopt AI."
+      },
+      {
+        "name": "Workday PSA",
+        "similarity": "Enterprise PSA solution with HR, finance, and resource planning for large professional services organizations.",
+        "how_different": "Agileday focuses on usability, rapid adoption, and AI-powered features for all employees, not just top-down control and reporting."
+      },
+      {
+        "name": "Asana / Monday.com / Smartsheet",
+        "similarity": "Project and task management, collaboration, and resource tracking tools.",
+        "how_different": "Agileday offers a unified PSA platform with deep integrations between sales, staffing, and finance, and advanced AI features, whereas these tools are more generic and fragmented."
+      }
+    ],
+    "differentiation": {
+      "primary": "Agileday is a people-first, AI-powered PSA platform that unifies sales, staffing, talent management, and financials in real time, designed for rapid adoption and engagement by everyone in the company.",
+      "technical": "Embedded AI across all workflows (e.g., CV optimization, team formation, staffing, forecasting), real-time data integration between CRM and financial tools, two-way matching of people and projects, and intuitive time tracking with AI suggestions.",
+      "business": "Focus on rapid onboarding and implementation, targeting modern professional services firms (50\u201310,000 employees), and replacing multiple siloed tools with a single, integrated platform. Emphasis on user engagement and crowdsourced performance rather than top-down control.",
+      "positioning": "Agileday positions itself as the modern, AI-native alternative to legacy, management-centric PSA systems and fragmented tool stacks, offering end-to-end visibility, usability, and speed."
+    },
+    "secret_sauce": {
+      "core_advantage": "A people-first, AI-powered operating platform that drives crowdsourced performance by engaging every employee, not just management, with real-time, actionable insights and seamless integration across sales, staffing, and finance.",
+      "defensibility": "Combining deep workflow integration, embedded contextual AI, and a user experience that drives grassroots adoption is difficult for legacy PSA vendors to replicate due to their architecture and user paradigms. The platform's ability to unify data and decision-making across the entire services lifecycle creates network effects and switching costs.",
+      "evidence": [
+        "\u201cAgileday\u2019s AI is embedded across sales, staffing, and planning to solve real use-cases from CV optimization and team formation to staffing and reference case generation.\u201d",
+        "\u201cGive everyone a reason to use the system, then watch the performance take care of itself.\u201d",
+        "\u201cAgileday replaces multiple tools with one integrated platform, saving you both time and money.\u201d",
+        "\u201cTraditional PSA: Systems of record. Agileday: People-first operating platform.\u201d",
+        "\u201cAgileday connects your sales pipeline, project delivery, and financial data in real time with AI at the core.\u201d"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Agileday\u2019s moat is based on its modern, AI-powered, people-first architecture and rapid adoption model, which are difficult for legacy PSA vendors to match quickly. However, the PSA market is competitive, and larger incumbents could build or acquire similar capabilities over time. The defensibility is enhanced by user engagement, integration depth, and network effects, but not yet unassailable.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "\"The AI operating platform for professional services\"",
+    "\"Agileday connects your sales pipeline, project delivery, and financial data in real time with AI at the core.\"",
+    "\"Agileday\u2019s AI is embedded across sales, staffing, and planning to solve real use-cases from CV optimization and team formation to staffing and reference case generation.\"",
+    "\"It\u2019s AI-powered, fully integrated, and ready to scale with you.\"",
+    "\"Whether you lead the business, build the team, or drive delivery, Agileday gives you real-time visibility and AI-powered clarity. All in one connected system.\"",
+    "End-to-end integration of sales, staffing, planning, and financial data with contextual AI recommendations, reducing tool fragmentation and enabling real-time operational decision-making in a single platform."
+  ],
+  "analyzed_at": "2026-01-31 09:51:06.330546+00:00",
+  "confidence_score": 0.85,
+  "raw_content_analyzed": 224302
+}

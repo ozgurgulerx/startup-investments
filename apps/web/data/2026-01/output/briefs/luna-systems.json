@@ -1,0 +1,187 @@
+{
+  "company_name": "Luna Systems",
+  "company_slug": "luna-systems",
+  "website": "http://www.luna.systems",
+  "description": "Luna provides AI and computer vision to manage how micromobility vehicles are ridden and parked.",
+  "funding_amount": 1745625.0,
+  "funding_stage": "seed",
+  "uses_genai": false,
+  "genai_intensity": "none",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.6,
+      "evidence": [
+        "\"# Checking your browser\"",
+        "\"Secured by [ ](https://wordpress.com)\"",
+        "\"This will only take a few seconds...\""
+      ],
+      "description": "The repeated browser checking and security statements suggest automated content filtering or access control, which aligns with the guardrail pattern for ensuring compliance and safety before granting access. However, there is no explicit mention of LLM-based moderation, so confidence is moderate."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "industrial",
+  "sub_vertical": "micromobility fleet management",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "Self-hosted"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Has a GitHub profile with one public Go repository"
+    ]
+  },
+  "unique_findings": [
+    "The repeated 'Checking your browser' pages suggest an unusually aggressive or misconfigured bot/human verification layer, possibly leveraging WordPress.com security features in a way that may be interfering with normal user experience. This is not typical for AI newsletters, which usually prioritize frictionless access.",
+    "The only public code repository is a Go-based PDF reporting tool with a German README and minimal activity, which is highly unusual for a funded AI startup. There is no evidence of proprietary AI models, data pipelines, or even basic newsletter automation infrastructure.",
+    "The presence of a 'Page not found' error and broken links in the main navigation indicates either a site in transition or significant technical debt, which is atypical for a company with substantial seed funding.",
+    "There is no visible evidence of AI-driven content discovery, unique insight generation, or advanced newsletter-specific features\u2014no sign of custom NLP, recommendation systems, or even basic analytics."
+  ],
+  "technical_depth": "low",
+  "newsletter_potential": "low",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Why Luna Systems Built Their Reporting Stack in Go: Lessons from Industrial AI",
+      "summary": "Luna Systems chose Go for their reporting infrastructure, bucking the trend of Python-heavy AI stacks. This decision reflects a focus on performance and reliability in industrial settings, where speed and concurrency matter more than ML library abundance.",
+      "evidence": [
+        "GitHub repo 'luna-reporting' is written in Go",
+        "Industrial vertical demands robust, concurrent systems"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Guardrails Over LLMs: Luna Systems\u2019 Unconventional Approach to AI Security",
+      "summary": "Instead of showcasing flashy LLM integrations, Luna Systems appears to prioritize browser-level guardrails and security checks, suggesting a contrarian stance on what matters most for industrial AI deployments. Is this the future of trustworthy automation?",
+      "evidence": [
+        "Frequent 'Checking your browser' security patterns detected",
+        "No public evidence of LLM integration despite AI focus"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Industrial AI Needs Different Guardrails: Luna Systems\u2019 Deep Dive into Sector-Specific Security",
+      "summary": "Luna Systems operates in the industrial vertical, where security and reliability trump rapid prototyping. Their approach to browser verification and reporting hints at hard-won expertise in protecting mission-critical systems from threats unique to this sector.",
+      "evidence": [
+        "Company based at DCU Alpha Innovation Campus, a hub for industrial innovation",
+        "Persistent emphasis on security checks in user flows"
+      ],
+      "uniqueness_score": 5
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Can Go-Powered Reporting Make AI 10x Faster for Industrial Ops?",
+      "summary": "By leveraging Go for their reporting tools, Luna Systems may offer speed and efficiency advantages over traditional Python-based solutions. This could be a game-changer for industrial teams needing rapid, reliable insights.",
+      "evidence": [
+        "Go is known for high performance and concurrency",
+        "Industrial clients often require real-time reporting"
+      ],
+      "uniqueness_score": 4
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "There is no evidence of proprietary technology or unique LLM stack; the presence of repeated 'Secured by Wordpress.com' and lack of technical detail suggests a thin layer over existing platforms.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of custom models or infrastructure.",
+        "Heavy reliance on Wordpress for site security and hosting.",
+        "No proprietary technology described."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The only visible codebase is a simple Go PDF reporting example with a sparse README and no clear product scope, suggesting the offering is a feature rather than a full product.",
+      "severity": "medium",
+      "evidence": [
+        "GitHub repo is a basic PDF reporting tool.",
+        "No broader product vision or roadmap evident.",
+        "No evidence of integration or platform-level features."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no evidence of a data advantage, technical differentiation, or unique approach; the solution appears easily replicable.",
+      "severity": "high",
+      "evidence": [
+        "No mention of proprietary data or unique algorithms.",
+        "No signs of technical differentiation.",
+        "Public repo is basic and not unique."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The offering is not clearly positioned in the market, and there is no unique angle or competitive differentiation.",
+      "severity": "medium",
+      "evidence": [
+        "No clear product description or market positioning.",
+        "No evidence of unique features or value proposition.",
+        "Crowded space for reporting and PDF generation."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Drover AI",
+        "similarity": "Both provide AI and computer vision solutions for micromobility fleet management, focusing on vehicle compliance and parking.",
+        "how_different": "Luna Systems may differentiate through integration with specific fleet operators or unique technical approaches, but public information is limited."
+      },
+      {
+        "name": "Vianova",
+        "similarity": "Both offer data-driven solutions for micromobility and last-mile transportation, focusing on fleet optimization and compliance.",
+        "how_different": "Vianova is more focused on data aggregation and city dashboards, while Luna appears to emphasize AI-based real-time vehicle behavior management."
+      },
+      {
+        "name": "Bluecity",
+        "similarity": "Both use computer vision and AI for urban mobility monitoring, including micromobility vehicles.",
+        "how_different": "Bluecity is more focused on infrastructure-side sensing (e.g., smart intersections), whereas Luna seems to embed intelligence on the vehicle or fleet side."
+      }
+    ],
+    "differentiation": {
+      "primary": "Luna Systems focuses on using AI and computer vision to actively manage how micromobility vehicles are ridden and parked, aiming for real-time compliance and operational efficiency.",
+      "technical": "Potential use of on-vehicle AI/computer vision for real-time monitoring and control, possibly leveraging custom models and IoT integration. Their GitHub hints at Go-based reporting tools, suggesting a focus on efficient backend processing.",
+      "business": "Positioned as a technology provider for fleet operators, with a likely SaaS or integration model. Their location at an innovation campus may facilitate partnerships with academic or municipal stakeholders.",
+      "positioning": "Luna positions itself as an enabler of safe, compliant, and efficient micromobility through advanced AI, targeting fleet operators who need to ensure regulatory compliance and operational excellence."
+    },
+    "secret_sauce": {
+      "core_advantage": "Real-time, AI-driven management of micromobility vehicle behavior (riding and parking) using computer vision, likely embedded on vehicles.",
+      "defensibility": "Combining AI/computer vision with IoT for real-time fleet management is technically challenging and requires extensive data, model tuning, and integration with vehicle hardware.",
+      "evidence": [
+        "COMPANY DESCRIPTION: Luna provides AI and computer vision to manage how micromobility vehicles are ridden and parked.",
+        "INDUSTRIES: Artificial Intelligence (AI), Computer Vision, Fleet Management, Internet of Things, Last Mile Transportation, Machine Learning",
+        "GitHub repository in Go, suggesting technical focus on performance and backend integration."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "The technical integration of AI/computer vision with micromobility vehicles is non-trivial and provides some defensibility, especially if Luna has proprietary models or datasets. However, the space is competitive, with several well-funded players and potential for new entrants. The moat depends on Luna's ability to scale deployments and maintain technical superiority.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [],
+  "analyzed_at": "2026-01-23 05:18:24.715664+00:00",
+  "confidence_score": 1.0,
+  "raw_content_analyzed": 5152
+}

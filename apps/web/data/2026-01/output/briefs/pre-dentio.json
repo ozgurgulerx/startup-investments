@@ -1,0 +1,211 @@
+{
+  "company_name": "Pre Dentio",
+  "company_slug": "pre-dentio",
+  "website": "https://dentio.ai",
+  "logo_url": null,
+  "description": "Dentio is an AI-powered administrative assistant created especially for dentists.",
+  "funding_amount": 2300000.0,
+  "funding_stage": "pre_seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "Dentio is an AI-powered dental software platform that automates clinical documentation and simplifies administration for dental clinics.",
+        "Our solution is designed for Swedish dental professionals and complies with GDPR and Patientdatalagen.",
+        "Empowering dental professionals with intelligent tools that eliminate administrative work."
+      ],
+      "description": "Dentio leverages industry-specific (dental) data and workflows, tailoring its AI models and automation to the dental sector, with compliance to Swedish healthcare regulations. This suggests the use of proprietary, domain-specific datasets to create a competitive advantage."
+    },
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.7,
+      "evidence": [
+        "Using advanced speech recognition and natural language processing, Dentio transforms spoken consultations into complete, structured patient records in seconds."
+      ],
+      "description": "Dentio uses natural language processing to convert spoken language (from dental consultations) into structured, actionable clinical documentation, automating the translation of natural language into structured data or rules."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.6,
+      "evidence": [
+        "Our solution ... complies with GDPR and Patientdatalagen.",
+        "We protect patient data with uncompromising security and act with the integrity healthcare deserves."
+      ],
+      "description": "Dentio emphasizes compliance with healthcare regulations and data protection, which likely involves automated checks for privacy and compliance, potentially using secondary models or rule-based systems to ensure outputs meet regulatory standards."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "healthcare",
+  "sub_vertical": "clinical documentation automation for dental practices",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Company states a focus on security and GDPR compliance",
+      "Clear articulation of mission and values",
+      "Mentions of technical features (AI, speech recognition, NLP) in product description"
+    ]
+  },
+  "unique_findings": [
+    "Dentio leverages advanced speech recognition and natural language processing (NLP) to convert spoken dental consultations directly into structured patient records, which is a technically challenging real-time workflow in a regulated medical context.",
+    "The platform is specifically designed for Swedish dental professionals and claims compliance with both GDPR and Patientdatalagen, indicating a bespoke approach to regional data privacy and healthcare regulations\u2014a complexity often overlooked by global competitors.",
+    "Explicit mention of MDR (2017/745) and CE marking suggests Dentio is building toward certified medical device status, which requires rigorous technical validation and documentation, adding layers of hidden complexity to their implementation.",
+    "The repeated presence of 404 errors and cookie consent overlays may indicate either a fragmented web architecture or aggressive privacy compliance, but also hints at possible technical debt or rapid iteration cycles typical of early-stage, AI-first startups."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Dentio Tackles Dental Admin with Speech-to-Structured-Record AI",
+      "summary": "Dentio's platform transforms spoken dental consultations directly into structured patient records using advanced speech recognition and NLP. This approach aims to eliminate manual documentation, but questions remain about the technical depth and robustness of their architecture.",
+      "evidence": [
+        "Dentio claims to automate clinical documentation via speech recognition and natural language processing.",
+        "No details provided on underlying LLMs or model choices; engineering quality score is low (2/10)."
+      ],
+      "uniqueness_score": 5
+    },
+    {
+      "angle_type": "data",
+      "headline": "Dentio\u2019s Data Moat: Building Proprietary Swedish Dental Datasets",
+      "summary": "By focusing on Swedish dental clinics and compliance with GDPR and Patientdatalagen, Dentio is positioned to collect unique, localized clinical data. This could become a defensible data moat if leveraged for model fine-tuning and workflow optimization.",
+      "evidence": [
+        "Dentio targets Swedish dental professionals and emphasizes regulatory compliance.",
+        "Vertical data moat pattern detected, but no explicit mention of dataset size or annotation strategy."
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "From Chairside to Code: Dentio\u2019s Deep Dive into Swedish Dental Workflows",
+      "summary": "Dentio\u2019s founders claim a mission to empower dental professionals by eliminating admin overhead, suggesting strong domain knowledge. Their focus on local regulations and workflow pain points hints at deep vertical integration, but technical execution appears early-stage.",
+      "evidence": [
+        "Explicit focus on Swedish dental clinics and regulatory frameworks.",
+        "Mission and values emphasize solving real problems for dental professionals."
+      ],
+      "uniqueness_score": 4
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Dentio Bets on Speech-First Admin in a Form-Driven Industry",
+      "summary": "While most healthcare admin tools focus on structured forms and templates, Dentio is betting on real-time speech-to-record automation. This contrarian approach could streamline workflows\u2014or run into accuracy and adoption hurdles.",
+      "evidence": [
+        "Dentio\u2019s core value proposition is speech-driven documentation.",
+        "Healthcare admin software traditionally relies on manual forms and checklists."
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "The product claims to be 'AI-powered' and uses terms like 'advanced speech recognition' and 'natural language processing' without specifying the underlying technology, models, or proprietary advancements. The technical stack and approach are unknown, which raises questions about the depth of innovation.",
+      "severity": "medium",
+      "evidence": [
+        "Claims of 'AI-powered dental software platform' and 'advanced speech recognition and natural language processing' with no details on models, data, or proprietary technology.",
+        "No mention of technical stack or unique algorithms."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear evidence of a data moat, proprietary technology, or technical differentiation. The solution appears to leverage generic AI capabilities that could be replicated by competitors or incumbents, especially if built on top of widely available APIs.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary datasets, unique clinical integrations, or exclusive partnerships.",
+        "No technical details suggesting defensibility beyond generic AI/LLM capabilities."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Automating clinical documentation via speech recognition is a valuable feature, but it risks being absorbed by larger incumbents or added as a module to existing platforms. The broader product vision is not clearly articulated beyond this core feature.",
+      "severity": "medium",
+      "evidence": [
+        "Core value proposition centers on automating documentation, a feature that could be integrated by established dental software providers.",
+        "No clear expansion path to a platform or ecosystem."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The market for AI-powered clinical documentation is increasingly crowded, and the positioning does not clearly distinguish Dentio from other solutions. The focus on Swedish dental professionals is a niche, but not necessarily a strong differentiator.",
+      "severity": "low",
+      "evidence": [
+        "No unique technical or workflow innovation highlighted.",
+        "Similar claims made by multiple competitors in the healthtech space."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Kiroku",
+        "similarity": "AI-powered dental note-taking and documentation automation for dental professionals.",
+        "how_different": "Pre Dentio focuses specifically on the Swedish market, with GDPR and Patientdatalagen compliance, and emphasizes speech recognition and NLP for transforming spoken consultations into structured records."
+      },
+      {
+        "name": "Suki AI",
+        "similarity": "AI-driven clinical documentation for healthcare professionals using speech recognition and NLP.",
+        "how_different": "Suki is broader (medical, not dental-specific), while Pre Dentio is tailored for dental clinics and Swedish regulatory requirements."
+      },
+      {
+        "name": "DentalMind",
+        "similarity": "Dental software platform with automation and digital workflow features for clinics.",
+        "how_different": "DentalMind is more focused on digital imaging and practice management, while Pre Dentio\u2019s core is AI-powered administrative automation and clinical documentation."
+      },
+      {
+        "name": "Dentrix",
+        "similarity": "Practice management software for dental clinics, including administrative workflow tools.",
+        "how_different": "Dentrix is a legacy practice management system with limited AI automation; Pre Dentio differentiates with advanced AI/NLP and real-time speech-to-record capabilities."
+      }
+    ],
+    "differentiation": {
+      "primary": "Pre Dentio automates clinical documentation and administration for dental clinics using advanced speech recognition and natural language processing, specifically tailored for Swedish dental professionals.",
+      "technical": "Utilizes advanced speech recognition and NLP to convert spoken consultations into structured patient records in seconds. Emphasizes compliance with GDPR and Patientdatalagen, and is likely optimized for Swedish language and dental terminology.",
+      "business": "Targets Swedish dental professionals with a focus on reducing administrative burden, improving accuracy, and saving time. Positions itself as a modern, AI-first solution for dental workflows, with a customer-obsessed culture and strong emphasis on security and compliance.",
+      "positioning": "Positions as the intelligent, AI-powered assistant purpose-built for Swedish dental clinics, promising 'less admin, more dentistry' and enabling clinics to modernize workflows and focus on patient care."
+    },
+    "secret_sauce": {
+      "core_advantage": "Deep integration of AI-driven speech recognition and NLP tailored for Swedish dental workflows, with regulatory compliance (GDPR, Patientdatalagen) as a core feature.",
+      "defensibility": "Local language and regulatory adaptation, combined with a focus on real-time, accurate speech-to-structured-records for dentistry, create barriers for generic or international competitors.",
+      "evidence": [
+        "\u2018Dentio is an AI-powered dental software platform that automates clinical documentation and simplifies administration for dental clinics.\u2019",
+        "\u2018Our solution is designed for Swedish dental professionals and complies with GDPR and Patientdatalagen.\u2019",
+        "\u2018Using advanced speech recognition and natural language processing, Dentio transforms spoken consultations into complete, structured patient records in seconds.\u2019"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Pre Dentio\u2019s moat is based on its local regulatory compliance, language adaptation, and technical focus on dental-specific speech-to-text automation. While these are meaningful barriers for international or generic solutions, they are not insurmountable for well-funded competitors or incumbents with local partnerships. The moat is strengthened by early mover advantage and customer-centric execution in the Swedish dental market.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Dentio is an AI-powered dental software platform that automates clinical documentation and simplifies administration for dental clinics.",
+    "Using advanced speech recognition and natural language processing, Dentio transforms spoken consultations into complete, structured patient records in seconds.",
+    "Strong focus on Swedish regulatory compliance (GDPR, Patientdatalagen) as a technical differentiator.",
+    "Automated real-time conversion of spoken dental consultations into structured patient records tailored for local legal frameworks."
+  ],
+  "analyzed_at": "2026-01-31 11:06:31.126321+00:00",
+  "confidence_score": 0.9,
+  "raw_content_analyzed": 12280
+}

@@ -12,12 +12,54 @@
 6. **ONLY work with local files and git** - The safe operations are: reading files, editing code, generating reports, git commits/push
 7. **When in doubt, ASK** - If unsure whether an operation is safe, stop and ask the user
 
+### Database Safety Rules (ABSOLUTE - NO EXCEPTIONS)
+
+**NEVER execute these SQL commands without explicit user confirmation:**
+- `DROP TABLE` / `DROP DATABASE` / `DROP SCHEMA`
+- `TRUNCATE TABLE`
+- `DELETE FROM` (especially without WHERE clause or with broad WHERE)
+- `ALTER TABLE DROP COLUMN`
+- Any schema migration that removes tables or columns
+
+**This applies to ALL databases:**
+- The BuildAtlas PostgreSQL (`aistartupstr`)
+- Any other database in the Azure subscription
+- Any database you might connect to for any reason
+
+**The correct way to update data is via UPSERT patterns:**
+```sql
+-- CORRECT: Use INSERT ... ON CONFLICT for safe updates
+INSERT INTO startups (name, website, funding_amount, ...)
+VALUES ($1, $2, $3, ...)
+ON CONFLICT (id) DO UPDATE SET
+    funding_amount = EXCLUDED.funding_amount,
+    updated_at = NOW();
+
+-- NEVER: Do not delete and re-insert
+DELETE FROM startups WHERE period = '2026-01';  -- FORBIDDEN
+INSERT INTO startups ...;
+```
+
+### Azure Resource Rules (ABSOLUTE - NO EXCEPTIONS)
+
+**All Azure resources ALREADY EXIST. Never recreate them:**
+- Never run `az group create` for existing resource groups
+- Never run `az webapp create`, `az aks create`, `az postgres flexible-server create`
+- Never delete and recreate resources to "fix" issues
+- Never modify network rules, firewall settings, or private endpoints
+
+**If something seems broken:**
+1. Check logs first (`az webapp log`, `kubectl logs`)
+2. Ask the user before taking any action
+3. Prefer restarting over recreating
+
 ### Safe Operations
 - Reading/writing local files in this repository
 - Running Python scripts for data processing (local only)
 - Git operations (add, commit, push)
 - Generating reports and statistics from CSV data
 - Viewing Azure resources (read-only `az` commands)
+- `SELECT` queries on databases (read-only)
 
 ### Dangerous Operations (REQUIRE EXPLICIT CONFIRMATION)
 - Any `az` command that modifies resources
@@ -25,6 +67,8 @@
 - Any database INSERT/UPDATE/DELETE operations
 - Uploading to blob storage
 - Modifying GitHub secrets or workflows
+- Any `DROP`, `TRUNCATE`, `ALTER TABLE DROP` commands
+- Schema migrations
 
 ## Architecture Overview
 
@@ -235,6 +279,57 @@ git add -A && git commit -m "Description of change" && git push
 - **Never delete any data from the database unless explicitly asked**
 - Even when explicitly asked to delete data, always ask for confirmation before executing the deletion
 - Prefer soft deletes (marking records as inactive/deleted) over hard deletes when possible
+
+### Database Schema (DO NOT MODIFY WITHOUT EXPLICIT APPROVAL)
+
+**PostgreSQL Server:** `aistartupstr.postgres.database.azure.com`
+**Database:** `startupinvestments`
+
+```
+Tables (ALL EXIST - DO NOT DROP OR TRUNCATE):
+├── startups              # Core startup data with funding info
+├── startup_snapshots     # Monthly point-in-time snapshots
+├── funding_rounds        # Individual funding round details
+├── investors             # Investor profiles (VCs, angels, corporates)
+├── investments           # Junction: investors ↔ funding rounds
+├── startup_events        # Events triggering re-analysis
+├── deep_research_queue   # LLM analysis queue
+├── pattern_correlations  # Pattern co-occurrence statistics
+├── crawl_logs            # Website crawl history
+├── users                 # Authenticated users
+├── watchlist_items       # User's saved startups
+├── newsletters           # Generated newsletter content
+└── startup_briefs        # Versioned brief content
+```
+
+**Forbidden SQL Operations:**
+- `DROP TABLE` any of the above tables
+- `TRUNCATE TABLE` any table
+- `DELETE FROM table` without specific WHERE clause
+- `ALTER TABLE DROP COLUMN` on any table
+- Schema changes that remove data
+
+### Correct Database Update Process
+
+The database is updated via Azure Functions, NOT directly:
+
+```
+CSV File → Azure Blob Storage (incoming/)
+              ↓
+    Azure Function: process_csv_blob
+              ↓
+    Delta Processor classifies each startup:
+    ├── NEW → INSERT new record
+    ├── CHANGED → UPDATE existing record (UPSERT)
+    └── UNCHANGED → Skip (update timestamp only)
+              ↓
+    All operations use ON CONFLICT for safety
+```
+
+**To trigger a database update:**
+1. Upload CSV to `startup-csvs/incoming/` in Azure Blob Storage
+2. Azure Function automatically processes and updates database
+3. Never run direct INSERT/UPDATE/DELETE on production database
 
 ## API Security Architecture
 
@@ -560,17 +655,60 @@ When Azure Functions are fully deployed, the process becomes automated:
 
 **WARNING: These are LIVE PRODUCTION services. Do not modify without explicit user confirmation.**
 
-### Resource Inventory (EXISTING - DO NOT RECREATE)
+### ABSOLUTE PROHIBITIONS
+
+**NEVER run these commands:**
+```bash
+# Resource deletion - FORBIDDEN
+az group delete ...
+az webapp delete ...
+az aks delete ...
+az postgres flexible-server delete ...
+az storage account delete ...
+
+# Resource recreation - FORBIDDEN (they already exist)
+az group create --name aistartuptr ...
+az webapp create ...
+az aks create ...
+az postgres flexible-server create ...
+
+# Configuration changes - FORBIDDEN without approval
+az postgres flexible-server firewall-rule ...
+az network private-endpoint ...
+az storage account network-rule ...
+```
+
+### Resource Groups (BOTH EXIST - DO NOT RECREATE)
+
+| Resource Group | Purpose | Contains |
+|----------------|---------|----------|
+| `aistartuptr` | Application resources | App Service, AKS, Storage, Front Door, ACR |
+| `aistartupstr` | Database resources | PostgreSQL Flexible Server |
+
+### Compute Resources (ALL RUNNING - DO NOT RECREATE)
 
 | Service | Name | Resource Group | Status | Purpose |
 |---------|------|----------------|--------|---------|
 | App Service | `buildatlas-web` | `aistartuptr` | **RUNNING** | Next.js frontend hosting |
 | AKS | `aks-aistartuptr` | `aistartuptr` | **RUNNING** | Express.js API hosting |
+| Function App | `buildatlas-functions` | `aistartuptr` | **RUNNING** | Automation (CSV processing, monitoring) |
+
+### Data Resources (ALL RUNNING - DO NOT RECREATE)
+
+| Service | Name | Resource Group | Status | Purpose |
+|---------|------|----------------|--------|---------|
 | PostgreSQL | `aistartupstr` | `aistartupstr` | **RUNNING** | Primary database |
 | Storage Account | `buildatlasstorage` | `aistartuptr` | **RUNNING** | CSV uploads, blob storage |
-| Front Door | `afd-aistartuptr-prod` | `aistartuptr` | **RUNNING** | CDN, WAF, routing |
 | Container Registry | `aistartuptr` | `aistartuptr` | **RUNNING** | Docker images for API |
-| Private Endpoint | `pe-aistartupstr-postgres` | `aistartuptr` | **RUNNING** | Secure DB connection |
+
+### Networking Resources (ALL CONFIGURED - DO NOT MODIFY)
+
+| Resource | Name | Resource Group | Purpose |
+|----------|------|----------------|---------|
+| Front Door | `afd-aistartuptr-prod` | `aistartuptr` | CDN, WAF, API routing |
+| Private Endpoint | `pe-aistartupstr-postgres` | `aistartuptr` | Secure DB connection |
+| Virtual Network | `vnet-aistartuptr` | `aistartuptr` | Network isolation |
+| DNS Zone | Private DNS for PostgreSQL | `aistartuptr` | Internal name resolution |
 
 ### Live URLs
 

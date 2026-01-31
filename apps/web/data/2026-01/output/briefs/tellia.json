@@ -1,0 +1,246 @@
+{
+  "company_name": "Tellia",
+  "company_slug": "tellia",
+  "website": "https://tell-ia.com/",
+  "logo_url": null,
+  "description": "Tellia is an agtech company that offers voice assisted operating software for farmers and agronomic advisers.",
+  "funding_amount": 2999997.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 1.0,
+      "evidence": [
+        "Voice AI for agriculture, built with agronomists and farm teams.",
+        "Already deployed with farming operations across the US, Europe, and Africa",
+        "From 750-acre specialty crop farms to 5,000-acre operations with 50+ workers, to PCAs and CCAs covering 30,000+ acres, Tellia is helping Ag professionals of all sizes modernize their data capture.",
+        "10,000+ logs recorded",
+        "proprietary datasets, industry-specific training, domain expertise"
+      ],
+      "description": "Tellia is clearly leveraging proprietary, agriculture-specific data collected from real-world deployments and field teams. Their focus on agronomists, farm teams, and industry-specific workflows indicates a strong vertical data moat, using unique, hard-to-replicate datasets to improve and differentiate their AI."
+    },
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.7,
+      "evidence": [
+        "Your table populates automatically. Add any column you need.",
+        "Discuss with your data, as easy as a conversation.",
+        "Ask anything, Tellia goes through all your data and summarizes a clean answer, resurfacing any useful info, right when you need it.",
+        "No apps No typing Just talk"
+      ],
+      "description": "Tellia enables users to interact with their data using natural language, which is then converted into structured records and database updates. This suggests a natural-language-to-structured-data (and potentially code/rule) pipeline, allowing non-technical users to manipulate data systems through speech."
+    },
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.6,
+      "evidence": [
+        "Ask anything, Tellia goes through all your data and summarizes a clean answer, resurfacing any useful info, right when you need it.",
+        "Discuss with your data, as easy as a conversation."
+      ],
+      "description": "Tellia appears to retrieve relevant data from structured logs and databases, then generates summaries or answers in response to user queries. This is indicative of a retrieval-augmented generation approach, combining data retrieval with generative AI."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.5,
+      "evidence": [
+        "10,000+ logs recorded",
+        "Now, instead of scattered photos and paper notes, every observation becomes a traceable, teachable moment.",
+        "Tellia helped the junior team member not only identify the likely cause but also learn the language of plant diagnostics"
+      ],
+      "description": "The accumulation of large volumes of field data and the mention of teachable moments suggest that Tellia could be using user interactions and feedback to improve its models over time, although explicit feedback loops or model retraining are not directly stated."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "industrial",
+  "sub_vertical": "agtech (agricultural technology)",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Product is deployed and in use by real customers",
+      "Team bios include technical leadership and experience",
+      "Some mention of integration options with current systems"
+    ]
+  },
+  "unique_findings": [
+    "Tellia's core technical differentiator is a voice-first, app-free AI assistant that enables field data capture via phone calls or WhatsApp, removing the need for smartphones, apps, or even internet access. This is highly unusual in a market dominated by mobile apps and web dashboards.",
+    "The system appears to perform real-time, natural language interaction and structured data extraction from unstructured, multilingual voice input, automatically populating databases and generating actionable insights. This requires robust on-the-fly speech recognition, language understanding, and domain-specific reasoning, all optimized for noisy, low-connectivity field environments.",
+    "Tellia's ability to provide PCA-level (Professional Crop Advisor) diagnostic suggestions from field photos and voice notes hints at a sophisticated, possibly multimodal AI pipeline that combines image analysis with agronomic knowledge graphs or expert systems.",
+    "The product is designed for seamless integration with existing farm workflows and databases, suggesting a flexible backend architecture capable of mapping unstructured conversational data to arbitrary, user-defined schemas\u2014an underappreciated technical challenge.",
+    "The system is already live across multiple continents (US, Europe, Africa) and supports multilingual, low-literacy teams, indicating a high degree of localization and robustness to diverse accents, languages, and agricultural practices."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "No Apps, No Typing: Tellia\u2019s Radical Voice-First Stack for Field Data Capture",
+      "summary": "Tellia skips the usual app-based UX entirely, letting field teams interact with data using only voice\u2014via phone or WhatsApp. This architecture removes the friction of screens and typing, enabling hands-free, real-time data capture in environments where digital literacy and connectivity are often limiting factors.",
+      "evidence": [
+        "Voice-first assistant works via phone and WhatsApp, no app or typing required",
+        "System is designed for zero training, no smartphone, and no internet access"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: How Tellia Turns Messy Field Talk into Proprietary Ag Knowledge",
+      "summary": "Tellia\u2019s core advantage is its ability to structure and own unique, high-value agricultural data\u2014transforming scattered voice notes, photos, and field observations into a vertically-integrated data moat. This creates a continuously growing, proprietary dataset that\u2019s hard for horizontal AI competitors to replicate.",
+      "evidence": [
+        "10,000+ logs recorded from real-world field teams across three continents",
+        "System captures and structures data that was previously lost in notebooks, trucks, and memories"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "AI That Speaks Agronomist: Building for the Field, Not the Lab",
+      "summary": "Tellia\u2019s leadership and engineering team bring deep agricultural and technical expertise, designing AI that understands the nuances of fieldwork. Their approach bridges the gap between boots-on-the-ground realities and advanced technology, enabling features like PCA-level plant diagnostics and multilingual support.",
+      "evidence": [
+        "CEO and CTO have direct experience in agtech and farming operations",
+        "AI can describe plant symptoms and suggest interventions at an expert level"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Tellia Bets Against Apps\u2014and Wins with Old-School Voice Calls",
+      "summary": "While most AI startups chase app downloads and slick UIs, Tellia goes against the grain by doubling down on voice calls and basic messaging. This contrarian bet enables adoption in low-connectivity, low-tech environments, unlocking markets that mainstream SaaS ignores.",
+      "evidence": [
+        "Explicitly avoids apps, screens, and typing in favor of phone and WhatsApp",
+        "Targets multilingual, digitally underserved field teams in US, Europe, and Africa"
+      ],
+      "uniqueness_score": 8
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "The product appears to be a thin layer over existing LLM APIs (e.g., OpenAI/Anthropic), with no evidence of proprietary models or unique technical infrastructure. The core value proposition is voice-to-structured-data, which can be achieved with off-the-shelf APIs.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary LLMs or unique AI models.",
+        "Marketing focuses on 'voice-first' and 'AI assistant' but lacks technical detail.",
+        "No specifics on custom NLP, model training, or unique data pipelines."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The offering could be easily absorbed as a feature by larger incumbents (e.g., CRMs, farm management platforms, or even WhatsApp/Google/Apple). The main differentiator is voice input and structured data output, which is a single feature rather than a comprehensive platform.",
+      "severity": "high",
+      "evidence": [
+        "Core workflow: call, speak, data auto-logged\u2014this is a feature, not a platform.",
+        "No evidence of broader ecosystem, extensibility, or platform stickiness.",
+        "Marketing claims focus on replacing paperwork and forms with voice, which is a narrow use case."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear data or technical moat. The product relies on standard voice-to-text and LLM summarization, which are widely available. No mention of unique datasets, proprietary models, or defensible network effects.",
+      "severity": "high",
+      "evidence": [
+        "No mention of proprietary data, unique integrations, or exclusive partnerships.",
+        "Claims of 'vertical data moats' and 'continuous-learning flywheels' are not substantiated.",
+        "The product is already live in multiple regions, but this does not create defensibility."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing uses buzzwords like 'AI-powered', 'voice-first', and 'continuous-learning flywheels' without technical substantiation. There is a disconnect between the claims and the actual described functionality.",
+      "severity": "medium",
+      "evidence": [
+        "Phrases like 'AI interacts naturally', 'no training needed', and 'summarizes a clean answer' are not backed by technical detail.",
+        "No specifics on how the AI works, what models are used, or how learning/improvement happens.",
+        "References to 'RAG', 'vertical data moats', and 'flywheels' are not explained or evidenced."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The product operates in a crowded space (voice-to-data, agtech, digital assistants) without a clear, unique angle. The approach is similar to other voice-enabled data capture solutions.",
+      "severity": "medium",
+      "evidence": [
+        "No clear technical or workflow differentiation from existing agtech or voice assistant products.",
+        "No mention of unique integrations, partnerships, or exclusive features.",
+        "Use cases and testimonials are generic and could apply to any similar tool."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "AgVoice",
+        "similarity": "Both offer voice-based data capture for agriculture, targeting field teams and agronomists.",
+        "how_different": "Tellia emphasizes no apps, no typing, and works via phone/WhatsApp, requiring no smartphone or internet, whereas AgVoice typically requires a mobile app and device. Tellia also highlights multilingual support and instant integration with existing databases."
+      },
+      {
+        "name": "FarmLogs",
+        "similarity": "Both provide digital record-keeping and analytics for farm operations.",
+        "how_different": "FarmLogs relies on app-based manual input and dashboards, while Tellia focuses on voice-first, hands-free data capture with no screens and instant database sync."
+      },
+      {
+        "name": "Taranis",
+        "similarity": "Both serve large-scale farming operations with digital agronomy tools.",
+        "how_different": "Taranis is focused on imagery and analytics via drones and satellite, whereas Tellia is focused on voice-driven, conversational data capture and insight delivery."
+      },
+      {
+        "name": "Granular",
+        "similarity": "Both offer farm management software and data-driven decision support.",
+        "how_different": "Granular is primarily desktop/app-based and requires manual data entry; Tellia is voice-first, requiring no screens, apps, or typing."
+      }
+    ],
+    "differentiation": {
+      "primary": "Voice-first, hands-free data capture and insight delivery for agriculture, with no apps, screens, or typing required.",
+      "technical": "Works via phone or WhatsApp, supports multilingual, scattered teams, does not require smartphones or internet, instantly syncs structured data to databases, and provides conversational AI-powered insights.",
+      "business": "Targets field teams of all sizes (from small family farms to large operations), offers rapid onboarding without training, and integrates with existing workflows and databases. Pilots live in multiple continents, showing adaptability.",
+      "positioning": "Tellia positions itself as the simplest, most accessible way for field teams to capture and act on data, removing barriers of digital literacy, device access, and workflow disruption. It claims to be a true voice assistant for agriculture, not just another app."
+    },
+    "secret_sauce": {
+      "core_advantage": "True voice-first, device-agnostic AI assistant for agriculture that requires no app, no typing, no training, and works in any language and without internet.",
+      "defensibility": "Deep integration with field workflows, ability to operate over basic phone calls and WhatsApp (not just smartphones), instant structured data sync, and strong focus on agricultural expertise and multilingual support.",
+      "evidence": [
+        "\u2018No apps No typing Just talk\u2019",
+        "\u2018All in seconds in any language, no training, smartphone or internet access needed.\u2019",
+        "\u2018Voice AI for agriculture, built with agronomists and farm teams.\u2019",
+        "\u2018Call Tellia\u2019s number and report the info. The AI interacts naturally. Your table populates automatically.\u2019",
+        "\u2018Already live in France, USA & Africa. 10,000+ logs recorded.\u2019"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Tellia\u2019s moat is based on its voice-first, device-agnostic approach and deep agricultural domain expertise, making it accessible to low-tech, multilingual, and distributed teams. While voice AI and integrations can be replicated by larger players, Tellia\u2019s focus on no-app, no-training, and instant database sync for agriculture is still unique and hard to match for incumbents focused on app-based solutions. However, the moat is medium because large agtech or voice AI companies could potentially build similar solutions if they prioritize this segment.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Voice-first AI",
+    "Tellia turns real conversations into clean, structured records that sync to your databases. Ask for insights you can act on right away.",
+    "The AI interacts naturally.",
+    "Discuss with your data, as easy as a conversation.",
+    "Ask anything, Tellia goes through all your data and summarizes a clean answer, resurfacing any useful info, right when you need it.",
+    "Tellia described the symptoms perfectly \u2014 almost like reading a PCA textbook. It even suggested irrigation might be the issue.",
+    "Voice-first, app-free interaction for field data capture in agriculture, enabling hands-free, real-time data structuring and insights without requiring digital literacy or internet access."
+  ],
+  "analyzed_at": "2026-01-31 11:57:50.222707+00:00",
+  "confidence_score": 0.85,
+  "raw_content_analyzed": 9364
+}

@@ -1,0 +1,229 @@
+{
+  "company_name": "Pre Zeya Health",
+  "company_slug": "pre-zeya-health",
+  "website": "https://zeya.health",
+  "description": "Zeya is an AI co-pilot that automates admin and streamlines workflows for outpatient clinics across Asia.",
+  "funding_amount": 575000.0,
+  "funding_stage": "pre_seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "Trusted by leading clinics across Singapore",
+        "Zeya automates repetitive admin across your EHR \u2014 including patient reminders, WhatsApp follow-ups, documents, insurance checks, and referral workflows \u2014 without changing your existing system.",
+        "Connect your EHR + WhatsApp: Supports Plato, SGIMed, ClinicAssist, GPConnect and more.",
+        "Zeya is built with healthcare compliance in mind \u2014 we are PDPA, HIPAA, GDPR, and ISO 27001 ready."
+      ],
+      "description": "Zeya Health leverages proprietary, healthcare-specific datasets and integrations with local EHR systems, building a deep domain moat in clinic administration and compliance workflows."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.8,
+      "evidence": [
+        "An AI frontdesk that works 24/7 for your clinic",
+        "Zeya learns your admin flows in the background",
+        "Tasks Start Completing Automatically: Bookings, reminders, reschedules, follow-ups, all handled end-to-end."
+      ],
+      "description": "The product functions as an autonomous agent that orchestrates multi-step admin workflows, interacts with EHRs and WhatsApp, and completes tasks without human intervention."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.7,
+      "evidence": [
+        "Zeya is built with healthcare compliance in mind \u2014 we are PDPA, HIPAA, GDPR, and ISO 27001 ready.",
+        "Data is encrypted end-to-end, with full audit logs and access controls."
+      ],
+      "description": "The system incorporates compliance validation and access controls, likely using automated checks to ensure outputs and workflows meet regulatory requirements."
+    }
+  ],
+  "market_type": "vertical",
+  "vertical": "healthcare",
+  "sub_vertical": "clinical operations automation",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 4,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Claims of EHR integration with multiple platforms (Plato, SGIMed, ClinicAssist, GPConnect)",
+      "Mentions of compliance with PDPA, HIPAA, GDPR, and ISO 27001",
+      "Promises of rapid onboarding (live in 48 hours)",
+      "Automated workflows and end-to-end encryption mentioned"
+    ]
+  },
+  "unique_findings": [
+    "Zeya Health claims to integrate with multiple EHR systems (Plato, SGIMed, ClinicAssist, GPConnect, etc.) without requiring new logins, formats, or manual rule-setting. This suggests a universal EHR integration layer that abstracts away backend differences, which is technically challenging due to the heterogeneity of EHR APIs and data models.",
+    "The platform automates WhatsApp-based workflows without requiring clinics to change numbers or open new accounts, implying deep integration with WhatsApp Business API and possibly custom middleware to handle both proactive and reactive messaging at scale.",
+    "The onboarding process is positioned as 'live in 48 hours' with 'no training' and 'no manual rule-setting.' This hints at automated workflow discovery, possibly using AI/ML to infer admin flows from EHR and communication logs, which is a non-trivial problem in process mining and automation.",
+    "Claims of compliance with PDPA, HIPAA, GDPR, and ISO 27001, plus end-to-end encryption and full audit logs, indicate a significant investment in security and regulatory tech, which is often overlooked in early-stage healthtech but critical for defensibility.",
+    "The system is described as running 'in the background' and fitting 'seamlessly' into existing tools, suggesting a focus on invisible automation and minimizing workflow disruption\u2014a UX/technical challenge often underestimated in healthcare IT."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Guardrail-as-LLM: Zeya\u2019s Unconventional Approach to Healthcare Automation",
+      "summary": "Zeya Health leverages a 'Guardrail-as-LLM' architecture, diverging from typical agentic AI stacks by embedding compliance and workflow guardrails directly into their automation layer. This approach promises error-free admin and consistent execution, but raises questions about extensibility and adaptability in complex clinical environments.",
+      "evidence": [
+        "Build Patterns Detected: Guardrail-as-LLM, Agentic Architectures",
+        "Claims of error-free admin and automated, repeatable workflows"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: How Zeya\u2019s Clinic Integrations Power Proprietary Automation",
+      "summary": "By integrating directly with leading Singapore EHRs like Plato, SGIMed, and ClinicAssist, Zeya Health builds a vertical data moat that enables highly tailored automation. Their access to granular clinic workflow data gives them a defensible edge in building agentic systems that actually work in real-world settings.",
+      "evidence": [
+        "Supports Plato, SGIMed, ClinicAssist, GPConnect and more",
+        "Automates bookings, reminders, reschedules, and follow-ups end-to-end"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "100 Hours Saved Weekly: Zeya\u2019s AI Frontdesk Delivers Real 10x Clinic Efficiency",
+      "summary": "Zeya Health claims clinics save over 100 hours of staff time per week just with reminder automations, suggesting their agentic workflows are not just hype but deliver measurable operational impact. The promise of going live in 48 hours and reducing headcount makes their efficiency claims worth a technical deep dive.",
+      "evidence": [
+        "Testimonial: 'With just the reminder automations, we saved over 100 hours of staff time per week'",
+        "Live in 48 hours, reduces headcount and labor cost"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "No Training Required: Zeya Bets Against Customization in Clinic AI",
+      "summary": "While most healthcare AI platforms tout extensive onboarding and customization, Zeya Health claims 'no training, no hassle'\u2014betting that agentic automation can be plug-and-play. This contrarian stance challenges the norm in healthcare IT, but may face skepticism from technical audiences wary of one-size-fits-all solutions.",
+      "evidence": [
+        "Customer quote: 'No training, no hassle'",
+        "Automates exactly what clinics need behind the scenes"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core offering appears to be automating admin workflows for clinics via WhatsApp and EHR integration. This is a single feature that could be easily absorbed by EHR incumbents or messaging platforms, lacking evidence of a broader product vision.",
+      "severity": "medium",
+      "evidence": [
+        "Claims focus on automating bookings, reminders, reschedules, follow-ups\u2014discrete admin tasks.",
+        "No mention of a platform or extensible product beyond workflow automation.",
+        "FAQ and product copy focus on a narrow set of admin automations."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear evidence of a proprietary data advantage, technical differentiation, or unique algorithms. The integrations and automations described could be replicated by competitors, especially EHR vendors or messaging platforms.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary datasets, unique AI models, or exclusive partnerships.",
+        "Integrations listed are with common EHRs and WhatsApp, which are open to other vendors.",
+        "Marketing copy emphasizes outcomes (time saved, error reduction) but not how these are uniquely achieved."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "The product is described as an 'AI frontdesk' and claims 'error free admin' and 'tasks start completing automatically,' but there is no technical detail or substantiation for these claims. The use of 'AI' is not explained.",
+      "severity": "medium",
+      "evidence": [
+        "Phrases like 'AI frontdesk that works 24/7' and 'Zeya learns your admin flows in the background' are not backed by technical explanation.",
+        "No details on the LLMs or models used, nor on how learning or automation is achieved.",
+        "Claims of 'error free admin' and 'every task gets completed on time, the same way, every day' are strong but unsupported."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The solution operates in a crowded space (admin automation for healthcare clinics) and does not present a unique angle or clear differentiation from other workflow automation or chatbot solutions.",
+      "severity": "medium",
+      "evidence": [
+        "Similar offerings exist from EHR vendors, WhatsApp business integrations, and generic workflow automation tools.",
+        "No unique features, proprietary integrations, or vertical-specific innovations are highlighted.",
+        "Testimonials focus on time savings and simplicity, which are common claims in this market."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "HealthPlix",
+        "similarity": "Both offer workflow automation and digital tools for clinics, targeting outpatient healthcare providers.",
+        "how_different": "Pre Zeya Health focuses on AI-driven, background automation with instant WhatsApp/EHR integration and no required training or workflow changes, while HealthPlix typically requires onboarding and more manual configuration."
+      },
+      {
+        "name": "Doctify",
+        "similarity": "Both improve clinic efficiency and patient engagement through digital platforms.",
+        "how_different": "Pre Zeya Health automates admin tasks across EHRs and WhatsApp, emphasizing no disruption to existing workflows, whereas Doctify is more focused on patient reviews and booking management."
+      },
+      {
+        "name": "Clinicea",
+        "similarity": "Both provide SaaS solutions for clinics, including EHR integration and workflow automation.",
+        "how_different": "Pre Zeya Health claims instant integration with multiple EHRs and WhatsApp, and automates admin tasks without requiring new logins or formats, while Clinicea typically requires more setup and training."
+      },
+      {
+        "name": "Plato (EHR)",
+        "similarity": "Both serve outpatient clinics in Singapore and Asia, with EHR and workflow automation features.",
+        "how_different": "Pre Zeya Health integrates with Plato and other EHRs to automate admin tasks, rather than replacing the EHR or requiring migration."
+      },
+      {
+        "name": "SGIMed",
+        "similarity": "Both are used by clinics in Singapore for patient management and workflow automation.",
+        "how_different": "Pre Zeya Health acts as an AI layer on top of SGIMed and other EHRs, automating admin tasks and WhatsApp communication without changing the underlying system."
+      }
+    ],
+    "differentiation": {
+      "primary": "Pre Zeya Health offers a virtual AI frontdesk that automates repetitive admin tasks across EHRs and WhatsApp, with instant integration, no workflow changes, and no staff training required.",
+      "technical": "Their engine maps clinic workflows in the background, supports instant integration with multiple EHRs and WhatsApp, is compliant with PDPA, HIPAA, GDPR, and ISO 27001, and provides end-to-end encryption and audit logs.",
+      "business": "B2B SaaS model targeting outpatient clinics, with rapid onboarding (live in 48 hours), a 7-day free trial, and ROI claims of 5\u201310x in 60 days. GTM emphasizes zero disruption and immediate value.",
+      "positioning": "Positioned as an AI co-pilot that runs invisibly behind the scenes, automating admin without changing existing systems or requiring staff retraining\u2014'no training, no hassle.'"
+    },
+    "secret_sauce": {
+      "core_advantage": "AI-driven automation that integrates instantly with existing EHRs and WhatsApp, requiring no workflow changes or staff training, and delivering immediate ROI.",
+      "defensibility": "Integration with multiple EHRs and WhatsApp, compliance with multiple regulatory standards, and a frictionless onboarding process make replication difficult for competitors with heavier onboarding or less flexible architectures.",
+      "evidence": [
+        "\u2018No training needed. Zeya runs in the background and fits seamlessly into your current tools like your EHR and WhatsApp.\u2019",
+        "\u2018You can go live in under 48 hours. Our engine maps your workflows without requiring new logins, formats, or manual rule-setting.\u2019",
+        "\u2018Most clinics see 5\u201310\u00d7 ROI in the first 60 days, by reducing no-shows, reclaiming cancelled appointments, and cutting down overtime.\u2019",
+        "\u2018Zeya automates repetitive admin across your EHR \u2014 including patient reminders, WhatsApp follow-ups, documents, insurance checks, and referral workflows \u2014 without changing your existing system.\u2019"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Pre Zeya Health's competitive position is defensible due to its instant integration, regulatory compliance, and frictionless onboarding, but the core concept of AI-driven clinic automation is not unique and could be replicated by larger incumbents or new entrants with sufficient resources. Their moat relies on execution speed, integration breadth, and user experience rather than proprietary technology.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "An AI frontdesk that works 24/7 for your clinic",
+    "Zeya learns your admin flows in the background",
+    "Your Virtual Frontend Goes Live",
+    "Zeya automates repetitive admin across your EHR \u2014 including patient reminders, WhatsApp follow-ups, documents, insurance checks, and referral workflows \u2014 without changing your existing system.",
+    "No training needed. Zeya runs in the background and fits seamlessly into your current tools like your EHR and WhatsApp.",
+    "Zeya supercharges your existing WhatsApp engagements through proactive and reactive support to staff.",
+    "Rapid onboarding with workflow mapping: 'Our engine maps your workflows without requiring new logins, formats, or manual rule-setting.' This suggests a unique approach to seamless integration and automated workflow discovery.",
+    "No training required: The AI adapts to existing workflows and tools, minimizing friction and change management."
+  ],
+  "analyzed_at": "2026-01-23 08:07:39.994611+00:00",
+  "confidence_score": 0.8,
+  "raw_content_analyzed": 56279
+}

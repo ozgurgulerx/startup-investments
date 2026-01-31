@@ -1,0 +1,268 @@
+{
+  "company_name": "Softquantus",
+  "company_slug": "softquantus",
+  "website": "https://www.softquantus.com/",
+  "description": "SoftQuantus is a European deep-tech company building vendor-neutral infrastructure for governed quantum operations.",
+  "funding_amount": 755593.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "enhancement",
+  "models_mentioned": [
+    "Azure AI services",
+    "GPU resources",
+    "SynapseX AI Routing"
+  ],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 1.0,
+      "evidence": [
+        "Softquantus builds infrastructure software that makes quantum computing reproducible, auditable, and accessible to every organization.",
+        "Real performance data across quantum backends. Reproducible metrics with full configuration snapshots.",
+        "Our proposal for quantum-inspired federated learning has been selected in the EuroHPC AI Factory Large Scale call, granting us substantial GPU resources on LUMI-G supercomputer.",
+        "Benchmarks Hub: Real performance data across quantum backends. Reproducible metrics with full configuration snapshots.",
+        "Tamper-Evident Evidence: Every QCOS execution generates a cryptographic evidence bundle: SHA-256 content hashes, Ed25519 signatures, and a complete configuration snapshot."
+      ],
+      "description": "Softquantus leverages proprietary, quantum infrastructure-specific datasets, benchmarks, and cryptographically verifiable execution records to create a domain-specific data moat. Their evidence bundles and benchmarks are tailored to quantum computing, providing a competitive advantage through industry-specific data and reproducibility."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.8,
+      "evidence": [
+        "SynapseX\u2122 AI for quantum development",
+        "HPC orchestration platform for hybrid quantum-classical workloads",
+        "SynapseX uses machine learning to optimize workload placement across heterogeneous clusters.",
+        "Quantum Operations Lifecycle Management Implement enterprise-grade quantum infrastructure as code to automate policy enforcement, reduce manual effort, and improve consistency across hybrid environments."
+      ],
+      "description": "Softquantus implements agentic architectures via SynapseX, which autonomously orchestrates quantum and classical workloads, optimizes resource placement, and automates infrastructure management. The platform demonstrates multi-step reasoning and tool use in the context of quantum operations."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.7,
+      "evidence": [
+        "SynapseX uses machine learning to optimize workload placement across heterogeneous clusters.",
+        "HPC orchestration platform for hybrid quantum-classical workloads",
+        "Advanced multi-provider orchestration, enhanced audit capabilities, and native Kubernetes integration."
+      ],
+      "description": "The orchestration of workloads across multiple quantum providers and heterogeneous clusters suggests the use of specialized models for different hardware and tasks, indicative of a micro-model mesh approach. The platform routes tasks to the most suitable resources, likely using multiple specialized models."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.8,
+      "evidence": [
+        "Audit Ready: Complete traceability and compliance for regulated industries.",
+        "Tamper-evident execution records. Hash signatures, replayable configs, and audit-ready exports.",
+        "SOC 2 Controls Aligned",
+        "Policy engine & audit logs"
+      ],
+      "description": "Softquantus implements guardrails through cryptographic evidence, audit logs, and compliance-focused controls (SOC 2, policy engines). These mechanisms act as safety and compliance layers, verifying outputs and ensuring traceability for regulated industries."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.6,
+      "evidence": [
+        "Benchmarks Hub: Real performance data across quantum backends. Reproducible metrics with full configuration snapshots.",
+        "Evidence Verifier: Tamper-evident execution records. Hash signatures, replayable configs, and audit-ready exports.",
+        "QCOS achieves 80% reduction in operational overhead."
+      ],
+      "description": "The collection of reproducible performance data and evidence bundles enables feedback loops for continuous improvement of infrastructure and orchestration models. While explicit mention of model retraining is absent, the infrastructure supports iterative optimization based on usage data."
+    }
+  ],
+  "market_type": "horizontal",
+  "vertical": "developer_tools",
+  "sub_vertical": "quantum infrastructure & orchestration platforms",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "Azure",
+      "Self-hosted",
+      "On-premise",
+      "Hybrid"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": true,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 8,
+    "has_public_api": true,
+    "has_sdk": true,
+    "has_documentation": true,
+    "has_engineering_blog": true,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Comprehensive developer documentation, including SDKs, API reference, tutorials, and changelog",
+      "Multiple SDKs available (Python and TypeScript)",
+      "REST and GraphQL APIs, CLI, and Terraform provider support",
+      "Engineering blog with in-depth technical articles and benchmarks",
+      "Evidence of cryptographically verifiable execution and reproducibility",
+      "Benchmarks and evidence are public and auditable",
+      "Enterprise features: SSO/LDAP, RBAC, audit logs, compliance (SOC 2, ISO 27001, etc.)",
+      "Interactive demos and quickstart guides for developers",
+      "Transparent procurement and technical evaluation process",
+      "Backed by reputable partners (Microsoft, EuroHPC, etc.)"
+    ]
+  },
+  "unique_findings": [
+    "Softquantus is building a quantum infrastructure layer that is explicitly provider-agnostic, supporting at least six quantum hardware backends (IBM, Google, IonQ, Amazon Braket, etc.), with a strong emphasis on reproducibility and auditability. This is unusual in a space where most platforms are tied to specific hardware or cloud ecosystems.",
+    "Every quantum circuit execution generates a cryptographically verifiable evidence bundle (SHA-256 hashes, Ed25519 signatures, full config snapshot), enabling tamper-evident, replayable, and independently auditable quantum runs. This level of cryptographic provenance is rare in quantum infrastructure.",
+    "QCOS appears to implement a policy-governed, multi-cloud orchestration layer for quantum workloads, with features like native Kubernetes integration, OpenTelemetry observability, and a Terraform provider\u2014suggesting a deep alignment with modern DevOps and enterprise IT practices, which is not yet standard in quantum computing.",
+    "The platform offers a hybrid quantum-classical orchestration system (SynapseX) that leverages AI/ML for workload placement across heterogeneous clusters, indicating a convergence of HPC, AI, and quantum orchestration\u2014an emerging but still uncommon pattern.",
+    "Softquantus claims extreme sample efficiency in quantum circuit execution (e.g., 17 evaluations for high-fidelity Bell state prep on IBM Heron vs. 78-94% more with standard methods), implying proprietary optimization or compilation techniques.",
+    "They provide a 'QCOS Compatible' certification and OEM program, signaling a platform strategy that could create an ecosystem lock-in for both hardware and software vendors."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Softquantus Built a Provider-Agnostic Quantum OS for the Multi-Cloud Era",
+      "summary": "Softquantus engineered QCOS as a quantum operating system that abstracts away hardware differences, enabling reproducible quantum execution across IBM, Google, IonQ, Amazon Braket, and more. Their architecture emphasizes open standards and auditability, making quantum workloads portable and compliant for enterprise use.",
+      "evidence": [
+        "QCOS is built on OpenQASM, MLIR, and open formats\u2014no proprietary lock-in",
+        "Supports 6 quantum providers with <1h backend migration time and 99.9% execution reproducibility"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Softquantus' Secret Weapon: Auditable Quantum Execution Data as an Enterprise Differentiator",
+      "summary": "By focusing on reproducibility and audit-ready infrastructure, Softquantus generates a proprietary dataset of quantum execution logs, benchmarks, and compliance evidence. This data moat not only supports regulated industries but also powers continuous improvement and trust in quantum outcomes.",
+      "evidence": [
+        "99.9% execution reproducibility with public evidence and benchmarks",
+        "Complete traceability and compliance for regulated industries, with SOC 2 controls aligned"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "From 100 to 17: How QCOS Slashes Quantum Circuit Evaluations by 80%",
+      "summary": "Softquantus' QCOS Autopilot achieved a dramatic reduction in the number of quantum circuit runs needed for high-fidelity results, cutting operational overhead by up to 80%. This leap in sample efficiency directly translates to lower costs and faster quantum experimentation.",
+      "evidence": [
+        "Official benchmark: Only 17 circuit evaluations to achieve 0.85 fidelity on IBM's 156-qubit Heron r2 processor",
+        "QCOS achieves 78-94% fewer evaluations than standard methods"
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Softquantus Bets on Auditability Over Raw Qubit Counts in Quantum Infrastructure",
+      "summary": "While much of the industry chases higher qubit numbers, Softquantus prioritizes reproducibility, audit trails, and compliance as the foundation for enterprise quantum adoption. This contrarian stance positions them as a trusted partner for regulated sectors, not just research labs.",
+      "evidence": [
+        "Mission statement: 'Reproducible quantum execution\u2014provider-agnostic, audit-ready'",
+        "Emphasis on policy-governed operations, audit logs, and SOC 2 alignment"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "no_moat",
+      "description": "While Softquantus claims provider-agnostic orchestration and auditability, there is limited evidence of proprietary technology or unique data assets. The core value props (multi-provider orchestration, audit logs, policy enforcement) are features that can be replicated by larger incumbents or open-source projects, especially given the reliance on open standards (OpenQASM, MLIR).",
+      "severity": "medium",
+      "evidence": [
+        "Emphasis on being 'provider-agnostic' and 'no vendor lock-in', but no clear proprietary algorithms or datasets.",
+        "Built on open formats and standards.",
+        "No mention of unique data advantage or technical IP."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The offering risks being seen as a set of features (orchestration, audit, compliance, benchmarking) that could be absorbed by cloud providers or quantum incumbents. The platform approach is not clearly differentiated beyond combining existing best practices.",
+      "severity": "medium",
+      "evidence": [
+        "QCOS, QuantumLock, and SynapseX are positioned as orchestration, audit, and security layers\u2014functions that could be built into cloud-native quantum offerings.",
+        "No evidence of a unique, defensible platform layer.",
+        "Heavy focus on compliance and integration, which are important but not unique."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Some marketing claims (e.g., '99.9% execution reproducibility', 'audit-ready', 'enterprise-grade compliance') are strong but lack technical specifics or public evidence. The company claims to support '6 quantum providers' and '93% GHZ fidelity (best)' but links to evidence are not independently verifiable.",
+      "severity": "medium",
+      "evidence": [
+        "Claims of '99.9% Execution Reproducibility' and '93% GHZ Fidelity' with only internal benchmarks.",
+        "References to 'SOC 2 Controls Aligned' but no public certification.",
+        "Buzzword-heavy language: 'AI for quantum development', 'infrastructure as code', 'policy-governed operations'."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The platform's positioning as a quantum infrastructure orchestrator is not clearly distinct from other quantum middleware or cloud-native quantum solutions. There is no unique technical angle or ecosystem lock-in.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary LLMs or agentic architectures.",
+        "No clear technical moat or unique ecosystem.",
+        "Similar messaging to other quantum SaaS orchestration startups."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Strangeworks",
+        "similarity": "Provides a vendor-agnostic quantum computing platform, orchestration, and access to multiple quantum hardware providers.",
+        "how_different": "Softquantus emphasizes cryptographically verifiable, reproducible, and audit-ready quantum execution, with a stronger focus on compliance, tamper-evident evidence, and enterprise governance."
+      },
+      {
+        "name": "Classiq",
+        "similarity": "Offers quantum software infrastructure, workflow automation, and abstraction for quantum development across hardware.",
+        "how_different": "Softquantus focuses on governed, policy-driven, and auditable quantum operations with cryptographic evidence, while Classiq is more focused on circuit synthesis and design automation."
+      },
+      {
+        "name": "IBM Quantum (Qiskit + IBM Quantum Services)",
+        "similarity": "Provides quantum cloud access, orchestration, and developer tooling for quantum workloads.",
+        "how_different": "Softquantus is provider-agnostic and explicitly avoids vendor lock-in, offering multi-cloud orchestration and reproducibility across providers, whereas IBM is tied to its own hardware and ecosystem."
+      },
+      {
+        "name": "Amazon Braket",
+        "similarity": "Multi-vendor quantum cloud platform with orchestration, benchmarking, and developer APIs.",
+        "how_different": "Softquantus differentiates with cryptographically verifiable execution, audit trails, and compliance features, and positions itself as an independent infrastructure layer rather than a cloud provider."
+      },
+      {
+        "name": "Zapata Computing (Orquestra)",
+        "similarity": "Quantum workflow orchestration, hybrid quantum/classical workloads, and enterprise integrations.",
+        "how_different": "Softquantus highlights reproducibility, tamper-evident auditability, and compliance as core, with a more explicit focus on evidence, policy enforcement, and regulated industries."
+      }
+    ],
+    "differentiation": {
+      "primary": "Softquantus provides cryptographically verifiable, reproducible, and audit-ready quantum operations across any hardware provider, with a focus on enterprise compliance and governance.",
+      "technical": "Tamper-evident execution records (SHA-256 hashes, Ed25519 signatures), cryptographic evidence bundles, provider-agnostic orchestration (QCOS), open standards (OpenQASM, MLIR), native integration with CI/CD, and advanced sample efficiency (80% reduction in operational overhead).",
+      "business": "Enterprise-first, procurement-ready contracts, tailored pilots, and compliance (SOC 2, ISO 27001, export controls). Offers both cloud and air-gapped/on-premise deployment. OEM/partner certification program for ecosystem expansion.",
+      "positioning": "Positions as the independent, vendor-neutral infrastructure layer for governed, reproducible, and auditable quantum operations, targeting regulated and compliance-driven enterprises needing trust, evidence, and multi-provider flexibility."
+    },
+    "secret_sauce": {
+      "core_advantage": "Cryptographically verifiable, reproducible quantum execution and audit-ready evidence bundles for every quantum job, regardless of provider.",
+      "defensibility": "Deep integration of cryptographic primitives into the execution pipeline, tamper-evident logs, and policy-driven governance, combined with open standards and compliance focus. This is hard to replicate due to the need for both technical rigor and trust from regulated industries.",
+      "evidence": [
+        "Every QCOS execution generates a cryptographic evidence bundle: SHA-256 content hashes, Ed25519 signatures, and a complete configuration snapshot.",
+        "Auditors can independently verify that results haven't been modified and replay the exact execution environment. No trust required\u2014just math.",
+        "99.9% Execution Reproducibility",
+        "Record-efficient Bell state preparation: Only 17 circuit evaluations to achieve 0.85 fidelity on IBM's 156-qubit Heron r2 processor \u2014 78-94% fewer evaluations than standard methods.",
+        "SOC 2 Controls Aligned; audit-ready exports; tamper-evident execution records."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Softquantus has a defensible position in the quantum infrastructure stack due to its unique focus on cryptographically verifiable, reproducible, and audit-ready quantum execution, which is especially attractive to regulated enterprises. However, the moat is medium because larger cloud and quantum providers (IBM, Amazon, Microsoft) could potentially add similar compliance and auditability features, and other startups (e.g., Strangeworks, Zapata) are also pursuing vendor-agnostic orchestration. The integration of cryptographic evidence and compliance into the core workflow, combined with open standards and procurement-readiness, gives Softquantus a differentiated but not unassailable position.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Softquantus has been selected to join the Microsoft for Startups Investor Network, gaining access to Azure credits, advanced AI services, GPU resources",
+    "Optimizing HPC Workloads with SynapseX AI Routing Deep dive into how SynapseX uses machine learning to optimize workload placement across heterogeneous clusters.",
+    "SynapseX\u2122 AI for quantum development",
+    "Cryptographically verifiable evidence bundles (SHA-256 hashes, Ed25519 signatures, configuration snapshots) for quantum execution reproducibility and auditability.",
+    "Provider-agnostic, policy-governed quantum infrastructure as code with automated compliance and lifecycle management.",
+    "Integration of quantum and classical HPC orchestration with AI-driven workload optimization."
+  ],
+  "analyzed_at": "2026-01-23 07:58:41.392269+00:00",
+  "confidence_score": 0.7,
+  "raw_content_analyzed": 153258
+}

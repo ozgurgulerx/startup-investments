@@ -1,0 +1,233 @@
+{
+  "company_name": "Blockit AI",
+  "company_slug": "blockit-ai",
+  "website": "https://blockit.tech",
+  "logo_url": null,
+  "description": "Blockit AI delivers an AI scheduling agent that coordinates, books, and reschedules meetings across calendars and time zones.",
+  "funding_amount": 5000000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [
+    "Perplexity",
+    "Together AI"
+  ],
+  "build_patterns": [
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.8,
+      "evidence": [
+        "The more you use Blockit, the more it dynamically adapts behavior over time."
+      ],
+      "description": "Blockit adapts its scheduling behavior based on user interactions, indicating a feedback loop where usage data is used to improve personalization and performance."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.7,
+      "evidence": [
+        "Meet your self-driving calendar.",
+        "Blockit responds to any request instantly and never goes to bed.",
+        "You can CC Blockit on an email thread or message it directly in Slack.",
+        "Can Blockit do group scheduling? Yes, very well! It can factor in the free/busy status of your colleagues when they are on the email thread."
+      ],
+      "description": "Blockit operates as an autonomous scheduling agent that takes actions on behalf of users, interacts across multiple platforms (email, Slack), and performs multi-step reasoning for group scheduling."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.6,
+      "evidence": [
+        "It can factor in the free/busy status of your colleagues when they are on the email thread.",
+        "SOC 2 Certified",
+        "Secure data practices",
+        "No training on your data"
+      ],
+      "description": "Blockit integrates deeply with calendar and communication tools, suggesting access to proprietary scheduling and organizational data, though it claims not to train on user data. The focus on SOC 2 and secure practices also hints at handling sensitive, domain-specific data."
+    }
+  ],
+  "market_type": "horizontal",
+  "vertical": "enterprise_saas",
+  "sub_vertical": "AI-powered productivity and collaboration tools",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "Self-hosted"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "SOC 2 certification and security claims indicate some internal engineering rigor",
+      "Integrations with Google, Outlook, Slack, and video platforms suggest technical capability"
+    ]
+  },
+  "unique_findings": [
+    "Blockit AI positions itself as an 'instant, 24/7 AI time assistant' that claims to be truly autonomous and always available, suggesting a backend architecture designed for real-time responsiveness and high availability. This is a step beyond typical scheduling bots that rely on batch processing or limited hours.",
+    "The product supports multi-calendar integration (Google, Outlook) and claims to respect events 'without spilling data,' hinting at a privacy-preserving, possibly federated approach to calendar data aggregation\u2014a technical challenge in syncing, deduplication, and privacy.",
+    "Blockit can be CC'd on email threads or messaged directly in Slack, indicating a multi-modal interface that seamlessly bridges email and chat platforms. This requires robust NLP and context-tracking across communication channels, which is non-trivial.",
+    "Claims of 'no training on your data' and SOC 2 certification suggest a strong focus on enterprise-grade security and privacy, which is increasingly demanded but hard to implement for AI assistants that require contextual understanding.",
+    "The marketing analogy to 'self-driving cars' for calendars implies an ambition for full automation and error-free scheduling, which would require sophisticated conflict resolution, user preference learning, and possibly reinforcement learning for adaptation."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Meet Your Self-Driving Calendar: Blockit's Agentic Scheduling Architecture",
+      "summary": "Blockit claims to deliver an 'unbreakable scheduler' by leveraging agentic architectures that adapt in real time to user preferences and context. This story would explore how Blockit\u2019s architecture enables instantaneous, always-on scheduling, and whether their engineering approach truly sets them apart from legacy calendar tools.",
+      "evidence": [
+        "Describes itself as a 'self-driving calendar' for 2026",
+        "Highlights agentic architectures and continuous-learning flywheels"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: How Blockit\u2019s Scheduling Data Powers Its AI Edge",
+      "summary": "Blockit touts vertical data moats as a key advantage, suggesting that proprietary scheduling data enables more accurate and personalized automation. This angle would dissect what data Blockit collects, how it is used to improve scheduling, and whether this creates a defensible technical advantage.",
+      "evidence": [
+        "Mentions vertical data moats in build patterns",
+        "Claims dynamic adaptation to user preferences over time"
+      ],
+      "uniqueness_score": 5
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Zero Scheduling Emails, Zero Manual Hours: Blockit Bets on Full Automation",
+      "summary": "While most scheduling tools still rely on email back-and-forth, Blockit\u2019s pitch is a radical bet on eliminating manual scheduling entirely. Is this pure automation feasible, and does it actually work for complex enterprise workflows? A critical look at their contrarian approach.",
+      "evidence": [
+        "Boasts '0 scheduling emails sent' and '0h hours saved from manually scheduling'",
+        "Emphasizes 'never goes to bed' and instant response"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Can Blockit\u2019s AI Scheduler Really Eliminate Reply Lag for Busy Teams?",
+      "summary": "Blockit claims to have eliminated days of cumulative reply lag for users, promising a 10x improvement in scheduling speed. This angle would evaluate the technical mechanisms behind these claims and whether the platform delivers on its efficiency promises.",
+      "evidence": [
+        "Claims '0 days of cumulative reply lag eliminated'",
+        "Markets to people who are 'back-to-back' and need instant scheduling"
+      ],
+      "uniqueness_score": 4
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "The marketing copy makes strong claims about Blockit being 'the unbreakable scheduler' and 'astounding accuracy' without providing technical details or evidence of proprietary AI technology. The phrase 'it actually works' and references to 'self-driving calendar' are buzzword-heavy.",
+      "severity": "medium",
+      "evidence": [
+        "Claims: 'It\u2019s different because \u2014 well \u2014 it _actually_ works.'",
+        "'Meet your self-driving calendar.'",
+        "'Blockit will astound you with its accuracy.'",
+        "No technical explanation of how the AI works or what differentiates it."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core value proposition is AI-powered scheduling, which is a feature that could be absorbed by incumbents like Google, Microsoft, or Slack. There is no evidence of a broader platform or ecosystem.",
+      "severity": "medium",
+      "evidence": [
+        "Primary features: scheduling via email/Slack, group scheduling, calendar integration.",
+        "No mention of extensibility, platform, or ecosystem.",
+        "Incumbents already offer or could easily add similar features."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is no clear data advantage, technical differentiation, or proprietary technology described. The claim of 'no training on your data' removes the possibility of a vertical data moat. The numbers section shows zeros, suggesting little or no usage data.",
+      "severity": "high",
+      "evidence": [
+        "LLMs: [] (no evidence of proprietary models)",
+        "'No training on your data' (no vertical data flywheel)",
+        "'0 scheduling emails sent', '0h hours saved', '0 days of cumulative reply lag eliminated'",
+        "No mention of unique datasets or technical breakthroughs"
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The product operates in a crowded market (AI scheduling) and does not present a unique angle or positioning. The integrations and features are standard for the category.",
+      "severity": "medium",
+      "evidence": [
+        "Integrates with Google, Outlook, Slack, etc. (standard integrations)",
+        "No unique workflows, vertical focus, or novel user experiences described",
+        "Multiple references to similar investor logos and repeated content, suggesting lack of focus on differentiation"
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Calendly",
+        "similarity": "Both provide scheduling automation, calendar integrations, and group scheduling features.",
+        "how_different": "Blockit AI emphasizes instant, AI-powered scheduling, dynamic personalization, and operates directly in email and Slack threads, whereas Calendly relies on link-based workflows and manual configurations."
+      },
+      {
+        "name": "x.ai (acquired by Bizzabo)",
+        "similarity": "AI-powered meeting scheduling, multi-calendar support, and automation across time zones.",
+        "how_different": "Blockit AI claims 'instantaneous' responses and continuous adaptation to user preferences, while x.ai focused on conversational scheduling but lacked deep personalization and real-time speed."
+      },
+      {
+        "name": "Clara Labs",
+        "similarity": "AI assistants for scheduling, email-based workflows, and enterprise-grade security.",
+        "how_different": "Blockit AI positions itself as fully automated and 'never goes to bed', whereas Clara Labs blended human-in-the-loop with AI, resulting in slower, less scalable solutions."
+      },
+      {
+        "name": "Google Calendar's Smart Scheduling",
+        "similarity": "Automated meeting coordination, multi-calendar integration, and group scheduling.",
+        "how_different": "Blockit AI offers cross-platform integration (Google, Outlook, Slack, email) and claims superior accuracy and personalization, while Google\u2019s solution is limited to its own ecosystem."
+      }
+    ],
+    "differentiation": {
+      "primary": "Blockit AI stands out by offering instant, 24/7 AI scheduling that adapts to individual preferences and operates seamlessly in email and Slack, with a focus on reliability and accuracy.",
+      "technical": "Real-time AI agent that learns user preferences over time, supports unlimited calendars, integrates with major platforms (Google, Outlook, Slack), and claims SOC 2 compliance with no training on user data.",
+      "business": "Direct-to-user freemium model (30-day free trial), enterprise-grade security, and deep integrations into existing workflows (email, Slack) rather than requiring new habits or platforms.",
+      "positioning": "Blockit AI positions itself as the 'self-driving calendar'\u2014a leap beyond traditional scheduling tools, emphasizing speed, personalization, and trustworthiness for users who are 'back-to-back'."
+    },
+    "secret_sauce": {
+      "core_advantage": "Instantaneous, always-on AI agent that dynamically personalizes scheduling behavior and integrates natively into email and Slack workflows.",
+      "defensibility": "Combining real-time AI, deep personalization, multi-platform integration, and enterprise security creates a sticky, hard-to-replicate user experience\u2014especially for high-frequency, power users.",
+      "evidence": [
+        "\u201cIt\u2019s different because \u2014 well \u2014 it actually works.\u201d",
+        "\u201cBlockit responds to any request instantly and never goes to bed.\u201d",
+        "\u201cThe more you use Blockit, the more it dynamically adapts behavior over time.\u201d",
+        "\u201cSOC 2 Certified. No training on your data.\u201d",
+        "\u201cYou can CC Blockit on an email thread or message it directly in Slack.\u201d"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Blockit AI\u2019s moat is based on technical execution (instantaneous, adaptive AI), workflow integration (email, Slack), and enterprise-grade security. While these are meaningful differentiators, they are not impossible for well-funded competitors to replicate. The absence of proprietary data, network effects, or exclusive partnerships limits the defensibility to execution and user experience.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Meet Blockit: your instant, 24/7 AI time assistant.",
+    "Schedule in the Blink of AI",
+    "Blockit responds to any request instantly and never goes to bed.",
+    "Tailored to your Preferences",
+    "The more you use Blockit, the more it dynamically adapts behavior over time.",
+    "You can CC Blockit on an email thread or message it directly in Slack.",
+    "Group scheduling: It can factor in the free/busy status of your colleagues when they are on the email thread.",
+    "No training on your data",
+    "Backed by ... Perplexity Logo ... Together AI Logo",
+    "Positioning the AI as a 'self-driving calendar' that operates autonomously across communication channels (email, Slack) with instant response and group scheduling capabilities."
+  ],
+  "analyzed_at": "2026-01-31 11:00:50.842246+00:00",
+  "confidence_score": 0.8,
+  "raw_content_analyzed": 17060
+}
