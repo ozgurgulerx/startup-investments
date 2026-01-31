@@ -376,9 +376,9 @@ app.get('/api/v1/dealbook', async (req, res) => {
         : startups.moneyRaisedUsd;
     const orderDir = sortOrder === 'asc' ? orderColumn : desc(orderColumn);
 
-    // Execute query with pagination
+    // Execute query with pagination - only select fields needed by frontend
+    // Use SQL JSONB operators to extract specific fields instead of full JSONB
     const results = await db.select({
-      id: startups.id,
       name: startups.name,
       slug: startups.slug,
       description: startups.description,
@@ -390,8 +390,13 @@ app.get('/api/v1/dealbook', async (req, res) => {
       fundingStage: startups.fundingStage,
       moneyRaisedUsd: startups.moneyRaisedUsd,
       usesGenai: startups.usesGenai,
-      period: startups.period,
-      analysisData: startups.analysisData,
+      // Extract only needed JSONB fields for performance
+      vertical: sql<string>`${startups.analysisData}->>'vertical'`,
+      marketType: sql<string>`${startups.analysisData}->>'market_type'`,
+      subVertical: sql<string>`${startups.analysisData}->>'sub_vertical'`,
+      buildPatterns: sql<unknown>`${startups.analysisData}->'build_patterns'`,
+      confidenceScore: sql<number>`(${startups.analysisData}->>'confidence_score')::float`,
+      newsletterPotential: sql<string>`${startups.analysisData}->>'newsletter_potential'`,
     })
       .from(startups)
       .where(whereClause)
@@ -407,31 +412,28 @@ app.get('/api/v1/dealbook', async (req, res) => {
     const total = countResult?.total || 0;
 
     // Transform results to match frontend StartupAnalysis interface
-    const data = results.map((row) => {
-      const analysis = row.analysisData as Record<string, unknown> || {};
-      return {
-        company_name: row.name,
-        company_slug: row.slug,
-        description: row.description || analysis.description,
-        website: row.website,
-        location: row.headquartersCity
-          ? `${row.headquartersCity}, ${row.headquartersCountry || ''}`
-          : row.headquartersCountry,
-        continent: row.continent,
-        vertical: analysis.vertical,
-        market_type: analysis.market_type,
-        sub_vertical: analysis.sub_vertical,
-        funding_amount: row.moneyRaisedUsd,
-        funding_stage: row.fundingStage,
-        uses_genai: row.usesGenai,
-        build_patterns: analysis.build_patterns,
-        confidence_score: analysis.confidence_score,
-        newsletter_potential: analysis.newsletter_potential,
-        tech_stack: analysis.tech_stack,
-        models_mentioned: analysis.models_mentioned,
-        ...analysis, // Include any additional analysis fields
-      };
-    });
+    const data = results.map((row) => ({
+      company_name: row.name,
+      company_slug: row.slug,
+      description: row.description,
+      website: row.website,
+      location: row.headquartersCity
+        ? `${row.headquartersCity}, ${row.headquartersCountry || ''}`
+        : row.headquartersCountry,
+      continent: row.continent,
+      vertical: row.vertical,
+      market_type: row.marketType,
+      sub_vertical: row.subVertical,
+      funding_amount: row.moneyRaisedUsd,
+      funding_stage: row.fundingStage,
+      uses_genai: row.usesGenai,
+      build_patterns: row.buildPatterns as Array<{ name: string; confidence: number }> | null,
+      confidence_score: row.confidenceScore,
+      newsletter_potential: row.newsletterPotential,
+    }));
+
+    // Cache for 60 seconds - data doesn't change frequently
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
 
     res.json({
       data,
