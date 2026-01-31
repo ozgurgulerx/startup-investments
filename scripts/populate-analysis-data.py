@@ -6,6 +6,8 @@ This script reads individual startup analysis JSON files and populates
 the analysis_data column in the startups table for database-driven queries.
 
 Usage: python scripts/populate-analysis-data.py [--period 2026-01]
+
+Requires DATABASE_URL environment variable to be set.
 """
 
 import os
@@ -14,10 +16,13 @@ import argparse
 import psycopg2
 from psycopg2.extras import Json
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Try to load dotenv if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not required if DATABASE_URL is already set
 
 # Database connection
 DATABASE_URL = os.environ.get('DATABASE_URL')
