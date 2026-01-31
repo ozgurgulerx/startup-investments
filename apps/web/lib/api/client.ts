@@ -270,3 +270,12 @@ export const api = {
 export function isAPIConfigured(): boolean {
   return !!process.env.NEXT_PUBLIC_API_URL;
 }
+
+// Re-export health utilities
+export {
+  checkApiHealth,
+  checkInfrastructureHealth,
+  wakeUpBackend,
+  ensureBackendAvailable,
+  waitForBackend,
+} from './health';
