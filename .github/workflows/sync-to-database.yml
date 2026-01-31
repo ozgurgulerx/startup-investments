@@ -16,27 +16,23 @@ on:
         default: '2026-01'
 
 permissions:
-  id-token: write
   contents: read
 
 env:
-  STORAGE_ACCOUNT: buildatlasstorage
-  CONTAINER_NAME: startup-csvs
+  API_URL: https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net
 
 jobs:
   sync-database:
     runs-on: ubuntu-latest
-    name: Upload CSV and Trigger Database Sync
+    name: Sync CSV to Database via API
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          python-version: '3.11'
 
       - name: Determine period
         id: period
@@ -64,45 +60,85 @@ jobs:
             echo "CSV not found: $CSV_PATH"
           fi
 
-      - name: Upload CSV to Blob Storage
+      - name: Convert CSV to JSON and sync to database
         if: steps.check_csv.outputs.csv_exists == 'true'
+        id: sync
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
         run: |
-          BLOB_NAME="incoming/${{ steps.period.outputs.period }}-startups-$(date +%Y%m%d-%H%M%S).csv"
-          echo "Uploading to: $BLOB_NAME"
+          python3 << 'EOF'
+          import csv
+          import json
+          import os
+          import urllib.request
+          import urllib.error
 
-          az storage blob upload \
-            --account-name ${{ env.STORAGE_ACCOUNT }} \
-            --container-name ${{ env.CONTAINER_NAME }} \
-            --name "$BLOB_NAME" \
-            --file "${{ steps.check_csv.outputs.csv_path }}" \
-            --connection-string "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
-            --overwrite
+          csv_path = "${{ steps.check_csv.outputs.csv_path }}"
+          api_url = os.environ.get('API_URL', '${{ env.API_URL }}')
+          api_key = os.environ.get('API_KEY', '')
 
-          echo "Upload complete. Azure Function will be triggered automatically."
-          echo "blob_name=$BLOB_NAME" >> $GITHUB_OUTPUT
+          # Read CSV and convert to JSON
+          startups = []
+          with open(csv_path, 'r', encoding='utf-8') as f:
+              reader = csv.DictReader(f)
+              for row in reader:
+                  # Extract startup name from transaction name (remove "Series X - " prefix)
+                  name = row.get('Transaction Name', '')
+                  if ' - ' in name:
+                      name = name.split(' - ', 1)[1]
 
-      - name: Wait for Function Processing
-        if: steps.check_csv.outputs.csv_exists == 'true'
-        run: |
-          echo "Waiting 60 seconds for Azure Function to process..."
-          sleep 60
+                  startup = {
+                      'name': name,
+                      'description': row.get('Organization Description', ''),
+                      'website': row.get('Organization Website', ''),
+                      'location': row.get('Organization Location', ''),
+                      'industries': row.get('Organization Industries', ''),
+                      'roundType': row.get('Funding Type', ''),
+                      'amountUsd': row.get('Money Raised (in USD)', ''),
+                      'announcedDate': row.get('Announced Date', ''),
+                      'fundingStage': row.get('Funding Stage', ''),
+                      'leadInvestors': row.get('Lead Investors', ''),
+                  }
+                  startups.append(startup)
 
-          # Check if blob was moved to processed folder
-          PROCESSED=$(az storage blob list \
-            --account-name ${{ env.STORAGE_ACCOUNT }} \
-            --container-name ${{ env.CONTAINER_NAME }} \
-            --prefix "processed/" \
-            --connection-string "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
-            --query "[?contains(name, '${{ steps.period.outputs.period }}')]" \
-            -o tsv 2>/dev/null | head -1)
+          print(f"Parsed {len(startups)} startups from CSV")
 
-          if [ -n "$PROCESSED" ]; then
-            echo "CSV processed successfully: $PROCESSED"
-          else
-            echo "Note: Check Azure Function logs for processing status"
-          fi
+          # Send to API
+          payload = json.dumps({'startups': startups}).encode('utf-8')
+
+          req = urllib.request.Request(
+              f"{api_url}/api/admin/sync-startups",
+              data=payload,
+              headers={
+                  'Content-Type': 'application/json',
+                  'X-Admin-Key': api_key,
+                  'X-API-Key': api_key,
+              },
+              method='POST'
+          )
+
+          try:
+              with urllib.request.urlopen(req, timeout=120) as response:
+                  result = json.loads(response.read().decode('utf-8'))
+                  print(f"Sync result: {json.dumps(result, indent=2)}")
+
+                  # Write outputs for summary
+                  with open(os.environ.get('GITHUB_OUTPUT', '/dev/null'), 'a') as f:
+                      f.write(f"inserted={result.get('results', {}).get('inserted', 0)}\n")
+                      f.write(f"updated={result.get('results', {}).get('updated', 0)}\n")
+                      f.write(f"failed={len(result.get('results', {}).get('failed', []))}\n")
+                      f.write(f"total={result.get('results', {}).get('total', 0)}\n")
+          except urllib.error.HTTPError as e:
+              print(f"HTTP Error {e.code}: {e.reason}")
+              print(e.read().decode('utf-8'))
+              exit(1)
+          except urllib.error.URLError as e:
+              print(f"URL Error: {e.reason}")
+              exit(1)
+          EOF
 
       - name: Summary
+        if: always()
         run: |
           echo "## Database Sync Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -110,4 +146,8 @@ jobs:
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Period | ${{ steps.period.outputs.period }} |" >> $GITHUB_STEP_SUMMARY
           echo "| CSV Found | ${{ steps.check_csv.outputs.csv_exists }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Startups Processed | ${{ steps.sync.outputs.total || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Inserted | ${{ steps.sync.outputs.inserted || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Updated | ${{ steps.sync.outputs.updated || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Failed | ${{ steps.sync.outputs.failed || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY

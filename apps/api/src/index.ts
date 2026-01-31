@@ -301,11 +301,142 @@ app.get('/api/v1/investors', async (req, res) => {
 });
 
 // =============================================================================
-// Admin API - Logo Extraction
+// Admin API - Logo Extraction & Data Sync
 // =============================================================================
 
 // Admin key for protected admin endpoints
 const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
+
+// Helper to slugify startup names
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+// Sync startups from CSV data (admin only)
+app.post('/api/admin/sync-startups', async (req, res) => {
+  // Allow localhost without admin key (internal pod access)
+  const ip = req.ip || req.socket.remoteAddress || '';
+  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+
+  // Validate admin key (skip for localhost)
+  if (!isLocalhost) {
+    const providedKey = req.headers['x-admin-key'] as string;
+    if (!providedKey || providedKey !== ADMIN_KEY) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+    }
+  }
+
+  const { startups: startupData } = req.body;
+
+  if (!Array.isArray(startupData) || startupData.length === 0) {
+    return res.status(400).json({ error: 'Invalid request: startups array required' });
+  }
+
+  console.log(`Syncing ${startupData.length} startups...`);
+
+  const results = {
+    total: startupData.length,
+    inserted: 0,
+    updated: 0,
+    failed: [] as { name: string; error: string }[],
+  };
+
+  for (const startup of startupData) {
+    try {
+      const slug = slugify(startup.name);
+
+      // Parse location
+      const locationParts = (startup.location || '').split(', ');
+      const city = locationParts[0] || null;
+      const country = locationParts.length >= 3 ? locationParts[locationParts.length - 3] : null;
+      const continent = locationParts[locationParts.length - 1] || null;
+
+      // Parse industries (first one as primary)
+      const industries = (startup.industries || '').split(', ');
+      const industry = industries[0] || null;
+
+      // Determine stage from funding type
+      const stage = startup.fundingStage || null;
+
+      // UPSERT startup
+      const [existing] = await db.select({ id: startups.id })
+        .from(startups)
+        .where(eq(startups.slug, slug));
+
+      if (existing) {
+        // Update existing
+        await db.update(startups)
+          .set({
+            description: startup.description,
+            website: startup.website,
+            headquartersCity: city,
+            headquartersCountry: country,
+            continent: continent,
+            industry: industry,
+            stage: stage,
+            updatedAt: new Date(),
+          })
+          .where(eq(startups.id, existing.id));
+        results.updated++;
+
+        // Add funding round if present
+        if (startup.amountUsd && startup.roundType) {
+          await db.insert(fundingRounds)
+            .values({
+              startupId: existing.id,
+              roundType: startup.roundType,
+              amountUsd: parseInt(startup.amountUsd) || null,
+              announcedDate: startup.announcedDate || null,
+              leadInvestor: startup.leadInvestors || null,
+            })
+            .onConflictDoNothing();
+        }
+      } else {
+        // Insert new
+        const [newStartup] = await db.insert(startups)
+          .values({
+            name: startup.name,
+            slug: slug,
+            description: startup.description,
+            website: startup.website,
+            headquartersCity: city,
+            headquartersCountry: country,
+            continent: continent,
+            industry: industry,
+            stage: stage,
+          })
+          .returning({ id: startups.id });
+
+        results.inserted++;
+
+        // Add funding round if present
+        if (newStartup && startup.amountUsd && startup.roundType) {
+          await db.insert(fundingRounds)
+            .values({
+              startupId: newStartup.id,
+              roundType: startup.roundType,
+              amountUsd: parseInt(startup.amountUsd) || null,
+              announcedDate: startup.announcedDate || null,
+              leadInvestor: startup.leadInvestors || null,
+            });
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to sync startup ${startup.name}:`, error);
+      results.failed.push({ name: startup.name, error: String(error) });
+    }
+  }
+
+  console.log(`Sync complete: ${results.inserted} inserted, ${results.updated} updated, ${results.failed.length} failed`);
+
+  res.json({
+    message: 'Sync completed',
+    results,
+  });
+});
 
 // Extract logos for all startups (admin only)
 app.post('/api/admin/extract-logos', async (req, res) => {
