@@ -426,22 +426,3 @@ function generateExecutiveSummary(
   return `This month we analyzed ${totalDeals} AI startup funding rounds totaling ${fundingStr}—one of the largest monthly cohorts we've tracked. The data reveals a market in transition: the "general-purpose AI" era is giving way to deeply specialized, vertically-integrated solutions. ${genaiPct}% of funded startups are building with generative AI, with ${topPattern.toLowerCase()} emerging as the dominant build pattern. Here's what builders need to know.`;
 }
 
-/**
- * Get or generate monthly brief for a period
- * First tries to load from static file, falls back to generation
- */
-export async function getMonthlyBrief(period: string): Promise<MonthlyBrief> {
-  // Try to load from static file first
-  try {
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const dataPath = process.env.DATA_PATH || path.join(process.cwd(), 'data');
-    const briefPath = path.join(dataPath, period, 'output', 'monthly_brief.json');
-
-    const data = await fs.readFile(briefPath, 'utf-8');
-    return JSON.parse(data) as MonthlyBrief;
-  } catch {
-    // Fall back to dynamic generation
-    return generateMonthlyBrief(period);
-  }
-}
