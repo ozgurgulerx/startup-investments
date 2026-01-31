@@ -1,0 +1,114 @@
+name: Sync Data to Database
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/web/data/**/input/startups.csv'
+      - '.github/workflows/sync-to-database.yml'
+  workflow_dispatch:
+    inputs:
+      period:
+        description: 'Period to sync (YYYY-MM)'
+        required: false
+        type: string
+        default: '2026-01'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  STORAGE_ACCOUNT: buildatlasstorage
+  CONTAINER_NAME: startup-csvs
+
+jobs:
+  sync-database:
+    runs-on: ubuntu-latest
+    name: Upload CSV and Trigger Database Sync
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Determine period
+        id: period
+        run: |
+          if [ -n "${{ github.event.inputs.period }}" ]; then
+            PERIOD="${{ github.event.inputs.period }}"
+          else
+            # Extract period from changed files or use latest
+            PERIOD="2026-01"
+          fi
+          echo "period=$PERIOD" >> $GITHUB_OUTPUT
+          echo "Using period: $PERIOD"
+
+      - name: Check if CSV exists
+        id: check_csv
+        run: |
+          CSV_PATH="apps/web/data/${{ steps.period.outputs.period }}/input/startups.csv"
+          if [ -f "$CSV_PATH" ]; then
+            echo "csv_exists=true" >> $GITHUB_OUTPUT
+            echo "csv_path=$CSV_PATH" >> $GITHUB_OUTPUT
+            echo "Found CSV: $CSV_PATH"
+            wc -l "$CSV_PATH"
+          else
+            echo "csv_exists=false" >> $GITHUB_OUTPUT
+            echo "CSV not found: $CSV_PATH"
+          fi
+
+      - name: Upload CSV to Blob Storage
+        if: steps.check_csv.outputs.csv_exists == 'true'
+        run: |
+          BLOB_NAME="incoming/${{ steps.period.outputs.period }}-startups-$(date +%Y%m%d-%H%M%S).csv"
+          echo "Uploading to: $BLOB_NAME"
+
+          az storage blob upload \
+            --account-name ${{ env.STORAGE_ACCOUNT }} \
+            --container-name ${{ env.CONTAINER_NAME }} \
+            --name "$BLOB_NAME" \
+            --file "${{ steps.check_csv.outputs.csv_path }}" \
+            --auth-mode login \
+            --overwrite
+
+          echo "Upload complete. Azure Function will be triggered automatically."
+          echo "blob_name=$BLOB_NAME" >> $GITHUB_OUTPUT
+
+      - name: Wait for Function Processing
+        if: steps.check_csv.outputs.csv_exists == 'true'
+        run: |
+          echo "Waiting 60 seconds for Azure Function to process..."
+          sleep 60
+
+          # Check if blob was moved to processed folder
+          BLOB_NAME="incoming/${{ steps.period.outputs.period }}-startups-*.csv"
+          PROCESSED=$(az storage blob list \
+            --account-name ${{ env.STORAGE_ACCOUNT }} \
+            --container-name ${{ env.CONTAINER_NAME }} \
+            --prefix "processed/" \
+            --auth-mode login \
+            --query "[?contains(name, '${{ steps.period.outputs.period }}')]" \
+            -o tsv 2>/dev/null | head -1)
+
+          if [ -n "$PROCESSED" ]; then
+            echo "CSV processed successfully: $PROCESSED"
+          else
+            echo "Note: Check Azure Function logs for processing status"
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Database Sync Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Period | ${{ steps.period.outputs.period }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CSV Found | ${{ steps.check_csv.outputs.csv_exists }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
