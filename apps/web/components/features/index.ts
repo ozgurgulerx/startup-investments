@@ -22,3 +22,5 @@ export { PatternCohortTable } from './pattern-cohort-table';
 export type { PatternCohortTableProps } from './pattern-cohort-table';
 export { SignalStrip, StaticSignalStrip } from './signal-strip';
 export type { SignalStripProps, StaticSignalStripProps } from './signal-strip';
+export { FilterBuilder } from './filter-builder';
+export type { FilterBuilderProps, SavedFilter } from './filter-builder';

@@ -1,41 +1,43 @@
 import { Suspense } from 'react';
 import { getStartups, getMonthlyStats } from '@/lib/data';
-import { formatCurrency } from '@/lib/utils';
-import { CompanyRow } from './company-row';
+import { auth } from '@/lib/auth';
+import { query } from '@/lib/db';
+import { InteractiveDealbook } from './interactive-dealbook';
+import type { SavedFilter } from '@/components/features';
 
 const DEFAULT_PERIOD = '2026-01';
 
+interface UserPreferencesRow {
+  saved_filters: SavedFilter[] | null;
+}
+
 async function DealbookContent() {
-  const [startups, stats] = await Promise.all([
+  const [startups, stats, session] = await Promise.all([
     getStartups(DEFAULT_PERIOD),
     getMonthlyStats(DEFAULT_PERIOD),
+    auth(),
   ]);
 
-  // Sort by funding amount
-  const sortedStartups = [...startups].sort(
-    (a, b) => (b.funding_amount || 0) - (a.funding_amount || 0)
-  );
+  // Fetch saved filters if user is logged in
+  let savedFilters: SavedFilter[] = [];
+  if (session?.user?.id) {
+    try {
+      const result = await query<UserPreferencesRow>(
+        `SELECT saved_filters FROM user_preferences WHERE user_id = $1`,
+        [session.user.id]
+      );
+      savedFilters = result.rows[0]?.saved_filters || [];
+    } catch (error) {
+      console.error('Error fetching saved filters:', error);
+    }
+  }
 
   return (
-    <>
-      {/* Page Header */}
-      <header className="briefing-header">
-        <span className="briefing-date">Dealbook</span>
-        <h1 className="briefing-headline">
-          {stats.deal_summary.total_deals} deals tracked this period
-        </h1>
-        <p className="briefing-subhead">
-          {formatCurrency(stats.deal_summary.total_funding_usd, true)} total capital deployed across {stats.deal_summary.total_deals} rounds.
-        </p>
-      </header>
-
-      {/* Company List */}
-      <div className="space-y-0">
-        {sortedStartups.map((startup) => (
-          <CompanyRow key={startup.company_slug} startup={startup} />
-        ))}
-      </div>
-    </>
+    <InteractiveDealbook
+      startups={startups}
+      stats={stats}
+      initialFilters={savedFilters}
+    />
   );
 }
 
@@ -47,6 +49,7 @@ function DealbookLoading() {
         <div className="h-8 w-2/3 bg-muted rounded" />
         <div className="h-4 w-1/2 bg-muted rounded" />
       </div>
+      <div className="h-24 bg-muted rounded-lg" />
       <div className="h-px bg-border" />
       <div className="space-y-0">
         {[...Array(10)].map((_, i) => (
