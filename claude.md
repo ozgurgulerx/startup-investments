@@ -1,5 +1,31 @@
 # Claude Code Guidelines
 
+## CRITICAL SAFETY RULES
+
+**READ THIS FIRST - THESE RULES ARE NON-NEGOTIABLE**
+
+1. **DO NOT touch any Azure services outside this project** - Other services in the Azure subscription are production systems for other projects
+2. **DO NOT modify, delete, or alter any database records** unless explicitly instructed - Always ask for confirmation before any database changes
+3. **DO NOT tamper with running services** - AKS, App Service, PostgreSQL, Front Door are live production systems
+4. **DO NOT run destructive commands** - No `DROP`, `DELETE`, `TRUNCATE`, `kubectl delete`, `az delete`, etc. without explicit user confirmation
+5. **DO NOT modify Azure resource configurations** - Network rules, secrets, scaling settings, etc. are carefully configured
+6. **ONLY work with local files and git** - The safe operations are: reading files, editing code, generating reports, git commits/push
+7. **When in doubt, ASK** - If unsure whether an operation is safe, stop and ask the user
+
+### Safe Operations
+- Reading/writing local files in this repository
+- Running Python scripts for data processing (local only)
+- Git operations (add, commit, push)
+- Generating reports and statistics from CSV data
+- Viewing Azure resources (read-only `az` commands)
+
+### Dangerous Operations (REQUIRE EXPLICIT CONFIRMATION)
+- Any `az` command that modifies resources
+- Any `kubectl` command that modifies deployments
+- Any database INSERT/UPDATE/DELETE operations
+- Uploading to blob storage
+- Modifying GitHub secrets or workflows
+
 ## Architecture Overview
 
 ```
@@ -532,28 +558,41 @@ When Azure Functions are fully deployed, the process becomes automated:
 
 ## Azure Services Architecture
 
-### Resource Inventory
+**WARNING: These are LIVE PRODUCTION services. Do not modify without explicit user confirmation.**
 
-| Service | Name | Resource Group | Purpose |
-|---------|------|----------------|---------|
-| App Service | `buildatlas-web` | `aistartuptr` | Next.js frontend hosting |
-| AKS | `aks-aistartuptr` | `aistartuptr` | Express.js API hosting |
-| PostgreSQL | `aistartupstr` | `aistartupstr` | Primary database |
-| Storage Account | `buildatlasstorage` | `aistartuptr` | CSV uploads, blob storage |
-| Front Door | `startupapi-...` | `aistartuptr` | CDN, WAF, routing |
-| Container Registry | `aistartuptr` | `aistartuptr` | Docker images for API |
-| Function App | (pending deploy) | `aistartuptr` | Automation functions |
+### Resource Inventory (EXISTING - DO NOT RECREATE)
 
-### Storage Containers
+| Service | Name | Resource Group | Status | Purpose |
+|---------|------|----------------|--------|---------|
+| App Service | `buildatlas-web` | `aistartuptr` | **RUNNING** | Next.js frontend hosting |
+| AKS | `aks-aistartuptr` | `aistartuptr` | **RUNNING** | Express.js API hosting |
+| PostgreSQL | `aistartupstr` | `aistartupstr` | **RUNNING** | Primary database |
+| Storage Account | `buildatlasstorage` | `aistartuptr` | **RUNNING** | CSV uploads, blob storage |
+| Front Door | `afd-aistartuptr-prod` | `aistartuptr` | **RUNNING** | CDN, WAF, routing |
+| Container Registry | `aistartuptr` | `aistartuptr` | **RUNNING** | Docker images for API |
+| Private Endpoint | `pe-aistartupstr-postgres` | `aistartuptr` | **RUNNING** | Secure DB connection |
 
-- `startup-csvs/incoming/` - Upload new CSVs here to trigger processing
-- `startup-csvs/processed/` - Successfully processed CSVs moved here
-- `startup-csvs/failed/` - Failed processing CSVs moved here
-- `crawl-snapshots/` - Versioned website crawl data
-- `analysis-snapshots/` - Versioned startup analysis data
-- `briefs/` - Generated startup briefs
+### Live URLs
 
-### Database Tables
+| Service | URL |
+|---------|-----|
+| Frontend (Production) | https://buildatlas.net |
+| Frontend (Azure) | https://buildatlas-web.azurewebsites.net |
+| API (via Front Door) | https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net |
+| API Health | https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health |
+
+### Storage Account: `buildatlasstorage`
+
+**Container: `startup-csvs`**
+- `incoming/` - Upload new CSVs here to trigger processing
+- `processed/` - Successfully processed CSVs moved here
+- `failed/` - Failed processing CSVs moved here
+
+**Note:** Storage account has network restrictions. Local uploads may be blocked. Use GitHub Actions or Azure Portal for uploads.
+
+### Database: `aistartupstr` (PostgreSQL Flexible Server)
+
+**Connection:** Via private endpoint only (not publicly accessible)
 
 | Table | Purpose |
 |-------|---------|
@@ -568,25 +607,40 @@ When Azure Functions are fully deployed, the process becomes automated:
 | `users` | Authenticated users |
 | `watchlist_items` | User's saved startups |
 
-### Required Environment Variables
+### GitHub Secrets (ALREADY CONFIGURED)
 
-For full automation, these must be set in Azure Functions:
+These secrets exist in the GitHub repository - do not recreate:
 
-```
-AZURE_OPENAI_API_KEY=<key>
-AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-06-01
-DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
-AzureWebJobsStorage=<connection-string>
-```
+| Secret | Purpose |
+|--------|---------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `API_KEY` | API authentication key |
+| `FRONT_DOOR_ID` | Front Door instance ID |
+| `NEXTAUTH_SECRET` | NextAuth.js session secret |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `AZURE_CREDENTIALS` | Service principal for deployments |
 
-### Deploying Azure Functions
+### GitHub Variables (ALREADY CONFIGURED)
 
-Azure Functions are not yet deployed. To deploy:
+| Variable | Purpose |
+|----------|---------|
+| `AZURE_CLIENT_ID` | Service principal client ID |
+| `AZURE_TENANT_ID` | Azure AD tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
+| `NEXTAUTH_URL` | Production URL (https://buildatlas.net) |
 
+### Azure Functions Status
+
+The Azure Functions for automation are defined in `infrastructure/azure-functions/` but deployment status should be verified before use. The workflow `functions-deploy.yml` handles deployment.
+
+**To check function app status:**
 ```bash
-# From infrastructure/azure-functions/
-func azure functionapp publish <function-app-name>
+az functionapp list --query "[?contains(name, 'buildatlas')]" -o table
 ```
 
-Or via GitHub Actions when `infrastructure/azure-functions/**` changes.
+**Required environment variables for Functions (set via GitHub Actions):**
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_ENDPOINT`
+- `DATABASE_URL`
+- `AzureWebJobsStorage`
