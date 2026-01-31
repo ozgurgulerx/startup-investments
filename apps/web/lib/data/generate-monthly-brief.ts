@@ -5,9 +5,30 @@
  * This can be run as a build step or called dynamically.
  */
 
+import { promises as fs } from 'fs';
+import path from 'path';
 import { MonthlyBrief } from '../types/monthly-brief';
 import { getMonthlyStats, getStartups, getAvailablePeriods } from './index';
 import { formatCurrency } from '../utils';
+
+const DATA_PATH = process.env.DATA_PATH || path.join(process.cwd(), 'data');
+
+/**
+ * Get monthly brief - reads from pre-generated file for performance
+ * Falls back to dynamic generation if file doesn't exist
+ */
+export async function getMonthlyBrief(period: string): Promise<MonthlyBrief> {
+  const briefPath = path.join(DATA_PATH, period, 'output', 'monthly_brief.json');
+
+  try {
+    const content = await fs.readFile(briefPath, 'utf-8');
+    return JSON.parse(content) as MonthlyBrief;
+  } catch {
+    // Fall back to dynamic generation if file doesn't exist
+    console.log(`Pre-generated brief not found for ${period}, generating dynamically...`);
+    return generateMonthlyBrief(period);
+  }
+}
 
 // Stage name normalization
 const STAGE_LABELS: Record<string, string> = {

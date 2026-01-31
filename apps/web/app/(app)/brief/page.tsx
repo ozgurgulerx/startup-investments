@@ -1,17 +1,17 @@
 import { Suspense } from 'react';
 import { IntelligenceBrief } from '@/components/features';
 import { getMonthlyBrief } from '@/lib/data/generate-monthly-brief';
-import { getAvailablePeriods, getStartups, getMonthlyStats } from '@/lib/data';
+import { getAvailablePeriods, getMonthlyStats } from '@/lib/data';
 import { StaticSignalStrip } from '@/components/features/signal-strip';
 import { formatCurrency } from '@/lib/utils';
 
 const DEFAULT_PERIOD = '2026-01';
 
 async function BriefContent() {
-  const [brief, allPeriods, startups, stats] = await Promise.all([
+  // Load brief and stats only - startups loaded lazily in drawer
+  const [brief, allPeriods, stats] = await Promise.all([
     getMonthlyBrief(DEFAULT_PERIOD),
     getAvailablePeriods(),
-    getStartups(DEFAULT_PERIOD),
     getMonthlyStats(DEFAULT_PERIOD),
   ]);
 
@@ -42,7 +42,6 @@ async function BriefContent() {
       <IntelligenceBrief
         initialBrief={brief}
         availablePeriods={availablePeriods}
-        startups={startups}
       />
     </>
   );
