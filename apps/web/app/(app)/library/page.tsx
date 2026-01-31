@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Card } from '@/components/ui';
-import { getNewsletterMarkdown, getAvailablePeriods } from '@/lib/data';
+import { getNewsletterMarkdown, getAvailablePeriods, getMonthlyStats } from '@/lib/data';
 import { formatPeriod } from '@/lib/utils';
 import { NewsletterRenderer } from '@/components/features';
 import { Calendar, Download, Share2 } from 'lucide-react';
@@ -8,9 +8,10 @@ import { Calendar, Download, Share2 } from 'lucide-react';
 const DEFAULT_PERIOD = '2026-01';
 
 async function LibraryContent({ period }: { period: string }) {
-  const [markdown, periods] = await Promise.all([
+  const [markdown, periods, stats] = await Promise.all([
     getNewsletterMarkdown(period),
     getAvailablePeriods(),
+    getMonthlyStats(period),
   ]);
 
   if (!markdown) {
@@ -73,7 +74,7 @@ async function LibraryContent({ period }: { period: string }) {
       {/* Footer */}
       <div className="text-center pb-8">
         <p className="text-xs text-muted-foreground/50">
-          Generated with AI-powered analysis from 200+ startup funding rounds
+          Generated with AI-powered analysis from {stats.deal_summary.total_deals} startup funding rounds
         </p>
       </div>
     </div>

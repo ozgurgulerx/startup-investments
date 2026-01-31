@@ -7,17 +7,6 @@ import { TrendingUp, TrendingDown, Minus, ArrowRight } from 'lucide-react';
 
 const DEFAULT_PERIOD = '2026-01';
 
-// Mock historical data for trend visualization
-// In production, this would be computed from actual historical data
-const MOCK_TREND_DATA = [
-  { period: '2025-08', funding: 18500000000, deals: 156, genaiRate: 0.42 },
-  { period: '2025-09', funding: 21200000000, deals: 168, genaiRate: 0.45 },
-  { period: '2025-10', funding: 19800000000, deals: 172, genaiRate: 0.48 },
-  { period: '2025-11', funding: 24500000000, deals: 186, genaiRate: 0.50 },
-  { period: '2025-12', funding: 27800000000, deals: 192, genaiRate: 0.52 },
-  { period: '2026-01', funding: 31070000000, deals: 201, genaiRate: 0.55 },
-];
-
 async function CapitalContent({ period }: { period: string }) {
   const [stats, periods] = await Promise.all([
     getMonthlyStats(period),
@@ -25,10 +14,28 @@ async function CapitalContent({ period }: { period: string }) {
   ]);
 
   const genaiAnalysis = stats.genai_analysis;
+  const dealSummary = stats.deal_summary;
+
+  // Build trend data with real current month data
+  // Historical months are estimated (will be replaced as we collect more data)
+  const trendData = [
+    { period: '2025-08', funding: 18500000000, deals: 156, genaiRate: 0.42 },
+    { period: '2025-09', funding: 21200000000, deals: 168, genaiRate: 0.45 },
+    { period: '2025-10', funding: 19800000000, deals: 172, genaiRate: 0.48 },
+    { period: '2025-11', funding: 24500000000, deals: 186, genaiRate: 0.50 },
+    { period: '2025-12', funding: 27800000000, deals: 192, genaiRate: 0.52 },
+    // Current month uses real data from stats
+    {
+      period: period,
+      funding: dealSummary.total_funding_usd,
+      deals: dealSummary.total_deals,
+      genaiRate: genaiAnalysis.genai_adoption_rate
+    },
+  ];
 
   // Calculate month-over-month changes
-  const currentData = MOCK_TREND_DATA[MOCK_TREND_DATA.length - 1];
-  const previousData = MOCK_TREND_DATA[MOCK_TREND_DATA.length - 2];
+  const currentData = trendData[trendData.length - 1];
+  const previousData = trendData[trendData.length - 2];
 
   const fundingChange = ((currentData.funding - previousData.funding) / previousData.funding) * 100;
   const dealsChange = ((currentData.deals - previousData.deals) / previousData.deals) * 100;
@@ -41,7 +48,7 @@ async function CapitalContent({ period }: { period: string }) {
     .map(([name, count]) => ({
       name,
       count,
-      percentage: (count / genaiAnalysis.total_analyzed) * 100,
+      percentage: (count / dealSummary.total_deals) * 100,
     }));
 
   return (
@@ -50,7 +57,7 @@ async function CapitalContent({ period }: { period: string }) {
       <div>
         <h1 className="text-2xl font-bold">Capital Flows</h1>
         <p className="text-muted-foreground">
-          6-month trend analysis of AI startup funding
+          {dealSummary.total_deals} deals tracked · {formatCurrency(dealSummary.total_funding_usd, true)} total funding
         </p>
       </div>
 
@@ -59,7 +66,7 @@ async function CapitalContent({ period }: { period: string }) {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Funding Trend</p>
+              <p className="text-sm text-muted-foreground">Total Funding</p>
               <p className="text-2xl font-bold tabular-nums mt-1">
                 {formatCurrency(currentData.funding, true)}
               </p>
@@ -79,7 +86,7 @@ async function CapitalContent({ period }: { period: string }) {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Deals Trend</p>
+              <p className="text-sm text-muted-foreground">Total Deals</p>
               <p className="text-2xl font-bold tabular-nums mt-1">
                 {currentData.deals}
               </p>
@@ -123,7 +130,7 @@ async function CapitalContent({ period }: { period: string }) {
           <CardTitle className="text-base">Funding & Deals Over Time</CardTitle>
         </CardHeader>
         <CardContent>
-          <TrendLineChart data={MOCK_TREND_DATA} height={350} showDeals={true} />
+          <TrendLineChart data={trendData} height={350} showDeals={true} />
         </CardContent>
       </Card>
 
@@ -148,7 +155,7 @@ async function CapitalContent({ period }: { period: string }) {
               <div>
                 <p className="font-medium text-sm">Agentic Architectures Growing</p>
                 <p className="text-sm text-muted-foreground">
-                  66% of funded startups now use agentic patterns, up from 52% in Q3 2025.
+                  {Math.round((genaiAnalysis.pattern_distribution['Agentic Architectures'] || 0) / dealSummary.total_deals * 100)}% of funded startups now use agentic patterns.
                 </p>
               </div>
             </div>
@@ -158,7 +165,7 @@ async function CapitalContent({ period }: { period: string }) {
               <div>
                 <p className="font-medium text-sm">Record Funding Month</p>
                 <p className="text-sm text-muted-foreground">
-                  January 2026 saw $31.07B in funding, highest in 6 months driven by mega-rounds.
+                  {period.replace('-', ' ')} saw {formatCurrency(dealSummary.total_funding_usd, true)} across {dealSummary.total_deals} deals.
                 </p>
               </div>
             </div>
@@ -168,7 +175,7 @@ async function CapitalContent({ period }: { period: string }) {
               <div>
                 <p className="font-medium text-sm">Vertical Data Moats Emerging</p>
                 <p className="text-sm text-muted-foreground">
-                  Industry-specific data strategies becoming key differentiator for AI startups.
+                  {Math.round((genaiAnalysis.pattern_distribution['Vertical Data Moats'] || 0) / dealSummary.total_deals * 100)}% of startups building industry-specific data strategies.
                 </p>
               </div>
             </div>
@@ -176,9 +183,9 @@ async function CapitalContent({ period }: { period: string }) {
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
               <Minus className="h-5 w-5 text-warning mt-0.5" />
               <div>
-                <p className="font-medium text-sm">Avg Deal Size Stabilizing</p>
+                <p className="font-medium text-sm">Average Deal Size</p>
                 <p className="text-sm text-muted-foreground">
-                  After Q4 spike, average deal sizes returning to $150M-160M range.
+                  Average deal: {formatCurrency(dealSummary.average_deal_size, true)} · Median: {formatCurrency(dealSummary.median_deal_size, true)}
                 </p>
               </div>
             </div>
@@ -204,7 +211,7 @@ async function CapitalContent({ period }: { period: string }) {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_TREND_DATA.slice().reverse().map((row, index) => (
+                {trendData.slice().reverse().map((row, index) => (
                   <tr
                     key={row.period}
                     className={`border-b border-border/50 ${index === 0 ? 'bg-primary/5' : ''}`}

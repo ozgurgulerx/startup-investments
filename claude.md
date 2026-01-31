@@ -811,6 +811,33 @@ EOF
 2. Then: `monthly_brief.json` (depends on stats)
 3. Then: Enriched CSV (depends on analysis store)
 
+### Data Consistency: Single Source of Truth for Counts
+
+**IMPORTANT:** All frontend pages must display the same deal count for consistency.
+
+**Single source of truth:** `monthly_stats.json → deal_summary.total_deals`
+
+This count represents all funding deals tracked for the period. When displaying deal/startup counts on any page, always use this value.
+
+| Page | Data Access | What to Display |
+|------|-------------|-----------------|
+| `/brief` | `brief.metrics.totalDeals` | "282 deals" |
+| `/dealbook` | `stats.deal_summary.total_deals` | "282 deals tracked" |
+| `/signals` | `stats.deal_summary.total_deals` | "282 deals" |
+| `/capital` | `stats.deal_summary.total_deals` | "282 deals" |
+| `/library` | `stats.deal_summary.total_deals` | "282 startup funding rounds" |
+
+**DO NOT use these for primary counts:**
+- `startups.length` - Only counts startups with analysis files (may be fewer)
+- `stats.genai_analysis.total_analyzed` - Only counts startups that completed GenAI analysis
+- `stats.genai_analysis.newsletter_potential.high` - Filtered subset for newsletter
+- Hardcoded numbers like "200+"
+
+**When data is regenerated:**
+1. `monthly_stats.json` is regenerated with new `deal_summary.total_deals`
+2. `monthly_brief.json` inherits `totalDeals` from stats
+3. All pages automatically show the updated count
+
 ## Monthly Startup Data Update Process
 
 This section documents the step-by-step process for updating monthly startup data. Follow these steps when you receive a new CSV with the latest funding data.

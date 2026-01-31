@@ -22,7 +22,7 @@ async function DealbookContent() {
       <header className="briefing-header">
         <span className="briefing-date">Dealbook</span>
         <h1 className="briefing-headline">
-          {startups.length} companies analyzed this period
+          {stats.deal_summary.total_deals} deals tracked this period
         </h1>
         <p className="briefing-subhead">
           {formatCurrency(stats.deal_summary.total_funding_usd, true)} total capital deployed across {stats.deal_summary.total_deals} rounds.

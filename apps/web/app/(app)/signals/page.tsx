@@ -62,7 +62,7 @@ async function SignalsContent() {
     getStartups(DEFAULT_PERIOD),
   ]);
 
-  const totalAnalyzed = stats.genai_analysis.total_analyzed;
+  const totalDeals = stats.deal_summary.total_deals;
 
   // Get patterns with counts and notable companies
   const patterns = Object.entries(stats.genai_analysis.pattern_distribution)
@@ -83,7 +83,7 @@ async function SignalsContent() {
       return {
         name,
         count,
-        conviction: getConviction(count, totalAnalyzed),
+        conviction: getConviction(count, totalDeals),
         companies,
         ...thesisData,
       };
@@ -98,7 +98,7 @@ async function SignalsContent() {
           Architectural patterns shaping the next generation of AI infrastructure
         </h1>
         <p className="briefing-subhead">
-          Analysis of {totalAnalyzed} companies reveals conviction levels across {patterns.length} distinct build patterns.
+          Analysis of {totalDeals} deals reveals conviction levels across {patterns.length} distinct build patterns.
         </p>
       </header>
 
