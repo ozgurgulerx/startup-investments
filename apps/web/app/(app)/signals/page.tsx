@@ -1,5 +1,8 @@
 import { Suspense } from 'react';
 import { getMonthlyStats, getStartups } from '@/lib/data';
+import { InteractiveSignals } from './interactive-signals';
+import { computePatternCorrelations } from '@/lib/data/signals';
+import type { StartupAnalysis } from '@startup-intelligence/shared';
 
 const DEFAULT_PERIOD = '2026-01';
 
@@ -56,6 +59,17 @@ function getConviction(count: number, total: number): 'high' | 'medium' | 'emerg
   return 'emerging';
 }
 
+export interface PatternData {
+  name: string;
+  count: number;
+  conviction: 'high' | 'medium' | 'emerging';
+  companies: StartupAnalysis[];
+  thesis: string;
+  enables: string;
+  risk: string;
+  horizon: string;
+}
+
 async function SignalsContent() {
   const [stats, startups] = await Promise.all([
     getMonthlyStats(DEFAULT_PERIOD),
@@ -65,13 +79,12 @@ async function SignalsContent() {
   const totalDeals = stats.deal_summary.total_deals;
 
   // Get patterns with counts and notable companies
-  const patterns = Object.entries(stats.genai_analysis.pattern_distribution)
+  const patterns: PatternData[] = Object.entries(stats.genai_analysis.pattern_distribution)
     .sort((a, b) => b[1] - a[1])
     .map(([name, count]) => {
       const companies = startups
         .filter(s => s.build_patterns?.some(p => p.name === name))
-        .sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0))
-        .slice(0, 5);
+        .sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
 
       const thesisData = PATTERN_THESIS[name] || {
         thesis: 'Emerging pattern in AI infrastructure.',
@@ -89,73 +102,15 @@ async function SignalsContent() {
       };
     });
 
+  // Compute pattern correlations
+  const correlations = computePatternCorrelations(startups);
+
   return (
-    <>
-      {/* Page Header */}
-      <header className="briefing-header">
-        <span className="briefing-date">Signals</span>
-        <h1 className="briefing-headline">
-          Architectural patterns shaping the next generation of AI infrastructure
-        </h1>
-        <p className="briefing-subhead">
-          Analysis of {totalDeals} deals reveals conviction levels across {patterns.length} distinct build patterns.
-        </p>
-      </header>
-
-      {/* Patterns List */}
-      <div className="space-y-0">
-        {patterns.slice(0, 8).map((pattern) => (
-          <div key={pattern.name} className="signal-item">
-            {/* Header */}
-            <div className="signal-header">
-              <h3 className="signal-name">{pattern.name}</h3>
-              <div className="signal-conviction">
-                <span className={`signal-conviction-dot ${pattern.conviction}`} />
-                <span className="text-muted-foreground capitalize">
-                  {pattern.conviction}
-                </span>
-              </div>
-            </div>
-
-            {/* Thesis */}
-            <p className="signal-thesis">
-              {pattern.thesis}
-            </p>
-
-            {/* What This Enables */}
-            <div className="intel-callout">
-              <span className="intel-callout-label">What This Enables</span>
-              <p className="intel-callout-text">
-                {pattern.enables}
-              </p>
-            </div>
-
-            {/* Meta */}
-            <div className="signal-meta mt-6">
-              <div className="signal-meta-item">
-                <span className="signal-meta-label">Time Horizon</span>
-                <span className="signal-meta-value">{pattern.horizon}</span>
-              </div>
-              <div className="signal-meta-item">
-                <span className="signal-meta-label">Primary Risk</span>
-                <span className="signal-meta-value max-w-xs">{pattern.risk}</span>
-              </div>
-              <div className="signal-meta-item">
-                <span className="signal-meta-label">Companies</span>
-                <span className="signal-meta-value">{pattern.count}</span>
-              </div>
-            </div>
-
-            {/* Notable Companies */}
-            {pattern.companies.length > 0 && (
-              <p className="body-sm mt-4">
-                Notable: {pattern.companies.map(c => c.company_name).join(', ')}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-    </>
+    <InteractiveSignals
+      patterns={patterns}
+      correlations={correlations}
+      totalDeals={totalDeals}
+    />
   );
 }
 

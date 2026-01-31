@@ -5,11 +5,23 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { MonthlyBrief } from '@/lib/types/monthly-brief';
 import { MonthSwitcher, formatMonthLabel } from '@/components/ui/month-switcher';
+import { KpiCard } from '@/components/ui/kpi-card';
+import { FilteredDealsDrawer, type FilterCriteria } from '@/components/features/filtered-deals-drawer';
 import { formatCurrency } from '@/lib/utils';
+import type { StartupAnalysis } from '@startup-intelligence/shared';
 
 interface IntelligenceBriefProps {
   initialBrief: MonthlyBrief;
   availablePeriods: string[];
+  startups?: StartupAnalysis[];
+}
+
+// Drawer state type
+interface DrawerState {
+  isOpen: boolean;
+  title: string;
+  subtitle?: string;
+  filter?: FilterCriteria;
 }
 
 // Cache for fetched briefs
@@ -18,6 +30,7 @@ const briefCache = new Map<string, MonthlyBrief>();
 export function IntelligenceBrief({
   initialBrief,
   availablePeriods,
+  startups = [],
 }: IntelligenceBriefProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -35,6 +48,22 @@ export function IntelligenceBrief({
     return initialBrief;
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  // Drawer state for clickable KPIs
+  const [drawer, setDrawer] = useState<DrawerState>({
+    isOpen: false,
+    title: '',
+    subtitle: undefined,
+    filter: undefined,
+  });
+
+  const openDrawer = useCallback((title: string, subtitle?: string, filter?: FilterCriteria) => {
+    setDrawer({ isOpen: true, title, subtitle, filter });
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setDrawer(prev => ({ ...prev, isOpen: false }));
+  }, []);
 
   // Handle month change
   const handleMonthChange = useCallback(
@@ -83,7 +112,11 @@ export function IntelligenceBrief({
       <ExecutiveSummary summary={brief.executiveSummary} />
 
       {/* By the Numbers */}
-      <MetricsSection metrics={brief.metrics} />
+      <MetricsSection
+        metrics={brief.metrics}
+        onMetricClick={openDrawer}
+        hasStartups={startups.length > 0}
+      />
 
       {/* This Month's Theme */}
       <ThemeSection theme={brief.theme} />
@@ -121,6 +154,16 @@ export function IntelligenceBrief({
 
       {/* Footer CTA */}
       <FooterCTA />
+
+      {/* Filtered Deals Drawer */}
+      <FilteredDealsDrawer
+        isOpen={drawer.isOpen}
+        onClose={closeDrawer}
+        title={drawer.title}
+        subtitle={drawer.subtitle}
+        deals={startups}
+        filter={drawer.filter}
+      />
     </div>
   );
 }
@@ -173,36 +216,57 @@ function ExecutiveSummary({ summary }: { summary: string }) {
   );
 }
 
-function MetricsSection({ metrics }: { metrics: MonthlyBrief['metrics'] }) {
+function MetricsSection({
+  metrics,
+  onMetricClick,
+  hasStartups,
+}: {
+  metrics: MonthlyBrief['metrics'];
+  onMetricClick?: (title: string, subtitle?: string, filter?: FilterCriteria) => void;
+  hasStartups?: boolean;
+}) {
+  const handleClick = hasStartups && onMetricClick
+    ? (title: string, subtitle?: string, filter?: FilterCriteria) => () => onMetricClick(title, subtitle, filter)
+    : undefined;
+
   return (
     <section className="section">
       <div className="section-header">
         <span className="section-title">By the Numbers</span>
       </div>
 
-      {/* KPI Strip */}
+      {/* KPI Strip - Clickable */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <MetricCard
+        <KpiCard
           label="Total Funding"
           value={formatCurrency(metrics.totalFunding, true)}
+          onClick={handleClick?.('All Deals', `${metrics.totalDeals} deals, ${formatCurrency(metrics.totalFunding, true)} total`, { sortBy: 'funding', sortOrder: 'desc' })}
         />
-        <MetricCard label="Total Deals" value={metrics.totalDeals.toString()} />
-        <MetricCard
+        <KpiCard
+          label="Total Deals"
+          value={metrics.totalDeals.toString()}
+          onClick={handleClick?.('All Deals', 'Sorted by funding amount', { sortBy: 'funding', sortOrder: 'desc' })}
+        />
+        <KpiCard
           label="Average Deal"
           value={formatCurrency(metrics.avgDeal, true)}
+          onClick={handleClick?.('All Deals', `Average: ${formatCurrency(metrics.avgDeal, true)}`, { sortBy: 'funding', sortOrder: 'desc' })}
         />
-        <MetricCard
+        <KpiCard
           label="Median Deal"
           value={formatCurrency(metrics.medianDeal, true)}
+          onClick={handleClick?.('All Deals', `Median: ${formatCurrency(metrics.medianDeal, true)}`, { sortBy: 'funding', sortOrder: 'desc' })}
         />
-        <MetricCard
+        <KpiCard
           label="Largest Deal"
           value={formatCurrency(metrics.largestDeal.amount, true)}
           subtext={metrics.largestDeal.company}
+          onClick={handleClick?.('Top Deals', 'Sorted by funding amount', { sortBy: 'funding', sortOrder: 'desc' })}
         />
-        <MetricCard
+        <KpiCard
           label="GenAI Adoption"
           value={`${metrics.genaiAdoptionPct}%`}
+          onClick={handleClick?.('GenAI Startups', `${metrics.genaiAdoptionPct}% of deals use generative AI`, { usesGenai: true, sortBy: 'funding', sortOrder: 'desc' })}
         />
       </div>
 
@@ -262,25 +326,7 @@ function MetricsSection({ metrics }: { metrics: MonthlyBrief['metrics'] }) {
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  subtext,
-}: {
-  label: string;
-  value: string;
-  subtext?: string;
-}) {
-  return (
-    <div className="p-4 border border-border/30 rounded-lg bg-card">
-      <p className="text-2xl font-light tabular-nums text-foreground">{value}</p>
-      <p className="text-xs text-muted-foreground mt-1">{label}</p>
-      {subtext && (
-        <p className="text-xs text-accent mt-0.5 truncate">{subtext}</p>
-      )}
-    </div>
-  );
-}
+// MetricCard is now replaced by KpiCard from @/components/ui/kpi-card
 
 function ThemeSection({ theme }: { theme: MonthlyBrief['theme'] }) {
   return (

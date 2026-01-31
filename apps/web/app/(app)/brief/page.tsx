@@ -1,14 +1,18 @@
 import { Suspense } from 'react';
 import { IntelligenceBrief } from '@/components/features';
 import { getMonthlyBrief } from '@/lib/data/generate-monthly-brief';
-import { getAvailablePeriods } from '@/lib/data';
+import { getAvailablePeriods, getStartups, getMonthlyStats } from '@/lib/data';
+import { StaticSignalStrip } from '@/components/features/signal-strip';
+import { formatCurrency } from '@/lib/utils';
 
 const DEFAULT_PERIOD = '2026-01';
 
 async function BriefContent() {
-  const [brief, allPeriods] = await Promise.all([
+  const [brief, allPeriods, startups, stats] = await Promise.all([
     getMonthlyBrief(DEFAULT_PERIOD),
     getAvailablePeriods(),
+    getStartups(DEFAULT_PERIOD),
+    getMonthlyStats(DEFAULT_PERIOD),
   ]);
 
   // Filter to periods with newsletters/briefs
@@ -16,11 +20,31 @@ async function BriefContent() {
     .filter(p => p.has_newsletter)
     .map(p => p.period);
 
+  // Find top deal for signal strip
+  const topDeal = stats.top_deals?.[0];
+
   return (
-    <IntelligenceBrief
-      initialBrief={brief}
-      availablePeriods={availablePeriods}
-    />
+    <>
+      {/* Signal Strip */}
+      <StaticSignalStrip
+        metrics={{
+          totalFunding: formatCurrency(stats.deal_summary.total_funding_usd, true),
+          totalDeals: stats.deal_summary.total_deals,
+          genaiAdoption: `${(stats.genai_analysis.genai_adoption_rate * 100).toFixed(0)}%`,
+          topDeal: topDeal ? {
+            name: topDeal.name,
+            amount: formatCurrency(topDeal.funding_usd, true),
+            slug: topDeal.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          } : undefined,
+        }}
+      />
+
+      <IntelligenceBrief
+        initialBrief={brief}
+        availablePeriods={availablePeriods}
+        startups={startups}
+      />
+    </>
   );
 }
 
