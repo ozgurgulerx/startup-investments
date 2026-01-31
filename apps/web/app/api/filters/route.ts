@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { randomUUID } from 'crypto';
+import { canCreateSavedFilter, type UserPlan } from '@/lib/feature-flags';
 
 /**
  * SavedFilter interface matching the schema in user_preferences.saved_filters
@@ -24,6 +25,10 @@ interface SavedFilter {
 
 interface UserPreferencesRow {
   saved_filters: SavedFilter[] | null;
+}
+
+interface UserRow {
+  plan: UserPlan | null;
 }
 
 // GET /api/filters - Get user's saved filters
@@ -79,6 +84,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get user's plan and existing filters
+    const [userResult, existingResult] = await Promise.all([
+      query<UserRow>(`SELECT plan FROM users WHERE id = $1`, [session.user.id]),
+      query<UserPreferencesRow>(
+        `SELECT saved_filters FROM user_preferences WHERE user_id = $1`,
+        [session.user.id]
+      ),
+    ]);
+
+    const userPlan = userResult.rows[0]?.plan || 'free';
+    const existingFilters = existingResult.rows[0]?.saved_filters || [];
+
+    // Check if user can create more filters
+    if (!canCreateSavedFilter(userPlan, existingFilters.length)) {
+      return NextResponse.json(
+        {
+          error: 'Filter limit reached',
+          message: `Your ${userPlan} plan allows up to ${existingFilters.length} saved filters. Upgrade to save more.`,
+          code: 'LIMIT_REACHED',
+        },
+        { status: 403 }
+      );
+    }
+
     // Create the new filter
     const newFilter: SavedFilter = {
       id: randomUUID(),
@@ -88,13 +117,6 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    // Get existing filters
-    const existingResult = await query<UserPreferencesRow>(
-      `SELECT saved_filters FROM user_preferences WHERE user_id = $1`,
-      [session.user.id]
-    );
-
-    const existingFilters = existingResult.rows[0]?.saved_filters || [];
     const updatedFilters = [...existingFilters, newFilter];
 
     // Upsert user preferences with the new filter

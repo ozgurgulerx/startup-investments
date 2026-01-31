@@ -7,3 +7,5 @@ export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tool
 export { MonthSwitcher, formatMonthLabel } from './month-switcher';
 export { PaywallOverlay, LockedBadge } from './paywall-overlay';
 export { CompanyLogo } from './company-logo';
+export { FeatureGate, InlineFeatureGate, useFeatureAccess } from './feature-gate';
+export type { FeatureGateProps, InlineFeatureGateProps } from './feature-gate';
