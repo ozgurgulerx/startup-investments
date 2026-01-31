@@ -38,28 +38,32 @@ export const SUPPORTING_LINE =
   "Decision-grade dossiers across: Wedge, Moat, Execution, and Momentum—grounded in architecture, data advantage, and GTM.";
 
 // Standardized metrics labels
-// NOTE: These values are updated automatically by the sync-to-database workflow
+// NOTE: Values are updated automatically by the sync-to-database workflow
 // from monthly_stats.json. Do not edit manually.
 export const METRICS = {
   companies: {
     value: "282",
     label: "Funded companies tracked",
     shortLabel: "Companies tracked",
+    description: "AI startups that raised funding this month",
   },
   capital: {
     value: "$32.0B",
     label: "Capital mapped",
     shortLabel: "Capital mapped",
+    description: "Total funding raised across all tracked deals",
   },
   genai: {
     value: "57%",
     label: "GenAI adoption",
     shortLabel: "GenAI adoption",
+    description: "Share of startups building on generative AI",
   },
   patterns: {
     value: "6",
     label: "Build patterns detected",
     shortLabel: "Patterns detected",
+    description: "Distinct architecture patterns identified",
   },
 } as const;
 

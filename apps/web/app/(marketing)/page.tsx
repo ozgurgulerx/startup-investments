@@ -95,21 +95,25 @@ export default function LandingPage() {
       <section className="py-12 border-y border-accent/20 bg-muted/10">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div className="relative">
+            <div className="relative group">
               <p className="text-3xl font-light text-foreground tabular-nums">{METRICS.companies.value}</p>
               <p className="text-sm text-muted-foreground mt-1">{METRICS.companies.shortLabel}</p>
+              <p className="text-xs text-muted-foreground/60 mt-1 hidden md:block">{METRICS.companies.description}</p>
             </div>
-            <div>
+            <div className="group">
               <p className="text-3xl font-light text-accent tabular-nums">{METRICS.capital.value}</p>
               <p className="text-sm text-muted-foreground mt-1">{METRICS.capital.label}</p>
+              <p className="text-xs text-muted-foreground/60 mt-1 hidden md:block">{METRICS.capital.description}</p>
             </div>
-            <div>
+            <div className="group">
               <p className="text-3xl font-light text-foreground tabular-nums">{METRICS.patterns.value}</p>
               <p className="text-sm text-muted-foreground mt-1">{METRICS.patterns.label}</p>
+              <p className="text-xs text-muted-foreground/60 mt-1 hidden md:block">{METRICS.patterns.description}</p>
             </div>
-            <div>
+            <div className="group">
               <p className="text-3xl font-light text-foreground tabular-nums">{METRICS.genai.value}</p>
               <p className="text-sm text-muted-foreground mt-1">{METRICS.genai.label}</p>
+              <p className="text-xs text-muted-foreground/60 mt-1 hidden md:block">{METRICS.genai.description}</p>
             </div>
           </div>
         </div>
