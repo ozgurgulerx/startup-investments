@@ -135,6 +135,67 @@ export interface HealthResponse {
   database: string;
 }
 
+export interface DealbookFilters {
+  period?: string;
+  page?: number;
+  limit?: number;
+  stage?: string;
+  pattern?: string;
+  continent?: string;
+  minFunding?: number;
+  maxFunding?: number;
+  usesGenai?: boolean;
+  sortBy?: 'funding' | 'name' | 'date';
+  sortOrder?: 'asc' | 'desc';
+  search?: string;
+}
+
+export interface DealbookStartup {
+  company_name: string;
+  company_slug: string;
+  description: string | null;
+  website: string | null;
+  location: string | null;
+  continent: string | null;
+  vertical: string | null;
+  market_type: string | null;
+  sub_vertical: string | null;
+  funding_amount: number | null;
+  funding_stage: string | null;
+  uses_genai: boolean;
+  build_patterns: Array<{ name: string; confidence: number; evidence: string[] }> | null;
+  confidence_score: number | null;
+  newsletter_potential: string | null;
+  tech_stack: Record<string, unknown> | null;
+  models_mentioned: string[] | null;
+}
+
+export interface DealbookResponse {
+  data: DealbookStartup[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  filters: {
+    period: string;
+    stage: string | null;
+    pattern: string | null;
+    continent: string | null;
+    minFunding: number | null;
+    maxFunding: number | null;
+    usesGenai: string | null;
+    search: string | null;
+  };
+}
+
+export interface DealbookFiltersResponse {
+  stages: string[];
+  continents: string[];
+  patterns: Array<{ name: string; count: number }>;
+}
+
 /**
  * API methods
  */
@@ -174,6 +235,33 @@ export const api = {
    */
   getInvestors: (): Promise<InvestorsResponse> =>
     fetchFromAPI('/api/v1/investors'),
+
+  /**
+   * Get dealbook data with filtering and pagination
+   */
+  getDealbook: (filters: DealbookFilters = {}): Promise<DealbookResponse> => {
+    const searchParams = new URLSearchParams();
+    if (filters.period) searchParams.set('period', filters.period);
+    if (filters.page) searchParams.set('page', filters.page.toString());
+    if (filters.limit) searchParams.set('limit', filters.limit.toString());
+    if (filters.stage) searchParams.set('stage', filters.stage);
+    if (filters.pattern) searchParams.set('pattern', filters.pattern);
+    if (filters.continent) searchParams.set('continent', filters.continent);
+    if (filters.minFunding) searchParams.set('minFunding', filters.minFunding.toString());
+    if (filters.maxFunding) searchParams.set('maxFunding', filters.maxFunding.toString());
+    if (filters.usesGenai !== undefined) searchParams.set('usesGenai', filters.usesGenai.toString());
+    if (filters.sortBy) searchParams.set('sortBy', filters.sortBy);
+    if (filters.sortOrder) searchParams.set('sortOrder', filters.sortOrder);
+    if (filters.search) searchParams.set('search', filters.search);
+    const query = searchParams.toString();
+    return fetchFromAPI(`/api/v1/dealbook${query ? `?${query}` : ''}`);
+  },
+
+  /**
+   * Get available filter options for dealbook
+   */
+  getDealbookFilters: (period = '2026-01'): Promise<DealbookFiltersResponse> =>
+    fetchFromAPI(`/api/v1/dealbook/filters?period=${period}`),
 };
 
 /**

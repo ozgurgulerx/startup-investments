@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { db, testConnection, closePool, getPoolStats } from './db';
 import { startups, fundingRounds, investors } from './db/schema';
-import { eq, desc, sql, count, sum } from 'drizzle-orm';
+import { eq, desc, sql, count, sum, and, gte, lte, ilike, or } from 'drizzle-orm';
 import { logoExtractor } from './services/logo-extractor';
 
 dotenv.config();
@@ -280,6 +280,230 @@ app.get('/api/v1/stats', async (req, res) => {
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// =============================================================================
+// Dealbook API - Paginated startups with filtering
+// =============================================================================
+
+app.get('/api/v1/dealbook', async (req, res) => {
+  try {
+    const {
+      period = '2026-01',
+      page = '1',
+      limit = '25',
+      stage,
+      pattern,
+      continent,
+      minFunding,
+      maxFunding,
+      usesGenai,
+      sortBy = 'funding',
+      sortOrder = 'desc',
+      search,
+    } = req.query as Record<string, string | undefined>;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 25));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Build WHERE conditions
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    // Period filter (always applied)
+    conditions.push(eq(startups.period, period));
+
+    // Stage filter
+    if (stage) {
+      conditions.push(eq(startups.fundingStage, stage));
+    }
+
+    // Continent filter
+    if (continent) {
+      conditions.push(eq(startups.continent, continent));
+    }
+
+    // Funding range filters
+    if (minFunding) {
+      const minVal = parseInt(minFunding);
+      if (!isNaN(minVal)) {
+        conditions.push(gte(startups.moneyRaisedUsd, minVal));
+      }
+    }
+    if (maxFunding) {
+      const maxVal = parseInt(maxFunding);
+      if (!isNaN(maxVal)) {
+        conditions.push(lte(startups.moneyRaisedUsd, maxVal));
+      }
+    }
+
+    // GenAI filter
+    if (usesGenai === 'true') {
+      conditions.push(eq(startups.usesGenai, true));
+    } else if (usesGenai === 'false') {
+      conditions.push(eq(startups.usesGenai, false));
+    }
+
+    // Pattern filter (uses JSONB containment)
+    let patternCondition: ReturnType<typeof sql> | null = null;
+    if (pattern) {
+      patternCondition = sql`${startups.analysisData}->'build_patterns' @> ${JSON.stringify([{ name: pattern }])}::jsonb`;
+    }
+
+    // Search filter (name or description)
+    if (search) {
+      conditions.push(
+        or(
+          ilike(startups.name, `%${search}%`),
+          ilike(startups.description, `%${search}%`)
+        ) as ReturnType<typeof eq>
+      );
+    }
+
+    // Combine all conditions
+    const whereClause = patternCondition
+      ? and(...conditions, patternCondition)
+      : conditions.length > 0
+        ? and(...conditions)
+        : undefined;
+
+    // Determine sort order
+    const orderColumn = sortBy === 'name'
+      ? startups.name
+      : sortBy === 'date'
+        ? startups.createdAt
+        : startups.moneyRaisedUsd;
+    const orderDir = sortOrder === 'asc' ? orderColumn : desc(orderColumn);
+
+    // Execute query with pagination
+    const results = await db.select({
+      id: startups.id,
+      name: startups.name,
+      slug: startups.slug,
+      description: startups.description,
+      website: startups.website,
+      headquartersCity: startups.headquartersCity,
+      headquartersCountry: startups.headquartersCountry,
+      continent: startups.continent,
+      industry: startups.industry,
+      fundingStage: startups.fundingStage,
+      moneyRaisedUsd: startups.moneyRaisedUsd,
+      usesGenai: startups.usesGenai,
+      period: startups.period,
+      analysisData: startups.analysisData,
+    })
+      .from(startups)
+      .where(whereClause)
+      .orderBy(orderDir)
+      .limit(limitNum)
+      .offset(offset);
+
+    // Get total count for pagination
+    const [countResult] = await db.select({ total: count() })
+      .from(startups)
+      .where(whereClause);
+
+    const total = countResult?.total || 0;
+
+    // Transform results to match frontend StartupAnalysis interface
+    const data = results.map((row) => {
+      const analysis = row.analysisData as Record<string, unknown> || {};
+      return {
+        company_name: row.name,
+        company_slug: row.slug,
+        description: row.description || analysis.description,
+        website: row.website,
+        location: row.headquartersCity
+          ? `${row.headquartersCity}, ${row.headquartersCountry || ''}`
+          : row.headquartersCountry,
+        continent: row.continent,
+        vertical: analysis.vertical,
+        market_type: analysis.market_type,
+        sub_vertical: analysis.sub_vertical,
+        funding_amount: row.moneyRaisedUsd,
+        funding_stage: row.fundingStage,
+        uses_genai: row.usesGenai,
+        build_patterns: analysis.build_patterns,
+        confidence_score: analysis.confidence_score,
+        newsletter_potential: analysis.newsletter_potential,
+        tech_stack: analysis.tech_stack,
+        models_mentioned: analysis.models_mentioned,
+        ...analysis, // Include any additional analysis fields
+      };
+    });
+
+    res.json({
+      data,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+      filters: {
+        period,
+        stage: stage || null,
+        pattern: pattern || null,
+        continent: continent || null,
+        minFunding: minFunding ? parseInt(minFunding) : null,
+        maxFunding: maxFunding ? parseInt(maxFunding) : null,
+        usesGenai: usesGenai || null,
+        search: search || null,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching dealbook:', error);
+    res.status(500).json({ error: 'Failed to fetch dealbook data' });
+  }
+});
+
+// Get filter options for dealbook (available stages, patterns, continents)
+app.get('/api/v1/dealbook/filters', async (req, res) => {
+  try {
+    const { period = '2026-01' } = req.query;
+
+    // Get distinct stages
+    const stages = await db.selectDistinct({ stage: startups.fundingStage })
+      .from(startups)
+      .where(and(
+        eq(startups.period, period as string),
+        sql`${startups.fundingStage} IS NOT NULL`
+      ));
+
+    // Get distinct continents
+    const continents = await db.selectDistinct({ continent: startups.continent })
+      .from(startups)
+      .where(and(
+        eq(startups.period, period as string),
+        sql`${startups.continent} IS NOT NULL`
+      ));
+
+    // Get pattern counts from JSONB
+    const patternCounts = await db.select({
+      pattern: sql<string>`jsonb_array_elements(${startups.analysisData}->'build_patterns')->>'name'`.as('pattern'),
+    })
+      .from(startups)
+      .where(eq(startups.period, period as string));
+
+    // Aggregate pattern counts
+    const patternMap = new Map<string, number>();
+    for (const row of patternCounts) {
+      if (row.pattern) {
+        patternMap.set(row.pattern, (patternMap.get(row.pattern) || 0) + 1);
+      }
+    }
+
+    res.json({
+      stages: stages.map(s => s.stage).filter(Boolean).sort(),
+      continents: continents.map(c => c.continent).filter(Boolean).sort(),
+      patterns: Array.from(patternMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => ({ name, count })),
+    });
+  } catch (error) {
+    console.error('Error fetching dealbook filters:', error);
+    res.status(500).json({ error: 'Failed to fetch filter options' });
   }
 });
 

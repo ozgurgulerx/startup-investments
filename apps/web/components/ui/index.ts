@@ -9,3 +9,4 @@ export { PaywallOverlay, LockedBadge } from './paywall-overlay';
 export { CompanyLogo } from './company-logo';
 export { FeatureGate, InlineFeatureGate, useFeatureAccess } from './feature-gate';
 export type { FeatureGateProps, InlineFeatureGateProps } from './feature-gate';
+export { Pagination, PaginationInfo } from './pagination';

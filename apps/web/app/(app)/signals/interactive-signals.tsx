@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Users, ArrowRight, Lightbulb } from 'lucide-react';
+import Link from 'next/link';
+import { Users, ArrowRight, Lightbulb, ExternalLink } from 'lucide-react';
 import { PatternCohortTable } from '@/components/features/pattern-cohort-table';
 import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
 import type { PatternData } from './page';
@@ -129,6 +130,14 @@ export function InteractiveSignals({
                 View {pattern.count} companies
                 <ArrowRight className="w-3 h-3" />
               </button>
+
+              <Link
+                href={`/dealbook?pattern=${encodeURIComponent(pattern.name)}`}
+                className="inline-flex items-center gap-2 text-xs text-accent hover:text-accent/80 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Browse in Dealbook
+              </Link>
 
               {pattern.companies.length > 0 && (
                 <span className="text-xs text-muted-foreground/60">

@@ -1,76 +1,131 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FilterBuilder, type SavedFilter } from '@/components/features';
-import { filterStartups, computeFilterStats, type FilterQuery } from '@/lib/data/filtering';
+import { computeFilterStats, type FilterQuery } from '@/lib/data/filtering';
 import type { StartupAnalysis, MonthlyStats } from '@startup-intelligence/shared';
 import { CompanyRow } from './company-row';
 import { formatCurrency } from '@/lib/utils';
+import { Badge } from '@/components/ui';
+import { X } from 'lucide-react';
+import Link from 'next/link';
+
+interface UrlFilters {
+  stage?: string;
+  pattern?: string;
+  continent?: string;
+  minFunding?: number;
+  maxFunding?: number;
+  usesGenai?: boolean;
+  search?: string;
+}
+
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+interface FilterOptions {
+  stages: string[];
+  continents: string[];
+  patterns: Array<{ name: string; count: number }>;
+}
 
 interface InteractiveDealbookProps {
   startups: StartupAnalysis[];
   stats: MonthlyStats;
   initialFilters: SavedFilter[];
+  filterOptions?: FilterOptions;
+  urlFilters?: UrlFilters;
+  pagination?: PaginationInfo;
+  hasUrlFilters?: boolean;
 }
 
 export function InteractiveDealbook({
   startups,
   stats,
   initialFilters,
+  filterOptions,
+  urlFilters,
+  pagination,
+  hasUrlFilters = false,
 }: InteractiveDealbookProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [activeQuery, setActiveQuery] = useState<FilterQuery>({});
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>(initialFilters);
 
-  // Compute available filter options
+  // Initialize activeQuery from URL filters
+  useEffect(() => {
+    if (urlFilters) {
+      const query: FilterQuery = {};
+      if (urlFilters.stage) query.stages = [urlFilters.stage];
+      if (urlFilters.pattern) query.patterns = [urlFilters.pattern];
+      if (urlFilters.continent) query.continents = [urlFilters.continent];
+      if (urlFilters.minFunding) query.fundingMin = urlFilters.minFunding;
+      if (urlFilters.maxFunding) query.fundingMax = urlFilters.maxFunding;
+      if (urlFilters.usesGenai !== undefined) query.usesGenai = urlFilters.usesGenai;
+      setActiveQuery(query);
+    }
+  }, [urlFilters]);
+
+  // Compute available filter options from props or from data
   const filterStats = useMemo(() => computeFilterStats(startups), [startups]);
 
   const availablePatterns = useMemo(
-    () => Object.keys(filterStats.byPattern).sort((a, b) => filterStats.byPattern[b] - filterStats.byPattern[a]),
-    [filterStats.byPattern]
+    () => filterOptions?.patterns.map(p => p.name) ||
+      Object.keys(filterStats.byPattern).sort((a, b) => filterStats.byPattern[b] - filterStats.byPattern[a]),
+    [filterOptions, filterStats.byPattern]
   );
 
   const availableStages = useMemo(
-    () => Object.keys(filterStats.byStage).sort((a, b) => filterStats.byStage[b] - filterStats.byStage[a]),
-    [filterStats.byStage]
+    () => filterOptions?.stages ||
+      Object.keys(filterStats.byStage).sort((a, b) => filterStats.byStage[b] - filterStats.byStage[a]),
+    [filterOptions, filterStats.byStage]
   );
 
   const availableContinents = useMemo(
-    () => Object.keys(filterStats.byContinent).sort((a, b) => filterStats.byContinent[b] - filterStats.byContinent[a]),
-    [filterStats.byContinent]
+    () => filterOptions?.continents ||
+      Object.keys(filterStats.byContinent).sort((a, b) => filterStats.byContinent[b] - filterStats.byContinent[a]),
+    [filterOptions, filterStats.byContinent]
   );
 
-  // Filter startups based on active query
-  const filteredStartups = useMemo(() => {
-    const hasFilters = Object.keys(activeQuery).some(
-      key => {
-        const val = activeQuery[key as keyof FilterQuery];
-        return val !== undefined && (Array.isArray(val) ? val.length > 0 : true);
-      }
-    );
-
-    if (!hasFilters) {
-      return [...startups].sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
-    }
-
-    return filterStartups(startups, activeQuery).sort(
-      (a, b) => (b.funding_amount || 0) - (a.funding_amount || 0)
-    );
-  }, [startups, activeQuery]);
-
-  // Calculate filtered totals
+  // Calculate totals - use pagination total if available (server-side filtered)
   const filteredTotals = useMemo(() => {
-    const totalFunding = filteredStartups.reduce((sum, s) => sum + (s.funding_amount || 0), 0);
-    const genaiCount = filteredStartups.filter(s => s.uses_genai).length;
+    const total = pagination?.total ?? startups.length;
+    const totalFunding = startups.reduce((sum, s) => sum + (s.funding_amount || 0), 0);
+    const genaiCount = startups.filter(s => s.uses_genai).length;
     return {
-      count: filteredStartups.length,
+      count: total,
       funding: totalFunding,
-      genaiPct: filteredStartups.length > 0 ? (genaiCount / filteredStartups.length) * 100 : 0,
+      genaiPct: startups.length > 0 ? (genaiCount / startups.length) * 100 : 0,
     };
-  }, [filteredStartups]);
+  }, [startups, pagination]);
+
+  // Update URL when filter changes (for client-side filtering)
+  const updateUrlWithFilters = useCallback((query: FilterQuery) => {
+    const params = new URLSearchParams();
+
+    if (query.stages?.length === 1) params.set('stage', query.stages[0]);
+    if (query.patterns?.length === 1) params.set('pattern', query.patterns[0]);
+    if (query.continents?.length === 1) params.set('continent', query.continents[0]);
+    if (query.fundingMin) params.set('minFunding', query.fundingMin.toString());
+    if (query.fundingMax) params.set('maxFunding', query.fundingMax.toString());
+    if (query.usesGenai !== undefined) params.set('usesGenai', query.usesGenai.toString());
+
+    const queryString = params.toString();
+    router.push(queryString ? `/dealbook?${queryString}` : '/dealbook');
+  }, [router]);
 
   const handleFilterApply = useCallback((query: FilterQuery) => {
     setActiveQuery(query);
-  }, []);
+    // Update URL to reflect filters (enables bookmarking and sharing)
+    updateUrlWithFilters(query);
+  }, [updateUrlWithFilters]);
 
   const handleFilterSave = useCallback(async (name: string, query: FilterQuery, alertsEnabled: boolean) => {
     try {
@@ -124,12 +179,31 @@ export function InteractiveDealbook({
     }
   }, []);
 
-  const isFiltered = Object.keys(activeQuery).some(
+  const isFiltered = hasUrlFilters || Object.keys(activeQuery).some(
     key => {
       const val = activeQuery[key as keyof FilterQuery];
       return val !== undefined && (Array.isArray(val) ? val.length > 0 : true);
     }
   );
+
+  // Active filter badges for URL-based filters
+  const activeFilterBadges = useMemo(() => {
+    const badges: Array<{ label: string; value: string; param: string }> = [];
+    if (urlFilters?.pattern) badges.push({ label: 'Pattern', value: urlFilters.pattern, param: 'pattern' });
+    if (urlFilters?.stage) badges.push({ label: 'Stage', value: urlFilters.stage, param: 'stage' });
+    if (urlFilters?.continent) badges.push({ label: 'Region', value: urlFilters.continent, param: 'continent' });
+    if (urlFilters?.usesGenai !== undefined) badges.push({ label: 'GenAI', value: urlFilters.usesGenai ? 'Yes' : 'No', param: 'usesGenai' });
+    return badges;
+  }, [urlFilters]);
+
+  // Build URL without a specific filter
+  const buildUrlWithoutFilter = (paramToRemove: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(paramToRemove);
+    params.delete('page'); // Reset to page 1 when filter changes
+    const queryString = params.toString();
+    return queryString ? `/dealbook?${queryString}` : '/dealbook';
+  };
 
   return (
     <>
@@ -143,10 +217,35 @@ export function InteractiveDealbook({
         </h1>
         <p className="briefing-subhead">
           {isFiltered
-            ? `${formatCurrency(filteredTotals.funding, true)} across ${filteredTotals.count} matching rounds`
+            ? `${formatCurrency(filteredTotals.funding, true)} across ${startups.length} matching rounds on this page`
             : `${formatCurrency(stats.deal_summary.total_funding_usd, true)} total capital deployed across ${stats.deal_summary.total_deals} rounds.`}
         </p>
       </header>
+
+      {/* Active URL Filter Badges */}
+      {activeFilterBadges.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {activeFilterBadges.map(({ label, value, param }) => (
+            <Link
+              key={param}
+              href={buildUrlWithoutFilter(param)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-sm hover:bg-accent/20 transition-colors"
+            >
+              <span className="text-muted-foreground">{label}:</span>
+              <span className="font-medium">{value}</span>
+              <X className="h-3.5 w-3.5" />
+            </Link>
+          ))}
+          {activeFilterBadges.length > 1 && (
+            <Link
+              href="/dealbook"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-sm hover:bg-muted/80 transition-colors"
+            >
+              Clear all
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Filter Builder */}
       <FilterBuilder
@@ -163,13 +262,13 @@ export function InteractiveDealbook({
 
       {/* Company List */}
       <div className="space-y-0">
-        {filteredStartups.length === 0 ? (
+        {startups.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
             <p className="text-lg">No deals match your current filters</p>
             <p className="text-sm mt-2">Try adjusting your filter criteria</p>
           </div>
         ) : (
-          filteredStartups.map((startup) => (
+          startups.map((startup) => (
             <CompanyRow key={startup.company_slug} startup={startup} />
           ))
         )}

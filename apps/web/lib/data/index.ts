@@ -6,6 +6,7 @@ import type {
   StartupAnalysis,
   PeriodInfo,
 } from '@startup-intelligence/shared';
+import { api, isAPIConfigured, type DealbookFilters, type DealbookResponse } from '@/lib/api/client';
 
 // Base data path - configurable via environment variable
 // For static export, use the data directory relative to the web app
@@ -144,6 +145,165 @@ export async function getStartups(period: string): Promise<StartupAnalysis[]> {
     console.error('Error reading startups:', error);
     return [];
   }
+}
+
+/**
+ * Paginated response type for database-driven queries
+ */
+export interface PaginatedStartupsResponse {
+  data: StartupAnalysis[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  filters: DealbookFilters;
+}
+
+/**
+ * Get startups with database-driven pagination and filtering
+ * Falls back to file-based filtering when API is not available
+ */
+export async function getStartupsPaginated(
+  period: string,
+  options: DealbookFilters = {}
+): Promise<PaginatedStartupsResponse> {
+  // Try API first if configured
+  if (isAPIConfigured()) {
+    try {
+      const response = await api.getDealbook({
+        period,
+        ...options,
+      });
+
+      return {
+        data: response.data as unknown as StartupAnalysis[],
+        pagination: response.pagination,
+        filters: options,
+      };
+    } catch (error) {
+      console.error('API request failed, falling back to file-based data:', error);
+    }
+  }
+
+  // Fallback to file-based data with client-side filtering
+  const allStartups = await getStartups(period);
+  let filtered = [...allStartups];
+
+  // Apply filters
+  if (options.stage) {
+    filtered = filtered.filter(s => s.funding_stage === options.stage);
+  }
+  if (options.pattern) {
+    filtered = filtered.filter(s =>
+      s.build_patterns?.some(p => p.name === options.pattern)
+    );
+  }
+  if (options.continent) {
+    filtered = filtered.filter(s => {
+      const location = s.location || '';
+      return location.toLowerCase().includes(options.continent!.toLowerCase());
+    });
+  }
+  if (options.minFunding !== undefined) {
+    filtered = filtered.filter(s => (s.funding_amount || 0) >= options.minFunding!);
+  }
+  if (options.maxFunding !== undefined) {
+    filtered = filtered.filter(s => (s.funding_amount || 0) <= options.maxFunding!);
+  }
+  if (options.usesGenai !== undefined) {
+    filtered = filtered.filter(s => s.uses_genai === options.usesGenai);
+  }
+  if (options.search) {
+    const searchLower = options.search.toLowerCase();
+    filtered = filtered.filter(s =>
+      s.company_name.toLowerCase().includes(searchLower) ||
+      (s.description || '').toLowerCase().includes(searchLower)
+    );
+  }
+
+  // Apply sorting
+  const sortBy = options.sortBy || 'funding';
+  const sortOrder = options.sortOrder || 'desc';
+  filtered.sort((a, b) => {
+    let comparison = 0;
+    if (sortBy === 'funding') {
+      comparison = (a.funding_amount || 0) - (b.funding_amount || 0);
+    } else if (sortBy === 'name') {
+      comparison = a.company_name.localeCompare(b.company_name);
+    }
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  // Apply pagination
+  const page = options.page || 1;
+  const limit = options.limit || 25;
+  const total = filtered.length;
+  const startIndex = (page - 1) * limit;
+  const paginatedData = filtered.slice(startIndex, startIndex + limit);
+
+  return {
+    data: paginatedData,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    filters: options,
+  };
+}
+
+/**
+ * Get available filter options for a period
+ */
+export async function getFilterOptions(period: string): Promise<{
+  stages: string[];
+  continents: string[];
+  patterns: Array<{ name: string; count: number }>;
+}> {
+  // Try API first if configured
+  if (isAPIConfigured()) {
+    try {
+      return await api.getDealbookFilters(period);
+    } catch (error) {
+      console.error('API request failed, falling back to file-based data:', error);
+    }
+  }
+
+  // Fallback to computing from file data
+  const startups = await getStartups(period);
+
+  const stageSet = new Set<string>();
+  const continentSet = new Set<string>();
+  const patternMap = new Map<string, number>();
+
+  for (const startup of startups) {
+    if (startup.funding_stage) stageSet.add(startup.funding_stage);
+
+    // Extract continent from location if available
+    const location = startup.location || '';
+    const parts = location.split(', ');
+    if (parts.length > 0) {
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && ['North America', 'Europe', 'Asia', 'South America', 'Africa', 'Oceania'].includes(lastPart)) {
+        continentSet.add(lastPart);
+      }
+    }
+
+    for (const pattern of startup.build_patterns || []) {
+      patternMap.set(pattern.name, (patternMap.get(pattern.name) || 0) + 1);
+    }
+  }
+
+  return {
+    stages: Array.from(stageSet).sort(),
+    continents: Array.from(continentSet).sort(),
+    patterns: Array.from(patternMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count })),
+  };
 }
 
 /**

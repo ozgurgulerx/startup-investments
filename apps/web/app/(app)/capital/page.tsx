@@ -165,35 +165,47 @@ async function CapitalContent({ period }: { period: string }) {
             <CardTitle className="text-base">Key Observations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Link
+              href={`/dealbook?pattern=${encodeURIComponent('Agentic Architectures')}`}
+              className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+            >
               <TrendingUp className="h-5 w-5 text-success mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <p className="font-medium text-sm">Agentic Architectures Growing</p>
                 <p className="text-sm text-muted-foreground">
                   {Math.round((genaiAnalysis.pattern_distribution['Agentic Architectures'] || 0) / dealSummary.total_deals * 100)}% of funded startups now use agentic patterns.
                 </p>
               </div>
-            </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground mt-0.5" />
+            </Link>
 
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Link
+              href="/dealbook"
+              className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+            >
               <TrendingUp className="h-5 w-5 text-success mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <p className="font-medium text-sm">Record Funding Month</p>
                 <p className="text-sm text-muted-foreground">
                   {period.replace('-', ' ')} saw {formatCurrency(dealSummary.total_funding_usd, true)} across {dealSummary.total_deals} deals.
                 </p>
               </div>
-            </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground mt-0.5" />
+            </Link>
 
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Link
+              href={`/dealbook?pattern=${encodeURIComponent('Vertical Data Moats')}`}
+              className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+            >
               <ArrowRight className="h-5 w-5 text-primary mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <p className="font-medium text-sm">Vertical Data Moats Emerging</p>
                 <p className="text-sm text-muted-foreground">
                   {Math.round((genaiAnalysis.pattern_distribution['Vertical Data Moats'] || 0) / dealSummary.total_deals * 100)}% of startups building industry-specific data strategies.
                 </p>
               </div>
-            </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground mt-0.5" />
+            </Link>
 
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
               <Minus className="h-5 w-5 text-warning mt-0.5" />

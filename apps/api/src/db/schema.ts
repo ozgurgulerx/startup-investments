@@ -32,6 +32,12 @@ export const startups = pgTable('startups', {
   contentHash: varchar('content_hash', { length: 64 }),
   lastCrawlAt: timestamp('last_crawl_at', { withTimezone: true }),
   crawlSuccessRate: decimal('crawl_success_rate', { precision: 3, scale: 2 }),
+  // Analysis data (JSONB for full analysis storage)
+  analysisData: jsonb('analysis_data'),
+  period: varchar('period', { length: 10 }),
+  moneyRaisedUsd: bigint('money_raised_usd', { mode: 'number' }),
+  fundingStage: varchar('funding_stage', { length: 50 }),
+  usesGenai: boolean('uses_genai').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

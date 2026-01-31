@@ -2,12 +2,27 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 interface NewsletterRendererProps {
   content: string;
   className?: string;
 }
+
+// Known patterns that should link to dealbook
+const KNOWN_PATTERNS = [
+  'Agentic Architectures',
+  'Vertical Data Moats',
+  'RAG (Retrieval-Augmented Generation)',
+  'Micro-model Meshes',
+  'Continuous-learning Flywheels',
+  'Guardrail-as-LLM',
+  'API-first AI',
+  'LLMOps',
+  'Edge AI',
+  'Multimodal',
+];
 
 export function NewsletterRenderer({ content, className }: NewsletterRendererProps) {
   return (
@@ -54,17 +69,31 @@ export function NewsletterRenderer({ content, className }: NewsletterRendererPro
             <em className="text-muted-foreground/80 not-italic">{children}</em>
           ),
 
-          // Links
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:text-primary/80 underline underline-offset-2 transition-colors"
-            >
-              {children}
-            </a>
-          ),
+          // Links - handle internal dealbook links and external links
+          a: ({ href, children }) => {
+            // Check if it's an internal dealbook link
+            if (href?.startsWith('/dealbook')) {
+              return (
+                <Link
+                  href={href}
+                  className="text-accent hover:text-accent/80 underline underline-offset-2 transition-colors"
+                >
+                  {children}
+                </Link>
+              );
+            }
+            // External links open in new tab
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:text-primary/80 underline underline-offset-2 transition-colors"
+              >
+                {children}
+              </a>
+            );
+          },
 
           // Lists
           ul: ({ children }) => (
@@ -141,11 +170,33 @@ export function NewsletterRenderer({ content, className }: NewsletterRendererPro
               {children}
             </th>
           ),
-          td: ({ children }) => (
-            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-              {children}
-            </td>
-          ),
+          td: ({ children }) => {
+            // Check if cell contains a pattern name that should link to dealbook
+            const childText = typeof children === 'string' ? children :
+              (Array.isArray(children) && typeof children[0] === 'string') ? children[0] : null;
+
+            if (childText && KNOWN_PATTERNS.some(p => childText.includes(p))) {
+              const pattern = KNOWN_PATTERNS.find(p => childText.includes(p));
+              if (pattern) {
+                return (
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                    <Link
+                      href={`/dealbook?pattern=${encodeURIComponent(pattern)}`}
+                      className="text-accent hover:text-accent/80 underline underline-offset-2 transition-colors"
+                    >
+                      {children}
+                    </Link>
+                  </td>
+                );
+              }
+            }
+
+            return (
+              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                {children}
+              </td>
+            );
+          },
 
           // Horizontal Rule
           hr: () => (
