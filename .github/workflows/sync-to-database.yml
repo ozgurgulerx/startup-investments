@@ -214,7 +214,56 @@ jobs:
           "
 
       # ============================================
-      # Step 3: Regenerate Enriched CSV
+      # Step 3: Copy Brief to Public Directories
+      # ============================================
+      - name: Copy brief to public directories
+        if: steps.check_csv.outputs.csv_exists == 'true'
+        run: |
+          PERIOD="${{ steps.period.outputs.period }}"
+
+          # Copy full brief to public/data/briefs/
+          cp "apps/web/data/$PERIOD/output/monthly_brief.json" "apps/web/public/data/briefs/$PERIOD.json" || true
+          echo "Copied to public/data/briefs/$PERIOD.json"
+
+          # Update public/data/briefings/ with key stats
+          python3 << EOF
+          import json
+          from pathlib import Path
+
+          brief_path = Path(f"apps/web/data/$PERIOD/output/monthly_brief.json")
+          briefings_path = Path(f"apps/web/public/data/briefings/$PERIOD.json")
+
+          if not brief_path.exists():
+              print("Brief not found, skipping")
+              exit(0)
+
+          with open(brief_path, 'r') as f:
+              brief = json.load(f)
+
+          if not briefings_path.exists():
+              print("Briefings file not found, skipping")
+              exit(0)
+
+          with open(briefings_path, 'r') as f:
+              briefings = json.load(f)
+
+          # Update key stats
+          briefings['stats']['totalDeals'] = brief['metrics']['totalDeals']
+          briefings['stats']['totalFunding'] = brief['metrics']['totalFunding']
+          briefings['stats']['genaiAdoptionRate'] = brief['metrics']['genaiAdoptionPct']
+
+          # Update insight text to match
+          genai_pct = brief['metrics']['genaiAdoptionPct']
+          briefings['insight'] = f"Capital concentrated around vertical data moats, with {genai_pct}% of funded startups building on generative AI infrastructure."
+
+          with open(briefings_path, 'w') as f:
+              json.dump(briefings, f, indent=2)
+
+          print(f"Updated briefings with: totalDeals={brief['metrics']['totalDeals']}, genaiAdoptionRate={genai_pct}")
+          EOF
+
+      # ============================================
+      # Step 4: Regenerate Enriched CSV
       # ============================================
       - name: Regenerate enriched CSV
         if: steps.check_csv.outputs.csv_exists == 'true'
@@ -299,7 +348,7 @@ jobs:
           EOF
 
       # ============================================
-      # Step 4: Commit regenerated files
+      # Step 5: Commit regenerated files
       # ============================================
       - name: Commit regenerated data files
         run: |
@@ -308,9 +357,14 @@ jobs:
 
           PERIOD="${{ steps.period.outputs.period }}"
 
+          # Source data files
           git add apps/web/data/$PERIOD/output/monthly_stats.json || true
           git add apps/web/data/$PERIOD/output/monthly_brief.json || true
           git add apps/web/data/$PERIOD/output/startups_enriched_with_analysis.csv || true
+
+          # Public directory files (for client-side fetching)
+          git add apps/web/public/data/briefs/$PERIOD.json || true
+          git add apps/web/public/data/briefings/$PERIOD.json || true
 
           if git diff --staged --quiet; then
             echo "No changes to commit"
@@ -321,7 +375,7 @@ jobs:
           fi
 
       # ============================================
-      # Step 5: Sync to Database
+      # Step 6: Sync to Database
       # ============================================
       - name: Sync to database via API
         if: steps.check_csv.outputs.csv_exists == 'true' && github.event.inputs.regenerate_only != 'true'

@@ -11,6 +11,7 @@
 # 3. Newsletter content (comprehensive_newsletter.md)
 # 4. Enriched CSV with analysis data
 # 5. Syncs to database
+# 6. Copies to public directories (for client-side fetching)
 
 set -e
 
@@ -36,7 +37,7 @@ echo ""
 # ============================================
 # Step 1: Regenerate Monthly Statistics
 # ============================================
-echo "[1/5] Regenerating monthly_stats.json..."
+echo "[1/6] Regenerating monthly_stats.json..."
 
 cd "$PROJECT_ROOT/packages/analysis"
 
@@ -168,7 +169,7 @@ echo ""
 # ============================================
 # Step 2: Regenerate Monthly Brief
 # ============================================
-echo "[2/5] Regenerating monthly_brief.json..."
+echo "[2/6] Regenerating monthly_brief.json..."
 
 cd "$PROJECT_ROOT/apps/web"
 
@@ -193,7 +194,7 @@ echo ""
 # ============================================
 # Step 3: Regenerate Newsletter Content
 # ============================================
-echo "[3/5] Regenerating newsletter content..."
+echo "[3/6] Regenerating newsletter content..."
 
 cd "$PROJECT_ROOT/packages/analysis"
 
@@ -279,7 +280,7 @@ echo ""
 # ============================================
 # Step 4: Regenerate Enriched CSV
 # ============================================
-echo "[4/5] Regenerating enriched CSV..."
+echo "[4/6] Regenerating enriched CSV..."
 
 $PYTHON << EOF
 import sys
@@ -373,7 +374,7 @@ echo ""
 # ============================================
 # Step 5: Sync to Database
 # ============================================
-echo "[5/5] Syncing to database..."
+echo "[5/6] Syncing to database..."
 
 # Check if DATABASE_URL exists
 if [ -f "$PROJECT_ROOT/.env" ] && grep -q "DATABASE_URL" "$PROJECT_ROOT/.env"; then
@@ -450,6 +451,51 @@ else
     echo "  DATABASE_URL not found, skipping database sync"
 fi
 
+# ============================================
+# Step 6: Copy to Public Directories
+# ============================================
+echo "[6/6] Copying to public directories..."
+
+# Copy full brief to public/data/briefs/
+cp "$PROJECT_ROOT/apps/web/data/$PERIOD/output/monthly_brief.json" "$PROJECT_ROOT/apps/web/public/data/briefs/$PERIOD.json" 2>/dev/null && echo "  Copied to public/data/briefs/$PERIOD.json" || echo "  Skipped public/data/briefs (file not found)"
+
+# Update public/data/briefings/ with key stats
+$PYTHON << EOF
+import json
+from pathlib import Path
+
+brief_path = Path('$PROJECT_ROOT/apps/web/data/$PERIOD/output/monthly_brief.json')
+briefings_path = Path('$PROJECT_ROOT/apps/web/public/data/briefings/$PERIOD.json')
+
+if not brief_path.exists():
+    print("  Brief not found, skipping briefings update")
+    exit(0)
+
+with open(brief_path, 'r') as f:
+    brief = json.load(f)
+
+if not briefings_path.exists():
+    print("  Briefings file not found, skipping")
+    exit(0)
+
+with open(briefings_path, 'r') as f:
+    briefings = json.load(f)
+
+# Update key stats
+briefings['stats']['totalDeals'] = brief['metrics']['totalDeals']
+briefings['stats']['totalFunding'] = brief['metrics']['totalFunding']
+briefings['stats']['genaiAdoptionRate'] = brief['metrics']['genaiAdoptionPct']
+
+# Update insight text to match
+genai_pct = brief['metrics']['genaiAdoptionPct']
+briefings['insight'] = f"Capital concentrated around vertical data moats, with {genai_pct}% of funded startups building on generative AI infrastructure."
+
+with open(briefings_path, 'w') as f:
+    json.dump(briefings, f, indent=2)
+
+print(f"  Updated briefings: totalDeals={brief['metrics']['totalDeals']}, genaiAdoptionRate={genai_pct}")
+EOF
+
 echo ""
 echo "=============================================="
 echo "Data Regeneration Complete!"
@@ -460,5 +506,7 @@ echo "  - apps/web/data/$PERIOD/output/monthly_stats.json"
 echo "  - apps/web/data/$PERIOD/output/monthly_brief.json"
 echo "  - apps/web/data/$PERIOD/output/comprehensive_newsletter.md"
 echo "  - apps/web/data/$PERIOD/output/startups_enriched_with_analysis.csv"
+echo "  - apps/web/public/data/briefs/$PERIOD.json"
+echo "  - apps/web/public/data/briefings/$PERIOD.json"
 echo ""
 echo "Remember to commit and push these changes!"
