@@ -838,6 +838,67 @@ This count represents all funding deals tracked for the period. When displaying 
 2. `monthly_brief.json` inherits `totalDeals` from stats
 3. All pages automatically show the updated count
 
+### Automated Workflow for Data Consistency
+
+The GitHub Actions workflow `.github/workflows/sync-to-database.yml` automatically maintains data consistency when CSV or analysis data changes.
+
+**Triggers:**
+- Push to `main` with changes to `apps/web/data/**/input/startups.csv`
+- Push to `main` with changes to `apps/web/data/**/output/analysis_store/**`
+- Manual trigger via `workflow_dispatch`
+
+**What the workflow does (in order):**
+
+```
+Step 1: Recalculate deal_summary from CSV
+        ↓
+        Reads CSV, counts rows → deal_summary.total_deals
+        Calculates funding stats → total_funding_usd, average, median, etc.
+
+Step 2: Update genai_analysis from analysis store
+        ↓
+        Reads analysis_store/base_analyses/*.json
+        Calculates → total_analyzed, pattern_distribution, etc.
+
+Step 3: Regenerate monthly_brief.json
+        ↓
+        Calls generateMonthlyBrief() which reads from monthly_stats.json
+        brief.metrics.totalDeals = stats.deal_summary.total_deals
+
+Step 4: Regenerate enriched CSV
+        ↓
+        Merges analysis data back into CSV
+
+Step 5: Commit regenerated files
+        ↓
+        Commits monthly_stats.json, monthly_brief.json, enriched CSV
+
+Step 6: Sync to database via API
+        ↓
+        Posts startup data to /api/admin/sync-startups
+```
+
+**CRITICAL:** The workflow recalculates `deal_summary` from the CSV every time. This ensures `total_deals` is always accurate, even if new deals are added.
+
+**Local regeneration script:**
+```bash
+./scripts/regenerate-data.sh 2026-01
+```
+
+This script performs the same steps as the GitHub workflow but runs locally. Use when:
+- Testing changes before pushing
+- Manually regenerating after local CSV edits
+- Debugging data issues
+
+**Manual workflow trigger:**
+```bash
+# Full regeneration + database sync
+gh workflow run sync-to-database.yml --field period=2026-01
+
+# Regenerate data only (skip database sync)
+gh workflow run sync-to-database.yml --field period=2026-01 --field regenerate_only=true
+```
+
 ## Monthly Startup Data Update Process
 
 This section documents the step-by-step process for updating monthly startup data. Follow these steps when you receive a new CSV with the latest funding data.
