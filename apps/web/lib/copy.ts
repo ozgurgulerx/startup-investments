@@ -37,20 +37,22 @@ export const COPY = {
 export const SUPPORTING_LINE =
   "Decision-grade dossiers across: Wedge, Moat, Execution, and Momentum—grounded in architecture, data advantage, and GTM.";
 
-// Standardized metrics labels (numbers stay the same)
+// Standardized metrics labels
+// NOTE: These values are updated automatically by the sync-to-database workflow
+// from monthly_stats.json. Do not edit manually.
 export const METRICS = {
   companies: {
-    value: "201",
+    value: "282",
     label: "Funded companies tracked",
     shortLabel: "Companies tracked",
   },
   capital: {
-    value: "$31.1B",
+    value: "$32.0B",
     label: "Capital mapped",
     shortLabel: "Capital mapped",
   },
   genai: {
-    value: "55%",
+    value: "57%",
     label: "GenAI adoption",
     shortLabel: "GenAI adoption",
   },

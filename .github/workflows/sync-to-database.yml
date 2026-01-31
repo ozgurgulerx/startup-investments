@@ -263,7 +263,69 @@ jobs:
           EOF
 
       # ============================================
-      # Step 4: Regenerate Enriched CSV
+      # Step 4: Update Homepage Metrics (lib/copy.ts)
+      # ============================================
+      - name: Update homepage metrics in copy.ts
+        if: steps.check_csv.outputs.csv_exists == 'true'
+        run: |
+          PERIOD="${{ steps.period.outputs.period }}"
+          python3 << 'EOF'
+          import json
+          import re
+          from pathlib import Path
+
+          stats_path = Path(f"apps/web/data/${{ steps.period.outputs.period }}/output/monthly_stats.json")
+          copy_path = Path("apps/web/lib/copy.ts")
+
+          if not stats_path.exists():
+              print("Stats file not found, skipping")
+              exit(0)
+
+          with open(stats_path, 'r') as f:
+              stats = json.load(f)
+
+          deal_summary = stats.get('deal_summary', {})
+          genai_analysis = stats.get('genai_analysis', {})
+
+          total_deals = deal_summary.get('total_deals', 0)
+          total_funding = deal_summary.get('total_funding_usd', 0)
+          genai_rate = genai_analysis.get('genai_adoption_rate', 0)
+
+          # Format values
+          companies_value = str(total_deals)
+          capital_value = f"${total_funding / 1e9:.1f}B"
+          genai_value = f"{int(genai_rate * 100)}%"
+
+          # Read copy.ts
+          content = copy_path.read_text()
+
+          # Update companies value
+          content = re.sub(
+              r'(companies:\s*\{\s*value:\s*")[^"]+(")',
+              rf'\g<1>{companies_value}\2',
+              content
+          )
+
+          # Update capital value
+          content = re.sub(
+              r'(capital:\s*\{\s*value:\s*")[^"]+(")',
+              rf'\g<1>{capital_value}\2',
+              content
+          )
+
+          # Update genai value
+          content = re.sub(
+              r'(genai:\s*\{\s*value:\s*")[^"]+(")',
+              rf'\g<1>{genai_value}\2',
+              content
+          )
+
+          copy_path.write_text(content)
+          print(f"Updated copy.ts: companies={companies_value}, capital={capital_value}, genai={genai_value}")
+          EOF
+
+      # ============================================
+      # Step 5: Regenerate Enriched CSV
       # ============================================
       - name: Regenerate enriched CSV
         if: steps.check_csv.outputs.csv_exists == 'true'
@@ -348,7 +410,7 @@ jobs:
           EOF
 
       # ============================================
-      # Step 5: Commit regenerated files
+      # Step 6: Commit regenerated files
       # ============================================
       - name: Commit regenerated data files
         run: |
@@ -366,6 +428,9 @@ jobs:
           git add apps/web/public/data/briefs/$PERIOD.json || true
           git add apps/web/public/data/briefings/$PERIOD.json || true
 
+          # Homepage metrics (lib/copy.ts)
+          git add apps/web/lib/copy.ts || true
+
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
@@ -375,7 +440,7 @@ jobs:
           fi
 
       # ============================================
-      # Step 6: Sync to Database
+      # Step 7: Sync to Database
       # ============================================
       - name: Sync to database via API
         if: steps.check_csv.outputs.csv_exists == 'true' && github.event.inputs.regenerate_only != 'true'

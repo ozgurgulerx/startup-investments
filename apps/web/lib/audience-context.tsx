@@ -14,7 +14,7 @@ interface AudienceContextType {
 const AudienceContext = createContext<AudienceContextType | undefined>(undefined);
 
 export function AudienceProvider({ children }: { children: ReactNode }) {
-  const [audience, setAudienceState] = useState<Audience>('builders');
+  const [audience, setAudienceState] = useState<Audience>('investors');
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Load from localStorage on mount

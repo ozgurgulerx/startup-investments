@@ -185,12 +185,12 @@ export default function LandingPage() {
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-accent via-accent/60 to-accent/20" />
             <div className="label-xs text-accent mb-4">JANUARY 2026 BRIEF</div>
             <h3 className="text-xl font-light text-foreground mb-4 leading-relaxed">
-              Agentic architectures dominate new funding, with <span className="text-accent">55%</span> of startups building
+              Agentic architectures dominate new funding, with <span className="text-accent">{METRICS.genai.value}</span> of startups building
               on generative AI infrastructure and multi-model orchestration.
             </h3>
             <p className="text-sm text-muted-foreground mb-6">
-              Average deal size reached $154.6M. Capital is concentrating on fewer,
-              more infrastructure-heavy plays. <span className="text-foreground/90">Implication:</span> the middleware layer is heating up.
+              Average deal size reached $113M. Capital is spreading across a broader range of
+              AI infrastructure and application plays. <span className="text-foreground/90">Implication:</span> the middleware layer is heating up.
             </p>
             <div className="flex gap-8 pt-4 border-t border-accent/30">
               <div>
