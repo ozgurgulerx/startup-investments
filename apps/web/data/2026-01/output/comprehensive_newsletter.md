@@ -1,24 +1,24 @@
 # Build Patterns Monthly
 ## The AI Builder's Intelligence Brief | January 2026
 
-*What $31 billion in AI funding reveals about where the industry is actually heading.*
+*What $32 billion in AI funding reveals about where the industry is actually heading.*
 
 ---
 
 ## Executive Summary
 
-This month we analyzed **201 AI startup funding rounds** totaling **$31.07 billion**—the largest monthly cohort we've tracked. The data reveals a market in transition: the "general-purpose AI" era is giving way to deeply specialized, vertically-integrated solutions. Here's what builders need to know.
+This month we analyzed **282 AI startup funding rounds** totaling **$32.0 billion**—the largest monthly cohort we've tracked. The data reveals a market in transition: the "general-purpose AI" era is giving way to deeply specialized, vertically-integrated solutions. Here's what builders need to know.
 
 ### By the Numbers
 
 | Metric | January 2026 |
 |--------|--------------|
-| Total Deals | 201 |
-| Total Funding | $31.07B |
-| Average Deal | $154.6M |
-| Median Deal | $7.27M |
+| Total Deals | 282 |
+| Total Funding | $32.0B |
+| Average Deal | $113.4M |
+| Median Deal | $7.0M |
 | Largest Deal | $20B (xAI Series E) |
-| GenAI Adoption | 55% of startups |
+| GenAI Adoption | 57% of startups |
 
 ---
 
@@ -30,17 +30,17 @@ The pattern is unmistakable: generic AI wrappers are dying. Every well-funded st
 
 | Pattern | Prevalence | Startups | Signal |
 |---------|------------|----------|--------|
-| Vertical Data Moats | 90% | 171 | Industry-specific data is the new moat |
-| Agentic Architectures | 66% | 124 | Autonomous AI becoming standard |
-| Continuous-learning Flywheels | 46% | 87 | Usage data improving models |
-| Micro-model Meshes | 44% | 84 | Specialized models > one big model |
-| Guardrail-as-LLM | 30% | 57 | Security layer market emerging |
-| RAG Pipelines | 26% | 50 | Document search + LLM is table stakes |
+| Vertical Data Moats | 90% | 248 | Industry-specific data is the new moat |
+| Agentic Architectures | 67% | 184 | Autonomous AI becoming standard |
+| Continuous-learning Flywheels | 51% | 139 | Usage data improving models |
+| Micro-model Meshes | 40% | 111 | Specialized models > one big model |
+| RAG Pipelines | 29% | 79 | Document search + LLM is table stakes |
+| Guardrail-as-LLM | 28% | 78 | Security layer market emerging |
 
 ### What This Means for Builders
 
-1. **Generic AI is dead** — 171 of 189 analyzed startups are building vertical data moats
-2. **Agentic is the new baseline** — 66% building for autonomous AI
+1. **Generic AI is dead** — 248 of 275 analyzed startups are building vertical data moats
+2. **Agentic is the new baseline** — 67% building for autonomous AI
 3. **Trust is the next frontier** — Guardrails growing faster than any other pattern
 
 ---
@@ -373,7 +373,7 @@ When Georges Harik and SV Angel write a $480M seed check, something unusual is h
 
 ## Methodology
 
-This analysis examined **201 AI startup funding rounds** from January 2026 through:
+This analysis examined **282 AI startup funding rounds** from January 2026 through:
 
 - **Web crawling:** Company websites, documentation, GitHub repositories
 - **Job posting analysis:** Real tech stack indicators
@@ -381,7 +381,7 @@ This analysis examined **201 AI startup funding rounds** from January 2026 throu
 - **Structured LLM analysis:** Pattern detection with confidence scoring
 - **Contrarian analysis:** Cutting through marketing hype
 
-**Startups fully analyzed:** 189
+**Startups fully analyzed:** 275
 **Build patterns detected:** 8 primary patterns
 **Geographic coverage:** 27 countries, 6 continents
 
