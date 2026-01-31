@@ -331,6 +331,175 @@ CSV File → Azure Blob Storage (incoming/)
 2. Azure Function automatically processes and updates database
 3. Never run direct INSERT/UPDATE/DELETE on production database
 
+### Database Sync Methods (Multiple Options)
+
+There are three methods to sync startup data to the database, in order of preference:
+
+#### Method 1: GitHub Actions Workflow (CI/CD)
+
+The workflow `.github/workflows/sync-to-database.yml` automatically syncs data when CSVs change:
+
+```yaml
+# Triggers on:
+- Push to main with changes to apps/web/data/**/input/startups.csv
+- Manual workflow_dispatch with period parameter
+```
+
+The workflow:
+1. Reads the CSV file
+2. Converts to JSON
+3. Calls the API admin endpoint to sync
+
+**To manually trigger:**
+```bash
+gh workflow run sync-to-database.yml --field period=2026-01
+```
+
+**Required GitHub Secret:** `API_KEY`
+
+**Known Issue:** The backend CI/CD may fail due to ACR authentication. If the API endpoint isn't deployed, use Method 3.
+
+#### Method 2: API Admin Endpoint
+
+The Express.js API has an admin endpoint for bulk syncing startups:
+
+```bash
+# Endpoint: POST /api/admin/sync-startups
+# Auth: X-Admin-Key header (same as API_KEY)
+
+curl -X POST https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/api/admin/sync-startups \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Key: $API_KEY" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{"startups": [{"name": "...", "website": "...", ...}]}'
+```
+
+**Request body format:**
+```json
+{
+  "startups": [
+    {
+      "name": "Startup Name",
+      "description": "Description text",
+      "website": "https://example.com",
+      "location": "City, State, Country, Continent",
+      "industries": "AI, SaaS, Developer Tools",
+      "roundType": "Series A",
+      "amountUsd": "10000000",
+      "announcedDate": "2026-01-15",
+      "fundingStage": "Early Stage Venture",
+      "leadInvestors": "Sequoia, a]i6z"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Sync completed",
+  "results": {
+    "total": 282,
+    "inserted": 109,
+    "updated": 173,
+    "failed": []
+  }
+}
+```
+
+#### Method 3: Direct Database Sync (Fallback)
+
+When CI/CD is broken or API is unavailable, sync directly to PostgreSQL:
+
+```bash
+# Requires: DATABASE_URL in .env file, psycopg2-binary installed
+/opt/homebrew/bin/python3 << 'EOF'
+import csv
+import re
+import psycopg2
+
+# Read DATABASE_URL from .env
+with open('.env', 'r') as f:
+    for line in f:
+        if line.startswith('DATABASE_URL='):
+            database_url = line.split('=', 1)[1].strip().strip('"')
+            break
+
+conn = psycopg2.connect(database_url)
+cur = conn.cursor()
+
+def slugify(name):
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+
+csv_path = "apps/web/data/2026-01/input/startups.csv"
+inserted, updated = 0, 0
+
+with open(csv_path, 'r', encoding='utf-8') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        name = row.get('Transaction Name', '')
+        if ' - ' in name:
+            name = name.split(' - ', 1)[1]
+
+        slug = slugify(name)
+        location = row.get('Organization Location', '').split(', ')
+
+        cur.execute("SELECT id FROM startups WHERE slug = %s", (slug,))
+        existing = cur.fetchone()
+
+        if existing:
+            cur.execute("""
+                UPDATE startups SET
+                    description = COALESCE(%s, description),
+                    website = COALESCE(%s, website),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (row.get('Organization Description'), row.get('Organization Website'), existing[0]))
+            updated += 1
+        else:
+            cur.execute("""
+                INSERT INTO startups (name, slug, description, website)
+                VALUES (%s, %s, %s, %s) RETURNING id
+            """, (name, slug, row.get('Organization Description'), row.get('Organization Website')))
+            inserted += 1
+
+        conn.commit()
+
+print(f"Inserted: {inserted}, Updated: {updated}")
+cur.close()
+conn.close()
+EOF
+```
+
+**Prerequisites for direct sync:**
+- Your IP must be in the PostgreSQL firewall rules
+- `DATABASE_URL` must be in `.env` file
+- `psycopg2-binary` must be installed
+
+**Check your IP is allowed:**
+```bash
+# Get your current IP
+curl -s ifconfig.me
+
+# List firewall rules
+az postgres flexible-server firewall-rule list \
+  --resource-group aistartupstr \
+  --name aistartupstr -o table
+```
+
+### Known Infrastructure Blockers
+
+**Storage Account (`buildatlasstorage`):**
+- `publicNetworkAccess: Disabled` - Cannot upload from external networks
+- `allowSharedKeyAccess: false` - Connection strings don't work
+- Only Azure services and private endpoints can access
+- **Workaround:** Use Method 2 (API) or Method 3 (direct DB) instead
+
+**Backend CI/CD:**
+- ACR authentication may fail in GitHub Actions
+- Error: "Unable to get AAD authorization tokens"
+- **Workaround:** Deploy manually with Docker, or use Method 3
+
 ## API Security Architecture
 
 **Direct access to the API is blocked.** All requests must go through Azure Front Door.
@@ -387,6 +556,17 @@ az postgres flexible-server start --resource-group aistartupstr --name aistartup
 - **Direct (blocked except health)**: `http://172.211.176.100`
 - **Health**: `/health` (no auth required, for K8s probes)
 - **API**: `/api/v1/*` (requires `X-API-Key` header)
+- **Admin**: `/api/admin/*` (requires `X-Admin-Key` header, same as API_KEY)
+
+### Admin Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/admin/sync-startups` | POST | Bulk sync startups from JSON (UPSERT) |
+| `/api/admin/extract-logos` | POST | Extract logos for all startups |
+| `/api/admin/logo-status` | GET | Get logo extraction statistics |
+
+**Admin endpoints are also accessible from localhost without auth** (for internal pod access).
 
 ### Security Layers
 1. **Front Door ID validation** - Direct access to AKS is blocked; must go through Front Door
