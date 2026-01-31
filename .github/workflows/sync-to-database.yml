@@ -75,7 +75,7 @@ jobs:
             --container-name ${{ env.CONTAINER_NAME }} \
             --name "$BLOB_NAME" \
             --file "${{ steps.check_csv.outputs.csv_path }}" \
-            --auth-mode login \
+            --connection-string "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
             --overwrite
 
           echo "Upload complete. Azure Function will be triggered automatically."
@@ -88,12 +88,11 @@ jobs:
           sleep 60
 
           # Check if blob was moved to processed folder
-          BLOB_NAME="incoming/${{ steps.period.outputs.period }}-startups-*.csv"
           PROCESSED=$(az storage blob list \
             --account-name ${{ env.STORAGE_ACCOUNT }} \
             --container-name ${{ env.CONTAINER_NAME }} \
             --prefix "processed/" \
-            --auth-mode login \
+            --connection-string "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
             --query "[?contains(name, '${{ steps.period.outputs.period }}')]" \
             -o tsv 2>/dev/null | head -1)
 
