@@ -689,6 +689,128 @@ import { AudienceToggle } from '@/components/ui/audience-toggle';
 - **Consistent terminology**: Brief, Dossiers, Signals, Capital, Library, Watchlist
 - **Metrics labels are standardized**: "Funded companies tracked", "Capital mapped", "GenAI adoption", "Build patterns detected"
 
+## Data Regeneration Workflow
+
+When startup data changes (CSV updates, new analyses added), multiple data artifacts need to be regenerated to keep the frontend in sync.
+
+### Data Artifacts That Need Regeneration
+
+| Artifact | Path | Purpose | Triggers |
+|----------|------|---------|----------|
+| `monthly_stats.json` | `apps/web/data/{period}/output/` | Aggregate statistics, GenAI adoption rates | CSV change, analysis store change |
+| `monthly_brief.json` | `apps/web/data/{period}/output/` | Intelligence brief for /brief page | Stats change |
+| `comprehensive_newsletter.md` | `apps/web/data/{period}/output/` | Newsletter content for /library | Analysis store change |
+| `startups_enriched_with_analysis.csv` | `apps/web/data/{period}/output/` | CSV with analysis columns added | CSV or analysis change |
+| `briefs/*.md` | `apps/web/data/{period}/output/briefs/` | Individual company briefs | Per-startup analysis |
+| Database tables | PostgreSQL | Startup records, funding rounds | CSV change |
+
+### Automatic Regeneration (CI/CD)
+
+The workflow `.github/workflows/sync-to-database.yml` automatically regenerates data when:
+- `apps/web/data/**/input/startups.csv` changes
+- `apps/web/data/**/output/analysis_store/**` changes
+
+**What it does:**
+1. Regenerates `monthly_stats.json` (updates genai_analysis from analysis store)
+2. Regenerates `monthly_brief.json` (generates from stats + startups)
+3. Regenerates `startups_enriched_with_analysis.csv`
+4. Commits the changes back to the repo
+5. Syncs to database via API
+
+**Manual trigger:**
+```bash
+# Full regeneration + database sync
+gh workflow run sync-to-database.yml --field period=2026-01
+
+# Regenerate data only (skip database sync)
+gh workflow run sync-to-database.yml --field period=2026-01 --field regenerate_only=true
+```
+
+### Local Regeneration Script
+
+Use `scripts/regenerate-data.sh` for local regeneration:
+
+```bash
+# Regenerate all data for a period
+./scripts/regenerate-data.sh 2026-01
+
+# What it does:
+# 1. Updates monthly_stats.json with genai_analysis from analysis store
+# 2. Regenerates monthly_brief.json via TypeScript generator
+# 3. Regenerates newsletter content (if Python dependencies available)
+# 4. Regenerates enriched CSV
+# 5. Syncs to database (if DATABASE_URL in .env)
+```
+
+### Manual Regeneration Commands
+
+**Regenerate monthly brief only:**
+```bash
+cd apps/web
+npx tsx -e "
+const { generateMonthlyBrief } = require('./lib/data/generate-monthly-brief');
+const fs = require('fs');
+
+generateMonthlyBrief('2026-01').then(brief => {
+  fs.writeFileSync('data/2026-01/output/monthly_brief.json', JSON.stringify(brief, null, 2));
+  console.log('Generated at:', brief.generatedAt);
+});
+"
+```
+
+**Regenerate monthly stats from analysis store:**
+```python
+# Run from packages/analysis directory
+python3 << 'EOF'
+from pathlib import Path
+import json
+
+period = '2026-01'
+stats_path = Path(f'../../apps/web/data/{period}/output/monthly_stats.json')
+analysis_path = Path(f'../../apps/web/data/{period}/output/analysis_store/base_analyses')
+
+with open(stats_path, 'r') as f:
+    stats = json.load(f)
+
+analyses = [json.load(open(f)) for f in analysis_path.glob('*.json')]
+
+# Recalculate genai_analysis section
+uses_genai = sum(1 for a in analyses if a.get('uses_genai'))
+stats['genai_analysis'] = {
+    'total_analyzed': len(analyses),
+    'uses_genai_count': uses_genai,
+    'genai_adoption_rate': uses_genai / len(analyses),
+    # ... other fields
+}
+
+with open(stats_path, 'w') as f:
+    json.dump(stats, f, indent=2)
+EOF
+```
+
+### Frontend Pages and Their Data Dependencies
+
+| Page | Data Source | Key Data |
+|------|-------------|----------|
+| `/brief` | `monthly_brief.json` | Metrics, patterns, top deals, spotlight |
+| `/dealbook` | `analysis_store/base_analyses/*` + `monthly_stats.json` | Individual startup data, aggregate stats |
+| `/signals` | `monthly_stats.json` | Pattern distribution, GenAI adoption |
+| `/capital` | `monthly_stats.json` | Funding by stage, geography, investors |
+| `/library` | `comprehensive_newsletter.md` | Newsletter markdown content |
+| `/company/[slug]` | `analysis_store/base_analyses/{slug}.json` | Individual startup analysis |
+
+### When to Regenerate
+
+**Always regenerate when:**
+- New CSV data is added or updated
+- Analysis store files are added/modified
+- You notice stale data on the frontend
+
+**Regeneration order matters:**
+1. First: `monthly_stats.json` (depends on analysis store)
+2. Then: `monthly_brief.json` (depends on stats)
+3. Then: Enriched CSV (depends on analysis store)
+
 ## Monthly Startup Data Update Process
 
 This section documents the step-by-step process for updating monthly startup data. Follow these steps when you receive a new CSV with the latest funding data.

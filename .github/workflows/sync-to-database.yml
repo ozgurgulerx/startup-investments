@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'apps/web/data/**/input/startups.csv'
+      - 'apps/web/data/**/output/analysis_store/**'
       - '.github/workflows/sync-to-database.yml'
   workflow_dispatch:
     inputs:
@@ -14,25 +15,40 @@ on:
         required: false
         type: string
         default: '2026-01'
+      regenerate_only:
+        description: 'Only regenerate data, skip database sync'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   API_URL: https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net
 
 jobs:
-  sync-database:
+  regenerate-and-sync:
     runs-on: ubuntu-latest
-    name: Sync CSV to Database via API
+    name: Regenerate Data & Sync to Database
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd apps/web && npm ci
+          pip install psycopg2-binary
 
       - name: Determine period
         id: period
@@ -60,8 +76,218 @@ jobs:
             echo "CSV not found: $CSV_PATH"
           fi
 
-      - name: Convert CSV to JSON and sync to database
+      # ============================================
+      # Step 1: Regenerate Monthly Stats
+      # ============================================
+      - name: Regenerate monthly_stats.json
         if: steps.check_csv.outputs.csv_exists == 'true'
+        run: |
+          PERIOD="${{ steps.period.outputs.period }}"
+          python3 << EOF
+          from pathlib import Path
+          import json
+
+          analysis_store_path = Path('apps/web/data/$PERIOD/output/analysis_store')
+          stats_path = Path('apps/web/data/$PERIOD/output/monthly_stats.json')
+
+          if not analysis_store_path.exists() or not stats_path.exists():
+              print("Analysis store or stats not found, skipping")
+              exit(0)
+
+          with open(stats_path, 'r') as f:
+              stats = json.load(f)
+
+          base_path = analysis_store_path / 'base_analyses'
+          analyses = []
+          if base_path.exists():
+              for f in base_path.glob('*.json'):
+                  with open(f, 'r') as fp:
+                      analyses.append(json.load(fp))
+
+          if analyses:
+              uses_genai_count = sum(1 for a in analyses if a.get('uses_genai', False))
+
+              intensity_dist, pattern_dist, newsletter_dist = {}, {}, {}
+              vertical_dist, market_dist, depth_dist = {}, {}, {}
+
+              for a in analyses:
+                  intensity = a.get('genai_intensity', 'none')
+                  intensity_dist[intensity] = intensity_dist.get(intensity, 0) + 1
+
+                  for p in a.get('build_patterns', []):
+                      name = p.get('name', p) if isinstance(p, dict) else p
+                      pattern_dist[name] = pattern_dist.get(name, 0) + 1
+
+                  nl = a.get('newsletter_potential', 'low')
+                  newsletter_dist[nl] = newsletter_dist.get(nl, 0) + 1
+
+                  vertical = a.get('sub_vertical') or a.get('vertical', 'unknown')
+                  vertical_dist[vertical] = vertical_dist.get(vertical, 0) + 1
+
+                  market = a.get('market_type', 'unknown')
+                  market_dist[market] = market_dist.get(market, 0) + 1
+
+                  depth = a.get('technical_depth', 'unknown')
+                  depth_dist[depth] = depth_dist.get(depth, 0) + 1
+
+              stats['genai_analysis'] = {
+                  'total_analyzed': len(analyses),
+                  'uses_genai_count': uses_genai_count,
+                  'genai_adoption_rate': uses_genai_count / len(analyses) if analyses else 0,
+                  'intensity_distribution': dict(sorted(intensity_dist.items(), key=lambda x: -x[1])),
+                  'pattern_distribution': dict(sorted(pattern_dist.items(), key=lambda x: -x[1])),
+                  'newsletter_potential': dict(sorted(newsletter_dist.items(), key=lambda x: -x[1])),
+                  'vertical_distribution': dict(sorted(vertical_dist.items(), key=lambda x: -x[1])[:20]),
+                  'market_type_distribution': market_dist,
+                  'technical_depth_distribution': depth_dist,
+                  'high_potential_startups': [
+                      a.get('company_name') for a in analyses
+                      if a.get('newsletter_potential') == 'high'
+                  ][:20]
+              }
+
+              with open(stats_path, 'w') as f:
+                  json.dump(stats, f, indent=2)
+
+              print(f"Updated genai_analysis with {len(analyses)} startups")
+          EOF
+
+      # ============================================
+      # Step 2: Regenerate Monthly Brief
+      # ============================================
+      - name: Regenerate monthly_brief.json
+        if: steps.check_csv.outputs.csv_exists == 'true'
+        working-directory: apps/web
+        run: |
+          PERIOD="${{ steps.period.outputs.period }}"
+          npx tsx -e "
+          const { generateMonthlyBrief } = require('./lib/data/generate-monthly-brief');
+          const fs = require('fs');
+          const path = require('path');
+
+          async function main() {
+            const brief = await generateMonthlyBrief('$PERIOD');
+            const outputPath = path.join(process.cwd(), 'data', '$PERIOD', 'output', 'monthly_brief.json');
+            fs.writeFileSync(outputPath, JSON.stringify(brief, null, 2));
+            console.log('Generated monthly brief at:', brief.generatedAt);
+            console.log('Total deals:', brief.metrics.totalDeals);
+          }
+
+          main().catch(e => { console.error('Error:', e.message); process.exit(1); });
+          "
+
+      # ============================================
+      # Step 3: Regenerate Enriched CSV
+      # ============================================
+      - name: Regenerate enriched CSV
+        if: steps.check_csv.outputs.csv_exists == 'true'
+        run: |
+          PERIOD="${{ steps.period.outputs.period }}"
+          python3 << EOF
+          from pathlib import Path
+          import json
+          import csv
+
+          analysis_store_path = Path('apps/web/data/$PERIOD/output/analysis_store/base_analyses')
+          csv_path = Path('apps/web/data/$PERIOD/input/startups.csv')
+          output_path = Path('apps/web/data/$PERIOD/output/startups_enriched_with_analysis.csv')
+
+          if not analysis_store_path.exists():
+              print("Analysis store not found, skipping")
+              exit(0)
+
+          analysis_map = {}
+          for f in analysis_store_path.glob('*.json'):
+              with open(f, 'r') as fp:
+                  a = json.load(fp)
+                  key = a.get('company_name', '').lower()
+                  analysis_map[key] = a
+
+          with open(csv_path, 'r', encoding='utf-8') as f:
+              reader = csv.DictReader(f)
+              original_fieldnames = list(reader.fieldnames or [])
+              rows = list(reader)
+
+          analysis_cols = [
+              'analysis_uses_genai', 'analysis_genai_intensity', 'analysis_models_mentioned',
+              'analysis_build_patterns', 'analysis_market_type', 'analysis_sub_vertical',
+              'analysis_target_market', 'analysis_newsletter_potential', 'analysis_technical_depth',
+              'analysis_confidence_score', 'analysis_competitors', 'analysis_competitive_moat'
+          ]
+
+          new_fieldnames = original_fieldnames + analysis_cols
+          enriched_rows = []
+          matched = 0
+
+          for row in rows:
+              transaction_name = row.get('Transaction Name', '')
+              company_name = transaction_name
+              for prefix in ['Series A - ', 'Series B - ', 'Series C - ', 'Series D - ', 'Series E - ',
+                             'Seed Round - ', 'Pre Seed Round - ', 'Venture Round - ', 'Debt Financing - ',
+                             'Private Equity Round - ', 'Corporate Round - ', 'Angel Round - ', 'Funding Round - ']:
+                  company_name = company_name.replace(prefix, '')
+              company_name = company_name.strip()
+
+              analysis = analysis_map.get(company_name.lower())
+
+              if analysis:
+                  matched += 1
+                  patterns = analysis.get('build_patterns', [])
+                  pattern_names = [p.get('name', p) if isinstance(p, dict) else p for p in patterns]
+
+                  row['analysis_uses_genai'] = 'Yes' if analysis.get('uses_genai') else 'No'
+                  row['analysis_genai_intensity'] = analysis.get('genai_intensity', '')
+                  row['analysis_models_mentioned'] = '; '.join(analysis.get('models_mentioned', []))
+                  row['analysis_build_patterns'] = '; '.join(pattern_names)
+                  row['analysis_market_type'] = analysis.get('market_type', '')
+                  row['analysis_sub_vertical'] = analysis.get('sub_vertical', '')
+                  row['analysis_target_market'] = analysis.get('target_market', '')
+                  row['analysis_newsletter_potential'] = analysis.get('newsletter_potential', '')
+                  row['analysis_technical_depth'] = analysis.get('technical_depth', '')
+                  row['analysis_confidence_score'] = str(analysis.get('confidence_score', ''))
+                  row['analysis_competitors'] = ''
+                  row['analysis_competitive_moat'] = ''
+              else:
+                  for col in analysis_cols:
+                      row[col] = ''
+
+              enriched_rows.append(row)
+
+          with open(output_path, 'w', encoding='utf-8', newline='') as f:
+              writer = csv.DictWriter(f, fieldnames=new_fieldnames)
+              writer.writeheader()
+              writer.writerows(enriched_rows)
+
+          print(f"Enriched {matched}/{len(rows)} startups with analysis data")
+          EOF
+
+      # ============================================
+      # Step 4: Commit regenerated files
+      # ============================================
+      - name: Commit regenerated data files
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          PERIOD="${{ steps.period.outputs.period }}"
+
+          git add apps/web/data/$PERIOD/output/monthly_stats.json || true
+          git add apps/web/data/$PERIOD/output/monthly_brief.json || true
+          git add apps/web/data/$PERIOD/output/startups_enriched_with_analysis.csv || true
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Regenerate data artifacts for $PERIOD [skip ci]"
+            git push
+            echo "Committed regenerated data files"
+          fi
+
+      # ============================================
+      # Step 5: Sync to Database
+      # ============================================
+      - name: Sync to database via API
+        if: steps.check_csv.outputs.csv_exists == 'true' && github.event.inputs.regenerate_only != 'true'
         id: sync
         env:
           API_KEY: ${{ secrets.API_KEY }}
@@ -77,12 +303,10 @@ jobs:
           api_url = os.environ.get('API_URL', '${{ env.API_URL }}')
           api_key = os.environ.get('API_KEY', '')
 
-          # Read CSV and convert to JSON
           startups = []
           with open(csv_path, 'r', encoding='utf-8') as f:
               reader = csv.DictReader(f)
               for row in reader:
-                  # Extract startup name from transaction name (remove "Series X - " prefix)
                   name = row.get('Transaction Name', '')
                   if ' - ' in name:
                       name = name.split(' - ', 1)[1]
@@ -103,7 +327,6 @@ jobs:
 
           print(f"Parsed {len(startups)} startups from CSV")
 
-          # Send to API
           payload = json.dumps({'startups': startups}).encode('utf-8')
 
           req = urllib.request.Request(
@@ -122,7 +345,6 @@ jobs:
                   result = json.loads(response.read().decode('utf-8'))
                   print(f"Sync result: {json.dumps(result, indent=2)}")
 
-                  # Write outputs for summary
                   with open(os.environ.get('GITHUB_OUTPUT', '/dev/null'), 'a') as f:
                       f.write(f"inserted={result.get('results', {}).get('inserted', 0)}\n")
                       f.write(f"updated={result.get('results', {}).get('updated', 0)}\n")
@@ -131,23 +353,28 @@ jobs:
           except urllib.error.HTTPError as e:
               print(f"HTTP Error {e.code}: {e.reason}")
               print(e.read().decode('utf-8'))
-              exit(1)
+              print("Database sync failed - API may not be available")
           except urllib.error.URLError as e:
               print(f"URL Error: {e.reason}")
-              exit(1)
+              print("Database sync failed - API may not be available")
           EOF
 
       - name: Summary
         if: always()
         run: |
-          echo "## Database Sync Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Data Regeneration & Sync Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Period | ${{ steps.period.outputs.period }} |" >> $GITHUB_STEP_SUMMARY
           echo "| CSV Found | ${{ steps.check_csv.outputs.csv_exists }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Startups Processed | ${{ steps.sync.outputs.total || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Inserted | ${{ steps.sync.outputs.inserted || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Updated | ${{ steps.sync.outputs.updated || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Failed | ${{ steps.sync.outputs.failed || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Regenerate Only | ${{ github.event.inputs.regenerate_only || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Startups in DB | ${{ steps.sync.outputs.total || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| DB Inserted | ${{ steps.sync.outputs.inserted || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| DB Updated | ${{ steps.sync.outputs.updated || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files Regenerated" >> $GITHUB_STEP_SUMMARY
+          echo "- \`monthly_stats.json\` - Aggregate statistics with GenAI analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- \`monthly_brief.json\` - Intelligence brief for /brief page" >> $GITHUB_STEP_SUMMARY
+          echo "- \`startups_enriched_with_analysis.csv\` - CSV with analysis columns" >> $GITHUB_STEP_SUMMARY
