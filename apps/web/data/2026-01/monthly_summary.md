@@ -1,66 +1,66 @@
 # Monthly Startup Funding Report: 2026-01
 
-*Generated: 2026-01-23 08:31 UTC*
+*Generated: 2026-01-31 09:20 UTC*
 
 ## Deal Summary
 
 | Metric | Value |
 |--------|-------|
-| Total Deals | 201 |
-| Total Funding | $31,071,340,276 |
-| Average Deal Size | $154,583,782 |
-| Median Deal Size | $7,270,169 |
+| Total Deals | 282 |
+| Total Funding | $31,964,815,763 |
+| Average Deal Size | $113,350,411 |
+| Median Deal Size | $7,000,000 |
 | Largest Deal | $20,000,000,000 |
 
 ## Funding by Stage
 
 | Stage | Deals | Total Funding | Avg Deal |
 |-------|-------|---------------|----------|
-| Series D Plus | 6 | $21,153,366,000 | $3,525,561,000 |
-| Unknown | 47 | $4,701,086,250 | $100,023,112 |
-| Series C | 5 | $1,878,168,046 | $375,633,609 |
-| Series A | 35 | $1,359,745,120 | $38,849,861 |
-| Series B | 15 | $1,025,075,992 | $68,338,399 |
-| Seed | 68 | $887,106,212 | $13,045,680 |
-| Pre Seed | 25 | $66,792,656 | $2,671,706 |
+| Series D Plus | 8 | $21,493,366,000 | $2,686,670,750 |
+| Series C | 10 | $2,878,168,046 | $287,816,805 |
+| Unknown | 47 | $2,221,740,014 | $47,271,064 |
+| Series B | 25 | $2,125,125,062 | $85,005,002 |
+| Series A | 50 | $1,869,677,275 | $37,393,546 |
+| Seed | 104 | $1,283,124,408 | $12,337,735 |
+| Pre Seed | 38 | $93,614,958 | $2,463,552 |
 
 ## Funding by Region
 
 | Region | Deals | Total Funding | Avg Deal |
 |--------|-------|---------------|----------|
-| North America | 107 | $26,953,363,076 | $251,900,589 |
-| Asia | 47 | $2,500,807,537 | $53,208,671 |
-| Europe | 34 | $1,498,029,464 | $44,059,690 |
+| North America | 150 | $28,489,637,578 | $189,930,917 |
+| Asia | 61 | $1,780,497,753 | $29,188,488 |
+| Europe | 55 | $1,526,205,039 | $27,749,183 |
+| South America | 4 | $22,210,100 | $5,552,525 |
 | Africa | 2 | $21,750,000 | $10,875,000 |
 | Oceania | 1 | $13,366,000 | $13,366,000 |
-| South America | 2 | $2,908,121 | $1,454,060 |
 
 ## Top Countries by Funding
 
 | Country | Deals | Total Funding |
 |---------|-------|---------------|
-| United States | 103 | $26,921,127,655 |
-| Saudi Arabia | 3 | $1,231,497,000 |
-| China | 18 | $618,130,363 |
-| Italy | 4 | $607,740,997 |
-| Germany | 8 | $551,601,110 |
-| Singapore | 4 | $361,575,000 |
-| France | 2 | $203,491,250 |
-| Israel | 2 | $147,000,000 |
-| United Kingdom | 9 | $86,624,812 |
-| India | 8 | $75,432,764 |
+| United States | 141 | $27,586,902,157 |
+| China | 26 | $1,390,581,160 |
+| Canada | 8 | $901,735,421 |
+| United Kingdom | 15 | $646,905,770 |
+| Germany | 9 | $552,767,860 |
+| France | 3 | $205,984,275 |
+| Israel | 3 | $175,000,000 |
+| India | 11 | $89,666,340 |
+| Singapore | 6 | $52,575,000 |
+| Taiwan | 1 | $35,000,000 |
 
 ## Top Cities by Funding
 
 | City | Deals | Total Funding |
 |------|-------|---------------|
-| Palo Alto | 4 | $20,075,600,000 |
+| Palo Alto | 9 | $20,559,400,000 |
+| San Francisco | 36 | $1,626,462,053 |
 | Pittsburgh | 1 | $1,400,000,000 |
-| Riyadh | 2 | $1,229,997,000 |
-| San Francisco | 24 | $1,113,212,053 |
-| San Luis Obispo | 1 | $785,000,000 |
-| Milan | 1 | $600,000,000 |
+| Toronto | 5 | $801,000,000 |
+| Xuhui | 1 | $718,050,350 |
 | Mountain View | 3 | $565,000,000 |
+| London | 10 | $549,413,798 |
 | Cupertino | 1 | $500,000,000 |
 | Redwood City | 2 | $490,000,000 |
 | Berlin | 2 | $362,000,000 |
@@ -71,88 +71,49 @@
 |---------|---------|-------|----------|
 | xAI | $20,000,000,000 | Series E | Palo Alto, California, United  |
 | Skild AI | $1,400,000,000 | Series C | Pittsburgh, Pennsylvania, Unit |
-| HUMAIN | $1,200,000,000 | Debt Financing | Riyadh, Ar Riyad, Saudi Arabia |
-| Playlist | $785,000,000 | Private Equity | San Luis Obispo, California, U |
-| Domyn | $600,000,000 | Debt Financing | Milan, Lombardia, Italy, Europ |
+| Waabi | $750,000,000 | Series C | Toronto, Ontario, Canada, Nort |
+| StepFun | $718,050,350 | Series B | Xuhui, Shanghai, China, Asia |
 | Etched.ai | $500,000,000 | Venture - Series Unknown | Cupertino, California, United  |
 | humans& | $480,000,000 | Seed | Redwood City, California, Unit |
+| Fluidstack | $450,000,000 | Funding Round | London, England, United Kingdo |
 | ClickHouse | $400,000,000 | Series D | Mountain View, California, Uni |
 | Parloa | $350,000,000 | Series D | Berlin, Berlin, Germany, Europ |
-| Atome | $345,000,000 | Debt Financing | Singapore, Central Region, Sin |
+| Baseten | $300,000,000 | Venture - Series Unknown | San Francisco, California, Uni |
 
 ## Most Active Investors
 
 | Investor | Deals | Total Invested |
 |----------|-------|----------------|
+| Lightspeed Venture Partners | 5 | $568,000,000 |
 | Y Combinator | 5 | $24,000,000 |
+| Ant Group | 4 | $112,000,000 |
+| Sequoia Capital | 4 | $100,000,000 |
+| Khosla Ventures | 3 | $826,000,000 |
 | General Catalyst | 3 | $361,300,000 |
+| Andreessen Horowitz | 3 | $182,300,000 |
 | Matrix | 3 | $23,100,000 |
+| Index Ventures | 2 | $350,000,000 |
 | 8VC | 2 | $93,750,000 |
-| Blackbird Ventures | 2 | $67,904,801 |
-| Ant Group | 2 | $62,000,000 |
-| Ten Eleven Ventures | 2 | $38,000,000 |
-| Legend Capital | 2 | $28,662,957 |
-| BoxGroup | 2 | $18,600,000 |
-| SoftBank Group | 1 | $1,400,000,000 |
 
 ## Funding by Industry Vertical
 
 | Vertical | Deals | Total Funding |
 |----------|-------|---------------|
-| artificial_intelligence | 225 | $73,865,854,825 |
-| information_technology | 35 | $22,523,485,368 |
-| machine_learning | 40 | $21,504,338,135 |
-| software | 59 | $2,454,397,761 |
-| robotics | 13 | $1,927,642,457 |
-| saas | 28 | $1,662,052,587 |
-| computer_vision | 4 | $1,415,945,625 |
-| natural_language_processing | 6 | $1,377,702,472 |
-| speech_recognition | 2 | $1,343,168,046 |
-| analytics | 16 | $1,341,881,972 |
-| predictive_analytics | 5 | $1,339,386,015 |
-| apps | 6 | $1,323,019,133 |
-| data_mining | 2 | $1,229,997,000 |
-| virtual_assistant | 2 | $1,220,000,000 |
-| facial_recognition | 1 | $1,200,000,000 |
-
-## GenAI Analysis Insights
-
-*Based on analysis of 189 startups*
-
-**GenAI Adoption Rate:** 55.0%
-
-### GenAI Intensity Distribution
-
-| Intensity | Count |
-|-----------|-------|
-| Core | 90 |
-| None | 52 |
-| Enhancement | 13 |
-| Unclear | 33 |
-| Tooling | 1 |
-
-### Build Pattern Distribution
-
-| Pattern | Count |
-|---------|-------|
-| Vertical Data Moats | 171 |
-| Agentic Architectures | 124 |
-| Continuous-learning Flywheels | 87 |
-| Micro-model Meshes | 84 |
-| Guardrail-as-LLM | 57 |
-| RAG (Retrieval-Augmented Generation) | 50 |
-| Natural-Language-to-Code | 20 |
-| Knowledge Graphs | 17 |
-| Multimodal AI (Novel/Extension) | 1 |
-| Expert-in-the-Loop (Human-in-the-Loop) | 1 |
-
-### Newsletter Potential
-
-| Potential | Count |
-|-----------|-------|
-| High | 135 |
-| Medium | 40 |
-| Low | 14 |
+| artificial_intelligence | 320 | $76,932,964,219 |
+| information_technology | 46 | $23,476,611,584 |
+| machine_learning | 49 | $23,049,609,875 |
+| software | 98 | $3,828,071,246 |
+| robotics | 19 | $2,093,667,408 |
+| cybersecurity | 20 | $1,143,449,270 |
+| saas | 39 | $1,005,409,686 |
+| analytics | 22 | $957,713,811 |
+| natural_language_processing | 6 | $895,752,822 |
+| healthcare | 30 | $851,425,267 |
+| semiconductor | 4 | $823,255,593 |
+| hardware | 7 | $767,129,252 |
+| automotive | 3 | $758,450,870 |
+| autonomous_vehicles | 1 | $750,000,000 |
+| big_data | 9 | $558,855,664 |
 
 ---
 

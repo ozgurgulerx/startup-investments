@@ -387,3 +387,206 @@ import { AudienceToggle } from '@/components/ui/audience-toggle';
 - **Sign-in is for personalization only** - Watchlists, saved filters
 - **Consistent terminology**: Brief, Dossiers, Signals, Capital, Library, Watchlist
 - **Metrics labels are standardized**: "Funded companies tracked", "Capital mapped", "GenAI adoption", "Build patterns detected"
+
+## Monthly Startup Data Update Process
+
+This section documents the step-by-step process for updating monthly startup data. Follow these steps when you receive a new CSV with the latest funding data.
+
+### Prerequisites
+
+- New CSV file with startup funding data (e.g., `monthly-ai-startup-funding-DD-MM-YYYY.csv`)
+- Azure CLI logged in: `az login`
+- Python 3.12+ with virtual environment
+
+### Step 1: Locate and Identify the New CSV
+
+The new CSV is typically placed in the project root. Identify it and compare with existing data:
+
+```bash
+# Find CSV files
+ls *.csv
+
+# Count lines to see total rows
+wc -l new-csv.csv existing-data/input/startups.csv
+
+# Compute the delta (new startups)
+python3 -c "
+import csv
+
+existing = set()
+with open('apps/web/data/YYYY-MM/input/startups.csv', 'r') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        existing.add(row['Transaction Name'].lower())
+
+new_count = 0
+with open('new-csv.csv', 'r') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        if row['Transaction Name'].lower() not in existing:
+            new_count += 1
+            print(f'NEW: {row[\"Transaction Name\"]}')
+
+print(f'Total new startups: {new_count}')
+"
+```
+
+### Step 2: Copy CSV to Data Directories
+
+```bash
+# Copy to main data directory (used by analysis pipeline)
+cp new-csv.csv data/YYYY-MM/input/startups.csv
+
+# Copy to web data directory (used by frontend)
+cp new-csv.csv apps/web/data/YYYY-MM/input/startups.csv
+```
+
+### Step 3: Generate Monthly Statistics
+
+```bash
+# Use the analysis package Python environment
+/Users/ozgurguler/Developer/Projects/startup-analysis/packages/analysis/venv/bin/python -c "
+import sys
+sys.path.insert(0, '/Users/ozgurguler/Developer/Projects/startup-analysis/packages/analysis')
+
+from src.data.monthly_stats import MonthlyStatistics
+from src.data.ingestion import load_startups_from_csv
+from pathlib import Path
+
+# Load startups from the new CSV
+csv_path = Path('/Users/ozgurguler/Developer/Projects/startup-analysis/data/YYYY-MM/input/startups.csv')
+startups = load_startups_from_csv(csv_path)
+print(f'Loaded {len(startups)} startups')
+
+# Generate monthly stats
+monthly = MonthlyStatistics('YYYY-MM')
+monthly.generate_full_stats(startups)
+
+# Save to output directory
+output_dir = Path('/Users/ozgurguler/Developer/Projects/startup-analysis/data/YYYY-MM/output')
+output_dir.mkdir(parents=True, exist_ok=True)
+stats_path = monthly.save(output_dir)
+print(f'Stats saved to: {stats_path}')
+
+# Generate summary report
+period_dir = Path('/Users/ozgurguler/Developer/Projects/startup-analysis/data/YYYY-MM')
+report_path = monthly.generate_summary_report(period_dir)
+print(f'Summary saved to: {report_path}')
+"
+```
+
+### Step 4: Update Web Data Files
+
+```bash
+# Copy monthly summary to web data
+cp data/YYYY-MM/monthly_summary.md apps/web/data/YYYY-MM/monthly_summary.md
+
+# Copy monthly stats JSON
+cp data/YYYY-MM/output/monthly_stats.json apps/web/data/YYYY-MM/output/monthly_stats.json
+
+# Copy enriched CSV (if exists)
+cp data/YYYY-MM/output/startups_enriched_with_analysis.csv apps/web/data/YYYY-MM/output/
+```
+
+### Step 5: Commit and Push Changes
+
+```bash
+git add -A && git commit -m "Update YYYY-MM startup data: X new startups" && git push
+```
+
+CI/CD will automatically deploy the frontend with updated data.
+
+### Full Automation Path (Future State)
+
+When Azure Functions are fully deployed, the process becomes automated:
+
+1. **Upload CSV to Blob Storage**:
+   ```bash
+   az storage blob upload \
+     --account-name buildatlasstorage \
+     --container-name startup-csvs \
+     --name "incoming/monthly-startup-data.csv" \
+     --file new-csv.csv \
+     --auth-mode login
+   ```
+
+2. **Azure Function Triggers**: The `process_csv_blob` function automatically:
+   - Classifies startups as NEW/CHANGED/UNCHANGED
+   - Crawls websites for new startups
+   - Runs GenAI analysis
+   - Generates briefs
+   - Saves to PostgreSQL database
+
+3. **Deploy Trigger**: The `check_deploy_trigger` function batches changes and triggers GitHub Actions to redeploy.
+
+### Troubleshooting
+
+**If blob upload fails with network rules error:**
+- Storage account has network restrictions
+- Use the manual process above until network rules are updated
+- Or use GitHub Actions to upload via CI/CD
+
+**If monthly stats fail:**
+- Ensure Python virtual environment has dependencies: `pip install pydantic pandas`
+- Use full paths to Python interpreter and files
+
+## Azure Services Architecture
+
+### Resource Inventory
+
+| Service | Name | Resource Group | Purpose |
+|---------|------|----------------|---------|
+| App Service | `buildatlas-web` | `aistartuptr` | Next.js frontend hosting |
+| AKS | `aks-aistartuptr` | `aistartuptr` | Express.js API hosting |
+| PostgreSQL | `aistartupstr` | `aistartupstr` | Primary database |
+| Storage Account | `buildatlasstorage` | `aistartuptr` | CSV uploads, blob storage |
+| Front Door | `startupapi-...` | `aistartuptr` | CDN, WAF, routing |
+| Container Registry | `aistartuptr` | `aistartuptr` | Docker images for API |
+| Function App | (pending deploy) | `aistartuptr` | Automation functions |
+
+### Storage Containers
+
+- `startup-csvs/incoming/` - Upload new CSVs here to trigger processing
+- `startup-csvs/processed/` - Successfully processed CSVs moved here
+- `startup-csvs/failed/` - Failed processing CSVs moved here
+- `crawl-snapshots/` - Versioned website crawl data
+- `analysis-snapshots/` - Versioned startup analysis data
+- `briefs/` - Generated startup briefs
+
+### Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| `startups` | Main startup records with funding info |
+| `funding_rounds` | Individual funding round details |
+| `investors` | Investor information |
+| `investments` | Junction table: investors to funding rounds |
+| `startup_events` | Event tracking (funding news, website changes) |
+| `deep_research_queue` | LLM analysis queue |
+| `pattern_correlations` | Pattern co-occurrence statistics |
+| `crawl_logs` | Website crawling history |
+| `users` | Authenticated users |
+| `watchlist_items` | User's saved startups |
+
+### Required Environment Variables
+
+For full automation, these must be set in Azure Functions:
+
+```
+AZURE_OPENAI_API_KEY=<key>
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2024-06-01
+DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
+AzureWebJobsStorage=<connection-string>
+```
+
+### Deploying Azure Functions
+
+Azure Functions are not yet deployed. To deploy:
+
+```bash
+# From infrastructure/azure-functions/
+func azure functionapp publish <function-app-name>
+```
+
+Or via GitHub Actions when `infrastructure/azure-functions/**` changes.
