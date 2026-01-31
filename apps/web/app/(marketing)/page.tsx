@@ -81,12 +81,21 @@ export default function LandingPage() {
             >
               {copy.primaryCTA}
             </Link>
-            <Link
-              href={copy.secondaryCTAHref}
-              className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
-            >
-              {copy.secondaryCTA}
-            </Link>
+            {session?.user ? (
+              <Link
+                href="/watchlist"
+                className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
+              >
+                View Watchlist
+              </Link>
+            ) : (
+              <Link
+                href={copy.secondaryCTAHref}
+                className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
+              >
+                {copy.secondaryCTA}
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -214,36 +223,71 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Sign In to Personalize */}
-      <section id="personalize" className="py-20 px-6">
-        <div className="max-w-2xl mx-auto text-center">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent/10 flex items-center justify-center">
-            <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+      {/* Sign In to Personalize - only show when not logged in */}
+      {!session?.user && (
+        <section id="personalize" className="py-20 px-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-light text-foreground mb-4">
+              {SIGN_IN_COPY.title}
+            </h2>
+            <p className="text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
+              {SIGN_IN_COPY.body}
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                href="/login"
+                className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
+              >
+                {SIGN_IN_COPY.primaryCTA}
+              </Link>
+              <Link
+                href="/brief"
+                className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
+              >
+                {SIGN_IN_COPY.secondaryCTA}
+              </Link>
+            </div>
           </div>
-          <h2 className="text-3xl font-light text-foreground mb-4">
-            {SIGN_IN_COPY.title}
-          </h2>
-          <p className="text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
-            {SIGN_IN_COPY.body}
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/login"
-              className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
-            >
-              {SIGN_IN_COPY.primaryCTA}
-            </Link>
-            <Link
-              href="/brief"
-              className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
-            >
-              {SIGN_IN_COPY.secondaryCTA}
-            </Link>
+        </section>
+      )}
+
+      {/* Welcome back for logged in users */}
+      {session?.user && (
+        <section id="personalize" className="py-20 px-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-light text-foreground mb-4">
+              Welcome back, {session.user.name?.split(' ')[0] || 'there'}
+            </h2>
+            <p className="text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
+              Jump into your personalized experience. Your watchlist and preferences are ready.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                href="/brief"
+                className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
+              >
+                Go to Brief
+              </Link>
+              <Link
+                href="/watchlist"
+                className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
+              >
+                View Watchlist
+              </Link>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Methodology Teaser */}
       <section className="py-20 px-6 bg-muted/10 border-y border-border/30">
