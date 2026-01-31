@@ -55,79 +55,111 @@ sys.path.insert(0, '$PROJECT_ROOT/packages/analysis')
 
 from pathlib import Path
 import json
+import csv
+import statistics
 
-# Try to regenerate stats from analysis store
+csv_path = Path('$PROJECT_ROOT/apps/web/data/$PERIOD/input/startups.csv')
 analysis_store_path = Path('$PROJECT_ROOT/apps/web/data/$PERIOD/output/analysis_store')
 stats_path = Path('$PROJECT_ROOT/apps/web/data/$PERIOD/output/monthly_stats.json')
 
-if analysis_store_path.exists():
-    # Load existing stats and update genai_analysis section
+# Load existing stats or create new
+if stats_path.exists():
     with open(stats_path, 'r') as f:
         stats = json.load(f)
-
-    # Load analyses from store
-    base_path = analysis_store_path / 'base_analyses'
-    analyses = []
-    if base_path.exists():
-        for f in base_path.glob('*.json'):
-            with open(f, 'r') as fp:
-                analyses.append(json.load(fp))
-
-    if analyses:
-        # Recalculate genai_analysis
-        uses_genai_count = sum(1 for a in analyses if a.get('uses_genai', False))
-
-        intensity_dist = {}
-        pattern_dist = {}
-        newsletter_dist = {}
-        vertical_dist = {}
-        market_dist = {}
-        depth_dist = {}
-
-        for a in analyses:
-            intensity = a.get('genai_intensity', 'none')
-            intensity_dist[intensity] = intensity_dist.get(intensity, 0) + 1
-
-            for p in a.get('build_patterns', []):
-                name = p.get('name', p) if isinstance(p, dict) else p
-                pattern_dist[name] = pattern_dist.get(name, 0) + 1
-
-            nl = a.get('newsletter_potential', 'low')
-            newsletter_dist[nl] = newsletter_dist.get(nl, 0) + 1
-
-            vertical = a.get('sub_vertical') or a.get('vertical', 'unknown')
-            vertical_dist[vertical] = vertical_dist.get(vertical, 0) + 1
-
-            market = a.get('market_type', 'unknown')
-            market_dist[market] = market_dist.get(market, 0) + 1
-
-            depth = a.get('technical_depth', 'unknown')
-            depth_dist[depth] = depth_dist.get(depth, 0) + 1
-
-        stats['genai_analysis'] = {
-            'total_analyzed': len(analyses),
-            'uses_genai_count': uses_genai_count,
-            'genai_adoption_rate': uses_genai_count / len(analyses) if analyses else 0,
-            'intensity_distribution': dict(sorted(intensity_dist.items(), key=lambda x: -x[1])),
-            'pattern_distribution': dict(sorted(pattern_dist.items(), key=lambda x: -x[1])),
-            'newsletter_potential': dict(sorted(newsletter_dist.items(), key=lambda x: -x[1])),
-            'vertical_distribution': dict(sorted(vertical_dist.items(), key=lambda x: -x[1])[:20]),
-            'market_type_distribution': market_dist,
-            'technical_depth_distribution': depth_dist,
-            'high_potential_startups': [
-                a.get('company_name') for a in analyses
-                if a.get('newsletter_potential') == 'high'
-            ][:20]
-        }
-
-        with open(stats_path, 'w') as f:
-            json.dump(stats, f, indent=2)
-
-        print(f"  Updated genai_analysis with {len(analyses)} startups")
-    else:
-        print("  No analyses found in store")
 else:
-    print("  Analysis store not found, skipping stats update")
+    stats = {'period': '$PERIOD'}
+
+# ============================================
+# Recalculate deal_summary from CSV
+# This ensures total_deals is always accurate
+# ============================================
+funding_amounts = []
+with open(csv_path, 'r', encoding='utf-8') as f:
+    reader = csv.DictReader(f)
+    rows = list(reader)
+    for row in rows:
+        amount_str = row.get('Money Raised (in USD)', '').replace(',', '').strip()
+        if amount_str:
+            try:
+                amount = float(amount_str)
+                if amount > 0:
+                    funding_amounts.append(amount)
+            except ValueError:
+                pass
+
+total_deals = len(rows)
+stats['deal_summary'] = {
+    'total_deals': total_deals,
+    'deals_with_funding': len(funding_amounts),
+    'total_funding_usd': sum(funding_amounts) if funding_amounts else 0,
+    'average_deal_size': statistics.mean(funding_amounts) if funding_amounts else 0,
+    'median_deal_size': statistics.median(funding_amounts) if funding_amounts else 0,
+    'min_deal_size': min(funding_amounts) if funding_amounts else 0,
+    'max_deal_size': max(funding_amounts) if funding_amounts else 0,
+}
+print(f"  Updated deal_summary: {total_deals} total deals")
+
+# ============================================
+# Update genai_analysis from analysis store
+# ============================================
+base_path = analysis_store_path / 'base_analyses'
+analyses = []
+if base_path.exists():
+    for f in base_path.glob('*.json'):
+        with open(f, 'r') as fp:
+            analyses.append(json.load(fp))
+
+if analyses:
+    uses_genai_count = sum(1 for a in analyses if a.get('uses_genai', False))
+
+    intensity_dist = {}
+    pattern_dist = {}
+    newsletter_dist = {}
+    vertical_dist = {}
+    market_dist = {}
+    depth_dist = {}
+
+    for a in analyses:
+        intensity = a.get('genai_intensity', 'none')
+        intensity_dist[intensity] = intensity_dist.get(intensity, 0) + 1
+
+        for p in a.get('build_patterns', []):
+            name = p.get('name', p) if isinstance(p, dict) else p
+            pattern_dist[name] = pattern_dist.get(name, 0) + 1
+
+        nl = a.get('newsletter_potential', 'low')
+        newsletter_dist[nl] = newsletter_dist.get(nl, 0) + 1
+
+        vertical = a.get('sub_vertical') or a.get('vertical', 'unknown')
+        vertical_dist[vertical] = vertical_dist.get(vertical, 0) + 1
+
+        market = a.get('market_type', 'unknown')
+        market_dist[market] = market_dist.get(market, 0) + 1
+
+        depth = a.get('technical_depth', 'unknown')
+        depth_dist[depth] = depth_dist.get(depth, 0) + 1
+
+    stats['genai_analysis'] = {
+        'total_analyzed': len(analyses),
+        'uses_genai_count': uses_genai_count,
+        'genai_adoption_rate': uses_genai_count / len(analyses) if analyses else 0,
+        'intensity_distribution': dict(sorted(intensity_dist.items(), key=lambda x: -x[1])),
+        'pattern_distribution': dict(sorted(pattern_dist.items(), key=lambda x: -x[1])),
+        'newsletter_potential': dict(sorted(newsletter_dist.items(), key=lambda x: -x[1])),
+        'vertical_distribution': dict(sorted(vertical_dist.items(), key=lambda x: -x[1])[:20]),
+        'market_type_distribution': market_dist,
+        'technical_depth_distribution': depth_dist,
+        'high_potential_startups': [
+            a.get('company_name') for a in analyses
+            if a.get('newsletter_potential') == 'high'
+        ][:20]
+    }
+    print(f"  Updated genai_analysis: {len(analyses)} analyzed")
+else:
+    print("  No analyses found in store")
+
+with open(stats_path, 'w') as f:
+    json.dump(stats, f, indent=2)
 EOF
 
 echo "  Done"
