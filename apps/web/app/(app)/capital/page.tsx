@@ -1,17 +1,32 @@
 import { Suspense } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui';
 import { TrendLineChart, PatternBarChart } from '@/components/charts';
-import { getMonthlyStats, getAvailablePeriods } from '@/lib/data';
+import { getMonthlyStats, getAvailablePeriods, getStartups } from '@/lib/data';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
-import { TrendingUp, TrendingDown, Minus, ArrowRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ArrowRight, AlertTriangle, BarChart3 } from 'lucide-react';
+import {
+  detectOutlierRounds,
+  computeConcentrationMetrics,
+  detectStageAnomalies,
+  type OutlierRound,
+  type ConcentrationMetrics,
+  type StageAnomaly,
+} from '@/lib/data/anomalies';
+import Link from 'next/link';
 
 const DEFAULT_PERIOD = '2026-01';
 
 async function CapitalContent({ period }: { period: string }) {
-  const [stats, periods] = await Promise.all([
+  const [stats, periods, startups] = await Promise.all([
     getMonthlyStats(period),
     getAvailablePeriods(),
+    getStartups(period),
   ]);
+
+  // Compute anomalies and concentration metrics
+  const outlierRounds = detectOutlierRounds(startups, stats);
+  const concentrationMetrics = computeConcentrationMetrics(startups);
+  const stageAnomalies = detectStageAnomalies(startups, stats);
 
   const genaiAnalysis = stats.genai_analysis;
   const dealSummary = stats.deal_summary;
@@ -239,6 +254,163 @@ async function CapitalContent({ period }: { period: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Concentration Metrics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Capital Concentration
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+            <div className="p-4 rounded-lg bg-muted/30 border border-border/30">
+              <p className="text-sm text-muted-foreground">Top 1 Share</p>
+              <p className="text-2xl font-bold tabular-nums mt-1">
+                {concentrationMetrics.top1Share.toFixed(1)}%
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Single largest deal
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/30 border border-border/30">
+              <p className="text-sm text-muted-foreground">Top 5 Share</p>
+              <p className="text-2xl font-bold tabular-nums mt-1">
+                {concentrationMetrics.top5Share.toFixed(1)}%
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Five largest deals
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/30 border border-border/30">
+              <p className="text-sm text-muted-foreground">Gini Coefficient</p>
+              <p className="text-2xl font-bold tabular-nums mt-1">
+                {concentrationMetrics.giniCoefficient.toFixed(2)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Inequality measure (0-1)
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/30 border border-border/30">
+              <p className="text-sm text-muted-foreground">HHI Index</p>
+              <p className="text-2xl font-bold tabular-nums mt-1">
+                {(concentrationMetrics.herfindahlIndex * 100).toFixed(1)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Market concentration
+              </p>
+            </div>
+          </div>
+          <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Interpretation:</span>{' '}
+              {concentrationMetrics.interpretation}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Anomalies Section */}
+      {(outlierRounds.length > 0 || stageAnomalies.length > 0) && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Outlier Rounds */}
+          {outlierRounds.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Statistical Outliers
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {outlierRounds.slice(0, 5).map((outlier, index) => (
+                  <Link
+                    key={index}
+                    href={`/company/${outlier.slug}`}
+                    className="block p-3 rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">{outlier.company}</p>
+                        <p className="text-sm text-muted-foreground">{outlier.stage}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold tabular-nums text-accent">
+                          {formatCurrency(outlier.amount, true)}
+                        </p>
+                        <Badge
+                          variant={outlier.zScore > 3 ? 'warning' : 'secondary'}
+                          className="text-xs"
+                        >
+                          {outlier.zScore > 0 ? '+' : ''}{outlier.zScore.toFixed(1)}σ
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {outlier.reason}
+                    </p>
+                  </Link>
+                ))}
+                {outlierRounds.length > 5 && (
+                  <p className="text-xs text-muted-foreground text-center pt-2">
+                    +{outlierRounds.length - 5} more outliers
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Stage Anomalies */}
+          {stageAnomalies.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  Stage-Relative Outliers
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {stageAnomalies.slice(0, 5).map((anomaly, index) => (
+                  <Link
+                    key={index}
+                    href={`/company/${anomaly.slug}`}
+                    className="block p-3 rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">{anomaly.company}</p>
+                        <p className="text-sm text-muted-foreground">{anomaly.stage}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold tabular-nums">
+                          {formatCurrency(anomaly.amount, true)}
+                        </p>
+                        <Badge
+                          variant={anomaly.type === 'over' ? 'success' : 'secondary'}
+                          className="text-xs"
+                        >
+                          {anomaly.ratio.toFixed(1)}x avg
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {anomaly.type === 'over'
+                        ? `${anomaly.ratio.toFixed(1)}x the average ${anomaly.stage} round`
+                        : `Only ${(anomaly.ratio * 100).toFixed(0)}% of average ${anomaly.stage} round`}
+                    </p>
+                  </Link>
+                ))}
+                {stageAnomalies.length > 5 && (
+                  <p className="text-xs text-muted-foreground text-center pt-2">
+                    +{stageAnomalies.length - 5} more stage anomalies
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
