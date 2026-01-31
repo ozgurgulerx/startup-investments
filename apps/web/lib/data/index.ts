@@ -11,6 +11,13 @@ import type {
 // For static export, use the data directory relative to the web app
 const DATA_PATH = process.env.DATA_PATH || path.join(process.cwd(), 'data');
 
+// In-memory cache for startups data (avoids re-reading 275 files on each page)
+const startupsCache = new Map<string, {
+  data: StartupAnalysis[];
+  timestamp: number;
+}>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Get all available periods
  */
@@ -72,9 +79,15 @@ export async function getNewsletterData(period: string): Promise<NewsletterData>
 
 /**
  * Get all startup analyses for a period
- * Uses parallel file reads for performance (275 files in ~400ms vs 2-3s sequential)
+ * Uses in-memory caching + parallel file reads for performance
  */
 export async function getStartups(period: string): Promise<StartupAnalysis[]> {
+  // Check cache first
+  const cached = startupsCache.get(period);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+
   const storePath = path.join(DATA_PATH, period, 'output', 'analysis_store');
   const indexPath = path.join(storePath, 'index.json');
 
@@ -118,7 +131,15 @@ export async function getStartups(period: string): Promise<StartupAnalysis[]> {
     const startups = results.filter((s): s is StartupAnalysis => s !== null);
 
     // Sort by funding amount descending
-    return startups.sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
+    const sorted = startups.sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
+
+    // Cache the result
+    startupsCache.set(period, {
+      data: sorted,
+      timestamp: Date.now(),
+    });
+
+    return sorted;
   } catch (error) {
     console.error('Error reading startups:', error);
     return [];
