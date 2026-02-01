@@ -2,6 +2,11 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CompanyLogo } from '@/components/ui/company-logo';
+import {
+  ConfidenceBadge,
+  AnalysisDepth,
+  EvidenceCount,
+} from '@/components/ui';
 import { CompanyActions } from './company-actions';
 import {
   getStartup,
@@ -166,6 +171,9 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
             <h1 className="text-2xl font-light tracking-tight text-foreground">
               {startup.company_name}
             </h1>
+            {startup.confidence_score !== undefined && (
+              <ConfidenceBadge score={startup.confidence_score} size="lg" />
+            )}
           </div>
           <CompanyActions
             companySlug={startup.company_slug}
@@ -225,6 +233,17 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
         )}
       </header>
 
+      {/* Analysis Depth Indicator */}
+      {(startup.raw_content_analyzed || startup.evidence_quotes?.length || startup.analyzed_at) && (
+        <AnalysisDepth
+          contentBytes={startup.raw_content_analyzed}
+          quoteCount={startup.evidence_quotes?.length}
+          analyzedAt={startup.analyzed_at}
+          sources={startup.sources_crawled?.map((s: any) => typeof s === 'string' ? s : s.url)}
+          className="mt-6"
+        />
+      )}
+
       {/* Section 2: Why This Company Matters Now */}
       <section className="section">
         <div className="section-header">
@@ -276,7 +295,12 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
                 <div key={index} className="py-6 border-b border-border/30 last:border-0">
                   {/* Pattern header */}
                   <div className="flex items-start justify-between gap-8 mb-3">
-                    <h3 className="headline-sm">{pattern.name}</h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="headline-sm">{pattern.name}</h3>
+                      {pattern.evidence?.length > 0 && (
+                        <EvidenceCount count={pattern.evidence.length} />
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 text-sm shrink-0">
                       <span className={`w-2 h-2 rounded-full ${
                         conviction === 'high' ? 'bg-foreground' :
