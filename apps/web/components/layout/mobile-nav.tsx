@@ -37,9 +37,9 @@ export function MobileNavTrigger() {
         <Menu className="h-5 w-5 text-foreground" />
       </button>
 
-      <Sheet open={open} onOpenChange={setOpen} side="left">
-        <div className="flex h-full flex-col">
-          <SheetHeader onClose={() => setOpen(false)}>
+      <Sheet open={open} onOpenChange={setOpen} side="left" className="bg-background">
+        <div className="flex h-full flex-col bg-background">
+          <SheetHeader onClose={() => setOpen(false)} className="bg-background">
             <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
               <span className="w-2 h-2 rounded-full bg-accent" />
               <span className="text-sm font-medium text-foreground tracking-tight">
@@ -48,8 +48,8 @@ export function MobileNavTrigger() {
             </Link>
           </SheetHeader>
 
-          <SheetContent className="flex-1 px-4 py-6">
-            <nav className="space-y-1">
+          <SheetContent className="flex-1 px-4 py-6 bg-background">
+            <nav className="space-y-2">
               {navItems.map((item) => {
                 const isActive = pathname === item.href ||
                   (item.href !== '/' && pathname.startsWith(item.href));
@@ -59,20 +59,24 @@ export function MobileNavTrigger() {
                     href={item.href}
                     onClick={() => setOpen(false)}
                     className={cn(
-                      'nav-item rounded-sm flex items-center justify-between',
-                      isActive && 'active'
+                      'block px-4 py-3 text-base rounded-md transition-colors',
+                      isActive
+                        ? 'text-foreground bg-muted/60 font-medium'
+                        : 'text-foreground/80 hover:text-foreground hover:bg-muted/40'
                     )}
                   >
-                    <span>{item.label}</span>
-                    {item.showBadge && <WatchlistBadge />}
+                    <div className="flex items-center justify-between">
+                      <span>{item.label}</span>
+                      {item.showBadge && <WatchlistBadge />}
+                    </div>
                   </Link>
                 );
               })}
             </nav>
           </SheetContent>
 
-          <div className="px-6 py-6 border-t border-border/30">
-            <p className="text-[10px] text-muted-foreground/60">
+          <div className="px-6 py-6 border-t border-border/50 bg-background">
+            <p className="text-xs text-muted-foreground">
               January 2026
             </p>
           </div>
