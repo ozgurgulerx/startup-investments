@@ -6,6 +6,18 @@ import { db, testConnection, closePool, getPoolStats } from './db';
 import { startups, fundingRounds, investors } from './db/schema';
 import { eq, desc, sql, count, sum, and, gte, lte, ilike, or } from 'drizzle-orm';
 import { logoExtractor } from './services/logo-extractor';
+import {
+  getRedisClient,
+  closeRedisClient,
+  cached,
+  invalidateAll,
+  getCacheStats,
+  dealBookKey,
+  statsKey,
+  filterOptionsKey,
+  hashObject,
+  CACHE_TTL,
+} from './cache/redis';
 
 dotenv.config();
 
@@ -16,12 +28,14 @@ const PORT = process.env.PORT || 3001;
 app.get('/health', async (req, res) => {
   const dbConnected = await testConnection(1, 0);
   const poolStats = getPoolStats();
+  const cacheStats = await getCacheStats();
 
   res.json({
     status: dbConnected ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     database: dbConnected ? 'connected' : 'disconnected',
     pool: poolStats,
+    cache: cacheStats || { connected: false },
   });
 });
 
@@ -232,6 +246,24 @@ app.get('/api/startups/:slug/logo', async (req, res) => {
 
 app.get('/api/v1/stats', async (req, res) => {
   try {
+    const period = (req.query.period as string) || 'all';
+    const cacheKey = statsKey(period);
+
+    // Check cache first
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cachedData));
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
+
     // Total funding
     const [fundingResult] = await db.select({
       total: sum(fundingRounds.amountUsd),
@@ -262,7 +294,7 @@ app.get('/api/v1/stats', async (req, res) => {
       .from(startups)
       .groupBy(startups.stage);
 
-    res.json({
+    const responseData = {
       totalFunding: fundingResult.total || 0,
       totalDeals: fundingResult.count || 0,
       totalStartups: startupResult.count || 0,
@@ -276,7 +308,18 @@ app.get('/api/v1/stats', async (req, res) => {
       stageDistribution: Object.fromEntries(
         stageDistribution.map(s => [s.stage || 'unknown', s.count])
       ),
-    });
+    };
+
+    // Cache the response
+    if (redis) {
+      try {
+        await redis.setEx(cacheKey, CACHE_TTL.STATS, JSON.stringify(responseData));
+      } catch (cacheErr) {
+        console.error('Redis cache write error:', cacheErr);
+      }
+    }
+
+    res.json(responseData);
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
@@ -307,6 +350,27 @@ app.get('/api/v1/dealbook', async (req, res) => {
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 25));
     const offset = (pageNum - 1) * limitNum;
+
+    // Build cache key from query params
+    const filters = { stage, pattern, continent, minFunding, maxFunding, usesGenai, sortBy, sortOrder, search };
+    const filtersHash = hashObject(filters);
+    const cacheKey = dealBookKey(period, pageNum, filtersHash);
+
+    // Check cache first
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          res.setHeader('X-Cache', 'HIT');
+          res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+          return res.json(JSON.parse(cachedData));
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
 
     // Build WHERE conditions
     const conditions: ReturnType<typeof eq>[] = [];
@@ -432,10 +496,8 @@ app.get('/api/v1/dealbook', async (req, res) => {
       newsletter_potential: row.newsletterPotential,
     }));
 
-    // Cache for 60 seconds - data doesn't change frequently
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
-
-    res.json({
+    // Build response
+    const responseData = {
       data,
       pagination: {
         page: pageNum,
@@ -453,7 +515,19 @@ app.get('/api/v1/dealbook', async (req, res) => {
         usesGenai: usesGenai || null,
         search: search || null,
       },
-    });
+    };
+
+    // Cache the response
+    if (redis) {
+      try {
+        await redis.setEx(cacheKey, CACHE_TTL.DEALBOOK, JSON.stringify(responseData));
+      } catch (cacheErr) {
+        console.error('Redis cache write error:', cacheErr);
+      }
+    }
+
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    res.json(responseData);
   } catch (error) {
     console.error('Error fetching dealbook:', error);
     res.status(500).json({ error: 'Failed to fetch dealbook data' });
@@ -464,6 +538,22 @@ app.get('/api/v1/dealbook', async (req, res) => {
 app.get('/api/v1/dealbook/filters', async (req, res) => {
   try {
     const { period = '2026-01' } = req.query;
+    const cacheKey = filterOptionsKey(period as string);
+
+    // Check cache first
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cachedData));
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
 
     // Get distinct stages
     const stages = await db.selectDistinct({ stage: startups.fundingStage })
@@ -496,13 +586,24 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
       }
     }
 
-    res.json({
+    const responseData = {
       stages: stages.map(s => s.stage).filter(Boolean).sort(),
       continents: continents.map(c => c.continent).filter(Boolean).sort(),
       patterns: Array.from(patternMap.entries())
         .sort((a, b) => b[1] - a[1])
         .map(([name, count]) => ({ name, count })),
-    });
+    };
+
+    // Cache the response
+    if (redis) {
+      try {
+        await redis.setEx(cacheKey, CACHE_TTL.FILTERS, JSON.stringify(responseData));
+      } catch (cacheErr) {
+        console.error('Redis cache write error:', cacheErr);
+      }
+    }
+
+    res.json(responseData);
   } catch (error) {
     console.error('Error fetching dealbook filters:', error);
     res.status(500).json({ error: 'Failed to fetch filter options' });
@@ -658,9 +759,18 @@ app.post('/api/admin/sync-startups', async (req, res) => {
 
   console.log(`Sync complete: ${results.inserted} inserted, ${results.updated} updated, ${results.failed.length} failed`);
 
+  // Invalidate all cached data after sync
+  try {
+    await invalidateAll();
+    console.log('Cache invalidated after data sync');
+  } catch (cacheErr) {
+    console.error('Cache invalidation error:', cacheErr);
+  }
+
   res.json({
     message: 'Sync completed',
     results,
+    cacheInvalidated: true,
   });
 });
 
@@ -758,6 +868,8 @@ async function gracefulShutdown(signal: string) {
 
   server.close(async () => {
     console.log('HTTP server closed');
+    await closeRedisClient();
+    console.log('Redis connection closed');
     await closePool();
     console.log('Cleanup complete. Exiting.');
     process.exit(0);

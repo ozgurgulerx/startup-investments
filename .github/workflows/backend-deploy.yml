@@ -68,6 +68,7 @@ jobs:
             --from-literal=database-url="${{ secrets.DATABASE_URL }}" \
             --from-literal=api-key="${{ secrets.API_KEY }}" \
             --from-literal=front-door-id="${{ secrets.FRONT_DOOR_ID }}" \
+            --from-literal=redis-url="${{ secrets.REDIS_URL }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy to AKS

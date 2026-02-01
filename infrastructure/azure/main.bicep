@@ -194,6 +194,29 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2023-05-01' 
   ]
 }
 
+// Azure Cache for Redis - API response caching
+resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
+  name: 'redis-${resourceSuffix}'
+  location: location
+  properties: {
+    sku: {
+      name: 'Basic'
+      family: 'C'
+      capacity: 0  // C0 = 250MB, ~$16/month
+    }
+    enableNonSslPort: false
+    minimumTlsVersion: '1.2'
+    publicNetworkAccess: 'Enabled'
+    redisConfiguration: {
+      'maxmemory-policy': 'volatile-lru'  // Evict keys with TTL when memory full
+    }
+  }
+  tags: {
+    environment: environment
+    purpose: 'api-caching'
+  }
+}
+
 // Outputs
 output acrLoginServer string = acr.properties.loginServer
 output aksName string = aks.name
@@ -203,3 +226,5 @@ output aksPublicIp string = aksPublicIp.properties.ipAddress
 output aksPublicIpResourceId string = aksPublicIp.id
 output frontDoorEndpoint string = frontDoorEndpoint.properties.hostName
 output frontDoorId string = frontDoor.properties.frontDoorId
+output redisHostName string = redisCache.properties.hostName
+output redisPort int = redisCache.properties.sslPort

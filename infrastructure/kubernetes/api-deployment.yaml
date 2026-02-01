@@ -40,6 +40,12 @@ spec:
                   name: startup-investments-secrets
                   key: front-door-id
                   optional: true
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: redis-url
+                  optional: true
             - name: FRONTEND_URL
               value: "https://buildatlas.net"
           resources:
