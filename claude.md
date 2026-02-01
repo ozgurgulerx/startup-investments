@@ -87,6 +87,8 @@ Configuration exists in 5 places that MUST stay in sync:
 | `GOOGLE_CLIENT_SECRET` | ✅ | - | ✅ | - | - |
 | `REDIS_URL` | ✅ | - | - | ✅ | - |
 | `NEXT_PUBLIC_API_URL` | - | - | ✅ | - | ✅ (hardcoded) |
+| `POSTHOG_KEY` | ✅ | - | ✅ | - | ✅ |
+| `NEXT_PUBLIC_POSTHOG_HOST` | - | - | ✅ | - | ✅ (hardcoded) |
 | `AZURE_CLIENT_ID` | - | ✅ | - | - | - |
 | `AZURE_TENANT_ID` | - | ✅ | - | - | - |
 | `AZURE_SUBSCRIPTION_ID` | - | ✅ | - | - | - |
@@ -98,6 +100,7 @@ These values are HARDCODED and must be updated in the code if they change:
 | Value | Location | Current Value |
 |-------|----------|---------------|
 | API URL | `.github/workflows/frontend-deploy.yml` (lines 49 & 225) | `https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net` |
+| PostHog Host | `.github/workflows/frontend-deploy.yml` | `https://us.i.posthog.com` |
 | Frontend URL | `apps/api/src/index.ts` (FRONTEND_URL) | `https://buildatlas.net` |
 | App Service Name | `.github/workflows/frontend-deploy.yml` | `buildatlas-web` |
 | Resource Group (App Service) | Multiple workflows | `rg-startup-analysis` |

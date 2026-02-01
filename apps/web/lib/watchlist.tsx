@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
+import { trackEvent } from '@/lib/posthog';
 
 // Types
 export interface WatchlistItem {
@@ -208,6 +209,9 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
         return current;
       });
 
+      // Track successful watchlist add
+      trackEvent('watchlist_add', { company_slug: companySlug, company_name: companyName });
+
       return true;
     } catch (error) {
       console.error('Failed to add to watchlist:', error);
@@ -253,6 +257,9 @@ export function WatchlistProvider({ children }: WatchlistProviderProps) {
         }
         return current;
       });
+
+      // Track successful watchlist remove
+      trackEvent('watchlist_remove', { company_slug: companySlug });
 
       return true;
     } catch (error) {
