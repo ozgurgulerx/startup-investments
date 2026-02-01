@@ -62,11 +62,70 @@ export async function getAvailablePeriods(): Promise<PeriodInfo[]> {
 
 /**
  * Get monthly statistics for a period
+ * Supports 'all' to aggregate stats across all periods
  */
 export async function getMonthlyStats(period: string): Promise<MonthlyStats> {
+  // Handle 'all' period - aggregate stats across all periods
+  if (period === 'all') {
+    return getAggregatedStats();
+  }
+
   const filePath = path.join(DATA_PATH, period, 'output', 'monthly_stats.json');
   const content = await fs.readFile(filePath, 'utf-8');
   return JSON.parse(content) as MonthlyStats;
+}
+
+/**
+ * Aggregate stats across all available periods
+ */
+async function getAggregatedStats(): Promise<MonthlyStats> {
+  const periods = await getAvailablePeriods();
+
+  // Load stats from all periods
+  const allStats = await Promise.all(
+    periods.map(async p => {
+      try {
+        const filePath = path.join(DATA_PATH, p.period, 'output', 'monthly_stats.json');
+        const content = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(content) as MonthlyStats;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  const validStats = allStats.filter((s): s is MonthlyStats => s !== null);
+
+  if (validStats.length === 0) {
+    throw new Error('No stats available');
+  }
+
+  // Aggregate deal summary
+  const totalDeals = validStats.reduce((sum, s) => sum + s.deal_summary.total_deals, 0);
+  const totalFunding = validStats.reduce((sum, s) => sum + s.deal_summary.total_funding_usd, 0);
+
+  // Use the latest period's stats as the base and override aggregated values
+  const latestStats = validStats[0];
+
+  return {
+    ...latestStats,
+    period: 'all',
+    deal_summary: {
+      ...latestStats.deal_summary,
+      total_deals: totalDeals,
+      total_funding_usd: totalFunding,
+      average_deal_size: totalDeals > 0 ? totalFunding / totalDeals : 0,
+    },
+    genai_analysis: {
+      ...latestStats.genai_analysis,
+      total_analyzed: validStats.reduce((sum, s) => sum + s.genai_analysis.total_analyzed, 0),
+      uses_genai_count: validStats.reduce((sum, s) => sum + s.genai_analysis.uses_genai_count, 0),
+      genai_adoption_rate: validStats.length > 0
+        ? validStats.reduce((sum, s) => sum + s.genai_analysis.uses_genai_count, 0) /
+          validStats.reduce((sum, s) => sum + s.genai_analysis.total_analyzed, 0)
+        : 0,
+    },
+  };
 }
 
 /**
@@ -79,10 +138,49 @@ export async function getNewsletterData(period: string): Promise<NewsletterData>
 }
 
 /**
- * Get all startup analyses for a period
- * Uses in-memory caching + parallel file reads for performance
+ * Load startups from all available periods, deduplicated by slug
+ * Uses the most recent version of each startup
  */
-export async function getStartups(period: string): Promise<StartupAnalysis[]> {
+async function getAllStartupsAcrossPeriods(): Promise<StartupAnalysis[]> {
+  // Check cache first
+  const cached = startupsCache.get('all');
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+
+  const periods = await getAvailablePeriods();
+
+  // Load startups from all periods in parallel
+  const allStartupsArrays = await Promise.all(
+    periods.map(p => getStartupsForPeriod(p.period))
+  );
+
+  // Deduplicate by slug, keeping the most recent (first occurrence wins since periods are sorted desc)
+  const slugMap = new Map<string, StartupAnalysis>();
+  for (const startups of allStartupsArrays) {
+    for (const startup of startups) {
+      if (!slugMap.has(startup.company_slug)) {
+        slugMap.set(startup.company_slug, startup);
+      }
+    }
+  }
+
+  const allStartups = Array.from(slugMap.values())
+    .sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
+
+  // Cache the result
+  startupsCache.set('all', {
+    data: allStartups,
+    timestamp: Date.now(),
+  });
+
+  return allStartups;
+}
+
+/**
+ * Internal function to get startups for a specific period (no 'all' handling)
+ */
+async function getStartupsForPeriod(period: string): Promise<StartupAnalysis[]> {
   // Check cache first
   const cached = startupsCache.get(period);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -145,6 +243,21 @@ export async function getStartups(period: string): Promise<StartupAnalysis[]> {
     console.error('Error reading startups:', error);
     return [];
   }
+}
+
+/**
+ * Get all startup analyses for a period
+ * Uses in-memory caching + parallel file reads for performance
+ * Supports 'all' to load startups from all periods
+ */
+export async function getStartups(period: string): Promise<StartupAnalysis[]> {
+  // Handle 'all' period - load from all available periods
+  if (period === 'all') {
+    return getAllStartupsAcrossPeriods();
+  }
+
+  // Delegate to internal function for specific periods
+  return getStartupsForPeriod(period);
 }
 
 /**

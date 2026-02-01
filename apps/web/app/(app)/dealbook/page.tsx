@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
-import { getStartupsPaginated, getFilterOptions, getMonthlyStats } from '@/lib/data';
+import { getStartupsPaginated, getFilterOptions, getMonthlyStats, getAvailablePeriods } from '@/lib/data';
 import { auth } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { InteractiveDealbook } from './interactive-dealbook';
 import { Pagination, PaginationInfo } from '@/components/ui';
 import type { SavedFilter } from '@/components/features';
 
-const DEFAULT_PERIOD = '2026-01';
+const FALLBACK_PERIOD = '2026-01';
 const DEFAULT_LIMIT = 25;
 
 interface UserPreferencesRow {
@@ -16,6 +16,7 @@ interface UserPreferencesRow {
 interface PageProps {
   searchParams: Promise<{
     page?: string;
+    month?: string;
     stage?: string;
     pattern?: string;
     continent?: string;
@@ -28,6 +29,16 @@ interface PageProps {
 
 async function DealbookContent({ searchParams }: { searchParams: PageProps['searchParams'] }) {
   const params = await searchParams;
+
+  // Get available periods and determine selected month
+  const availablePeriods = await getAvailablePeriods();
+  const latestPeriod = availablePeriods[0]?.period || FALLBACK_PERIOD;
+
+  // Support 'all' for all-time view, or specific month, or default to latest
+  const selectedMonth = params.month === 'all' ? 'all' : (params.month || latestPeriod);
+
+  // For data fetching, use the selected month (or latest if 'all' - handled in data layer)
+  const fetchPeriod = selectedMonth === 'all' ? latestPeriod : selectedMonth;
 
   // Parse URL parameters
   const page = parseInt(params.page || '1', 10);
@@ -42,13 +53,13 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   };
 
   const [paginatedResult, filterOptions, stats, session] = await Promise.all([
-    getStartupsPaginated(DEFAULT_PERIOD, {
+    getStartupsPaginated(fetchPeriod, {
       page,
       limit: DEFAULT_LIMIT,
       ...filters,
     }),
-    getFilterOptions(DEFAULT_PERIOD),
-    getMonthlyStats(DEFAULT_PERIOD),
+    getFilterOptions(fetchPeriod),
+    getMonthlyStats(fetchPeriod),
     auth(),
   ]);
 
@@ -68,6 +79,10 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
 
   // Build current search params for pagination links
   const currentSearchParams: Record<string, string | undefined> = {};
+  // Always include month in pagination links (unless it's the default/latest)
+  if (params.month && params.month !== latestPeriod) {
+    currentSearchParams.month = params.month;
+  }
   if (filters.stage) currentSearchParams.stage = filters.stage;
   if (filters.pattern) currentSearchParams.pattern = filters.pattern;
   if (filters.continent) currentSearchParams.continent = filters.continent;
@@ -88,6 +103,8 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
         urlFilters={filters}
         pagination={paginatedResult.pagination}
         hasUrlFilters={hasFilters}
+        selectedMonth={selectedMonth}
+        availablePeriods={availablePeriods}
       />
 
       {/* Pagination controls */}

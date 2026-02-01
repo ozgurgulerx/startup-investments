@@ -4,10 +4,11 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FilterBuilder, type SavedFilter } from '@/components/features';
 import { computeFilterStats, type FilterQuery } from '@/lib/data/filtering';
-import type { StartupAnalysis, MonthlyStats } from '@startup-intelligence/shared';
+import type { StartupAnalysis, MonthlyStats, PeriodInfo } from '@startup-intelligence/shared';
 import { CompanyRow } from './company-row';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui';
+import { MonthSelector } from '@/components/dealbook';
 import { X } from 'lucide-react';
 import Link from 'next/link';
 
@@ -42,6 +43,8 @@ interface InteractiveDealbookProps {
   urlFilters?: UrlFilters;
   pagination?: PaginationInfo;
   hasUrlFilters?: boolean;
+  selectedMonth?: string;
+  availablePeriods?: PeriodInfo[];
 }
 
 export function InteractiveDealbook({
@@ -52,6 +55,8 @@ export function InteractiveDealbook({
   urlFilters,
   pagination,
   hasUrlFilters = false,
+  selectedMonth,
+  availablePeriods = [],
 }: InteractiveDealbookProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -110,6 +115,10 @@ export function InteractiveDealbook({
   const updateUrlWithFilters = useCallback((query: FilterQuery) => {
     const params = new URLSearchParams();
 
+    // Preserve the month parameter if it's set (non-default)
+    const currentMonth = searchParams.get('month');
+    if (currentMonth) params.set('month', currentMonth);
+
     if (query.stages?.length === 1) params.set('stage', query.stages[0]);
     if (query.patterns?.length === 1) params.set('pattern', query.patterns[0]);
     if (query.continents?.length === 1) params.set('continent', query.continents[0]);
@@ -119,7 +128,7 @@ export function InteractiveDealbook({
 
     const queryString = params.toString();
     router.push(queryString ? `/dealbook?${queryString}` : '/dealbook');
-  }, [router]);
+  }, [router, searchParams]);
 
   const handleFilterApply = useCallback((query: FilterQuery) => {
     setActiveQuery(query);
@@ -209,7 +218,15 @@ export function InteractiveDealbook({
     <>
       {/* Page Header */}
       <header className="briefing-header">
-        <span className="briefing-date">Dealbook</span>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <span className="briefing-date">Dealbook</span>
+          {selectedMonth && availablePeriods.length > 0 && (
+            <MonthSelector
+              selectedMonth={selectedMonth}
+              availablePeriods={availablePeriods}
+            />
+          )}
+        </div>
         <h1 className="briefing-headline">
           {isFiltered
             ? `${filteredTotals.count} of ${stats.deal_summary.total_deals} deals match your filters`
@@ -238,7 +255,7 @@ export function InteractiveDealbook({
           ))}
           {activeFilterBadges.length > 1 && (
             <Link
-              href="/dealbook"
+              href={searchParams.get('month') ? `/dealbook?month=${searchParams.get('month')}` : '/dealbook'}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-sm hover:bg-muted/80 transition-colors"
             >
               Clear all
