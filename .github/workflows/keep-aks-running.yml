@@ -1,0 +1,82 @@
+name: Keep Infrastructure Running
+
+on:
+  schedule:
+    # Run every hour
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AKS_CLUSTER_NAME: aks-aistartuptr
+  AKS_RESOURCE_GROUP: aistartuptr
+  POSTGRES_SERVER_NAME: aistartupstr
+  POSTGRES_RESOURCE_GROUP: aistartupstr
+
+jobs:
+  ensure-running:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Check and Start PostgreSQL if Stopped
+        run: |
+          echo "Checking PostgreSQL server status..."
+          PG_STATE=$(az postgres flexible-server show \
+            --resource-group ${{ env.POSTGRES_RESOURCE_GROUP }} \
+            --name ${{ env.POSTGRES_SERVER_NAME }} \
+            --query "state" -o tsv)
+
+          echo "Current PostgreSQL state: $PG_STATE"
+
+          if [ "$PG_STATE" = "Stopped" ]; then
+            echo "PostgreSQL is stopped. Starting server..."
+            az postgres flexible-server start \
+              --resource-group ${{ env.POSTGRES_RESOURCE_GROUP }} \
+              --name ${{ env.POSTGRES_SERVER_NAME }}
+            echo "PostgreSQL server started successfully"
+          else
+            echo "PostgreSQL is already running"
+          fi
+
+      - name: Check and Start AKS if Stopped
+        run: |
+          echo "Checking AKS cluster status..."
+          POWER_STATE=$(az aks show \
+            --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+            --name ${{ env.AKS_CLUSTER_NAME }} \
+            --query "powerState.code" -o tsv)
+
+          echo "Current power state: $POWER_STATE"
+
+          if [ "$POWER_STATE" = "Stopped" ]; then
+            echo "AKS is stopped. Starting cluster..."
+            az aks start \
+              --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+              --name ${{ env.AKS_CLUSTER_NAME }}
+            echo "AKS cluster started successfully"
+          else
+            echo "AKS is already running"
+          fi
+
+      - name: Verify API Health
+        run: |
+          echo "Waiting for API to be healthy..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "API is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i: Status $STATUS, waiting..."
+            sleep 10
+          done
+          echo "Warning: API health check timed out"
