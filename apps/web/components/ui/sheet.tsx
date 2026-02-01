@@ -50,8 +50,8 @@ export function Sheet({ open, onOpenChange, children, side = 'right', className 
       {/* Sheet panel */}
       <div
         className={cn(
-          'fixed top-0 bottom-0 w-[280px] max-w-[85vw] bg-background border-border shadow-2xl',
-          'animate-in duration-300 ease-out',
+          'fixed inset-y-0 w-[280px] max-w-[85vw] h-[100dvh] bg-background border-border shadow-2xl',
+          'animate-in duration-300 ease-out flex flex-col',
           side === 'right' && 'right-0 border-l slide-in-from-right',
           side === 'left' && 'left-0 border-r slide-in-from-left',
           className
