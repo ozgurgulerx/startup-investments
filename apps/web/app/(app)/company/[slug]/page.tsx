@@ -6,6 +6,8 @@ import {
   ConfidenceBadge,
   AnalysisDepth,
   EvidenceCount,
+  FailureModeTag,
+  FailureModeSummary,
 } from '@/components/ui';
 import { CompanyActions } from './company-actions';
 import {
@@ -177,6 +179,9 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
                 size="lg"
                 evidenceCount={startup.evidence_quotes?.length}
               />
+            )}
+            {startup.anti_patterns && startup.anti_patterns.length > 0 && (
+              <FailureModeSummary antiPatterns={startup.anti_patterns} />
             )}
           </div>
           <CompanyActions
@@ -420,28 +425,22 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
         </section>
       )}
 
-      {/* Warning Signs - if available, subdued */}
+      {/* Risk Factors - using FailureModeTag for consistent display */}
       {startup.anti_patterns && startup.anti_patterns.length > 0 && (
         <section className="section">
           <div className="section-header">
             <span className="section-title">Risk Factors</span>
           </div>
 
-          <div className="space-y-4">
-            {startup.anti_patterns.slice(0, 3).map((pattern: any, i: number) => (
-              <div key={i} className="py-3 border-b border-border/30 last:border-0">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-sm font-medium text-foreground capitalize">
-                    {pattern.pattern_type.replace(/_/g, ' ')}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {pattern.severity} severity
-                  </span>
-                </div>
-                <p className="body-sm">
-                  {pattern.description}
-                </p>
-              </div>
+          <div className="space-y-3">
+            {startup.anti_patterns.slice(0, 4).map((pattern: any, i: number) => (
+              <FailureModeTag
+                key={i}
+                patternType={pattern.pattern_type}
+                severity={pattern.severity}
+                description={pattern.description}
+                evidence={pattern.evidence}
+              />
             ))}
           </div>
         </section>

@@ -14,3 +14,4 @@ export { Sheet, SheetHeader, SheetContent } from './sheet';
 export { ConfidenceBadge, ConfidenceGradeInline } from './confidence-badge';
 export { AnalysisDepth, AnalysisDepthInline } from './analysis-depth';
 export { EvidenceCount, EvidenceCountCompact } from './evidence-count';
+export { FailureModeTag, FailureModeTagInline, FailureModeSummary } from './failure-mode-tag';
