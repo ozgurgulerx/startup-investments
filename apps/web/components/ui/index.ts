@@ -10,3 +10,4 @@ export { CompanyLogo } from './company-logo';
 export { FeatureGate, InlineFeatureGate, useFeatureAccess } from './feature-gate';
 export type { FeatureGateProps, InlineFeatureGateProps } from './feature-gate';
 export { Pagination, PaginationInfo } from './pagination';
+export { Sheet, SheetHeader, SheetContent } from './sheet';

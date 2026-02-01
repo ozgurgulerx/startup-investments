@@ -231,20 +231,51 @@ class DatabaseConnection:
         self,
         startup_id: str,
         content_hash: str,
-        crawl_success: bool = True
+        crawl_success: bool = True,
+        canonical_url: Optional[str] = None,
+        content_changed: bool = False
     ):
-        """Update a startup's content hash after crawl."""
-        await self.execute("""
-            UPDATE startups
-            SET content_hash = $2,
-                last_crawl_at = $3,
-                crawl_success_rate = CASE
-                    WHEN crawl_success_rate IS NULL THEN $4::decimal
-                    ELSE (crawl_success_rate * 0.9 + $4::decimal * 0.1)
-                END
-            WHERE id = $1
-        """, startup_id, content_hash, datetime.now(timezone.utc),
-             1.0 if crawl_success else 0.0)
+        """Update a startup's content hash after crawl.
+
+        Also updates change tracking fields:
+        - change_rate: Exponential moving average of change frequency
+        - last_changed_at: When content last changed
+        - consecutive_unchanged: Count of consecutive unchanged crawls
+        """
+        now = datetime.now(timezone.utc)
+
+        # Build dynamic update based on content change
+        if content_changed:
+            await self.execute("""
+                UPDATE startups
+                SET content_hash = $2,
+                    last_crawl_at = $3,
+                    crawl_success_rate = CASE
+                        WHEN crawl_success_rate IS NULL THEN $4::decimal
+                        ELSE (crawl_success_rate * 0.9 + $4::decimal * 0.1)
+                    END,
+                    canonical_url = COALESCE($5, canonical_url),
+                    last_changed_at = $3,
+                    change_rate = COALESCE(change_rate, 0) * 0.8 + 0.2,
+                    consecutive_unchanged = 0
+                WHERE id = $1
+            """, startup_id, content_hash, now,
+                 1.0 if crawl_success else 0.0, canonical_url)
+        else:
+            await self.execute("""
+                UPDATE startups
+                SET content_hash = $2,
+                    last_crawl_at = $3,
+                    crawl_success_rate = CASE
+                        WHEN crawl_success_rate IS NULL THEN $4::decimal
+                        ELSE (crawl_success_rate * 0.9 + $4::decimal * 0.1)
+                    END,
+                    canonical_url = COALESCE($5, canonical_url),
+                    change_rate = COALESCE(change_rate, 0) * 0.8,
+                    consecutive_unchanged = COALESCE(consecutive_unchanged, 0) + 1
+                WHERE id = $1
+            """, startup_id, content_hash, now,
+                 1.0 if crawl_success else 0.0, canonical_url)
 
     async def find_startup_by_name(self, name: str) -> Optional[Dict[str, Any]]:
         """Find a startup by name (case-insensitive)."""
@@ -320,15 +351,147 @@ class DatabaseConnection:
         http_status: Optional[int] = None,
         error_message: Optional[str] = None,
         content_length: Optional[int] = None,
-        duration_ms: Optional[int] = None
+        duration_ms: Optional[int] = None,
+        canonical_url: Optional[str] = None,
+        quality_score: Optional[float] = None,
+        content_type: Optional[str] = None,
+        error_category: Optional[str] = None
     ):
-        """Log a crawl attempt."""
+        """Log a crawl attempt with enhanced metadata.
+
+        Args:
+            startup_id: ID of the startup
+            source_type: Type of source (website, blog, docs, etc.)
+            url: URL that was crawled
+            status: Status of crawl (success, failed)
+            http_status: HTTP response status code
+            error_message: Error message if failed
+            content_length: Length of content in bytes
+            duration_ms: Request duration in milliseconds
+            canonical_url: Canonical form of URL
+            quality_score: Content quality score (0-1)
+            content_type: How content was fetched (static, js_rendered)
+            error_category: Error type (transient, permanent, rate_limited, etc.)
+        """
         await self.execute("""
             INSERT INTO crawl_logs
                 (startup_id, source_type, url, status, http_status,
                  error_message, content_length, duration_ms,
-                 crawl_started_at, crawl_completed_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+                 crawl_started_at, crawl_completed_at,
+                 canonical_url, quality_score, content_type, error_category)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, $12, $13)
         """, startup_id, source_type, url, status, http_status,
              error_message, content_length, duration_ms,
-             datetime.now(timezone.utc))
+             datetime.now(timezone.utc),
+             canonical_url, quality_score, content_type, error_category)
+
+    # =========================================================================
+    # Domain Stats Operations (for throttling)
+    # =========================================================================
+
+    async def get_domain_stats(self, domain: str) -> Optional[Dict[str, Any]]:
+        """Get stats for a domain."""
+        row = await self.fetchrow("""
+            SELECT * FROM domain_stats WHERE domain = $1
+        """, domain)
+        return dict(row) if row else None
+
+    async def upsert_domain_stats(
+        self,
+        domain: str,
+        next_allowed_at: Optional[datetime] = None,
+        in_flight_count: int = 0,
+        crawl_delay_ms: int = 2000,
+        error_rate: float = 0.0,
+        requires_js: bool = False,
+        avg_response_ms: Optional[int] = None
+    ):
+        """Insert or update domain stats."""
+        now = datetime.now(timezone.utc)
+        await self.execute("""
+            INSERT INTO domain_stats
+                (domain, next_allowed_at, in_flight_count, crawl_delay_ms,
+                 error_rate, requires_js, avg_response_ms, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (domain) DO UPDATE SET
+                next_allowed_at = COALESCE($2, domain_stats.next_allowed_at),
+                in_flight_count = $3,
+                crawl_delay_ms = $4,
+                error_rate = $5,
+                requires_js = $6,
+                avg_response_ms = COALESCE($7, domain_stats.avg_response_ms),
+                updated_at = $8
+        """, domain, next_allowed_at or now, in_flight_count, crawl_delay_ms,
+             error_rate, requires_js, avg_response_ms, now)
+
+    async def increment_domain_in_flight(self, domain: str) -> bool:
+        """Atomically increment in_flight_count and check if allowed.
+
+        Returns True if crawl is allowed, False if rate limited.
+        """
+        result = await self.fetchrow("""
+            UPDATE domain_stats
+            SET in_flight_count = in_flight_count + 1,
+                updated_at = NOW()
+            WHERE domain = $1
+              AND in_flight_count < 2
+              AND (next_allowed_at IS NULL OR next_allowed_at <= NOW())
+            RETURNING domain
+        """, domain)
+        return result is not None
+
+    async def release_domain_slot(
+        self,
+        domain: str,
+        success: bool,
+        status_code: int,
+        delay_ms: int = 2000
+    ):
+        """Release a domain slot and update stats after request."""
+        next_allowed = datetime.now(timezone.utc)
+        await self.execute("""
+            UPDATE domain_stats
+            SET
+                in_flight_count = GREATEST(0, in_flight_count - 1),
+                next_allowed_at = $2 + INTERVAL '1 millisecond' * $3,
+                error_rate = CASE
+                    WHEN $4 THEN COALESCE(error_rate, 0) * 0.9
+                    ELSE LEAST(1.0, COALESCE(error_rate, 0) * 0.9 + 0.1)
+                END,
+                last_429_at = CASE WHEN $5 = 429 THEN NOW() ELSE last_429_at END,
+                total_requests = COALESCE(total_requests, 0) + 1,
+                successful_requests = CASE
+                    WHEN $4 THEN COALESCE(successful_requests, 0) + 1
+                    ELSE successful_requests
+                END,
+                updated_at = NOW()
+            WHERE domain = $1
+        """, domain, next_allowed, delay_ms, success, status_code)
+
+    async def mark_domain_requires_js(self, domain: str, requires_js: bool = True):
+        """Mark a domain as requiring JavaScript rendering."""
+        await self.execute("""
+            INSERT INTO domain_stats (domain, requires_js, crawl_delay_ms)
+            VALUES ($1, $2, 2000)
+            ON CONFLICT (domain) DO UPDATE
+            SET requires_js = $2, updated_at = NOW()
+        """, domain, requires_js)
+
+    async def get_domain_requires_js(self, domain: str) -> bool:
+        """Check if a domain requires JavaScript rendering."""
+        result = await self.fetchval("""
+            SELECT requires_js FROM domain_stats WHERE domain = $1
+        """, domain)
+        return result or False
+
+    async def get_domains_ready_to_crawl(self, limit: int = 100) -> List[str]:
+        """Get domains that are ready for crawling (not rate limited)."""
+        rows = await self.fetch("""
+            SELECT domain FROM domain_stats
+            WHERE (next_allowed_at IS NULL OR next_allowed_at <= NOW())
+              AND in_flight_count < 2
+              AND error_rate < 0.8
+            ORDER BY next_allowed_at ASC NULLS FIRST
+            LIMIT $1
+        """, limit)
+        return [r['domain'] for r in rows]

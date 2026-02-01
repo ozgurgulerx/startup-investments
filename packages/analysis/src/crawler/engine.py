@@ -1,7 +1,16 @@
-"""Web crawler engine using crawl4ai with multi-source data enrichment."""
+"""Web crawler engine using crawl4ai with multi-source data enrichment.
+
+This module provides:
+- StartupCrawler: Main class for crawling startup websites
+- Multi-source enrichment: GitHub, web search, news, YouTube
+- Hybrid fetch strategy: HTTP-first with browser fallback
+- Per-domain throttling for polite crawling
+- URL canonicalization for deduplication
+"""
 
 import asyncio
 import json
+import logging
 import re
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -14,6 +23,10 @@ from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from src.config import settings
 from src.data.models import CrawledSource, StartupInput
 from src.crawler.logo_extractor import LogoExtractor
+from src.crawler.url_normalizer import canonicalize_url, extract_domain
+from src.crawler.fetch_strategy import HybridFetcher, FetchResult
+
+logger = logging.getLogger(__name__)
 
 
 def get_company_slug(name: str) -> str:
@@ -283,9 +296,36 @@ class NewsClient:
 
 
 class StartupCrawler:
-    """Crawls startup websites, blogs, and documentation with multi-source enrichment."""
+    """Crawls startup websites, blogs, and documentation with multi-source enrichment.
 
-    def __init__(self):
+    Features:
+    - Hybrid fetch strategy: HTTP-first with browser fallback for JS-heavy sites
+    - URL canonicalization: Deduplicates URLs, removes tracking params
+    - Per-domain throttling: Optional polite crawling with rate limits
+    - Multi-source enrichment: GitHub, web search, news, YouTube
+
+    Usage:
+        crawler = StartupCrawler()
+        sources = await crawler.crawl_startup(startup)
+        await crawler.close()
+
+    With throttling:
+        from src.crawler.domain_throttler import DomainThrottler
+        throttler = DomainThrottler(pool, default_delay_ms=2000)
+        crawler = StartupCrawler(throttler=throttler)
+    """
+
+    def __init__(self, throttler=None, use_hybrid_fetch: bool = True):
+        """Initialize the startup crawler.
+
+        Args:
+            throttler: Optional DomainThrottler for per-domain rate limiting
+            use_hybrid_fetch: If True, use HTTP-first strategy with browser fallback.
+                             If False, always use browser rendering.
+        """
+        self.throttler = throttler
+        self.use_hybrid_fetch = use_hybrid_fetch
+
         self.browser_config = BrowserConfig(
             headless=settings.crawler.headless,
             verbose=False,
@@ -294,6 +334,13 @@ class StartupCrawler:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.raw_content_dir = settings.data_output_dir / "raw_content"
         self.raw_content_dir.mkdir(parents=True, exist_ok=True)
+
+        # Initialize hybrid fetcher
+        self.hybrid_fetcher = HybridFetcher(
+            domain_throttler=throttler,
+            http_timeout=settings.crawler.timeout_ms / 1000,
+            browser_timeout=settings.crawler.timeout_ms / 1000 * 2,
+        ) if use_hybrid_fetch else None
 
         # Initialize enrichment clients
         self.web_search_client = WebSearchClient() if settings.crawler.enable_web_search else None
@@ -637,7 +684,44 @@ class StartupCrawler:
         return None
 
     async def _crawl_single(self, crawler: AsyncWebCrawler, url: str) -> Dict[str, Any]:
-        """Crawl a single URL."""
+        """Crawl a single URL using hybrid fetch strategy.
+
+        Uses HTTP-first approach when hybrid_fetcher is available:
+        1. Try simple HTTP fetch (fast, cheap)
+        2. Detect if page requires JavaScript rendering
+        3. Fall back to browser rendering only when needed
+
+        Args:
+            crawler: AsyncWebCrawler instance (used as fallback)
+            url: URL to crawl
+
+        Returns:
+            Dict with success, content, title, url, and optional metadata
+        """
+        # Canonicalize URL before crawling
+        canonical_url = canonicalize_url(url)
+
+        # Try hybrid fetch strategy first
+        if self.hybrid_fetcher:
+            try:
+                result: FetchResult = await self.hybrid_fetcher.fetch(url)
+
+                if result.success:
+                    content = result.text or result.html
+                    return {
+                        "success": True,
+                        "content": content[:settings.analysis.max_content_length] if content else "",
+                        "title": result.title,
+                        "url": url,
+                        "canonical_url": canonical_url,
+                        "content_hash": result.content_hash,
+                        "fetch_method": result.method,
+                        "response_time_ms": result.response_time_ms,
+                    }
+            except Exception as e:
+                logger.warning(f"Hybrid fetch failed for {url}, falling back to browser: {e}")
+
+        # Fall back to browser-based crawling
         run_config = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
             page_timeout=settings.crawler.timeout_ms,
@@ -651,6 +735,8 @@ class StartupCrawler:
                 "content": result.markdown[:settings.analysis.max_content_length] if result.markdown else "",
                 "title": getattr(result, "title", None),
                 "url": url,
+                "canonical_url": canonical_url,
+                "fetch_method": "browser",
             }
         except Exception as e:
             return {
@@ -658,19 +744,44 @@ class StartupCrawler:
                 "content": "",
                 "error": str(e),
                 "url": url,
+                "canonical_url": canonical_url,
             }
 
     def _discover_urls(self, startup: StartupInput) -> List[Dict[str, str]]:
-        """Discover URLs to crawl for a startup."""
+        """Discover URLs to crawl for a startup.
+
+        Uses URL canonicalization to deduplicate URLs that point to the same content.
+
+        Args:
+            startup: StartupInput with website URL
+
+        Returns:
+            List of dicts with 'url', 'type', and 'canonical_url' keys
+        """
         urls = []
+        seen_canonical = set()  # Track canonical URLs to avoid duplicates
 
         if not startup.website:
             return urls
 
-        base_url = startup.website.rstrip("/")
+        # Canonicalize base URL
+        base_url = canonicalize_url(startup.website)
+        if not base_url:
+            return urls
+
+        def add_url(url: str, source_type: str):
+            """Add URL if not already seen (based on canonical form)."""
+            canonical = canonicalize_url(url)
+            if canonical and canonical not in seen_canonical:
+                seen_canonical.add(canonical)
+                urls.append({
+                    "url": url,
+                    "type": source_type,
+                    "canonical_url": canonical
+                })
 
         # Main website
-        urls.append({"url": base_url, "type": "website"})
+        add_url(base_url, "website")
 
         # Common pages - expanded list
         common_paths = [
@@ -695,7 +806,7 @@ class StartupCrawler:
         ]
 
         for path, source_type in common_paths:
-            urls.append({"url": f"{base_url}{path}", "type": source_type})
+            add_url(f"{base_url}{path}", source_type)
 
         # Blog paths - expanded
         blog_paths = [
@@ -704,7 +815,7 @@ class StartupCrawler:
             "/announcements", "/updates"
         ]
         for path in blog_paths:
-            urls.append({"url": f"{base_url}{path}", "type": "blog"})
+            add_url(f"{base_url}{path}", "blog")
 
         # Documentation paths - expanded
         doc_paths = [
@@ -713,15 +824,16 @@ class StartupCrawler:
             "/tutorials", "/reference", "/sdk"
         ]
         for path in doc_paths:
-            urls.append({"url": f"{base_url}{path}", "type": "docs"})
+            add_url(f"{base_url}{path}", "docs")
 
         # Try common subdomains
-        domain = urlparse(base_url).netloc
-        if not domain.startswith("www."):
+        domain = extract_domain(base_url)
+        if domain and not domain.startswith("www."):
             subdomains = ["docs", "developer", "developers", "api", "blog"]
             for sub in subdomains:
                 subdomain_url = f"https://{sub}.{domain}"
-                urls.append({"url": subdomain_url, "type": "docs" if sub in ["docs", "api", "developer", "developers"] else "blog"})
+                source_type = "docs" if sub in ["docs", "api", "developer", "developers"] else "blog"
+                add_url(subdomain_url, source_type)
 
         return urls
 
@@ -913,17 +1025,36 @@ class StartupCrawler:
             await self.logo_extractor.close()
 
 
-async def crawl_startup_batch(startups: List[StartupInput], max_concurrent: int = 3) -> Dict[str, List[CrawledSource]]:
-    """Crawl multiple startups with concurrency control and multi-source enrichment."""
-    crawler = StartupCrawler()
+async def crawl_startup_batch(
+    startups: List[StartupInput],
+    max_concurrent: int = 3,
+    throttler=None,
+    use_hybrid_fetch: bool = True
+) -> Dict[str, List[CrawledSource]]:
+    """Crawl multiple startups with concurrency control and multi-source enrichment.
+
+    Args:
+        startups: List of StartupInput objects to crawl
+        max_concurrent: Maximum concurrent crawls (default: 3)
+        throttler: Optional DomainThrottler for per-domain rate limiting
+        use_hybrid_fetch: If True, use HTTP-first strategy with browser fallback
+
+    Returns:
+        Dict mapping startup names to their list of CrawledSource objects
+    """
+    crawler = StartupCrawler(throttler=throttler, use_hybrid_fetch=use_hybrid_fetch)
     results = {}
 
     semaphore = asyncio.Semaphore(max_concurrent)
 
     async def crawl_with_semaphore(startup: StartupInput):
         async with semaphore:
-            sources = await crawler.crawl_startup(startup)
-            return startup.name, sources
+            try:
+                sources = await crawler.crawl_startup(startup)
+                return startup.name, sources
+            except Exception as e:
+                logger.error(f"Error crawling {startup.name}: {e}")
+                return startup.name, []
 
     try:
         tasks = [crawl_with_semaphore(s) for s in startups]
@@ -933,9 +1064,8 @@ async def crawl_startup_batch(startups: List[StartupInput], max_concurrent: int 
             if isinstance(result, tuple):
                 name, sources = result
                 results[name] = sources
-            else:
-                # Handle exception
-                pass
+            elif isinstance(result, Exception):
+                logger.error(f"Batch crawl exception: {result}")
     finally:
         # Clean up HTTP clients
         await crawler.close()

@@ -2,6 +2,12 @@
 
 Scheduled job that checks website content hashes for changes
 and creates startup_events when significant changes are detected.
+
+Features:
+- URL canonicalization: Normalizes URLs for consistent tracking
+- Content normalization: Removes dynamic elements before hashing
+- Change rate tracking: Tracks how often each startup's content changes
+- Smart crawl scheduling: Prioritizes startups based on change patterns
 """
 
 import asyncio
@@ -15,6 +21,27 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .db import DatabaseConnection
+
+# Import crawler utilities
+try:
+    from src.crawler.url_normalizer import canonicalize_url
+    from src.crawler.fetch_strategy import extract_text_content, compute_content_hash
+except ImportError:
+    # Fallback implementations if crawler package not available
+    def canonicalize_url(url: str) -> str:
+        return url.strip().lower()
+
+    def extract_text_content(html: str) -> str:
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            for element in soup(['script', 'style', 'noscript']):
+                element.decompose()
+            return soup.get_text(separator=' ', strip=True)
+        except Exception:
+            return html
+
+    def compute_content_hash(text: str) -> str:
+        return hashlib.sha256(text.encode()).hexdigest()[:32]
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +58,9 @@ class MonitorResult:
     new_hash: Optional[str] = None
     event_created: bool = False
     error: Optional[str] = None
+    canonical_url: Optional[str] = None
+    response_time_ms: int = 0
+    content_length: int = 0
 
 
 class WebsiteContentMonitor:
@@ -96,7 +126,18 @@ class WebsiteContentMonitor:
         client: httpx.AsyncClient,
         startup: Dict[str, Any]
     ) -> MonitorResult:
-        """Monitor a single startup website."""
+        """Monitor a single startup website.
+
+        Uses URL canonicalization and content normalization for consistent
+        change detection. Tracks change rate for smart scheduling.
+
+        Args:
+            client: httpx AsyncClient for making requests
+            startup: Dict with startup data (id, name, website, content_hash, etc.)
+
+        Returns:
+            MonitorResult with monitoring outcome
+        """
         startup_id = str(startup["id"])
         startup_name = startup.get("name", "Unknown")
         website = startup.get("website")
@@ -111,7 +152,12 @@ class WebsiteContentMonitor:
                 error="No website URL"
             )
 
-        logger.debug(f"Monitoring {startup_name}: {website}")
+        # Canonicalize URL for consistent tracking
+        canonical_url = canonicalize_url(website)
+
+        logger.debug(f"Monitoring {startup_name}: {website} (canonical: {canonical_url})")
+
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Fetch website content
@@ -122,17 +168,22 @@ class WebsiteContentMonitor:
             )
             response.raise_for_status()
 
-            # Extract and hash content
-            new_hash = self._compute_content_hash(response.text)
+            response_time_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+
+            # Extract text and compute hash using improved methods
+            text_content = extract_text_content(response.text)
+            new_hash = compute_content_hash(text_content)
 
             # Check for change
             content_changed = old_hash is not None and old_hash != new_hash
 
-            # Update database
+            # Update database with enhanced fields
             await self.db.update_startup_content_hash(
                 startup_id=startup_id,
                 content_hash=new_hash,
-                crawl_success=True
+                crawl_success=True,
+                canonical_url=canonical_url,
+                content_changed=content_changed
             )
 
             # Create event if changed
@@ -149,14 +200,16 @@ class WebsiteContentMonitor:
                 )
                 event_created = True
 
-            # Log the crawl
+            # Log the crawl with enhanced metadata
             await self.db.log_crawl(
                 startup_id=startup_id,
                 source_type="website",
                 url=website,
                 status="success",
                 http_status=response.status_code,
-                content_length=len(response.text)
+                content_length=len(response.text),
+                duration_ms=response_time_ms,
+                canonical_url=canonical_url
             )
 
             return MonitorResult(
@@ -167,7 +220,10 @@ class WebsiteContentMonitor:
                 content_changed=content_changed,
                 old_hash=old_hash,
                 new_hash=new_hash,
-                event_created=event_created
+                event_created=event_created,
+                canonical_url=canonical_url,
+                response_time_ms=response_time_ms,
+                content_length=len(response.text)
             )
 
         except httpx.HTTPStatusError as e:

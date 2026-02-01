@@ -17,6 +17,7 @@ interface PageProps {
   searchParams: Promise<{
     page?: string;
     month?: string;
+    sort?: string;
     stage?: string;
     pattern?: string;
     continent?: string;
@@ -42,6 +43,17 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
 
   // Parse URL parameters
   const page = parseInt(params.page || '1', 10);
+
+  // Parse sort parameter
+  const sortParam = params.sort || 'funding_desc';
+  const sortConfig = {
+    sortBy: sortParam.startsWith('funding') ? 'funding' as const
+          : sortParam.startsWith('name') ? 'name' as const
+          : sortParam.startsWith('recency') ? 'date' as const
+          : 'funding' as const,
+    sortOrder: sortParam.endsWith('_asc') ? 'asc' as const : 'desc' as const,
+  };
+
   const filters = {
     stage: params.stage,
     pattern: params.pattern,
@@ -50,6 +62,7 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
     maxFunding: params.maxFunding ? parseInt(params.maxFunding, 10) : undefined,
     usesGenai: params.usesGenai === 'true' ? true : params.usesGenai === 'false' ? false : undefined,
     search: params.search,
+    ...sortConfig,
   };
 
   const [paginatedResult, filterOptions, stats, session] = await Promise.all([
@@ -82,6 +95,9 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   // Always include month in pagination links (unless it's the default/latest)
   if (params.month && params.month !== latestPeriod) {
     currentSearchParams.month = params.month;
+  }
+  if (params.sort && params.sort !== 'funding_desc') {
+    currentSearchParams.sort = params.sort;
   }
   if (filters.stage) currentSearchParams.stage = filters.stage;
   if (filters.pattern) currentSearchParams.pattern = filters.pattern;

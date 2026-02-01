@@ -3,12 +3,12 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FilterBuilder, type SavedFilter } from '@/components/features';
-import { computeFilterStats, type FilterQuery } from '@/lib/data/filtering';
+import type { FilterQuery } from '@/lib/data/filtering';
 import type { StartupAnalysis, MonthlyStats, PeriodInfo } from '@startup-intelligence/shared';
 import { CompanyRow } from './company-row';
 import { formatCurrency } from '@/lib/utils';
-import { Badge } from '@/components/ui';
-import { MonthSelector } from '@/components/dealbook';
+import { Sheet, SheetHeader, SheetContent } from '@/components/ui';
+import { MonthSelector, DealbookToolbar, StatsStrip } from '@/components/dealbook';
 import { X } from 'lucide-react';
 import Link from 'next/link';
 
@@ -63,6 +63,7 @@ export function InteractiveDealbook({
 
   const [activeQuery, setActiveQuery] = useState<FilterQuery>({});
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>(initialFilters);
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   // Initialize activeQuery from URL filters
   useEffect(() => {
@@ -78,25 +79,20 @@ export function InteractiveDealbook({
     }
   }, [urlFilters]);
 
-  // Compute available filter options from props or from data
-  const filterStats = useMemo(() => computeFilterStats(startups), [startups]);
-
+  // Use server-provided filter options (no client-side computation needed)
   const availablePatterns = useMemo(
-    () => filterOptions?.patterns.map(p => p.name) ||
-      Object.keys(filterStats.byPattern).sort((a, b) => filterStats.byPattern[b] - filterStats.byPattern[a]),
-    [filterOptions, filterStats.byPattern]
+    () => filterOptions?.patterns.map(p => p.name) || [],
+    [filterOptions]
   );
 
   const availableStages = useMemo(
-    () => filterOptions?.stages ||
-      Object.keys(filterStats.byStage).sort((a, b) => filterStats.byStage[b] - filterStats.byStage[a]),
-    [filterOptions, filterStats.byStage]
+    () => filterOptions?.stages || [],
+    [filterOptions]
   );
 
   const availableContinents = useMemo(
-    () => filterOptions?.continents ||
-      Object.keys(filterStats.byContinent).sort((a, b) => filterStats.byContinent[b] - filterStats.byContinent[a]),
-    [filterOptions, filterStats.byContinent]
+    () => filterOptions?.continents || [],
+    [filterOptions]
   );
 
   // Calculate totals - use pagination total if available (server-side filtered)
@@ -195,6 +191,17 @@ export function InteractiveDealbook({
     }
   );
 
+  // Count active filters for mobile badge
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (urlFilters?.stage) count++;
+    if (urlFilters?.pattern) count++;
+    if (urlFilters?.continent) count++;
+    if (urlFilters?.minFunding || urlFilters?.maxFunding) count++;
+    if (urlFilters?.usesGenai !== undefined) count++;
+    return count;
+  }, [urlFilters]);
+
   // Active filter badges for URL-based filters
   const activeFilterBadges = useMemo(() => {
     const badges: Array<{ label: string; value: string; param: string }> = [];
@@ -232,12 +239,27 @@ export function InteractiveDealbook({
             ? `${filteredTotals.count} of ${stats.deal_summary.total_deals} deals match your filters`
             : `${stats.deal_summary.total_deals} deals tracked this period`}
         </h1>
-        <p className="briefing-subhead">
-          {isFiltered
-            ? `${formatCurrency(filteredTotals.funding, true)} across ${startups.length} matching rounds on this page`
-            : `${formatCurrency(stats.deal_summary.total_funding_usd, true)} total capital deployed across ${stats.deal_summary.total_deals} rounds.`}
-        </p>
       </header>
+
+      {/* Stats Strip with month-over-month delta */}
+      {selectedMonth && availablePeriods.length > 0 && (
+        <StatsStrip
+          stats={stats}
+          selectedMonth={selectedMonth}
+          availablePeriods={availablePeriods}
+          isFiltered={isFiltered}
+          filteredCount={filteredTotals.count}
+          filteredFunding={filteredTotals.funding}
+          className="mb-4"
+        />
+      )}
+
+      {/* Toolbar with search and sort */}
+      <DealbookToolbar
+        onOpenFilters={() => setIsFilterSheetOpen(true)}
+        activeFilterCount={activeFilterCount}
+        className="mb-4"
+      />
 
       {/* Active URL Filter Badges */}
       {activeFilterBadges.length > 0 && (
@@ -264,18 +286,42 @@ export function InteractiveDealbook({
         </div>
       )}
 
-      {/* Filter Builder */}
-      <FilterBuilder
-        availablePatterns={availablePatterns}
-        availableStages={availableStages}
-        availableContinents={availableContinents}
-        savedFilters={savedFilters}
-        onFilterApply={handleFilterApply}
-        onFilterSave={handleFilterSave}
-        onFilterDelete={handleFilterDelete}
-        onFilterToggleAlerts={handleFilterToggleAlerts}
-        className="mb-6"
-      />
+      {/* Filter Builder - Desktop */}
+      <div className="hidden md:block">
+        <FilterBuilder
+          availablePatterns={availablePatterns}
+          availableStages={availableStages}
+          availableContinents={availableContinents}
+          savedFilters={savedFilters}
+          onFilterApply={handleFilterApply}
+          onFilterSave={handleFilterSave}
+          onFilterDelete={handleFilterDelete}
+          onFilterToggleAlerts={handleFilterToggleAlerts}
+          className="mb-6"
+        />
+      </div>
+
+      {/* Filter Sheet - Mobile */}
+      <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+        <SheetHeader onClose={() => setIsFilterSheetOpen(false)}>
+          Filters
+        </SheetHeader>
+        <SheetContent>
+          <FilterBuilder
+            availablePatterns={availablePatterns}
+            availableStages={availableStages}
+            availableContinents={availableContinents}
+            savedFilters={savedFilters}
+            onFilterApply={(query) => {
+              handleFilterApply(query);
+              setIsFilterSheetOpen(false);
+            }}
+            onFilterSave={handleFilterSave}
+            onFilterDelete={handleFilterDelete}
+            onFilterToggleAlerts={handleFilterToggleAlerts}
+          />
+        </SheetContent>
+      </Sheet>
 
       {/* Company List */}
       <div className="space-y-0">

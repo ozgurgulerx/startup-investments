@@ -75,10 +75,18 @@ export async function getMonthlyStats(period: string): Promise<MonthlyStats> {
   return JSON.parse(content) as MonthlyStats;
 }
 
+// Cache for aggregated stats
+let aggregatedStatsCache: { data: MonthlyStats; timestamp: number } | null = null;
+
 /**
- * Aggregate stats across all available periods
+ * Aggregate stats across all available periods (with caching)
  */
 async function getAggregatedStats(): Promise<MonthlyStats> {
+  // Check cache first (5 minute TTL like startups)
+  if (aggregatedStatsCache && Date.now() - aggregatedStatsCache.timestamp < CACHE_TTL) {
+    return aggregatedStatsCache.data;
+  }
+
   const periods = await getAvailablePeriods();
 
   // Load stats from all periods
@@ -107,7 +115,7 @@ async function getAggregatedStats(): Promise<MonthlyStats> {
   // Use the latest period's stats as the base and override aggregated values
   const latestStats = validStats[0];
 
-  return {
+  const aggregated: MonthlyStats = {
     ...latestStats,
     period: 'all',
     deal_summary: {
@@ -126,6 +134,11 @@ async function getAggregatedStats(): Promise<MonthlyStats> {
         : 0,
     },
   };
+
+  // Cache the result
+  aggregatedStatsCache = { data: aggregated, timestamp: Date.now() };
+
+  return aggregated;
 }
 
 /**
@@ -345,6 +358,11 @@ export async function getStartupsPaginated(
       comparison = (a.funding_amount || 0) - (b.funding_amount || 0);
     } else if (sortBy === 'name') {
       comparison = a.company_name.localeCompare(b.company_name);
+    } else if (sortBy === 'date') {
+      // Sort by analyzed_at (when deal was added/analyzed)
+      const dateA = a.analyzed_at ? new Date(a.analyzed_at).getTime() : 0;
+      const dateB = b.analyzed_at ? new Date(b.analyzed_at).getTime() : 0;
+      comparison = dateA - dateB;
     }
     return sortOrder === 'desc' ? -comparison : comparison;
   });
