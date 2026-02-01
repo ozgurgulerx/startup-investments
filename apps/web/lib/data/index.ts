@@ -19,41 +19,61 @@ const startupsCache = new Map<string, {
 }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// In-memory cache for periods (rarely changes, cache for 30 minutes)
+let periodsCache: { data: PeriodInfo[]; timestamp: number } | null = null;
+const PERIODS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// In-memory cache for monthly stats
+const statsCache = new Map<string, { data: MonthlyStats; timestamp: number }>();
+const STATS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 /**
- * Get all available periods
+ * Get all available periods (with caching)
  */
 export async function getAvailablePeriods(): Promise<PeriodInfo[]> {
+  // Check cache first
+  if (periodsCache && Date.now() - periodsCache.timestamp < PERIODS_CACHE_TTL) {
+    return periodsCache.data;
+  }
+
   try {
     const dataDir = path.join(DATA_PATH);
     const entries = await fs.readdir(dataDir, { withFileTypes: true });
 
-    const periods: PeriodInfo[] = [];
+    // Filter to only period directories
+    const periodDirs = entries.filter(
+      entry => entry.isDirectory() && /^\d{4}-\d{2}$/.test(entry.name)
+    );
 
-    for (const entry of entries) {
-      if (entry.isDirectory() && /^\d{4}-\d{2}$/.test(entry.name)) {
-        const statsPath = path.join(dataDir, entry.name, 'output', 'monthly_stats.json');
+    // Load stats for all periods in parallel for better performance
+    const periodsWithStats = await Promise.all(
+      periodDirs.map(async (entry): Promise<PeriodInfo> => {
         try {
-          const stats = await getMonthlyStats(entry.name);
-          periods.push({
+          const stats = await getMonthlyStatsInternal(entry.name);
+          return {
             period: entry.name,
             deal_count: stats.deal_summary.total_deals,
             total_funding: stats.deal_summary.total_funding_usd,
             has_newsletter: true,
-          });
+          };
         } catch {
-          // Period exists but no stats yet
-          periods.push({
+          return {
             period: entry.name,
             deal_count: 0,
             total_funding: 0,
             has_newsletter: false,
-          });
+          };
         }
-      }
-    }
+      })
+    );
 
     // Sort by period descending (most recent first)
-    return periods.sort((a, b) => b.period.localeCompare(a.period));
+    const sorted = periodsWithStats.sort((a, b) => b.period.localeCompare(a.period));
+
+    // Cache the result
+    periodsCache = { data: sorted, timestamp: Date.now() };
+
+    return sorted;
   } catch (error) {
     console.error('Error reading periods:', error);
     return [];
@@ -61,7 +81,27 @@ export async function getAvailablePeriods(): Promise<PeriodInfo[]> {
 }
 
 /**
- * Get monthly statistics for a period
+ * Internal function to get stats without the 'all' handling (to avoid circular calls)
+ */
+async function getMonthlyStatsInternal(period: string): Promise<MonthlyStats> {
+  // Check cache first
+  const cached = statsCache.get(period);
+  if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+    return cached.data;
+  }
+
+  const filePath = path.join(DATA_PATH, period, 'output', 'monthly_stats.json');
+  const content = await fs.readFile(filePath, 'utf-8');
+  const stats = JSON.parse(content) as MonthlyStats;
+
+  // Cache the result
+  statsCache.set(period, { data: stats, timestamp: Date.now() });
+
+  return stats;
+}
+
+/**
+ * Get monthly statistics for a period (with caching)
  * Supports 'all' to aggregate stats across all periods
  */
 export async function getMonthlyStats(period: string): Promise<MonthlyStats> {
@@ -70,9 +110,7 @@ export async function getMonthlyStats(period: string): Promise<MonthlyStats> {
     return getAggregatedStats();
   }
 
-  const filePath = path.join(DATA_PATH, period, 'output', 'monthly_stats.json');
-  const content = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(content) as MonthlyStats;
+  return getMonthlyStatsInternal(period);
 }
 
 // Cache for aggregated stats
@@ -89,13 +127,11 @@ async function getAggregatedStats(): Promise<MonthlyStats> {
 
   const periods = await getAvailablePeriods();
 
-  // Load stats from all periods
+  // Load stats from all periods using cached function
   const allStats = await Promise.all(
     periods.map(async p => {
       try {
-        const filePath = path.join(DATA_PATH, p.period, 'output', 'monthly_stats.json');
-        const content = await fs.readFile(filePath, 'utf-8');
-        return JSON.parse(content) as MonthlyStats;
+        return await getMonthlyStatsInternal(p.period);
       } catch {
         return null;
       }
