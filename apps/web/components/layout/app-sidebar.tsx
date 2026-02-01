@@ -73,7 +73,7 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-56 border-r border-border/50 bg-background">
+    <aside className="hidden lg:fixed lg:block left-0 top-0 z-40 h-screen w-56 border-r border-border/50 bg-background">
       <div className="flex h-full flex-col">
         {/* Logo */}
         <div className="px-6 py-6">

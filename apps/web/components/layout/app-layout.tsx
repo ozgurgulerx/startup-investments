@@ -10,12 +10,12 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, onSearch }: AppLayoutProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-svh bg-background overflow-x-hidden">
       <AppSidebar />
-      <div className="pl-56">
+      <div className="lg:pl-56 min-w-0 w-full">
         <AppHeader onSearch={onSearch} />
         <main>
-          <div className="max-w-6xl mx-auto px-8 py-8">
+          <div className="max-w-6xl mx-auto px-4 lg:px-8 py-6 lg:py-8">
             {children}
           </div>
         </main>

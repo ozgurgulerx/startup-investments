@@ -89,11 +89,22 @@
   * {
     @apply border-border;
   }
+  html {
+    overflow-x: hidden;
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'kern' 1, 'liga' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+  /* Safe horizontal overflow for tables and code blocks */
+  table {
+    @apply overflow-x-auto block max-w-full;
+  }
+  pre, code {
+    @apply overflow-x-auto max-w-full;
   }
 }
 

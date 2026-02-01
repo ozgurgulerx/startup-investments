@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { UserMenu } from '@/components/auth/user-menu';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
+import { MobileNavTrigger } from '@/components/layout/mobile-nav';
 
 interface AppHeaderProps {
   onSearch?: (query: string) => void;
@@ -19,7 +20,10 @@ export function AppHeader({ onSearch }: AppHeaderProps) {
 
   return (
     <header className="h-14 border-b border-border/30 bg-background/95 backdrop-blur-sm sticky top-0 z-30">
-      <div className="h-full flex items-center justify-between px-6 gap-4">
+      <div className="h-full flex items-center justify-between px-4 lg:px-6 gap-3 lg:gap-4">
+        {/* Mobile: Hamburger menu */}
+        <MobileNavTrigger />
+
         {/* Left: Search */}
         <form onSubmit={handleSearch} className="flex-1 max-w-md">
           <div className="relative">
