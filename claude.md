@@ -1148,6 +1148,7 @@ These secrets exist in the GitHub repository - do not recreate:
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `AZURE_CREDENTIALS` | Service principal for deployments |
+| `REDIS_URL` | Azure Redis Cache connection string |
 
 ### GitHub Variables (ALREADY CONFIGURED)
 
