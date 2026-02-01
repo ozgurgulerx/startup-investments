@@ -46,7 +46,9 @@ jobs:
       - name: Build frontend
         run: pnpm --filter web build
         env:
-          NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+          # HARDCODED: API URL must point to Front Door endpoint for production
+          NEXT_PUBLIC_API_URL: https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net
+          API_KEY: ${{ secrets.API_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
@@ -222,7 +224,9 @@ jobs:
               { "name": "GOOGLE_CLIENT_SECRET", "value": "${{ secrets.GOOGLE_CLIENT_SECRET }}", "slotSetting": false },
               { "name": "NODE_ENV", "value": "production", "slotSetting": false },
               { "name": "WEBSITE_RUN_FROM_PACKAGE", "value": "1", "slotSetting": false },
-              { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "false", "slotSetting": false }
+              { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "false", "slotSetting": false },
+              { "name": "NEXT_PUBLIC_API_URL", "value": "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net", "slotSetting": false },
+              { "name": "API_KEY", "value": "${{ secrets.API_KEY }}", "slotSetting": false }
             ]
 
       - name: Deploy to Azure Web App

@@ -601,12 +601,31 @@ Frontend auto-deploys on push to `main` when `apps/web/**` changes.
 - `NEXTAUTH_SECRET` - NextAuth.js secret
 - `GOOGLE_CLIENT_ID` - Google OAuth client ID
 - `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
+- `API_KEY` - API authentication key for backend
 
 ### Required GitHub Variables
 - `AZURE_CLIENT_ID` - Service principal client ID
 - `AZURE_TENANT_ID` - Azure AD tenant ID
 - `AZURE_SUBSCRIPTION_ID` - Azure subscription ID
 - `NEXTAUTH_URL` - Production URL (https://buildatlas.net)
+
+### CRITICAL: Hardcoded API URL (DO NOT CHANGE)
+
+**The API URL is HARDCODED in the CI/CD workflow and must NOT be changed:**
+
+```
+NEXT_PUBLIC_API_URL = https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net
+```
+
+This URL is set in TWO places in `.github/workflows/frontend-deploy.yml`:
+1. **Build step** (line ~49) - For Next.js build-time configuration
+2. **App Service settings** (line ~225) - For runtime configuration
+
+**Why this matters:**
+- Without this URL, the frontend falls back to file-based data loading (slow)
+- With this URL, the frontend uses the API with Redis caching (fast)
+- The API URL points to Azure Front Door, which routes to the AKS backend
+- If this setting is missing, every page load reads 275+ JSON files from disk
 
 ### Live URLs
 - **Production**: https://buildatlas.net
