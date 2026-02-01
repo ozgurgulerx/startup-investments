@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 interface ConfidenceBadgeProps {
   score: number; // 0-1 scale
   size?: 'sm' | 'md' | 'lg';
+  evidenceCount?: number;
   className?: string;
 }
 
@@ -56,13 +57,22 @@ const sizeClasses = {
   lg: 'h-8 w-8 text-sm',
 };
 
+function buildTooltip(config: GradeConfig, evidenceCount?: number): string {
+  const base = `Grade ${config.grade} · ${config.label}`;
+  if (evidenceCount && evidenceCount > 0) {
+    return `${base} based on ${evidenceCount} evidence quote${evidenceCount !== 1 ? 's' : ''} from primary sources`;
+  }
+  return base;
+}
+
 export function ConfidenceBadge({
   score,
   size = 'md',
+  evidenceCount,
   className,
 }: ConfidenceBadgeProps) {
   const config = getGradeConfig(score);
-  const percentage = Math.round(score * 100);
+  const tooltip = buildTooltip(config, evidenceCount);
 
   return (
     <div
@@ -73,8 +83,8 @@ export function ConfidenceBadge({
         config.textClass,
         className
       )}
-      title={`${config.label}: ${percentage}% confidence`}
-      aria-label={`Confidence grade ${config.grade}, ${percentage} percent`}
+      title={tooltip}
+      aria-label={tooltip}
     >
       {config.grade}
     </div>

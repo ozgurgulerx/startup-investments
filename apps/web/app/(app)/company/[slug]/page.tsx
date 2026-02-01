@@ -172,7 +172,11 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
               {startup.company_name}
             </h1>
             {startup.confidence_score !== undefined && (
-              <ConfidenceBadge score={startup.confidence_score} size="lg" />
+              <ConfidenceBadge
+                score={startup.confidence_score}
+                size="lg"
+                evidenceCount={startup.evidence_quotes?.length}
+              />
             )}
           </div>
           <CompanyActions
