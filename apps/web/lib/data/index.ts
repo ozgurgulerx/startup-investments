@@ -298,6 +298,8 @@ async function getStartupsForPeriod(period: string): Promise<StartupAnalysis[]> 
  * Get all startup analyses for a period
  * Uses in-memory caching + parallel file reads for performance
  * Supports 'all' to load startups from all periods
+ *
+ * NOTE: Tries API first for faster performance when API is configured
  */
 export async function getStartups(period: string): Promise<StartupAnalysis[]> {
   // Handle 'all' period - load from all available periods
@@ -305,7 +307,57 @@ export async function getStartups(period: string): Promise<StartupAnalysis[]> {
     return getAllStartupsAcrossPeriods();
   }
 
-  // Delegate to internal function for specific periods
+  // Try API first if configured (much faster than loading 275+ files)
+  if (isAPIConfigured()) {
+    try {
+      // Check cache first to avoid API call if we have recent data
+      const cached = startupsCache.get(period);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+      }
+
+      // Use dealbook endpoint with high limit to get all startups
+      const response = await api.getDealbook({
+        period,
+        limit: 500, // Get all startups in one request
+        sortBy: 'funding',
+        sortOrder: 'desc',
+      });
+
+      // Convert API response to StartupAnalysis format
+      // Using type assertion since API returns compatible data but with string types
+      const startups = response.data.map(s => ({
+        company_name: s.company_name,
+        company_slug: s.company_slug,
+        description: s.description || undefined,
+        website: s.website || undefined,
+        location: s.location || undefined,
+        vertical: s.vertical || undefined,
+        market_type: s.market_type || undefined,
+        sub_vertical: s.sub_vertical || undefined,
+        funding_amount: s.funding_amount || undefined,
+        funding_stage: s.funding_stage || undefined,
+        uses_genai: s.uses_genai,
+        build_patterns: s.build_patterns || [],
+        confidence_score: s.confidence_score || undefined,
+        newsletter_potential: s.newsletter_potential || undefined,
+        tech_stack: s.tech_stack || undefined,
+        models_mentioned: s.models_mentioned || [],
+      })) as StartupAnalysis[];
+
+      // Cache the result
+      startupsCache.set(period, {
+        data: startups,
+        timestamp: Date.now(),
+      });
+
+      return startups;
+    } catch (error) {
+      console.error('API request failed for getStartups, falling back to file-based data:', error);
+    }
+  }
+
+  // Delegate to internal function for specific periods (file-based fallback)
   return getStartupsForPeriod(period);
 }
 
