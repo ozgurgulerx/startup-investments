@@ -30,7 +30,7 @@ Look for mentions of: LLMs, GPT, Claude, language models, generative AI, embeddi
 Return ONLY valid JSON, no other text."""
 
 
-# Build Pattern Detection Prompt
+# Build Pattern Detection Prompt (Legacy - kept for backward compatibility)
 BUILD_PATTERNS_PROMPT = """You are a technical analyst identifying AI build patterns for a sophisticated AI newsletter.
 
 TASK: Analyze the following content from {company_name} and identify which advanced AI build patterns are present.
@@ -77,6 +77,276 @@ Provide your analysis in JSON format:
     "novel_approaches": ["any unique technical choices not in the standard patterns"],
     "technical_depth": "low" | "medium" | "high"
 }}
+
+Return ONLY valid JSON."""
+
+
+# Dynamic Pattern Discovery Prompt (NEW - discovers patterns without predefined list)
+PATTERN_DISCOVERY_PROMPT = """You are a technical architect analyzing AI system architectures for a sophisticated AI newsletter.
+
+TASK: Analyze {company_name}'s technical implementation and DISCOVER what architectural patterns they use. Do NOT limit yourself to predefined categories - identify the ACTUAL technical approaches they're taking based on evidence.
+
+CONTENT:
+{content}
+
+CATEGORIES TO EXPLORE (discover specifics within each):
+
+1. **Model Architecture & Selection**
+   - Which LLMs/models are they using? (GPT-4, Claude, Llama, Mistral, Gemini, custom)
+   - Are they fine-tuning? On what data? For what purpose?
+   - Mixture-of-Experts? Model ensembles? Task-specific model routing?
+   - Open-source vs proprietary models?
+
+2. **Compound AI Systems**
+   - Multi-model orchestration (model A calls model B)
+   - Chain-of-thought with model handoffs
+   - Agent-to-agent communication patterns
+   - Tool use and function calling architectures
+
+3. **Retrieval & Knowledge**
+   - RAG implementation specifics (chunking strategy, retrieval method, reranking)
+   - Vector database choice and architecture
+   - Knowledge graph usage patterns
+   - Hybrid search (dense + sparse)
+
+4. **Evaluation & Quality (EvalOps)**
+   - How do they measure model quality?
+   - Automated evaluation pipelines
+   - Human-in-the-loop evaluation
+   - A/B testing infrastructure for models
+   - Custom benchmark suites
+
+5. **Operations & Infrastructure (LLMOps)**
+   - Deployment patterns (serverless, dedicated, edge)
+   - Monitoring and observability for LLMs
+   - Prompt versioning and management
+   - Inference optimization (quantization, distillation, caching, batching)
+   - Cost management strategies
+
+6. **Safety & Trust (LLM Security)**
+   - Guardrails implementation (input/output validation)
+   - Prompt injection defenses
+   - Output filtering and content moderation
+   - Red-teaming and adversarial testing
+   - PII handling and data privacy
+
+7. **Learning & Improvement**
+   - Data flywheels (RLHF, user feedback loops)
+   - Continuous learning systems
+   - Active learning for labeling
+   - Synthetic data generation
+   - Model distillation pipelines
+
+8. **Data Strategy**
+   - Vertical data moats (industry-specific training data)
+   - Proprietary dataset creation
+   - Data licensing and partnerships
+   - Privacy-preserving techniques (federated learning, differential privacy)
+
+Provide your analysis in JSON format:
+{{
+    "discovered_patterns": [
+        {{
+            "category": "one of the 8 categories above",
+            "pattern_name": "specific descriptive name for this pattern",
+            "confidence": 0.0-1.0,
+            "evidence": ["direct quotes or specific observations from content"],
+            "description": "how they implement this specifically",
+            "novelty_score": 1-10,
+            "why_notable": "what makes this implementation interesting or different"
+        }}
+    ],
+    "model_details": {{
+        "primary_models": ["specific model names mentioned or inferred"],
+        "fine_tuning": {{
+            "uses_fine_tuning": true/false,
+            "fine_tuning_approach": "description if applicable (LoRA, full fine-tune, etc.)",
+            "training_data_source": "if mentioned"
+        }},
+        "inference_optimization": ["specific techniques: quantization, caching, batching, etc."],
+        "model_routing": {{
+            "uses_routing": true/false,
+            "routing_strategy": "description if applicable"
+        }},
+        "compound_ai": {{
+            "is_compound_system": true/false,
+            "orchestration_pattern": "description if applicable"
+        }}
+    }},
+    "novel_approaches": [
+        {{
+            "approach": "description of unique approach",
+            "why_novel": "why this is interesting or unusual",
+            "potential_impact": "what this enables"
+        }}
+    ],
+    "technical_depth_assessment": "low" | "medium" | "high",
+    "implementation_maturity": "research" | "prototype" | "production" | "scale",
+    "missing_patterns": ["patterns you'd expect but didn't find evidence for"]
+}}
+
+IMPORTANT:
+- Be SPECIFIC. We want to know EXACTLY what they're building, not just "uses AI"
+- Only report patterns you have EVIDENCE for. Include quotes.
+- High novelty_score (8-10) = genuinely unusual approach, not seen in typical implementations
+- Low novelty_score (1-3) = standard, widely-used approach
+- If content lacks technical depth, say so
+
+Return ONLY valid JSON."""
+
+
+# Team Analysis Prompt
+TEAM_ANALYSIS_PROMPT = """You are analyzing {company_name}'s team and leadership based on available information.
+
+CONTENT:
+{content}
+
+TASK: Extract insights about the founding team, technical expertise, and organizational signals.
+
+Provide analysis in JSON format:
+{{
+    "founders": [
+        {{
+            "name": "name if identifiable",
+            "role": "CEO/CTO/etc",
+            "background": "relevant prior experience",
+            "previous_companies": ["notable companies if mentioned"],
+            "technical_depth": "high" | "medium" | "low",
+            "domain_expertise": "specific domain knowledge"
+        }}
+    ],
+    "team_signals": {{
+        "engineering_heavy": true/false,
+        "has_ml_expertise": true/false,
+        "has_domain_expertise": true/false,
+        "hiring_signals": ["roles they're actively hiring for"],
+        "team_size_indicators": "small/medium/large based on signals",
+        "remote_distributed": true/false
+    }},
+    "founder_market_fit": "assessment of whether founders' backgrounds fit this problem",
+    "team_strengths": [
+        "specific strength with evidence"
+    ],
+    "team_red_flags": [
+        "specific concern if any"
+    ],
+    "team_confidence": 0.0-1.0
+}}
+
+Look for:
+- LinkedIn mentions or profiles
+- "About us" or "Team" pages
+- Previous company mentions
+- Technical blog authorship
+- Job postings indicating team composition
+- Advisor/investor mentions indicating network quality
+
+If team information is limited, indicate low confidence and note what's missing.
+
+Return ONLY valid JSON."""
+
+
+# Business Model Analysis Prompt
+BUSINESS_MODEL_PROMPT = """You are analyzing {company_name}'s business model and go-to-market strategy.
+
+CONTENT:
+{content}
+
+FUNDING: {funding_info}
+
+TASK: Extract business model, pricing, and GTM strategy signals from the content.
+
+Provide analysis in JSON format:
+{{
+    "pricing_model": {{
+        "type": "freemium" | "enterprise_only" | "usage_based" | "subscription" | "marketplace" | "api_pricing" | "custom" | "unknown",
+        "pricing_evidence": ["specific pricing mentions or indicators"],
+        "free_tier_available": true/false,
+        "enterprise_focus": true/false,
+        "price_points": ["any specific prices mentioned"]
+    }},
+    "gtm_strategy": {{
+        "primary_channel": "product_led" | "sales_led" | "partnership_led" | "developer_first" | "content_marketing" | "unknown",
+        "evidence": ["signals of GTM approach"],
+        "target_segment": "smb" | "mid_market" | "enterprise" | "consumer" | "developer",
+        "sales_motion": "self_serve" | "inside_sales" | "field_sales" | "hybrid" | "unknown"
+    }},
+    "revenue_model": {{
+        "monetization_approach": "description of how they make money",
+        "unit_economics_signals": ["any indicators of margins, ARPU, etc."],
+        "recurring_revenue": true/false
+    }},
+    "distribution_advantages": [
+        "any distribution moats or network effects"
+    ],
+    "customer_acquisition": {{
+        "acquisition_channels": ["channels they seem to use"],
+        "customer_proof_points": ["testimonials, case studies, logos mentioned"]
+    }},
+    "business_model_clarity": "clear" | "evolving" | "unclear",
+    "business_model_confidence": 0.0-1.0
+}}
+
+Look for:
+- Pricing pages or "Contact sales" patterns
+- Free trial mentions
+- Enterprise features
+- Integration partner mentions
+- Customer testimonials with company sizes
+- Demo request flows
+- API documentation suggesting developer focus
+
+Return ONLY valid JSON."""
+
+
+# Product Depth Analysis Prompt
+PRODUCT_DEPTH_PROMPT = """You are analyzing {company_name}'s product depth and maturity.
+
+CONTENT:
+{content}
+
+TASK: Assess the product's stage, features, and ecosystem.
+
+Provide analysis in JSON format:
+{{
+    "product_stage": "pre_launch" | "beta" | "general_availability" | "mature",
+    "stage_evidence": ["indicators of product maturity"],
+    "feature_depth": {{
+        "core_features": ["main product capabilities"],
+        "differentiating_features": ["features that set them apart from competitors"],
+        "roadmap_signals": ["future features mentioned or hinted at"],
+        "feature_completeness": "mvp" | "growing" | "comprehensive"
+    }},
+    "integration_ecosystem": {{
+        "integrations_mentioned": ["tools/platforms they integrate with"],
+        "api_maturity": "none" | "basic" | "comprehensive" | "platform",
+        "sdk_availability": ["languages/platforms with SDKs"],
+        "webhook_support": true/false,
+        "marketplace_presence": ["app stores or marketplaces they're in"]
+    }},
+    "use_cases": {{
+        "primary_use_case": "main problem they solve",
+        "secondary_use_cases": ["other supported use cases"],
+        "customer_stories": ["specific case studies or testimonials"],
+        "industry_focus": ["industries they emphasize"]
+    }},
+    "product_risks": [
+        "product-specific risks or limitations identified"
+    ],
+    "product_strengths": [
+        "product-specific strengths"
+    ],
+    "product_confidence": 0.0-1.0
+}}
+
+Look for:
+- Feature comparison pages
+- Documentation depth and quality
+- Integration partner pages
+- Case studies and customer testimonials
+- "Coming soon" or beta labels
+- Pricing tier feature breakdowns
+- API reference comprehensiveness
 
 Return ONLY valid JSON."""
 
@@ -596,4 +866,41 @@ def get_anti_patterns_prompt(
         patterns=patterns or "Not analyzed",
         tech_stack=tech_stack or "Not detected",
         competitive_info=competitive_info or "Not analyzed"
+    )
+
+
+def get_pattern_discovery_prompt(company_name: str, content: str) -> str:
+    """Get the dynamic pattern discovery prompt formatted with content."""
+    return PATTERN_DISCOVERY_PROMPT.format(
+        company_name=company_name,
+        content=content[:35000]  # Larger context for thorough analysis
+    )
+
+
+def get_team_analysis_prompt(company_name: str, content: str) -> str:
+    """Get the team analysis prompt formatted with content."""
+    return TEAM_ANALYSIS_PROMPT.format(
+        company_name=company_name,
+        content=content[:25000]
+    )
+
+
+def get_business_model_prompt(
+    company_name: str,
+    content: str,
+    funding_info: str = ""
+) -> str:
+    """Get the business model analysis prompt formatted with content."""
+    return BUSINESS_MODEL_PROMPT.format(
+        company_name=company_name,
+        content=content[:25000],
+        funding_info=funding_info or "Not disclosed"
+    )
+
+
+def get_product_depth_prompt(company_name: str, content: str) -> str:
+    """Get the product depth analysis prompt formatted with content."""
+    return PRODUCT_DEPTH_PROMPT.format(
+        company_name=company_name,
+        content=content[:25000]
     )

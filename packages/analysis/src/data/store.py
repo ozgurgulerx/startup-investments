@@ -1,0 +1,262 @@
+"""Persistent store for incremental startup analysis.
+
+Design:
+- All analyses are stored persistently in a JSON-based store
+- When new startups are added to CSV, only the delta is processed
+- Newsletter generation pulls from the complete store
+- Supports versioning and history
+"""
+
+import json
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Dict, List, Any, Optional, Set
+import hashlib
+
+from src.config import settings
+from src.data.models import StartupInput, StartupAnalysis
+
+
+class AnalysisStore:
+    """Persistent store for startup analyses with incremental processing support."""
+
+    def __init__(self, store_dir: Optional[Path] = None):
+        self.store_dir = store_dir or (settings.data_output_dir / "analysis_store")
+        self.store_dir.mkdir(parents=True, exist_ok=True)
+
+        # Main index file
+        self.index_file = self.store_dir / "index.json"
+
+        # Subdirectories
+        self.base_dir = self.store_dir / "base_analyses"
+        self.viral_dir = self.store_dir / "viral_analyses"
+        self.enrichment_dir = self.store_dir / "enrichment"
+
+        for d in [self.base_dir, self.viral_dir, self.enrichment_dir]:
+            d.mkdir(parents=True, exist_ok=True)
+
+        # Load or create index
+        self.index = self._load_index()
+
+    def _load_index(self) -> Dict[str, Any]:
+        """Load the store index."""
+        if self.index_file.exists():
+            try:
+                with open(self.index_file) as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {
+            "version": 1,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "startups": {},  # name -> metadata
+            "stats": {
+                "total_analyzed": 0,
+                "last_updated": None,
+            }
+        }
+
+    def _save_index(self):
+        """Save the store index."""
+        self.index["stats"]["last_updated"] = datetime.now(timezone.utc).isoformat()
+        with open(self.index_file, "w") as f:
+            json.dump(self.index, f, indent=2, default=str)
+
+    def _get_startup_hash(self, startup: StartupInput) -> str:
+        """Generate a hash for a startup to detect changes."""
+        key_data = f"{startup.name}|{startup.website}|{startup.funding_amount}|{startup.description}"
+        return hashlib.md5(key_data.encode()).hexdigest()[:12]
+
+    def _get_slug(self, name: str) -> str:
+        """Convert name to filesystem-safe slug."""
+        return name.lower().replace(" ", "-").replace(".", "").replace(",", "").replace("&", "and")
+
+    def get_processed_names(self) -> Set[str]:
+        """Get set of already processed startup names."""
+        return set(self.index["startups"].keys())
+
+    def get_delta(self, startups: List[StartupInput]) -> List[StartupInput]:
+        """Get startups that haven't been processed or have changed."""
+        delta = []
+        for startup in startups:
+            name = startup.name
+            current_hash = self._get_startup_hash(startup)
+
+            if name not in self.index["startups"]:
+                # New startup
+                delta.append(startup)
+            elif self.index["startups"][name].get("hash") != current_hash:
+                # Changed startup
+                delta.append(startup)
+
+        return delta
+
+    def save_base_analysis(self, analysis: StartupAnalysis, startup: StartupInput):
+        """Save a base analysis result."""
+        slug = self._get_slug(analysis.company_name)
+        file_path = self.base_dir / f"{slug}.json"
+
+        # Save analysis
+        with open(file_path, "w") as f:
+            json.dump(analysis.model_dump(), f, indent=2, default=str)
+
+        # Update index
+        self.index["startups"][analysis.company_name] = {
+            "slug": slug,
+            "hash": self._get_startup_hash(startup),
+            "base_analysis_at": datetime.now(timezone.utc).isoformat(),
+            "has_base": True,
+            "has_viral": False,
+            "has_enrichment": False,
+            "website": startup.website,
+            "funding": startup.funding_amount,
+        }
+        self.index["stats"]["total_analyzed"] = len(self.index["startups"])
+        self._save_index()
+
+    def save_viral_analysis(self, company_name: str, viral_data: Dict[str, Any]):
+        """Save a viral analysis result."""
+        slug = self._get_slug(company_name)
+        file_path = self.viral_dir / f"{slug}.json"
+
+        with open(file_path, "w") as f:
+            json.dump(viral_data, f, indent=2, default=str)
+
+        # Update index
+        if company_name in self.index["startups"]:
+            self.index["startups"][company_name]["has_viral"] = True
+            self.index["startups"][company_name]["viral_analysis_at"] = datetime.now(timezone.utc).isoformat()
+            self._save_index()
+
+    def save_enrichment(self, company_name: str, enrichment_data: Dict[str, Any]):
+        """Save enrichment data (jobs, HN, etc.)."""
+        slug = self._get_slug(company_name)
+        file_path = self.enrichment_dir / f"{slug}.json"
+
+        with open(file_path, "w") as f:
+            json.dump(enrichment_data, f, indent=2, default=str)
+
+        # Update index
+        if company_name in self.index["startups"]:
+            self.index["startups"][company_name]["has_enrichment"] = True
+            self.index["startups"][company_name]["enrichment_at"] = datetime.now(timezone.utc).isoformat()
+            self._save_index()
+
+    def get_base_analysis(self, company_name: str) -> Optional[StartupAnalysis]:
+        """Load a base analysis by company name."""
+        slug = self._get_slug(company_name)
+        file_path = self.base_dir / f"{slug}.json"
+
+        if file_path.exists():
+            try:
+                with open(file_path) as f:
+                    data = json.load(f)
+                return StartupAnalysis(**data)
+            except Exception as e:
+                print(f"Error loading analysis for {company_name}: {e}")
+        return None
+
+    def get_viral_analysis(self, company_name: str) -> Optional[Dict[str, Any]]:
+        """Load viral analysis by company name."""
+        slug = self._get_slug(company_name)
+        file_path = self.viral_dir / f"{slug}.json"
+
+        if file_path.exists():
+            try:
+                with open(file_path) as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return None
+
+    def get_enrichment(self, company_name: str) -> Optional[Dict[str, Any]]:
+        """Load enrichment data by company name."""
+        slug = self._get_slug(company_name)
+        file_path = self.enrichment_dir / f"{slug}.json"
+
+        if file_path.exists():
+            try:
+                with open(file_path) as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return None
+
+    def get_all_base_analyses(self) -> List[StartupAnalysis]:
+        """Load all base analyses from the store."""
+        analyses = []
+        for name in self.index["startups"]:
+            if self.index["startups"][name].get("has_base"):
+                analysis = self.get_base_analysis(name)
+                if analysis:
+                    analyses.append(analysis)
+        return analyses
+
+    def get_all_viral_analyses(self) -> List[Dict[str, Any]]:
+        """Load all viral analyses from the store."""
+        viral_list = []
+        for name in self.index["startups"]:
+            if self.index["startups"][name].get("has_viral"):
+                viral = self.get_viral_analysis(name)
+                if viral:
+                    viral_list.append(viral)
+        return viral_list
+
+    def get_newsletter_ready_data(self) -> Dict[str, Any]:
+        """Get all data needed for newsletter generation."""
+        return {
+            "base_analyses": self.get_all_base_analyses(),
+            "viral_analyses": self.get_all_viral_analyses(),
+            "stats": self.index["stats"],
+            "startup_count": len(self.index["startups"]),
+        }
+
+    def get_startups_missing_viral(self) -> List[str]:
+        """Get list of startups that have base analysis but no viral analysis."""
+        return [
+            name for name, meta in self.index["startups"].items()
+            if meta.get("has_base") and not meta.get("has_viral")
+        ]
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get store statistics."""
+        has_base = sum(1 for m in self.index["startups"].values() if m.get("has_base"))
+        has_viral = sum(1 for m in self.index["startups"].values() if m.get("has_viral"))
+
+        return {
+            "total_startups": len(self.index["startups"]),
+            "with_base_analysis": has_base,
+            "with_viral_analysis": has_viral,
+            "missing_viral": has_base - has_viral,
+            "last_updated": self.index["stats"].get("last_updated"),
+        }
+
+    def export_summary(self) -> str:
+        """Export a summary of the store."""
+        stats = self.get_stats()
+        lines = [
+            "# Analysis Store Summary",
+            f"",
+            f"**Total Startups:** {stats['total_startups']}",
+            f"**With Base Analysis:** {stats['with_base_analysis']}",
+            f"**With Viral Analysis:** {stats['with_viral_analysis']}",
+            f"**Missing Viral:** {stats['missing_viral']}",
+            f"**Last Updated:** {stats['last_updated']}",
+            "",
+            "## Startups in Store",
+            "",
+        ]
+
+        for name, meta in sorted(self.index["startups"].items()):
+            status = []
+            if meta.get("has_base"):
+                status.append("base")
+            if meta.get("has_viral"):
+                status.append("viral")
+            if meta.get("has_enrichment"):
+                status.append("enriched")
+
+            funding = f"${meta.get('funding', 0):,.0f}" if meta.get('funding') else "N/A"
+            lines.append(f"- **{name}** [{', '.join(status)}] - {funding}")
+
+        return "\n".join(lines)

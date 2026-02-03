@@ -49,9 +49,28 @@ export interface BuildPattern {
   confidence: number;
   evidence: string[];
   description?: string;
+  novelty_score?: number;
+  why_notable?: string;
+  category?: string;
 }
 
+// Pattern categories for dynamic discovery
+export const BUILD_PATTERN_CATEGORIES = [
+  'Model Architecture',
+  'Compound AI Systems',
+  'Retrieval & Knowledge',
+  'Evaluation & Quality',
+  'Operations & Infrastructure',
+  'Safety & Trust',
+  'Learning & Improvement',
+  'Data Strategy',
+] as const;
+
+export type BuildPatternCategory = (typeof BUILD_PATTERN_CATEGORIES)[number];
+
+// Canonical patterns (legacy + new)
 export const BUILD_PATTERNS = [
+  // Legacy patterns (for backward compatibility)
   'Agentic Architectures',
   'Vertical Data Moats',
   'Micro-model Meshes',
@@ -60,6 +79,19 @@ export const BUILD_PATTERNS = [
   'Knowledge Graphs',
   'Natural-Language-to-Code',
   'Guardrail-as-LLM',
+  // New patterns
+  'Fine-tuned Models',
+  'Compound AI Systems',
+  'EvalOps',
+  'LLMOps',
+  'LLM Security',
+  'Inference Optimization',
+  'Data Flywheels',
+  'Model Routing',
+  'Prompt Engineering',
+  'Hybrid Search',
+  'Active Learning',
+  'Synthetic Data Generation',
 ] as const;
 
 export type BuildPatternName = (typeof BUILD_PATTERNS)[number];
@@ -77,6 +109,134 @@ export interface TechStack {
   approach?: string;
   uses_open_source_models?: boolean;
   has_custom_models?: boolean;
+}
+
+// -----------------------------------------------------------------------------
+// Enhanced Analysis Fields (NEW)
+// -----------------------------------------------------------------------------
+
+export interface FounderInfo {
+  name?: string;
+  role?: string;
+  background?: string;
+  previous_companies?: string[];
+  technical_depth?: TechnicalDepth;
+  domain_expertise?: string;
+}
+
+export interface TeamSignals {
+  engineering_heavy?: boolean;
+  has_ml_expertise?: boolean;
+  has_domain_expertise?: boolean;
+  hiring_signals?: string[];
+  team_size_indicators?: 'small' | 'medium' | 'large';
+  remote_distributed?: boolean;
+}
+
+export interface TeamAnalysis {
+  founders: FounderInfo[];
+  team_signals: TeamSignals;
+  founder_market_fit?: string;
+  team_strengths: string[];
+  team_red_flags: string[];
+  team_confidence?: number;
+}
+
+export interface PricingModel {
+  type?: 'freemium' | 'enterprise_only' | 'usage_based' | 'subscription' | 'marketplace' | 'api_pricing' | 'custom' | 'unknown';
+  pricing_evidence?: string[];
+  free_tier_available?: boolean;
+  enterprise_focus?: boolean;
+  price_points?: string[];
+}
+
+export interface GTMStrategy {
+  primary_channel?: 'product_led' | 'sales_led' | 'partnership_led' | 'developer_first' | 'content_marketing' | 'unknown';
+  evidence?: string[];
+  target_segment?: 'smb' | 'mid_market' | 'enterprise' | 'consumer' | 'developer';
+  sales_motion?: 'self_serve' | 'inside_sales' | 'field_sales' | 'hybrid' | 'unknown';
+}
+
+export interface RevenueModel {
+  monetization_approach?: string;
+  unit_economics_signals?: string[];
+  recurring_revenue?: boolean;
+}
+
+export interface BusinessModel {
+  pricing_model: PricingModel;
+  gtm_strategy: GTMStrategy;
+  revenue_model?: RevenueModel;
+  distribution_advantages: string[];
+  customer_acquisition?: {
+    acquisition_channels?: string[];
+    customer_proof_points?: string[];
+  };
+  business_model_clarity?: 'clear' | 'evolving' | 'unclear';
+  business_model_confidence?: number;
+}
+
+export interface FeatureDepth {
+  core_features: string[];
+  differentiating_features: string[];
+  roadmap_signals?: string[];
+  feature_completeness?: 'mvp' | 'growing' | 'comprehensive';
+}
+
+export interface IntegrationEcosystem {
+  integrations_mentioned: string[];
+  api_maturity?: 'none' | 'basic' | 'comprehensive' | 'platform';
+  sdk_availability?: string[];
+  webhook_support?: boolean;
+  marketplace_presence?: string[];
+}
+
+export interface UseCases {
+  primary_use_case?: string;
+  secondary_use_cases?: string[];
+  customer_stories?: string[];
+  industry_focus?: string[];
+}
+
+export interface ProductAnalysis {
+  product_stage?: 'pre_launch' | 'beta' | 'general_availability' | 'mature';
+  stage_evidence?: string[];
+  feature_depth?: FeatureDepth;
+  integration_ecosystem?: IntegrationEcosystem;
+  use_cases?: UseCases;
+  product_risks: string[];
+  product_strengths: string[];
+  product_confidence?: number;
+}
+
+export interface FineTuningDetails {
+  uses_fine_tuning: boolean;
+  fine_tuning_approach?: string;
+  training_data_source?: string;
+}
+
+export interface ModelRouting {
+  uses_routing: boolean;
+  routing_strategy?: string;
+}
+
+export interface CompoundAI {
+  is_compound_system: boolean;
+  orchestration_pattern?: string;
+}
+
+export interface ModelDetails {
+  primary_models: string[];
+  fine_tuning?: FineTuningDetails;
+  inference_optimization: string[];
+  model_routing?: ModelRouting;
+  compound_ai?: CompoundAI;
+}
+
+export interface NovelApproach {
+  approach: string;
+  why_novel: string;
+  potential_impact?: string;
 }
 
 export interface EngineeringQuality {
@@ -191,8 +351,16 @@ export interface StartupAnalysis {
   genai_intensity?: GenAIIntensity;
   models_mentioned?: string[];
 
-  // Patterns
+  // Patterns (legacy field)
   build_patterns: BuildPattern[];
+
+  // Discovered Patterns (NEW - dynamic pattern discovery)
+  discovered_patterns?: BuildPattern[];
+  pattern_category_scores?: Record<BuildPatternCategory, number>;
+  novel_approaches?: NovelApproach[];
+
+  // Model Details (NEW - detailed model/LLM information)
+  model_details?: ModelDetails;
 
   // Market
   market_type?: MarketType;
@@ -204,6 +372,12 @@ export interface StartupAnalysis {
   tech_stack?: TechStack;
   engineering_quality?: EngineeringQuality;
   technical_depth?: TechnicalDepth;
+  implementation_maturity?: 'research' | 'prototype' | 'production' | 'scale';
+
+  // Business Analysis (NEW)
+  team_analysis?: TeamAnalysis;
+  business_model?: BusinessModel;
+  product_analysis?: ProductAnalysis;
 
   // Competitive
   competitive_analysis?: CompetitiveAnalysis;
