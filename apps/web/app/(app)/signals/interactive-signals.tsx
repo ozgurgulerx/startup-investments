@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { Users, ArrowRight, Lightbulb, ExternalLink } from 'lucide-react';
+import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp } from 'lucide-react';
 import { PatternCohortTable } from '@/components/features/pattern-cohort-table';
 import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
-import type { PatternData } from './page';
+import type { PatternData, EmergingPattern, CategoryData } from './page';
 import type { PatternCorrelation } from '@/lib/data/signals';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
 
@@ -13,12 +13,16 @@ interface InteractiveSignalsProps {
   patterns: PatternData[];
   correlations: PatternCorrelation[];
   totalDeals: number;
+  emergingPatterns?: EmergingPattern[];
+  categories?: CategoryData[];
 }
 
 export function InteractiveSignals({
   patterns,
   correlations,
   totalDeals,
+  emergingPatterns = [],
+  categories = [],
 }: InteractiveSignalsProps) {
   const [cohortModal, setCohortModal] = useState<{
     isOpen: boolean;
@@ -29,6 +33,20 @@ export function InteractiveSignals({
     patternName: '',
     companies: [],
   });
+
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Filter patterns by selected category
+  const filteredPatterns = useMemo(() => {
+    if (!selectedCategory) return patterns;
+    // For legacy patterns, we don't have category data, so show all when filtered
+    return patterns;
+  }, [patterns, selectedCategory]);
+
+  const filteredEmergingPatterns = useMemo(() => {
+    if (!selectedCategory) return emergingPatterns;
+    return emergingPatterns.filter(p => p.category === selectedCategory);
+  }, [emergingPatterns, selectedCategory]);
 
   const openCohort = useCallback((pattern: PatternData) => {
     setCohortModal({
@@ -77,12 +95,106 @@ export function InteractiveSignals({
         <p className="briefing-subhead">
           Analysis of {totalDeals} deals reveals conviction levels across{' '}
           {patterns.length} distinct build patterns.
+          {emergingPatterns.length > 0 && (
+            <span className="text-accent"> {emergingPatterns.length} emerging patterns discovered.</span>
+          )}
         </p>
       </header>
 
+      {/* Category Tabs */}
+      {categories.length > 0 && (
+        <div className="mb-8">
+          <div className="flex flex-wrap gap-2 pb-4 border-b border-border/30">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
+                selectedCategory === null
+                  ? 'bg-foreground text-background'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              All Patterns
+            </button>
+            {categories.slice(0, 8).map(cat => (
+              <button
+                key={cat.name}
+                onClick={() => setSelectedCategory(cat.name)}
+                className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
+                  selectedCategory === cat.name
+                    ? 'bg-foreground text-background'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {cat.name}
+                <span className="ml-1 opacity-60">({cat.count})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Emerging Patterns Section */}
+      {filteredEmergingPatterns.length > 0 && (
+        <section className="section mb-8">
+          <div className="section-header">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-accent" />
+              <span className="section-title">Emerging Patterns</span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              High-novelty approaches discovered this period
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredEmergingPatterns.slice(0, 6).map((pattern, index) => (
+              <div
+                key={index}
+                className="p-4 border border-border/30 rounded-lg hover:border-accent/30 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div>
+                    <h4 className="text-sm font-medium text-foreground">{pattern.name}</h4>
+                    <span className="text-xs text-muted-foreground">{pattern.category}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="w-3 h-3 text-accent" />
+                    <span className="text-xs px-1.5 py-0.5 bg-accent/10 text-accent rounded">
+                      {pattern.avgNovelty.toFixed(1)}/10
+                    </span>
+                  </div>
+                </div>
+
+                {pattern.whyNotable && (
+                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                    {pattern.whyNotable}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {pattern.count} {pattern.count === 1 ? 'company' : 'companies'}
+                  </span>
+                  <button
+                    onClick={() => setCohortModal({
+                      isOpen: true,
+                      patternName: pattern.name,
+                      companies: pattern.companies,
+                    })}
+                    className="text-xs text-accent hover:text-accent/80 transition-colors"
+                  >
+                    View companies →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Patterns List */}
       <div className="space-y-0">
-        {patterns.slice(0, 8).map(pattern => (
+        {filteredPatterns.slice(0, 8).map(pattern => (
           <div key={pattern.name} className="signal-item">
             {/* Header */}
             <div className="signal-header">

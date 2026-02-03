@@ -70,6 +70,21 @@ export interface PatternData {
   horizon: string;
 }
 
+export interface EmergingPattern {
+  name: string;
+  category: string;
+  count: number;
+  avgNovelty: number;
+  companies: StartupAnalysis[];
+  whyNotable: string;
+}
+
+export interface CategoryData {
+  name: string;
+  count: number;
+  patterns: string[];
+}
+
 async function SignalsContent() {
   const [stats, startups] = await Promise.all([
     getMonthlyStats(DEFAULT_PERIOD),
@@ -102,6 +117,77 @@ async function SignalsContent() {
       };
     });
 
+  // Extract emerging patterns from discovered_patterns
+  const emergingPatternMap = new Map<string, {
+    count: number;
+    totalNovelty: number;
+    category: string;
+    companies: StartupAnalysis[];
+    whyNotable: string;
+  }>();
+
+  for (const startup of startups) {
+    const discoveredPatterns = startup.discovered_patterns || [];
+    for (const pattern of discoveredPatterns) {
+      const name = pattern.pattern_name;
+      const novelty = pattern.novelty_score || 5;
+      const category = pattern.category || 'Other';
+
+      if (novelty >= 6) { // Only track patterns with notable novelty
+        const existing = emergingPatternMap.get(name);
+        if (existing) {
+          existing.count++;
+          existing.totalNovelty += novelty;
+          existing.companies.push(startup);
+        } else {
+          emergingPatternMap.set(name, {
+            count: 1,
+            totalNovelty: novelty,
+            category,
+            companies: [startup],
+            whyNotable: pattern.why_notable || '',
+          });
+        }
+      }
+    }
+  }
+
+  const emergingPatterns: EmergingPattern[] = Array.from(emergingPatternMap.entries())
+    .map(([name, data]) => ({
+      name,
+      category: data.category,
+      count: data.count,
+      avgNovelty: data.totalNovelty / data.count,
+      companies: data.companies,
+      whyNotable: data.whyNotable,
+    }))
+    .filter(p => p.count >= 2 || p.avgNovelty >= 8) // At least 2 occurrences OR very high novelty
+    .sort((a, b) => b.avgNovelty - a.avgNovelty);
+
+  // Extract category distribution
+  const categoryMap = new Map<string, { count: number; patterns: Set<string> }>();
+  for (const startup of startups) {
+    const discoveredPatterns = startup.discovered_patterns || [];
+    for (const pattern of discoveredPatterns) {
+      const category = pattern.category || 'Other';
+      const existing = categoryMap.get(category);
+      if (existing) {
+        existing.count++;
+        existing.patterns.add(pattern.pattern_name);
+      } else {
+        categoryMap.set(category, { count: 1, patterns: new Set([pattern.pattern_name]) });
+      }
+    }
+  }
+
+  const categories: CategoryData[] = Array.from(categoryMap.entries())
+    .map(([name, data]) => ({
+      name,
+      count: data.count,
+      patterns: Array.from(data.patterns),
+    }))
+    .sort((a, b) => b.count - a.count);
+
   // Compute pattern correlations
   const correlations = computePatternCorrelations(startups);
 
@@ -110,6 +196,8 @@ async function SignalsContent() {
       patterns={patterns}
       correlations={correlations}
       totalDeals={totalDeals}
+      emergingPatterns={emergingPatterns}
+      categories={categories}
     />
   );
 }
