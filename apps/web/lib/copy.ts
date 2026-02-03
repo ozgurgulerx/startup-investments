@@ -42,19 +42,19 @@ export const SUPPORTING_LINE =
 // from monthly_stats.json. Do not edit manually.
 export const METRICS = {
   companies: {
-    value: "282",
+    value: "293",
     label: "Funded companies tracked",
     shortLabel: "Companies tracked",
     description: "AI startups that raised funding this month",
   },
   capital: {
-    value: "$32.0B",
+    value: "$32.1B",
     label: "Capital mapped",
     shortLabel: "Capital mapped",
     description: "Total funding raised across all tracked deals",
   },
   genai: {
-    value: "57%",
+    value: "56%",
     label: "GenAI adoption",
     shortLabel: "GenAI adoption",
     description: "Share of startups building on generative AI",
