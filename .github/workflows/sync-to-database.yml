@@ -45,9 +45,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Install dependencies
         run: |
-          cd apps/web && npm ci
+          pnpm install --filter @repo/web
           pip install psycopg2-binary
 
       - name: Determine period
