@@ -5,8 +5,6 @@ from pathlib import Path
 from datetime import datetime
 import json
 
-from src.data.models import StartupAnalysis
-
 
 def generate_viral_newsletter(
     analyses: List[Dict[str, Any]],
@@ -213,26 +211,130 @@ def _rank_stories(analyses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _extract_theme(analyses: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Extract overarching theme from analyses."""
+    """Extract overarching theme from analyses using real pattern data."""
     # Count patterns across all analyses
     pattern_counts = {}
-    for analysis in analyses:
-        # Try to get from various sources
-        contrarian = analysis.get("contrarian_analysis", {})
-        story = analysis.get("story_arc", {})
+    category_counts = {}
+    novel_pattern_examples = []
 
-    # Default theme based on common patterns
-    patterns = [
-        {"name": "Agentic Architectures", "prevalence": "High", "meaning": "Autonomous AI is becoming standard"},
-        {"name": "Vertical Data Moats", "prevalence": "High", "meaning": "Generic AI is losing to specialists"},
-        {"name": "Guardrails & Trust", "prevalence": "Growing", "meaning": "Security layer market is emerging"},
-        {"name": "Voice Interfaces", "prevalence": "Medium", "meaning": "Voice is the new UI for AI agents"},
-    ]
+    for analysis in analyses:
+        # Count from legacy build_patterns
+        for pattern in analysis.get("build_patterns", []):
+            name = pattern.get("name", "")
+            if name:
+                pattern_counts[name] = pattern_counts.get(name, 0) + 1
+
+        # Count from new discovered_patterns
+        for pattern in analysis.get("discovered_patterns", []):
+            name = pattern.get("pattern_name", "")
+            category = pattern.get("category", "Other")
+            if name:
+                pattern_counts[name] = pattern_counts.get(name, 0) + 1
+                category_counts[category] = category_counts.get(category, 0) + 1
+
+                # Track high-novelty patterns
+                novelty = pattern.get("novelty_score", 5)
+                if novelty >= 7:
+                    novel_pattern_examples.append({
+                        "name": name,
+                        "category": category,
+                        "why_notable": pattern.get("why_notable", "")
+                    })
+
+    # Sort patterns by count
+    sorted_patterns = sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)
+    sorted_categories = sorted(category_counts.items(), key=lambda x: x[1], reverse=True)
+
+    # Determine prevalence based on percentage
+    total_analyses = max(len(analyses), 1)
+
+    def get_prevalence(count: int) -> str:
+        pct = count / total_analyses
+        if pct >= 0.5:
+            return "High"
+        elif pct >= 0.25:
+            return "Medium"
+        elif pct >= 0.1:
+            return "Growing"
+        else:
+            return "Low"
+
+    # Generate pattern insights
+    pattern_meanings = {
+        "RAG (Retrieval-Augmented Generation)": "Companies building knowledge-enhanced AI systems",
+        "Agentic Architectures": "Autonomous AI agents taking actions independently",
+        "Vertical Data Moats": "Domain-specific data creating defensibility",
+        "Fine-tuned Models": "Custom models trained on proprietary data",
+        "Compound AI Systems": "Multiple AI components working together",
+        "EvalOps": "Systematic evaluation and quality measurement",
+        "LLMOps": "Infrastructure for deploying and monitoring LLMs",
+        "LLM Security": "Protecting AI systems from attacks and misuse",
+        "Data Flywheels": "User interactions improving the product over time",
+        "Model Routing": "Dynamic selection between multiple models",
+        "Guardrail-as-LLM": "Using LLMs to enforce safety constraints",
+        "Knowledge Graphs": "Structured relationships enhancing retrieval",
+        "Inference Optimization": "Making AI faster and cheaper to run",
+        "Prompt Engineering": "Sophisticated prompt design for better outputs",
+    }
+
+    # Build patterns list from real data
+    patterns = []
+    for name, count in sorted_patterns[:6]:
+        meaning = pattern_meanings.get(name, f"Appearing in {count} startups this period")
+        patterns.append({
+            "name": name,
+            "prevalence": get_prevalence(count),
+            "meaning": meaning
+        })
+
+    # Generate theme title and description based on dominant patterns
+    if sorted_categories:
+        top_category = sorted_categories[0][0]
+        theme_titles = {
+            "Model Architecture": "The Custom Model Era",
+            "Compound AI Systems": "The Orchestration Wave",
+            "Retrieval & Knowledge": "The Knowledge Infrastructure Boom",
+            "Evaluation & Quality": "The Quality-First Movement",
+            "Operations & Infrastructure": "The LLMOps Maturation",
+            "Safety & Trust": "The Trust Infrastructure Build-out",
+            "Learning & Improvement": "The Flywheel Builders",
+            "Data Strategy": "The Data Moat Arms Race",
+        }
+        title = theme_titles.get(top_category, f"The {top_category} Focus")
+    elif sorted_patterns:
+        top_pattern = sorted_patterns[0][0]
+        title = f"The Rise of {top_pattern}"
+    else:
+        title = "AI Infrastructure Evolution"
+
+    # Generate description based on actual data
+    if sorted_patterns:
+        top_3 = [p[0] for p in sorted_patterns[:3]]
+        pct_with_genai = sum(1 for a in analyses if a.get("uses_genai", False)) / total_analyses * 100
+
+        if novel_pattern_examples:
+            novel_names = [p["name"] for p in novel_pattern_examples[:2]]
+            description = (
+                f"This cohort of {total_analyses} startups shows strong convergence around "
+                f"{', '.join(top_3[:2])} and {top_3[2] if len(top_3) > 2 else 'specialized solutions'}. "
+                f"{pct_with_genai:.0f}% use GenAI as a core component. "
+                f"Novel approaches emerging: {', '.join(novel_names)}."
+            )
+        else:
+            description = (
+                f"Analyzing {total_analyses} AI startups reveals dominant patterns: "
+                f"{', '.join(top_3)}. {pct_with_genai:.0f}% use GenAI as a core product component, "
+                f"with vertical specialization as the primary differentiation strategy."
+            )
+    else:
+        description = f"This period's {total_analyses} startups show diverse AI adoption patterns."
 
     return {
-        "title": "The Specialization Era",
-        "description": "This week's cohort reveals a clear pattern: the 'general-purpose AI' era is giving way to deeply specialized solutions. Every startup is building vertical data moats, and those who aren't are struggling to differentiate.",
-        "patterns": patterns
+        "title": title,
+        "description": description,
+        "patterns": patterns if patterns else [
+            {"name": "Various Patterns", "prevalence": "Mixed", "meaning": "Limited pattern data available"}
+        ]
     }
 
 
@@ -276,8 +378,6 @@ def _format_impact_badge(impact: str) -> str:
 def _format_lead_story(story: Dict[str, Any]) -> str:
     """Format the lead story section with improved visual structure."""
     parts = []
-
-    company = story.get("company_name", "Unknown")
 
     # Use unique voice content if available
     if story.get("unique_voice_content"):
@@ -449,27 +549,108 @@ def _aggregate_takeaways(analyses: List[Dict[str, Any]]) -> List[Dict[str, Any]]
 
 
 def _extract_watches(analyses: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-    """Extract trends to watch."""
-    watches = [
-        {
-            "trend": "Voice + Agents convergence",
-            "implication": "Voice becomes the primary interface for agentic AI"
-        },
-        {
-            "trend": "Security-as-platform",
-            "implication": "Point solutions consolidating into comprehensive AI security platforms"
-        },
-        {
-            "trend": "Vertical specialization accelerating",
-            "implication": "Generic AI wrappers dying, domain experts winning"
-        },
-        {
-            "trend": "Job postings as tech stack oracle",
-            "implication": "What companies hire for reveals more than what they market"
-        },
-    ]
+    """Extract trends to watch from actual analysis data."""
+    watches = []
 
-    # Add any specific watches from analyses
+    # Count patterns with high novelty scores
+    novel_patterns = {}
+    category_trends = {}
+    tech_stack_signals = {}
+    business_model_signals = {}
+
+    for analysis in analyses:
+        # Extract from discovered patterns
+        for pattern in analysis.get("discovered_patterns", []):
+            novelty = pattern.get("novelty_score", 5)
+            if novelty >= 7:
+                name = pattern.get("pattern_name", "")
+                if name:
+                    novel_patterns[name] = novel_patterns.get(name, 0) + 1
+
+            category = pattern.get("category", "")
+            if category:
+                category_trends[category] = category_trends.get(category, 0) + 1
+
+        # Extract from tech stack
+        tech = analysis.get("tech_stack", {})
+        for model in tech.get("llm_models", []):
+            tech_stack_signals[model] = tech_stack_signals.get(model, 0) + 1
+
+        # Extract from model details
+        model_details = analysis.get("model_details", {})
+        if model_details.get("fine_tuning", {}).get("uses_fine_tuning"):
+            tech_stack_signals["Fine-tuning"] = tech_stack_signals.get("Fine-tuning", 0) + 1
+        if model_details.get("compound_ai", {}).get("is_compound_system"):
+            tech_stack_signals["Compound AI"] = tech_stack_signals.get("Compound AI", 0) + 1
+        if model_details.get("model_routing", {}).get("uses_routing"):
+            tech_stack_signals["Model Routing"] = tech_stack_signals.get("Model Routing", 0) + 1
+
+        # Extract from business model
+        biz = analysis.get("business_model", {})
+        gtm = biz.get("gtm_strategy", {}).get("primary_channel", "")
+        if gtm and gtm != "unknown":
+            business_model_signals[gtm] = business_model_signals.get(gtm, 0) + 1
+
+    # Generate watches from novel patterns
+    if novel_patterns:
+        top_novel = sorted(novel_patterns.items(), key=lambda x: x[1], reverse=True)[:2]
+        for name, count in top_novel:
+            watches.append({
+                "trend": f"{name} emerging",
+                "implication": f"Appearing in {count} startups with high novelty scores"
+            })
+
+    # Generate watches from tech stack trends
+    if tech_stack_signals:
+        top_tech = sorted(tech_stack_signals.items(), key=lambda x: x[1], reverse=True)[:2]
+        for tech, count in top_tech:
+            if tech == "Fine-tuning":
+                watches.append({
+                    "trend": "Custom model training accelerating",
+                    "implication": f"{count} startups building proprietary fine-tuned models"
+                })
+            elif tech == "Compound AI":
+                watches.append({
+                    "trend": "Multi-model orchestration maturing",
+                    "implication": f"{count} startups deploying compound AI systems"
+                })
+            elif tech == "Model Routing":
+                watches.append({
+                    "trend": "Dynamic model selection",
+                    "implication": f"{count} startups routing between models for cost/quality optimization"
+                })
+            else:
+                watches.append({
+                    "trend": f"{tech} adoption",
+                    "implication": f"Leading model choice in {count} startups this period"
+                })
+
+    # Generate watches from GTM patterns
+    if business_model_signals:
+        top_gtm = sorted(business_model_signals.items(), key=lambda x: x[1], reverse=True)[0]
+        gtm_name, count = top_gtm
+        gtm_labels = {
+            "product_led": "Product-led growth dominance",
+            "sales_led": "Enterprise sales motion preference",
+            "developer_first": "Developer-first distribution",
+            "partnership_led": "Partnership ecosystem plays",
+        }
+        label = gtm_labels.get(gtm_name, f"{gtm_name} GTM strategy")
+        watches.append({
+            "trend": label,
+            "implication": f"{count} startups following this go-to-market approach"
+        })
+
+    # Add category-based watches
+    if category_trends:
+        top_cat = sorted(category_trends.items(), key=lambda x: x[1], reverse=True)[0]
+        cat_name, count = top_cat
+        watches.append({
+            "trend": f"{cat_name} focus area",
+            "implication": f"Highest concentration of build patterns this period"
+        })
+
+    # Add any specific watches from why_now analysis
     for analysis in analyses:
         why_now = analysis.get("why_now", {})
         if why_now.get("primary_trigger", {}).get("trigger"):
@@ -478,4 +659,13 @@ def _extract_watches(analyses: List[Dict[str, Any]]) -> List[Dict[str, str]]:
                 "implication": why_now["primary_trigger"].get("evidence", "Emerging trend")
             })
 
-    return watches[:6]
+    # Deduplicate and limit
+    seen = set()
+    unique_watches = []
+    for w in watches:
+        key = w["trend"].lower()
+        if key not in seen:
+            seen.add(key)
+            unique_watches.append(w)
+
+    return unique_watches[:6]

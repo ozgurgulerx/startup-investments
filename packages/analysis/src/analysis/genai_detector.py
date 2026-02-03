@@ -24,6 +24,25 @@ from src.data.models import (
     EngineeringQuality,
     StoryAngle,
     AntiPattern,
+    # New models for enhanced analysis
+    DiscoveredPattern,
+    NovelApproach,
+    ModelDetails,
+    FineTuningDetails,
+    ModelRouting,
+    CompoundAIDetails,
+    TeamAnalysis,
+    FounderInfo,
+    TeamSignals,
+    BusinessModel,
+    PricingModel,
+    GTMStrategy,
+    RevenueModel,
+    CustomerAcquisition,
+    ProductAnalysis,
+    FeatureDepth,
+    IntegrationEcosystem,
+    UseCases,
 )
 from src.analysis.prompts import (
     get_genai_detection_prompt,
@@ -36,6 +55,11 @@ from src.analysis.prompts import (
     get_vertical_analysis_prompt,
     get_story_angles_prompt,
     get_anti_patterns_prompt,
+    # New prompts for enhanced analysis
+    get_pattern_discovery_prompt,
+    get_team_analysis_prompt,
+    get_business_model_prompt,
+    get_product_depth_prompt,
 )
 from src.crawler.engine import StartupCrawler
 
@@ -92,28 +116,38 @@ class GenAIAnalyzer:
             startup.name, content, startup.description or "", industries_str, funding_info
         )
 
-        # Enhanced analyses (new)
+        # Enhanced analyses
         tech_stack_result = await self._detect_tech_stack(startup.name, content)
         engineering_result = await self._assess_engineering_quality(startup.name, content)
         vertical_result = await self._analyze_vertical(
             startup.name, content, startup.description or "", industries_str
         )
 
+        # NEW: Dynamic pattern discovery and business analysis
+        pattern_discovery_result = await self._discover_patterns(startup.name, content)
+        team_result = await self._analyze_team(startup.name, content)
+        business_model_result = await self._analyze_business_model(startup.name, content, funding_info)
+        product_result = await self._analyze_product(startup.name, content)
+
         # Parse intermediate results for story angles
         patterns_str = ", ".join([p.get("name", "") for p in patterns_result.get("patterns_detected", [])])
+        discovered_patterns_str = ", ".join([
+            p.get("pattern_name", "") for p in pattern_discovery_result.get("discovered_patterns", [])
+        ])
+        all_patterns_str = f"{patterns_str}, {discovered_patterns_str}".strip(", ")
         tech_stack_str = f"LLMs: {tech_stack_result.get('llm_models', [])}, Approach: {tech_stack_result.get('approach', 'unknown')}"
         vertical_str = vertical_result.get("vertical", "other")
         eng_quality_str = f"Score: {engineering_result.get('score', 0)}/10"
 
         # Generate story angles based on all analyses
         story_angles_result = await self._generate_story_angles(
-            startup.name, content, patterns_str, tech_stack_str, vertical_str, funding_info, eng_quality_str
+            startup.name, content, all_patterns_str, tech_stack_str, vertical_str, funding_info, eng_quality_str
         )
 
         # Detect anti-patterns
         competitive_str = f"Moat: {competitive_result.get('competitive_moat', 'unknown')}"
         anti_patterns_result = await self._detect_anti_patterns(
-            startup.name, content, patterns_str, tech_stack_str, competitive_str
+            startup.name, content, all_patterns_str, tech_stack_str, competitive_str
         )
 
         # Build the analysis result
@@ -143,6 +177,21 @@ class GenAIAnalyzer:
             evidence_quotes=genai_result.get("evidence", []) + patterns_result.get("novel_approaches", []),
             confidence_score=genai_result.get("confidence", 0.0),
             raw_content_analyzed=len(content),
+            # NEW: Dynamic pattern discovery fields
+            discovered_patterns=self._parse_discovered_patterns(
+                pattern_discovery_result.get("discovered_patterns", [])
+            ),
+            model_details=self._parse_model_details(
+                pattern_discovery_result.get("model_details", {})
+            ),
+            novel_approaches=self._parse_novel_approaches(
+                pattern_discovery_result.get("novel_approaches", [])
+            ),
+            implementation_maturity=pattern_discovery_result.get("implementation_maturity", "unknown"),
+            # NEW: Business analysis fields
+            team_analysis=self._parse_team_analysis(team_result),
+            business_model=self._parse_business_model(business_model_result),
+            product_analysis=self._parse_product_analysis(product_result),
         )
 
         return analysis
@@ -230,6 +279,36 @@ class GenAIAnalyzer:
         """Detect warning signs and anti-patterns."""
         prompt = get_anti_patterns_prompt(company_name, content, patterns, tech_stack, competitive_info)
         return await self._call_llm(prompt, use_reasoning=True)
+
+    # =========================================================================
+    # NEW: Enhanced Analysis Methods
+    # =========================================================================
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    async def _discover_patterns(self, company_name: str, content: str) -> Dict[str, Any]:
+        """Dynamically discover build patterns without predefined list."""
+        prompt = get_pattern_discovery_prompt(company_name, content)
+        return await self._call_llm(prompt, use_reasoning=True)
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    async def _analyze_team(self, company_name: str, content: str) -> Dict[str, Any]:
+        """Analyze team and leadership."""
+        prompt = get_team_analysis_prompt(company_name, content)
+        return await self._call_llm(prompt, use_reasoning=False)
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    async def _analyze_business_model(
+        self, company_name: str, content: str, funding_info: str
+    ) -> Dict[str, Any]:
+        """Analyze business model and GTM strategy."""
+        prompt = get_business_model_prompt(company_name, content, funding_info)
+        return await self._call_llm(prompt, use_reasoning=False)
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    async def _analyze_product(self, company_name: str, content: str) -> Dict[str, Any]:
+        """Analyze product depth and maturity."""
+        prompt = get_product_depth_prompt(company_name, content)
+        return await self._call_llm(prompt, use_reasoning=False)
 
     async def _call_llm(self, prompt: str, use_reasoning: bool = False) -> Dict[str, Any]:
         """Call Azure OpenAI and parse JSON response."""
@@ -431,6 +510,169 @@ class GenAIAnalyzer:
             secret_sauce=secret_sauce,
             competitive_moat=data.get("competitive_moat", "unknown"),
             moat_explanation=data.get("moat_explanation", ""),
+        )
+
+    # =========================================================================
+    # NEW: Parser Methods for Enhanced Analysis
+    # =========================================================================
+
+    def _parse_discovered_patterns(self, patterns: List[Dict[str, Any]]) -> List[DiscoveredPattern]:
+        """Parse discovered patterns from dynamic pattern discovery."""
+        result = []
+        for p in patterns:
+            try:
+                result.append(DiscoveredPattern(
+                    category=p.get("category", "Other"),
+                    pattern_name=p.get("pattern_name", "unknown"),
+                    confidence=float(p.get("confidence", 0.5)),
+                    evidence=p.get("evidence", []),
+                    description=p.get("description", ""),
+                    novelty_score=int(p.get("novelty_score", 5)),
+                    why_notable=p.get("why_notable", ""),
+                ))
+            except Exception:
+                pass
+        return result
+
+    def _parse_novel_approaches(self, approaches: List[Dict[str, Any]]) -> List[NovelApproach]:
+        """Parse novel approaches from pattern discovery."""
+        result = []
+        for a in approaches:
+            try:
+                result.append(NovelApproach(
+                    approach=a.get("approach", ""),
+                    why_novel=a.get("why_novel", ""),
+                    potential_impact=a.get("potential_impact", ""),
+                ))
+            except Exception:
+                pass
+        return result
+
+    def _parse_model_details(self, data: Dict[str, Any]) -> ModelDetails:
+        """Parse model details from pattern discovery."""
+        fine_tuning_data = data.get("fine_tuning", {})
+        routing_data = data.get("model_routing", {})
+        compound_data = data.get("compound_ai", {})
+
+        return ModelDetails(
+            primary_models=data.get("primary_models", []),
+            fine_tuning=FineTuningDetails(
+                uses_fine_tuning=fine_tuning_data.get("uses_fine_tuning", False),
+                fine_tuning_approach=fine_tuning_data.get("fine_tuning_approach", ""),
+                training_data_source=fine_tuning_data.get("training_data_source", ""),
+            ),
+            inference_optimization=data.get("inference_optimization", []),
+            model_routing=ModelRouting(
+                uses_routing=routing_data.get("uses_routing", False),
+                routing_strategy=routing_data.get("routing_strategy", ""),
+            ),
+            compound_ai=CompoundAIDetails(
+                is_compound_system=compound_data.get("is_compound_system", False),
+                orchestration_pattern=compound_data.get("orchestration_pattern", ""),
+            ),
+        )
+
+    def _parse_team_analysis(self, data: Dict[str, Any]) -> TeamAnalysis:
+        """Parse team analysis result."""
+        founders = []
+        for f in data.get("founders", []):
+            try:
+                founders.append(FounderInfo(
+                    name=f.get("name", ""),
+                    role=f.get("role", ""),
+                    background=f.get("background", ""),
+                    previous_companies=f.get("previous_companies", []),
+                    technical_depth=f.get("technical_depth", "unknown"),
+                    domain_expertise=f.get("domain_expertise", ""),
+                ))
+            except Exception:
+                pass
+
+        team_signals_data = data.get("team_signals", {})
+        team_signals = TeamSignals(
+            engineering_heavy=team_signals_data.get("engineering_heavy", False),
+            has_ml_expertise=team_signals_data.get("has_ml_expertise", False),
+            has_domain_expertise=team_signals_data.get("has_domain_expertise", False),
+            hiring_signals=team_signals_data.get("hiring_signals", []),
+            team_size_indicators=team_signals_data.get("team_size_indicators", "unknown"),
+            remote_distributed=team_signals_data.get("remote_distributed", False),
+        )
+
+        return TeamAnalysis(
+            founders=founders,
+            team_signals=team_signals,
+            founder_market_fit=data.get("founder_market_fit", ""),
+            team_strengths=data.get("team_strengths", []),
+            team_red_flags=data.get("team_red_flags", []),
+            team_confidence=data.get("team_confidence", 0.0),
+        )
+
+    def _parse_business_model(self, data: Dict[str, Any]) -> BusinessModel:
+        """Parse business model analysis result."""
+        pricing_data = data.get("pricing_model", {})
+        gtm_data = data.get("gtm_strategy", {})
+        revenue_data = data.get("revenue_model", {})
+        acquisition_data = data.get("customer_acquisition", {})
+
+        return BusinessModel(
+            pricing_model=PricingModel(
+                type=pricing_data.get("type", "unknown"),
+                pricing_evidence=pricing_data.get("pricing_evidence", []),
+                free_tier_available=pricing_data.get("free_tier_available", False),
+                enterprise_focus=pricing_data.get("enterprise_focus", False),
+                price_points=pricing_data.get("price_points", []),
+            ),
+            gtm_strategy=GTMStrategy(
+                primary_channel=gtm_data.get("primary_channel", "unknown"),
+                evidence=gtm_data.get("evidence", []),
+                target_segment=gtm_data.get("target_segment", "unknown"),
+                sales_motion=gtm_data.get("sales_motion", "unknown"),
+            ),
+            revenue_model=RevenueModel(
+                monetization_approach=revenue_data.get("monetization_approach", ""),
+                unit_economics_signals=revenue_data.get("unit_economics_signals", []),
+                recurring_revenue=revenue_data.get("recurring_revenue", False),
+            ),
+            distribution_advantages=data.get("distribution_advantages", []),
+            customer_acquisition=CustomerAcquisition(
+                acquisition_channels=acquisition_data.get("acquisition_channels", []),
+                customer_proof_points=acquisition_data.get("customer_proof_points", []),
+            ),
+            business_model_clarity=data.get("business_model_clarity", "unclear"),
+            business_model_confidence=data.get("business_model_confidence", 0.0),
+        )
+
+    def _parse_product_analysis(self, data: Dict[str, Any]) -> ProductAnalysis:
+        """Parse product analysis result."""
+        feature_data = data.get("feature_depth", {})
+        integration_data = data.get("integration_ecosystem", {})
+        use_case_data = data.get("use_cases", {})
+
+        return ProductAnalysis(
+            product_stage=data.get("product_stage", "unknown"),
+            stage_evidence=data.get("stage_evidence", []),
+            feature_depth=FeatureDepth(
+                core_features=feature_data.get("core_features", []),
+                differentiating_features=feature_data.get("differentiating_features", []),
+                roadmap_signals=feature_data.get("roadmap_signals", []),
+                feature_completeness=feature_data.get("feature_completeness", "unknown"),
+            ),
+            integration_ecosystem=IntegrationEcosystem(
+                integrations_mentioned=integration_data.get("integrations_mentioned", []),
+                api_maturity=integration_data.get("api_maturity", "none"),
+                sdk_availability=integration_data.get("sdk_availability", []),
+                webhook_support=integration_data.get("webhook_support", False),
+                marketplace_presence=integration_data.get("marketplace_presence", []),
+            ),
+            use_cases=UseCases(
+                primary_use_case=use_case_data.get("primary_use_case", ""),
+                secondary_use_cases=use_case_data.get("secondary_use_cases", []),
+                customer_stories=use_case_data.get("customer_stories", []),
+                industry_focus=use_case_data.get("industry_focus", []),
+            ),
+            product_risks=data.get("product_risks", []),
+            product_strengths=data.get("product_strengths", []),
+            product_confidence=data.get("product_confidence", 0.0),
         )
 
 
