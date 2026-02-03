@@ -381,6 +381,350 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
         </section>
       )}
 
+      {/* Model Architecture - NEW */}
+      {startup.model_details && (
+        startup.model_details.primary_models?.length > 0 ||
+        startup.model_details.fine_tuning?.uses_fine_tuning ||
+        startup.model_details.compound_ai?.is_compound_system ||
+        startup.model_details.model_routing?.uses_routing
+      ) && (
+        <section className="section">
+          <div className="section-header">
+            <span className="section-title">Model Architecture</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Primary Models */}
+            {startup.model_details.primary_models?.length > 0 && (
+              <div className="space-y-2">
+                <span className="label-xs">Primary Models</span>
+                <div className="flex flex-wrap gap-2">
+                  {startup.model_details.primary_models.map((model: string, i: number) => (
+                    <span key={i} className="px-2 py-1 text-xs bg-muted/50 rounded text-foreground/80">
+                      {model}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Fine-tuning */}
+            {startup.model_details.fine_tuning?.uses_fine_tuning && (
+              <div className="space-y-2">
+                <span className="label-xs">Fine-tuning</span>
+                <p className="body-sm">
+                  {startup.model_details.fine_tuning.fine_tuning_approach || 'Custom fine-tuning'}
+                  {startup.model_details.fine_tuning.training_data_source && (
+                    <span className="text-muted-foreground">
+                      {' '}— {startup.model_details.fine_tuning.training_data_source}
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {/* Compound AI */}
+            {startup.model_details.compound_ai?.is_compound_system && (
+              <div className="space-y-2">
+                <span className="label-xs">Compound AI System</span>
+                <p className="body-sm">
+                  {startup.model_details.compound_ai.orchestration_pattern || 'Multi-model orchestration'}
+                </p>
+              </div>
+            )}
+
+            {/* Model Routing */}
+            {startup.model_details.model_routing?.uses_routing && (
+              <div className="space-y-2">
+                <span className="label-xs">Model Routing</span>
+                <p className="body-sm">
+                  {startup.model_details.model_routing.routing_strategy || 'Dynamic model selection'}
+                </p>
+              </div>
+            )}
+
+            {/* Inference Optimization */}
+            {startup.model_details.inference_optimization?.length > 0 && (
+              <div className="space-y-2">
+                <span className="label-xs">Inference Optimization</span>
+                <div className="flex flex-wrap gap-2">
+                  {startup.model_details.inference_optimization.map((opt: string, i: number) => (
+                    <span key={i} className="text-xs text-muted-foreground">
+                      {opt}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Team Analysis - NEW */}
+      {startup.team_analysis && (
+        startup.team_analysis.founders?.length > 0 ||
+        startup.team_analysis.team_strengths?.length > 0 ||
+        startup.team_analysis.founder_market_fit
+      ) && (
+        <section className="section">
+          <div className="section-header">
+            <span className="section-title">Team</span>
+          </div>
+
+          {/* Founders */}
+          {startup.team_analysis.founders?.length > 0 && (
+            <div className="space-y-4 mb-6">
+              {startup.team_analysis.founders.slice(0, 3).map((founder: any, i: number) => (
+                <div key={i} className="py-3 border-b border-border/30 last:border-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-foreground">{founder.name}</span>
+                    {founder.role && (
+                      <span className="text-xs text-muted-foreground">• {founder.role}</span>
+                    )}
+                    {founder.technical_depth && founder.technical_depth !== 'unknown' && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                        founder.technical_depth === 'high' ? 'bg-foreground/10 text-foreground' :
+                        founder.technical_depth === 'medium' ? 'bg-muted text-muted-foreground' :
+                        'bg-muted/50 text-muted-foreground'
+                      }`}>
+                        {founder.technical_depth} technical
+                      </span>
+                    )}
+                  </div>
+                  {founder.background && (
+                    <p className="body-sm">{founder.background}</p>
+                  )}
+                  {founder.previous_companies?.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Previously: {founder.previous_companies.join(', ')}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Founder-Market Fit */}
+          {startup.team_analysis.founder_market_fit && (
+            <div className="intel-callout mb-4">
+              <span className="intel-callout-label">Founder-Market Fit</span>
+              <p className="intel-callout-text">{startup.team_analysis.founder_market_fit}</p>
+            </div>
+          )}
+
+          {/* Team Signals */}
+          {startup.team_analysis.team_signals && (
+            <div className="flex flex-wrap gap-3 text-xs">
+              {startup.team_analysis.team_signals.engineering_heavy && (
+                <span className="px-2 py-1 bg-muted/50 rounded">Engineering-heavy</span>
+              )}
+              {startup.team_analysis.team_signals.has_ml_expertise && (
+                <span className="px-2 py-1 bg-muted/50 rounded">ML expertise</span>
+              )}
+              {startup.team_analysis.team_signals.has_domain_expertise && (
+                <span className="px-2 py-1 bg-muted/50 rounded">Domain expertise</span>
+              )}
+              {startup.team_analysis.team_signals.hiring_signals?.map((signal: string, i: number) => (
+                <span key={i} className="px-2 py-1 bg-muted/30 rounded text-muted-foreground">
+                  Hiring: {signal}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Team Red Flags */}
+          {startup.team_analysis.team_red_flags?.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border/30">
+              <span className="label-xs text-amber-500/80">Considerations</span>
+              <ul className="mt-2 space-y-1">
+                {startup.team_analysis.team_red_flags.map((flag: string, i: number) => (
+                  <li key={i} className="text-xs text-muted-foreground">• {flag}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Business Model - NEW */}
+      {startup.business_model && (
+        startup.business_model.gtm_strategy?.primary_channel !== 'unknown' ||
+        startup.business_model.pricing_model?.type !== 'unknown' ||
+        startup.business_model.distribution_advantages?.length > 0
+      ) && (
+        <section className="section">
+          <div className="section-header">
+            <span className="section-title">Business Model</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            {/* GTM Strategy */}
+            {startup.business_model.gtm_strategy?.primary_channel &&
+             startup.business_model.gtm_strategy.primary_channel !== 'unknown' && (
+              <div className="space-y-2">
+                <span className="label-xs">Go-to-Market</span>
+                <p className="text-sm font-medium text-foreground">
+                  {startup.business_model.gtm_strategy.primary_channel.replace(/_/g, ' ')}
+                </p>
+                {startup.business_model.gtm_strategy.target_segment &&
+                 startup.business_model.gtm_strategy.target_segment !== 'unknown' && (
+                  <p className="text-xs text-muted-foreground">
+                    Target: {startup.business_model.gtm_strategy.target_segment.replace(/_/g, ' ')}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Pricing Model */}
+            {startup.business_model.pricing_model?.type &&
+             startup.business_model.pricing_model.type !== 'unknown' && (
+              <div className="space-y-2">
+                <span className="label-xs">Pricing</span>
+                <p className="text-sm font-medium text-foreground">
+                  {startup.business_model.pricing_model.type.replace(/_/g, ' ')}
+                </p>
+                <div className="flex gap-2 text-xs text-muted-foreground">
+                  {startup.business_model.pricing_model.free_tier_available && (
+                    <span>Free tier</span>
+                  )}
+                  {startup.business_model.pricing_model.enterprise_focus && (
+                    <span>Enterprise focus</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sales Motion */}
+            {startup.business_model.gtm_strategy?.sales_motion &&
+             startup.business_model.gtm_strategy.sales_motion !== 'unknown' && (
+              <div className="space-y-2">
+                <span className="label-xs">Sales Motion</span>
+                <p className="text-sm font-medium text-foreground">
+                  {startup.business_model.gtm_strategy.sales_motion.replace(/_/g, ' ')}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Distribution Advantages */}
+          {startup.business_model.distribution_advantages?.length > 0 && (
+            <div className="intel-callout">
+              <span className="intel-callout-label">Distribution Advantages</span>
+              <ul className="intel-callout-text space-y-1">
+                {startup.business_model.distribution_advantages.map((adv: string, i: number) => (
+                  <li key={i}>• {adv}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Customer Proof Points */}
+          {startup.business_model.customer_acquisition?.customer_proof_points?.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border/30">
+              <span className="label-xs">Customer Evidence</span>
+              <div className="mt-2 space-y-1">
+                {startup.business_model.customer_acquisition.customer_proof_points.slice(0, 3).map((point: string, i: number) => (
+                  <p key={i} className="text-xs text-muted-foreground">• {point}</p>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Product Analysis - NEW */}
+      {startup.product_analysis && (
+        startup.product_analysis.product_stage !== 'unknown' ||
+        startup.product_analysis.feature_depth?.core_features?.length > 0 ||
+        startup.product_analysis.integration_ecosystem?.integrations_mentioned?.length > 0
+      ) && (
+        <section className="section">
+          <div className="section-header">
+            <span className="section-title">Product</span>
+          </div>
+
+          {/* Product Stage */}
+          {startup.product_analysis.product_stage && startup.product_analysis.product_stage !== 'unknown' && (
+            <div className="flex items-center gap-3 mb-4">
+              <span className="label-xs">Stage:</span>
+              <span className={`px-2 py-1 text-xs rounded ${
+                startup.product_analysis.product_stage === 'mature' ? 'bg-foreground/10 text-foreground' :
+                startup.product_analysis.product_stage === 'general_availability' ? 'bg-muted text-foreground/80' :
+                startup.product_analysis.product_stage === 'beta' ? 'bg-muted/50 text-muted-foreground' :
+                'bg-muted/30 text-muted-foreground'
+              }`}>
+                {startup.product_analysis.product_stage.replace(/_/g, ' ')}
+              </span>
+            </div>
+          )}
+
+          {/* Core Features */}
+          {startup.product_analysis.feature_depth?.differentiating_features?.length > 0 && (
+            <div className="mb-4">
+              <span className="label-xs">Differentiating Features</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {startup.product_analysis.feature_depth.differentiating_features.slice(0, 5).map((feature: string, i: number) => (
+                  <span key={i} className="px-2 py-1 text-xs bg-accent/10 text-accent rounded">
+                    {feature}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Integrations */}
+          {startup.product_analysis.integration_ecosystem?.integrations_mentioned?.length > 0 && (
+            <div className="mb-4">
+              <span className="label-xs">Integrations</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {startup.product_analysis.integration_ecosystem.integrations_mentioned.slice(0, 6).map((integration: string, i: number) => (
+                  <span key={i} className="text-xs text-muted-foreground">
+                    {integration}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Use Cases */}
+          {startup.product_analysis.use_cases?.primary_use_case && (
+            <div className="intel-callout">
+              <span className="intel-callout-label">Primary Use Case</span>
+              <p className="intel-callout-text">{startup.product_analysis.use_cases.primary_use_case}</p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Discovered Patterns - NEW (high-novelty patterns) */}
+      {startup.discovered_patterns?.length > 0 && (
+        <section className="section">
+          <div className="section-header">
+            <span className="section-title">Novel Approaches</span>
+          </div>
+
+          <div className="space-y-4">
+            {startup.discovered_patterns
+              .filter((p: any) => p.novelty_score >= 7)
+              .slice(0, 3)
+              .map((pattern: any, i: number) => (
+                <div key={i} className="py-3 border-b border-border/30 last:border-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium text-foreground">{pattern.pattern_name}</span>
+                    <span className="text-xs px-1.5 py-0.5 bg-accent/10 text-accent rounded">
+                      Novelty: {pattern.novelty_score}/10
+                    </span>
+                    <span className="text-xs text-muted-foreground">{pattern.category}</span>
+                  </div>
+                  {pattern.why_notable && (
+                    <p className="body-sm">{pattern.why_notable}</p>
+                  )}
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
+
       {/* Competitive Context - prose style */}
       {competitors.length > 0 && (
         <section className="section">
