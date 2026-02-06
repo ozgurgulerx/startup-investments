@@ -50,6 +50,19 @@ TRACKING_PARAMS = {
     "campaign",
 }
 
+FRONTIER_LISTING_PATHS = {
+    "",
+    "blog",
+    "blogs",
+    "news",
+    "changelog",
+    "changes",
+    "updates",
+    "resources",
+    "press",
+    "insights",
+}
+
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "in", "is", "it",
     "its", "of", "on", "or", "that", "the", "to", "with", "will", "new", "startup", "startups",
@@ -116,7 +129,7 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("hackernews_api", "Hacker News API", "api", "https://hacker-news.firebaseio.com/v0", fetch_mode="api", credibility_weight=0.88),
     SourceDefinition("newsapi", "NewsAPI", "api", "https://newsapi.org/v2/everything", fetch_mode="api", credibility_weight=0.67),
     SourceDefinition("gnews", "GNews", "api", "https://gnews.io/api/v4/search", fetch_mode="api", credibility_weight=0.66),
-    SourceDefinition("frontier_news", "Frontier News URLs", "crawler", "frontier://news", fetch_mode="crawler", credibility_weight=0.79),
+    SourceDefinition("frontier_news", "Frontier News URLs", "crawler", "frontier://news", fetch_mode="crawler", credibility_weight=0.62),
 ]
 
 
@@ -181,6 +194,13 @@ def canonicalize_url(url: str) -> str:
 
 def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip())
+
+
+def is_likely_content_url(url: str) -> bool:
+    path = (urlparse(url).path or "").strip().lower().strip("/")
+    if path in FRONTIER_LISTING_PATHS:
+        return False
+    return True
 
 
 def ensure_json_object(value: Any) -> Dict[str, Any]:
@@ -704,6 +724,8 @@ class DailyNewsIngestor:
             url = str(row.get("url") or row.get("canonical_url") or "")
             if not url:
                 return None
+            if not is_likely_content_url(url):
+                return None
             published = row.get("last_crawled_at") or datetime.now(timezone.utc)
 
             try:
@@ -731,10 +753,11 @@ class DailyNewsIngestor:
             except Exception:
                 return None
 
-        tasks = [parse_url(r) for r in rows]
         out: List[NormalizedNewsItem] = []
-        for chunk_start in range(0, len(tasks), 30):
-            for item in await asyncio.gather(*tasks[chunk_start: chunk_start + 30]):
+        for chunk_start in range(0, len(rows), 30):
+            chunk_rows = rows[chunk_start: chunk_start + 30]
+            chunk_tasks = [parse_url(r) for r in chunk_rows]
+            for item in await asyncio.gather(*chunk_tasks):
                 if item is not None:
                     out.append(item)
                 if len(out) >= self.max_per_source:

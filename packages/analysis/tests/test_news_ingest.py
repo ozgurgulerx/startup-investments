@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from src.automation.news_ingest import DailyNewsIngestor, SourceDefinition, ensure_json_object
+from src.automation.news_ingest import DailyNewsIngestor, SourceDefinition, ensure_json_object, is_likely_content_url
 
 
 def test_ensure_json_object_handles_dict_and_json_string():
@@ -18,6 +18,14 @@ def test_ensure_json_object_returns_empty_for_invalid_shapes():
     assert ensure_json_object("not json") == {}
     assert ensure_json_object("[1,2,3]") == {}
     assert ensure_json_object(123) == {}
+
+
+def test_is_likely_content_url_filters_listing_paths():
+    assert is_likely_content_url("https://acme.com/blog") is False
+    assert is_likely_content_url("https://acme.com/news/") is False
+    assert is_likely_content_url("https://acme.com/changelog") is False
+    assert is_likely_content_url("https://acme.com/blog/launch-post") is True
+    assert is_likely_content_url("https://acme.com/updates/product-v2") is True
 
 
 class _FakeResponse:
@@ -75,4 +83,3 @@ def test_fetch_hackernews_api_returns_story_items(monkeypatch):
     assert items[0].title == "Acme raises seed round"
     assert items[0].engagement["points"] == 120
     assert items[0].engagement["comments"] == 22
-
