@@ -183,6 +183,21 @@ def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip())
 
 
+def ensure_json_object(value: Any) -> Dict[str, Any]:
+    """Coerce json/jsonb payloads from DB into plain dicts safely."""
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return {}
+        return dict(parsed) if isinstance(parsed, dict) else {}
+    return {}
+
+
 def parse_entry_datetime(entry: Any) -> Optional[datetime]:
     parsed = entry.get("published_parsed") or entry.get("updated_parsed")
     if parsed:
@@ -471,9 +486,8 @@ class DailyNewsIngestor:
             except Exception:
                 return None
 
-        tasks = [fetch_item(i) for i in ids]
-        for batch_start in range(0, len(tasks), 25):
-            batch = tasks[batch_start: batch_start + 25]
+        for batch_start in range(0, len(ids), 25):
+            batch = [fetch_item(i) for i in ids[batch_start: batch_start + 25]]
             for result in await asyncio.gather(*batch):
                 if result is not None:
                     items.append(result)
@@ -857,8 +871,8 @@ class DailyNewsIngestor:
                     language=str(row["language"] or "en"),
                     author=row["author"],
                     external_id=str(row["external_id"]),
-                    engagement=dict(row["engagement_json"] or {}),
-                    payload=dict(row["payload_json"] or {}),
+                    engagement=ensure_json_object(row["engagement_json"]),
+                    payload=ensure_json_object(row["payload_json"]),
                     source_weight=float(row["credibility_weight"] or 0.65),
                 )
             )
@@ -1139,7 +1153,7 @@ class DailyNewsIngestor:
                     "items_fetched": items_fetched,
                     "items_kept": items_kept,
                     "clusters_built": len(clusters),
-                    "top_clusters": len(stats.get("top_story_count", 0) if isinstance(stats.get("top_story_count", 0), int) else 0),
+                    "top_clusters": int(stats.get("top_story_count") or 0),
                     "errors": errors,
                     "stats": stats,
                 }
