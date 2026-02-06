@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
-import { getMonthlyStats, getStartups } from '@/lib/data';
+import { getMonthlyStats, getStartups, getAvailablePeriods } from '@/lib/data';
 import { InteractiveSignals } from './interactive-signals';
 import { computePatternCorrelations } from '@/lib/data/signals';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
 
-const DEFAULT_PERIOD = '2026-01';
+const FALLBACK_PERIOD = '2026-01';
 
 // Pattern thesis descriptions
 const PATTERN_THESIS: Record<string, {
@@ -86,9 +86,12 @@ export interface CategoryData {
 }
 
 async function SignalsContent() {
+  const availablePeriods = await getAvailablePeriods();
+  const latestPeriod = availablePeriods[0]?.period || FALLBACK_PERIOD;
+
   const [stats, startups] = await Promise.all([
-    getMonthlyStats(DEFAULT_PERIOD),
-    getStartups(DEFAULT_PERIOD),
+    getMonthlyStats(latestPeriod),
+    getStartups(latestPeriod),
   ]);
 
   const totalDeals = stats.deal_summary.total_deals;
@@ -129,7 +132,7 @@ async function SignalsContent() {
   for (const startup of startups) {
     const discoveredPatterns = startup.discovered_patterns || [];
     for (const pattern of discoveredPatterns) {
-      const name = pattern.pattern_name;
+      const name = pattern.pattern_name || pattern.name || 'unknown_pattern';
       const novelty = pattern.novelty_score || 5;
       const category = pattern.category || 'Other';
 
@@ -170,12 +173,13 @@ async function SignalsContent() {
     const discoveredPatterns = startup.discovered_patterns || [];
     for (const pattern of discoveredPatterns) {
       const category = pattern.category || 'Other';
+      const patternKey = pattern.pattern_name || pattern.name || 'unknown_pattern';
       const existing = categoryMap.get(category);
       if (existing) {
         existing.count++;
-        existing.patterns.add(pattern.pattern_name);
+        existing.patterns.add(patternKey);
       } else {
-        categoryMap.set(category, { count: 1, patterns: new Set([pattern.pattern_name]) });
+        categoryMap.set(category, { count: 1, patterns: new Set([patternKey]) });
       }
     }
   }
