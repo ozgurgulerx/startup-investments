@@ -356,6 +356,98 @@ def crawl(
     asyncio.run(crawl_all())
 
 
+@app.command("crawl-frontier")
+def crawl_frontier(
+    once: bool = typer.Option(False, "--once", help="Run one lease/crawl iteration and exit"),
+    worker_id: Optional[str] = typer.Option(None, "--worker-id", help="Optional stable worker identifier"),
+    batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Max leased URLs per loop"),
+    max_loops: Optional[int] = typer.Option(None, "--max-loops", help="Exit after N loops"),
+    idle_sleep_seconds: float = typer.Option(5.0, "--idle-sleep-seconds", help="Sleep when queue is empty"),
+):
+    """Run modern frontier worker (Scrapy runtime)."""
+    from src.crawl_runtime.worker import run_frontier_worker
+
+    loops = 1 if once else max_loops
+    result = asyncio.run(
+        run_frontier_worker(
+            worker_id=worker_id,
+            batch_size=batch_size,
+            idle_sleep_seconds=idle_sleep_seconds,
+            max_loops=loops,
+        )
+    )
+
+    console.print(Panel.fit(
+        "[bold blue]Frontier Worker Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Worker:[/bold] {result.get('worker_id')}")
+    console.print(f"[bold]Loops:[/bold] {result.get('loops', 0)}")
+    console.print(f"[bold]Leased:[/bold] {result.get('leased', 0)}")
+    console.print(f"[bold]Processed:[/bold] {result.get('processed', 0)}")
+    console.print(f"[bold]Failed:[/bold] {result.get('failed', 0)}")
+    console.print(f"[bold]Recovered stale leases:[/bold] {result.get('recovered_leases', 0)}")
+    if result.get("errors"):
+        console.print(f"[red]Errors:[/red] {len(result['errors'])}")
+
+
+@app.command("seed-frontier")
+def seed_frontier(
+    limit: int = typer.Option(5000, "--limit", "-l", help="Max startups to read from database"),
+):
+    """Seed crawl frontier queue from startups table."""
+    from src.crawl_runtime.seed_frontier import run_seed_frontier
+
+    try:
+        result = asyncio.run(run_seed_frontier(limit=max(1, int(limit))))
+    except Exception as exc:
+        console.print(f"[red]Frontier seed failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Frontier Seed Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Startups considered:[/bold] {result.get('startups_considered', 0)}")
+    console.print(f"[bold]Startups seeded:[/bold] {result.get('startups_seeded', 0)}")
+    console.print(f"[bold]URLs seeded:[/bold] {result.get('urls_seeded', 0)}")
+
+
+@app.command("ingest-news")
+def ingest_news(
+    lookback_hours: int = typer.Option(48, "--lookback-hours", help="How far back to collect stories"),
+    edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD"),
+    rebuild_only: bool = typer.Option(False, "--rebuild-only", help="Skip fetching, rebuild clusters/edition from existing raw items"),
+):
+    """Ingest daily startup news and build ranked edition snapshot."""
+    from src.automation.news_ingest import run_news_ingestion
+
+    try:
+        result = asyncio.run(
+            run_news_ingestion(
+                lookback_hours=max(1, int(lookback_hours)),
+                edition_date=edition_date,
+                rebuild_only=rebuild_only,
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]News ingestion failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Daily News Ingestion Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Run ID:[/bold] {result.get('run_id')}")
+    console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
+    console.print(f"[bold]Sources attempted:[/bold] {result.get('sources_attempted', 0)}")
+    console.print(f"[bold]Items fetched:[/bold] {result.get('items_fetched', 0)}")
+    console.print(f"[bold]Items kept:[/bold] {result.get('items_kept', 0)}")
+    console.print(f"[bold]Clusters built:[/bold] {result.get('clusters_built', 0)}")
+    if result.get("errors"):
+        console.print(f"[yellow]Warnings:[/yellow] {len(result['errors'])}")
+
+
 @app.command()
 def show(
     company: str = typer.Argument(..., help="Company name or slug"),

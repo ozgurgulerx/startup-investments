@@ -27,11 +27,20 @@ class AzureOpenAIConfig(BaseModel):
 
 class CrawlerConfig(BaseModel):
     """Crawler configuration."""
+    runtime: str = Field(default_factory=lambda: os.getenv("CRAWLER_RUNTIME", "scrapy"))
     headless: bool = True
     timeout_ms: int = 60000  # Increased from 30s to 60s for slow pages
     rate_limit_delay: float = 2.0  # seconds between requests
     max_concurrent: int = 3
     cache_dir: str = Field(default_factory=lambda: str(Path(__file__).parent.parent / "data" / "crawl_cache"))
+    respect_robots_txt: bool = Field(default_factory=lambda: os.getenv("CRAWLER_RESPECT_ROBOTS", "true").lower() == "true")
+    depth_limit: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_DEPTH_LIMIT", "2")))
+    max_pages_per_startup: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_MAX_PAGES_PER_STARTUP", "80")))
+    frontier_batch_size: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_FRONTIER_BATCH_SIZE", "50")))
+
+    # Proxy strategy (lean by default: datacenter first, optional residential fallback)
+    datacenter_proxy_url: str = Field(default_factory=lambda: os.getenv("CRAWLER_PROXY_URL", ""))
+    residential_proxy_url: str = Field(default_factory=lambda: os.getenv("CRAWLER_RESIDENTIAL_PROXY_URL", ""))
 
     # Data enrichment sources
     enable_web_search: bool = True

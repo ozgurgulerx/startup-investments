@@ -221,8 +221,35 @@ class StartupClassifier:
         """Detect what changed between existing and new data."""
         changes = []
 
+        def _as_set(value: Any) -> set:
+            if not value:
+                return set()
+            if isinstance(value, str):
+                return {v.strip() for v in value.split(",") if v.strip()}
+            return set(value)
+
+        # Website change (MAJOR)
+        old_website = existing_metadata.get("website")
+        new_website = new.website
+        if old_website and new_website and old_website != new_website:
+            changes.append(ChangeDetail(
+                field="website_hash",
+                old_value=old_website,
+                new_value=new_website,
+                significance="major"
+            ))
+        elif new_website and not old_website:
+            changes.append(ChangeDetail(
+                field="website_hash",
+                old_value=None,
+                new_value=new_website,
+                significance="major"
+            ))
+
         # Funding amount change (MAJOR)
-        old_funding = existing_metadata.get("funding_amount")
+        old_funding = existing_metadata.get("funding")
+        if old_funding is None:
+            old_funding = existing_metadata.get("funding_amount")
         new_funding = new.funding_amount
         if new_funding and old_funding and new_funding != old_funding:
             changes.append(ChangeDetail(
@@ -251,7 +278,7 @@ class StartupClassifier:
             ))
 
         # Description change (check similarity)
-        old_desc = existing_metadata.get("description", "")
+        old_desc = existing_metadata.get("description") or (existing_analysis or {}).get("description", "")
         new_desc = new.description or ""
         if old_desc and new_desc:
             similarity = SequenceMatcher(None, old_desc, new_desc).ratio()
@@ -271,8 +298,8 @@ class StartupClassifier:
                 ))
 
         # Industries change (MINOR)
-        old_industries = set(existing_metadata.get("industries", []))
-        new_industries = set(new.industries or [])
+        old_industries = _as_set(existing_metadata.get("industries", []))
+        new_industries = _as_set(new.industries or [])
         if old_industries != new_industries:
             changes.append(ChangeDetail(
                 field="industries",
@@ -282,8 +309,8 @@ class StartupClassifier:
             ))
 
         # Lead investors change (MINOR)
-        old_investors = set(existing_metadata.get("lead_investors", []))
-        new_investors = set(new.lead_investors or [])
+        old_investors = _as_set(existing_metadata.get("lead_investors", []))
+        new_investors = _as_set(new.lead_investors or [])
         if old_investors != new_investors:
             changes.append(ChangeDetail(
                 field="lead_investors",

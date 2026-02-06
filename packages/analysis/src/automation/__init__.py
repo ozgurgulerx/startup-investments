@@ -6,6 +6,7 @@ from .website_monitor import WebsiteContentMonitor
 from .rss_consumer import RSSFeedConsumer
 from .pattern_correlator import PatternCorrelator
 from .db import DatabaseConnection
+from .news_ingest import DailyNewsIngestor
 
 __all__ = [
     "DeepResearchConsumer",
@@ -14,4 +15,5 @@ __all__ = [
     "RSSFeedConsumer",
     "PatternCorrelator",
     "DatabaseConnection",
+    "DailyNewsIngestor",
 ]

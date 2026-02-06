@@ -1,0 +1,104 @@
+name: Daily Startup News Ingest
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_hours:
+        description: "Lookback window for source collection"
+        required: false
+        default: "48"
+      edition_date:
+        description: "Edition date (YYYY-MM-DD); defaults to today UTC"
+        required: false
+        default: ""
+      rebuild_only:
+        description: "Rebuild clusters/edition without fetching new sources"
+        required: false
+        default: "false"
+  schedule:
+    - cron: '15 * * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  ingest-news:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: news-ingest
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Missing required secret: DATABASE_URL"
+            exit 1
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install analysis dependencies
+        working-directory: packages/analysis
+        run: |
+          pip install -r requirements.txt
+
+      - name: Apply crawler and news migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python3 << 'PY'
+          import asyncio
+          import os
+          from pathlib import Path
+          import asyncpg
+
+          db_url = os.environ["DATABASE_URL"]
+          migrations = [
+              Path("database/migrations/011_frontier_and_incremental_recrawl.sql"),
+              Path("database/migrations/012_daily_news.sql"),
+          ]
+
+          async def run():
+              conn = await asyncpg.connect(db_url)
+              try:
+                  for migration in migrations:
+                      if not migration.exists():
+                          raise SystemExit(f"Migration file not found: {migration}")
+                      sql = migration.read_text(encoding="utf-8")
+                      await conn.execute(sql)
+                      print(f"Applied migration: {migration}")
+              finally:
+                  await conn.close()
+
+          asyncio.run(run())
+          PY
+
+      - name: Ingest and rank daily startup news
+        working-directory: packages/analysis
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PRODUCT_HUNT_TOKEN: ${{ secrets.PRODUCT_HUNT_TOKEN }}
+          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
+          GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
+        run: |
+          LOOKBACK="${{ github.event.inputs.lookback_hours || '48' }}"
+          EDITION_DATE="${{ github.event.inputs.edition_date || '' }}"
+          REBUILD_ONLY="${{ github.event.inputs.rebuild_only || 'false' }}"
+
+          CMD=(python main.py ingest-news --lookback-hours "$LOOKBACK")
+          if [ -n "$EDITION_DATE" ]; then
+            CMD+=(--edition-date "$EDITION_DATE")
+          fi
+          if [ "$REBUILD_ONLY" = "true" ]; then
+            CMD+=(--rebuild-only)
+          fi
+
+          "${CMD[@]}"

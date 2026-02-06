@@ -46,6 +46,7 @@ export type Vertical =
 
 export interface BuildPattern {
   name: string;
+  pattern_name?: string;
   confidence: number;
   evidence: string[];
   description?: string;
@@ -153,7 +154,7 @@ export interface PricingModel {
 export interface GTMStrategy {
   primary_channel?: 'product_led' | 'sales_led' | 'partnership_led' | 'developer_first' | 'content_marketing' | 'unknown';
   evidence?: string[];
-  target_segment?: 'smb' | 'mid_market' | 'enterprise' | 'consumer' | 'developer';
+  target_segment?: 'smb' | 'mid_market' | 'enterprise' | 'consumer' | 'developer' | 'unknown';
   sales_motion?: 'self_serve' | 'inside_sales' | 'field_sales' | 'hybrid' | 'unknown';
 }
 
@@ -199,7 +200,7 @@ export interface UseCases {
 }
 
 export interface ProductAnalysis {
-  product_stage?: 'pre_launch' | 'beta' | 'general_availability' | 'mature';
+  product_stage?: 'pre_launch' | 'beta' | 'general_availability' | 'mature' | 'unknown';
   stage_evidence?: string[];
   feature_depth?: FeatureDepth;
   integration_ecosystem?: IntegrationEcosystem;
@@ -577,4 +578,49 @@ export interface PeriodInfo {
 export interface PeriodsResponse {
   periods: PeriodInfo[];
   current: string;
+}
+
+// -----------------------------------------------------------------------------
+// Daily News Types
+// -----------------------------------------------------------------------------
+
+export interface NewsSourceRef {
+  name: string;
+  key: string;
+}
+
+export interface NewsItemCard {
+  id: string;
+  title: string;
+  summary: string;
+  url: string;
+  canonical_url?: string;
+  published_at: string;
+  story_type: string;
+  topic_tags: string[];
+  entities: string[];
+  rank_score: number;
+  rank_reason: string;
+  trust_score: number;
+  source_count: number;
+  primary_source: string;
+  sources: string[];
+}
+
+export interface NewsEdition {
+  edition_date: string;
+  generated_at: string;
+  items: NewsItemCard[];
+  stats: {
+    total_clusters: number;
+    top_story_count: number;
+    story_type_counts: Record<string, number>;
+    topic_counts: Record<string, number>;
+    updated_at: string;
+  };
+}
+
+export interface NewsTopicStat {
+  topic: string;
+  count: number;
 }

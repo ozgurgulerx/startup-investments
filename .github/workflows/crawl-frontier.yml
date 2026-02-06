@@ -1,0 +1,99 @@
+name: Crawl Frontier Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed_limit:
+        description: "Max startups to seed into frontier before crawl"
+        required: false
+        default: "5000"
+      batch_size:
+        description: "Max leased URLs to process in one run"
+        required: false
+        default: "50"
+      loops:
+        description: "Number of worker loops (1 for one-shot)"
+        required: false
+        default: "1"
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  crawl-frontier:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: crawl-frontier
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Missing required secret: DATABASE_URL"
+            exit 1
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install analysis dependencies
+        working-directory: packages/analysis
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install chromium || true
+
+      - name: Apply frontier migration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python3 << 'PY'
+          import asyncio
+          import os
+          from pathlib import Path
+          import asyncpg
+
+          migration_path = Path("database/migrations/011_frontier_and_incremental_recrawl.sql")
+          if not migration_path.exists():
+              raise SystemExit(f"Migration file not found: {migration_path}")
+
+          sql = migration_path.read_text(encoding="utf-8")
+          db_url = os.environ["DATABASE_URL"]
+
+          async def run():
+              conn = await asyncpg.connect(db_url)
+              try:
+                  await conn.execute(sql)
+              finally:
+                  await conn.close()
+
+          asyncio.run(run())
+          print(f"Applied migration: {migration_path}")
+          PY
+
+      - name: Seed frontier queue
+        working-directory: packages/analysis
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CRAWLER_RUNTIME: scrapy
+        run: |
+          SEED_LIMIT="${{ github.event.inputs.seed_limit || '5000' }}"
+          python main.py seed-frontier --limit "$SEED_LIMIT"
+
+      - name: Run frontier worker
+        working-directory: packages/analysis
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CRAWLER_RUNTIME: scrapy
+          CRAWLER_RESPECT_ROBOTS: "true"
+        run: |
+          BATCH_SIZE="${{ github.event.inputs.batch_size || '50' }}"
+          LOOPS="${{ github.event.inputs.loops || '1' }}"
+          python -m src.crawl_runtime.worker --batch-size "$BATCH_SIZE" --max-loops "$LOOPS"

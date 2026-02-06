@@ -9,6 +9,7 @@ This module provides:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -18,7 +19,13 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse, quote_plus
 
 import httpx
-from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+try:
+    from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+except Exception:
+    AsyncWebCrawler = None
+    BrowserConfig = None
+    CrawlerRunConfig = None
+    CacheMode = None
 
 from src.config import settings
 from src.data.models import CrawledSource, StartupInput
@@ -27,6 +34,11 @@ from src.crawler.url_normalizer import canonicalize_url, extract_domain
 from src.crawler.fetch_strategy import HybridFetcher, FetchResult
 
 logger = logging.getLogger(__name__)
+
+try:
+    from src.crawl_runtime.scrapy_runtime import ScrapyPlaywrightRuntime
+except Exception:
+    ScrapyPlaywrightRuntime = None
 
 
 def get_company_slug(name: str) -> str:
@@ -325,11 +337,15 @@ class StartupCrawler:
         """
         self.throttler = throttler
         self.use_hybrid_fetch = use_hybrid_fetch
+        self.runtime = (settings.crawler.runtime or "legacy").lower().strip()
+        self.modern_runtime = None
 
-        self.browser_config = BrowserConfig(
-            headless=settings.crawler.headless,
-            verbose=False,
-        )
+        self.browser_config = None
+        if BrowserConfig is not None:
+            self.browser_config = BrowserConfig(
+                headless=settings.crawler.headless,
+                verbose=False,
+            )
         self.cache_dir = Path(settings.crawler.cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.raw_content_dir = settings.data_output_dir / "raw_content"
@@ -340,6 +356,8 @@ class StartupCrawler:
             domain_throttler=throttler,
             http_timeout=settings.crawler.timeout_ms / 1000,
             browser_timeout=settings.crawler.timeout_ms / 1000 * 2,
+            datacenter_proxy_url=settings.crawler.datacenter_proxy_url,
+            residential_proxy_url=settings.crawler.residential_proxy_url,
         ) if use_hybrid_fetch else None
 
         # Initialize enrichment clients
@@ -349,13 +367,41 @@ class StartupCrawler:
         self.youtube_client = YouTubeClient() if settings.crawler.enable_web_search else None  # Use web_search setting
         self.logo_extractor = LogoExtractor()
 
+        if self.runtime == "scrapy" and ScrapyPlaywrightRuntime is not None:
+            self.modern_runtime = ScrapyPlaywrightRuntime()
+        elif self.runtime == "scrapy":
+            logger.warning("CRAWLER_RUNTIME=scrapy requested, but Scrapy runtime is unavailable. Falling back to legacy runtime.")
+            self.runtime = "legacy"
+
     async def crawl_startup(self, startup: StartupInput) -> List[CrawledSource]:
         """Crawl all available URLs for a startup with multi-source enrichment."""
         crawled_sources = []
 
         # Phase 1: Crawl main website pages
         urls_to_crawl = self._discover_urls(startup)
-        if urls_to_crawl:
+        if self.runtime == "scrapy" and self.modern_runtime is not None and urls_to_crawl:
+            modern_results = await self.modern_runtime.crawl_startup(
+                startup=startup,
+                seed_urls=[u["url"] for u in urls_to_crawl],
+            )
+
+            for result in modern_results:
+                source = CrawledSource(
+                    url=result.get("url", startup.website or ""),
+                    source_type=result.get("source_type", "website"),
+                    crawled_at=datetime.now(timezone.utc),
+                    success=result.get("success", False),
+                    content_length=len(result.get("content", "")),
+                    title=result.get("title"),
+                    error=result.get("error"),
+                )
+                crawled_sources.append(source)
+                if result.get("success") and result.get("url"):
+                    self._cache_result(startup.name, result["url"], result)
+
+        elif urls_to_crawl:
+            if AsyncWebCrawler is None or self.browser_config is None:
+                raise RuntimeError("Legacy crawler runtime requires crawl4ai. Install crawl4ai or use CRAWLER_RUNTIME=scrapy.")
             async with AsyncWebCrawler(config=self.browser_config) as crawler:
                 for url_info in urls_to_crawl:
                     url = url_info["url"]
@@ -840,7 +886,7 @@ class StartupCrawler:
     def _get_cache_path(self, company_name: str, url: str) -> Path:
         """Get cache file path for a URL."""
         slug = company_name.lower().replace(" ", "-")
-        url_hash = str(hash(url))[-10:]
+        url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()[:10]
         return self.cache_dir / f"{slug}_{url_hash}.json"
 
     def _get_cached(self, company_name: str, url: str) -> Optional[CrawledSource]:
@@ -1013,6 +1059,8 @@ class StartupCrawler:
 
     async def close(self):
         """Close all HTTP clients."""
+        if self.modern_runtime:
+            await self.modern_runtime.close()
         if self.web_search_client:
             await self.web_search_client.close()
         if self.github_client:

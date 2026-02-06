@@ -160,31 +160,59 @@ class BlobProcessor:
         return report
 
     async def _download_blob(self, blob_name: str) -> str:
-        """Download blob content as string."""
+        """Download blob content as string.
+        Uses asyncio.to_thread() to avoid blocking the event loop with sync Azure SDK calls.
+        """
+        import asyncio
+
         if not self.blob_service:
             raise ValueError("Blob service not configured")
 
-        container = self.blob_service.get_container_client(self.config.container_name)
-        blob = container.get_blob_client(blob_name)
+        def _sync_download() -> str:
+            container = self.blob_service.get_container_client(self.config.container_name)
+            blob = container.get_blob_client(blob_name)
+            download = blob.download_blob()
+            return download.readall().decode("utf-8")
 
-        download = blob.download_blob()
-        return download.readall().decode("utf-8")
+        return await asyncio.to_thread(_sync_download)
 
     async def _move_blob(self, source: str, destination: str):
-        """Move blob from source to destination."""
+        """Move blob from source to destination (copy-verify-delete).
+        Uses asyncio.to_thread() for sync SDK calls and asyncio.sleep() instead of time.sleep().
+        """
+        import asyncio
+
         if not self.blob_service:
             return
 
-        container = self.blob_service.get_container_client(self.config.container_name)
+        def _sync_copy_and_poll() -> None:
+            container = self.blob_service.get_container_client(self.config.container_name)
+            source_blob = container.get_blob_client(source)
+            dest_blob = container.get_blob_client(destination)
 
-        # Copy to destination
-        source_blob = container.get_blob_client(source)
-        dest_blob = container.get_blob_client(destination)
+            dest_blob.start_copy_from_url(source_blob.url)
 
-        dest_blob.start_copy_from_url(source_blob.url)
+            # Poll until copy completes
+            import time
+            max_wait = 60
+            waited = 0
+            while waited < max_wait:
+                props = dest_blob.get_blob_properties()
+                copy_status = props.copy.status if props.copy else None
+                if copy_status == "success":
+                    break
+                elif copy_status in ("failed", "aborted"):
+                    raise RuntimeError(f"Blob copy failed with status: {copy_status}")
+                time.sleep(1)
+                waited += 1
 
-        # Delete source
-        source_blob.delete_blob()
+            if waited >= max_wait:
+                raise RuntimeError(f"Blob copy timed out after {max_wait}s for {source} -> {destination}")
+
+            # Only delete source after verified copy
+            source_blob.delete_blob()
+
+        await asyncio.to_thread(_sync_copy_and_poll)
 
     def _parse_csv(self, csv_content: str) -> List[StartupInput]:
         """Parse CSV content to StartupInput objects."""
@@ -207,13 +235,17 @@ class BlobProcessor:
 
     async def list_pending_blobs(self) -> List[str]:
         """List all blobs in the incoming folder."""
+        import asyncio
+
         if not self.blob_service:
             return []
 
-        container = self.blob_service.get_container_client(self.config.container_name)
-        blobs = container.list_blobs(name_starts_with=self.config.incoming_prefix)
+        def _sync_list() -> List[str]:
+            container = self.blob_service.get_container_client(self.config.container_name)
+            blobs = container.list_blobs(name_starts_with=self.config.incoming_prefix)
+            return [blob.name for blob in blobs if blob.name.endswith(".csv")]
 
-        return [blob.name for blob in blobs if blob.name.endswith(".csv")]
+        return await asyncio.to_thread(_sync_list)
 
     async def process_all_pending(self) -> List[ProcessingReport]:
         """Process all pending blobs in incoming folder."""

@@ -320,6 +320,30 @@ class CrawledSource(BaseModel):
     error: Optional[str] = None
 
 
+class CrawledDocumentV2(BaseModel):
+    """Canonical crawler output schema for downstream indexing/enrichment."""
+    url: str
+    canonical_url: str
+    domain: str
+    page_type: str = "generic"
+    content_type: str = "html"
+    clean_text: str = ""
+    clean_markdown: str = ""
+    title: Optional[str] = None
+    content_hash: Optional[str] = None
+    html_hash: Optional[str] = None
+    etag: Optional[str] = None
+    last_modified: Optional[str] = None
+    fetch_method: str = "http"  # http | browser
+    status_code: int = 0
+    response_time_ms: int = 0
+    crawled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    quality_score: float = 0.0
+    error_category: Optional[str] = None
+    proxy_tier: str = "none"
+
+
 class StartupInput(BaseModel):
     """Input data for a startup from CSV."""
     name: str

@@ -148,6 +148,8 @@ class DeltaProcessor:
                 status="skipped",
                 change_type=None
             ))
+        if unchanged_startups:
+            self.store._save_index()
         batch_result.skipped = len(unchanged_startups)
 
         # Calculate total time
@@ -211,7 +213,7 @@ class DeltaProcessor:
                 crawl_result = await self.crawler.crawl_startup(startup)
                 # Collect crawl data for snapshot
                 if crawl_result:
-                    crawl_data = self._extract_crawl_data(crawl_result)
+                    crawl_data = self._extract_crawl_data(crawl_result, startup.name)
 
             # 2. Analyze
             analysis = await self.analyzer.analyze_startup(startup)
@@ -303,7 +305,7 @@ class DeltaProcessor:
             if classified.change_significance == "major" and not skip_crawl:
                 crawl_result = await self.crawler.crawl_startup(startup)
                 if crawl_result:
-                    crawl_data = self._extract_crawl_data(crawl_result)
+                    crawl_data = self._extract_crawl_data(crawl_result, startup.name)
 
             # 2. Re-analyze
             new_analysis = await self.analyzer.analyze_startup(startup)
@@ -415,29 +417,37 @@ class DeltaProcessor:
         with open(analysis_path, "w") as f:
             json.dump(merged, f, indent=2, default=str)
 
-        # Update index
+        # Update index — use same schema as store.save_base_analysis() for consistency
+        existing_meta = self.store.index["startups"].get(startup.name, {})
         self.store.index["startups"][startup.name] = {
             "slug": slug,
+            "hash": self.store._get_startup_hash(startup),
+            "base_analysis_at": datetime.now(timezone.utc).isoformat(),
+            "has_base": True,
+            "has_viral": existing_meta.get("has_viral", False),
+            "has_enrichment": existing_meta.get("has_enrichment", False),
             "website": startup.website,
-            "funding_amount": startup.funding_amount,
+            "funding": startup.funding_amount,
             "funding_stage": startup.funding_stage.value if startup.funding_stage else None,
             "description": startup.description,
-            "industries": startup.industries,
-            "lead_investors": startup.lead_investors,
-            "hash": self._compute_hash(startup),
-            "last_updated": datetime.now(timezone.utc).isoformat(),
-            "has_base_analysis": True,
+            "industries": startup.industries or [],
+            "lead_investors": startup.lead_investors or [],
         }
         self.store._save_index()
 
     def _compute_hash(self, startup: StartupInput) -> str:
-        """Compute hash for startup data."""
+        """Compute hash for startup data.
+        Must match store._get_startup_hash() for consistent change detection.
+        """
         import hashlib
         key_data = "|".join([
             startup.name or "",
             startup.website or "",
             str(startup.funding_amount or ""),
             startup.description or "",
+            ",".join(startup.industries or []),
+            ",".join(startup.lead_investors or []),
+            startup.funding_stage.value if startup.funding_stage else "",
         ])
         return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
@@ -447,17 +457,17 @@ class DeltaProcessor:
             self.store.index["startups"][classified.startup_input.name]["last_seen"] = (
                 datetime.now(timezone.utc).isoformat()
             )
-            self.store._save_index()
 
     # =========================================================================
     # Blob storage helper methods
     # =========================================================================
 
-    def _extract_crawl_data(self, crawl_result: Any) -> Dict[str, Any]:
+    def _extract_crawl_data(self, crawl_result: Any, startup_name: Optional[str] = None) -> Dict[str, Any]:
         """Extract crawl data from crawler result for blob storage.
 
         Args:
             crawl_result: Result from StartupCrawler
+            startup_name: Startup name for cache lookups when needed
 
         Returns:
             Dict with website, github, news, jobs content
@@ -467,7 +477,58 @@ class DeltaProcessor:
         if crawl_result is None:
             return crawl_data
 
-        # Extract website content
+        # Modern/legacy list format: list[CrawledSource]
+        if isinstance(crawl_result, list):
+            website_pages = []
+            github_items = []
+            news_items = []
+            jobs_items = []
+
+            for source in crawl_result:
+                url = getattr(source, "url", None) or (source.get("url") if isinstance(source, dict) else None)
+                source_type = getattr(source, "source_type", None) or (
+                    source.get("source_type") if isinstance(source, dict) else None
+                )
+                title = getattr(source, "title", None) or (source.get("title") if isinstance(source, dict) else None)
+                success = getattr(source, "success", None)
+                if success is None and isinstance(source, dict):
+                    success = source.get("success", False)
+                if not success:
+                    continue
+
+                content = ""
+                if startup_name and url and hasattr(self.crawler, "get_cached_content"):
+                    try:
+                        content = self.crawler.get_cached_content(startup_name, url) or ""
+                    except Exception:
+                        content = ""
+
+                record = {"url": url, "title": title, "content": content}
+
+                if source_type in {"github"}:
+                    github_items.append(record)
+                elif source_type in {"news"}:
+                    news_items.append(record)
+                elif source_type in {"jobs", "careers"}:
+                    jobs_items.append(record)
+                else:
+                    website_pages.append(record)
+
+            if website_pages:
+                crawl_data["website"] = {
+                    "pages": website_pages,
+                    "crawled_at": datetime.now(timezone.utc).isoformat(),
+                }
+            if github_items:
+                crawl_data["github"] = {"items": github_items}
+            if news_items:
+                crawl_data["news"] = {"items": news_items}
+            if jobs_items:
+                crawl_data["jobs"] = {"items": jobs_items}
+
+            return crawl_data
+
+        # Object format with pages/github/news/jobs attributes
         if hasattr(crawl_result, "pages") and crawl_result.pages:
             crawl_data["website"] = {
                 "pages": [

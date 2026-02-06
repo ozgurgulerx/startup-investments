@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useAudience } from '@/lib/audience-context';
 import { AudienceToggle } from '@/components/ui/audience-toggle';
 import { UserMenu } from '@/components/auth/user-menu';
+import { DailyNewsModule } from '@/components/news/daily-news-module';
 import { COPY, SUPPORTING_LINE, METRICS, FAQ_ITEMS, SIGN_IN_COPY } from '@/lib/copy';
 
 export default function LandingPage() {
@@ -26,6 +27,9 @@ export default function LandingPage() {
           <div className="flex items-center gap-6">
             <Link href="/methodology" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Methodology
+            </Link>
+            <Link href="/news" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Daily News
             </Link>
             {status === 'loading' ? (
               <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
@@ -127,6 +131,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Daily News */}
+      <DailyNewsModule />
 
       {/* What You Get */}
       <section className="py-20 px-6">
@@ -339,6 +346,7 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/methodology" className="hover:text-accent transition-colors">Methodology</Link>
+            <Link href="/news" className="hover:text-accent transition-colors">Daily News</Link>
             <Link href="/brief" className="hover:text-accent transition-colors">Brief</Link>
             <Link href="/dealbook" className="hover:text-accent transition-colors">Dossiers</Link>
             <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>

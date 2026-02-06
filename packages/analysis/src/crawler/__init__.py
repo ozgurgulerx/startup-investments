@@ -1,13 +1,9 @@
-"""Web crawling engine with hybrid fetch strategy.
+"""Web crawling helpers.
 
-This module provides:
-- StartupCrawler: Main class for crawling startup websites
-- HybridFetcher: HTTP-first fetch with browser fallback
-- DomainThrottler: Per-domain rate limiting
-- URL canonicalization: Deduplication and normalization
+Import heavy crawl engine modules lazily so utility-only imports (for tests and
+non-crawl tooling) do not require the full browser crawling dependency chain.
 """
 
-from .engine import StartupCrawler, crawl_startup_batch
 from .logo_extractor import LogoExtractor
 from .url_normalizer import (
     canonicalize_url,
@@ -27,21 +23,23 @@ from .fetch_strategy import (
     compute_content_hash,
 )
 
+try:
+    from .engine import StartupCrawler, crawl_startup_batch
+except Exception:  # pragma: no cover - optional dependency path
+    StartupCrawler = None
+    crawl_startup_batch = None
+
 __all__ = [
-    # Main crawler
     "StartupCrawler",
     "crawl_startup_batch",
     "LogoExtractor",
-    # URL normalization
     "canonicalize_url",
     "extract_domain",
     "get_base_domain",
     "is_same_site",
     "normalize_url_for_crawl",
-    # Throttling
     "DomainThrottler",
     "ThrottledCrawlContext",
-    # Fetch strategy
     "HybridFetcher",
     "FetchResult",
     "fetch_url",

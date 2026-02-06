@@ -10,6 +10,7 @@ Implements HTTP-first fetch strategy with browser fallback:
 import asyncio
 import hashlib
 import logging
+import random
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -17,6 +18,8 @@ from typing import Optional, List
 
 import httpx
 from bs4 import BeautifulSoup
+from src.config import settings
+from src.crawl_runtime.extraction import extract_main_content
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,11 @@ JS_FRAMEWORK_MARKERS = [
 # Minimum content thresholds
 MIN_CONTENT_LENGTH = 500       # Characters of text content
 MIN_MEANINGFUL_ELEMENTS = 3    # Minimum meaningful HTML elements
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+]
 
 
 @dataclass
@@ -162,27 +170,8 @@ def extract_text_content(html: str) -> str:
         return ""
 
     try:
-        soup = BeautifulSoup(html, 'html.parser')
-
-        # Remove non-content elements
-        for element in soup(['script', 'style', 'noscript', 'iframe', 'svg']):
-            element.decompose()
-
-        # Remove common non-content areas
-        for element in soup.find_all(class_=re.compile(
-            r'nav|header|footer|sidebar|menu|cookie|banner|ad-|advertisement',
-            re.I
-        )):
-            element.decompose()
-
-        # Get text
-        text = soup.get_text(separator=' ', strip=True)
-
-        # Normalize whitespace
-        text = ' '.join(text.split())
-
+        text, _ = extract_main_content(html)
         return text
-
     except Exception:
         return ""
 
@@ -262,7 +251,8 @@ def extract_title(html: str) -> Optional[str]:
 async def fetch_with_http(
     url: str,
     timeout: float = 15.0,
-    user_agent: str = "Mozilla/5.0 (compatible; BuildAtlasCrawler/1.0)"
+    user_agent: str = "Mozilla/5.0 (compatible; BuildAtlasCrawler/1.0)",
+    proxy_url: str = "",
 ) -> FetchResult:
     """Fetch a URL using simple HTTP.
 
@@ -277,7 +267,11 @@ async def fetch_with_http(
     start_time = datetime.now(timezone.utc)
 
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        client_kwargs = {"timeout": timeout}
+        if proxy_url:
+            client_kwargs["proxy"] = proxy_url
+
+        async with httpx.AsyncClient(**client_kwargs) as client:
             response = await client.get(
                 url,
                 headers={
@@ -350,7 +344,9 @@ class HybridFetcher:
         browser_pool=None,
         http_timeout: float = 15.0,
         browser_timeout: float = 30.0,
-        user_agent: str = "Mozilla/5.0 (compatible; BuildAtlasCrawler/1.0)"
+        user_agent: str = "Mozilla/5.0 (compatible; BuildAtlasCrawler/1.0)",
+        datacenter_proxy_url: str = "",
+        residential_proxy_url: str = "",
     ):
         """Initialize the hybrid fetcher.
 
@@ -366,6 +362,8 @@ class HybridFetcher:
         self.http_timeout = http_timeout
         self.browser_timeout = browser_timeout
         self.user_agent = user_agent
+        self.datacenter_proxy_url = datacenter_proxy_url or settings.crawler.datacenter_proxy_url
+        self.residential_proxy_url = residential_proxy_url or settings.crawler.residential_proxy_url
 
         # Local cache for domains without DB throttler
         self._js_domains: set = set()
@@ -388,33 +386,65 @@ class HybridFetcher:
         """
         from .url_normalizer import extract_domain
         domain = extract_domain(url)
+        acquired_slot = False
 
-        # Check if domain requires JS
-        requires_js = force_browser
-        if not force_browser and not force_http:
-            requires_js = await self._domain_requires_js(domain)
+        try:
+            if self.throttler:
+                # Enforce per-domain politeness even when using HTTP-first strategy.
+                total_wait_ms = 0
+                while total_wait_ms <= 15000:
+                    can_crawl, wait_ms = await self.throttler.can_crawl(url)
+                    if can_crawl:
+                        acquired_slot = True
+                        break
+                    sleep_ms = max(wait_ms, 250)
+                    await asyncio.sleep(sleep_ms / 1000)
+                    total_wait_ms += sleep_ms
 
-        if requires_js:
-            return await self._fetch_with_browser(url)
+                if not acquired_slot:
+                    return FetchResult(
+                        success=False,
+                        url=url,
+                        method="http",
+                        error="Throttled: max wait exceeded",
+                    )
 
-        # Try HTTP first
-        result = await fetch_with_http(
-            url,
-            timeout=self.http_timeout,
-            user_agent=self.user_agent
-        )
+            # Check if domain requires JS
+            requires_js = force_browser
+            if not force_browser and not force_http:
+                requires_js = await self._domain_requires_js(domain)
 
-        # If HTTP succeeded but content is JS shell, retry with browser
-        if result.success and result.is_js_heavy and not force_http:
-            logger.info(f"JS shell detected for {domain}, using browser")
-            await self._mark_domain_requires_js(domain)
+            if requires_js:
+                result = await self._fetch_with_browser(url)
+            else:
+                # Try HTTP first
+                result = await fetch_with_http(
+                    url,
+                    timeout=self.http_timeout,
+                    user_agent=random.choice(USER_AGENTS),
+                    proxy_url=self.datacenter_proxy_url,
+                )
 
-            if self.browser_pool:
-                browser_result = await self._fetch_with_browser(url)
-                if browser_result.success:
-                    return browser_result
+                # If HTTP succeeded but content is JS shell, retry with browser
+                if result.success and result.is_js_heavy and not force_http:
+                    logger.info(f"JS shell detected for {domain}, using browser")
+                    await self._mark_domain_requires_js(domain)
+                    browser_result = await self._fetch_with_browser(url)
+                    if browser_result.success:
+                        result = browser_result
 
-        return result
+            return result
+        finally:
+            if self.throttler and acquired_slot:
+                try:
+                    await self.throttler.release(
+                        url,
+                        success=(result.success if "result" in locals() else False),
+                        status_code=(result.status_code if "result" in locals() else 0),
+                        response_time_ms=(result.response_time_ms if "result" in locals() else None),
+                    )
+                except Exception:
+                    pass
 
     async def _domain_requires_js(self, domain: str) -> bool:
         """Check if domain is known to require JS."""
@@ -438,13 +468,9 @@ class HybridFetcher:
     async def _fetch_with_browser(self, url: str) -> FetchResult:
         """Fetch URL using browser rendering.
 
-        Falls back to HTTP if browser pool not available.
+        Uses a dedicated browser session when pool is unavailable.
         """
         start_time = datetime.now(timezone.utc)
-
-        if not self.browser_pool:
-            logger.warning("Browser pool not available, falling back to HTTP")
-            return await fetch_with_http(url, timeout=self.http_timeout)
 
         try:
             # Use crawl4ai browser pool
@@ -511,6 +537,6 @@ async def fetch_url(
     """
     fetcher = HybridFetcher(
         domain_throttler=throttler,
-        http_timeout=timeout
+        http_timeout=timeout,
     )
     return await fetcher.fetch(url, force_browser=force_browser)

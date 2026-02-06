@@ -1,0 +1,1235 @@
+"""Daily startup news ingestion and edition builder.
+
+This module ingests diverse startup-news sources (RSS/API/community/frontier URLs),
+normalizes them, deduplicates into story clusters, ranks stories, and writes a daily
+edition snapshot to Postgres.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import hashlib
+import json
+import math
+import os
+import re
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+import httpx
+
+try:
+    import asyncpg
+except Exception:  # pragma: no cover - optional import at module import time
+    asyncpg = None
+
+try:
+    import feedparser
+except Exception:  # pragma: no cover - optional import at module import time
+    feedparser = None
+
+try:
+    from bs4 import BeautifulSoup
+except Exception:  # pragma: no cover - optional import at module import time
+    BeautifulSoup = None
+
+TRACKING_PARAMS = {
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "gclid",
+    "fbclid",
+    "msclkid",
+    "ref",
+    "source",
+    "campaign",
+}
+
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "in", "is", "it",
+    "its", "of", "on", "or", "that", "the", "to", "with", "will", "new", "startup", "startups",
+}
+
+GENERIC_ENTITIES = {
+    "AI", "Startup", "Startups", "Today", "Breaking", "News", "Tech", "Series", "Funding", "Round",
+}
+
+TOPIC_KEYWORDS: Dict[str, Tuple[str, ...]] = {
+    "funding": ("raises", "raised", "funding", "series a", "series b", "series c", "seed", "pre-seed", "valuation"),
+    "ai": ("ai", "genai", "llm", "model", "agent", "inference", "gpu", "foundation model"),
+    "launch": ("launch", "launched", "debut", "introduces", "release", "released", "product hunt"),
+    "mna": ("acquire", "acquisition", "merger", "buys", "deal"),
+    "hiring": ("hiring", "careers", "joins", "appointed", "head of"),
+    "regulation": ("regulation", "compliance", "policy", "law", "act", "eu ai act", "ftc", "sec"),
+    "security": ("security", "breach", "vulnerability", "cyber", "zero-day"),
+}
+
+
+@dataclass(frozen=True)
+class SourceDefinition:
+    source_key: str
+    display_name: str
+    source_type: str
+    base_url: str
+    fetch_mode: str = "rss"  # rss|api|crawler
+    credibility_weight: float = 0.65
+    legal_mode: str = "headline_snippet"
+
+
+# 30+ sources across publishers, community, and aggregators.
+DEFAULT_SOURCES: List[SourceDefinition] = [
+    SourceDefinition("techcrunch", "TechCrunch", "rss", "https://techcrunch.com/feed/", credibility_weight=0.92),
+    SourceDefinition("techcrunch_startups", "TechCrunch Startups", "rss", "https://techcrunch.com/category/startups/feed/", credibility_weight=0.94),
+    SourceDefinition("venturebeat", "VentureBeat", "rss", "https://venturebeat.com/feed/", credibility_weight=0.86),
+    SourceDefinition("wired", "WIRED", "rss", "https://www.wired.com/feed/rss", credibility_weight=0.80),
+    SourceDefinition("sifted", "Sifted", "rss", "https://sifted.eu/feed/", credibility_weight=0.78),
+    SourceDefinition("crunchbase_news", "Crunchbase News", "rss", "https://news.crunchbase.com/feed/", credibility_weight=0.85),
+    SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", credibility_weight=0.74),
+    SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", credibility_weight=0.70),
+    SourceDefinition("producthunt_blog", "Product Hunt Blog", "rss", "https://www.producthunt.com/blog/feed", credibility_weight=0.82),
+    SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
+    SourceDefinition("inc", "Inc", "rss", "https://www.inc.com/rss", credibility_weight=0.74),
+    SourceDefinition("fastcompany", "Fast Company", "rss", "https://www.fastcompany.com/rss", credibility_weight=0.75),
+    SourceDefinition("techeu", "Tech.eu", "rss", "https://tech.eu/feed/", credibility_weight=0.81),
+    SourceDefinition("mashable", "Mashable", "rss", "https://mashable.com/feeds/rss/all", credibility_weight=0.68),
+    SourceDefinition("hackernoon", "HackerNoon", "rss", "https://hackernoon.com/feed", credibility_weight=0.64),
+    SourceDefinition("a16z_blog", "a16z Blog", "rss", "https://a16z.com/feed/", credibility_weight=0.76),
+    SourceDefinition("avc_blog", "AVC", "rss", "https://avc.com/feed/", credibility_weight=0.74),
+    SourceDefinition("strictlyvc", "StrictlyVC", "rss", "https://strictlyvc.com/feed", credibility_weight=0.80),
+    SourceDefinition("hn_rss_startup", "HN RSS Startup", "community", "https://hnrss.org/newest?q=startup", credibility_weight=0.83),
+    SourceDefinition("hn_rss_funding", "HN RSS Funding", "community", "https://hnrss.org/newest?q=startup+funding", credibility_weight=0.85),
+    SourceDefinition("hn_rss_ai", "HN RSS AI", "community", "https://hnrss.org/newest?q=ai+startup", credibility_weight=0.84),
+    SourceDefinition("lobsters", "Lobsters", "community", "https://lobste.rs/rss", credibility_weight=0.70),
+    SourceDefinition("reddit_startups", "Reddit r/startups", "community", "https://www.reddit.com/r/startups/.rss", credibility_weight=0.62),
+    SourceDefinition("reddit_technology", "Reddit r/technology", "community", "https://www.reddit.com/r/technology/.rss", credibility_weight=0.60),
+    SourceDefinition("reddit_machinelearning", "Reddit r/MachineLearning", "community", "https://www.reddit.com/r/MachineLearning/.rss", credibility_weight=0.66),
+    SourceDefinition("devto_startups", "Dev.to Startups", "community", "https://dev.to/feed/tag/startups", credibility_weight=0.63),
+    SourceDefinition("devto_ai", "Dev.to AI", "community", "https://dev.to/feed/tag/ai", credibility_weight=0.62),
+    SourceDefinition("prnewswire_tech", "PR Newswire Tech", "rss", "https://www.prnewswire.com/rss/technology-latest-news/technology-latest-news-list.rss", credibility_weight=0.68),
+    SourceDefinition("businesswire_tech", "BusinessWire Tech", "rss", "https://feed.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFtWWQ==", credibility_weight=0.66),
+    SourceDefinition("producthunt_api", "Product Hunt API", "api", "https://api.producthunt.com/v2/api/graphql", fetch_mode="api", credibility_weight=0.86),
+    SourceDefinition("hackernews_api", "Hacker News API", "api", "https://hacker-news.firebaseio.com/v0", fetch_mode="api", credibility_weight=0.88),
+    SourceDefinition("newsapi", "NewsAPI", "api", "https://newsapi.org/v2/everything", fetch_mode="api", credibility_weight=0.67),
+    SourceDefinition("gnews", "GNews", "api", "https://gnews.io/api/v4/search", fetch_mode="api", credibility_weight=0.66),
+    SourceDefinition("frontier_news", "Frontier News URLs", "crawler", "frontier://news", fetch_mode="crawler", credibility_weight=0.79),
+]
+
+
+@dataclass
+class NormalizedNewsItem:
+    source_key: str
+    source_name: str
+    source_type: str
+    title: str
+    url: str
+    canonical_url: str
+    summary: str
+    published_at: datetime
+    language: str = "en"
+    author: Optional[str] = None
+    external_id: str = ""
+    engagement: Dict[str, Any] = field(default_factory=dict)
+    payload: Dict[str, Any] = field(default_factory=dict)
+    source_weight: float = 0.65
+
+    def with_external_id(self) -> "NormalizedNewsItem":
+        if self.external_id:
+            return self
+        base = f"{self.source_key}|{self.canonical_url}|{self.published_at.isoformat()}|{self.title.strip().lower()}"
+        self.external_id = hashlib.sha1(base.encode("utf-8")).hexdigest()[:24]
+        return self
+
+
+@dataclass
+class StoryCluster:
+    cluster_key: str
+    canonical_url: str
+    title: str
+    summary: str
+    published_at: datetime
+    topic_tags: List[str]
+    entities: List[str]
+    story_type: str
+    rank_score: float
+    rank_reason: str
+    trust_score: float
+    members: List[NormalizedNewsItem]
+
+
+def canonicalize_url(url: str) -> str:
+    if not url:
+        return ""
+    u = url.strip()
+    if not u.startswith(("http://", "https://")):
+        u = f"https://{u}"
+    parsed = urlparse(u)
+    scheme = "https"
+    host = parsed.netloc.lower().removeprefix("www.")
+    path = parsed.path or "/"
+    if path != "/" and path.endswith("/"):
+        path = path[:-1]
+    pairs = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if k.lower() not in TRACKING_PARAMS]
+    pairs.sort(key=lambda kv: (kv[0], kv[1]))
+    query = urlencode(pairs)
+    return urlunparse((scheme, host, path, "", query, ""))
+
+
+def normalize_text(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip())
+
+
+def parse_entry_datetime(entry: Any) -> Optional[datetime]:
+    parsed = entry.get("published_parsed") or entry.get("updated_parsed")
+    if parsed:
+        try:
+            return datetime(*parsed[:6], tzinfo=timezone.utc)
+        except Exception:
+            return None
+    return None
+
+
+def tokenize_title(title: str) -> List[str]:
+    raw = re.findall(r"[a-zA-Z0-9]+", title.lower())
+    return [t for t in raw if t not in STOPWORDS and len(t) >= 2]
+
+
+def title_fingerprint(title: str) -> str:
+    toks = tokenize_title(title)
+    return " ".join(toks[:8])
+
+
+def title_similarity(a: str, b: str) -> float:
+    sa = set(tokenize_title(a))
+    sb = set(tokenize_title(b))
+    if not sa or not sb:
+        return 0.0
+    return len(sa & sb) / len(sa | sb)
+
+
+def extract_entities(title: str) -> List[str]:
+    pattern = re.compile(r"\b([A-Z][a-zA-Z0-9&.-]*(?:\s+[A-Z][a-zA-Z0-9&.-]*){0,2})\b")
+    entities: List[str] = []
+    for match in pattern.findall(title or ""):
+        item = normalize_text(match)
+        if not item or item in GENERIC_ENTITIES:
+            continue
+        if item not in entities:
+            entities.append(item)
+        if len(entities) >= 6:
+            break
+    return entities
+
+
+def classify_topic_tags(title: str, summary: str = "") -> List[str]:
+    text = f"{title} {summary}".lower()
+    tags = [topic for topic, words in TOPIC_KEYWORDS.items() if any(w in text for w in words)]
+    return tags or ["startup"]
+
+
+def classify_story_type(tags: Sequence[str]) -> str:
+    if "funding" in tags:
+        return "funding"
+    if "launch" in tags:
+        return "launch"
+    if "mna" in tags:
+        return "mna"
+    if "regulation" in tags:
+        return "regulation"
+    if "hiring" in tags:
+        return "hiring"
+    return "news"
+
+
+def compute_cluster_scores(
+    *,
+    published_at: datetime,
+    topic_tags: Sequence[str],
+    members: Sequence[NormalizedNewsItem],
+    now: Optional[datetime] = None,
+) -> Tuple[float, float, str]:
+    now_ts = now or datetime.now(timezone.utc)
+    age_hours = max(0.0, (now_ts - published_at).total_seconds() / 3600.0)
+    recency = max(0.0, 1.0 - (age_hours / 72.0))
+
+    source_weight = max((m.source_weight for m in members), default=0.6)
+    diversity = min(1.0, len({m.source_key for m in members}) / 4.0)
+    engagement_raw = 0.0
+    for item in members:
+        points = float(item.engagement.get("points") or item.engagement.get("votes") or 0.0)
+        engagement_raw = max(engagement_raw, min(1.0, points / 500.0))
+
+    ai_boost = 0.12 if "ai" in topic_tags else 0.0
+    funding_boost = 0.08 if "funding" in topic_tags else 0.0
+
+    rank_score = (
+        recency * 0.45
+        + source_weight * 0.25
+        + diversity * 0.15
+        + engagement_raw * 0.10
+        + ai_boost
+        + funding_boost
+    )
+    rank_score = max(0.0, min(1.0, rank_score))
+
+    trust_score = max(0.0, min(1.0, source_weight * 0.45 + diversity * 0.40 + 0.15))
+
+    reasons: List[str] = []
+    if recency > 0.75:
+        reasons.append("breaking")
+    if len(members) >= 3:
+        reasons.append(f"covered by {len(members)} sources")
+    if "funding" in topic_tags:
+        reasons.append("funding signal")
+    if "ai" in topic_tags:
+        reasons.append("ai-priority")
+    if engagement_raw >= 0.4:
+        reasons.append("high community engagement")
+    if not reasons:
+        reasons.append("editorial rank blend")
+
+    return rank_score, trust_score, ", ".join(reasons[:3])
+
+
+def extract_html_title_summary(html: str) -> Tuple[str, str, Optional[datetime]]:
+    if not html:
+        return "", "", None
+
+    if BeautifulSoup is None:
+        return "", "", None
+
+    soup = BeautifulSoup(html, "html.parser")
+    title = ""
+    summary = ""
+    published = None
+
+    if soup.title and soup.title.string:
+        title = normalize_text(soup.title.string)
+
+    meta_desc = soup.find("meta", attrs={"name": "description"}) or soup.find("meta", attrs={"property": "og:description"})
+    if meta_desc and meta_desc.get("content"):
+        summary = normalize_text(meta_desc.get("content"))
+
+    meta_published = soup.find("meta", attrs={"property": "article:published_time"}) or soup.find("meta", attrs={"name": "publish-date"})
+    if meta_published and meta_published.get("content"):
+        raw = meta_published.get("content")
+        try:
+            published = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if published.tzinfo is None:
+                published = published.replace(tzinfo=timezone.utc)
+            else:
+                published = published.astimezone(timezone.utc)
+        except Exception:
+            published = None
+
+    return title, summary, published
+
+
+class DailyNewsIngestor:
+    """Ingests news sources and builds daily ranked startup-news editions."""
+
+    def __init__(self, database_url: Optional[str] = None):
+        self.database_url = database_url or os.getenv("DATABASE_URL")
+        if not self.database_url:
+            raise RuntimeError("DATABASE_URL is required for news ingestion")
+        if asyncpg is None:
+            raise RuntimeError("asyncpg is required for news ingestion")
+
+        self.pool: Optional[asyncpg.Pool] = None
+        self.http_timeout = float(os.getenv("NEWS_HTTP_TIMEOUT_SECONDS", "20"))
+        self.max_per_source = int(os.getenv("NEWS_MAX_ITEMS_PER_SOURCE", "40"))
+        self.product_hunt_token = os.getenv("PRODUCT_HUNT_TOKEN", "")
+        self.newsapi_key = os.getenv("NEWS_API_KEY", "") or os.getenv("NEWSAPI_KEY", "")
+        self.gnews_key = os.getenv("GNEWS_API_KEY", "")
+
+    async def connect(self):
+        if self.pool is None:
+            self.pool = await asyncpg.create_pool(self.database_url, min_size=1, max_size=6)
+
+    async def close(self):
+        if self.pool is not None:
+            await self.pool.close()
+            self.pool = None
+
+    async def _get_source_id_map(self, conn: asyncpg.Connection) -> Dict[str, str]:
+        rows = await conn.fetch("SELECT id::text, source_key FROM news_sources")
+        return {r["source_key"]: r["id"] for r in rows}
+
+    async def _upsert_sources(self, conn: asyncpg.Connection, sources: Sequence[SourceDefinition]) -> None:
+        for src in sources:
+            await conn.execute(
+                """
+                INSERT INTO news_sources (source_key, display_name, source_type, base_url, credibility_weight, legal_mode, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                ON CONFLICT (source_key) DO UPDATE
+                SET display_name = EXCLUDED.display_name,
+                    source_type = EXCLUDED.source_type,
+                    base_url = EXCLUDED.base_url,
+                    credibility_weight = EXCLUDED.credibility_weight,
+                    legal_mode = EXCLUDED.legal_mode,
+                    updated_at = NOW()
+                """,
+                src.source_key,
+                src.display_name,
+                src.source_type,
+                src.base_url,
+                src.credibility_weight,
+                src.legal_mode,
+            )
+
+    async def _fetch_rss_source(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        if feedparser is None:
+            return []
+
+        resp = await client.get(source.base_url)
+        resp.raise_for_status()
+        parsed = feedparser.parse(resp.text)
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        items: List[NormalizedNewsItem] = []
+
+        for entry in parsed.entries[: self.max_per_source * 2]:
+            title = normalize_text(entry.get("title", ""))
+            link = entry.get("link", "")
+            if not title or not link:
+                continue
+
+            published = parse_entry_datetime(entry) or datetime.now(timezone.utc)
+            if published < cutoff:
+                continue
+
+            summary_html = entry.get("summary", entry.get("description", ""))
+            summary_text = normalize_text(re.sub(r"<[^>]+>", " ", summary_html or ""))
+            summary = summary_text[:300]
+
+            canonical = canonicalize_url(link)
+            item = NormalizedNewsItem(
+                source_key=source.source_key,
+                source_name=source.display_name,
+                source_type=source.source_type,
+                title=title[:300],
+                url=link,
+                canonical_url=canonical,
+                summary=summary,
+                published_at=published,
+                language="en",
+                author=normalize_text(entry.get("author", "")) or None,
+                payload={"feed_title": parsed.feed.get("title", ""), "entry_id": entry.get("id", "")},
+                source_weight=source.credibility_weight,
+            ).with_external_id()
+            items.append(item)
+            if len(items) >= self.max_per_source:
+                break
+
+        return items
+
+    async def _fetch_hackernews_api(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        # Lightweight enrichment from official HN API.
+        list_resp = await client.get(f"{source.base_url}/newstories.json")
+        list_resp.raise_for_status()
+        ids = list_resp.json()[: min(120, self.max_per_source * 6)]
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        items: List[NormalizedNewsItem] = []
+
+        async def fetch_item(item_id: int) -> Optional[NormalizedNewsItem]:
+            try:
+                resp = await client.get(f"{source.base_url}/item/{item_id}.json")
+                resp.raise_for_status()
+                data = resp.json() or {}
+                if data.get("type") != "story":
+                    return None
+                title = normalize_text(str(data.get("title") or ""))
+                url = str(data.get("url") or "")
+                if not title or not url:
+                    return None
+
+                ts = int(data.get("time") or 0)
+                published = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else datetime.now(timezone.utc)
+                if published < cutoff:
+                    return None
+
+                return NormalizedNewsItem(
+                    source_key=source.source_key,
+                    source_name=source.display_name,
+                    source_type=source.source_type,
+                    title=title[:300],
+                    url=url,
+                    canonical_url=canonicalize_url(url),
+                    summary="",
+                    published_at=published,
+                    language="en",
+                    author=None,
+                    engagement={"points": int(data.get("score") or 0), "comments": int(data.get("descendants") or 0)},
+                    payload={"hn_id": data.get("id")},
+                    source_weight=source.credibility_weight,
+                ).with_external_id()
+            except Exception:
+                return None
+
+        tasks = [fetch_item(i) for i in ids]
+        for batch_start in range(0, len(tasks), 25):
+            batch = tasks[batch_start: batch_start + 25]
+            for result in await asyncio.gather(*batch):
+                if result is not None:
+                    items.append(result)
+                if len(items) >= self.max_per_source:
+                    return items
+
+        return items
+
+    async def _fetch_producthunt_api(self, client: httpx.AsyncClient, source: SourceDefinition) -> List[NormalizedNewsItem]:
+        if not self.product_hunt_token:
+            return []
+
+        query = {
+            "query": """
+            query DailyPosts($first: Int!) {
+              posts(first: $first, order: VOTES) {
+                edges {
+                  node {
+                    id
+                    name
+                    tagline
+                    url
+                    votesCount
+                    createdAt
+                  }
+                }
+              }
+            }
+            """,
+            "variables": {"first": min(30, self.max_per_source)},
+        }
+        headers = {
+            "Authorization": f"Bearer {self.product_hunt_token}",
+            "Content-Type": "application/json",
+        }
+
+        resp = await client.post(source.base_url, headers=headers, json=query)
+        if resp.status_code >= 400:
+            return []
+
+        body = resp.json() or {}
+        edges = (((body.get("data") or {}).get("posts") or {}).get("edges") or [])
+        items: List[NormalizedNewsItem] = []
+
+        for edge in edges:
+            node = edge.get("node") or {}
+            title = normalize_text(str(node.get("name") or ""))
+            tagline = normalize_text(str(node.get("tagline") or ""))
+            url = str(node.get("url") or "")
+            if not title or not url:
+                continue
+
+            created_at = node.get("createdAt") or datetime.now(timezone.utc).isoformat()
+            try:
+                published = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+                if published.tzinfo is None:
+                    published = published.replace(tzinfo=timezone.utc)
+                else:
+                    published = published.astimezone(timezone.utc)
+            except Exception:
+                published = datetime.now(timezone.utc)
+
+            item = NormalizedNewsItem(
+                source_key=source.source_key,
+                source_name=source.display_name,
+                source_type=source.source_type,
+                title=title[:300],
+                url=url,
+                canonical_url=canonicalize_url(url),
+                summary=tagline[:300],
+                published_at=published,
+                language="en",
+                engagement={"votes": int(node.get("votesCount") or 0)},
+                payload={"producthunt_id": node.get("id")},
+                source_weight=source.credibility_weight,
+            ).with_external_id()
+            items.append(item)
+
+        return items[: self.max_per_source]
+
+    async def _fetch_newsapi(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        if not self.newsapi_key:
+            return []
+
+        now = datetime.now(timezone.utc)
+        since = (now - timedelta(hours=max(1, lookback_hours))).isoformat()
+        params = {
+            "q": "startup OR funding OR seed round OR AI startup",
+            "language": "en",
+            "sortBy": "publishedAt",
+            "from": since,
+            "pageSize": str(min(100, self.max_per_source)),
+            "apiKey": self.newsapi_key,
+        }
+        resp = await client.get(source.base_url, params=params)
+        if resp.status_code >= 400:
+            return []
+
+        body = resp.json() or {}
+        raw_articles = body.get("articles") or []
+        items: List[NormalizedNewsItem] = []
+
+        for art in raw_articles:
+            title = normalize_text(str(art.get("title") or ""))
+            url = str(art.get("url") or "")
+            if not title or not url:
+                continue
+
+            published_raw = art.get("publishedAt") or now.isoformat()
+            try:
+                published = datetime.fromisoformat(str(published_raw).replace("Z", "+00:00"))
+                if published.tzinfo is None:
+                    published = published.replace(tzinfo=timezone.utc)
+                else:
+                    published = published.astimezone(timezone.utc)
+            except Exception:
+                published = now
+
+            item = NormalizedNewsItem(
+                source_key=source.source_key,
+                source_name=source.display_name,
+                source_type=source.source_type,
+                title=title[:300],
+                url=url,
+                canonical_url=canonicalize_url(url),
+                summary=normalize_text(str(art.get("description") or ""))[:300],
+                published_at=published,
+                language=str(art.get("language") or "en")[:12],
+                author=normalize_text(str(art.get("author") or "")) or None,
+                payload={"provider": "newsapi", "source": art.get("source")},
+                source_weight=source.credibility_weight,
+            ).with_external_id()
+            items.append(item)
+
+        return items[: self.max_per_source]
+
+    async def _fetch_gnews(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        if not self.gnews_key:
+            return []
+
+        now = datetime.now(timezone.utc)
+        since = (now - timedelta(hours=max(1, lookback_hours))).isoformat()
+        params = {
+            "q": "startup OR funding OR AI",
+            "lang": "en",
+            "max": str(min(50, self.max_per_source)),
+            "from": since,
+            "token": self.gnews_key,
+        }
+        resp = await client.get(source.base_url, params=params)
+        if resp.status_code >= 400:
+            return []
+
+        body = resp.json() or {}
+        articles = body.get("articles") or []
+        items: List[NormalizedNewsItem] = []
+
+        for art in articles:
+            title = normalize_text(str(art.get("title") or ""))
+            url = str(art.get("url") or "")
+            if not title or not url:
+                continue
+
+            published_raw = art.get("publishedAt") or now.isoformat()
+            try:
+                published = datetime.fromisoformat(str(published_raw).replace("Z", "+00:00"))
+                if published.tzinfo is None:
+                    published = published.replace(tzinfo=timezone.utc)
+                else:
+                    published = published.astimezone(timezone.utc)
+            except Exception:
+                published = now
+
+            item = NormalizedNewsItem(
+                source_key=source.source_key,
+                source_name=source.display_name,
+                source_type=source.source_type,
+                title=title[:300],
+                url=url,
+                canonical_url=canonicalize_url(url),
+                summary=normalize_text(str(art.get("description") or ""))[:300],
+                published_at=published,
+                language="en",
+                author=normalize_text(str(art.get("source", {}).get("name") or "")) or None,
+                payload={"provider": "gnews"},
+                source_weight=source.credibility_weight,
+            ).with_external_id()
+            items.append(item)
+
+        return items[: self.max_per_source]
+
+    async def _fetch_frontier_candidates(self, conn: asyncpg.Connection, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        rows = await conn.fetch(
+            """
+            SELECT canonical_url, url, page_type, last_crawled_at, last_status_code
+            FROM crawl_frontier_urls
+            WHERE page_type IN ('news', 'blog', 'changelog')
+              AND COALESCE(last_status_code, 200) < 400
+              AND COALESCE(last_crawled_at, discovered_at) >= $1
+            ORDER BY COALESCE(last_crawled_at, discovered_at) DESC
+            LIMIT $2
+            """,
+            cutoff,
+            min(250, self.max_per_source * 4),
+        )
+
+        if not rows:
+            return []
+
+        sem = asyncio.Semaphore(10)
+
+        async def parse_url(row: asyncpg.Record) -> Optional[NormalizedNewsItem]:
+            url = str(row.get("url") or row.get("canonical_url") or "")
+            if not url:
+                return None
+            published = row.get("last_crawled_at") or datetime.now(timezone.utc)
+
+            try:
+                async with sem:
+                    resp = await client.get(url)
+                if resp.status_code >= 400:
+                    return None
+                html = resp.text or ""
+                title, summary, page_published = extract_html_title_summary(html)
+                if not title:
+                    return None
+                return NormalizedNewsItem(
+                    source_key=source.source_key,
+                    source_name=source.display_name,
+                    source_type=source.source_type,
+                    title=title[:300],
+                    url=url,
+                    canonical_url=canonicalize_url(url),
+                    summary=(summary or "")[:300],
+                    published_at=page_published or published,
+                    language="en",
+                    payload={"origin": "frontier", "page_type": row.get("page_type")},
+                    source_weight=source.credibility_weight,
+                ).with_external_id()
+            except Exception:
+                return None
+
+        tasks = [parse_url(r) for r in rows]
+        out: List[NormalizedNewsItem] = []
+        for chunk_start in range(0, len(tasks), 30):
+            for item in await asyncio.gather(*tasks[chunk_start: chunk_start + 30]):
+                if item is not None:
+                    out.append(item)
+                if len(out) >= self.max_per_source:
+                    return out
+
+        return out
+
+    async def _collect_items(self, conn: asyncpg.Connection, lookback_hours: int) -> Tuple[List[NormalizedNewsItem], List[str], int]:
+        errors: List[str] = []
+        attempted = 0
+        collected: List[NormalizedNewsItem] = []
+
+        timeout = httpx.Timeout(self.http_timeout)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers={"User-Agent": "BuildAtlasNewsBot/2026 (+https://buildatlas.net)"}) as client:
+            for source in DEFAULT_SOURCES:
+                attempted += 1
+                try:
+                    if source.fetch_mode == "rss":
+                        items = await self._fetch_rss_source(client, source, lookback_hours)
+                    elif source.source_key == "hackernews_api":
+                        items = await self._fetch_hackernews_api(client, source, lookback_hours)
+                    elif source.source_key == "producthunt_api":
+                        items = await self._fetch_producthunt_api(client, source)
+                    elif source.source_key == "newsapi":
+                        items = await self._fetch_newsapi(client, source, lookback_hours)
+                    elif source.source_key == "gnews":
+                        items = await self._fetch_gnews(client, source, lookback_hours)
+                    elif source.fetch_mode == "crawler":
+                        items = await self._fetch_frontier_candidates(conn, client, source, lookback_hours)
+                    else:
+                        items = []
+
+                    collected.extend(items)
+                except Exception as exc:
+                    errors.append(f"{source.source_key}: {exc}")
+
+        # Canonical dedupe pass by source_key + canonical + title fingerprint
+        seen: set[Tuple[str, str, str]] = set()
+        deduped: List[NormalizedNewsItem] = []
+        for item in collected:
+            key = (item.source_key, item.canonical_url, title_fingerprint(item.title))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item)
+
+        return deduped, errors, attempted
+
+    async def _insert_raw_items(self, conn: asyncpg.Connection, items: Sequence[NormalizedNewsItem]) -> int:
+        source_ids = await self._get_source_id_map(conn)
+        inserted = 0
+
+        for item in items:
+            source_id = source_ids.get(item.source_key)
+            if not source_id:
+                continue
+
+            payload_json = json.dumps(item.payload or {})
+            engagement_json = json.dumps(item.engagement or {})
+
+            result = await conn.execute(
+                """
+                INSERT INTO news_items_raw (
+                    source_id, external_id, url, canonical_url, title, summary_raw,
+                    published_at, fetched_at, language, author, engagement_json, payload_json
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10::jsonb, $11::jsonb)
+                ON CONFLICT (source_id, external_id) DO UPDATE
+                SET title = EXCLUDED.title,
+                    summary_raw = EXCLUDED.summary_raw,
+                    published_at = COALESCE(EXCLUDED.published_at, news_items_raw.published_at),
+                    fetched_at = NOW(),
+                    language = EXCLUDED.language,
+                    author = EXCLUDED.author,
+                    engagement_json = EXCLUDED.engagement_json,
+                    payload_json = EXCLUDED.payload_json
+                """,
+                source_id,
+                item.external_id,
+                item.url,
+                item.canonical_url,
+                item.title,
+                item.summary,
+                item.published_at,
+                item.language,
+                item.author,
+                engagement_json,
+                payload_json,
+            )
+            if result.startswith("INSERT"):
+                inserted += 1
+
+        return inserted
+
+    async def _load_recent_items(self, conn: asyncpg.Connection, lookback_hours: int) -> List[NormalizedNewsItem]:
+        since = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        rows = await conn.fetch(
+            """
+            SELECT
+                ns.source_key,
+                ns.display_name,
+                ns.source_type,
+                ns.credibility_weight,
+                nir.external_id,
+                nir.url,
+                nir.canonical_url,
+                nir.title,
+                nir.summary_raw,
+                COALESCE(nir.published_at, nir.fetched_at) AS published_at,
+                nir.language,
+                nir.author,
+                nir.engagement_json,
+                nir.payload_json
+            FROM news_items_raw nir
+            JOIN news_sources ns ON ns.id = nir.source_id
+            WHERE COALESCE(nir.published_at, nir.fetched_at) >= $1
+            ORDER BY COALESCE(nir.published_at, nir.fetched_at) DESC
+            """,
+            since,
+        )
+
+        items: List[NormalizedNewsItem] = []
+        for row in rows:
+            items.append(
+                NormalizedNewsItem(
+                    source_key=str(row["source_key"]),
+                    source_name=str(row["display_name"]),
+                    source_type=str(row["source_type"]),
+                    title=normalize_text(str(row["title"] or ""))[:300],
+                    url=str(row["url"]),
+                    canonical_url=str(row["canonical_url"]),
+                    summary=normalize_text(str(row["summary_raw"] or ""))[:300],
+                    published_at=row["published_at"],
+                    language=str(row["language"] or "en"),
+                    author=row["author"],
+                    external_id=str(row["external_id"]),
+                    engagement=dict(row["engagement_json"] or {}),
+                    payload=dict(row["payload_json"] or {}),
+                    source_weight=float(row["credibility_weight"] or 0.65),
+                )
+            )
+        return items
+
+    def _is_same_story(self, item: NormalizedNewsItem, cluster: StoryCluster) -> bool:
+        if item.canonical_url and cluster.canonical_url and item.canonical_url == cluster.canonical_url:
+            return True
+
+        sim = title_similarity(item.title, cluster.title)
+        if sim >= 0.78:
+            return True
+
+        item_entities = set(extract_entities(item.title))
+        cluster_entities = set(cluster.entities)
+        overlap = bool(item_entities & cluster_entities)
+
+        time_delta = abs((item.published_at - cluster.published_at).total_seconds()) / 3600.0
+        if sim >= 0.55 and overlap and time_delta <= 72:
+            return True
+
+        return False
+
+    def _cluster_items(self, items: Sequence[NormalizedNewsItem]) -> List[StoryCluster]:
+        clusters: List[StoryCluster] = []
+
+        for item in sorted(items, key=lambda x: x.published_at, reverse=True):
+            placed = False
+            for idx, cluster in enumerate(clusters):
+                if self._is_same_story(item, cluster):
+                    members = list(cluster.members)
+                    members.append(item)
+
+                    primary = sorted(members, key=lambda m: (m.source_weight, m.published_at), reverse=True)[0]
+                    tags = classify_topic_tags(primary.title, primary.summary)
+                    entities = extract_entities(primary.title)
+                    rank_score, trust_score, reason = compute_cluster_scores(
+                        published_at=max(m.published_at for m in members),
+                        topic_tags=tags,
+                        members=members,
+                    )
+
+                    clusters[idx] = StoryCluster(
+                        cluster_key=cluster.cluster_key,
+                        canonical_url=primary.canonical_url,
+                        title=primary.title,
+                        summary=primary.summary,
+                        published_at=max(m.published_at for m in members),
+                        topic_tags=tags,
+                        entities=entities,
+                        story_type=classify_story_type(tags),
+                        rank_score=rank_score,
+                        rank_reason=reason,
+                        trust_score=trust_score,
+                        members=members,
+                    )
+                    placed = True
+                    break
+
+            if placed:
+                continue
+
+            tags = classify_topic_tags(item.title, item.summary)
+            rank_score, trust_score, reason = compute_cluster_scores(
+                published_at=item.published_at,
+                topic_tags=tags,
+                members=[item],
+            )
+            key_seed = f"{item.canonical_url}|{title_fingerprint(item.title)}"
+            cluster_key = hashlib.sha1(key_seed.encode("utf-8")).hexdigest()[:28]
+            clusters.append(
+                StoryCluster(
+                    cluster_key=cluster_key,
+                    canonical_url=item.canonical_url,
+                    title=item.title,
+                    summary=item.summary,
+                    published_at=item.published_at,
+                    topic_tags=tags,
+                    entities=extract_entities(item.title),
+                    story_type=classify_story_type(tags),
+                    rank_score=rank_score,
+                    rank_reason=reason,
+                    trust_score=trust_score,
+                    members=[item],
+                )
+            )
+
+        clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
+        return clusters
+
+    async def _persist_clusters(self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster]) -> Dict[str, str]:
+        # Build map from raw item external keys to IDs for linking.
+        raw_rows = await conn.fetch("SELECT id::text, source_id::text, external_id FROM news_items_raw")
+        source_id_map = await self._get_source_id_map(conn)
+        raw_lookup: Dict[Tuple[str, str], str] = {}
+        source_lookup: Dict[str, str] = {v: k for k, v in source_id_map.items()}
+        for row in raw_rows:
+            source_key = source_lookup.get(row["source_id"], "")
+            if source_key:
+                raw_lookup[(source_key, row["external_id"])] = row["id"]
+
+        cluster_ids: Dict[str, str] = {}
+        for cluster in clusters:
+            cluster_id = await conn.fetchval(
+                """
+                INSERT INTO news_clusters (
+                    cluster_key, canonical_url, title, summary, published_at, updated_at,
+                    topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score
+                )
+                VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12)
+                ON CONFLICT (cluster_key) DO UPDATE
+                SET canonical_url = EXCLUDED.canonical_url,
+                    title = EXCLUDED.title,
+                    summary = EXCLUDED.summary,
+                    published_at = EXCLUDED.published_at,
+                    updated_at = NOW(),
+                    topic_tags = EXCLUDED.topic_tags,
+                    entities = EXCLUDED.entities,
+                    story_type = EXCLUDED.story_type,
+                    source_count = EXCLUDED.source_count,
+                    rank_score = EXCLUDED.rank_score,
+                    rank_reason = EXCLUDED.rank_reason,
+                    trust_score = EXCLUDED.trust_score
+                RETURNING id::text
+                """,
+                cluster.cluster_key,
+                cluster.canonical_url,
+                cluster.title,
+                cluster.summary,
+                cluster.published_at,
+                cluster.topic_tags,
+                cluster.entities,
+                cluster.story_type,
+                len(cluster.members),
+                cluster.rank_score,
+                cluster.rank_reason,
+                cluster.trust_score,
+            )
+            if not cluster_id:
+                continue
+
+            cluster_ids[cluster.cluster_key] = str(cluster_id)
+            await conn.execute("DELETE FROM news_cluster_items WHERE cluster_id = $1::uuid", str(cluster_id))
+
+            ranked_members = sorted(cluster.members, key=lambda m: (m.source_weight, m.published_at), reverse=True)
+            for i, member in enumerate(ranked_members):
+                raw_id = raw_lookup.get((member.source_key, member.external_id))
+                if not raw_id:
+                    continue
+                await conn.execute(
+                    """
+                    INSERT INTO news_cluster_items (cluster_id, raw_item_id, is_primary, source_rank)
+                    VALUES ($1::uuid, $2::uuid, $3, $4)
+                    ON CONFLICT (cluster_id, raw_item_id) DO UPDATE
+                    SET is_primary = EXCLUDED.is_primary,
+                        source_rank = EXCLUDED.source_rank
+                    """,
+                    str(cluster_id),
+                    str(raw_id),
+                    i == 0,
+                    member.source_weight,
+                )
+
+        return cluster_ids
+
+    async def _persist_edition(
+        self,
+        conn: asyncpg.Connection,
+        *,
+        edition_date: date,
+        clusters: Sequence[StoryCluster],
+        cluster_ids: Dict[str, str],
+    ) -> Dict[str, Any]:
+        top = clusters[:40]
+        top_ids = [cluster_ids[c.cluster_key] for c in top if c.cluster_key in cluster_ids]
+
+        story_type_counts: Dict[str, int] = {}
+        topic_counts: Dict[str, int] = {}
+        for c in clusters:
+            story_type_counts[c.story_type] = story_type_counts.get(c.story_type, 0) + 1
+            for t in c.topic_tags:
+                topic_counts[t] = topic_counts.get(t, 0) + 1
+
+        stats = {
+            "total_clusters": len(clusters),
+            "top_story_count": len(top_ids),
+            "story_type_counts": story_type_counts,
+            "topic_counts": dict(sorted(topic_counts.items(), key=lambda kv: kv[1], reverse=True)[:15]),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        await conn.execute(
+            """
+            INSERT INTO news_daily_editions (edition_date, generated_at, status, top_cluster_ids, stats_json)
+            VALUES ($1, NOW(), 'ready', $2::uuid[], $3::jsonb)
+            ON CONFLICT (edition_date) DO UPDATE
+            SET generated_at = NOW(),
+                status = 'ready',
+                top_cluster_ids = EXCLUDED.top_cluster_ids,
+                stats_json = EXCLUDED.stats_json
+            """,
+            edition_date,
+            top_ids,
+            json.dumps(stats),
+        )
+
+        await conn.execute("DELETE FROM news_topic_index WHERE edition_date = $1", edition_date)
+        for c in clusters:
+            cid = cluster_ids.get(c.cluster_key)
+            if not cid:
+                continue
+            for topic in c.topic_tags:
+                await conn.execute(
+                    """
+                    INSERT INTO news_topic_index (topic, cluster_id, edition_date, rank_score)
+                    VALUES ($1, $2::uuid, $3, $4)
+                    ON CONFLICT (topic, cluster_id, edition_date) DO UPDATE
+                    SET rank_score = EXCLUDED.rank_score
+                    """,
+                    topic,
+                    cid,
+                    edition_date,
+                    c.rank_score,
+                )
+
+        return stats
+
+    async def run(
+        self,
+        *,
+        lookback_hours: int = 48,
+        edition_date: Optional[date] = None,
+        rebuild_only: bool = False,
+    ) -> Dict[str, Any]:
+        await self.connect()
+        assert self.pool is not None
+
+        e_date = edition_date or datetime.now(timezone.utc).date()
+        errors: List[str] = []
+
+        async with self.pool.acquire() as conn:
+            run_id = await conn.fetchval(
+                """
+                INSERT INTO news_ingestion_runs (started_at, status)
+                VALUES (NOW(), 'running')
+                RETURNING id::text
+                """
+            )
+
+            items_fetched = 0
+            items_kept = 0
+            sources_attempted = 0
+
+            try:
+                await self._upsert_sources(conn, DEFAULT_SOURCES)
+
+                if not rebuild_only:
+                    collected, collect_errors, sources_attempted = await self._collect_items(conn, lookback_hours)
+                    errors.extend(collect_errors)
+                    items_fetched = len(collected)
+                    items_kept = await self._insert_raw_items(conn, collected)
+
+                items_for_clustering = await self._load_recent_items(conn, lookback_hours)
+                clusters = self._cluster_items(items_for_clustering)
+                cluster_ids = await self._persist_clusters(conn, clusters)
+                stats = await self._persist_edition(
+                    conn,
+                    edition_date=e_date,
+                    clusters=clusters,
+                    cluster_ids=cluster_ids,
+                )
+
+                result = {
+                    "run_id": run_id,
+                    "status": "ready",
+                    "edition_date": e_date.isoformat(),
+                    "sources_attempted": sources_attempted,
+                    "items_fetched": items_fetched,
+                    "items_kept": items_kept,
+                    "clusters_built": len(clusters),
+                    "top_clusters": len(stats.get("top_story_count", 0) if isinstance(stats.get("top_story_count", 0), int) else 0),
+                    "errors": errors,
+                    "stats": stats,
+                }
+
+                await conn.execute(
+                    """
+                    UPDATE news_ingestion_runs
+                    SET completed_at = NOW(),
+                        status = 'success',
+                        sources_attempted = $2,
+                        items_fetched = $3,
+                        items_kept = $4,
+                        clusters_built = $5,
+                        errors_json = $6::jsonb,
+                        stats_json = $7::jsonb
+                    WHERE id = $1::uuid
+                    """,
+                    str(run_id),
+                    sources_attempted,
+                    items_fetched,
+                    items_kept,
+                    len(clusters),
+                    json.dumps(errors),
+                    json.dumps(stats),
+                )
+
+                return result
+            except Exception as exc:
+                errors.append(str(exc))
+                await conn.execute(
+                    """
+                    UPDATE news_ingestion_runs
+                    SET completed_at = NOW(),
+                        status = 'failed',
+                        errors_json = $2::jsonb,
+                        stats_json = $3::jsonb
+                    WHERE id = $1::uuid
+                    """,
+                    str(run_id),
+                    json.dumps(errors),
+                    json.dumps({"edition_date": e_date.isoformat()}),
+                )
+                raise
+
+
+async def run_news_ingestion(
+    *,
+    lookback_hours: int = 48,
+    edition_date: Optional[str] = None,
+    rebuild_only: bool = False,
+) -> Dict[str, Any]:
+    if edition_date:
+        try:
+            parsed_date = datetime.strptime(edition_date, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise ValueError("edition_date must be YYYY-MM-DD") from exc
+    else:
+        parsed_date = None
+
+    ingestor = DailyNewsIngestor()
+    try:
+        return await ingestor.run(
+            lookback_hours=max(1, int(lookback_hours)),
+            edition_date=parsed_date,
+            rebuild_only=bool(rebuild_only),
+        )
+    finally:
+        await ingestor.close()
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Ingest daily startup news and build edition")
+    parser.add_argument("--lookback-hours", type=int, default=48)
+    parser.add_argument("--edition-date", type=str, default="")
+    parser.add_argument("--rebuild-only", action="store_true")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = _parse_args()
+    result = asyncio.run(
+        run_news_ingestion(
+            lookback_hours=args.lookback_hours,
+            edition_date=args.edition_date or None,
+            rebuild_only=args.rebuild_only,
+        )
+    )
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

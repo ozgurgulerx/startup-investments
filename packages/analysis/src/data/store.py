@@ -39,15 +39,17 @@ class AnalysisStore:
         self.index = self._load_index()
 
     def _load_index(self) -> Dict[str, Any]:
-        """Load the store index."""
+        """Load the store index and migrate if needed."""
         if self.index_file.exists():
             try:
                 with open(self.index_file) as f:
-                    return json.load(f)
+                    index = json.load(f)
+                index = self._migrate_index(index)
+                return index
             except Exception:
                 pass
         return {
-            "version": 1,
+            "version": 2,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "startups": {},  # name -> metadata
             "stats": {
@@ -56,6 +58,78 @@ class AnalysisStore:
             }
         }
 
+    def _migrate_index(self, index: Dict[str, Any]) -> Dict[str, Any]:
+        """Migrate index from older versions."""
+        version = index.get("version", 1)
+        changed = False
+
+        if version < 2:
+            # v1 → v2: Normalize metadata field names (has_base_analysis → has_base)
+            # and clear short hashes so they get recomputed on next delta check
+            for _, meta in index.get("startups", {}).items():
+                # Fix field name inconsistency from delta_processor
+                if "has_base_analysis" in meta and "has_base" not in meta:
+                    meta["has_base"] = meta.pop("has_base_analysis")
+                    changed = True
+                # Rename funding_amount → funding for consistency
+                if "funding_amount" in meta and "funding" not in meta:
+                    meta["funding"] = meta.pop("funding_amount")
+                    changed = True
+                # Clear short hashes (12-char) so they'll be recomputed as 16-char
+                if meta.get("hash") and len(meta["hash"]) < 16:
+                    meta["hash"] = ""  # Will trigger reprocessing
+                    changed = True
+                # Ensure required fields exist
+                if "has_base" not in meta:
+                    meta["has_base"] = False
+                    changed = True
+                if "has_viral" not in meta:
+                    meta["has_viral"] = False
+                    changed = True
+                if "has_enrichment" not in meta:
+                    meta["has_enrichment"] = False
+                    changed = True
+                if "description" not in meta:
+                    meta["description"] = None
+                    changed = True
+                if "industries" not in meta:
+                    meta["industries"] = []
+                    changed = True
+                if "lead_investors" not in meta:
+                    meta["lead_investors"] = []
+                    changed = True
+                if "funding_stage" not in meta:
+                    meta["funding_stage"] = None
+                    changed = True
+
+            index["version"] = 2
+            changed = True
+
+        # Defensive normalization even for already-migrated indexes
+        for _, meta in index.get("startups", {}).items():
+            if meta.get("hash") and len(meta["hash"]) < 16:
+                meta["hash"] = ""
+                changed = True
+            if "description" not in meta:
+                meta["description"] = None
+                changed = True
+            if "industries" not in meta:
+                meta["industries"] = []
+                changed = True
+            if "lead_investors" not in meta:
+                meta["lead_investors"] = []
+                changed = True
+            if "funding_stage" not in meta:
+                meta["funding_stage"] = None
+                changed = True
+
+        if changed:
+            # Save migrated index immediately
+            self.index = index
+            self._save_index()
+
+        return index
+
     def _save_index(self):
         """Save the store index."""
         self.index["stats"]["last_updated"] = datetime.now(timezone.utc).isoformat()
@@ -63,9 +137,19 @@ class AnalysisStore:
             json.dump(self.index, f, indent=2, default=str)
 
     def _get_startup_hash(self, startup: StartupInput) -> str:
-        """Generate a hash for a startup to detect changes."""
-        key_data = f"{startup.name}|{startup.website}|{startup.funding_amount}|{startup.description}"
-        return hashlib.md5(key_data.encode()).hexdigest()[:12]
+        """Generate a hash for a startup to detect changes.
+        Must match classifier._compute_hash() for consistent change detection.
+        """
+        key_data = "|".join([
+            startup.name or "",
+            startup.website or "",
+            str(startup.funding_amount or ""),
+            startup.description or "",
+            ",".join(startup.industries or []),
+            ",".join(startup.lead_investors or []),
+            startup.funding_stage.value if startup.funding_stage else "",
+        ])
+        return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
     def _get_slug(self, name: str) -> str:
         """Convert name to filesystem-safe slug."""
@@ -110,6 +194,10 @@ class AnalysisStore:
             "has_enrichment": False,
             "website": startup.website,
             "funding": startup.funding_amount,
+            "funding_stage": startup.funding_stage.value if startup.funding_stage else None,
+            "description": startup.description,
+            "industries": startup.industries or [],
+            "lead_investors": startup.lead_investors or [],
         }
         self.index["stats"]["total_analyzed"] = len(self.index["startups"])
         self._save_index()
