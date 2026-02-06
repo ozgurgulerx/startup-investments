@@ -19,12 +19,27 @@ env:
   AKS_CLUSTER_NAME: aks-aistartuptr
   AKS_RESOURCE_GROUP: aistartuptr
   IMAGE_NAME: startup-investments-api
+  API_URL: ${{ vars.API_URL }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          FRONT_DOOR_ID: ${{ secrets.FRONT_DOOR_ID }}
+        run: |
+          for key in DATABASE_URL API_KEY ADMIN_KEY FRONT_DOOR_ID; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing required secret: $key"
+              exit 1
+            fi
+          done
 
       - name: Login to Azure (OIDC)
         uses: azure/login@v2
@@ -67,6 +82,7 @@ jobs:
           kubectl create secret generic startup-investments-secrets \
             --from-literal=database-url="${{ secrets.DATABASE_URL }}" \
             --from-literal=api-key="${{ secrets.API_KEY }}" \
+            --from-literal=admin-key="${{ secrets.ADMIN_KEY }}" \
             --from-literal=front-door-id="${{ secrets.FRONT_DOOR_ID }}" \
             --from-literal=redis-url="${{ secrets.REDIS_URL }}" \
             --dry-run=client -o yaml | kubectl apply -f -
@@ -76,23 +92,12 @@ jobs:
           kubectl apply -f infrastructure/kubernetes/api-deployment.yaml
           kubectl rollout status deployment/startup-investments-api --timeout=300s
 
-      - name: Get Service External IP
-        id: get-ip
-        run: |
-          echo "Waiting for LoadBalancer IP..."
-          for i in {1..30}; do
-            IP=$(kubectl get service startup-investments-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-            if [ -n "$IP" ]; then
-              echo "API available at: http://$IP"
-              echo "api_ip=$IP" >> $GITHUB_OUTPUT
-              break
-            fi
-            sleep 10
-          done
-
       - name: Wait for API to be healthy
         run: |
-          API_URL="http://${{ steps.get-ip.outputs.api_ip }}"
+          API_URL="${{ env.API_URL }}"
+          if [ -z "$API_URL" ]; then
+            API_URL="https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net"
+          fi
           echo "Waiting for API to be healthy at $API_URL..."
           for i in {1..30}; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")
@@ -106,18 +111,30 @@ jobs:
 
       - name: Trigger Logo Extraction
         run: |
-          API_URL="http://${{ steps.get-ip.outputs.api_ip }}"
+          API_URL="${{ env.API_URL }}"
+          if [ -z "$API_URL" ]; then
+            API_URL="https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net"
+          fi
           echo "Triggering logo extraction..."
 
           # First check logo status
           echo "Current logo status:"
-          curl -s -H "x-admin-key: ${{ secrets.API_KEY }}" "$API_URL/api/admin/logo-status" | jq .
+          curl -s \
+            -H "x-api-key: ${{ secrets.API_KEY }}" \
+            -H "x-admin-key: ${{ secrets.ADMIN_KEY }}" \
+            "$API_URL/api/admin/logo-status" | jq .
 
           # Trigger extraction (only for startups without logos)
           echo "Starting logo extraction..."
-          RESULT=$(curl -s -X POST -H "x-admin-key: ${{ secrets.API_KEY }}" "$API_URL/api/admin/extract-logos")
+          RESULT=$(curl -s -X POST \
+            -H "x-api-key: ${{ secrets.API_KEY }}" \
+            -H "x-admin-key: ${{ secrets.ADMIN_KEY }}" \
+            "$API_URL/api/admin/extract-logos")
           echo "$RESULT" | jq .
 
           # Show final status
           echo "Final logo status:"
-          curl -s -H "x-admin-key: ${{ secrets.API_KEY }}" "$API_URL/api/admin/logo-status" | jq .
+          curl -s \
+            -H "x-api-key: ${{ secrets.API_KEY }}" \
+            -H "x-admin-key: ${{ secrets.ADMIN_KEY }}" \
+            "$API_URL/api/admin/logo-status" | jq .

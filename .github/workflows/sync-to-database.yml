@@ -79,6 +79,20 @@ jobs:
             echo "CSV not found: $CSV_PATH"
           fi
 
+      - name: Validate required secrets for sync
+        if: steps.check_csv.outputs.csv_exists == 'true' && github.event.inputs.regenerate_only != 'true'
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          for key in API_KEY ADMIN_KEY DATABASE_URL; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing required secret: $key"
+              exit 1
+            fi
+          done
+
       # ============================================
       # Step 1: Regenerate Monthly Stats (deal_summary + genai_analysis)
       # ============================================
@@ -445,11 +459,39 @@ jobs:
       # ============================================
       # Step 7: Sync to Database
       # ============================================
+      - name: Apply migration 010_add_constraints.sql
+        if: steps.check_csv.outputs.csv_exists == 'true' && github.event.inputs.regenerate_only != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python3 << 'EOF'
+          import os
+          from pathlib import Path
+          import psycopg2
+
+          db_url = os.environ.get('DATABASE_URL', '')
+          if not db_url:
+              raise SystemExit('Missing DATABASE_URL')
+
+          migration_path = Path('database/migrations/010_add_constraints.sql')
+          if not migration_path.exists():
+              raise SystemExit(f'Migration file not found: {migration_path}')
+
+          sql = migration_path.read_text(encoding='utf-8')
+          with psycopg2.connect(db_url) as conn:
+              with conn.cursor() as cur:
+                  cur.execute(sql)
+              conn.commit()
+
+          print(f'Applied migration: {migration_path}')
+          EOF
+
       - name: Sync to database via API
         if: steps.check_csv.outputs.csv_exists == 'true' && github.event.inputs.regenerate_only != 'true'
         id: sync
         env:
           API_KEY: ${{ secrets.API_KEY }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
         run: |
           python3 << 'EOF'
           import csv
@@ -461,6 +503,7 @@ jobs:
           csv_path = "${{ steps.check_csv.outputs.csv_path }}"
           api_url = os.environ.get('API_URL', '${{ env.API_URL }}')
           api_key = os.environ.get('API_KEY', '')
+          admin_key = os.environ.get('ADMIN_KEY', '')
 
           startups = []
           with open(csv_path, 'r', encoding='utf-8') as f:
@@ -493,7 +536,7 @@ jobs:
               data=payload,
               headers={
                   'Content-Type': 'application/json',
-                  'X-Admin-Key': api_key,
+                  'X-Admin-Key': admin_key,
                   'X-API-Key': api_key,
               },
               method='POST'
