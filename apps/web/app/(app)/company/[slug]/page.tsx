@@ -12,13 +12,12 @@ import {
 import { CompanyActions } from './company-actions';
 import {
   getStartup,
-  getStartupBrief,
   getAvailablePeriods,
   getStartups,
 } from '@/lib/data';
 import { formatCurrency } from '@/lib/utils';
 
-const DEFAULT_PERIOD = '2026-01';
+const FALLBACK_PERIOD = '2026-01';
 
 // Pattern thesis data (shared with patterns page)
 const PATTERN_CONTEXT: Record<string, {
@@ -128,12 +127,12 @@ interface PageProps {
   params: { slug: string };
 }
 
-async function CompanyBriefContent({ slug, period }: { slug: string; period: string }) {
-  const [startup, brief, periods] = await Promise.all([
-    getStartup(period, slug),
-    getStartupBrief(period, slug),
-    getAvailablePeriods(),
-  ]);
+async function CompanyBriefContent({ slug }: { slug: string }) {
+  // Dynamically resolve latest period
+  const availablePeriods = await getAvailablePeriods();
+  const period = availablePeriods[0]?.period || FALLBACK_PERIOD;
+
+  const startup = await getStartup(period, slug);
 
   if (!startup) {
     notFound();
@@ -619,11 +618,11 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
           )}
 
           {/* Customer Proof Points */}
-          {startup.business_model.customer_acquisition?.customer_proof_points?.length > 0 && (
+          {(startup.business_model.customer_acquisition?.customer_proof_points?.length ?? 0) > 0 && (
             <div className="mt-4 pt-4 border-t border-border/30">
               <span className="label-xs">Customer Evidence</span>
               <div className="mt-2 space-y-1">
-                {startup.business_model.customer_acquisition.customer_proof_points.slice(0, 3).map((point: string, i: number) => (
+                {startup.business_model.customer_acquisition!.customer_proof_points!.slice(0, 3).map((point: string, i: number) => (
                   <p key={i} className="text-xs text-muted-foreground">• {point}</p>
                 ))}
               </div>
@@ -635,8 +634,8 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
       {/* Product Analysis - NEW */}
       {startup.product_analysis && (
         startup.product_analysis.product_stage !== 'unknown' ||
-        startup.product_analysis.feature_depth?.core_features?.length > 0 ||
-        startup.product_analysis.integration_ecosystem?.integrations_mentioned?.length > 0
+        (startup.product_analysis.feature_depth?.core_features?.length ?? 0) > 0 ||
+        (startup.product_analysis.integration_ecosystem?.integrations_mentioned?.length ?? 0) > 0
       ) && (
         <section className="section">
           <div className="section-header">
@@ -659,11 +658,11 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
           )}
 
           {/* Core Features */}
-          {startup.product_analysis.feature_depth?.differentiating_features?.length > 0 && (
+          {(startup.product_analysis.feature_depth?.differentiating_features?.length ?? 0) > 0 && (
             <div className="mb-4">
               <span className="label-xs">Differentiating Features</span>
               <div className="mt-2 flex flex-wrap gap-2">
-                {startup.product_analysis.feature_depth.differentiating_features.slice(0, 5).map((feature: string, i: number) => (
+                {startup.product_analysis.feature_depth!.differentiating_features!.slice(0, 5).map((feature: string, i: number) => (
                   <span key={i} className="px-2 py-1 text-xs bg-accent/10 text-accent rounded">
                     {feature}
                   </span>
@@ -673,11 +672,11 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
           )}
 
           {/* Integrations */}
-          {startup.product_analysis.integration_ecosystem?.integrations_mentioned?.length > 0 && (
+          {(startup.product_analysis.integration_ecosystem?.integrations_mentioned?.length ?? 0) > 0 && (
             <div className="mb-4">
               <span className="label-xs">Integrations</span>
               <div className="mt-2 flex flex-wrap gap-2">
-                {startup.product_analysis.integration_ecosystem.integrations_mentioned.slice(0, 6).map((integration: string, i: number) => (
+                {startup.product_analysis.integration_ecosystem!.integrations_mentioned!.slice(0, 6).map((integration: string, i: number) => (
                   <span key={i} className="text-xs text-muted-foreground">
                     {integration}
                   </span>
@@ -697,14 +696,14 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
       )}
 
       {/* Discovered Patterns - NEW (high-novelty patterns) */}
-      {startup.discovered_patterns?.length > 0 && (
+      {(startup.discovered_patterns?.length ?? 0) > 0 && (
         <section className="section">
           <div className="section-header">
             <span className="section-title">Novel Approaches</span>
           </div>
 
           <div className="space-y-4">
-            {startup.discovered_patterns
+            {startup.discovered_patterns!
               .filter((p: any) => p.novelty_score >= 7)
               .slice(0, 3)
               .map((pattern: any, i: number) => (
@@ -814,7 +813,7 @@ async function CompanyBriefContent({ slug, period }: { slug: string; period: str
                   key={i}
                   className="pl-4 border-l border-border/50 text-sm text-muted-foreground italic"
                 >
-                  "{quote}"
+                  &ldquo;{quote}&rdquo;
                 </blockquote>
               ))}
             </div>
@@ -846,24 +845,24 @@ function CompanyBriefLoading() {
 // Generate static params for all startups
 export async function generateStaticParams() {
   const periods = await getAvailablePeriods();
-  const allParams: { slug: string }[] = [];
+  const slugSet = new Set<string>();
 
   for (const periodInfo of periods) {
     const startups = await getStartups(periodInfo.period);
     for (const startup of startups) {
-      if (startup.company_slug && !allParams.find(p => p.slug === startup.company_slug)) {
-        allParams.push({ slug: startup.company_slug });
+      if (startup.company_slug) {
+        slugSet.add(startup.company_slug);
       }
     }
   }
 
-  return allParams;
+  return Array.from(slugSet).map((slug) => ({ slug }));
 }
 
 export default function CompanyBriefPage({ params }: PageProps) {
   return (
     <Suspense fallback={<CompanyBriefLoading />}>
-      <CompanyBriefContent slug={params.slug} period={DEFAULT_PERIOD} />
+      <CompanyBriefContent slug={params.slug} />
     </Suspense>
   );
 }
