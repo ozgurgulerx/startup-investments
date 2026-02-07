@@ -142,6 +142,7 @@ export interface DealbookFilters {
   stage?: string;
   pattern?: string;
   continent?: string;
+  vertical?: string;
   minFunding?: number;
   maxFunding?: number;
   usesGenai?: boolean;
