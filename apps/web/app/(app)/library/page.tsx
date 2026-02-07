@@ -4,13 +4,20 @@ import { getNewsletterMarkdown, getAvailablePeriods, getMonthlyStats } from '@/l
 import { formatPeriod } from '@/lib/utils';
 import { NewsletterRenderer } from '@/components/features';
 import { Calendar, Download, Share2 } from 'lucide-react';
+import { PeriodNav } from '@/components/ui/period-nav';
 
-const DEFAULT_PERIOD = '2026-01';
+const FALLBACK_PERIOD = '2026-01';
 
-async function LibraryContent({ period }: { period: string }) {
-  const [markdown, periods, stats] = await Promise.all([
+async function LibraryContent({ selectedMonth }: { selectedMonth?: string }) {
+  const periods = await getAvailablePeriods();
+  const latestPeriod = periods[0]?.period || FALLBACK_PERIOD;
+  const period = (selectedMonth && periods.some(p => p.period === selectedMonth))
+    ? selectedMonth
+    : latestPeriod;
+  const availableMonths = periods.map(p => p.period);
+
+  const [markdown, stats] = await Promise.all([
     getNewsletterMarkdown(period),
-    getAvailablePeriods(),
     getMonthlyStats(period),
   ]);
 
@@ -54,7 +61,8 @@ async function LibraryContent({ period }: { period: string }) {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <PeriodNav availableMonths={availableMonths} currentMonth={period} />
           <button className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
             <Share2 className="h-4 w-4" />
           </button>
@@ -96,10 +104,15 @@ function LibraryLoading() {
   );
 }
 
-export default function LibraryPage() {
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const { month } = await searchParams;
   return (
     <Suspense fallback={<LibraryLoading />}>
-      <LibraryContent period={DEFAULT_PERIOD} />
+      <LibraryContent selectedMonth={month} />
     </Suspense>
   );
 }

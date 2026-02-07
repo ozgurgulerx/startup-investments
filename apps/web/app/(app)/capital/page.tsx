@@ -13,15 +13,26 @@ import {
   type StageAnomaly,
 } from '@/lib/data/anomalies';
 import Link from 'next/link';
+import { PeriodNav } from '@/components/ui/period-nav';
 
-const DEFAULT_PERIOD = '2026-01';
+const FALLBACK_PERIOD = '2026-01';
 
-async function CapitalContent({ period }: { period: string }) {
-  const [stats, periods, startups] = await Promise.all([
+async function CapitalContent({ selectedMonth }: { selectedMonth?: string }) {
+  const periods = await getAvailablePeriods();
+  const latestPeriod = periods[0]?.period || FALLBACK_PERIOD;
+  const period = (selectedMonth && periods.some(p => p.period === selectedMonth))
+    ? selectedMonth
+    : latestPeriod;
+  const availableMonths = periods.map(p => p.period);
+
+  const [stats, startups] = await Promise.all([
     getMonthlyStats(period),
-    getAvailablePeriods(),
     getStartups(period),
   ]);
+
+  // Build trend data from the most recent available periods (up to 6)
+  const trendPeriods = periods.slice(0, 6).map((p) => p.period).reverse();
+  const trendStats = await Promise.all(trendPeriods.map((trendPeriod) => getMonthlyStats(trendPeriod)));
 
   // Compute anomalies and concentration metrics
   const outlierRounds = detectOutlierRounds(startups, stats);
@@ -31,30 +42,27 @@ async function CapitalContent({ period }: { period: string }) {
   const genaiAnalysis = stats.genai_analysis;
   const dealSummary = stats.deal_summary;
 
-  // Build trend data with real current month data
-  // Historical months are estimated (will be replaced as we collect more data)
-  const trendData = [
-    { period: '2025-08', funding: 18500000000, deals: 156, genaiRate: 0.42 },
-    { period: '2025-09', funding: 21200000000, deals: 168, genaiRate: 0.45 },
-    { period: '2025-10', funding: 19800000000, deals: 172, genaiRate: 0.48 },
-    { period: '2025-11', funding: 24500000000, deals: 186, genaiRate: 0.50 },
-    { period: '2025-12', funding: 27800000000, deals: 192, genaiRate: 0.52 },
-    // Current month uses real data from stats
-    {
-      period: period,
-      funding: dealSummary.total_funding_usd,
-      deals: dealSummary.total_deals,
-      genaiRate: genaiAnalysis.genai_adoption_rate
-    },
-  ];
+  const trendData = trendStats.map((monthly) => ({
+    period: monthly.period,
+    funding: monthly.deal_summary.total_funding_usd,
+    deals: monthly.deal_summary.total_deals,
+    genaiRate: monthly.genai_analysis.genai_adoption_rate,
+  }));
 
   // Calculate month-over-month changes
   const currentData = trendData[trendData.length - 1];
-  const previousData = trendData[trendData.length - 2];
+  const previousData = trendData.length > 1 ? trendData[trendData.length - 2] : currentData;
+  const previousLabel = previousData.period.replace('-', ' ');
 
-  const fundingChange = ((currentData.funding - previousData.funding) / previousData.funding) * 100;
-  const dealsChange = ((currentData.deals - previousData.deals) / previousData.deals) * 100;
-  const genaiChange = ((currentData.genaiRate - previousData.genaiRate) / previousData.genaiRate) * 100;
+  const fundingChange = previousData.funding > 0
+    ? ((currentData.funding - previousData.funding) / previousData.funding) * 100
+    : 0;
+  const dealsChange = previousData.deals > 0
+    ? ((currentData.deals - previousData.deals) / previousData.deals) * 100
+    : 0;
+  const genaiChange = previousData.genaiRate > 0
+    ? ((currentData.genaiRate - previousData.genaiRate) / previousData.genaiRate) * 100
+    : 0;
 
   // Pattern data for comparison
   const patternData = Object.entries(genaiAnalysis.pattern_distribution)
@@ -69,11 +77,14 @@ async function CapitalContent({ period }: { period: string }) {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Capital Flows</h1>
-        <p className="text-muted-foreground">
-          {dealSummary.total_deals} deals tracked · {formatCurrency(dealSummary.total_funding_usd, true)} total funding
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Capital Flows</h1>
+          <p className="text-muted-foreground">
+            {dealSummary.total_deals} deals tracked · {formatCurrency(dealSummary.total_funding_usd, true)} total funding
+          </p>
+        </div>
+        <PeriodNav availableMonths={availableMonths} currentMonth={period} />
       </div>
 
       {/* Key Trend Metrics */}
@@ -95,7 +106,7 @@ async function CapitalContent({ period }: { period: string }) {
               <span className="font-medium">{fundingChange >= 0 ? '+' : ''}{fundingChange.toFixed(1)}%</span>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">vs December 2025</p>
+          <p className="text-xs text-muted-foreground mt-2">vs {previousLabel}</p>
         </Card>
 
         <Card className="p-4">
@@ -115,7 +126,7 @@ async function CapitalContent({ period }: { period: string }) {
               <span className="font-medium">{dealsChange >= 0 ? '+' : ''}{dealsChange.toFixed(1)}%</span>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">vs December 2025</p>
+          <p className="text-xs text-muted-foreground mt-2">vs {previousLabel}</p>
         </Card>
 
         <Card className="p-4">
@@ -135,7 +146,7 @@ async function CapitalContent({ period }: { period: string }) {
               <span className="font-medium">{genaiChange >= 0 ? '+' : ''}{genaiChange.toFixed(1)}%</span>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">vs December 2025</p>
+          <p className="text-xs text-muted-foreground mt-2">vs {previousLabel}</p>
         </Card>
       </div>
 
@@ -348,7 +359,7 @@ async function CapitalContent({ period }: { period: string }) {
                         <p className="text-sm text-muted-foreground">{outlier.stage}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold tabular-nums text-accent">
+                        <p className="font-bold tabular-nums text-accent-info">
                           {formatCurrency(outlier.amount, true)}
                         </p>
                         <Badge
@@ -441,10 +452,15 @@ function CapitalLoading() {
   );
 }
 
-export default function CapitalPage() {
+export default async function CapitalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const { month } = await searchParams;
   return (
     <Suspense fallback={<CapitalLoading />}>
-      <CapitalContent period={DEFAULT_PERIOD} />
+      <CapitalContent selectedMonth={month} />
     </Suspense>
   );
 }
