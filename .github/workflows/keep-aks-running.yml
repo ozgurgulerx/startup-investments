@@ -28,12 +28,13 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Check and Start PostgreSQL if Stopped
+        continue-on-error: true
         run: |
           echo "Checking PostgreSQL server status..."
           PG_STATE=$(az postgres flexible-server show \
             --resource-group ${{ env.POSTGRES_RESOURCE_GROUP }} \
             --name ${{ env.POSTGRES_SERVER_NAME }} \
-            --query "state" -o tsv)
+            --query "state" -o tsv 2>/dev/null || echo "UNKNOWN")
 
           echo "Current PostgreSQL state: $PG_STATE"
 
@@ -43,6 +44,8 @@ jobs:
               --resource-group ${{ env.POSTGRES_RESOURCE_GROUP }} \
               --name ${{ env.POSTGRES_SERVER_NAME }}
             echo "PostgreSQL server started successfully"
+          elif [ "$PG_STATE" = "UNKNOWN" ]; then
+            echo "PostgreSQL state could not be read (RBAC or transient issue). Continuing with AKS keep-alive."
           else
             echo "PostgreSQL is already running"
           fi

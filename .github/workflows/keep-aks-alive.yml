@@ -1,0 +1,79 @@
+name: Keep AKS API Available
+
+on:
+  schedule:
+    # Every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AKS_CLUSTER_NAME: aks-aistartuptr
+  AKS_RESOURCE_GROUP: aistartuptr
+  API_URL: https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net
+
+jobs:
+  keep-aks-alive:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: keep-aks-alive
+      cancel-in-progress: false
+
+    steps:
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure AKS is running
+        run: |
+          echo "Checking AKS cluster power state..."
+          POWER_STATE=$(az aks show \
+            --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+            --name ${{ env.AKS_CLUSTER_NAME }} \
+            --query "powerState.code" -o tsv)
+
+          echo "Current AKS state: $POWER_STATE"
+
+          if [ "$POWER_STATE" = "Stopped" ]; then
+            echo "AKS is stopped. Starting cluster..."
+            az aks start \
+              --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+              --name ${{ env.AKS_CLUSTER_NAME }}
+
+            echo "Waiting for AKS to report Running..."
+            for i in {1..30}; do
+              STATE=$(az aks show \
+                --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+                --name ${{ env.AKS_CLUSTER_NAME }} \
+                --query "powerState.code" -o tsv)
+              if [ "$STATE" = "Running" ]; then
+                echo "AKS is now running"
+                break
+              fi
+              echo "Attempt $i: AKS state is $STATE, waiting..."
+              sleep 20
+            done
+          else
+            echo "AKS is already running"
+          fi
+
+      - name: Verify API health
+        run: |
+          echo "Waiting for API health at ${{ env.API_URL }}/health ..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.API_URL }}/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "API is healthy"
+              exit 0
+            fi
+            echo "Attempt $i: status $STATUS, waiting..."
+            sleep 10
+          done
+          echo "API did not become healthy in time"
+          exit 1
