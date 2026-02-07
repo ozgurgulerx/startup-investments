@@ -195,6 +195,7 @@ export interface DealbookFiltersResponse {
   stages: string[];
   continents: string[];
   patterns: Array<{ name: string; count: number }>;
+  verticals?: string[];
 }
 
 export interface CompanyBySlugResponse {

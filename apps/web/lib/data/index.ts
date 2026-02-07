@@ -538,7 +538,8 @@ export async function getFilterOptions(period: string, region?: string): Promise
   // Try API first if configured (API only has global data)
   if (!isRegional && isAPIConfigured()) {
     try {
-      return await api.getDealbookFilters(period);
+      const apiFilters = await api.getDealbookFilters(period);
+      return { ...apiFilters, verticals: apiFilters.verticals ?? [] };
     } catch (error) {
       console.error('API request failed, falling back to file-based data:', error);
     }
