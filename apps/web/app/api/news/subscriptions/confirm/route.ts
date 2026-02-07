@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
           updated_at = NOW()
       WHERE confirmation_token = $1::uuid
         AND status = 'pending_confirmation'
-        AND updated_at > NOW() - ($2::int * INTERVAL '1 day')
+        AND COALESCE(confirmation_sent_at, updated_at) > NOW() - ($2::int * INTERVAL '1 day')
       RETURNING region
       `,
       [token, CONFIRMATION_TTL_DAYS]

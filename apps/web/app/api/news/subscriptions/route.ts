@@ -7,9 +7,28 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_REGIONS = ['global', 'turkey'] as const;
 type Region = (typeof VALID_REGIONS)[number];
 const CONFIRMATION_TTL_DAYS = 7;
+const RATE_LIMIT_PER_HOUR = Number(process.env.NEWS_SUBSCRIBE_RATE_LIMIT_PER_HOUR || '10');
+const RATE_LIMIT_PER_DAY = Number(process.env.NEWS_SUBSCRIBE_RATE_LIMIT_PER_DAY || '30');
+const RATE_LIMIT_PER_EMAIL_PER_HOUR = Number(process.env.NEWS_SUBSCRIBE_RATE_LIMIT_PER_EMAIL_PER_HOUR || '3');
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function clientIpFromRequest(req: NextRequest): string {
+  const forwarded = (req.headers.get('x-forwarded-for') || '').trim();
+  if (forwarded) {
+    // x-forwarded-for: client, proxy1, proxy2
+    return forwarded.split(',')[0].trim();
+  }
+  const realIp = (req.headers.get('x-real-ip') || '').trim();
+  return realIp;
+}
+
+function isMissingTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as { code?: string }).code;
+  return code === '42P01';
 }
 
 function baseUrlFromRequest(req: NextRequest): string {
@@ -120,6 +139,68 @@ async function sendConfirmationEmail(
   }
 }
 
+async function enforceRateLimit(
+  ip: string,
+  params: { emailNormalized: string; region: Region }
+): Promise<{ limited: boolean; message?: string }> {
+  const { emailNormalized, region } = params;
+  if (!ip) return { limited: false };
+  if (!Number.isFinite(RATE_LIMIT_PER_HOUR) || RATE_LIMIT_PER_HOUR <= 0) return { limited: false };
+
+  try {
+    const { rows } = await query<{ hour_count: string; day_count: string; email_hour_count: string }>(
+      `
+      WITH ins AS (
+        INSERT INTO news_email_subscription_requests (ip, email_normalized, region)
+        VALUES ($1, $2, $3)
+        RETURNING 1
+      )
+      SELECT
+        (
+          SELECT COUNT(*)::text
+          FROM news_email_subscription_requests
+          WHERE ip = $1
+            AND created_at > NOW() - INTERVAL '1 hour'
+        ) AS hour_count,
+        (
+          SELECT COUNT(*)::text
+          FROM news_email_subscription_requests
+          WHERE ip = $1
+            AND created_at > NOW() - INTERVAL '1 day'
+        ) AS day_count,
+        (
+          SELECT COUNT(*)::text
+          FROM news_email_subscription_requests
+          WHERE email_normalized = $2
+            AND region = $3
+            AND created_at > NOW() - INTERVAL '1 hour'
+        ) AS email_hour_count
+      `,
+      [ip, emailNormalized, region]
+    );
+
+    const hourCount = Number(rows[0]?.hour_count || 0);
+    const dayCount = Number(rows[0]?.day_count || 0);
+    const emailHourCount = Number(rows[0]?.email_hour_count || 0);
+
+    if (Number.isFinite(hourCount) && hourCount > RATE_LIMIT_PER_HOUR) {
+      return { limited: true, message: 'Too many subscription attempts. Please try again later.' };
+    }
+    if (Number.isFinite(dayCount) && dayCount > RATE_LIMIT_PER_DAY) {
+      return { limited: true, message: 'Too many subscription attempts today. Please try again tomorrow.' };
+    }
+    if (Number.isFinite(emailHourCount) && emailHourCount > RATE_LIMIT_PER_EMAIL_PER_HOUR) {
+      return { limited: true, message: 'Too many attempts for this email. Please try again later.' };
+    }
+
+    return { limited: false };
+  } catch (error) {
+    // If the rate-limit table isn't migrated yet, don't block subscriptions.
+    if (isMissingTableError(error)) return { limited: false };
+    throw error;
+  }
+}
+
 // GET /api/news/subscriptions?token=<unsubscribe_token>
 export async function GET(req: NextRequest) {
   try {
@@ -172,6 +253,12 @@ export async function POST(req: NextRequest) {
       ? (body.region as Region)
       : 'global';
 
+    const ip = clientIpFromRequest(req);
+    const rate = await enforceRateLimit(ip, { emailNormalized: email, region });
+    if (rate.limited) {
+      return NextResponse.json({ error: rate.message || 'Rate limited' }, { status: 429 });
+    }
+
     const source = (body.source || 'website').slice(0, 80);
     const preferences = {
       builder_focus: body.builderFocus !== false,
@@ -190,9 +277,10 @@ export async function POST(req: NextRequest) {
         region,
         preferences_json,
         confirmation_token,
+        confirmation_sent_at,
         updated_at
       )
-      VALUES ($1, $2, 'pending_confirmation', $3, $4, $5::jsonb, gen_random_uuid(), NOW())
+      VALUES ($1, $2, 'pending_confirmation', $3, $4, $5::jsonb, gen_random_uuid(), NOW(), NOW())
       ON CONFLICT (email_normalized, region) DO UPDATE
       SET email = EXCLUDED.email,
           source = EXCLUDED.source,
@@ -201,6 +289,11 @@ export async function POST(req: NextRequest) {
             WHEN news_email_subscriptions.status = 'active'
             THEN news_email_subscriptions.confirmation_token
             ELSE gen_random_uuid()
+          END,
+          confirmation_sent_at = CASE
+            WHEN news_email_subscriptions.status = 'active'
+            THEN news_email_subscriptions.confirmation_sent_at
+            ELSE NOW()
           END,
           status = CASE
             WHEN news_email_subscriptions.status = 'active'

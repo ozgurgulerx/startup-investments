@@ -337,7 +337,12 @@ class DailyNewsDigestSender:
                             json=payload,
                         )
                         if response.status_code >= 400:
-                            raise RuntimeError(f"resend_error_{response.status_code}")
+                            body_text = ""
+                            try:
+                                body_text = (await response.aread()).decode("utf-8", errors="ignore")
+                            except Exception:
+                                body_text = ""
+                            raise RuntimeError(f"resend_http_{response.status_code}:{body_text[:200]}")
 
                         payload = response.json() or {}
                         provider_message_id = str(payload.get("id") or "")
@@ -358,12 +363,24 @@ class DailyNewsDigestSender:
                         )
                         result["sent"] += 1
                     except Exception as exc:
+                        # Heuristic: mark as bounced for permanent address errors.
+                        # Resend commonly uses 4xx for invalid recipients; keep this conservative.
+                        err = str(exc)
+                        if "resend_http_422" in err or "resend_http_400" in err:
+                            await conn.execute(
+                                """
+                                UPDATE news_email_subscriptions
+                                SET status = 'bounced', updated_at = NOW()
+                                WHERE id = $1::uuid
+                                """,
+                                subscriber.id,
+                            )
                         await self._record_delivery(
                             conn,
                             edition_date=resolved_date,
                             subscriber_id=subscriber.id,
                             status="failed",
-                            error_text=str(exc)[:500],
+                            error_text=err[:500],
                         )
                         result["failed"] += 1
 
