@@ -74,6 +74,10 @@ jobs:
           # Copy public folder
           rsync -a public/ deploy/public/
 
+          # Copy file-based datasets (global + regional). Required for `region != global`
+          # and for API-down fallback.
+          rsync -a data/ deploy/data/
+
           # Remove any files that might trigger Oryx behaviors
           rm -f deploy/node_modules.tar.gz
           rm -f deploy/oryx-manifest.toml
