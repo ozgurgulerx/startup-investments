@@ -58,6 +58,21 @@ jobs:
           docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
 
+      - name: Notify Slack (failure)
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_TITLE: "Backend build failed"
+          SLACK_STATUS: "failure"
+          SLACK_BODY: |
+            *Workflow:* `${{ github.workflow }}`
+            *Job:* `build`
+            *Ref:* `${{ github.ref_name }}`
+            *SHA:* `${{ github.sha }}`
+          SLACK_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 scripts/slack_notify.py
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -148,6 +163,21 @@ jobs:
             -H "x-api-key: ${{ secrets.API_KEY }}" \
             -H "x-admin-key: ${{ secrets.ADMIN_KEY }}" \
             "$API_URL/api/admin/logo-status" | jq .
+
+      - name: Notify Slack (failure)
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_TITLE: "Backend deploy failed"
+          SLACK_STATUS: "failure"
+          SLACK_BODY: |
+            *Workflow:* `${{ github.workflow }}`
+            *Job:* `deploy`
+            *Ref:* `${{ github.ref_name }}`
+            *SHA:* `${{ github.sha }}`
+          SLACK_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 scripts/slack_notify.py
 
           # Trigger extraction (only for startups without logos)
           echo "Starting logo extraction..."

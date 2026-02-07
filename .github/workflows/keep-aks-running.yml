@@ -81,22 +81,22 @@ jobs:
       - name: Verify API Health
         run: |
           echo "Waiting for API to be healthy..."
-          for i in {1..30}; do
+          for i in $(seq 1 30); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health" 2>/dev/null || echo "000")
             if [ "$STATUS" = "200" ]; then
               echo "API is healthy!"
-              # Fetch health details
-              curl -s "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health" | python3 -c "
-import json,sys
-try:
-  d=json.load(sys.stdin)
-  print(f\"  Status: {d.get('status')}\")
-  print(f\"  Database: {d.get('database')}\")
-  cache=d.get('cache',{})
-  print(f\"  Redis: connected={cache.get('connected')}\")
-except: pass
-" 2>/dev/null || true
+              curl -s "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health" | python3 -c '
+          import json, sys
+          try:
+              d = json.load(sys.stdin)
+              print(f"  Status: {d.get(\"status\")}")
+              print(f"  Database: {d.get(\"database\")}")
+              cache = d.get("cache", {})
+              print(f"  Redis: connected={cache.get(\"connected\")}")
+          except Exception:
+              pass
+          ' 2>/dev/null || true
               exit 0
             fi
             echo "  Attempt $i/30: HTTP $STATUS, retrying in 10s..."
@@ -114,3 +114,18 @@ except: pass
           else
             echo "::warning::Frontend returned HTTP $STATUS"
           fi
+
+      - name: Notify Slack (failure)
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_TITLE: "Infrastructure keep-alive failed"
+          SLACK_STATUS: "failure"
+          SLACK_BODY: |
+            *Workflow:* `${{ github.workflow }}`
+            *Job:* `ensure-running`
+            *Ref:* `${{ github.ref_name }}`
+            *SHA:* `${{ github.sha }}`
+          SLACK_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 scripts/slack_notify.py

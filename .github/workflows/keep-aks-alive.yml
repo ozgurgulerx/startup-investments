@@ -77,3 +77,18 @@ jobs:
           done
           echo "API did not become healthy in time"
           exit 1
+
+      - name: Notify Slack (failure)
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_TITLE: "AKS API keep-alive failed"
+          SLACK_STATUS: "failure"
+          SLACK_BODY: |
+            *Workflow:* `${{ github.workflow }}`
+            *Job:* `keep-aks-alive`
+            *Ref:* `${{ github.ref_name }}`
+            *SHA:* `${{ github.sha }}`
+          SLACK_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 scripts/slack_notify.py

@@ -239,3 +239,18 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: apps/web/deploy.zip
+
+      - name: Notify Slack (failure)
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_TITLE: "Frontend deploy failed"
+          SLACK_STATUS: "failure"
+          SLACK_BODY: |
+            *Workflow:* `${{ github.workflow }}`
+            *Job:* `build-and-deploy`
+            *Ref:* `${{ github.ref_name }}`
+            *SHA:* `${{ github.sha }}`
+          SLACK_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 scripts/slack_notify.py
