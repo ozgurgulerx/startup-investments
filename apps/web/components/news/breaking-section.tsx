@@ -12,7 +12,7 @@ export function BreakingSection({ items }: BreakingSectionProps) {
   return (
     <div>
       <SectionHeader label="Breaking" count={items.length} indicator="pulse" />
-      <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-4 grid items-start gap-4 md:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
           <NewsCard key={item.id} item={item} />
         ))}

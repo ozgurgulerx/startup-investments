@@ -65,18 +65,18 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
           </section>
         ) : (
           <>
-            <section className="mt-6 grid gap-4 lg:grid-cols-5">
+            <section className="mt-6 grid items-start gap-4 lg:grid-cols-5">
               <div className="lg:col-span-3">
                 <NewsHeroCard item={edition.items[0]} />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-2">
+              <div className="grid items-start gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-2">
                 {edition.items.slice(1, 5).map((item) => (
                   <NewsCard key={item.id} item={item} />
                 ))}
               </div>
             </section>
 
-            <section className="mt-6 grid gap-4 md:grid-cols-2">
+            <section className="mt-6 grid items-start gap-4 md:grid-cols-2">
               {edition.items.slice(5).map((item) => (
                 <NewsCard key={item.id} item={item} />
               ))}

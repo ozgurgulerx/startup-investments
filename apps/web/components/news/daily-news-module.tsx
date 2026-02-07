@@ -293,14 +293,14 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
         {/* Stats row */}
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div
-            className="rounded-xl border border-amber-400/25 bg-gradient-to-br from-amber-400/10 to-card/80 px-4 py-3"
+            className="rounded-xl border border-border/40 bg-card/60 px-4 py-3"
             title="How many stories are in the current feed view."
           >
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Stories</p>
             <p className="mt-1 text-2xl font-light tabular-nums text-foreground">{edition.items.length}</p>
           </div>
           <div
-            className="rounded-xl border border-emerald-400/25 bg-gradient-to-br from-emerald-400/10 to-card/80 px-4 py-3"
+            className="rounded-xl border border-accent-info/25 bg-accent-info/10 px-4 py-3"
             title="Deduped story clusters detected for this edition. Includes clusters not shown in the top feed."
           >
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Signals</p>
@@ -309,14 +309,14 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             </p>
           </div>
           <div
-            className="rounded-xl border border-sky-400/25 bg-gradient-to-br from-sky-400/10 to-card/80 px-4 py-3"
+            className="rounded-xl border border-border/40 bg-card/60 px-4 py-3"
             title="Topic buckets available for filtering (top topics by volume for this edition)."
           >
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Top Topics</p>
             <p className="mt-1 text-2xl font-light tabular-nums text-foreground">{topics.length}</p>
           </div>
           <div
-            className="rounded-xl border border-violet-400/20 bg-gradient-to-br from-violet-400/10 to-card/80 px-4 py-3"
+            className="rounded-xl border border-success/25 bg-success/10 px-4 py-3"
             title={`Stories covered by ${CORROBORATED_MIN_SOURCES}+ sources in this feed. Higher = more corroboration.`}
           >
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Corroborated</p>
@@ -372,7 +372,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
         </div>
 
         {/* Main content: sections + sidebar */}
-        <div className="grid gap-4 lg:grid-cols-12">
+            <div className="grid items-start gap-4 lg:grid-cols-12">
           <div className="lg:col-span-8 space-y-6">
             {/* Top Stories */}
             <motion.div
@@ -383,7 +383,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             >
               <NewsHeroCard item={sections.topStories[0]} />
               {sections.topStories.length > 1 && (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid items-start gap-4 sm:grid-cols-2">
                   {sections.topStories.slice(1).map((item, i) => (
                     <motion.div
                       key={item.id}
@@ -403,7 +403,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.breaking.length > 0 && (
               <div>
                 <SectionHeader label="Breaking" indicator="pulse" count={sections.breaking.length} />
-                <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-3 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {sections.breaking.map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -415,7 +415,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.deepReads.length > 0 && (
               <div>
                 <SectionHeader label="Deep Reads" indicator="signal" count={sections.deepReads.length} />
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <div className="mt-3 grid items-start gap-4 sm:grid-cols-2">
                   {sections.deepReads.map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -427,7 +427,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.remaining.length > 0 && (
               <div>
                 <SectionHeader label="More Stories" count={sections.remaining.length} />
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <div className="mt-3 grid items-start gap-4 sm:grid-cols-2">
                   {sections.remaining.slice(0, 6).map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -518,7 +518,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
           </Link>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div className="mt-4 grid items-start gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <NewsSubscriptionCard region="global" />
           </div>

@@ -27,16 +27,16 @@ interface NewsCardProps {
 function toneForStoryType(storyType: string): string {
   const normalized = (storyType || '').toLowerCase();
   if (normalized === 'funding') {
-    return 'border-emerald-400/30 bg-gradient-to-br from-emerald-400/10 via-card/70 to-card/60';
+    return 'border-success/30 bg-gradient-to-br from-success/10 via-card/70 to-card/60';
   }
   if (normalized === 'mna') {
-    return 'border-sky-400/30 bg-gradient-to-br from-sky-400/10 via-card/70 to-card/60';
+    return 'border-delta/30 bg-gradient-to-br from-delta/10 via-card/70 to-card/60';
   }
   if (normalized === 'regulation') {
-    return 'border-violet-400/28 bg-gradient-to-br from-violet-400/10 via-card/70 to-card/60';
+    return 'border-warning/30 bg-gradient-to-br from-warning/10 via-card/70 to-card/60';
   }
   if (normalized === 'launch') {
-    return 'border-amber-400/28 bg-gradient-to-br from-amber-400/10 via-card/70 to-card/60';
+    return 'border-accent-info/30 bg-gradient-to-br from-accent-info/10 via-card/70 to-card/60';
   }
   return 'border-border/40 bg-card/65';
 }
@@ -56,7 +56,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
 
   return (
     <article
-      className={`group rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-info/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
+      className={`group flex flex-col rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-info/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
     >
       {showImage ? (
         <div className="mb-3 overflow-hidden rounded-lg border border-border/35 bg-background/70">
@@ -124,7 +124,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
         ))}
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <div className="mt-auto flex items-center justify-between gap-3 pt-4">
         <CoverageDrawer sources={item.sources.filter((s) => s !== item.primary_source)} />
         {hasSourceUrl ? (
           <Link
