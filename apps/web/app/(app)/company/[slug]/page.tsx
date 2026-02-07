@@ -1,6 +1,5 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import {
   ConfidenceBadge,
@@ -135,7 +134,25 @@ async function CompanyBriefContent({ slug }: { slug: string }) {
   const startup = await getStartup(period, slug);
 
   if (!startup) {
-    notFound();
+    // Don't 404: the dealbook can show records that don't yet have full analysis materialized.
+    return (
+      <>
+        <Link
+          href="/dealbook"
+          className="inline-block text-xs text-muted-foreground hover:text-foreground transition-colors mb-8"
+        >
+          ← Dealbook
+        </Link>
+        <header className="briefing-header">
+          <h1 className="text-2xl font-light tracking-tight text-foreground">
+            {slug}
+          </h1>
+          <p className="headline-md text-foreground/90 max-w-2xl mb-6 leading-relaxed">
+            This company is in the dealbook, but its full dossier is not available yet.
+          </p>
+        </header>
+      </>
+    );
   }
 
   const thesis = generateThesis(startup);

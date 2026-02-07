@@ -552,6 +552,18 @@ export async function getStartup(
   period: string,
   slug: string
 ): Promise<StartupAnalysis | null> {
+  // Prefer API when configured (keeps company pages consistent with dealbook data).
+  if (isAPIConfigured()) {
+    try {
+      const response = await api.getCompanyBySlug(slug, period);
+      if (response && (response as any).data) {
+        return (response as any).data as StartupAnalysis;
+      }
+    } catch (error) {
+      console.error('API request failed for getStartup, falling back to file-based data:', error);
+    }
+  }
+
   const storePath = path.join(DATA_PATH, period, 'output', 'analysis_store');
 
   try {

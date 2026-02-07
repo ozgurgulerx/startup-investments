@@ -196,6 +196,10 @@ export interface DealbookFiltersResponse {
   patterns: Array<{ name: string; count: number }>;
 }
 
+export interface CompanyBySlugResponse {
+  data: unknown;
+}
+
 /**
  * API methods
  */
@@ -260,8 +264,16 @@ export const api = {
   /**
    * Get available filter options for dealbook
    */
-  getDealbookFilters: (period = '2026-01'): Promise<DealbookFiltersResponse> =>
+  getDealbookFilters: (period = 'all'): Promise<DealbookFiltersResponse> =>
     fetchFromAPI(`/api/v1/dealbook/filters?period=${period}`),
+
+  /**
+   * Get company profile by slug (analysis data when available).
+   */
+  getCompanyBySlug: (slug: string, period: string = 'all'): Promise<CompanyBySlugResponse> => {
+    const query = period && period !== 'all' ? `?period=${encodeURIComponent(period)}` : '';
+    return fetchFromAPI(`/api/v1/companies/${encodeURIComponent(slug)}${query}`);
+  },
 };
 
 /**

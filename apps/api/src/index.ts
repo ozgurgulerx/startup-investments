@@ -95,6 +95,16 @@ function normalizeStageKey(value: string | undefined | null): string {
     .replace(/^_+|_+$/g, '');
 }
 
+function computedSlugExpr() {
+  // Mirrors apps/api/src/utils.ts slugify() using SQL.
+  return sql<string>`regexp_replace(
+    regexp_replace(lower(${startups.name}), '[^a-z0-9]+', '-', 'g'),
+    '(^-|-$)',
+    '',
+    'g'
+  )`;
+}
+
 // CORS configuration - allow frontend domains
 const allowedOrigins = [
   process.env.FRONTEND_URL,
@@ -306,16 +316,124 @@ app.get('/api/v1/startups/:id', async (req, res) => {
   }
 });
 
+// =============================================================================
+// Company profile by slug (used by web company pages)
+// =============================================================================
+
+app.get('/api/v1/companies/:slug', async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    if (!slug) {
+      return res.status(400).json({ error: 'Missing slug' });
+    }
+
+    const period = (req.query.period as string) || 'all';
+    const pf = periodFilter(period);
+    const slugExpr = computedSlugExpr();
+
+    const whereForPeriod = pf
+      ? and(pf, or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`))
+      : or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`);
+
+    const baseQuery = db.select({
+      id: startups.id,
+      name: startups.name,
+      slug: startups.slug,
+      description: startups.description,
+      website: startups.website,
+      headquartersCity: startups.headquartersCity,
+      headquartersCountry: startups.headquartersCountry,
+      continent: startups.continent,
+      industry: startups.industry,
+      fundingStage: startups.fundingStage,
+      moneyRaisedUsd: startups.moneyRaisedUsd,
+      usesGenai: startups.usesGenai,
+      analysisData: startups.analysisData,
+      period: startups.period,
+      createdAt: startups.createdAt,
+      updatedAt: startups.updatedAt,
+    })
+      .from(startups)
+      .where(whereForPeriod as any)
+      .orderBy(desc(startups.period), desc(startups.updatedAt), desc(startups.createdAt))
+      .limit(1);
+
+    let rows = await baseQuery;
+
+    // If user requested a specific period but we have none for that period, fall back to latest-any.
+    if ((!rows || rows.length === 0) && period !== 'all') {
+      rows = await db.select({
+        id: startups.id,
+        name: startups.name,
+        slug: startups.slug,
+        description: startups.description,
+        website: startups.website,
+        headquartersCity: startups.headquartersCity,
+        headquartersCountry: startups.headquartersCountry,
+        continent: startups.continent,
+        industry: startups.industry,
+        fundingStage: startups.fundingStage,
+        moneyRaisedUsd: startups.moneyRaisedUsd,
+        usesGenai: startups.usesGenai,
+        analysisData: startups.analysisData,
+        period: startups.period,
+        createdAt: startups.createdAt,
+        updatedAt: startups.updatedAt,
+      })
+        .from(startups)
+        .where(or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`) as any)
+        .orderBy(desc(startups.period), desc(startups.updatedAt), desc(startups.createdAt))
+        .limit(1);
+    }
+
+    const row = rows?.[0];
+    if (!row) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    const analysis = (row.analysisData || {}) as any;
+    const resolvedSlug = row.slug || slugify(row.name);
+    const location = row.headquartersCity
+      ? `${row.headquartersCity}, ${row.headquartersCountry || ''}`
+      : row.headquartersCountry;
+
+    // Merge DB fields over analysis defaults for consistency.
+    const data = {
+      ...analysis,
+      company_name: row.name,
+      company_slug: resolvedSlug,
+      description: row.description,
+      website: row.website,
+      location,
+      continent: row.continent,
+      industry: row.industry,
+      funding_stage: row.fundingStage,
+      funding_amount: row.moneyRaisedUsd,
+      uses_genai: row.usesGenai,
+      period: row.period,
+    };
+
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    return res.json({ data });
+  } catch (error) {
+    console.error('Error fetching company by slug:', error);
+    return res.status(500).json({ error: 'Failed to fetch company' });
+  }
+});
+
 // Get startup logo by slug
 app.get('/api/startups/:slug/logo', async (req, res) => {
   try {
+    const slugExpr = computedSlugExpr();
     const [startup] = await db.select({
       logoUrl: sql<string>`logo_url`,
       logoData: startups.logoData,
       logoContentType: startups.logoContentType,
     })
       .from(startups)
-      .where(eq(startups.slug, req.params.slug));
+      .where(or(eq(startups.slug, req.params.slug), sql`${slugExpr} = ${req.params.slug}`) as any)
+      .orderBy(desc(startups.period), desc(startups.updatedAt), desc(startups.createdAt))
+      .limit(1);
 
     if (!startup) {
       return res.status(404).json({ error: 'Logo not found' });
@@ -568,9 +686,10 @@ app.get('/api/v1/dealbook', async (req, res) => {
 
     // Execute query with pagination - only select fields needed by frontend
     // Use SQL JSONB operators to extract specific fields instead of full JSONB
+    const slugExpr = sql<string>`COALESCE(${startups.slug}, ${computedSlugExpr()})`;
     const results = await db.select({
       name: startups.name,
-      slug: startups.slug,
+      slug: slugExpr,
       description: startups.description,
       website: startups.website,
       headquartersCity: startups.headquartersCity,
