@@ -27,16 +27,16 @@ interface NewsCardProps {
 function toneForStoryType(storyType: string): string {
   const normalized = (storyType || '').toLowerCase();
   if (normalized === 'funding') {
-    return 'border-emerald-400/30 bg-gradient-to-br from-emerald-400/12 via-card/70 to-card/60';
+    return 'border-emerald-400/30 bg-gradient-to-br from-emerald-400/10 via-card/70 to-card/60';
   }
   if (normalized === 'mna') {
     return 'border-sky-400/30 bg-gradient-to-br from-sky-400/10 via-card/70 to-card/60';
   }
   if (normalized === 'regulation') {
-    return 'border-violet-400/28 bg-gradient-to-br from-violet-400/12 via-card/70 to-card/60';
+    return 'border-violet-400/28 bg-gradient-to-br from-violet-400/10 via-card/70 to-card/60';
   }
   if (normalized === 'launch') {
-    return 'border-amber-400/28 bg-gradient-to-br from-amber-400/12 via-card/70 to-card/60';
+    return 'border-amber-400/28 bg-gradient-to-br from-amber-400/10 via-card/70 to-card/60';
   }
   return 'border-border/40 bg-card/65';
 }
@@ -76,7 +76,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
         {typeof item.llm_signal_score === 'number' ? (
-          <span className="rounded-full border border-accent/35 bg-accent/12 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent">
+          <span className="rounded-full border border-accent/35 bg-accent/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent">
             AI Signal {Math.round(item.llm_signal_score * 100)}%
           </span>
         ) : null}

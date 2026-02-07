@@ -41,7 +41,7 @@ export function NewsSubscriptionCard({ className }: NewsSubscriptionCardProps) {
   }
 
   return (
-    <section className={`rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/12 via-card/85 to-card/70 p-5 ${className || ''}`}>
+    <section className={`rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
       <p className="label-xs text-accent">Daily Startup Digest</p>
       <h3 className="mt-2 text-xl font-medium tracking-tight text-foreground">Get top stories by daily popularity</h3>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">

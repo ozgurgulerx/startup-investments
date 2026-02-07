@@ -9,7 +9,11 @@ interface TrustBadgeProps {
 
 export function TrustBadge({ trustScore, sourceCount }: TrustBadgeProps) {
   const pct = Math.round(Math.max(0, Math.min(1, trustScore)) * 100);
-  const tone = pct >= 70 ? 'text-success border-success/30 bg-success/10' : pct >= 45 ? 'text-warning border-warning/30 bg-warning/10' : 'text-muted-foreground border-border/40 bg-muted/20';
+  const tone = pct >= 70
+    ? 'text-success border-success/35 bg-success/10'
+    : pct >= 45
+      ? 'text-warning border-warning/35 bg-warning/10'
+      : 'text-muted-foreground border-border/40 bg-muted/20';
 
   return (
     <div className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${tone}`}>
