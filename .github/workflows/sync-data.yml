@@ -18,9 +18,9 @@ on:
   repository_dispatch:
     types: [sync-data, data-updated]
 
-  # Scheduled batching window (every 30 minutes during work hours)
-  schedule:
-    - cron: '0,30 8-20 * * 1-5'  # Mon-Fri, 8am-8pm UTC, every 30 min
+  # NOTE: Scheduled runs moved to VM cron (infrastructure/vm-cron/jobs/sync-data.sh).
+  # schedule:
+  #   - cron: '0,30 8-20 * * 1-5'  # Mon-Fri, 8am-8pm UTC, every 30 min
 
 permissions:
   id-token: write

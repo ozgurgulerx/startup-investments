@@ -15,8 +15,9 @@ on:
         description: "If true, do not send emails (safe test run)"
         required: false
         default: "false"
-  schedule:
-    - cron: '10 13 * * *'
+  # NOTE: Scheduled runs moved to VM cron (infrastructure/vm-cron/jobs/news-digest.sh).
+  # schedule:
+  #   - cron: '10 13 * * *'
 
 permissions:
   contents: read

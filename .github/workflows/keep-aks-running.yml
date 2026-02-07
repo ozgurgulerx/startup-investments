@@ -1,9 +1,8 @@
 name: Keep Infrastructure Running
+# NOTE: Scheduled runs moved to VM cron (infrastructure/vm-cron/jobs/keep-alive.sh).
+# This workflow is kept for manual dispatch only.
 
 on:
-  schedule:
-    # Run every 30 minutes for faster recovery
-    - cron: '0,30 * * * *'
   workflow_dispatch:
 
 permissions:

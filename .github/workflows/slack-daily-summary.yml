@@ -1,9 +1,9 @@
 name: Slack Daily Ops Summary
+# NOTE: Scheduled runs moved to VM cron (infrastructure/vm-cron/jobs/slack-summary.sh).
+# This workflow is kept for manual dispatch only.
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: '0 14 * * *' # daily 14:00 UTC
 
 permissions:
   contents: read

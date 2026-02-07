@@ -1,0 +1,34 @@
+# BuildAtlas VM Cron Jobs
+# Installed via: crontab infrastructure/vm-cron/crontab
+# All times are UTC
+#
+# runner.sh handles: .env sourcing, flock locking, timeout, logging, Slack alerts
+
+SHELL=/bin/bash
+PATH=/opt/buildatlas/venv/bin:/usr/local/bin:/usr/bin:/bin
+MAILTO=""
+
+# === Infrastructure Keep-Alive (every 15 min) ===
+# Checks: PostgreSQL → AKS → API health → Frontend
+*/15 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh keep-alive 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/keep-alive.sh
+
+# === News Ingest (hourly at :15) ===
+15 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-ingest 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-ingest.sh
+
+# === Crawl Frontier Worker (every 30 min) ===
+0,30 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh crawl-frontier 25 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/crawl-frontier.sh
+
+# === News Digest (daily 13:10 UTC) ===
+10 13 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-digest 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-digest.sh
+
+# === Slack Daily Summary (daily 14:00 UTC) ===
+0 14 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh slack-summary 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/slack-summary.sh
+
+# === Sync Blob Data (every 30 min, weekdays 8am-8pm UTC) ===
+0,30 8-20 * * 1-5 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh sync-data 45 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/sync-data.sh
+
+# === Code Update (every 6 hours) ===
+0 */6 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh code-update 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/deploy.sh
+
+# === VM Health Monitoring (every 5 min) ===
+*/5 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/monitoring/heartbeat.sh >> /var/log/buildatlas/heartbeat.log 2>&1

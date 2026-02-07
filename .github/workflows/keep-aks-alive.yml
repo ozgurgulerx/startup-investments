@@ -1,9 +1,8 @@
 name: Keep AKS API Available
+# NOTE: Scheduled runs moved to VM cron (infrastructure/vm-cron/jobs/keep-alive.sh).
+# This workflow is kept for manual dispatch only.
 
 on:
-  schedule:
-    # Every 15 minutes
-    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:

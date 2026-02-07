@@ -3,10 +3,15 @@
 Daily Slack summary for BuildAtlas.
 
 Includes:
-- Recent workflow run outcomes (GitHub Actions API)
+- Recent workflow run outcomes (GitHub Actions API — CI/CD workflows only)
+- VM cron job health (when running on VM, parses /var/log/buildatlas/ logs)
 - Core product metrics from Postgres (news editions, ingestion runs, digest deliveries, LLM enrichment coverage)
 
 No third-party deps for HTTP (stdlib); uses asyncpg for DB (already in analysis requirements).
+
+Supports two contexts:
+- GitHub Actions: checks all workflows (original behavior)
+- VM cron (BUILDATLAS_RUNNER=vm-cron): checks only CI/CD workflows + parses cron logs
 """
 
 from __future__ import annotations
@@ -17,8 +22,10 @@ import os
 import sys
 import urllib.parse
 import urllib.request
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 
@@ -29,18 +36,39 @@ except Exception as e:  # pragma: no cover
     _asyncpg_import_error = e
 
 
-WORKFLOWS = [
+# CI/CD workflows that remain on GitHub Actions
+CICD_WORKFLOWS = [
     "backend-deploy.yml",
     "frontend-deploy.yml",
     "functions-deploy.yml",
+    "sync-to-database.yml",
+]
+
+# Legacy: all workflows (when running inside GitHub Actions)
+ALL_WORKFLOWS = CICD_WORKFLOWS + [
     "news-ingest.yml",
     "news-digest-daily.yml",
-    "sync-to-database.yml",
     "sync-data.yml",
     "crawl-frontier.yml",
     "keep-aks-running.yml",
     "keep-aks-alive.yml",
 ]
+
+# Cron jobs that run on the VM and their expected max interval (minutes)
+VM_CRON_JOBS = {
+    "keep-alive": 20,
+    "news-ingest": 75,
+    "crawl-frontier": 45,
+    "news-digest": 1500,     # daily
+    "slack-summary": 1500,   # daily (this script itself)
+    "sync-data": 45,
+    "code-update": 400,      # every 6h
+}
+
+_IS_VM = bool(os.environ.get("BUILDATLAS_RUNNER") == "vm-cron")
+
+# Select workflow list based on context
+WORKFLOWS = CICD_WORKFLOWS if _IS_VM else ALL_WORKFLOWS
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -133,6 +161,55 @@ def _workflow_runs(repo: str, token: str, since: datetime) -> list[WorkflowRunSu
                     html_url=chosen.get("html_url") or "",
                 )
             )
+    return results
+
+
+@dataclass
+class CronJobHealth:
+    name: str
+    last_status: str  # "SUCCESS", "FAILED", "TIMEOUT", "SKIP", "UNKNOWN"
+    last_run: datetime | None
+    minutes_since: int | None
+    overdue: bool
+
+
+def _cron_job_health(log_dir: str = "/var/log/buildatlas") -> list[CronJobHealth]:
+    """Parse VM cron job logs to determine health of each job."""
+    results: list[CronJobHealth] = []
+    now = datetime.now(timezone.utc)
+    log_path = Path(log_dir)
+
+    for job_name, max_interval_min in VM_CRON_JOBS.items():
+        log_file = log_path / f"{job_name}.log"
+        if not log_file.exists():
+            results.append(CronJobHealth(job_name, "UNKNOWN", None, None, False))
+            continue
+
+        last_status = "UNKNOWN"
+        last_run: datetime | None = None
+
+        try:
+            # Read last 200 lines (efficient enough for daily summary)
+            lines = log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-200:]
+            # Scan from bottom for most recent status line
+            for line in reversed(lines):
+                m = re.match(
+                    r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC\] (SUCCESS|FAILED|TIMEOUT|SKIP):",
+                    line,
+                )
+                if m:
+                    ts_str, status = m.group(1), m.group(2)
+                    last_run = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    last_status = status
+                    break
+        except Exception:
+            pass
+
+        minutes_since = int((now - last_run).total_seconds() / 60) if last_run else None
+        overdue = (minutes_since is not None and minutes_since > max_interval_min * 2)
+
+        results.append(CronJobHealth(job_name, last_status, last_run, minutes_since, overdue))
+
     return results
 
 
@@ -289,16 +366,40 @@ def main() -> int:
         except Exception as e:
             metrics = {"db_metrics_error": str(e)}
 
+    # VM cron job health (only when running on VM)
+    cron_health: list[CronJobHealth] = []
+    cron_failures: list[CronJobHealth] = []
+    if _IS_VM:
+        cron_health = _cron_job_health()
+        cron_failures = [c for c in cron_health if c.last_status in ("FAILED", "TIMEOUT") or c.overdue]
+
     title = "BuildAtlas Daily Ops Summary"
-    status_emoji = ":white_check_mark:" if not failures else ":warning:"
+    has_problems = bool(failures or cron_failures)
+    status_emoji = ":white_check_mark:" if not has_problems else ":warning:"
 
     body_lines = []
     body_lines.append(f"*Window:* last 24 hours (since {since.strftime('%Y-%m-%d %H:%M UTC')})")
-    body_lines.append(f"*Workflow failures:* {len(failures)}")
+
+    # GitHub Actions CI/CD status
+    body_lines.append(f"*CI/CD workflow failures:* {len(failures)}")
     if failure_lines:
         body_lines.append("")
-        body_lines.append("*Failures*")
+        body_lines.append("*CI/CD Failures*")
         body_lines.extend(failure_lines)
+
+    # VM cron job status
+    if _IS_VM and cron_health:
+        body_lines.append("")
+        body_lines.append("*VM cron jobs*")
+        for c in cron_health:
+            icon = ":white_check_mark:" if c.last_status == "SUCCESS" and not c.overdue else ":x:"
+            if c.last_status == "SKIP":
+                icon = ":fast_forward:"
+            if c.last_status == "UNKNOWN":
+                icon = ":grey_question:"
+            age = f"{c.minutes_since}min ago" if c.minutes_since is not None else "never"
+            extra = " *OVERDUE*" if c.overdue else ""
+            body_lines.append(f"- {icon} `{c.name}`: {c.last_status} ({age}){extra}")
 
     if metrics:
         body_lines.append("")
@@ -332,7 +433,7 @@ def main() -> int:
         {
             "type": "context",
             "elements": [
-                {"type": "mrkdwn", "text": f"*Repo:* `{repo}`  •  *At:* {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
+                {"type": "mrkdwn", "text": f"*Repo:* `{repo}`  •  *Runner:* `{'vm-cron' if _IS_VM else 'github-actions'}`  •  *At:* {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
             ],
         },
     ]

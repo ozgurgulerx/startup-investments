@@ -15,8 +15,9 @@ on:
         description: "Rebuild clusters/edition without fetching new sources"
         required: false
         default: "false"
-  schedule:
-    - cron: '15 * * * *'
+  # NOTE: Scheduled runs moved to VM cron (infrastructure/vm-cron/jobs/news-ingest.sh).
+  # schedule:
+  #   - cron: '15 * * * *'
 
 permissions:
   contents: read
