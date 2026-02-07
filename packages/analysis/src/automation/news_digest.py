@@ -47,6 +47,7 @@ class DailyNewsDigestSender:
         self.reply_to = os.getenv("NEWS_DIGEST_REPLY_TO", "").strip()
         self.public_base_url = os.getenv("PUBLIC_BASE_URL", "https://buildatlas.net").rstrip("/")
         self.max_items = max(3, int(os.getenv("NEWS_DIGEST_MAX_ITEMS", "10")))
+        self.dry_run = os.getenv("NEWS_DIGEST_DRY_RUN", "false").strip().lower() == "true"
 
     async def connect(self) -> None:
         if self.pool is None:
@@ -291,6 +292,11 @@ class DailyNewsDigestSender:
             if not subscribers:
                 return result
 
+            if self.dry_run:
+                # Safe mode for debugging in CI/manual runs: do not call Resend and do not mutate DB.
+                result["dry_run"] = True
+                return result
+
             if not self.resend_api_key:
                 for subscriber in subscribers:
                     await self._record_delivery(
@@ -391,8 +397,15 @@ class DailyNewsDigestSender:
             return result
 
 
-async def run_news_digest_sender(*, edition_date: Optional[str] = None, region: str = "global") -> Dict[str, Any]:
+async def run_news_digest_sender(
+    *,
+    edition_date: Optional[str] = None,
+    region: str = "global",
+    dry_run: bool = False,
+) -> Dict[str, Any]:
     sender = DailyNewsDigestSender()
+    if dry_run:
+        sender.dry_run = True
     try:
         return await sender.run(edition_date=edition_date, region=region)
     finally:

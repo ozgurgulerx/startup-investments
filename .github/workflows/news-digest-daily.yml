@@ -11,6 +11,10 @@ on:
         description: "Region to send digest for (global, turkey, or all)"
         required: false
         default: "all"
+      dry_run:
+        description: "If true, do not send emails (safe test run)"
+        required: false
+        default: "false"
   schedule:
     - cron: '10 13 * * *'
 
@@ -112,11 +116,15 @@ jobs:
           NEWS_DIGEST_REPLY_TO: ${{ secrets.NEWS_DIGEST_REPLY_TO }}
           NEWS_DIGEST_FROM_EMAIL: ${{ secrets.NEWS_DIGEST_FROM_EMAIL }}
           PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          NEWS_DIGEST_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           EDITION_DATE="${{ github.event.inputs.edition_date || '' }}"
           CMD=(python main.py send-news-digest --region "${{ matrix.region }}")
           if [ -n "$EDITION_DATE" ]; then
             CMD+=(--edition-date "$EDITION_DATE")
+          fi
+          if [ "${{ github.event.inputs.dry_run || 'false' }}" = "true" ]; then
+            CMD+=(--dry-run)
           fi
           "${CMD[@]}"
 

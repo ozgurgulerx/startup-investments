@@ -495,6 +495,7 @@ def ingest_news(
 def send_news_digest(
     edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD (defaults to latest ready edition)"),
     region: str = typer.Option("global", "--region", help="Subscriber region to send to (global or turkey)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Do not send emails or write deliveries; just validate pipeline"),
 ):
     """Send daily startup-news digest to active subscribers for a given region."""
     from src.automation.news_digest import run_news_digest_sender
@@ -508,6 +509,7 @@ def send_news_digest(
             run_news_digest_sender(
                 edition_date=edition_date,
                 region=region,
+                dry_run=dry_run,
             )
         )
     except Exception as exc:
@@ -520,6 +522,7 @@ def send_news_digest(
     ))
     console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
     console.print(f"[bold]Region:[/bold] {result.get('region', 'global')}")
+    console.print(f"[bold]Dry run:[/bold] {bool(result.get('dry_run', False))}")
     console.print(f"[bold]Stories:[/bold] {result.get('stories', 0)}")
     console.print(f"[bold]Subscribers:[/bold] {result.get('subscribers', 0)}")
     console.print(f"[bold green]Sent:[/bold green] {result.get('sent', 0)}")
