@@ -126,6 +126,9 @@ Backend deploy (`backend-deploy.yml`):
 Frontend deploy (`frontend-deploy.yml`):
 - `DATABASE_URL`: used by web app for auth/data (server-side).
 - `API_KEY`: used by web server-side requests to backend.
+- `RESEND_API_KEY`: used by web to send subscription confirmation emails (double opt-in).
+- `NEWS_DIGEST_FROM_EMAIL`, `NEWS_DIGEST_REPLY_TO`: used by web confirmation emails and digest sender.
+- `PUBLIC_BASE_URL`: used to build absolute confirm/unsubscribe links in emails.
 - `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, etc.
 
 Azure OIDC (Actions variables):
@@ -182,6 +185,11 @@ File-based fallback cost:
    - `pnpm --filter web build`
 2. Watch for Tailwind `@apply` invalid classes in `apps/web/app/globals.css`
    - Example anti-pattern: `bg-accent/12` (not a valid Tailwind opacity step).
+3. If CI fails with `Cannot find module './…'` but local dev works:
+   - Ensure new files are actually committed (no untracked `apps/web/**` components).
+   - Ensure import path casing matches the filename exactly (CI is Linux case-sensitive; macOS often hides this).
+4. If CI fails with a Dealbook filters type error (example seen on 2026-02-07: `DealbookFilters.vertical` missing):
+   - Keep `apps/web/lib/api/client.ts` `DealbookFilters` in sync with filter usage in `apps/web/lib/data/index.ts` and UI filter keys.
 
 ## UI Design Philosophy & Color System
 
