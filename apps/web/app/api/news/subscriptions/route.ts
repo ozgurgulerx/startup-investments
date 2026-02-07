@@ -6,12 +6,17 @@ export const dynamic = 'force-dynamic';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_REGIONS = ['global', 'turkey'] as const;
 type Region = (typeof VALID_REGIONS)[number];
+const CONFIRMATION_TTL_DAYS = 7;
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
 function baseUrlFromRequest(req: NextRequest): string {
+  const configured = (process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (configured.startsWith('https://') || configured.startsWith('http://')) {
+    return configured;
+  }
   const host = req.headers.get('host');
   const protocol = req.headers.get('x-forwarded-proto') || 'https';
   if (!host) return 'https://buildatlas.net';
@@ -47,7 +52,7 @@ function buildConfirmationEmailHtml(confirmUrl: string, region: Region): string 
                 </tr>
               </table>
               <p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#94a3b8;">
-                If you didn't request this, you can safely ignore this email. This link expires in 7 days.
+                If you didn't request this, you can safely ignore this email. This link expires in ${CONFIRMATION_TTL_DAYS} days.
               </p>
             </td>
           </tr>
@@ -225,7 +230,11 @@ export async function POST(req: NextRequest) {
       await sendConfirmationEmail(emailRaw.trim(), row.confirmation_token, region, baseUrl);
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError);
-      // Don't fail the subscription — they can re-subscribe to get a new email
+      // Don't fail the subscription — they can re-subscribe to get a new email.
+      return NextResponse.json({
+        ok: true,
+        message: 'Subscription created, but we could not send the confirmation email. Please try again in a minute.',
+      });
     }
 
     return NextResponse.json({

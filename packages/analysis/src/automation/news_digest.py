@@ -256,13 +256,28 @@ class DailyNewsDigestSender:
         async with self.pool.acquire() as conn:
             resolved_date = await self._resolve_edition_date(conn, edition_date)
             stories = await self._load_stories(conn, resolved_date)
-            subscribers = await self._load_subscribers(conn, region=region)
+            all_subscribers = await self._load_subscribers(conn, region=region)
+
+            # Avoid duplicate sends when workflows are re-run for the same edition date.
+            sent_rows = await conn.fetch(
+                """
+                SELECT subscription_id::text AS subscription_id
+                FROM news_digest_deliveries
+                WHERE edition_date = $1::date
+                  AND status = 'sent'
+                """,
+                resolved_date,
+            )
+            sent_ids = {str(r["subscription_id"]) for r in (sent_rows or [])}
+            subscribers = [s for s in all_subscribers if s.id not in sent_ids]
 
             result: Dict[str, Any] = {
                 "edition_date": resolved_date,
                 "region": region,
                 "stories": len(stories),
-                "subscribers": len(subscribers),
+                "subscribers": len(all_subscribers),
+                "already_sent": max(0, len(all_subscribers) - len(subscribers)),
+                "to_send": len(subscribers),
                 "sent": 0,
                 "failed": 0,
                 "skipped": 0,
@@ -302,10 +317,11 @@ class DailyNewsDigestSender:
                         unsubscribe_url=unsubscribe_url,
                     )
                     try:
+                        subject_label = "Turkey Signal Feed" if region == "turkey" else "Daily Startup Digest"
                         payload = {
                             "from": self.from_email,
                             "to": [subscriber.email],
-                            "subject": f"Build Atlas Daily Startup Digest — {resolved_date}",
+                            "subject": f"Build Atlas {subject_label} — {resolved_date}",
                             "html": html,
                             "text": text,
                         }

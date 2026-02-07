@@ -62,6 +62,9 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
             <p className="mt-1.5 text-sm text-muted-foreground">
               We sent a confirmation link to <span className="text-foreground">{submittedEmail}</span>. Click it to activate your {regionLabel} Signal Feed digest.
             </p>
+            {message ? (
+              <p className="mt-2 text-xs text-muted-foreground/80">{message}</p>
+            ) : null}
             <p className="mt-3 text-xs text-muted-foreground/70">
               Didn&apos;t receive it? Check your spam folder or{' '}
               <button

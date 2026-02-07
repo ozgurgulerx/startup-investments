@@ -4,11 +4,17 @@ import { query } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 function baseUrlFromRequest(req: NextRequest): string {
+  const configured = (process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (configured.startsWith('https://') || configured.startsWith('http://')) {
+    return configured;
+  }
   const host = req.headers.get('host');
   const protocol = req.headers.get('x-forwarded-proto') || 'https';
   if (!host) return 'https://buildatlas.net';
   return `${protocol}://${host}`;
 }
+
+const CONFIRMATION_TTL_DAYS = 7;
 
 // GET /api/news/subscriptions/confirm?token=<confirmation_token>
 export async function GET(req: NextRequest) {
@@ -28,9 +34,10 @@ export async function GET(req: NextRequest) {
           updated_at = NOW()
       WHERE confirmation_token = $1::uuid
         AND status = 'pending_confirmation'
+        AND updated_at > NOW() - ($2::int * INTERVAL '1 day')
       RETURNING region
       `,
-      [token]
+      [token, CONFIRMATION_TTL_DAYS]
     );
 
     const baseUrl = baseUrlFromRequest(req);
@@ -46,12 +53,18 @@ export async function GET(req: NextRequest) {
         [token]
       );
 
-      if (existing.rowCount > 0 && existing.rows[0].status === 'active') {
-        // Already confirmed — redirect with appropriate message
-        const region = existing.rows[0].region;
-        const newsPath = region === 'turkey' ? '/news/turkey' : '/news';
+      if (existing.rowCount > 0) {
+        const row = existing.rows[0];
+        const newsPath = row.region === 'turkey' ? '/news/turkey' : '/news';
         const url = new URL(newsPath, baseUrl);
-        url.searchParams.set('confirmed', 'already');
+
+        if (row.status === 'active') {
+          url.searchParams.set('confirmed', 'already');
+          return NextResponse.redirect(url, { status: 302 });
+        }
+
+        // Pending but expired (or unsubscribed/bounced) — treat as expired
+        url.searchParams.set('confirmed', 'expired');
         return NextResponse.redirect(url, { status: 302 });
       }
 
