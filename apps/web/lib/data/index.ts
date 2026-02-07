@@ -8,10 +8,25 @@ import type {
 } from '@startup-intelligence/shared';
 import { api, isAPIConfigured, type DealbookFilters, type DealbookResponse } from '@/lib/api/client';
 import { normalizeStageKey } from '@/lib/utils';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 // Base data path - configurable via environment variable
 // For static export, use the data directory relative to the web app
 const DATA_PATH = process.env.DATA_PATH || path.join(process.cwd(), 'data');
+
+/**
+ * Resolve data path for a region. Global data lives at DATA_PATH root,
+ * regional data lives under DATA_PATH/{region}/
+ */
+function getDataPath(region?: string): string {
+  const r = normalizeDatasetRegion(region);
+  return r !== 'global' ? path.join(DATA_PATH, r) : DATA_PATH;
+}
+
+/** Build a cache key that includes the region prefix */
+function cacheKey(region: string | undefined, period: string): string {
+  return `${normalizeDatasetRegion(region)}:${period}`;
+}
 
 // In-memory cache for startups data (avoids re-reading 275 files on each page)
 const startupsCache = new Map<string, {
@@ -20,8 +35,8 @@ const startupsCache = new Map<string, {
 }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// In-memory cache for periods (rarely changes, cache for 30 minutes)
-let periodsCache: { data: PeriodInfo[]; timestamp: number } | null = null;
+// In-memory cache for periods (keyed by region)
+const periodsCache = new Map<string, { data: PeriodInfo[]; timestamp: number }>();
 const PERIODS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 // In-memory cache for monthly stats
@@ -31,14 +46,17 @@ const STATS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 /**
  * Get all available periods (with caching)
  */
-export async function getAvailablePeriods(): Promise<PeriodInfo[]> {
+export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]> {
+  const regionKey = normalizeDatasetRegion(region);
+
   // Check cache first
-  if (periodsCache && Date.now() - periodsCache.timestamp < PERIODS_CACHE_TTL) {
-    return periodsCache.data;
+  const cached = periodsCache.get(regionKey);
+  if (cached && Date.now() - cached.timestamp < PERIODS_CACHE_TTL) {
+    return cached.data;
   }
 
   try {
-    const dataDir = path.join(DATA_PATH);
+    const dataDir = getDataPath(region);
     const entries = await fs.readdir(dataDir, { withFileTypes: true });
 
     // Filter to only period directories
@@ -50,7 +68,7 @@ export async function getAvailablePeriods(): Promise<PeriodInfo[]> {
     const periodsWithStats = await Promise.all(
       periodDirs.map(async (entry): Promise<PeriodInfo> => {
         try {
-          const stats = await getMonthlyStatsInternal(entry.name);
+          const stats = await getMonthlyStatsInternal(entry.name, region);
           return {
             period: entry.name,
             deal_count: stats.deal_summary.total_deals,
@@ -72,7 +90,7 @@ export async function getAvailablePeriods(): Promise<PeriodInfo[]> {
     const sorted = periodsWithStats.sort((a, b) => b.period.localeCompare(a.period));
 
     // Cache the result
-    periodsCache = { data: sorted, timestamp: Date.now() };
+    periodsCache.set(regionKey, { data: sorted, timestamp: Date.now() });
 
     return sorted;
   } catch (error) {
@@ -84,19 +102,20 @@ export async function getAvailablePeriods(): Promise<PeriodInfo[]> {
 /**
  * Internal function to get stats without the 'all' handling (to avoid circular calls)
  */
-async function getMonthlyStatsInternal(period: string): Promise<MonthlyStats> {
+async function getMonthlyStatsInternal(period: string, region?: string): Promise<MonthlyStats> {
   // Check cache first
-  const cached = statsCache.get(period);
+  const key = cacheKey(region, period);
+  const cached = statsCache.get(key);
   if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
     return cached.data;
   }
 
-  const filePath = path.join(DATA_PATH, period, 'output', 'monthly_stats.json');
+  const filePath = path.join(getDataPath(region), period, 'output', 'monthly_stats.json');
   const content = await fs.readFile(filePath, 'utf-8');
   const stats = JSON.parse(content) as MonthlyStats;
 
   // Cache the result
-  statsCache.set(period, { data: stats, timestamp: Date.now() });
+  statsCache.set(key, { data: stats, timestamp: Date.now() });
 
   return stats;
 }
@@ -105,34 +124,37 @@ async function getMonthlyStatsInternal(period: string): Promise<MonthlyStats> {
  * Get monthly statistics for a period (with caching)
  * Supports 'all' to aggregate stats across all periods
  */
-export async function getMonthlyStats(period: string): Promise<MonthlyStats> {
+export async function getMonthlyStats(period: string, region?: string): Promise<MonthlyStats> {
   // Handle 'all' period - aggregate stats across all periods
   if (period === 'all') {
-    return getAggregatedStats();
+    return getAggregatedStats(region);
   }
 
-  return getMonthlyStatsInternal(period);
+  return getMonthlyStatsInternal(period, region);
 }
 
-// Cache for aggregated stats
-let aggregatedStatsCache: { data: MonthlyStats; timestamp: number } | null = null;
+// Cache for aggregated stats (keyed by region)
+const aggregatedStatsCache = new Map<string, { data: MonthlyStats; timestamp: number }>();
 
 /**
  * Aggregate stats across all available periods (with caching)
  */
-async function getAggregatedStats(): Promise<MonthlyStats> {
+async function getAggregatedStats(region?: string): Promise<MonthlyStats> {
+  const regionKey = normalizeDatasetRegion(region);
+
   // Check cache first (5 minute TTL like startups)
-  if (aggregatedStatsCache && Date.now() - aggregatedStatsCache.timestamp < CACHE_TTL) {
-    return aggregatedStatsCache.data;
+  const cached = aggregatedStatsCache.get(regionKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
   }
 
-  const periods = await getAvailablePeriods();
+  const periods = await getAvailablePeriods(region);
 
   // Load stats from all periods using cached function
   const allStats = await Promise.all(
     periods.map(async p => {
       try {
-        return await getMonthlyStatsInternal(p.period);
+        return await getMonthlyStatsInternal(p.period, region);
       } catch {
         return null;
       }
@@ -173,7 +195,7 @@ async function getAggregatedStats(): Promise<MonthlyStats> {
   };
 
   // Cache the result
-  aggregatedStatsCache = { data: aggregated, timestamp: Date.now() };
+  aggregatedStatsCache.set(regionKey, { data: aggregated, timestamp: Date.now() });
 
   return aggregated;
 }
@@ -191,18 +213,19 @@ export async function getNewsletterData(period: string): Promise<NewsletterData>
  * Load startups from all available periods, deduplicated by slug
  * Uses the most recent version of each startup
  */
-async function getAllStartupsAcrossPeriods(): Promise<StartupAnalysis[]> {
+async function getAllStartupsAcrossPeriods(region?: string): Promise<StartupAnalysis[]> {
   // Check cache first
-  const cached = startupsCache.get('all');
+  const key = cacheKey(region, 'all');
+  const cached = startupsCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
-  const periods = await getAvailablePeriods();
+  const periods = await getAvailablePeriods(region);
 
   // Load startups from all periods in parallel
   const allStartupsArrays = await Promise.all(
-    periods.map(p => getStartupsForPeriod(p.period))
+    periods.map(p => getStartupsForPeriod(p.period, region))
   );
 
   // Deduplicate by slug, keeping the most recent (first occurrence wins since periods are sorted desc)
@@ -219,7 +242,7 @@ async function getAllStartupsAcrossPeriods(): Promise<StartupAnalysis[]> {
     .sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
 
   // Cache the result
-  startupsCache.set('all', {
+  startupsCache.set(key, {
     data: allStartups,
     timestamp: Date.now(),
   });
@@ -230,14 +253,15 @@ async function getAllStartupsAcrossPeriods(): Promise<StartupAnalysis[]> {
 /**
  * Internal function to get startups for a specific period (no 'all' handling)
  */
-async function getStartupsForPeriod(period: string): Promise<StartupAnalysis[]> {
+async function getStartupsForPeriod(period: string, region?: string): Promise<StartupAnalysis[]> {
   // Check cache first
-  const cached = startupsCache.get(period);
+  const key = cacheKey(region, period);
+  const cached = startupsCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
-  const storePath = path.join(DATA_PATH, period, 'output', 'analysis_store');
+  const storePath = path.join(getDataPath(region), period, 'output', 'analysis_store');
   const indexPath = path.join(storePath, 'index.json');
 
   try {
@@ -283,7 +307,7 @@ async function getStartupsForPeriod(period: string): Promise<StartupAnalysis[]> 
     const sorted = startups.sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
 
     // Cache the result
-    startupsCache.set(period, {
+    startupsCache.set(key, {
       data: sorted,
       timestamp: Date.now(),
     });
@@ -302,17 +326,20 @@ async function getStartupsForPeriod(period: string): Promise<StartupAnalysis[]> 
  *
  * NOTE: Tries API first for faster performance when API is configured
  */
-export async function getStartups(period: string): Promise<StartupAnalysis[]> {
+export async function getStartups(period: string, region?: string): Promise<StartupAnalysis[]> {
   // Handle 'all' period - load from all available periods
   if (period === 'all') {
-    return getAllStartupsAcrossPeriods();
+    return getAllStartupsAcrossPeriods(region);
   }
 
+  // Regional data is always file-based (API only has global data)
+  const isRegional = normalizeDatasetRegion(region) !== 'global';
+
   // Try API first if configured (much faster than loading 275+ files)
-  if (isAPIConfigured()) {
+  if (!isRegional && isAPIConfigured()) {
     try {
       // Check cache first to avoid API call if we have recent data
-      const cached = startupsCache.get(period);
+      const cached = startupsCache.get(cacheKey(region, period));
       if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
         return cached.data;
       }
@@ -359,7 +386,7 @@ export async function getStartups(period: string): Promise<StartupAnalysis[]> {
       })) as StartupAnalysis[];
 
       // Cache the result
-      startupsCache.set(period, {
+      startupsCache.set(cacheKey(region, period), {
         data: startups,
         timestamp: Date.now(),
       });
@@ -371,7 +398,7 @@ export async function getStartups(period: string): Promise<StartupAnalysis[]> {
   }
 
   // Delegate to internal function for specific periods (file-based fallback)
-  return getStartupsForPeriod(period);
+  return getStartupsForPeriod(period, region);
 }
 
 /**
@@ -394,20 +421,23 @@ export interface PaginatedStartupsResponse {
  */
 export async function getStartupsPaginated(
   period: string,
-  options: DealbookFilters = {}
+  options: DealbookFilters & { region?: string } = {}
 ): Promise<PaginatedStartupsResponse> {
-  // Try API first if configured
-  if (isAPIConfigured()) {
+  const { region, ...apiOptions } = options;
+  const isRegional = region && region !== 'global';
+
+  // Try API first if configured (API only has global data)
+  if (!isRegional && isAPIConfigured()) {
     try {
       const response = await api.getDealbook({
         period,
-        ...options,
+        ...apiOptions,
       });
 
       return {
         data: response.data as unknown as StartupAnalysis[],
         pagination: response.pagination,
-        filters: options,
+        filters: apiOptions,
       };
     } catch (error) {
       console.error('API request failed, falling back to file-based data:', error);
@@ -415,7 +445,7 @@ export async function getStartupsPaginated(
   }
 
   // Fallback to file-based data with client-side filtering
-  const allStartups = await getStartups(period);
+  const allStartups = await getStartups(period, region);
   let filtered = [...allStartups];
 
   // Apply filters
@@ -433,6 +463,10 @@ export async function getStartupsPaginated(
       const location = s.location || '';
       return location.toLowerCase().includes(options.continent!.toLowerCase());
     });
+  }
+  if (options.vertical) {
+    const selectedVertical = normalizeStageKey(options.vertical);
+    filtered = filtered.filter(s => normalizeStageKey(s.vertical) === selectedVertical);
   }
   if (options.minFunding !== undefined) {
     filtered = filtered.filter(s => (s.funding_amount || 0) >= options.minFunding!);
@@ -493,13 +527,16 @@ export async function getStartupsPaginated(
 /**
  * Get available filter options for a period
  */
-export async function getFilterOptions(period: string): Promise<{
+export async function getFilterOptions(period: string, region?: string): Promise<{
   stages: string[];
   continents: string[];
   patterns: Array<{ name: string; count: number }>;
+  verticals: string[];
 }> {
-  // Try API first if configured
-  if (isAPIConfigured()) {
+  const isRegional = region && region !== 'global';
+
+  // Try API first if configured (API only has global data)
+  if (!isRegional && isAPIConfigured()) {
     try {
       return await api.getDealbookFilters(period);
     } catch (error) {
@@ -508,11 +545,12 @@ export async function getFilterOptions(period: string): Promise<{
   }
 
   // Fallback to computing from file data
-  const startups = await getStartups(period);
+  const startups = await getStartups(period, region);
 
   const stageSet = new Set<string>();
   const continentSet = new Set<string>();
   const patternMap = new Map<string, number>();
+  const verticalSet = new Set<string>();
 
   for (const startup of startups) {
     if (startup.funding_stage) stageSet.add(startup.funding_stage);
@@ -530,6 +568,8 @@ export async function getFilterOptions(period: string): Promise<{
     for (const pattern of startup.build_patterns || []) {
       patternMap.set(pattern.name, (patternMap.get(pattern.name) || 0) + 1);
     }
+
+    if (startup.vertical) verticalSet.add(startup.vertical);
   }
 
   return {
@@ -538,6 +578,7 @@ export async function getFilterOptions(period: string): Promise<{
     patterns: Array.from(patternMap.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([name, count]) => ({ name, count })),
+    verticals: Array.from(verticalSet).sort(),
   };
 }
 
@@ -546,10 +587,13 @@ export async function getFilterOptions(period: string): Promise<{
  */
 export async function getStartup(
   period: string,
-  slug: string
+  slug: string,
+  region?: string
 ): Promise<StartupAnalysis | null> {
-  // Prefer API when configured (keeps company pages consistent with dealbook data).
-  if (isAPIConfigured()) {
+  const isRegional = region && region !== 'global';
+
+  // Prefer API when configured (API only has global data).
+  if (!isRegional && isAPIConfigured()) {
     try {
       const response = await api.getCompanyBySlug(slug, period);
       if (response && (response as any).data) {
@@ -560,7 +604,7 @@ export async function getStartup(
     }
   }
 
-  const storePath = path.join(DATA_PATH, period, 'output', 'analysis_store');
+  const storePath = path.join(getDataPath(region), period, 'output', 'analysis_store');
 
   try {
     const basePath = path.join(storePath, 'base_analyses', `${slug}.json`);
@@ -584,9 +628,10 @@ export async function getStartup(
 /**
  * Get the comprehensive newsletter markdown
  */
-export async function getNewsletterMarkdown(period: string): Promise<string | null> {
+export async function getNewsletterMarkdown(period: string, region?: string): Promise<string | null> {
+  const dataPath = getDataPath(region);
   const filePath = path.join(
-    DATA_PATH,
+    dataPath,
     period,
     'output',
     'comprehensive_newsletter.md'
@@ -597,7 +642,7 @@ export async function getNewsletterMarkdown(period: string): Promise<string | nu
   } catch {
     // Fall back to viral newsletter
     try {
-      const viralPath = path.join(DATA_PATH, period, 'output', 'viral_newsletter.md');
+      const viralPath = path.join(dataPath, period, 'output', 'viral_newsletter.md');
       return await fs.readFile(viralPath, 'utf-8');
     } catch {
       return null;
@@ -625,10 +670,11 @@ export interface StartupCrawlMetadata {
 
 export async function getStartupMetadata(
   period: string,
-  slug: string
+  slug: string,
+  region?: string
 ): Promise<StartupCrawlMetadata | null> {
   const metadataPath = path.join(
-    DATA_PATH,
+    getDataPath(region),
     period,
     'output',
     'raw_content',
@@ -778,10 +824,11 @@ export async function getTopDeals(period: string, limit: number = 20): Promise<T
  */
 export async function getStartupBrief(
   period: string,
-  slug: string
+  slug: string,
+  region?: string
 ): Promise<string | null> {
   const briefPath = path.join(
-    DATA_PATH,
+    getDataPath(region),
     period,
     'output',
     'briefs',

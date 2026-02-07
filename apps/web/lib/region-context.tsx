@@ -1,8 +1,9 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { normalizeDatasetRegion, type DatasetRegion } from '@/lib/region';
 
-export type Region = 'global' | 'tr';
+export type Region = DatasetRegion;
 
 const STORAGE_KEY = 'ba_region';
 
@@ -21,9 +22,7 @@ export function RegionProvider({ children }: { children: ReactNode }) {
   // Load from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'global' || stored === 'tr') {
-      setRegionState(stored);
-    }
+    setRegionState(normalizeDatasetRegion(stored));
     setIsLoaded(true);
   }, []);
 

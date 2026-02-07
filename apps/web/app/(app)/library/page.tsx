@@ -9,8 +9,8 @@ import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 
 const FALLBACK_PERIOD = '2026-01';
 
-async function LibraryContent({ selectedMonth }: { selectedMonth?: string }) {
-  const periods = await getAvailablePeriods();
+async function LibraryContent({ selectedMonth, region }: { selectedMonth?: string; region?: string }) {
+  const periods = await getAvailablePeriods(region);
   const latestPeriod = periods[0]?.period || FALLBACK_PERIOD;
   const period = (selectedMonth && periods.some(p => p.period === selectedMonth))
     ? selectedMonth
@@ -18,8 +18,8 @@ async function LibraryContent({ selectedMonth }: { selectedMonth?: string }) {
   const availableMonths = periods.map(p => p.period);
 
   const [markdown, stats] = await Promise.all([
-    getNewsletterMarkdown(period),
-    getMonthlyStats(period),
+    getNewsletterMarkdown(period, region),
+    getMonthlyStats(period, region),
   ]);
 
   if (!markdown) {
@@ -117,13 +117,13 @@ function LibraryLoading() {
 export default async function LibraryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; region?: string }>;
 }) {
-  const { month } = await searchParams;
+  const { month, region } = await searchParams;
   return (
     <ReadingWrapper>
       <Suspense fallback={<LibraryLoading />}>
-        <LibraryContent selectedMonth={month} />
+        <LibraryContent selectedMonth={month} region={region} />
       </Suspense>
     </ReadingWrapper>
   );
