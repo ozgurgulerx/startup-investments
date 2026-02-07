@@ -12,6 +12,14 @@ interface EditionRow {
     story_type_counts?: Record<string, number>;
     topic_counts?: Record<string, number>;
     updated_at?: string;
+    daily_brief?: {
+      headline?: string;
+      summary?: string;
+      bullets?: string[];
+      themes?: string[];
+      model?: string;
+      generated_at?: string;
+    };
   };
 }
 
@@ -359,6 +367,16 @@ export async function getNewsEdition(params?: {
       edition_date: meta.edition_date,
       generated_at: meta.generated_at,
       items,
+      brief: meta.stats_json?.daily_brief?.headline
+        ? {
+            headline: meta.stats_json.daily_brief.headline || '',
+            summary: meta.stats_json.daily_brief.summary || '',
+            bullets: meta.stats_json.daily_brief.bullets || [],
+            themes: meta.stats_json.daily_brief.themes || undefined,
+            model: meta.stats_json.daily_brief.model || undefined,
+            generated_at: meta.stats_json.daily_brief.generated_at || undefined,
+          }
+        : undefined,
       stats: {
         total_clusters: meta.stats_json?.total_clusters || 0,
         top_story_count: meta.stats_json?.top_story_count || 0,

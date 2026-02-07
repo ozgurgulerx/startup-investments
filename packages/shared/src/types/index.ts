@@ -615,10 +615,20 @@ export interface NewsItemCard {
   llm_story_type?: string;
 }
 
+export interface DailyNewsBrief {
+  headline: string;
+  summary: string;
+  bullets: string[];
+  themes?: string[];
+  model?: string;
+  generated_at?: string;
+}
+
 export interface NewsEdition {
   edition_date: string;
   generated_at: string;
   items: NewsItemCard[];
+  brief?: DailyNewsBrief;
   stats: {
     total_clusters: number;
     top_story_count: number;

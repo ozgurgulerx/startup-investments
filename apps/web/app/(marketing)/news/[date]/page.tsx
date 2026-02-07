@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getNewsEdition, getNewsTopics } from '@/lib/data/news';
+import { getNewsArchive, getNewsEdition, getNewsTopics } from '@/lib/data/news';
 import { NewsHeroCard } from '@/components/news/news-hero-card';
 import { NewsCard } from '@/components/news/news-card';
 import { TopicChipBar } from '@/components/news/topic-chip-bar';
+import { ArchiveTimeline } from '@/components/news/archive-timeline';
+import { DailyBriefCard } from '@/components/news/daily-brief-card';
+import { NewsSubscriptionCard } from '@/components/news/news-subscription-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +42,7 @@ export default async function NewsArchivePage({ params }: NewsArchivePageProps) 
   }
 
   const topics = await getNewsTopics({ date: edition.edition_date, limit: 24 });
+  const archive = await getNewsArchive({ limit: 20, offset: 0 });
 
   return (
     <div className="min-h-screen bg-background">
@@ -65,13 +69,15 @@ export default async function NewsArchivePage({ params }: NewsArchivePageProps) 
           <TopicChipBar topics={topics} />
         </section>
 
+        {edition.brief ? <DailyBriefCard brief={edition.brief} /> : null}
+
         <section className="mt-6 grid gap-4 lg:grid-cols-5">
           {edition.items[0] ? (
             <div className="lg:col-span-3">
               <NewsHeroCard item={edition.items[0]} />
             </div>
           ) : null}
-          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-1">
+          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-2">
             {edition.items.slice(1, 5).map((item) => (
               <NewsCard key={item.id} item={item} />
             ))}
@@ -82,6 +88,14 @@ export default async function NewsArchivePage({ params }: NewsArchivePageProps) 
           {edition.items.slice(5).map((item) => (
             <NewsCard key={item.id} item={item} />
           ))}
+        </section>
+
+        <section className="mt-8">
+          <NewsSubscriptionCard />
+        </section>
+
+        <section className="mt-8">
+          <ArchiveTimeline initialItems={archive} pageSize={20} />
         </section>
       </main>
     </div>

@@ -1,8 +1,11 @@
 import Link from 'next/link';
-import { getNewsEdition, getNewsTopics } from '@/lib/data/news';
+import { getActiveNewsSources, getNewsArchive, getNewsEdition, getNewsTopics } from '@/lib/data/news';
 import { NewsHeroCard } from '@/components/news/news-hero-card';
 import { NewsCard } from '@/components/news/news-card';
 import { TopicChipBar } from '@/components/news/topic-chip-bar';
+import { ArchiveTimeline } from '@/components/news/archive-timeline';
+import { NewsSubscriptionCard } from '@/components/news/news-subscription-card';
+import { DailyBriefCard } from '@/components/news/daily-brief-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +34,8 @@ function formatTimestamp(value: string): string {
 export default async function DailyNewsPage() {
   const edition = await getNewsEdition({ limit: 40 });
   const topics = await getNewsTopics({ date: edition?.edition_date, limit: 24 });
+  const archive = await getNewsArchive({ limit: 30, offset: 0 });
+  const sources = await getActiveNewsSources();
 
   return (
     <div className="min-h-screen bg-background">
@@ -101,8 +106,25 @@ export default async function DailyNewsPage() {
               </div>
             </section>
 
+            {edition.brief ? <DailyBriefCard brief={edition.brief} /> : null}
+
             <section className="mt-8">
               <TopicChipBar topics={topics} />
+            </section>
+
+            <section className="mt-6 rounded-xl border border-border/40 bg-card/60 p-4">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Active crawl/news sources</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {sources.slice(0, 24).map((source) => (
+                  <span
+                    key={source.key}
+                    className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
+                  >
+                    {source.name}
+                    <span className="opacity-60">({source.type})</span>
+                  </span>
+                ))}
+              </div>
             </section>
 
             <section className="mt-8 grid gap-4 lg:grid-cols-5">
@@ -111,7 +133,7 @@ export default async function DailyNewsPage() {
                   <NewsHeroCard item={edition.items[0]} />
                 </div>
               ) : null}
-              <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-1">
+              <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-2">
                 {edition.items.slice(1, 5).map((item) => (
                   <NewsCard key={item.id} item={item} />
                 ))}
@@ -122,6 +144,13 @@ export default async function DailyNewsPage() {
               {edition.items.slice(5).map((item) => (
                 <NewsCard key={item.id} item={item} />
               ))}
+            </section>
+
+            <section className="mt-8 grid gap-4 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <NewsSubscriptionCard />
+              </div>
+              <ArchiveTimeline initialItems={archive} pageSize={20} />
             </section>
           </div>
         )}

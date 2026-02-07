@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
@@ -46,13 +47,18 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
   const hasSourceUrl = Boolean(item.url);
   const sourceHref = item.url || '#';
   const toneClass = toneForStoryType(item.story_type);
-  const hasImage = Boolean(item.image_url && item.image_url.startsWith('http'));
+  const initialHasImage = Boolean(item.image_url && item.image_url.startsWith('http'));
+  const [showImage, setShowImage] = useState(initialHasImage);
+
+  useEffect(() => {
+    setShowImage(initialHasImage);
+  }, [initialHasImage, item.image_url]);
 
   return (
     <article
       className={`group rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
     >
-      {hasImage ? (
+      {showImage ? (
         <div className="mb-3 overflow-hidden rounded-lg border border-border/35 bg-background/70">
           <img
             src={item.image_url}
@@ -60,7 +66,8 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
             loading="lazy"
             className={`w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${featured ? 'h-52' : 'h-36'}`}
             onError={(event) => {
-              event.currentTarget.style.display = 'none';
+              event.currentTarget.removeAttribute('src');
+              setShowImage(false);
             }}
           />
         </div>

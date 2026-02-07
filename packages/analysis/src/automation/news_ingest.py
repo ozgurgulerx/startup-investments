@@ -221,6 +221,28 @@ def canonicalize_url(url: str) -> str:
     return urlunparse((scheme, host, path, "", query, ""))
 
 
+def normalize_image_url(url: str, base_url: str = "") -> str:
+    """Normalize an image URL without stripping CDN query params."""
+    if not url:
+        return ""
+    u = url.strip()
+    if not u.startswith(("http://", "https://", "//")):
+        if base_url:
+            u = urljoin(base_url, u)
+        else:
+            return ""
+    if u.startswith("//"):
+        u = f"https:{u}"
+    parsed = urlparse(u)
+    if not parsed.netloc:
+        return ""
+    # Only strip UTM params, keep everything else (CDN params like source, ref, etc.)
+    utm_params = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"}
+    pairs = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if k.lower() not in utm_params]
+    query = urlencode(pairs)
+    return urlunparse((parsed.scheme or "https", parsed.netloc, parsed.path, "", query, ""))
+
+
 def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip())
 
@@ -462,6 +484,80 @@ def extract_html_title_summary(html: str, source_url: str = "") -> Tuple[str, st
     return title, summary, published, image_url
 
 
+def _extract_rss_image(entry: Any, article_url: str = "") -> str:
+    """Extract the best image URL from a feedparser entry, trying multiple methods."""
+    image_url = ""
+
+    # 1. media:content (most reliable)
+    media_content = entry.get("media_content") or []
+    if media_content and isinstance(media_content, list):
+        for mc in media_content:
+            if not isinstance(mc, dict):
+                continue
+            mc_url = str(mc.get("url") or "")
+            mc_type = str(mc.get("type") or mc.get("medium") or "")
+            if mc_url and ("image" in mc_type or not mc_type):
+                image_url = mc_url
+                break
+
+    # 2. media:thumbnail
+    if not image_url:
+        media_thumbnail = entry.get("media_thumbnail") or []
+        if media_thumbnail and isinstance(media_thumbnail, list):
+            first = media_thumbnail[0] if media_thumbnail else {}
+            if isinstance(first, dict):
+                image_url = str(first.get("url") or "")
+
+    # 3. enclosures (common in many feeds)
+    if not image_url:
+        enclosures = entry.get("enclosures") or []
+        if isinstance(enclosures, list):
+            for enc in enclosures:
+                if not isinstance(enc, dict):
+                    continue
+                enc_type = str(enc.get("type") or "")
+                enc_href = str(enc.get("href") or enc.get("url") or "")
+                if enc_href and enc_type.startswith("image/"):
+                    image_url = enc_href
+                    break
+
+    # 4. entry.image dict (feedparser sometimes exposes this)
+    if not image_url:
+        entry_image = entry.get("image") or {}
+        if isinstance(entry_image, dict):
+            image_url = str(entry_image.get("href") or entry_image.get("url") or "")
+
+    # 5. links with image content type
+    if not image_url:
+        for link_obj in entry.get("links", []) or []:
+            if not isinstance(link_obj, dict):
+                continue
+            href = str(link_obj.get("href") or "")
+            content_type = str(link_obj.get("type") or "")
+            if href and content_type.startswith("image/"):
+                image_url = href
+                break
+
+    # 6. Parse og:image from entry content HTML (last resort)
+    if not image_url and BeautifulSoup is not None:
+        content_list = entry.get("content") or []
+        if isinstance(content_list, list):
+            for content_obj in content_list[:1]:
+                html = str(content_obj.get("value") or "") if isinstance(content_obj, dict) else ""
+                if html and len(html) > 50:
+                    try:
+                        soup = BeautifulSoup(html, "html.parser")
+                        img_tag = soup.find("img", src=True)
+                        if img_tag:
+                            image_url = str(img_tag.get("src") or "")
+                    except Exception:
+                        pass
+
+    if image_url:
+        return normalize_image_url(image_url, base_url=article_url)
+    return ""
+
+
 def _shorten_text(value: str, limit: int = 180) -> str:
     text = normalize_text(value)
     if len(text) <= limit:
@@ -518,6 +614,12 @@ class DailyNewsIngestor:
         self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
         self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "12")))
         self.llm_concurrency = max(1, min(16, int(os.getenv("NEWS_LLM_CONCURRENCY", "4"))))
+        daily_brief_env = os.getenv("NEWS_LLM_DAILY_BRIEF", "").strip().lower()
+        if daily_brief_env:
+            self.llm_daily_brief_enabled = daily_brief_env in {"1", "true", "yes", "on"}
+        else:
+            self.llm_daily_brief_enabled = bool(self.llm_enrichment_enabled)
+        self.llm_daily_brief_max_clusters = max(3, int(os.getenv("NEWS_LLM_DAILY_BRIEF_MAX_CLUSTERS", "10")))
         self._llm_metrics: Dict[str, Any] = {
             "enabled": bool(self.llm_enrichment_enabled),
             "model": self.llm_model,
@@ -604,27 +706,7 @@ class DailyNewsIngestor:
             summary = summary_text[:300]
             image_url = ""
 
-            media_content = entry.get("media_content") or []
-            if media_content and isinstance(media_content, list):
-                first = media_content[0] or {}
-                image_url = str(first.get("url") or "")
-
-            if not image_url:
-                media_thumbnail = entry.get("media_thumbnail") or []
-                if media_thumbnail and isinstance(media_thumbnail, list):
-                    first = media_thumbnail[0] or {}
-                    image_url = str(first.get("url") or "")
-
-            if not image_url:
-                for link_obj in entry.get("links", []) or []:
-                    href = str(link_obj.get("href") or "")
-                    content_type = str(link_obj.get("type") or "")
-                    if href and content_type.startswith("image/"):
-                        image_url = href
-                        break
-
-            if image_url:
-                image_url = canonicalize_url(urljoin(link, image_url))
+            image_url = _extract_rss_image(entry, link)
 
             canonical = canonicalize_url(link)
             item = NormalizedNewsItem(
@@ -829,7 +911,7 @@ class DailyNewsIngestor:
                 payload={
                     "provider": "newsapi",
                     "source": art.get("source"),
-                    "image_url": canonicalize_url(str(art.get("urlToImage") or "")) if art.get("urlToImage") else None,
+                    "image_url": normalize_image_url(str(art.get("urlToImage") or "")) if art.get("urlToImage") else None,
                 },
                 source_weight=source.credibility_weight,
             ).with_external_id()
@@ -887,7 +969,7 @@ class DailyNewsIngestor:
                 author=normalize_text(str(art.get("source", {}).get("name") or "")) or None,
                 payload={
                     "provider": "gnews",
-                    "image_url": canonicalize_url(str(art.get("image") or "")) if art.get("image") else None,
+                    "image_url": normalize_image_url(str(art.get("image") or "")) if art.get("image") else None,
                 },
                 source_weight=source.credibility_weight,
             ).with_external_id()
@@ -946,7 +1028,7 @@ class DailyNewsIngestor:
                     payload={
                         "origin": "frontier",
                         "page_type": row.get("page_type"),
-                        "image_url": canonicalize_url(image_url) if image_url else None,
+                        "image_url": normalize_image_url(image_url, base_url=url) if image_url else None,
                     },
                     source_weight=source.credibility_weight,
                 ).with_external_id()
@@ -1044,6 +1126,7 @@ class DailyNewsIngestor:
 
                         summary_html = entry.get("summary", entry.get("description", ""))
                         summary = normalize_text(re.sub(r"<[^>]+>", " ", summary_html or ""))[:280]
+                        feed_image = _extract_rss_image(entry, link)
                         out.append(
                             NormalizedNewsItem(
                                 source_key=source.source_key,
@@ -1059,6 +1142,7 @@ class DailyNewsIngestor:
                                     "origin": "startup_owned_feed",
                                     "startup_slug": startup_slug,
                                     "startup_name": startup_name,
+                                    "image_url": feed_image or None,
                                 },
                                 source_weight=source.credibility_weight,
                             ).with_external_id()
@@ -1083,7 +1167,7 @@ class DailyNewsIngestor:
                             "origin": "startup_owned_page",
                             "startup_slug": startup_slug,
                             "startup_name": startup_name,
-                            "image_url": canonicalize_url(image_url) if image_url else None,
+                            "image_url": normalize_image_url(image_url, base_url=url) if image_url else None,
                         },
                         source_weight=source.credibility_weight,
                     ).with_external_id()
@@ -1352,6 +1436,150 @@ class DailyNewsIngestor:
         clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
         return clusters
 
+    async def _llm_generate_daily_brief(self, *, edition_date: date, clusters: Sequence[StoryCluster]) -> Optional[Dict[str, Any]]:
+        if not clusters:
+            return None
+        if not self.llm_daily_brief_enabled:
+            return None
+        if not self.openai_api_key and self.azure_client is None:
+            return None
+
+        top_n = min(len(clusters), max(3, int(self.llm_daily_brief_max_clusters)))
+        top_clusters = list(clusters)[:top_n]
+
+        prompt = (
+            "You write a daily startup news brief for builders. "
+            "Return strict JSON with keys: "
+            "headline (<=70 chars), summary (<=320 chars), "
+            "bullets (array of 3-5 strings, each <=110 chars), "
+            "themes (array of up to 6 lowercase tags). "
+            "Be concrete, avoid hype. No prose outside JSON."
+        )
+
+        def pick_summary(c: StoryCluster) -> str:
+            return normalize_text(c.llm_summary or c.summary or c.rank_reason or "")
+
+        user_payload = {
+            "edition_date": edition_date.isoformat(),
+            "top_clusters": [
+                {
+                    "title": c.title,
+                    "story_type": c.story_type,
+                    "topic_tags": list(c.topic_tags[:6]),
+                    "summary": _shorten_text(pick_summary(c), 240),
+                    "rank_score": float(round(c.rank_score, 4)),
+                    "trust_score": float(round(c.trust_score, 4)),
+                    "source_count": int(len(c.members)),
+                }
+                for c in top_clusters
+            ],
+        }
+
+        debug_llm = os.getenv("NEWS_LLM_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
+
+        def parse_daily_brief(parsed: Dict[str, Any], model_label: Optional[str]) -> Optional[Dict[str, Any]]:
+            headline = _shorten_text(str(parsed.get("headline") or ""), 70)
+            summary = _shorten_text(str(parsed.get("summary") or ""), 320)
+            raw_bullets = parsed.get("bullets") or []
+            bullets: List[str] = []
+            if isinstance(raw_bullets, list):
+                for b in raw_bullets:
+                    if not b:
+                        continue
+                    bullets.append(_shorten_text(str(b), 110))
+                    if len(bullets) >= 5:
+                        break
+            raw_themes = parsed.get("themes") or []
+            themes: List[str] = []
+            if isinstance(raw_themes, list):
+                for t in raw_themes:
+                    text = normalize_text(str(t)).lower()
+                    if not text:
+                        continue
+                    # keep tags compact; normalize spaces to hyphens
+                    text = re.sub(r"[^a-z0-9\\- ]+", "", text).strip().replace(" ", "-")
+                    if text:
+                        themes.append(text[:32])
+                    if len(themes) >= 6:
+                        break
+
+            if not headline:
+                return None
+
+            return {
+                "headline": headline,
+                "summary": summary,
+                "bullets": bullets,
+                "themes": themes,
+                "model": model_label,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        if self.azure_client is not None:
+            for with_response_format in (True, False):
+                azure_payload: Dict[str, Any] = {
+                    "model": self.azure_openai_deployment,
+                    "messages": [
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": json.dumps(user_payload)},
+                    ],
+                    "temperature": 0.25,
+                    "max_tokens": 340,
+                }
+                if with_response_format:
+                    azure_payload["response_format"] = {"type": "json_object"}
+
+                try:
+                    response = await self.azure_client.chat.completions.create(**azure_payload)
+                    content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
+                    parsed = json.loads(content) if isinstance(content, str) else {}
+                    brief = parse_daily_brief(parsed, f"azure:{self.azure_openai_deployment}")
+                    if brief is not None:
+                        return brief
+                except Exception as exc:
+                    if debug_llm:
+                        mode = "json_object" if with_response_format else "no_response_format"
+                        print(f"[news-ingest] Azure daily brief failed ({mode}): {exc}")
+
+        if self.openai_api_key:
+            try:
+                timeout = httpx.Timeout(self.http_timeout)
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.openai_api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.llm_model,
+                            "temperature": 0.25,
+                            "max_tokens": 340,
+                            "response_format": {"type": "json_object"},
+                            "messages": [
+                                {"role": "system", "content": prompt},
+                                {"role": "user", "content": json.dumps(user_payload)},
+                            ],
+                        },
+                    )
+                    if response.status_code >= 400:
+                        if debug_llm:
+                            print(f"[news-ingest] OpenAI daily brief failed ({response.status_code}): {response.text[:200]}")
+                        return None
+                    payload = response.json() or {}
+                    content = (
+                        ((payload.get("choices") or [{}])[0].get("message") or {}).get("content")
+                        or "{}"
+                    )
+                    parsed = json.loads(content) if isinstance(content, str) else {}
+                    return parse_daily_brief(parsed, self.llm_model)
+            except Exception as exc:
+                if debug_llm:
+                    print(f"[news-ingest] OpenAI daily brief exception: {exc}")
+                return None
+
+        return None
+
     async def _llm_enrich_cluster(self, cluster: StoryCluster) -> LLMEnrichmentResult:
         if not self.openai_api_key and not self.azure_client:
             return LLMEnrichmentResult(None, None, None, None, None, None, None, error_code="no_provider")
@@ -1578,6 +1806,83 @@ class DailyNewsIngestor:
         if isinstance(clusters, list):
             clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
 
+    async def _enrich_missing_images(
+        self,
+        conn: asyncpg.Connection,
+        clusters: Sequence[StoryCluster],
+        *,
+        max_fetches: int = 50,
+    ) -> int:
+        """Fetch og:image from article URLs for clusters where no member has an image."""
+        needs_image: List[NormalizedNewsItem] = []
+        for cluster in clusters:
+            has_any_image = any(
+                m.payload.get("image_url")
+                for m in cluster.members
+            )
+            if has_any_image:
+                continue
+            # Pick the primary (highest-weight) member to fetch
+            primary = sorted(
+                cluster.members,
+                key=lambda m: (m.source_weight, m.published_at),
+                reverse=True,
+            )[0]
+            if primary.url and primary.url.startswith("http"):
+                needs_image.append(primary)
+            if len(needs_image) >= max_fetches:
+                break
+
+        if not needs_image:
+            return 0
+
+        sem = asyncio.Semaphore(8)
+        enriched = 0
+        source_id_map = await self._get_source_id_map(conn)
+        timeout = httpx.Timeout(12.0)
+
+        async def fetch_og_image(item: NormalizedNewsItem) -> bool:
+            try:
+                async with sem:
+                    async with httpx.AsyncClient(
+                        timeout=timeout,
+                        follow_redirects=True,
+                        headers={"User-Agent": "BuildAtlasNewsBot/2026 (+https://buildatlas.net)"},
+                    ) as client:
+                        resp = await client.get(item.url)
+                if resp.status_code >= 400:
+                    return False
+                _, _, _, image_url = extract_html_title_summary(resp.text, source_url=item.url)
+                if not image_url:
+                    return False
+                normalized = normalize_image_url(image_url, base_url=item.url)
+                if not normalized:
+                    return False
+                item.payload["image_url"] = normalized
+                # Persist the enriched payload back to DB
+                source_id = source_id_map.get(item.source_key)
+                if source_id:
+                    await conn.execute(
+                        """
+                        UPDATE news_items_raw
+                        SET payload_json = $3::jsonb
+                        WHERE source_id = $1 AND external_id = $2
+                        """,
+                        source_id,
+                        item.external_id,
+                        json.dumps(item.payload),
+                    )
+                return True
+            except Exception:
+                return False
+
+        for chunk_start in range(0, len(needs_image), 15):
+            chunk = needs_image[chunk_start : chunk_start + 15]
+            results = await asyncio.gather(*(fetch_og_image(m) for m in chunk))
+            enriched += sum(1 for r in results if r)
+
+        return enriched
+
     async def _persist_clusters(self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster]) -> Dict[str, str]:
         # Build map from raw item external keys to IDs for linking.
         raw_rows = await conn.fetch("SELECT id::text, source_id::text, external_id FROM news_items_raw")
@@ -1695,6 +2000,10 @@ class DailyNewsIngestor:
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
+        daily_brief = await self._llm_generate_daily_brief(edition_date=edition_date, clusters=clusters)
+        if daily_brief:
+            stats["daily_brief"] = daily_brief
+
         await conn.execute(
             """
             INSERT INTO news_daily_editions (edition_date, generated_at, status, top_cluster_ids, stats_json)
@@ -1769,6 +2078,7 @@ class DailyNewsIngestor:
                 items_for_clustering = await self._load_recent_items(conn, lookback_hours)
                 clusters = self._cluster_items(items_for_clustering)
                 await self._enrich_clusters_with_llm(clusters)
+                images_enriched = await self._enrich_missing_images(conn, clusters)
                 cluster_ids = await self._persist_clusters(conn, clusters)
                 stats = await self._persist_edition(
                     conn,
@@ -1785,6 +2095,7 @@ class DailyNewsIngestor:
                     "sources_attempted": sources_attempted,
                     "items_fetched": items_fetched,
                     "items_kept": items_kept,
+                    "images_enriched": images_enriched,
                     "clusters_built": len(clusters),
                     "top_clusters": int(stats.get("top_story_count") or 0),
                     "llm_metrics": dict(self._llm_metrics),

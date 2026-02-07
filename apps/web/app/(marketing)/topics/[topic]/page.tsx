@@ -3,6 +3,7 @@ import { getLatestNewsEditionDate, getNewsEdition, getNewsTopics } from '@/lib/d
 import { NewsHeroCard } from '@/components/news/news-hero-card';
 import { NewsCard } from '@/components/news/news-card';
 import { TopicChipBar } from '@/components/news/topic-chip-bar';
+import { NewsSubscriptionCard } from '@/components/news/news-subscription-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
               <div className="lg:col-span-3">
                 <NewsHeroCard item={edition.items[0]} />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-1">
+              <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-2">
                 {edition.items.slice(1, 5).map((item) => (
                   <NewsCard key={item.id} item={item} />
                 ))}
@@ -79,6 +80,10 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
               {edition.items.slice(5).map((item) => (
                 <NewsCard key={item.id} item={item} />
               ))}
+            </section>
+
+            <section className="mt-8">
+              <NewsSubscriptionCard />
             </section>
           </>
         )}
