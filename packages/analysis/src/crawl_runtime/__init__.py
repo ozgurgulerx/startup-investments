@@ -7,4 +7,8 @@ __all__ = [
     "seed_frontier",
     "extraction",
     "pdf_parser",
+    "unblock_provider",
+    "capture",
+    "discovery",
+    "retention",
 ]

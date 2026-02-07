@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import sys
@@ -13,7 +14,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.config import settings
-from src.crawl_runtime.frontier import FrontierUrl, UrlFrontierStore, canonicalize_url, classify_page_type, extract_domain
+from src.crawl_runtime.capture import RawCaptureRecorder
+from src.crawl_runtime.extraction import extract_main_content, extract_title
+from src.crawl_runtime.frontier import (
+    DomainPolicy,
+    FrontierUrl,
+    UrlFrontierStore,
+    canonicalize_url,
+    classify_page_type,
+    extract_domain,
+)
+from src.crawl_runtime.models import estimate_quality_score
+from src.crawl_runtime.unblock_provider import UnblockRequest, build_unblock_provider
 from src.data.models import StartupInput
 
 
@@ -23,9 +35,24 @@ class ScrapyPlaywrightRuntime:
     def __init__(self, frontier: Optional[UrlFrontierStore] = None):
         self.project_root = Path(__file__).resolve().parents[2]
         self.frontier = frontier or UrlFrontierStore(os.getenv("DATABASE_URL"))
+        self.capture_recorder = RawCaptureRecorder(self.frontier)
+        self.unblock_provider = build_unblock_provider(
+            provider_name=settings.crawler.unblock_provider,
+            endpoint=settings.crawler.browserless_endpoint,
+            token=settings.crawler.browserless_token,
+        )
 
     async def close(self):
         await self.frontier.close()
+
+    @staticmethod
+    def _default_policy(domain: str) -> DomainPolicy:
+        return DomainPolicy(
+            domain=domain,
+            respect_robots=settings.crawler.respect_robots_txt,
+            proxy_tier=settings.crawler.default_proxy_tier,
+            render_required=False,
+        )
 
     @staticmethod
     def _slugify(name: str) -> str:
@@ -49,7 +76,7 @@ class ScrapyPlaywrightRuntime:
         return targets
 
     @staticmethod
-    def _seed_targets_from_frontier(leased: List[FrontierUrl]) -> List[Dict[str, Any]]:
+    def _seed_targets_from_frontier(leased: List[FrontierUrl], policy: DomainPolicy) -> List[Dict[str, Any]]:
         targets: List[Dict[str, Any]] = []
         for item in leased:
             headers: Dict[str, str] = {}
@@ -61,6 +88,8 @@ class ScrapyPlaywrightRuntime:
             target: Dict[str, Any] = {
                 "url": item.url,
                 "page_type": item.page_type or classify_page_type(item.url),
+                "proxy_tier": policy.proxy_tier,
+                "render_required": bool(policy.render_required),
             }
             if headers:
                 target["headers"] = headers
@@ -73,6 +102,9 @@ class ScrapyPlaywrightRuntime:
         startup_name: str,
         allowed_domain: str,
         seed_targets: List[Dict[str, Any]],
+        respect_robots: bool,
+        force_render: bool,
+        default_proxy_tier: str,
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """Run subprocess spider and return `(documents, error)`.
 
@@ -107,12 +139,15 @@ class ScrapyPlaywrightRuntime:
                 str(max(10, settings.crawler.max_pages_per_startup)),
             ]
 
-            if settings.crawler.respect_robots_txt:
+            if respect_robots:
                 cmd.append("--respect-robots")
             if settings.crawler.datacenter_proxy_url:
                 cmd.extend(["--proxy-url", settings.crawler.datacenter_proxy_url])
             if settings.crawler.residential_proxy_url:
                 cmd.extend(["--residential-proxy-url", settings.crawler.residential_proxy_url])
+            if force_render:
+                cmd.append("--force-render")
+            cmd.extend(["--default-proxy-tier", default_proxy_tier if default_proxy_tier in {"datacenter", "residential"} else "datacenter"])
 
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -158,6 +193,12 @@ class ScrapyPlaywrightRuntime:
             "last_modified": doc.get("last_modified"),
             "page_type": page_type,
             "content_type": doc.get("content_type", "html"),
+            "quality_score": float(doc.get("quality_score") or 0.0),
+            "error_category": doc.get("error_category"),
+            "proxy_tier": doc.get("proxy_tier", "none"),
+            "blocked_detected": bool(doc.get("blocked_detected", False)),
+            "provider": doc.get("provider", "none"),
+            "capture_id": doc.get("capture_id"),
         }
 
     @staticmethod
@@ -170,12 +211,106 @@ class ScrapyPlaywrightRuntime:
             return True
         return previous_hash != new_hash
 
+    @staticmethod
+    def _doc_error_category(doc: Dict[str, Any]) -> Optional[str]:
+        status = int(doc.get("status_code") or 0)
+        blocked = bool(doc.get("blocked_detected", False))
+        if blocked or status in {401, 403, 429, 451, 503}:
+            return "blocked"
+        if status == 404:
+            return "not_found"
+        if status >= 500:
+            return "transient"
+        if status >= 400:
+            return "permanent"
+        return None
+
+    def _should_attempt_unblock(self, doc: Dict[str, Any], policy: DomainPolicy) -> bool:
+        mode = (settings.crawler.unblock_mode or "auto").lower()
+        if mode == "off":
+            return False
+        if self.unblock_provider is None:
+            return False
+        status = int(doc.get("status_code") or 0)
+        blocked = bool(doc.get("blocked_detected", False))
+        js_shell = bool(doc.get("js_shell_detected", False))
+        low_content = len((doc.get("clean_text") or "").strip()) < 250
+        if policy.render_required:
+            return True
+        return blocked or status in {403, 429, 503} or (js_shell and low_content)
+
+    @staticmethod
+    def _upgrade_doc_from_provider(
+        original_doc: Dict[str, Any],
+        provider_html: str,
+        provider_name: str,
+    ) -> Dict[str, Any]:
+        upgraded = dict(original_doc)
+        title = extract_title(provider_html) if provider_html else None
+        clean_text, clean_markdown = extract_main_content(provider_html or "")
+        upgraded["title"] = title
+        upgraded["clean_text"] = clean_text
+        upgraded["clean_markdown"] = clean_markdown
+        upgraded["content_hash"] = hashlib.sha256((clean_text or "").lower().encode("utf-8", errors="ignore")).hexdigest()[:32]
+        upgraded["html_hash"] = hashlib.sha256((provider_html or "").encode("utf-8", errors="ignore")).hexdigest()[:32]
+        upgraded["fetch_method"] = f"provider_{provider_name}"
+        upgraded["provider"] = provider_name
+        upgraded["blocked_detected"] = False
+        upgraded["error_category"] = None
+        upgraded["quality_score"] = estimate_quality_score(clean_text, title=title)
+        upgraded["raw_capture"] = {
+            "request_method": "GET",
+            "request_headers": {},
+            "response_headers": {},
+            "response_body": (provider_html or "")[: max(4096, int(settings.crawler.raw_capture_max_body_bytes))],
+            "response_body_encoding": "utf-8",
+        }
+        return upgraded
+
+    async def _maybe_apply_provider(
+        self,
+        docs: List[Dict[str, Any]],
+        *,
+        policy: DomainPolicy,
+    ) -> List[Dict[str, Any]]:
+        if not docs or self.unblock_provider is None:
+            return docs
+
+        updated: List[Dict[str, Any]] = []
+        for doc in docs:
+            error_category = self._doc_error_category(doc)
+            doc["error_category"] = error_category
+            if not self._should_attempt_unblock(doc, policy):
+                updated.append(doc)
+                continue
+
+            request = UnblockRequest(
+                url=str(doc.get("url") or doc.get("canonical_url") or ""),
+                headers={},
+                timeout_ms=max(5000, int(settings.crawler.timeout_ms)),
+            )
+
+            try:
+                provider_result = await self.unblock_provider.fetch(request)
+                upgraded = self._upgrade_doc_from_provider(
+                    doc,
+                    provider_html=provider_result.html,
+                    provider_name=provider_result.provider,
+                )
+                upgraded["status_code"] = int(provider_result.status_code)
+                updated.append(upgraded)
+            except Exception:
+                updated.append(doc)
+
+        return updated
+
     async def _mark_frontier_results(
         self,
         *,
         leased_by_canonical: Dict[str, FrontierUrl],
         docs: List[Dict[str, Any]],
         startup_slug: str,
+        policy: DomainPolicy,
     ) -> None:
         """Update queue state based on crawl output and discover new links."""
         if not self.frontier.enabled:
@@ -199,6 +334,9 @@ class ScrapyPlaywrightRuntime:
 
             seen_leased.add(canonical)
             changed = self._changed(leased.content_hash, status_code, content_hash)
+            error_category = self._doc_error_category(doc)
+            capture_id = await self.capture_recorder.save_from_doc(startup_slug=startup_slug, doc=doc)
+            doc["capture_id"] = capture_id
 
             await self.frontier.mark_crawled(
                 canonical_url=canonical,
@@ -208,6 +346,12 @@ class ScrapyPlaywrightRuntime:
                 last_modified=doc.get("last_modified"),
                 changed=changed,
                 response_time_ms=int(doc.get("response_time_ms") or 0),
+                quality_score=float(doc.get("quality_score") or 0.0),
+                error_category=error_category,
+                blocked_detected=bool(doc.get("blocked_detected", False)),
+                fetch_method=str(doc.get("fetch_method") or "http"),
+                proxy_tier=str(doc.get("proxy_tier") or policy.proxy_tier),
+                capture_id=capture_id,
             )
 
         for canonical, _item in leased_by_canonical.items():
@@ -241,11 +385,15 @@ class ScrapyPlaywrightRuntime:
         allowed_domain = extract_domain(startup.website)
         if not allowed_domain:
             return []
+        policy = self._default_policy(allowed_domain)
 
         docs, err = await self._run_spider(
             startup_name=startup.name,
             allowed_domain=allowed_domain,
             seed_targets=seed_targets,
+            respect_robots=policy.respect_robots,
+            force_render=policy.render_required,
+            default_proxy_tier=policy.proxy_tier,
         )
 
         if err:
@@ -258,6 +406,7 @@ class ScrapyPlaywrightRuntime:
                 }
             ]
 
+        docs = await self._maybe_apply_provider(docs, policy=policy)
         results = [self._doc_to_result(doc) for doc in docs]
 
         if self.frontier.enabled:
@@ -284,6 +433,7 @@ class ScrapyPlaywrightRuntime:
                 leased_by_canonical=synthetic_leased,
                 docs=docs,
                 startup_slug=startup_slug,
+                policy=policy,
             )
 
         return results
@@ -330,11 +480,24 @@ class ScrapyPlaywrightRuntime:
         failed = 0
 
         for (startup_slug, domain), group_items in grouped.items():
-            seed_targets = self._seed_targets_from_frontier(group_items)
+            policy = self._default_policy(domain)
+            get_policy = getattr(self.frontier, "get_domain_policy", None)
+            if callable(get_policy):
+                try:
+                    maybe_policy = await get_policy(domain)
+                    if isinstance(maybe_policy, DomainPolicy):
+                        policy = maybe_policy
+                except Exception:
+                    policy = self._default_policy(domain)
+
+            seed_targets = self._seed_targets_from_frontier(group_items, policy)
             docs, err = await self._run_spider(
                 startup_name=startup_slug,
                 allowed_domain=domain,
                 seed_targets=seed_targets,
+                respect_robots=policy.respect_robots,
+                force_render=policy.render_required,
+                default_proxy_tier=policy.proxy_tier,
             )
 
             if err:
@@ -344,11 +507,13 @@ class ScrapyPlaywrightRuntime:
                     await self.frontier.requeue_failed(item.canonical_url, backoff_seconds=600)
                 continue
 
+            docs = await self._maybe_apply_provider(docs, policy=policy)
             leased_map = {item.canonical_url: item for item in group_items}
             await self._mark_frontier_results(
                 leased_by_canonical=leased_map,
                 docs=docs,
                 startup_slug=startup_slug,
+                policy=policy,
             )
 
             all_results.extend(self._doc_to_result(doc) for doc in docs)

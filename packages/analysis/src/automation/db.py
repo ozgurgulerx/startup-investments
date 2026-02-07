@@ -23,9 +23,10 @@ class DatabaseConnection:
         if not self._pool:
             self._pool = await asyncpg.create_pool(
                 self.database_url,
-                min_size=1,
+                min_size=3,
                 max_size=10,
-                command_timeout=60
+                command_timeout=60,
+                timeout=30,
             )
 
     async def close(self):
@@ -291,9 +292,11 @@ class DatabaseConnection:
         rows = await self.fetch("""
             SELECT
                 s.id, s.name, s.pattern,
-                (SELECT SUM(fr.amount_usd) FROM funding_rounds fr WHERE fr.startup_id = s.id) as total_funding
+                SUM(fr.amount_usd) as total_funding
             FROM startups s
+            LEFT JOIN funding_rounds fr ON fr.startup_id = s.id
             WHERE s.pattern IS NOT NULL
+            GROUP BY s.id, s.name, s.pattern
         """)
         return [dict(r) for r in rows]
 
@@ -355,7 +358,8 @@ class DatabaseConnection:
         canonical_url: Optional[str] = None,
         quality_score: Optional[float] = None,
         content_type: Optional[str] = None,
-        error_category: Optional[str] = None
+        error_category: Optional[str] = None,
+        capture_id: Optional[str] = None,
     ):
         """Log a crawl attempt with enhanced metadata.
 
@@ -372,18 +376,19 @@ class DatabaseConnection:
             quality_score: Content quality score (0-1)
             content_type: How content was fetched (static, js_rendered)
             error_category: Error type (transient, permanent, rate_limited, etc.)
+            capture_id: Optional replay-capture reference
         """
         await self.execute("""
             INSERT INTO crawl_logs
                 (startup_id, source_type, url, status, http_status,
                  error_message, content_length, duration_ms,
                  crawl_started_at, crawl_completed_at,
-                 canonical_url, quality_score, content_type, error_category)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, $12, $13)
+                 canonical_url, quality_score, content_type, error_category, capture_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, $12, $13, $14::uuid)
         """, startup_id, source_type, url, status, http_status,
              error_message, content_length, duration_ms,
              datetime.now(timezone.utc),
-             canonical_url, quality_score, content_type, error_category)
+             canonical_url, quality_score, content_type, error_category, capture_id)
 
     # =========================================================================
     # Domain Stats Operations (for throttling)

@@ -60,22 +60,25 @@ jobs:
           from pathlib import Path
           import asyncpg
 
-          migration_path = Path("database/migrations/011_frontier_and_incremental_recrawl.sql")
-          if not migration_path.exists():
-              raise SystemExit(f"Migration file not found: {migration_path}")
-
-          sql = migration_path.read_text(encoding="utf-8")
           db_url = os.environ["DATABASE_URL"]
+          migration_paths = [
+              Path("database/migrations/011_frontier_and_incremental_recrawl.sql"),
+              Path("database/migrations/016_crawl_replay_and_policy_feedback.sql"),
+          ]
 
           async def run():
               conn = await asyncpg.connect(db_url)
               try:
-                  await conn.execute(sql)
+                  for migration_path in migration_paths:
+                      if not migration_path.exists():
+                          raise SystemExit(f"Migration file not found: {migration_path}")
+                      sql = migration_path.read_text(encoding="utf-8")
+                      await conn.execute(sql)
+                      print(f"Applied migration: {migration_path}")
               finally:
                   await conn.close()
 
           asyncio.run(run())
-          print(f"Applied migration: {migration_path}")
           PY
 
       - name: Seed frontier queue
@@ -93,7 +96,22 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CRAWLER_RUNTIME: scrapy
           CRAWLER_RESPECT_ROBOTS: "true"
+          CRAWLER_UNBLOCK_MODE: auto
+          CRAWLER_UNBLOCK_PROVIDER: browserless
+          BROWSERLESS_ENDPOINT: ${{ secrets.BROWSERLESS_ENDPOINT }}
+          BROWSERLESS_TOKEN: ${{ secrets.BROWSERLESS_TOKEN }}
+          CRAWLER_RAW_CAPTURE_ENABLED: "true"
+          CRAWLER_RAW_CAPTURE_RETENTION_DAYS: "90"
         run: |
           BATCH_SIZE="${{ github.event.inputs.batch_size || '50' }}"
           LOOPS="${{ github.event.inputs.loops || '1' }}"
           python -m src.crawl_runtime.worker --batch-size "$BATCH_SIZE" --max-loops "$LOOPS"
+
+      - name: Cleanup old raw captures
+        if: ${{ github.event_name == 'schedule' }}
+        working-directory: packages/analysis
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CRAWLER_RAW_CAPTURE_RETENTION_DAYS: "90"
+        run: |
+          python -m src.crawl_runtime.retention

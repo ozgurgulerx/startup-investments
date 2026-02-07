@@ -391,6 +391,30 @@ def crawl_frontier(
         console.print(f"[red]Errors:[/red] {len(result['errors'])}")
 
 
+@app.command("crawl-retention")
+def crawl_retention(
+    retention_days: int = typer.Option(0, "--retention-days", help="Delete raw captures older than this many days"),
+):
+    """Cleanup expired WARC-lite raw captures."""
+    from src.crawl_runtime.retention import cleanup_raw_captures
+    from src.config import settings
+
+    days = retention_days if retention_days > 0 else settings.crawler.raw_capture_retention_days
+    try:
+        result = asyncio.run(cleanup_raw_captures(days))
+    except Exception as exc:
+        console.print(f"[red]Raw capture cleanup failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Raw Capture Retention Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Retention days:[/bold] {result.get('retention_days', days)}")
+    console.print(f"[bold]Rows deleted:[/bold] {result.get('deleted_rows', 0)}")
+    console.print(f"[bold]Blobs deleted:[/bold] {result.get('deleted_blobs', 0)}")
+
+
 @app.command("seed-frontier")
 def seed_frontier(
     limit: int = typer.Option(5000, "--limit", "-l", help="Max startups to read from database"),

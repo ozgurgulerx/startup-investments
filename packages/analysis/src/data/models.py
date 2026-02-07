@@ -342,6 +342,9 @@ class CrawledDocumentV2(BaseModel):
     quality_score: float = 0.0
     error_category: Optional[str] = None
     proxy_tier: str = "none"
+    blocked_detected: bool = False
+    provider: str = "none"
+    capture_id: Optional[str] = None
 
 
 class StartupInput(BaseModel):

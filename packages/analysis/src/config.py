@@ -41,6 +41,24 @@ class CrawlerConfig(BaseModel):
     # Proxy strategy (lean by default: datacenter first, optional residential fallback)
     datacenter_proxy_url: str = Field(default_factory=lambda: os.getenv("CRAWLER_PROXY_URL", ""))
     residential_proxy_url: str = Field(default_factory=lambda: os.getenv("CRAWLER_RESIDENTIAL_PROXY_URL", ""))
+    default_proxy_tier: str = Field(default_factory=lambda: os.getenv("CRAWLER_DEFAULT_PROXY_TIER", "datacenter"))
+
+    # Managed unblock lane (provider-based render/unblock)
+    unblock_mode: str = Field(default_factory=lambda: os.getenv("CRAWLER_UNBLOCK_MODE", "auto"))  # off|auto|provider_only
+    unblock_provider: str = Field(default_factory=lambda: os.getenv("CRAWLER_UNBLOCK_PROVIDER", "browserless"))
+    browserless_endpoint: str = Field(default_factory=lambda: os.getenv("BROWSERLESS_ENDPOINT", ""))
+    browserless_token: str = Field(default_factory=lambda: os.getenv("BROWSERLESS_TOKEN", ""))
+    ai_blocking_assumed: bool = Field(default_factory=lambda: os.getenv("CRAWLER_AI_BLOCKING_ASSUMED", "true").lower() == "true")
+
+    # Raw replay capture (WARC-lite)
+    raw_capture_enabled: bool = Field(default_factory=lambda: os.getenv("CRAWLER_RAW_CAPTURE_ENABLED", "true").lower() == "true")
+    raw_capture_retention_days: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_RAW_CAPTURE_RETENTION_DAYS", "90")))
+    raw_capture_max_body_bytes: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_RAW_CAPTURE_MAX_BODY_BYTES", "1048576")))
+
+    # Feed/sitemap-first discovery
+    feed_discovery_enabled: bool = Field(default_factory=lambda: os.getenv("CRAWLER_FEED_DISCOVERY_ENABLED", "true").lower() == "true")
+    feed_discovery_max_urls_per_startup: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_FEED_DISCOVERY_MAX_URLS", "20")))
+    feed_discovery_timeout_seconds: float = Field(default_factory=lambda: float(os.getenv("CRAWLER_FEED_DISCOVERY_TIMEOUT_SECONDS", "6")))
 
     # Data enrichment sources
     enable_web_search: bool = True

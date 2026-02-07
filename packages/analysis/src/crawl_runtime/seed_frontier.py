@@ -14,6 +14,8 @@ try:
 except Exception:  # pragma: no cover
     asyncpg = None
 
+from src.config import settings
+from src.crawl_runtime.discovery import discover_seed_urls
 from src.crawl_runtime.frontier import UrlFrontierStore, canonicalize_url
 
 
@@ -27,6 +29,16 @@ COMMON_PATHS = [
     "/careers",
 ]
 
+DISCOVERY_HINT_PATHS = [
+    "/sitemap.xml",
+    "/feed",
+    "/blog/feed",
+    "/news/feed",
+    "/changelog/feed",
+    "/rss.xml",
+    "/atom.xml",
+]
+
 
 @dataclass
 class StartupSeed:
@@ -38,7 +50,7 @@ def _slugify(name: str) -> str:
     return name.lower().replace(" ", "-").replace(".", "").replace(",", "").replace("&", "and")
 
 
-def build_seed_urls(website: str) -> List[str]:
+def build_seed_urls(website: str, include_discovery_hints: bool = False) -> List[str]:
     base = canonicalize_url(website)
     if not base:
         return []
@@ -52,6 +64,12 @@ def build_seed_urls(website: str) -> List[str]:
         canonical = canonicalize_url(url)
         if canonical and canonical not in urls:
             urls.append(canonical)
+    if include_discovery_hints:
+        for suffix in DISCOVERY_HINT_PATHS:
+            url = f"{base}{suffix}"
+            canonical = canonicalize_url(url)
+            if canonical and canonical not in urls:
+                urls.append(canonical)
     return urls
 
 
@@ -102,7 +120,23 @@ class FrontierSeeder:
         seeded_urls = 0
 
         for item in startups:
-            urls = build_seed_urls(item.website)
+            urls = build_seed_urls(
+                item.website,
+                include_discovery_hints=settings.crawler.feed_discovery_enabled,
+            )
+            if settings.crawler.feed_discovery_enabled:
+                try:
+                    discovery = await discover_seed_urls(
+                        item.website,
+                        timeout_seconds=settings.crawler.feed_discovery_timeout_seconds,
+                        max_urls=settings.crawler.feed_discovery_max_urls_per_startup,
+                    )
+                    for url in discovery.urls:
+                        if url not in urls:
+                            urls.append(url)
+                except Exception:
+                    # Seeder must stay robust; discovery failures should not block baseline seeding.
+                    pass
             if not urls:
                 continue
             count = await self.frontier.enqueue_urls(item.slug, urls)

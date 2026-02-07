@@ -31,6 +31,9 @@ class CrawledDocumentV2:
     quality_score: float = 0.0
     error_category: Optional[str] = None
     proxy_tier: str = "none"
+    blocked_detected: bool = False
+    provider: str = "none"
+    capture_id: Optional[str] = None
 
     @classmethod
     def now_iso(cls) -> str:

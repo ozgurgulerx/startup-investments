@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -25,7 +26,9 @@ except Exception as exc:  # pragma: no cover
 
 from src.crawl_runtime.extraction import extract_main_content, extract_title
 from src.crawl_runtime.frontier import canonicalize_url, extract_domain, classify_page_type
+from src.crawl_runtime.models import estimate_quality_score
 from src.crawl_runtime.pdf_parser import extract_pdf_text
+from src.crawl_runtime.unblock_provider import is_probably_blocked
 
 
 def is_same_site(url1: str, url2: str) -> bool:
@@ -48,6 +51,25 @@ JS_SHELL_MARKERS = [
     "please enable javascript",
     "you need to enable javascript",
 ]
+
+
+MAX_RAW_BODY_BYTES = max(4096, int(os.getenv("CRAWLER_RAW_CAPTURE_MAX_BODY_BYTES", "1048576")))
+
+
+def headers_to_dict(headers: Any) -> Dict[str, str]:
+    result: Dict[str, str] = {}
+    if not headers:
+        return result
+    try:
+        items = headers.items()
+    except Exception:
+        items = []
+    for key, value in items:
+        k = key.decode("utf-8", errors="ignore") if isinstance(key, (bytes, bytearray)) else str(key)
+        v = value.decode("utf-8", errors="ignore") if isinstance(value, (bytes, bytearray)) else str(value)
+        if k:
+            result[k] = v
+    return result
 
 
 def detect_js_shell(html: str) -> bool:
@@ -79,6 +101,8 @@ class StartupSpider(scrapy.Spider):
         use_playwright: bool = True,
         proxy_url: str = "",
         residential_proxy_url: str = "",
+        force_render: bool = False,
+        default_proxy_tier: str = "datacenter",
         *args,
         **kwargs,
     ):
@@ -90,6 +114,8 @@ class StartupSpider(scrapy.Spider):
         self.use_playwright = bool(use_playwright)
         self.proxy_url = proxy_url
         self.residential_proxy_url = residential_proxy_url
+        self.force_render = bool(force_render)
+        self.default_proxy_tier = default_proxy_tier if default_proxy_tier in {"datacenter", "residential"} else "datacenter"
 
         raw_targets = json.loads(seed_targets)
         self.seed_targets: List[Dict[str, Any]] = []
@@ -101,12 +127,23 @@ class StartupSpider(scrapy.Spider):
         self.seen: set[str] = set()
         self.documents: List[Dict[str, Any]] = []
 
-    def _build_meta(self, rendered: bool = False) -> Dict[str, Any]:
-        meta: Dict[str, Any] = {"rendered": rendered}
-        if self.proxy_url:
-            meta["proxy"] = self.proxy_url
+    def _build_meta(self, rendered: bool = False, proxy_tier: Optional[str] = None) -> Dict[str, Any]:
+        selected_proxy_tier = proxy_tier or self.default_proxy_tier
+        meta: Dict[str, Any] = {"rendered": rendered, "proxy_tier": selected_proxy_tier}
+
+        proxy = ""
+        if selected_proxy_tier == "residential" and self.residential_proxy_url:
+            proxy = self.residential_proxy_url
+        elif self.proxy_url:
+            proxy = self.proxy_url
+        elif self.residential_proxy_url:
+            proxy = self.residential_proxy_url
         if rendered and self.residential_proxy_url:
-            meta["proxy"] = self.residential_proxy_url
+            # Browser lane prefers residential proxy when available.
+            proxy = self.residential_proxy_url
+            meta["proxy_tier"] = "residential"
+        if proxy:
+            meta["proxy"] = proxy
         if rendered and self.use_playwright:
             meta["playwright"] = True
             meta["playwright_include_page"] = False
@@ -123,7 +160,9 @@ class StartupSpider(scrapy.Spider):
             self.seen.add(canonical)
             headers = target.get("headers") or {}
             page_type = target.get("page_type") or classify_page_type(url)
-            meta = self._build_meta(rendered=False)
+            proxy_tier = target.get("proxy_tier") or self.default_proxy_tier
+            render_required = bool(target.get("render_required", False) or self.force_render)
+            meta = self._build_meta(rendered=render_required, proxy_tier=proxy_tier)
             meta["seed_page_type"] = page_type
             yield scrapy.Request(
                 url=url,
@@ -147,6 +186,14 @@ class StartupSpider(scrapy.Spider):
         content_type: str = "html",
         etag: Optional[str] = None,
         last_modified: Optional[str] = None,
+        blocked_detected: bool = False,
+        js_shell_detected: bool = False,
+        request_headers: Optional[Dict[str, str]] = None,
+        response_headers: Optional[Dict[str, str]] = None,
+        raw_body: str = "",
+        raw_body_encoding: str = "utf-8",
+        proxy_tier: str = "none",
+        provider: str = "none",
     ):
         canonical = canonicalize_url(url)
         if not canonical:
@@ -155,6 +202,7 @@ class StartupSpider(scrapy.Spider):
         title = extract_title(html) if html else None
         html_hash = hashlib.sha256((html or "").encode("utf-8", errors="ignore")).hexdigest()[:32]
         content_hash = hashlib.sha256((clean_text or "").lower().encode("utf-8", errors="ignore")).hexdigest()[:32]
+        quality_score = estimate_quality_score(clean_text, title=title)
 
         self.documents.append(
             {
@@ -173,6 +221,18 @@ class StartupSpider(scrapy.Spider):
                 "fetch_method": fetch_method,
                 "status_code": status,
                 "response_time_ms": response_time_ms,
+                "quality_score": quality_score,
+                "blocked_detected": blocked_detected,
+                "js_shell_detected": js_shell_detected,
+                "proxy_tier": proxy_tier,
+                "provider": provider,
+                "raw_capture": {
+                    "request_method": "GET",
+                    "request_headers": request_headers or {},
+                    "response_headers": response_headers or {},
+                    "response_body": raw_body,
+                    "response_body_encoding": raw_body_encoding,
+                },
                 "crawled_at": datetime.now(timezone.utc).isoformat(),
                 "discovered_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -181,7 +241,10 @@ class StartupSpider(scrapy.Spider):
     def parse(self, response: scrapy.http.Response):
         start_ts = time.monotonic()
         rendered = bool(response.meta.get("rendered"))
+        proxy_tier = str(response.meta.get("proxy_tier") or "none")
         current_page_type = response.meta.get("seed_page_type") or classify_page_type(response.url)
+        request_headers = headers_to_dict(getattr(response.request, "headers", {}))
+        response_headers = headers_to_dict(response.headers)
 
         if response.status == 304:
             self._record_doc(
@@ -195,12 +258,18 @@ class StartupSpider(scrapy.Spider):
                 page_type=current_page_type,
                 etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
                 last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
+                blocked_detected=False,
+                request_headers=request_headers,
+                response_headers=response_headers,
+                proxy_tier=proxy_tier,
             )
             return
 
         ctype = (response.headers.get("Content-Type") or b"").decode("utf-8", errors="ignore").lower()
         if "application/pdf" in ctype or response.url.lower().endswith(".pdf"):
-            text = extract_pdf_text(bytes(response.body)) or ""
+            body_bytes = bytes(response.body)
+            text = extract_pdf_text(body_bytes) or ""
+            clipped = body_bytes[:MAX_RAW_BODY_BYTES]
             self._record_doc(
                 url=response.url,
                 status=response.status,
@@ -213,21 +282,33 @@ class StartupSpider(scrapy.Spider):
                 content_type="pdf",
                 etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
                 last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
+                blocked_detected=is_probably_blocked(int(response.status), ""),
+                request_headers=request_headers,
+                response_headers=response_headers,
+                raw_body=base64.b64encode(clipped).decode("ascii"),
+                raw_body_encoding="base64",
+                proxy_tier=proxy_tier,
             )
             return
 
         html = response.text or ""
-        if not rendered and self.use_playwright and detect_js_shell(html):
+        js_shell_detected = detect_js_shell(html)
+        if not rendered and self.use_playwright and js_shell_detected:
             # Escalate to browser rendering only when static fetch appears insufficient.
+            meta = self._build_meta(rendered=True, proxy_tier="residential")
+            meta["seed_page_type"] = current_page_type
+            meta["escalated_js_shell"] = True
             yield scrapy.Request(
                 url=response.url,
                 callback=self.parse,
-                meta=self._build_meta(rendered=True),
+                meta=meta,
                 dont_filter=True,
             )
             return
 
         clean_text, clean_markdown = extract_main_content(html)
+        blocked_detected = is_probably_blocked(int(response.status), html)
+        clipped_html = html[:MAX_RAW_BODY_BYTES]
         self._record_doc(
             url=response.url,
             status=response.status,
@@ -239,6 +320,13 @@ class StartupSpider(scrapy.Spider):
             page_type=current_page_type,
             etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
             last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
+            blocked_detected=blocked_detected,
+            js_shell_detected=js_shell_detected,
+            request_headers=request_headers,
+            response_headers=response_headers,
+            raw_body=clipped_html,
+            raw_body_encoding="utf-8",
+            proxy_tier=proxy_tier,
         )
 
         if len(self.seen) >= self.max_pages:
@@ -258,7 +346,7 @@ class StartupSpider(scrapy.Spider):
                 continue
 
             self.seen.add(canonical)
-            meta = self._build_meta(rendered=False)
+            meta = self._build_meta(rendered=self.force_render, proxy_tier=self.default_proxy_tier)
             meta["seed_page_type"] = classify_page_type(canonical)
             yield scrapy.Request(url=abs_url, callback=self.parse, meta=meta)
 
@@ -285,6 +373,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--no-playwright", action="store_true")
     parser.add_argument("--proxy-url", default="")
     parser.add_argument("--residential-proxy-url", default="")
+    parser.add_argument("--force-render", action="store_true")
+    parser.add_argument("--default-proxy-tier", default="datacenter", choices=["datacenter", "residential"])
     return parser.parse_args()
 
 
@@ -350,6 +440,8 @@ def main() -> int:
         use_playwright=use_playwright,
         proxy_url=args.proxy_url,
         residential_proxy_url=args.residential_proxy_url,
+        force_render=args.force_render,
+        default_proxy_tier=args.default_proxy_tier,
     )
     process.start(stop_after_crawl=True)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from src.config import settings
 from src.crawl_runtime.seed_frontier import COMMON_PATHS, FrontierSeeder, StartupSeed, build_seed_urls
 
 
@@ -39,20 +40,24 @@ def test_build_seed_urls_returns_empty_for_invalid_input():
 def test_seeder_reads_startups_and_enqueues_urls():
     frontier = FakeFrontier()
     seeder = FrontierSeeder(database_url="postgres://example", frontier=frontier)
+    old_discovery = settings.crawler.feed_discovery_enabled
+    settings.crawler.feed_discovery_enabled = False
+    try:
+        async def fake_fetch_startups(limit: int = 5000):
+            assert limit == 100
+            return [
+                StartupSeed(slug="acme", website="acme.com"),
+                StartupSeed(slug="zen", website="https://zen.ai"),
+            ]
 
-    async def fake_fetch_startups(limit: int = 5000):
-        assert limit == 100
-        return [
-            StartupSeed(slug="acme", website="acme.com"),
-            StartupSeed(slug="zen", website="https://zen.ai"),
-        ]
+        seeder._fetch_startups = fake_fetch_startups  # type: ignore[method-assign]
+        summary = asyncio.run(seeder.seed(limit=100))
 
-    seeder._fetch_startups = fake_fetch_startups  # type: ignore[method-assign]
-    summary = asyncio.run(seeder.seed(limit=100))
-
-    assert frontier.connected is True
-    assert summary["startups_considered"] == 2
-    assert summary["startups_seeded"] == 2
-    assert summary["urls_seeded"] == len(COMMON_PATHS) * 2
-    assert frontier.enqueued[0][0] == "acme"
-    assert frontier.enqueued[1][0] == "zen"
+        assert frontier.connected is True
+        assert summary["startups_considered"] == 2
+        assert summary["startups_seeded"] == 2
+        assert summary["urls_seeded"] == len(COMMON_PATHS) * 2
+        assert frontier.enqueued[0][0] == "acme"
+        assert frontier.enqueued[1][0] == "zen"
+    finally:
+        settings.crawler.feed_discovery_enabled = old_discovery

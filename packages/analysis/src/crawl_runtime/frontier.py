@@ -61,6 +61,19 @@ class FrontierUrl:
     last_modified: Optional[str] = None
 
 
+@dataclass
+class DomainPolicy:
+    domain: str
+    respect_robots: bool = True
+    crawl_delay_ms: int = 1500
+    max_concurrent: int = 2
+    blocked: bool = False
+    proxy_tier: str = "datacenter"
+    render_required: bool = False
+    block_rate: float = 0.0
+    consecutive_blocks: int = 0
+
+
 HIGH_PRIORITY_HINTS = {
     "pricing": 100,
     "docs": 95,
@@ -198,9 +211,11 @@ class UrlFrontierStore:
                     SELECT q.canonical_url
                     FROM crawl_frontier_queue q
                     JOIN crawl_frontier_urls u ON u.canonical_url = q.canonical_url
+                    LEFT JOIN domain_policies p ON p.domain = u.domain
                     WHERE q.leased_at IS NULL
                       AND q.available_at <= NOW()
                       AND u.next_crawl_at <= NOW()
+                      AND COALESCE(p.blocked, FALSE) = FALSE
                     ORDER BY u.priority_score DESC, q.available_at ASC
                     LIMIT $1
                     FOR UPDATE SKIP LOCKED
@@ -248,6 +263,109 @@ class UrlFrontierStore:
             for r in detail_rows
         ]
 
+    async def get_domain_policy(self, domain: str) -> DomainPolicy:
+        if not self.pool or not domain:
+            return DomainPolicy(domain=domain or "")
+
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    domain, respect_robots, crawl_delay_ms, max_concurrent,
+                    blocked, proxy_tier, render_required,
+                    COALESCE(block_rate, 0) AS block_rate,
+                    COALESCE(consecutive_blocks, 0) AS consecutive_blocks
+                FROM domain_policies
+                WHERE domain = $1
+                """,
+                domain,
+            )
+
+            if row is None:
+                await conn.execute(
+                    """
+                    INSERT INTO domain_policies (
+                        domain, respect_robots, crawl_delay_ms, max_concurrent, blocked,
+                        proxy_tier, render_required, block_rate, consecutive_blocks, updated_at
+                    )
+                    VALUES ($1, TRUE, 1500, 2, FALSE, 'datacenter', FALSE, 0, 0, NOW())
+                    ON CONFLICT (domain) DO NOTHING
+                    """,
+                    domain,
+                )
+                return DomainPolicy(domain=domain)
+
+            return DomainPolicy(
+                domain=row["domain"],
+                respect_robots=bool(row["respect_robots"]),
+                crawl_delay_ms=int(row["crawl_delay_ms"]),
+                max_concurrent=int(row["max_concurrent"]),
+                blocked=bool(row["blocked"]),
+                proxy_tier=str(row["proxy_tier"] or "datacenter"),
+                render_required=bool(row["render_required"]),
+                block_rate=float(row["block_rate"] or 0.0),
+                consecutive_blocks=int(row["consecutive_blocks"] or 0),
+            )
+
+    async def upsert_domain_policy(
+        self,
+        domain: str,
+        *,
+        render_required: Optional[bool] = None,
+        proxy_tier: Optional[str] = None,
+        blocked: Optional[bool] = None,
+    ) -> None:
+        if not self.pool or not domain:
+            return
+
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO domain_policies (
+                    domain, render_required, proxy_tier, blocked, updated_at
+                )
+                VALUES (
+                    $1, COALESCE($2, FALSE), COALESCE($3, 'datacenter'), COALESCE($4, FALSE), NOW()
+                )
+                ON CONFLICT (domain) DO UPDATE
+                SET render_required = COALESCE($2, domain_policies.render_required),
+                    proxy_tier = COALESCE($3, domain_policies.proxy_tier),
+                    blocked = COALESCE($4, domain_policies.blocked),
+                    updated_at = NOW()
+                """,
+                domain,
+                render_required,
+                proxy_tier,
+                blocked,
+            )
+
+    @staticmethod
+    def _compute_next_delay_seconds(
+        *,
+        changed: bool,
+        status_code: int,
+        quality_score: float,
+        blocked_detected: bool,
+    ) -> int:
+        # Conservative ramp: boost quality/high-change pages, but avoid starvation.
+        if status_code == 304:
+            base = timedelta(days=7)
+        elif status_code >= 500:
+            base = timedelta(hours=6)
+        elif status_code >= 400:
+            base = timedelta(hours=8)
+        else:
+            base = timedelta(days=1 if changed else 7)
+
+        if changed and quality_score >= 0.75:
+            base = max(timedelta(hours=12), base / 2)
+        if (not changed) and quality_score < 0.2:
+            base = min(timedelta(days=14), base * 2)
+        if blocked_detected:
+            base = max(base, timedelta(hours=8))
+
+        return int(base.total_seconds())
+
     async def mark_crawled(
         self,
         canonical_url: str,
@@ -257,16 +375,27 @@ class UrlFrontierStore:
         last_modified: Optional[str],
         changed: bool,
         response_time_ms: int,
+        quality_score: float = 0.0,
+        error_category: Optional[str] = None,
+        blocked_detected: bool = False,
+        fetch_method: str = "http",
+        proxy_tier: str = "none",
+        capture_id: Optional[str] = None,
     ) -> None:
         if not self.pool:
             return
 
-        next_delay = timedelta(days=1)
-        if not changed:
-            next_delay = timedelta(days=7)
-        if status_code >= 400:
-            next_delay = timedelta(hours=6)
-        next_delay_seconds = int(next_delay.total_seconds())
+        next_delay_seconds = self._compute_next_delay_seconds(
+            changed=changed,
+            status_code=status_code,
+            quality_score=max(0.0, min(float(quality_score or 0.0), 1.0)),
+            blocked_detected=bool(blocked_detected),
+        )
+
+        quality_score = max(0.0, min(float(quality_score or 0.0), 1.0))
+        quality_delta = 3 if quality_score >= 0.75 else (-2 if quality_score < 0.2 else 0)
+        block_delta = -6 if blocked_detected else 0
+        change_delta = 4 if changed else -1
 
         async with self.pool.acquire() as conn:
             await conn.execute(
@@ -283,6 +412,16 @@ class UrlFrontierStore:
                         ELSE COALESCE(change_rate, 0) * 0.8
                     END,
                     last_response_ms = $8,
+                    last_quality_score = $9,
+                    last_error_category = $10,
+                    last_fetch_method = $11,
+                    last_proxy_tier = $12,
+                    last_blocked_detected = $13,
+                    last_capture_id = COALESCE($14::uuid, last_capture_id),
+                    priority_score = LEAST(
+                        120,
+                        GREATEST(10, COALESCE(priority_score, 40) + $15 + $16 + $17)
+                    ),
                     updated_at = NOW()
                 WHERE canonical_url = $1
                 """,
@@ -294,6 +433,15 @@ class UrlFrontierStore:
                 next_delay_seconds,
                 changed,
                 response_time_ms,
+                quality_score,
+                error_category,
+                fetch_method,
+                proxy_tier,
+                blocked_detected,
+                capture_id,
+                quality_delta,
+                block_delta,
+                change_delta,
             )
 
             # Keep URL in queue for recurring crawl; just release lease and schedule next execution.
@@ -309,6 +457,85 @@ class UrlFrontierStore:
                 """,
                 canonical_url,
                 next_delay_seconds,
+            )
+
+        await self.record_domain_outcome(
+            canonical_url=canonical_url,
+            blocked_detected=blocked_detected,
+            status_code=status_code,
+            fetch_method=fetch_method,
+        )
+
+    async def record_domain_outcome(
+        self,
+        *,
+        canonical_url: str,
+        blocked_detected: bool,
+        status_code: int,
+        fetch_method: str,
+    ) -> None:
+        if not self.pool:
+            return
+
+        async with self.pool.acquire() as conn:
+            domain_row = await conn.fetchrow(
+                "SELECT domain FROM crawl_frontier_urls WHERE canonical_url = $1",
+                canonical_url,
+            )
+            if not domain_row:
+                return
+            domain = str(domain_row["domain"] or "")
+            if not domain:
+                return
+
+            await conn.execute(
+                """
+                INSERT INTO domain_policies (
+                    domain, respect_robots, crawl_delay_ms, max_concurrent, blocked,
+                    proxy_tier, render_required, block_rate, consecutive_blocks, updated_at
+                )
+                VALUES ($1, TRUE, 1500, 2, FALSE, 'datacenter', FALSE, 0, 0, NOW())
+                ON CONFLICT (domain) DO NOTHING
+                """,
+                domain,
+            )
+
+            provider_success = fetch_method.startswith("provider_") and not blocked_detected and status_code < 400
+            await conn.execute(
+                """
+                UPDATE domain_policies
+                SET block_rate = LEAST(
+                        1.0,
+                        GREATEST(
+                            0.0,
+                            COALESCE(block_rate, 0) * 0.85 + CASE WHEN $2 THEN 0.15 ELSE 0 END
+                        )
+                    ),
+                    consecutive_blocks = CASE
+                        WHEN $2 THEN COALESCE(consecutive_blocks, 0) + 1
+                        ELSE 0
+                    END,
+                    last_blocked_at = CASE WHEN $2 THEN NOW() ELSE last_blocked_at END,
+                    last_provider_success_at = CASE WHEN $3 THEN NOW() ELSE last_provider_success_at END,
+                    render_required = CASE
+                        WHEN $2 THEN TRUE
+                        ELSE render_required
+                    END,
+                    proxy_tier = CASE
+                        WHEN $2 AND COALESCE(consecutive_blocks, 0) + 1 >= 3 THEN 'residential'
+                        ELSE proxy_tier
+                    END,
+                    blocked = CASE
+                        WHEN COALESCE(consecutive_blocks, 0) + CASE WHEN $2 THEN 1 ELSE 0 END >= 8 THEN TRUE
+                        ELSE FALSE
+                    END,
+                    policy_version = COALESCE(policy_version, 1) + 1,
+                    updated_at = NOW()
+                WHERE domain = $1
+                """,
+                domain,
+                blocked_detected or status_code in {403, 429, 503},
+                provider_success,
             )
 
     async def requeue_failed(self, canonical_url: str, backoff_seconds: int = 300) -> None:
