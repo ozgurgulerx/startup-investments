@@ -2,14 +2,15 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import { db, testConnection, closePool, getPoolStats } from './db';
+import { db, pool, testConnection, closePool, getPoolStats } from './db';
 import { startups, fundingRounds, investors } from './db/schema';
 import { eq, desc, sql, count, sum, and, gte, lte, ilike, or } from 'drizzle-orm';
 import { logoExtractor } from './services/logo-extractor';
+import { syncRequestSchema } from './validation';
+import { slugify, parseLocation, parseFundingAmount } from './utils';
 import {
   getRedisClient,
   closeRedisClient,
-  cached,
   invalidateAll,
   getCacheStats,
   dealBookKey,
@@ -23,9 +24,51 @@ dotenv.config();
 
 const app: Express = express();
 const PORT = process.env.PORT || 3001;
+const API_KEY = process.env.API_KEY;
+const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
+const ADMIN_KEY = process.env.ADMIN_KEY || (process.env.NODE_ENV !== 'production' ? process.env.API_KEY : undefined);
 
-// Health check endpoint - MUST be before any auth middleware for K8s probes
-app.get('/health', async (req, res) => {
+// Trust proxy for correct client IP behind Azure Front Door / Load Balancer
+app.set('trust proxy', true);
+
+// Fail fast if required secrets are missing in production
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.API_KEY) {
+    console.error('FATAL: API_KEY is required in production but not set. Exiting.');
+    process.exit(1);
+  }
+  if (!process.env.DATABASE_URL) {
+    console.error('FATAL: DATABASE_URL is required in production but not set. Exiting.');
+    process.exit(1);
+  }
+  if (!process.env.FRONT_DOOR_ID) {
+    console.error('FATAL: FRONT_DOOR_ID is required in production but not set. Exiting.');
+    process.exit(1);
+  }
+  if (!process.env.ADMIN_KEY) {
+    console.error('FATAL: ADMIN_KEY is required in production but not set. Exiting.');
+    process.exit(1);
+  }
+}
+
+// Lightweight liveness probe - no I/O, for K8s liveness checks
+app.get('/healthz', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Readiness probe - checks pool stats in-memory only, for K8s readiness checks
+app.get('/readyz', (_req, res) => {
+  const poolStats = getPoolStats();
+  const dbReady = poolStats.totalCount > 0 && poolStats.waitingCount < poolStats.totalCount;
+  res.status(dbReady ? 200 : 503).json({
+    status: dbReady ? 'ready' : 'not_ready',
+    timestamp: new Date().toISOString(),
+    pool: poolStats,
+  });
+});
+
+// Full health check - expensive, for manual diagnostics only
+app.get('/health', async (_req, res) => {
   const dbConnected = await testConnection(1, 0);
   const poolStats = getPoolStats();
   const cacheStats = await getCacheStats();
@@ -39,11 +82,18 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// API Key for authentication
-const API_KEY = process.env.API_KEY;
+// Helper: returns a period filter condition, or undefined for 'all' (omits the filter)
+function periodFilter(period: string | undefined) {
+  if (!period || period === 'all') return undefined;
+  return eq(startups.period, period);
+}
 
-// Front Door ID for origin validation (optional, set after Front Door deployment)
-const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
+function normalizeStageKey(value: string | undefined | null): string {
+  return (value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
 
 // CORS configuration - allow frontend domains
 const allowedOrigins = [
@@ -75,7 +125,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -96,8 +146,8 @@ app.use('/api/', limiter);
 
 // Front Door ID validation middleware (ensures requests come through Front Door)
 app.use((req, res, next) => {
-  // Skip health checks (needed for K8s probes and Front Door health probes)
-  if (req.path === '/health') {
+  // Skip health/probe endpoints (needed for K8s probes and Front Door health probes)
+  if (req.path === '/health' || req.path === '/healthz' || req.path === '/readyz') {
     return next();
   }
 
@@ -106,15 +156,8 @@ app.use((req, res, next) => {
     return next();
   }
 
-  // Allow localhost for admin endpoints (internal pod access)
-  const ip = req.ip || req.socket.remoteAddress || '';
-  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-  if (isLocalhost && req.path.startsWith('/api/admin')) {
-    return next();
-  }
-
-  // In production, validate Front Door ID if configured
-  if (process.env.NODE_ENV === 'production' && FRONT_DOOR_ID) {
+  // In production, validate Front Door ID
+  if (process.env.NODE_ENV === 'production') {
     const frontDoorId = req.headers['x-azure-fdid'] as string;
 
     if (!frontDoorId || frontDoorId !== FRONT_DOOR_ID) {
@@ -128,8 +171,8 @@ app.use((req, res, next) => {
 
 // API Key authentication middleware
 app.use((req, res, next) => {
-  // Skip health checks (needed for K8s probes)
-  if (req.path === '/health') {
+  // Skip health/probe endpoints (needed for K8s probes)
+  if (req.path === '/health' || req.path === '/healthz' || req.path === '/readyz') {
     return next();
   }
 
@@ -138,15 +181,8 @@ app.use((req, res, next) => {
     return next();
   }
 
-  // Allow localhost for admin endpoints (internal pod access)
-  const ip = req.ip || req.socket.remoteAddress || '';
-  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-  if (isLocalhost && req.path.startsWith('/api/admin')) {
-    return next();
-  }
-
-  // In production, require API key for all API routes
-  if (process.env.NODE_ENV === 'production' && API_KEY) {
+  // In production, always require API key (fail-fast startup ensures API_KEY exists)
+  if (process.env.NODE_ENV === 'production') {
     const providedKey = req.headers['x-api-key'] as string;
 
     if (!providedKey || providedKey !== API_KEY) {
@@ -165,11 +201,38 @@ app.use((req, res, next) => {
 // List all startups with pagination
 app.get('/api/v1/startups', async (req, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const offset = (page - 1) * limit;
 
-    const results = await db.select()
+    const results = await db.select({
+      id: startups.id,
+      name: startups.name,
+      slug: startups.slug,
+      description: startups.description,
+      website: startups.website,
+      foundedDate: startups.foundedDate,
+      headquartersCity: startups.headquartersCity,
+      headquartersCountry: startups.headquartersCountry,
+      continent: startups.continent,
+      industry: startups.industry,
+      pattern: startups.pattern,
+      stage: startups.stage,
+      employeeCount: startups.employeeCount,
+      genaiNative: startups.genaiNative,
+      logoContentType: startups.logoContentType,
+      logoUpdatedAt: startups.logoUpdatedAt,
+      contentHash: startups.contentHash,
+      lastCrawlAt: startups.lastCrawlAt,
+      crawlSuccessRate: startups.crawlSuccessRate,
+      analysisData: startups.analysisData,
+      period: startups.period,
+      moneyRaisedUsd: startups.moneyRaisedUsd,
+      fundingStage: startups.fundingStage,
+      usesGenai: startups.usesGenai,
+      createdAt: startups.createdAt,
+      updatedAt: startups.updatedAt,
+    })
       .from(startups)
       .orderBy(desc(startups.createdAt))
       .limit(limit)
@@ -195,7 +258,34 @@ app.get('/api/v1/startups', async (req, res) => {
 // Get single startup by ID
 app.get('/api/v1/startups/:id', async (req, res) => {
   try {
-    const [startup] = await db.select()
+    const [startup] = await db.select({
+      id: startups.id,
+      name: startups.name,
+      slug: startups.slug,
+      description: startups.description,
+      website: startups.website,
+      foundedDate: startups.foundedDate,
+      headquartersCity: startups.headquartersCity,
+      headquartersCountry: startups.headquartersCountry,
+      continent: startups.continent,
+      industry: startups.industry,
+      pattern: startups.pattern,
+      stage: startups.stage,
+      employeeCount: startups.employeeCount,
+      genaiNative: startups.genaiNative,
+      logoContentType: startups.logoContentType,
+      logoUpdatedAt: startups.logoUpdatedAt,
+      contentHash: startups.contentHash,
+      lastCrawlAt: startups.lastCrawlAt,
+      crawlSuccessRate: startups.crawlSuccessRate,
+      analysisData: startups.analysisData,
+      period: startups.period,
+      moneyRaisedUsd: startups.moneyRaisedUsd,
+      fundingStage: startups.fundingStage,
+      usesGenai: startups.usesGenai,
+      createdAt: startups.createdAt,
+      updatedAt: startups.updatedAt,
+    })
       .from(startups)
       .where(eq(startups.id, req.params.id));
 
@@ -220,17 +310,28 @@ app.get('/api/v1/startups/:id', async (req, res) => {
 app.get('/api/startups/:slug/logo', async (req, res) => {
   try {
     const [startup] = await db.select({
+      logoUrl: sql<string>`logo_url`,
       logoData: startups.logoData,
       logoContentType: startups.logoContentType,
     })
       .from(startups)
       .where(eq(startups.slug, req.params.slug));
 
-    if (!startup || !startup.logoData) {
+    if (!startup) {
       return res.status(404).json({ error: 'Logo not found' });
     }
 
-    // Set cache headers (logos don't change often)
+    // Prefer URL redirect (fast path — no binary transfer from DB)
+    if (startup.logoUrl) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.redirect(301, startup.logoUrl);
+    }
+
+    // Fall back to binary data stored in database
+    if (!startup.logoData) {
+      return res.status(404).json({ error: 'Logo not found' });
+    }
+
     res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day
     res.setHeader('Content-Type', startup.logoContentType || 'image/png');
     res.send(startup.logoData);
@@ -264,19 +365,22 @@ app.get('/api/v1/stats', async (req, res) => {
     }
     res.setHeader('X-Cache', 'MISS');
 
-    // Total funding
-    const [fundingResult] = await db.select({
+    const pf = periodFilter(period);
+
+    // Total funding (join through startups for period filter)
+    const fundingQuery = db.select({
       total: sum(fundingRounds.amountUsd),
       count: count(),
     }).from(fundingRounds);
+    const [fundingResult] = pf
+      ? await fundingQuery.innerJoin(startups, eq(fundingRounds.startupId, startups.id)).where(pf)
+      : await fundingQuery;
 
-    // Startup count
-    const [startupResult] = await db.select({ count: count() }).from(startups);
-
-    // GenAI native count
-    const [genaiResult] = await db.select({ count: count() })
-      .from(startups)
-      .where(eq(startups.genaiNative, true));
+    // Startup count + GenAI count in single query
+    const [countResult] = await db.select({
+      startupCount: count(),
+      genaiCount: sql<number>`COUNT(*) FILTER (WHERE ${startups.genaiNative} = true)`,
+    }).from(startups).where(pf);
 
     // Pattern distribution
     const patternDistribution = await db.select({
@@ -284,6 +388,7 @@ app.get('/api/v1/stats', async (req, res) => {
       count: count(),
     })
       .from(startups)
+      .where(pf)
       .groupBy(startups.pattern);
 
     // Stage distribution
@@ -292,15 +397,16 @@ app.get('/api/v1/stats', async (req, res) => {
       count: count(),
     })
       .from(startups)
+      .where(pf)
       .groupBy(startups.stage);
 
     const responseData = {
       totalFunding: fundingResult.total || 0,
       totalDeals: fundingResult.count || 0,
-      totalStartups: startupResult.count || 0,
-      genaiNativeCount: genaiResult.count || 0,
-      genaiAdoptionRate: startupResult.count > 0
-        ? ((genaiResult.count / startupResult.count) * 100).toFixed(1)
+      totalStartups: countResult.startupCount || 0,
+      genaiNativeCount: countResult.genaiCount || 0,
+      genaiAdoptionRate: countResult.startupCount > 0
+        ? ((countResult.genaiCount / countResult.startupCount) * 100).toFixed(1)
         : 0,
       patternDistribution: Object.fromEntries(
         patternDistribution.map(p => [p.pattern || 'unknown', p.count])
@@ -333,7 +439,7 @@ app.get('/api/v1/stats', async (req, res) => {
 app.get('/api/v1/dealbook', async (req, res) => {
   try {
     const {
-      period = '2026-01',
+      period = 'all',
       page = '1',
       limit = '25',
       stage,
@@ -372,15 +478,35 @@ app.get('/api/v1/dealbook', async (req, res) => {
     }
     res.setHeader('X-Cache', 'MISS');
 
+    const latestRoundTypeExpr = sql<string | null>`(
+      SELECT fr.round_type
+      FROM funding_rounds fr
+      WHERE fr.startup_id = ${startups.id}
+      ORDER BY fr.announced_date DESC NULLS LAST, fr.created_at DESC
+      LIMIT 1
+    )`;
+    const effectiveStageExpr = sql<string | null>`COALESCE(${latestRoundTypeExpr}, ${startups.fundingStage})`;
+
     // Build WHERE conditions
     const conditions: ReturnType<typeof eq>[] = [];
 
-    // Period filter (always applied)
-    conditions.push(eq(startups.period, period));
+    // Period filter (omitted when 'all')
+    const pf = periodFilter(period);
+    if (pf) conditions.push(pf);
 
     // Stage filter
     if (stage) {
-      conditions.push(eq(startups.fundingStage, stage));
+      const normalizedStage = normalizeStageKey(stage);
+      if (normalizedStage) {
+        conditions.push(
+          sql`regexp_replace(
+                regexp_replace(lower(coalesce(${effectiveStageExpr}, '')), '[^a-z0-9]+', '_', 'g'),
+                '^_+|_+$',
+                '',
+                'g'
+              ) = ${normalizedStage}` as ReturnType<typeof eq>
+        );
+      }
     }
 
     // Continent filter
@@ -451,10 +577,10 @@ app.get('/api/v1/dealbook', async (req, res) => {
       headquartersCountry: startups.headquartersCountry,
       continent: startups.continent,
       industry: startups.industry,
-      fundingStage: startups.fundingStage,
+      fundingStage: effectiveStageExpr,
       moneyRaisedUsd: startups.moneyRaisedUsd,
       usesGenai: startups.usesGenai,
-      // Extract only needed JSONB fields for performance
+      // Extract from JSONB (columns exist but aren't always populated by sync)
       vertical: sql<string>`${startups.analysisData}->>'vertical'`,
       marketType: sql<string>`${startups.analysisData}->>'market_type'`,
       subVertical: sql<string>`${startups.analysisData}->>'sub_vertical'`,
@@ -537,7 +663,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
 // Get filter options for dealbook (available stages, patterns, continents)
 app.get('/api/v1/dealbook/filters', async (req, res) => {
   try {
-    const { period = '2026-01' } = req.query;
+    const { period = 'all' } = req.query;
     const cacheKey = filterOptionsKey(period as string);
 
     // Check cache first
@@ -555,43 +681,68 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
     }
     res.setHeader('X-Cache', 'MISS');
 
-    // Get distinct stages
-    const stages = await db.selectDistinct({ stage: startups.fundingStage })
-      .from(startups)
-      .where(and(
-        eq(startups.period, period as string),
-        sql`${startups.fundingStage} IS NOT NULL`
-      ));
+    // Get distinct stages (prefer latest funding round type, fallback to startup funding_stage)
+    const pf = periodFilter(period as string);
+    const stageRows = await db.execute<{ stage: string }>(
+      pf
+        ? sql`
+            SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
+            FROM startups s
+            LEFT JOIN LATERAL (
+              SELECT fr.round_type
+              FROM funding_rounds fr
+              WHERE fr.startup_id = s.id
+              ORDER BY fr.announced_date DESC NULLS LAST, fr.created_at DESC
+              LIMIT 1
+            ) lr ON TRUE
+            WHERE ${pf}
+              AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
+          `
+        : sql`
+            SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
+            FROM startups s
+            LEFT JOIN LATERAL (
+              SELECT fr.round_type
+              FROM funding_rounds fr
+              WHERE fr.startup_id = s.id
+              ORDER BY fr.announced_date DESC NULLS LAST, fr.created_at DESC
+              LIMIT 1
+            ) lr ON TRUE
+            WHERE COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
+          `
+    );
 
     // Get distinct continents
     const continents = await db.selectDistinct({ continent: startups.continent })
       .from(startups)
       .where(and(
-        eq(startups.period, period as string),
+        periodFilter(period as string),
         sql`${startups.continent} IS NOT NULL`
       ));
 
-    // Get pattern counts from JSONB
-    const patternCounts = await db.select({
-      pattern: sql<string>`jsonb_array_elements(${startups.analysisData}->'build_patterns')->>'name'`.as('pattern'),
-    })
-      .from(startups)
-      .where(eq(startups.period, period as string));
-
-    // Aggregate pattern counts
-    const patternMap = new Map<string, number>();
-    for (const row of patternCounts) {
-      if (row.pattern) {
-        patternMap.set(row.pattern, (patternMap.get(row.pattern) || 0) + 1);
-      }
-    }
+    // Get pattern counts from JSONB (aggregated in SQL)
+    const pf2 = periodFilter(period as string);
+    const patternRows = await db.execute<{ pattern: string; count: string }>(
+      pf2
+        ? sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
+              FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
+              WHERE ${pf2} AND elem->>'name' IS NOT NULL
+              GROUP BY elem->>'name'
+              ORDER BY count DESC`
+        : sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
+              FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
+              WHERE elem->>'name' IS NOT NULL
+              GROUP BY elem->>'name'
+              ORDER BY count DESC`
+    );
 
     const responseData = {
-      stages: stages.map(s => s.stage).filter(Boolean).sort(),
+      stages: Array.from(new Set((stageRows.rows || []).map(s => s.stage).filter(Boolean))).sort(),
       continents: continents.map(c => c.continent).filter(Boolean).sort(),
-      patterns: Array.from(patternMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([name, count]) => ({ name, count })),
+      patterns: (patternRows.rows || []).map((r: { pattern: string; count: string }) => ({
+        name: r.pattern,
+        count: parseInt(r.count, 10),
+      })),
     };
 
     // Cache the response
@@ -616,11 +767,22 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
 
 app.get('/api/v1/investors', async (req, res) => {
   try {
+    const page = Math.min(100, Math.max(1, parseInt(req.query.page as string) || 1));
+    const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limitNum;
+
     const results = await db.select()
       .from(investors)
-      .orderBy(investors.name);
+      .orderBy(investors.name)
+      .limit(limitNum)
+      .offset(offset);
 
-    res.json({ data: results });
+    const [{ total }] = await db.select({ total: count() }).from(investors);
+
+    res.json({
+      data: results,
+      pagination: { page, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+    });
   } catch (error) {
     console.error('Error fetching investors:', error);
     res.status(500).json({ error: 'Failed to fetch investors' });
@@ -631,36 +793,24 @@ app.get('/api/v1/investors', async (req, res) => {
 // Admin API - Logo Extraction & Data Sync
 // =============================================================================
 
-// Admin key for protected admin endpoints
-const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
-
-// Helper to slugify startup names
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
-
 // Sync startups from CSV data (admin only)
 app.post('/api/admin/sync-startups', async (req, res) => {
-  // Allow localhost without admin key (internal pod access)
-  const ip = req.ip || req.socket.remoteAddress || '';
-  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-
-  // Validate admin key (skip for localhost)
-  if (!isLocalhost) {
-    const providedKey = req.headers['x-admin-key'] as string;
-    if (!providedKey || providedKey !== ADMIN_KEY) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
-    }
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
 
-  const { startups: startupData } = req.body;
-
-  if (!Array.isArray(startupData) || startupData.length === 0) {
-    return res.status(400).json({ error: 'Invalid request: startups array required' });
+  const parseResult = syncRequestSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({
+      error: 'Invalid request payload',
+      details: parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`),
+    });
   }
+  const startupData = parseResult.data.startups;
 
   console.log(`Syncing ${startupData.length} startups...`);
 
@@ -671,90 +821,194 @@ app.post('/api/admin/sync-startups', async (req, res) => {
     failed: [] as { name: string; error: string }[],
   };
 
-  for (const startup of startupData) {
-    try {
-      const slug = slugify(startup.name);
+  // Pre-process all startups (validated by Zod schema)
+  const parsed = startupData.map((startup) => {
+    const slug = slugify(startup.name);
+    const location = parseLocation(startup.location);
+    return {
+      raw: startup,
+      slug,
+      name: startup.name,
+      description: startup.description || null,
+      website: startup.website || null,
+      city: location.city,
+      country: location.country,
+      continent: location.continent,
+      industry: startup.industries.split(',').map((s) => s.trim()).find(Boolean) || null,
+      stage: startup.fundingStage || null,
+    };
+  });
 
-      // Parse location
-      const locationParts = (startup.location || '').split(', ');
-      const city = locationParts[0] || null;
-      const country = locationParts.length >= 3 ? locationParts[locationParts.length - 3] : null;
-      const continent = locationParts[locationParts.length - 1] || null;
+  // Single query to find all existing slugs
+  const allSlugs = parsed.map((p: { slug: string }) => p.slug);
+  const existingRows = await db.select({ id: startups.id, slug: startups.slug })
+    .from(startups)
+    .where(sql`${startups.slug} = ANY(${allSlugs})`);
+  const existingMap = new Map(existingRows.map(r => [r.slug, r.id]));
 
-      // Parse industries (first one as primary)
-      const industries = (startup.industries || '').split(', ');
-      const industry = industries[0] || null;
+  // Split into inserts and updates
+  const toInsert = parsed.filter((p: { slug: string }) => !existingMap.has(p.slug));
+  const toUpdate = parsed.filter((p: { slug: string }) => existingMap.has(p.slug));
 
-      // Determine stage from funding type
-      const stage = startup.fundingStage || null;
+  // Use a single connection for the entire sync operation
+  const CHUNK_SIZE = 250;
+  const pgClient = await pool.connect();
+  try {
+    // Batch inserts in chunks
+    for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
+      const chunk = toInsert.slice(i, i + CHUNK_SIZE);
+      try {
+        await pgClient.query('BEGIN');
 
-      // UPSERT startup
-      const [existing] = await db.select({ id: startups.id })
-        .from(startups)
-        .where(eq(startups.slug, slug));
-
-      if (existing) {
-        // Update existing
-        await db.update(startups)
-          .set({
-            description: startup.description,
-            website: startup.website,
-            headquartersCity: city,
-            headquartersCountry: country,
-            continent: continent,
-            industry: industry,
-            stage: stage,
-            updatedAt: new Date(),
-          })
-          .where(eq(startups.id, existing.id));
-        results.updated++;
-
-        // Add funding round if present
-        if (startup.amountUsd && startup.roundType) {
-          await db.insert(fundingRounds)
-            .values({
-              startupId: existing.id,
-              roundType: startup.roundType,
-              amountUsd: parseInt(startup.amountUsd) || null,
-              announcedDate: startup.announcedDate || null,
-              leadInvestor: startup.leadInvestors || null,
-            })
-            .onConflictDoNothing();
+        const params: unknown[] = [];
+        const placeholders: string[] = [];
+        let idx = 1;
+        for (const s of chunk) {
+          placeholders.push(
+            `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`
+          );
+          params.push(s.name, s.slug, s.description, s.website, s.city, s.country, s.continent, s.industry, s.stage);
         }
-      } else {
-        // Insert new
-        const [newStartup] = await db.insert(startups)
-          .values({
-            name: startup.name,
-            slug: slug,
-            description: startup.description,
-            website: startup.website,
-            headquartersCity: city,
-            headquartersCountry: country,
-            continent: continent,
-            industry: industry,
-            stage: stage,
-          })
-          .returning({ id: startups.id });
 
-        results.inserted++;
+        const insertResult = await pgClient.query(
+          `INSERT INTO startups (name, slug, description, website, headquarters_city, headquarters_country, continent, industry, stage)
+           VALUES ${placeholders.join(', ')}
+           RETURNING id, slug`,
+          params
+        );
 
-        // Add funding round if present
-        if (newStartup && startup.amountUsd && startup.roundType) {
-          await db.insert(fundingRounds)
-            .values({
-              startupId: newStartup.id,
-              roundType: startup.roundType,
-              amountUsd: parseInt(startup.amountUsd) || null,
-              announcedDate: startup.announcedDate || null,
-              leadInvestor: startup.leadInvestors || null,
-            });
+        const newSlugToId = new Map(insertResult.rows.map((r: { slug: string; id: string }) => [r.slug, r.id]));
+        results.inserted += insertResult.rowCount || 0;
+
+        // Batch insert funding rounds for new startups
+        const fParams: unknown[] = [];
+        const fPlaceholders: string[] = [];
+        let fIdx = 1;
+        for (const s of chunk) {
+          if (!s.raw.amountUsd || !s.raw.roundType) continue;
+          const startupId = newSlugToId.get(s.slug);
+          if (!startupId) continue;
+          const fundingAmount = parseFundingAmount(s.raw.amountUsd);
+          fPlaceholders.push(`($${fIdx++}, $${fIdx++}, $${fIdx++}, $${fIdx++}, $${fIdx++})`);
+          fParams.push(startupId, s.raw.roundType, fundingAmount, s.raw.announcedDate || null, s.raw.leadInvestors || null);
+        }
+        if (fPlaceholders.length > 0) {
+          await pgClient.query(
+            `INSERT INTO funding_rounds (startup_id, round_type, amount_usd, announced_date, lead_investor)
+             VALUES ${fPlaceholders.join(', ')}
+             ON CONFLICT DO NOTHING`,
+            fParams
+          );
+        }
+
+        await pgClient.query('COMMIT');
+      } catch (error) {
+        await pgClient.query('ROLLBACK');
+        console.error('Batch insert failed, falling back to individual processing:', error);
+        for (const s of chunk) {
+          try {
+            const [newStartup] = await db.insert(startups).values({
+              name: s.name, slug: s.slug, description: s.description, website: s.website,
+              headquartersCity: s.city, headquartersCountry: s.country, continent: s.continent, industry: s.industry, stage: s.stage,
+            }).returning({ id: startups.id });
+            results.inserted++;
+            if (newStartup && s.raw.amountUsd && s.raw.roundType) {
+              const fundingAmount = parseFundingAmount(s.raw.amountUsd);
+              await db.insert(fundingRounds).values({
+                startupId: newStartup.id, roundType: s.raw.roundType,
+                amountUsd: fundingAmount, announcedDate: s.raw.announcedDate || null, leadInvestor: s.raw.leadInvestors || null,
+              });
+            }
+          } catch (innerError) {
+            results.failed.push({ name: s.name, error: String(innerError) });
+          }
         }
       }
-    } catch (error) {
-      console.error(`Failed to sync startup ${startup.name}:`, error);
-      results.failed.push({ name: startup.name, error: String(error) });
     }
+
+    // Batch updates in chunks
+    for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
+      const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
+      try {
+        await pgClient.query('BEGIN');
+
+        // Update each startup using a single UPDATE FROM VALUES
+        const params: unknown[] = [];
+        const valueParts: string[] = [];
+        let idx = 1;
+        for (const s of chunk) {
+          const id = existingMap.get(s.slug);
+          valueParts.push(`($${idx++}::uuid, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+          params.push(id, s.description, s.website, s.city, s.country, s.continent, s.industry, s.stage);
+        }
+
+        await pgClient.query(
+          `UPDATE startups SET
+            description = COALESCE(v.description, startups.description),
+            website = COALESCE(v.website, startups.website),
+            headquarters_city = v.city,
+            headquarters_country = v.country,
+            continent = v.continent,
+            industry = v.industry,
+            stage = v.stage,
+            updated_at = NOW()
+          FROM (VALUES ${valueParts.join(', ')})
+            AS v(id, description, website, city, country, continent, industry, stage)
+          WHERE startups.id = v.id::uuid`,
+          params
+        );
+        results.updated += chunk.length;
+
+        // Batch insert funding rounds for updated startups
+        const fParams: unknown[] = [];
+        const fPlaceholders: string[] = [];
+        let fIdx = 1;
+        for (const s of chunk) {
+          if (!s.raw.amountUsd || !s.raw.roundType) continue;
+          const startupId = existingMap.get(s.slug);
+          if (!startupId) continue;
+          const fundingAmount = parseFundingAmount(s.raw.amountUsd);
+          fPlaceholders.push(`($${fIdx++}, $${fIdx++}, $${fIdx++}, $${fIdx++}, $${fIdx++})`);
+          fParams.push(startupId, s.raw.roundType, fundingAmount, s.raw.announcedDate || null, s.raw.leadInvestors || null);
+        }
+        if (fPlaceholders.length > 0) {
+          await pgClient.query(
+            `INSERT INTO funding_rounds (startup_id, round_type, amount_usd, announced_date, lead_investor)
+             VALUES ${fPlaceholders.join(', ')}
+             ON CONFLICT DO NOTHING`,
+            fParams
+          );
+        }
+
+        await pgClient.query('COMMIT');
+      } catch (error) {
+        await pgClient.query('ROLLBACK');
+        console.error('Batch update failed, falling back to individual processing:', error);
+        for (const s of chunk) {
+          try {
+            const id = existingMap.get(s.slug);
+            if (id) {
+              await db.update(startups).set({
+                description: s.description, website: s.website, headquartersCity: s.city,
+                headquartersCountry: s.country, continent: s.continent, industry: s.industry, stage: s.stage, updatedAt: new Date(),
+              }).where(eq(startups.id, id));
+              results.updated++;
+              if (s.raw.amountUsd && s.raw.roundType) {
+                const fundingAmount = parseFundingAmount(s.raw.amountUsd);
+                await db.insert(fundingRounds).values({
+                  startupId: id, roundType: s.raw.roundType,
+                  amountUsd: fundingAmount, announcedDate: s.raw.announcedDate || null, leadInvestor: s.raw.leadInvestors || null,
+                }).onConflictDoNothing();
+              }
+            }
+          } catch (innerError) {
+            results.failed.push({ name: s.name, error: String(innerError) });
+          }
+        }
+      }
+    }
+  } finally {
+    pgClient.release();
   }
 
   console.log(`Sync complete: ${results.inserted} inserted, ${results.updated} updated, ${results.failed.length} failed`);
@@ -776,16 +1030,12 @@ app.post('/api/admin/sync-startups', async (req, res) => {
 
 // Extract logos for all startups (admin only)
 app.post('/api/admin/extract-logos', async (req, res) => {
-  // Allow localhost without admin key (internal pod access)
-  const ip = req.ip || req.socket.remoteAddress || '';
-  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-
-  // Validate admin key (skip for localhost)
-  if (!isLocalhost) {
-    const providedKey = req.headers['x-admin-key'] as string;
-    if (!providedKey || providedKey !== ADMIN_KEY) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
-    }
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
 
   const force = req.query.force === 'true';
@@ -819,6 +1069,14 @@ app.post('/api/admin/extract-logos', async (req, res) => {
 
 // Get logo extraction status
 app.get('/api/admin/logo-status', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
   try {
     const [stats] = await db.select({
       total: count(),

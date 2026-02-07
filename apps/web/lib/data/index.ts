@@ -27,6 +27,13 @@ const PERIODS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 const statsCache = new Map<string, { data: MonthlyStats; timestamp: number }>();
 const STATS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+function normalizeStageKey(value: string | undefined | null): string {
+  return (value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 /**
  * Get all available periods (with caching)
  */
@@ -317,12 +324,24 @@ export async function getStartups(period: string): Promise<StartupAnalysis[]> {
       }
 
       // Use dealbook endpoint with high limit to get all startups
-      const response = await api.getDealbook({
-        period,
-        limit: 500, // Get all startups in one request
-        sortBy: 'funding',
-        sortOrder: 'desc',
-      });
+      // Note: API caps limit at 100 per page, so we paginate to get all
+      const allStartups: DealbookResponse['data'] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await api.getDealbook({
+          period,
+          page,
+          limit: 100,
+          sortBy: 'funding',
+          sortOrder: 'desc',
+        });
+        allStartups.push(...response.data);
+        hasMore = response.pagination.page < response.pagination.totalPages;
+        page++;
+      }
+
+      const response = { data: allStartups };
 
       // Convert API response to StartupAnalysis format
       // Using type assertion since API returns compatible data but with string types
@@ -407,7 +426,8 @@ export async function getStartupsPaginated(
 
   // Apply filters
   if (options.stage) {
-    filtered = filtered.filter(s => s.funding_stage === options.stage);
+    const selectedStage = normalizeStageKey(options.stage);
+    filtered = filtered.filter(s => normalizeStageKey(s.funding_stage) === selectedStage);
   }
   if (options.pattern) {
     filtered = filtered.filter(s =>
