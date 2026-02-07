@@ -65,7 +65,7 @@ export function MonthSelector({
     }
 
     const queryString = params.toString();
-    router.push(queryString ? `/dealbook?${queryString}` : '/dealbook');
+    router.push(queryString ? `/dealbook/?${queryString}` : '/dealbook/');
   }, [router, searchParams, latestPeriod]);
 
   // Prev/next navigation

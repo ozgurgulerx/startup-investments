@@ -90,10 +90,10 @@ export default async function BriefPage({
   const { region } = await searchParams;
 
   return (
-    <ReadingWrapper>
-      <Suspense fallback={<BriefLoading />}>
+    <Suspense fallback={<BriefLoading />}>
+      <ReadingWrapper>
         <BriefContent region={region} />
-      </Suspense>
-    </ReadingWrapper>
+      </ReadingWrapper>
+    </Suspense>
   );
 }

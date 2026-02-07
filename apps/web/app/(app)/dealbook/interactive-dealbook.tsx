@@ -196,7 +196,7 @@ export function InteractiveDealbook({
     if (query.usesGenai !== undefined) params.set('usesGenai', query.usesGenai.toString());
 
     const queryString = params.toString();
-    router.push(queryString ? `/dealbook?${queryString}` : '/dealbook');
+    router.push(queryString ? `/dealbook/?${queryString}` : '/dealbook/');
   }, [router, searchParams, region]);
 
   const handleFilterApply = useCallback((query: FilterQuery) => {
@@ -300,7 +300,7 @@ export function InteractiveDealbook({
     params.delete(paramToRemove);
     params.delete('page'); // Reset to page 1 when filter changes
     const queryString = params.toString();
-    return queryString ? `/dealbook?${queryString}` : '/dealbook';
+    return queryString ? `/dealbook/?${queryString}` : '/dealbook/';
   };
 
   return (
@@ -369,7 +369,7 @@ export function InteractiveDealbook({
                 const m = searchParams.get('month');
                 if (m) p.set('month', m);
                 const qs = p.toString();
-                return qs ? `/dealbook?${qs}` : '/dealbook';
+                return qs ? `/dealbook/?${qs}` : '/dealbook/';
               })()}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/40 bg-muted/30 text-muted-foreground text-sm hover:bg-muted/50 transition-colors"
             >

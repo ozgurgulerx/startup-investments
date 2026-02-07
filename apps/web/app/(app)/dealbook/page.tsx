@@ -6,6 +6,7 @@ import { InteractiveDealbook } from './interactive-dealbook';
 import { Pagination, PaginationInfo } from '@/components/ui';
 import type { SavedFilter } from '@/components/features';
 import { redirect } from 'next/navigation';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,7 @@ interface PageProps {
 
 async function DealbookContent({ searchParams }: { searchParams: PageProps['searchParams'] }) {
   const params = await searchParams;
-  const region = params.region || 'global';
+  const region = normalizeDatasetRegion(params.region);
 
   // Get available periods and determine selected month
   const availablePeriods = await getAvailablePeriods(region);
@@ -64,7 +65,7 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   if (hasAnyFilterWithoutMonth) {
     const nextParams = new URLSearchParams();
     nextParams.set('month', 'all');
-    if (params.region) nextParams.set('region', params.region);
+    if (region !== 'global') nextParams.set('region', region);
     if (params.page) nextParams.set('page', params.page);
     if (params.sort) nextParams.set('sort', params.sort);
     if (params.stage) nextParams.set('stage', params.stage);
@@ -78,7 +79,7 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
     if (params.maxFunding) nextParams.set('maxFunding', params.maxFunding);
     if (params.usesGenai) nextParams.set('usesGenai', params.usesGenai);
     if (params.search) nextParams.set('search', params.search);
-    redirect(`/dealbook?${nextParams.toString()}`);
+    redirect(`/dealbook/?${nextParams.toString()}`);
   }
 
   // Support 'all' for all-time view, or specific month, or default to latest
@@ -147,9 +148,7 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   if (params.month && params.month !== latestPeriod) {
     currentSearchParams.month = params.month;
   }
-  if (params.region && params.region !== 'global') {
-    currentSearchParams.region = params.region;
-  }
+  if (region !== 'global') currentSearchParams.region = region;
   if (params.sort && params.sort !== 'funding_desc') {
     currentSearchParams.sort = params.sort;
   }
@@ -193,7 +192,7 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
           <Pagination
             currentPage={paginatedResult.pagination.page}
             totalPages={paginatedResult.pagination.totalPages}
-            baseUrl="/dealbook"
+            baseUrl="/dealbook/"
             searchParams={currentSearchParams}
           />
         </div>

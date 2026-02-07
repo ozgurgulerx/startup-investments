@@ -121,6 +121,13 @@ export function statsKey(period: string): string {
 }
 
 /**
+ * Generate cache key for available periods
+ */
+export function periodsKey(): string {
+  return 'periods:v1';
+}
+
+/**
  * Generate cache key for filter options
  */
 export function filterOptionsKey(period: string): string {
@@ -277,6 +284,7 @@ export async function getCacheStats(): Promise<{
 export const CACHE_TTL = {
   DEALBOOK: 300,      // 5 minutes - frequently accessed, tolerate slight staleness
   STATS: 1800,        // 30 minutes - aggregate data, changes rarely
+  PERIODS: 3600,      // 1 hour - period list changes infrequently (monthly)
   FILTERS: 3600,      // 1 hour - filter options very stable
   STARTUP: 600,       // 10 minutes - individual startup data
 } as const;

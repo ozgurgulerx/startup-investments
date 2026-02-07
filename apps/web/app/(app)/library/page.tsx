@@ -121,10 +121,10 @@ export default async function LibraryPage({
 }) {
   const { month, region } = await searchParams;
   return (
-    <ReadingWrapper>
-      <Suspense fallback={<LibraryLoading />}>
+    <Suspense fallback={<LibraryLoading />}>
+      <ReadingWrapper>
         <LibraryContent selectedMonth={month} region={region} />
-      </Suspense>
-    </ReadingWrapper>
+      </ReadingWrapper>
+    </Suspense>
   );
 }

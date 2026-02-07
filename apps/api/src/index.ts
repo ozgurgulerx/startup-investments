@@ -14,6 +14,7 @@ import {
   invalidateAll,
   getCacheStats,
   dealBookKey,
+  periodsKey,
   statsKey,
   filterOptionsKey,
   hashObject,
@@ -546,6 +547,73 @@ app.get('/api/v1/stats', async (req, res) => {
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// =============================================================================
+// Periods API (Available periods ordered newest -> oldest)
+// =============================================================================
+
+app.get('/api/v1/periods', async (req, res) => {
+  try {
+    // Region-aware periods are planned. For now, only global data exists in Postgres.
+    const region = (req.query.region as string) || 'global';
+    if (region !== 'global') {
+      return res.status(400).json({ error: 'Only global periods are available via API (yet)' });
+    }
+
+    const cacheKey = periodsKey();
+
+    // Check cache first
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cachedData));
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
+
+    const rows = await db.execute<{
+      period: string;
+      deal_count: string;
+      total_funding: string | null;
+    }>(sql`
+      SELECT
+        ${startups.period} AS period,
+        COUNT(*)::text AS deal_count,
+        COALESCE(SUM(${startups.moneyRaisedUsd}), 0)::text AS total_funding
+      FROM ${startups}
+      WHERE ${startups.period} IS NOT NULL AND ${startups.period} <> ''
+      GROUP BY ${startups.period}
+      ORDER BY ${startups.period} DESC
+    `);
+
+    const responseData = (rows.rows || []).map((r) => ({
+      period: r.period,
+      deal_count: parseInt(r.deal_count, 10) || 0,
+      total_funding: parseInt(r.total_funding || '0', 10) || 0,
+      has_newsletter: true,
+    }));
+
+    // Cache the response
+    if (redis) {
+      try {
+        await redis.setEx(cacheKey, CACHE_TTL.PERIODS, JSON.stringify(responseData));
+      } catch (cacheErr) {
+        console.error('Redis cache write error:', cacheErr);
+      }
+    }
+
+    res.json(responseData);
+  } catch (error) {
+    console.error('Error fetching periods:', error);
+    res.status(500).json({ error: 'Failed to fetch periods' });
   }
 });
 

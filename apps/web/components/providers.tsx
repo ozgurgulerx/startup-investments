@@ -6,6 +6,7 @@ import { AudienceProvider } from '@/lib/audience-context';
 import { RegionProvider } from '@/lib/region-context';
 import { ReadingModeProvider } from '@/lib/reading-mode-context';
 import { PostHogProvider } from '@/lib/posthog';
+import { RegionUrlSync } from '@/components/ui/region-url-sync';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -13,6 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <PostHogProvider>
         <AudienceProvider>
           <RegionProvider>
+            <RegionUrlSync />
             <ReadingModeProvider>
               <WatchlistProvider>
                 {children}

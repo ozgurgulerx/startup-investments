@@ -57,6 +57,18 @@ export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]
     return cached.data;
   }
 
+  // For global data, prefer API-backed periods so "latest" matches what the Dealbook API can serve.
+  // (Files can be ahead of DB, which makes global look empty if we pick a month the API lacks.)
+  if (regionKey === 'global' && isAPIConfigured()) {
+    try {
+      const periods = await api.getPeriods();
+      periodsCache.set(regionKey, { data: periods, timestamp: Date.now() });
+      return periods;
+    } catch (error) {
+      console.error('API request failed for getAvailablePeriods, falling back to file-based periods:', error);
+    }
+  }
+
   try {
     const dataDir = getDataPath(region);
     const entries = await fs.readdir(dataDir, { withFileTypes: true });

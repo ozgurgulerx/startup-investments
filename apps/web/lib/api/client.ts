@@ -6,6 +6,8 @@
  * to keep the API key secure.
  */
 
+import type { PeriodInfo } from '@startup-intelligence/shared';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 // Server-side only API key (not exposed to client)
@@ -223,6 +225,18 @@ export interface CompanyBySlugResponse {
  * API methods
  */
 export const api = {
+  /**
+   * Get available periods ordered newest -> oldest.
+   *
+   * Note: backend is currently global-only; `region` is reserved for future use.
+   */
+  getPeriods: (region?: string): Promise<PeriodInfo[]> => {
+    const searchParams = new URLSearchParams();
+    if (region && region !== 'global') searchParams.set('region', region);
+    const query = searchParams.toString();
+    return fetchFromAPI(`/api/v1/periods${query ? `?${query}` : ''}`);
+  },
+
   /**
    * Health check
    */

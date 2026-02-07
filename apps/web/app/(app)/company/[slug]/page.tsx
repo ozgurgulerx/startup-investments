@@ -16,6 +16,7 @@ import {
 } from '@/lib/data';
 import { formatCurrency } from '@/lib/utils';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -140,8 +141,8 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
   if (!startup) {
     // Don't 404: the dealbook can show records that don't yet have full analysis materialized.
     const dealbookHref = region && region !== 'global'
-      ? `/dealbook?region=${encodeURIComponent(region)}`
-      : '/dealbook';
+      ? `/dealbook/?region=${encodeURIComponent(region)}`
+      : '/dealbook/';
     return (
       <>
         <Link
@@ -174,8 +175,8 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
 
   const competitors = startup.competitive_analysis?.competitors?.slice(0, 3) || [];
   const dealbookHref = region && region !== 'global'
-    ? `/dealbook?region=${encodeURIComponent(region)}`
-    : '/dealbook';
+    ? `/dealbook/?region=${encodeURIComponent(region)}`
+    : '/dealbook/';
   // Keep this as a single expression to avoid any TSX parser edge-cases with leading-dot chaining.
   const verticalChain = [startup.vertical, startup.sub_vertical, startup.sub_sub_vertical].filter(Boolean).map((v: any) => String(v).replace(/_/g, ' ')).join(' / ');
 
@@ -892,12 +893,12 @@ export async function generateStaticParams() {
 
 export default async function CompanyBriefPage({ params, searchParams }: PageProps) {
   const sp = await searchParams;
-  const region = sp.region || 'global';
+  const region = normalizeDatasetRegion(sp.region);
   return (
-    <ReadingWrapper>
-      <Suspense fallback={<CompanyBriefLoading />}>
+    <Suspense fallback={<CompanyBriefLoading />}>
+      <ReadingWrapper>
         <CompanyBriefContent slug={params.slug} region={region} />
-      </Suspense>
-    </ReadingWrapper>
+      </ReadingWrapper>
+    </Suspense>
   );
 }
