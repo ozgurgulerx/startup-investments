@@ -57,13 +57,13 @@ class DailyNewsDigestSender:
             await self.pool.close()
             self.pool = None
 
-    async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str]) -> str:
+    async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str]) -> date:
         if edition_date:
-            datetime.strptime(edition_date, "%Y-%m-%d")
-            return edition_date
+            # asyncpg expects Python date objects for DATE parameters.
+            return datetime.strptime(edition_date, "%Y-%m-%d").date()
         row = await conn.fetchrow(
             """
-            SELECT edition_date::text AS edition_date
+            SELECT edition_date
             FROM news_daily_editions
             WHERE status = 'ready'
             ORDER BY edition_date DESC
@@ -72,9 +72,12 @@ class DailyNewsDigestSender:
         )
         if not row:
             raise RuntimeError("No ready news edition found")
-        return str(row["edition_date"])
+        value = row["edition_date"]
+        if isinstance(value, date):
+            return value
+        return datetime.strptime(str(value), "%Y-%m-%d").date()
 
-    async def _load_stories(self, conn: asyncpg.Connection, edition_date: str) -> List[DigestStory]:
+    async def _load_stories(self, conn: asyncpg.Connection, edition_date: date) -> List[DigestStory]:
         rows = await conn.fetch(
             """
             WITH ordered AS (
@@ -224,7 +227,7 @@ class DailyNewsDigestSender:
         self,
         conn: asyncpg.Connection,
         *,
-        edition_date: str,
+        edition_date: date,
         subscriber_id: str,
         status: str,
         provider_message_id: Optional[str] = None,
@@ -255,6 +258,7 @@ class DailyNewsDigestSender:
 
         async with self.pool.acquire() as conn:
             resolved_date = await self._resolve_edition_date(conn, edition_date)
+            resolved_date_str = resolved_date.isoformat()
             stories = await self._load_stories(conn, resolved_date)
             all_subscribers = await self._load_subscribers(conn, region=region)
 
@@ -272,7 +276,7 @@ class DailyNewsDigestSender:
             subscribers = [s for s in all_subscribers if s.id not in sent_ids]
 
             result: Dict[str, Any] = {
-                "edition_date": resolved_date,
+                "edition_date": resolved_date_str,
                 "region": region,
                 "stories": len(stories),
                 "subscribers": len(all_subscribers),
@@ -321,7 +325,7 @@ class DailyNewsDigestSender:
                         payload = {
                             "from": self.from_email,
                             "to": [subscriber.email],
-                            "subject": f"Build Atlas {subject_label} — {resolved_date}",
+                            "subject": f"Build Atlas {subject_label} — {resolved_date_str}",
                             "html": html,
                             "text": text,
                         }

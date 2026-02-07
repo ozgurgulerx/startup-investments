@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { TrendingUp } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { StoryContext } from './story-context';

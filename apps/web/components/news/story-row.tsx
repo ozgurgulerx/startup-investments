@@ -1,7 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-import { ExternalLink } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { TrustBadge } from './trust-badge';
 
