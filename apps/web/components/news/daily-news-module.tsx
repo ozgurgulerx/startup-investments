@@ -17,6 +17,14 @@ interface DailyNewsModuleProps {
 
 type SortMode = 'impact' | 'latest';
 
+const CORROBORATED_MIN_SOURCES = 2;
+const CONFIRMED_MIN_SOURCES = 3;
+
+const compactCountFormatter = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
 function countNewStories(current: NewsEdition | null, incoming: NewsEdition): number {
   if (!current) return incoming.items.length;
   const seen = new Set(current.items.map((item) => item.id));
@@ -41,6 +49,11 @@ function formatTimestamp(value: string): string {
 function extractFundingSignal(text: string): string | null {
   const match = text.match(/([$€£]\s?\d+(?:\.\d+)?\s?(?:[mb]|million|billion)?)/i);
   return match?.[1] || null;
+}
+
+function formatCompactCount(value: number): string {
+  if (!Number.isFinite(value)) return String(value);
+  return compactCountFormatter.format(value);
 }
 
 export function DailyNewsModule({ className }: DailyNewsModuleProps) {
@@ -178,7 +191,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
   const corroboratedStories = useMemo(
     () =>
       sortedItems
-        .filter((item) => item.source_count >= 3)
+        .filter((item) => item.source_count >= CONFIRMED_MIN_SOURCES)
         .slice(0, 3)
         .map((item) => ({
           id: item.id,
@@ -186,6 +199,11 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
           sources: item.source_count,
         })),
     [sortedItems]
+  );
+
+  const crossSourceCount = useMemo(
+    () => edition?.items.filter((item) => item.source_count >= CORROBORATED_MIN_SOURCES).length || 0,
+    [edition?.items]
   );
 
   if (loading) {
@@ -274,22 +292,36 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
 
         {/* Stats row */}
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-amber-400/25 bg-gradient-to-br from-amber-400/10 to-card/80 px-4 py-3">
+          <div
+            className="rounded-xl border border-amber-400/25 bg-gradient-to-br from-amber-400/10 to-card/80 px-4 py-3"
+            title="How many stories are in the current feed view."
+          >
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Stories</p>
             <p className="mt-1 text-2xl font-light tabular-nums text-foreground">{edition.items.length}</p>
           </div>
-          <div className="rounded-xl border border-emerald-400/25 bg-gradient-to-br from-emerald-400/10 to-card/80 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Clusters</p>
-            <p className="mt-1 text-2xl font-light tabular-nums text-foreground">{edition.stats.total_clusters}</p>
+          <div
+            className="rounded-xl border border-emerald-400/25 bg-gradient-to-br from-emerald-400/10 to-card/80 px-4 py-3"
+            title="Deduped story clusters detected for this edition. Includes clusters not shown in the top feed."
+          >
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Signals</p>
+            <p className="mt-1 text-2xl font-light tabular-nums text-foreground">
+              {formatCompactCount(edition.stats.total_clusters)}
+            </p>
           </div>
-          <div className="rounded-xl border border-sky-400/25 bg-gradient-to-br from-sky-400/10 to-card/80 px-4 py-3">
+          <div
+            className="rounded-xl border border-sky-400/25 bg-gradient-to-br from-sky-400/10 to-card/80 px-4 py-3"
+            title="Topic buckets available for filtering (top topics by volume for this edition)."
+          >
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Top Topics</p>
             <p className="mt-1 text-2xl font-light tabular-nums text-foreground">{topics.length}</p>
           </div>
-          <div className="rounded-xl border border-violet-400/20 bg-gradient-to-br from-violet-400/10 to-card/80 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Cross-source</p>
+          <div
+            className="rounded-xl border border-violet-400/20 bg-gradient-to-br from-violet-400/10 to-card/80 px-4 py-3"
+            title={`Stories covered by ${CORROBORATED_MIN_SOURCES}+ sources in this feed. Higher = more corroboration.`}
+          >
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Corroborated</p>
             <p className="mt-1 text-2xl font-light tabular-nums text-foreground">
-              {edition.items.filter((item) => item.source_count >= 2).length}
+              {crossSourceCount}
             </p>
           </div>
         </div>
@@ -321,7 +353,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               >
                 All topics
               </button>
-              {topics.slice(0, 10).map((topic) => {
+              {topics.map((topic) => {
                 const isActive = activeTopic.toLowerCase() === topic.topic.toLowerCase();
                 return (
                   <button
@@ -444,7 +476,12 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
                 </div>
 
                 <div>
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Corroborated stories</p>
+                  <p
+                    className="text-[11px] uppercase tracking-wider text-muted-foreground"
+                    title={`High-confidence stories covered by ${CONFIRMED_MIN_SOURCES}+ sources.`}
+                  >
+                    Confirmed stories
+                  </p>
                   <div className="mt-2 space-y-2">
                     {corroboratedStories.length ? (
                       corroboratedStories.map((story) => (
