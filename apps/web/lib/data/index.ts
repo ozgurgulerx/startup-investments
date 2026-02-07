@@ -451,7 +451,7 @@ export async function getStartupsPaginated(
   // Apply filters
   if (options.stage) {
     const selectedStage = normalizeStageKey(options.stage);
-    filtered = filtered.filter(s => normalizeStageKey(s.funding_stage) === selectedStage);
+    filtered = filtered.filter(s => normalizeStageKey(s.funding_stage).startsWith(selectedStage));
   }
   if (options.pattern) {
     filtered = filtered.filter(s =>

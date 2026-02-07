@@ -7,6 +7,8 @@ import { Pagination, PaginationInfo } from '@/components/ui';
 import type { SavedFilter } from '@/components/features';
 import { redirect } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 const FALLBACK_PERIOD = '2026-01';
 const DEFAULT_LIMIT = 25;
 

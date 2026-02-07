@@ -621,7 +621,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
                 '^_+|_+$',
                 '',
                 'g'
-              ) = ${normalizedStage}` as ReturnType<typeof eq>
+              ) LIKE ${normalizedStage + "\%"}` as ReturnType<typeof eq>
         );
       }
     }
