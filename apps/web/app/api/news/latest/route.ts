@@ -1,12 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getNewsEdition } from '@/lib/data/news';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/news/latest
-export async function GET() {
+// GET /api/news/latest?region=global|turkey
+export async function GET(req: NextRequest) {
   try {
-    const edition = await getNewsEdition();
+    const { searchParams } = new URL(req.url);
+    const region = searchParams.get('region') === 'turkey' ? 'turkey' : 'global';
+    const edition = await getNewsEdition({ region });
     if (!edition) {
       return NextResponse.json({ error: 'No news edition available' }, { status: 404 });
     }

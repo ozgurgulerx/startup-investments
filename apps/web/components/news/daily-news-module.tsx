@@ -232,7 +232,29 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
   }
 
   if (!edition || !sections || !sections.topStories.length) {
-    return null;
+    return (
+      <section className={`relative py-16 ${className || ''}`}>
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/80 to-card/40 p-8 text-center">
+            <p className="label-xs text-accent-info">Signal Feed</p>
+            <h2 className="mt-3 text-2xl font-light tracking-tight text-foreground">
+              Startup News Intelligence
+            </h2>
+            <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
+              High-signal startup news clustered across global sources, ranked by freshness,
+              trust score, and cross-source corroboration.
+            </p>
+            <Link
+              href="/news"
+              className="mt-6 inline-flex items-center gap-2 rounded bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90"
+            >
+              Open Signal Feed
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -444,7 +466,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.35 }}
           >
-            <div className="rounded-2xl border border-emerald-400/20 bg-gradient-to-b from-emerald-400/10 via-card/80 to-card/70 p-4">
+            <div className="rounded-2xl border border-border/40 bg-card/60 p-4">
               <div className="mb-4 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-accent-info" />
                 <h3 className="text-sm font-medium tracking-tight text-foreground">Live Signal Rail</h3>

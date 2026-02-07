@@ -3,7 +3,7 @@ import { getNewsEdition } from '@/lib/data/news';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/news?date=YYYY-MM-DD&topic=ai&limit=40
+// GET /api/news?date=YYYY-MM-DD&topic=ai&limit=40&region=global|turkey
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -11,8 +11,9 @@ export async function GET(req: NextRequest) {
     const topic = searchParams.get('topic') || undefined;
     const limitParam = searchParams.get('limit');
     const limit = limitParam ? Number(limitParam) : undefined;
+    const region = searchParams.get('region') === 'turkey' ? 'turkey' : 'global';
 
-    const edition = await getNewsEdition({ date, topic, limit: Number.isFinite(limit) ? limit : undefined });
+    const edition = await getNewsEdition({ date, topic, limit: Number.isFinite(limit) ? limit : undefined, region });
     if (!edition) {
       return NextResponse.json({ error: 'No news edition available' }, { status: 404 });
     }

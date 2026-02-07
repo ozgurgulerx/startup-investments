@@ -7,6 +7,8 @@ import type { NewsArchiveDay } from '@startup-intelligence/shared';
 interface ArchiveTimelineProps {
   initialItems: NewsArchiveDay[];
   pageSize?: number;
+  region?: 'global' | 'turkey';
+  hrefPrefix?: string;
 }
 
 function formatDate(value: string): string {
@@ -19,7 +21,12 @@ function formatDate(value: string): string {
   });
 }
 
-export function ArchiveTimeline({ initialItems, pageSize = 20 }: ArchiveTimelineProps) {
+export function ArchiveTimeline({
+  initialItems,
+  pageSize = 20,
+  region = 'global',
+  hrefPrefix = '/news',
+}: ArchiveTimelineProps) {
   const [items, setItems] = useState<NewsArchiveDay[]>(initialItems);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialItems.length >= pageSize);
@@ -27,7 +34,8 @@ export function ArchiveTimeline({ initialItems, pageSize = 20 }: ArchiveTimeline
   async function loadMore() {
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/news/archive?offset=${items.length}&limit=${pageSize}`, {
+      const regionParam = region === 'turkey' ? '&region=turkey' : '';
+      const res = await fetch(`/api/news/archive?offset=${items.length}&limit=${pageSize}${regionParam}`, {
         cache: 'no-store',
       });
       if (!res.ok) return;
@@ -53,8 +61,8 @@ export function ArchiveTimeline({ initialItems, pageSize = 20 }: ArchiveTimeline
       <div className="space-y-2">
         {items.map((entry) => (
           <Link
-            key={entry.edition_date}
-            href={`/news/${entry.edition_date}`}
+            key={`${region}:${entry.edition_date}`}
+            href={`${hrefPrefix}/${entry.edition_date}`}
             className="flex items-center justify-between rounded-lg border border-border/35 bg-background/55 px-3 py-2 text-sm transition-colors hover:border-accent-info/35 hover:bg-accent-info/5"
           >
             <span className="text-foreground">{formatDate(entry.edition_date)}</span>

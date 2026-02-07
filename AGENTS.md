@@ -82,6 +82,24 @@ News:
 - `.github/workflows/news-ingest.yml`: builds daily news editions into Postgres.
 - `.github/workflows/news-digest-daily.yml`: sends daily digest emails.
 
+### News Regions (Global vs Turkey)
+
+Daily news editions are **partitioned by region**:
+- Canonical regions: `global`, `turkey`
+- DB schema (see `database/migrations/020_news_editions_by_region.sql`):
+  - `news_sources.region` tags sources so Turkey editions can be built from Turkey-focused sources.
+  - `news_daily_editions.region` partitions editions (`PRIMARY KEY (edition_date, region)`).
+  - `news_topic_index.region` partitions topic browsing (`PRIMARY KEY (topic, cluster_id, edition_date, region)`).
+- Ingest behavior (`packages/analysis/src/automation/news_ingest.py`):
+  - Writes **both** `global` and `turkey` editions per run.
+  - Turkey edition includes clusters that contain at least one member from a Turkey-tagged source (e.g. Webrazzi, Egirisim).
+
+Web/UI surfaces:
+- Global feed: `/news` and `/news/[date]`
+- Turkey feed: `/news/turkey` and `/news/turkey/[date]`
+- Internal API routes support `?region=global|turkey`:
+  - `/api/news/latest`, `/api/news/topics`, `/api/news/archive`, `/api/news/sources`
+
 ## News Digest Runbook (Email)
 
 The daily news email is a **separate pipeline** from ingestion:
@@ -89,7 +107,7 @@ The daily news email is a **separate pipeline** from ingestion:
 - Send email: `.github/workflows/news-digest-daily.yml` (reads latest `status='ready'` edition + active subscribers)
 
 Entry points:
-- CLI: `cd packages/analysis && python main.py send-news-digest --region global`
+- CLI: `cd packages/analysis && python main.py send-news-digest --region global|turkey|all`
 - Code: `packages/analysis/src/automation/news_digest.py`
 
 Required secrets/env (GitHub Actions):

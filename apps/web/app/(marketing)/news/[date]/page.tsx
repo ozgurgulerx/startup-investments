@@ -43,7 +43,7 @@ export default async function NewsArchivePage({ params }: NewsArchivePageProps) 
     <div className="flex h-screen flex-col bg-background">
       {/* Nav */}
       <nav className="shrink-0 border-b border-border/30 bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between px-6">
+        <div className="mx-auto flex h-14 max-w-[1680px] items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-accent" />
             <span className="text-base font-medium tracking-tight text-foreground">Build Atlas</span>
@@ -52,6 +52,20 @@ export default async function NewsArchivePage({ params }: NewsArchivePageProps) 
             <span className="text-muted-foreground">
               {formatEditionDate(edition.edition_date)}
             </span>
+            <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-border/40 bg-muted/15 p-0.5">
+              <Link
+                href={`/news/${edition.edition_date}`}
+                className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info bg-accent-info/10 border border-accent-info/25"
+              >
+                Global
+              </Link>
+              <Link
+                href={`/news/turkey/${edition.edition_date}`}
+                className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted/25 transition-colors"
+              >
+                Turkey
+              </Link>
+            </div>
             <Link
               href="/news"
               className="rounded border border-border/50 px-3 py-1.5 text-foreground hover:bg-muted/30 transition-colors"

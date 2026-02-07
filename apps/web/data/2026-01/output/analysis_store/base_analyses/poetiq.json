@@ -1,0 +1,481 @@
+{
+  "company_name": "Poetiq",
+  "company_slug": "poetiq",
+  "website": "https://poetiq.ai",
+  "logo_url": null,
+  "description": "Poetiq develops an AI meta-system that improves large language models for complex reasoning and problem solving.",
+  "funding_amount": 45800000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [
+    "GPT-5.2"
+  ],
+  "build_patterns": [
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.7,
+      "evidence": [
+        "Reasoning path incomplete.",
+        "This page lies beyond the frontier.",
+        "Secure your place for the next generation of reasoning.",
+        "Traversing the Frontier of Superintelligence",
+        "major milestone in AI reasoning",
+        "multi-step reasoning"
+      ],
+      "description": "Poetiq repeatedly references reasoning paths, frontier traversal, and multi-step reasoning, which are hallmarks of agentic architectures where autonomous agents perform complex tasks and orchestrate reasoning steps."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.6,
+      "evidence": [
+        "Platform O' Electronic Trading In Q",
+        "algorithmic trading engine built in kdb+/Q",
+        "simulated equity data",
+        "proprietary datasets",
+        "domain expertise"
+      ],
+      "description": "Poetiq's open-source repository and platform focus on electronic trading and simulated equity data, suggesting the use of industry-specific (financial) datasets to train and validate their AI models, creating a vertical data moat."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.5,
+      "evidence": [
+        "Your request has been received. We will be in touch shortly.",
+        "Request Early Access",
+        "feedback loops"
+      ],
+      "description": "The presence of early access requests and user onboarding implies a feedback mechanism where user interactions could be used to improve the platform and its models over time."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.4,
+      "evidence": [
+        "Poetiq+GPT-5.2 = SOTA",
+        "system has officially outperformed existing methods",
+        "establishing a new state-of-the-art by a significant margin"
+      ],
+      "description": "References to combining Poetiq with GPT-5.2 and outperforming existing methods suggest possible use of ensemble or mesh approaches, though direct evidence is limited."
+    }
+  ],
+  "discovered_patterns": [
+    {
+      "category": "Learning & Improvement",
+      "pattern_name": "Recursive Self-Improvement via Meta-Reasoning Layer",
+      "confidence": 0.9,
+      "evidence": [
+        "Recursive Self-Improvement is the holy grail of AI – what if it's possible to do this today?",
+        "Poetiq is building intelligent systems that are able to improve themselves directly. This works now. And it is fast.",
+        "Our approach allows us to find effective task-specific reasoning strategies using much less data (hundreds of data points, rather than millions), while being compatible with the LLMs you’re already using.",
+        "We do not build our intelligence into the LLMs - but rather build a complete intelligent eco-system around them that harnesses what the LLMs contain for better reasoning and problem solving.",
+        "Our systems are continually improving. They adapt to the underlying models’ information storage mechanisms (e.g. their quirks) and figure out how to best extract and synthesize the information each contains."
+      ],
+      "description": "Poetiq implements a meta-reasoning layer that sits atop existing LLMs, enabling the system to self-improve by learning how to better extract, synthesize, and utilize latent knowledge in LLMs. This self-improvement is continuous and adapts to the quirks of underlying models, using small data (hundreds of examples) rather than large RLHF-style datasets.",
+      "novelty_score": 9,
+      "why_notable": "This is a rare, ambitious implementation of recursive self-improvement at the system level, not just model fine-tuning. The focus on meta-reasoning and rapid adaptation to model quirks is highly novel and goes beyond typical RLHF or prompt engineering."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Meta-Agent Orchestration Over LLMs",
+      "confidence": 0.8,
+      "evidence": [
+        "We do not build our intelligence into the LLMs - but rather build a complete intelligent eco-system around them that harnesses what the LLMs contain for better reasoning and problem solving.",
+        "We are building the intelligence on-top of LLMs to extract their hidden information.",
+        "You have to synthesize the pieces of information that they reveal, piece by piece. The information is in there, but it’s in fragments that must be put together to reveal the complete answer"
+      ],
+      "description": "Poetiq uses a system-level agent (or meta-agent) that orchestrates queries to LLMs, decomposes problems, issues sub-queries, and synthesizes partial outputs into a final answer. This is not just chain-of-thought prompting, but an explicit system for multi-step, multi-query reasoning.",
+      "novelty_score": 8,
+      "why_notable": "While agentic orchestration is an emerging trend, Poetiq's focus on meta-level synthesis and adaptation to LLM quirks, rather than static prompt chains, is advanced and relatively uncommon."
+    },
+    {
+      "category": "Learning & Improvement",
+      "pattern_name": "Few-Shot Data-Efficient Strategy Discovery",
+      "confidence": 0.7,
+      "evidence": [
+        "Our approach allows us to find effective task-specific reasoning strategies using much less data (hundreds of data points, rather than millions), while being compatible with the LLMs you’re already using.",
+        "RL post training has severe limitations. It's slow, expensive, and requires millions of data points. These limitations make effective RL training impractical for all but a handful of a few lucky companies."
+      ],
+      "description": "Instead of relying on large-scale RLHF or synthetic data, Poetiq's system discovers new reasoning strategies with only hundreds of data points, suggesting meta-learning or few-shot adaptation at the system level.",
+      "novelty_score": 7,
+      "why_notable": "Most advanced LLM systems require massive data for RLHF or fine-tuning; Poetiq's claim of data efficiency for strategy discovery is unusual and potentially impactful for rapid domain adaptation."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Model-Agnostic Reasoning Layer",
+      "confidence": 0.6,
+      "evidence": [
+        "while being compatible with the LLMs you’re already using.",
+        "We do not build our intelligence into the LLMs - but rather build a complete intelligent eco-system around them"
+      ],
+      "description": "Poetiq's architecture is designed to work with a variety of LLMs (e.g., GPT-5.2, as mentioned in blog), treating them as interchangeable backends and focusing innovation on the orchestration/meta-reasoning layer.",
+      "novelty_score": 6,
+      "why_notable": "Most companies focus on model-centric innovation; Poetiq's system-centric, model-agnostic approach is less common and allows for rapid integration of new foundation models."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Recursive self-improvement at the system/meta-reasoning level, not within the LLM weights themselves.",
+      "why_novel": "Most AI self-improvement focuses on RLHF or model fine-tuning; Poetiq's approach is to build a meta-system that learns how to use LLMs more effectively and adapts its strategies over time.",
+      "potential_impact": "Could enable rapid, data-efficient improvement and domain adaptation without retraining foundation models, making advanced reasoning accessible and cost-effective."
+    },
+    {
+      "approach": "Meta-agent orchestrating multi-step reasoning and synthesis across LLMs, adapting to model quirks.",
+      "why_novel": "Goes beyond prompt engineering or static chains; the system actively learns how to decompose and solve tasks using LLMs as knowledge sources.",
+      "potential_impact": "Enables more reliable, explainable, and robust AI reasoning on top of existing LLMs, potentially unlocking new domains."
+    }
+  ],
+  "model_details": {
+    "primary_models": [
+      "GPT-5.2 X-High (via OpenAI API or similar)",
+      "Other LLMs (not specified, but system is model-agnostic)"
+    ],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": true,
+      "orchestration_pattern": "Meta-agent orchestrates multi-step, multi-query reasoning over LLMs, synthesizing partial outputs into final answers. The system adapts its querying and synthesis strategies over time."
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "financial_services",
+  "sub_vertical": "algorithmic trading and quantitative finance",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [
+      "OpenAI"
+    ],
+    "llm_models": [
+      "GPT-5.2"
+    ],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 4,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Raised $45.8M seed round, indicating strong investor confidence",
+      "Claims of state-of-the-art results on ARC-AGI benchmarks",
+      "Public GitHub repo for a kdb+/Q trading engine (not related to AI product)",
+      "Active blog with some technical claims"
+    ]
+  },
+  "implementation_maturity": "research",
+  "team_analysis": {
+    "founders": [],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [],
+      "team_size_indicators": "unknown",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "Insufficient public information to assess founder-market fit. No founder identities or backgrounds are disclosed.",
+    "team_strengths": [
+      "Demonstrated technical achievement: Poetiq claims state-of-the-art results on ARC-AGI benchmarks and integration with advanced models (e.g., GPT-5.2), indicating strong technical and ML capabilities.",
+      "Open-source engineering presence: The existence of a public GitHub repository for a backtesting/algorithmic trading engine in kdb+/Q suggests deep technical expertise, especially in quantitative finance and high-performance computing."
+    ],
+    "team_red_flags": [
+      "No public information about founders or leadership team: No names, roles, or backgrounds are disclosed on the website, blog, or GitHub.",
+      "No visible LinkedIn or professional profiles linked.",
+      "No explicit job postings or hiring signals visible beyond a generic 'join our team' email.",
+      "No information about organizational structure, team size, or remote/distributed nature."
+    ],
+    "team_confidence": 0.2
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "unknown",
+      "pricing_evidence": [
+        "No explicit pricing information or plans are listed.",
+        "Presence of 'Request Early Access' and lack of visible pricing pages.",
+        "No mention of free tier or specific price points."
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "product_led",
+      "evidence": [
+        "Emphasis on 'Request Early Access' forms suggests product-led growth.",
+        "No visible sales contact or demo request, but early access forms indicate direct product engagement.",
+        "References to outperforming benchmarks and technical blog posts suggest developer and technical audience targeting."
+      ],
+      "target_segment": "enterprise",
+      "sales_motion": "unknown"
+    },
+    "revenue_model": {
+      "monetization_approach": "Likely monetizes through enterprise contracts or usage-based licensing for its AI reasoning platform, but no explicit details.",
+      "unit_economics_signals": [
+        "Claims of 'half the cost' and efficiency suggest focus on cost-effectiveness and margin, but no ARPU or margin data."
+      ],
+      "recurring_revenue": false
+    },
+    "distribution_advantages": [
+      "State-of-the-art performance claims on ARC-AGI benchmarks may drive organic interest and word-of-mouth among technical buyers.",
+      "Early access gating can build exclusivity and anticipation."
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "Content marketing via blog and research updates.",
+        "Product-led acquisition through early access requests.",
+        "Technical community engagement (GitHub, open source repo)."
+      ],
+      "customer_proof_points": [
+        "No customer testimonials, case studies, or logos mentioned."
+      ]
+    },
+    "business_model_clarity": "evolving",
+    "business_model_confidence": 0.5
+  },
+  "product_analysis": {
+    "product_stage": "pre_launch",
+    "stage_evidence": [
+      "Extensive use of 'Request Early Access' forms across the site",
+      "No public documentation, API references, or feature breakdowns available (all such pages return 404 or are inaccessible)",
+      "No pricing page or feature comparison available",
+      "No public customer stories or case studies",
+      "Recent large seed round ($45.8M) announcement, suggesting early-stage company",
+      "Product described as having achieved state-of-the-art benchmarks, but no details on commercial availability"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Backtesting and algorithmic trading engine built in kdb+/Q (from GitHub repo)",
+        "Simulation with historical data for strategy development"
+      ],
+      "differentiating_features": [
+        "Claims of state-of-the-art performance on ARC-AGI-1 & 2 benchmarks",
+        "Integration with GPT-5.2 for advanced reasoning (implied from blog/insights)"
+      ],
+      "roadmap_signals": [
+        "References to 'next generation of reasoning'",
+        "Multiple placeholder pages for features, integrations, and documentation indicate planned expansion",
+        "No public roadmap, but many 404s for /platform, /features, /api-docs, /sdk, /solutions, etc."
+      ],
+      "feature_completeness": "mvp"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "qutil (command line parsing utility for Q)",
+        "kdb+/Q ecosystem"
+      ],
+      "api_maturity": "none",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Algorithmic trading and backtesting for financial markets",
+      "secondary_use_cases": [
+        "AI reasoning research (implied by SOTA benchmark claims)",
+        "Simulation and evaluation of trading strategies"
+      ],
+      "customer_stories": [],
+      "industry_focus": [
+        "Finance",
+        "Artificial Intelligence Research"
+      ]
+    },
+    "product_risks": [
+      "No public documentation or developer resources available",
+      "No evidence of commercial customers or deployments",
+      "Unclear product-market fit beyond technical benchmarks",
+      "Integration and extensibility ecosystem is not yet developed",
+      "Potentially limited to users familiar with kdb+/Q"
+    ],
+    "product_strengths": [
+      "Strong technical claims (SOTA on ARC-AGI benchmarks, integration with GPT-5.2)",
+      "Significant seed funding secured",
+      "Open-source backtesting engine available on GitHub with moderate community interest"
+    ],
+    "product_confidence": 0.4
+  },
+  "unique_findings": [
+    "Poetiq's open-source repository is built in kdb+/Q, a niche, ultra-high-performance time-series database and language rarely used outside quantitative finance. Most AI startups use Python, C++, or Rust; kdb+/Q is highly unusual and suggests deep expertise in financial-grade data engineering.",
+    "The platform is designed for backtesting and algorithmic trading, but the company claims breakthroughs on state-of-the-art AI reasoning benchmarks (ARC-AGI-1 & 2), implying a fusion of trading-grade infrastructure with frontier AI capabilities. This intersection is not commonly seen and hints at novel architectures for reasoning and simulation.",
+    "Multiple references to 'reasoning path incomplete' and 'frontier' in 404 pages suggest a thematic focus on exploration and boundaries in AI reasoning, possibly indicating a product or platform that enables users to traverse or experiment with the limits of current AI systems.",
+    "Despite $45.8M in seed funding and claims of outperforming SOTA (state-of-the-art) benchmarks, there is little technical detail about the actual AI models, architectures, or integration with GPT-5.2, which raises questions about the true technical novelty versus marketing positioning."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Inside Poetiq’s Meta-Agent Orchestration: Redefining Reasoning with Recursive Self-Improvement",
+      "summary": "Poetiq’s architecture leverages a meta-agent orchestration layer over LLMs, enabling recursive self-improvement and model-agnostic reasoning. This approach departs from monolithic LLM stacks, aiming for continuous learning and few-shot data-efficient strategy discovery.",
+      "evidence": [
+        "Build Patterns Detected: Meta-Agent Orchestration Over LLMs, Recursive Self-Improvement via Meta-Reasoning Layer",
+        "Continuous-learning Flywheels and Model-Agnostic Reasoning Layer mentioned in analysis"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: How Poetiq’s Proprietary Financial Data Powers Next-Gen AI Trading",
+      "summary": "Poetiq’s edge lies in its vertical data moat, leveraging proprietary financial datasets for backtesting and strategy development. This focus on deep, domain-specific data enables more robust and adaptive trading algorithms than generic LLM approaches.",
+      "evidence": [
+        "Build Pattern: Vertical Data Moats",
+        "Poetiq is a backtesting and algorithmic trading engine with simulated equity data support"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Shattering SOTA at Half the Cost: Poetiq’s 10x Leap in ARC-AGI-2 Benchmarks",
+      "summary": "Poetiq claims to have set a new state-of-the-art on the ARC-AGI-2 benchmark, not just in performance but also in cost efficiency. By combining micro-model meshes and agentic architectures, they deliver results at a fraction of the compute required by traditional LLMs.",
+      "evidence": [
+        "\"Poetiq Shatters ARC-AGI-2 State of the Art at Half the Cost\" (company announcement)",
+        "Build Patterns: Micro-model Meshes, Agentic Architectures"
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Betting on Q: Why Poetiq Chose a Niche Language for High-Frequency AI Trading",
+      "summary": "While most AI startups build on Python or mainstream stacks, Poetiq’s open-source repo reveals a foundation in kdb+/Q, a language favored by elite quant shops. This contrarian choice signals deep roots in financial engineering and a willingness to go against the grain for performance.",
+      "evidence": [
+        "GitHub repo: 'poetiq - Platform O' Electronic Trading In Q' built in kdb+/Q",
+        "Poetiq’s engineering quality rated only 4/10, suggesting a focus on raw performance over polish"
+      ],
+      "uniqueness_score": 8
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "Poetiq's marketing claims state-of-the-art performance, 'shattering' benchmarks, and major milestones in AI reasoning, but provide no technical details, benchmarks, or reproducible evidence to substantiate these claims. The language is heavy on buzzwords (e.g., 'superintelligence', 'meta-agent orchestration', 'vertical data moats') without concrete technical documentation or published results.",
+      "severity": "high",
+      "evidence": [
+        "Claims of 'Poetiq Shatters ARC-AGI-2 State of the Art at Half the Cost' and 'major milestone in AI reasoning' without published benchmarks or technical specifics.",
+        "Repeated use of terms like 'meta-reasoning layer', 'recursive self-improvement', and 'vertical data moats' with no supporting technical documentation.",
+        "No technical whitepapers, reproducible results, or peer-reviewed publications referenced."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core offering appears to be a backtesting and algorithmic trading engine built on kdb+/Q, which is a niche feature that could be absorbed by larger trading platforms or incumbents. There is little evidence of a broader product vision or platform differentiation beyond this single feature.",
+      "severity": "medium",
+      "evidence": [
+        "GitHub repository describes a backtesting engine in Q, with limited scope and no indication of broader platform features.",
+        "No clear articulation of product roadmap or platform expansion beyond trading/backtesting."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The public-facing materials do not clearly articulate what makes Poetiq unique compared to other algorithmic trading engines or AI reasoning platforms. The reliance on generic LLMs (GPT-5.2) and lack of proprietary technology or data advantage suggests limited differentiation.",
+      "severity": "medium",
+      "evidence": [
+        "Tech stack relies on GPT-5.2, with no evidence of proprietary models or data.",
+        "No unique technical features or competitive positioning described beyond standard trading engine capabilities."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "OpenAI (GPT-4, GPT-5, API ecosystem)",
+        "similarity": "Both develop advanced AI systems for reasoning and problem solving, leveraging large language models (LLMs) and providing APIs for integration.",
+        "how_different": "Poetiq does not build new LLMs but creates a meta-system that sits on top of existing LLMs to extract and synthesize knowledge more effectively, focusing on recursive self-improvement and reasoning rather than raw model performance."
+      },
+      {
+        "name": "Anthropic (Claude)",
+        "similarity": "Anthropic also builds LLMs and tools for advanced reasoning and safe AI, targeting enterprise use cases.",
+        "how_different": "Poetiq's approach is to build an intelligent ecosystem around existing LLMs (including Claude) to enhance reasoning and self-improvement, rather than focusing on safety or model alignment."
+      },
+      {
+        "name": "Google DeepMind (Gemini, AlphaCode)",
+        "similarity": "DeepMind develops state-of-the-art AI models and reasoning systems, with expertise in RL and AGI research.",
+        "how_different": "Poetiq's founding team draws from DeepMind experience but aims to automate and generalize recursive self-improvement outside of coding/math, focusing on practical business workflows and rapid adaptation using fewer data points."
+      },
+      {
+        "name": "Cohere",
+        "similarity": "Cohere provides LLMs and enterprise AI solutions for knowledge extraction and business intelligence.",
+        "how_different": "Poetiq differentiates by building a meta-reasoning layer that works with any LLM, enabling continual self-improvement and efficient adaptation to new tasks, rather than providing just model APIs."
+      },
+      {
+        "name": "Adept AI",
+        "similarity": "Adept builds AI agents that interact with software and automate workflows using LLMs.",
+        "how_different": "Poetiq focuses on reasoning and recursive self-improvement, not just automation, and claims to outperform existing methods on reasoning benchmarks at lower cost."
+      }
+    ],
+    "differentiation": {
+      "primary": "Poetiq builds an intelligent meta-system that sits atop existing LLMs, enabling rapid, recursive self-improvement and advanced reasoning for practical business problems.",
+      "technical": "Recursive self-improvement outside of the LLM training loop; efficient adaptation using hundreds (not millions) of data points; compatible with any LLM; builds reasoning strategies and synthesizes fragmented knowledge from LLMs.",
+      "business": "Targets enterprises needing reliable, cost-effective reasoning for real-world workflows; offers integration with existing LLMs rather than requiring adoption of a new model; positions as an intelligence layer rather than a model provider.",
+      "positioning": "Poetiq positions itself as the next generation of reasoning, enabling superintelligence by leveraging and improving existing LLMs rather than competing directly with them."
+    },
+    "secret_sauce": {
+      "core_advantage": "Recursive self-improvement meta-system that rapidly and automatically improves reasoning capabilities on top of any LLM, using minimal data and adapting to model quirks.",
+      "defensibility": "Requires deep expertise in both LLM internals and reasoning strategies; leverages proprietary methods for extracting and synthesizing knowledge; founding team has extensive experience at Google & DeepMind.",
+      "evidence": [
+        "Poetiq Shatters ARC-AGI-2 State of the Art at Half the Cost",
+        "Our approach allows us to find effective task-specific reasoning strategies using much less data (hundreds of data points, rather than millions), while being compatible with the LLMs you’re already using.",
+        "We do not build our intelligence into the LLMs - but rather build a complete intelligent eco-system around them that harnesses what the LLMs contain for better reasoning and problem solving.",
+        "Our systems are continually improving. They adapt to the underlying models’ information storage mechanisms (e.g. their quirks) and figure out how to best extract and synthesize the information each contains."
+      ]
+    },
+    "competitive_moat": "high",
+    "moat_explanation": "Poetiq's moat is high due to its unique recursive self-improvement architecture, ability to work with any LLM, and deep technical expertise in reasoning and knowledge extraction. The system's ability to continually improve and adapt to new tasks with minimal data is difficult to replicate, especially given the team's background and proprietary methods. Their approach is not just a model or API, but an ecosystem that leverages and enhances the value of all existing LLMs, making them complementary rather than competitive to model providers.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Poetiq+GPT-5.2 = SOTA",
+    "We finally had a moment to run our system with GPT-5.2 X-High on ARC-AGI-2!",
+    "major milestone in AI reasoning",
+    "new state-of-the-art (SOTA) on the ARC-AGI-1 & 2 benchmarks",
+    "Traversing the Frontier of Superintelligence",
+    "Shape the Future of Intelligence",
+    "Secure your place for the next generation of reasoning",
+    "The use of kdb+/Q for backtesting and algorithmic trading engine as a foundation for an AI reasoning platform is unusual. This merges high-frequency trading infrastructure with advanced AI reasoning, which is not a common pattern in mainstream AI buildouts."
+  ],
+  "analyzed_at": "2026-02-04 18:27:20.574733+00:00",
+  "confidence_score": 0.9,
+  "raw_content_analyzed": 41084,
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "it_enterprise_software",
+      "vertical_label": "Information Technology & Enterprise Software",
+      "sub_vertical_id": "ai_ml_platforms",
+      "sub_vertical_label": "AI/ML Platforms",
+      "leaf_id": "ai_ml_platforms",
+      "leaf_label": "AI/ML Platforms"
+    },
+    "path": [
+      {
+        "id": "it_enterprise_software",
+        "label": "Information Technology & Enterprise Software",
+        "confidence": 0.95
+      },
+      {
+        "id": "ai_ml_platforms",
+        "label": "AI/ML Platforms",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

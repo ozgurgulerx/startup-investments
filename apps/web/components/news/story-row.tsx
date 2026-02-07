@@ -17,11 +17,11 @@ function timeAgo(iso: string): string {
 
 function storyTypeBadge(type: string): string {
   const t = (type || '').toLowerCase();
-  if (t === 'funding') return 'border-emerald-400/30 text-emerald-400';
-  if (t === 'mna') return 'border-sky-400/30 text-sky-400';
-  if (t === 'regulation') return 'border-violet-400/28 text-violet-400';
-  if (t === 'launch') return 'border-amber-400/28 text-amber-400';
-  return 'border-border/40 text-muted-foreground';
+  if (t === 'funding') return 'border-success/30 bg-success/10 text-success';
+  if (t === 'mna') return 'border-delta/30 bg-delta/10 text-delta';
+  if (t === 'regulation') return 'border-warning/30 bg-warning/10 text-warning';
+  if (t === 'launch') return 'border-accent-info/30 bg-accent-info/10 text-accent-info';
+  return 'border-border/40 bg-muted/10 text-muted-foreground';
 }
 
 interface StoryRowProps {
@@ -29,9 +29,10 @@ interface StoryRowProps {
   isSelected: boolean;
   onSelect: (id: string) => void;
   isPinned?: boolean;
+  isNew?: boolean;
 }
 
-export function StoryRow({ item, isSelected, onSelect, isPinned }: StoryRowProps) {
+export function StoryRow({ item, isSelected, onSelect, isPinned, isNew }: StoryRowProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadge(item.story_type);
 
@@ -39,7 +40,9 @@ export function StoryRow({ item, isSelected, onSelect, isPinned }: StoryRowProps
     <button
       type="button"
       onClick={() => onSelect(item.id)}
-      className={`group w-full text-left px-4 py-3 border-b border-border/20 transition-colors duration-150
+      data-story-id={item.id}
+      aria-pressed={isSelected}
+      className={`group w-full text-left px-6 py-3 border-b border-border/20 transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60 focus-visible:ring-inset
         ${isSelected
           ? 'bg-accent-info/10 border-l-2 border-l-accent-info'
           : 'hover:bg-muted/20 border-l-2 border-l-transparent'
@@ -56,6 +59,11 @@ export function StoryRow({ item, isSelected, onSelect, isPinned }: StoryRowProps
             {isPinned && (
               <span className="inline-block mr-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-info/15 text-accent-info border border-accent-info/25">
                 Top
+              </span>
+            )}
+            {isNew && (
+              <span className="inline-block mr-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/25">
+                New
               </span>
             )}
             {item.title}
@@ -88,14 +96,16 @@ export function StoryRow({ item, isSelected, onSelect, isPinned }: StoryRowProps
 }
 
 /** Pinned top-impact card variant for the first story */
-export function PinnedStoryCard({ item, isSelected, onSelect }: StoryRowProps) {
+export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryRowProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
+  const typeBadge = storyTypeBadge(item.story_type);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(item.id)}
-      className={`group w-full text-left rounded-xl border p-4 transition-all duration-200
+      data-story-id={item.id}
+      className={`group w-full text-left rounded-xl border p-4 transition-all duration-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60
         ${isSelected
           ? 'border-accent-info/40 bg-accent-info/10'
           : 'border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/80 to-card/50 hover:border-accent-info/40'
@@ -106,7 +116,15 @@ export function PinnedStoryCard({ item, isSelected, onSelect }: StoryRowProps) {
         <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-info/15 text-accent-info border border-accent-info/25">
           Top Impact
         </span>
+        {isNew && (
+          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/25">
+            New
+          </span>
+        )}
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
+        <span className={`hidden sm:inline-flex rounded-full border px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${typeBadge}`}>
+          {item.story_type || 'news'}
+        </span>
         <span className="text-[10px] text-muted-foreground/70 tabular-nums">
           {timeAgo(item.published_at)}
         </span>

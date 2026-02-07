@@ -1,0 +1,448 @@
+{
+  "company_name": "Padmi",
+  "company_slug": "padmi",
+  "website": "https://www.padmi.es",
+  "logo_url": null,
+  "description": "Padmi is an artificial intelligence mobile application that serves technological assistance and support for individual internet users.",
+  "funding_amount": 961642.0,
+  "funding_stage": "unknown",
+  "uses_genai": false,
+  "genai_intensity": "none",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.8,
+      "evidence": [
+        "Nuestro sistema detecta y sigue a cada jugador y a la bola en tiempo real",
+        "modelos avanzados de estimación de pose",
+        "generamos un esqueleto digital de cada jugador",
+        "padmi genera estadísticas automáticas como el número y tipo de golpes, la velocidad de bola según el tipo de golpe, la actividad general en pista, mapas de calor, comparaciones entre jugadores y consejos personalizados"
+      ],
+      "description": "Padmi uses multiple specialized models for different tasks: pose estimation, player and ball tracking, statistics generation, and personalized recommendations, indicating a mesh of micro-models working together."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "La app líder en análisis IA y streaming de tus partidos de pádel",
+        "Padmi instala dos cámaras en la pista para capturar todo el partido desde diferentes ángulos",
+        "estadísticas en tiempo real con información detallada sobre tu partido",
+        "mapas de calor que muestran las zonas de mayor movimiento, comparaciones entre jugadores y consejos personalizados para mejorar el rendimiento tras cada partido"
+      ],
+      "description": "Padmi collects proprietary, domain-specific data from padel matches (video, player movement, ball tracking) to train and improve its models, creating a strong vertical data moat in the sports analytics space."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.6,
+      "evidence": [
+        "Puedes crear un nuevo partido cuando quieras",
+        "Finalizar detiene por completo la grabación y el análisis del partido",
+        "toda la información se procesa y se transforma en datos visuales y claros que aparecen directamente en la app de padmi"
+      ],
+      "description": "The system appears to collect ongoing match data, which can be used to continually refine and improve its analytics and recommendations, suggesting a feedback loop for model improvement."
+    }
+  ],
+  "discovered_patterns": [
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Pose Estimation Model for Player Tracking",
+      "confidence": 0.9,
+      "evidence": [
+        "Gracias a modelos avanzados de estimación de pose, generamos un esqueleto digital de cada jugador, lo que nos permite analizar sus movimientos y posicionamiento con gran precisión."
+      ],
+      "description": "Padmi uses advanced pose estimation models to generate a digital skeleton for each player, enabling precise analysis of movement and positioning. This likely involves computer vision models trained for pose estimation, possibly based on architectures like OpenPose, BlazePose, or similar.",
+      "novelty_score": 5,
+      "why_notable": "Pose estimation is a standard approach in sports analytics, but real-time application on amateur courts with consumer-grade hardware is moderately challenging."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Multi-stage Video Analytics Pipeline",
+      "confidence": 0.8,
+      "evidence": [
+        "Padmi instala dos cámaras en la pista para capturar todo el partido desde diferentes ángulos. Nuestro sistema detecta y sigue a cada jugador y a la bola en tiempo real.",
+        "Con estos datos, padmi genera estadísticas automáticas como el número y tipo de golpes, la velocidad de bola según el tipo de golpe, la actividad general en pista, mapas de calor que muestran las zonas de mayor movimiento, comparaciones entre jugadores y consejos personalizados para mejorar el rendimiento tras cada partido."
+      ],
+      "description": "The system orchestrates multiple AI components: video ingestion from multiple cameras, object detection/tracking (players and ball), pose estimation, event detection (e.g., highlights via gesture recognition), and downstream analytics/statistics generation. These are chained to produce real-time and post-game insights.",
+      "novelty_score": 6,
+      "why_notable": "While multi-stage pipelines are common in sports analytics, the seamless integration of gesture-based highlight capture and real-time feedback is a step above basic implementations."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Edge/On-site Video Processing",
+      "confidence": 0.7,
+      "evidence": [
+        "Padmi instala dos cámaras en la pista para capturar todo el partido desde diferentes ángulos.",
+        "Nuestro sistema detecta y sigue a cada jugador y a la bola en tiempo real."
+      ],
+      "description": "The need for real-time analysis and gesture-based highlight capture suggests that at least some processing occurs on-site (edge), possibly on a dedicated device or local server, to minimize latency and bandwidth usage.",
+      "novelty_score": 7,
+      "why_notable": "Real-time, on-site analytics in amateur sports settings is less common than cloud-based post-processing, indicating a focus on low-latency user experience."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Gesture-based Event Triggering",
+      "confidence": 0.8,
+      "evidence": [
+        "Con Padmi, guardar un highlight es tan fácil como levantar los brazos en forma de “V” al acabar el punto. 3 segundos en el centro de la pista, eso sí, para que te veamos bien.",
+        "Nuestro sistema detecta el gesto y guarda automáticamente la jugada entera, desde el saque hasta el final. Sin interrumpir el partido. Sin botones."
+      ],
+      "description": "The system uses computer vision to detect a specific gesture (arms in 'V' shape) as a trigger to automatically save highlights, integrating gesture recognition with event-based video segmentation.",
+      "novelty_score": 8,
+      "why_notable": "Gesture-based, non-intrusive highlight capture is rare in consumer sports analytics, reducing friction and enhancing user experience."
+    },
+    {
+      "category": "Learning & Improvement",
+      "pattern_name": "Personalized Feedback Loop",
+      "confidence": 0.6,
+      "evidence": [
+        "consejos personalizados para mejorar el rendimiento tras cada partido."
+      ],
+      "description": "After each match, the system provides personalized advice based on analytics, suggesting a feedback loop where user data informs future recommendations.",
+      "novelty_score": 4,
+      "why_notable": "Personalized feedback is common, but its integration with real-time analytics and gesture-based event capture is a cohesive user-centric approach."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Gesture-based, non-intrusive highlight capture using pose estimation and event segmentation",
+      "why_novel": "Most consumer sports analytics require manual input or post-game editing; this approach enables seamless, in-game highlight selection without interrupting play.",
+      "potential_impact": "Improves user experience, increases highlight capture frequency, and lowers the barrier for amateur athletes to engage with advanced analytics."
+    }
+  ],
+  "model_details": {
+    "primary_models": [
+      "Pose estimation model (likely OpenPose, BlazePose, or similar)",
+      "Object detection/tracking models (for players and ball)",
+      "Gesture recognition model (for highlight capture)"
+    ],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [
+      "Real-time inference (implied by 'en tiempo real')",
+      "Likely batching of video frames for efficiency"
+    ],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": true,
+      "orchestration_pattern": "Sequential pipeline: video ingestion → player/ball detection → pose estimation → gesture recognition → event segmentation/statistics → personalized feedback"
+    }
+  },
+  "market_type": "vertical",
+  "vertical": "consumer",
+  "sub_vertical": "sports analytics and streaming",
+  "target_market": "b2c",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Describes use of advanced pose estimation and real-time video analysis for padel matches",
+      "Mentions automated statistics generation, heatmaps, and highlight detection via gesture recognition"
+    ]
+  },
+  "implementation_maturity": "production",
+  "team_analysis": {
+    "founders": [],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [],
+      "team_size_indicators": "small",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "Insufficient information to assess founder-market fit. No founder names, backgrounds, or prior companies are mentioned.",
+    "team_strengths": [
+      "Strong technical implementation evidenced by use of real-time video analysis, pose estimation, and automated statistics.",
+      "Clear domain expertise in padel sports analytics, as shown by detailed features tailored to padel players."
+    ],
+    "team_red_flags": [
+      "No public information about founders or team members, which limits assessment of leadership and organizational depth.",
+      "No hiring signals or job postings visible, making it unclear if the team is growing or has key roles filled.",
+      "No advisor, investor, or network quality signals present."
+    ],
+    "team_confidence": 0.2
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "unknown",
+      "pricing_evidence": [
+        "No explicit pricing or payment information mentioned in the content.",
+        "No references to free trials, premium tiers, or enterprise plans.",
+        "No mention of 'Contact sales', API access, or marketplace dynamics."
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": false,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "product_led",
+      "evidence": [
+        "Emphasis on user onboarding directly through the app.",
+        "Step-by-step instructions for users to start using the product.",
+        "No mention of sales teams, demo requests, or partnership integrations."
+      ],
+      "target_segment": "consumer",
+      "sales_motion": "self_serve"
+    },
+    "revenue_model": {
+      "monetization_approach": "Not explicitly stated; likely monetizes via app usage, possibly through subscriptions or premium features, but this is not confirmed.",
+      "unit_economics_signals": [
+        "No explicit signals regarding margins, ARPU, or cost structure."
+      ],
+      "recurring_revenue": false
+    },
+    "distribution_advantages": [
+      "Unique gesture-based highlight capture feature could drive word-of-mouth and user engagement.",
+      "Integration with physical padel courts via installed cameras may create stickiness with clubs and recurring usage."
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "App store distribution",
+        "On-court signage and club partnerships (implied by hardware installation)",
+        "Organic/viral sharing via highlight videos"
+      ],
+      "customer_proof_points": [
+        "No testimonials, case studies, or logos mentioned."
+      ]
+    },
+    "business_model_clarity": "unclear",
+    "business_model_confidence": 0.3
+  },
+  "product_analysis": {
+    "product_stage": "beta",
+    "stage_evidence": [
+      "Instructions reference onboarding and initial setup steps",
+      "Repeated prompts to create first match and preview user experience",
+      "No evidence of comprehensive documentation, pricing, or feature comparison pages",
+      "No visible customer testimonials or case studies",
+      "No mention of marketplace presence or partner integrations"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Real-time match analysis using AI",
+        "Detailed match statistics (winners/errors, ball speed, heat map, distance covered, service analysis)",
+        "Highlight capture via gesture recognition",
+        "User app for reviewing stats and highlights",
+        "Multi-camera setup for match recording"
+      ],
+      "differentiating_features": [
+        "Gesture-based highlight saving (raise arms in V shape)",
+        "Automated player and ball tracking with pose estimation",
+        "Personalized improvement tips post-match"
+      ],
+      "roadmap_signals": [
+        "References to a 'future user experience'",
+        "Emphasis on previewing features and onboarding flows"
+      ],
+      "feature_completeness": "growing"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [],
+      "api_maturity": "none",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Real-time AI-powered analysis and statistics for padel matches",
+      "secondary_use_cases": [
+        "Video highlight capture and review",
+        "Performance improvement through personalized feedback",
+        "Match recording and sharing"
+      ],
+      "customer_stories": [],
+      "industry_focus": [
+        "Sports analytics",
+        "Padel clubs and players"
+      ]
+    },
+    "product_risks": [
+      "Lack of public documentation and integration details",
+      "No evidence of third-party integrations or ecosystem support",
+      "Potentially limited to early adopters or pilot users",
+      "Unclear pricing, support, and scalability"
+    ],
+    "product_strengths": [
+      "Strong focus on AI-driven analytics tailored for padel",
+      "Innovative gesture-based highlight capture",
+      "Comprehensive in-match statistics and visualizations"
+    ],
+    "product_confidence": 0.5
+  },
+  "unique_findings": [
+    "Gesture-based highlight capture: Padmi uses computer vision to detect a specific celebratory gesture (raising arms in a 'V' for 3 seconds) to automatically save video highlights, eliminating the need for manual input or buttons. This is an unusual and user-centric technical choice that leverages pose estimation in a live sports context.",
+    "Real-time multi-angle tracking: The system employs two cameras per court to capture and analyze matches from multiple angles, enabling robust player and ball tracking. This multi-perspective approach is more sophisticated than single-camera solutions and allows for higher accuracy in pose estimation and event detection.",
+    "Automatic generation of advanced stats: Padmi generates a wide range of real-time statistics (heatmaps, shot types, ball speed, personalized tips) using pose estimation and object tracking, which requires complex, on-the-fly data processing and integration.",
+    "Seamless user experience integration: The technical workflow is tightly integrated with the app UX, such that video highlights, stats, and feedback are immediately available post-match, suggesting a well-orchestrated backend pipeline for video and data synchronization."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Padmi’s Multi-Stage Video Analytics Pipeline Brings Real-Time AI to the Padel Court",
+      "summary": "Padmi leverages a multi-stage video analytics pipeline with edge/on-site processing to deliver instant feedback and statistics to players. Their use of dual-camera setups, pose estimation, and gesture-based event triggers enables a seamless, real-time experience that minimizes latency and maximizes actionable insights.",
+      "evidence": [
+        "Padmi installs two cameras per court for multi-angle capture and tracking.",
+        "Edge/on-site video processing and gesture-based triggers (raising arms in 'V') for instant highlight capture."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "data",
+      "headline": "Padmi’s Vertical Data Moat: Building Proprietary Player Movement and Ball Trajectory Datasets",
+      "summary": "By capturing granular pose and ball tracking data from every match, Padmi is amassing a unique, vertically-integrated dataset that could power next-gen sports analytics. This continuous-learning flywheel positions them to offer insights and personalized feedback unavailable to generic sports tech platforms.",
+      "evidence": [
+        "Pose estimation models generate digital skeletons for each player.",
+        "Continuous collection of detailed match data, including heatmaps, shot types, and player comparisons."
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Padmi Bets on Gesture-Based Event Triggers Instead of Manual Highlight Editing",
+      "summary": "While most sports analytics apps rely on manual input or post-game editing, Padmi’s gesture-based highlight system lets players save key moments with a simple in-game motion. This frictionless approach challenges the norm and could redefine how athletes interact with analytics platforms.",
+      "evidence": [
+        "Highlights are saved by raising arms in a 'V' for 3 seconds, with no button presses required.",
+        "Automated detection and saving of entire plays, from serve to finish, without interrupting gameplay."
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Padmi’s Deep Domain Play: Tailoring AI Analytics for the Nuances of Padel",
+      "summary": "Padmi’s focus on padel, rather than generic racket sports, allows for highly specialized analytics—such as padel-specific shot types, movement patterns, and service analysis. Their domain expertise is reflected in features like Pad ID and real-time, context-aware feedback for players.",
+      "evidence": [
+        "Real-time stats tailored to padel, including winners/errors, ball speed, and service analysis.",
+        "Personalized feedback and player comparisons unique to padel’s gameplay dynamics."
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The core offering (real-time padel match analytics, highlights via gesture, stats, etc.) could be absorbed by larger sports tracking or video analytics platforms as a feature, rather than standing as a defensible standalone product.",
+      "severity": "medium",
+      "evidence": [
+        "Many sports analytics platforms (e.g., Hudl, Catapult) already offer video-based analytics and highlights.",
+        "Gesture-based highlight saving is novel but not hard for incumbents to replicate."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "The described technology (pose estimation, multi-camera tracking, video analytics) is increasingly commoditized and available via open-source or cloud APIs. There is no clear proprietary data advantage or unique technical moat described.",
+      "severity": "medium",
+      "evidence": [
+        "Pose estimation and player tracking are available via open-source models (e.g., OpenPose, MediaPipe).",
+        "No mention of unique datasets, exclusive partnerships, or proprietary algorithms."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "The marketing copy is heavy on AI buzzwords ('IA líder', 'análisis IA', 'modelos avanzados de estimación de pose') but lacks technical specifics or evidence of unique AI capabilities.",
+      "severity": "low",
+      "evidence": [
+        "Repeated use of 'IA líder', 'análisis IA', and 'modelos avanzados' without concrete technical details.",
+        "No mention of published research, benchmarks, or technical differentiation."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "SwingVision",
+        "similarity": "Both provide AI-powered real-time analytics for racket sports, using cameras and pose estimation to deliver player statistics and video highlights.",
+        "how_different": "Padmi focuses specifically on padel, offers gesture-based highlight capture without interrupting play, and installs dedicated cameras in clubs rather than relying solely on mobile devices."
+      },
+      {
+        "name": "Trackman",
+        "similarity": "Both use advanced camera systems and AI to track ball and player movement, generating detailed performance statistics.",
+        "how_different": "Padmi is tailored for padel and emphasizes instant highlight capture via gesture recognition, while Trackman is broader (golf, tennis) and does not offer gesture-based highlight features."
+      },
+      {
+        "name": "Hudl",
+        "similarity": "Both provide sports video analysis, player tracking, and performance feedback.",
+        "how_different": "Padmi's real-time AI analytics and gesture-based highlight capture are more automated and integrated into padel club environments, whereas Hudl is more manual and multi-sport focused."
+      },
+      {
+        "name": "Playtomic",
+        "similarity": "Both serve padel players and clubs, offering digital tools for match tracking and player improvement.",
+        "how_different": "Padmi differentiates with AI-driven real-time analytics and video highlights, while Playtomic is primarily focused on booking and community management."
+      }
+    ],
+    "differentiation": {
+      "primary": "Padmi stands out by offering real-time AI analytics and automated highlight capture for padel matches, using gesture recognition and dedicated camera installations.",
+      "technical": "Padmi uses advanced pose estimation models to generate digital skeletons of players, tracks ball and player movement in real time, and employs gesture detection (raising arms in 'V') to automatically save highlights without interrupting play.",
+      "business": "Padmi partners with padel clubs to install camera systems, integrates deeply into club infrastructure, and targets padel enthusiasts seeking performance improvement and memorable moments. The app is positioned as the 'leader' in AI analysis and streaming for padel.",
+      "positioning": "Padmi positions itself as the leading AI-powered padel analytics and streaming platform, emphasizing instant, automated highlight capture and detailed, actionable performance stats for players."
+    },
+    "secret_sauce": {
+      "core_advantage": "Automated gesture-based highlight capture combined with real-time AI analytics from dedicated camera systems in padel clubs.",
+      "defensibility": "Requires proprietary pose estimation models, robust gesture recognition algorithms, and physical camera installations in clubs—making it difficult for app-only or manual solutions to replicate the seamless, integrated experience.",
+      "evidence": [
+        "Nuestro sistema detecta el gesto y guarda automáticamente la jugada entera, desde el saque hasta el final. Sin interrumpir el partido. Sin botones.",
+        "Padmi instala dos cámaras en la pista para capturar todo el partido desde diferentes ángulos.",
+        "Gracias a modelos avanzados de estimación de pose, generamos un esqueleto digital de cada jugador, lo que nos permite analizar sus movimientos y posicionamiento con gran precisión."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Padmi's moat is based on proprietary AI models, gesture recognition, and club-level camera installations, which provide a unique, integrated experience for padel players. However, the moat is not high because similar technologies exist in other sports analytics platforms, and competitors could adapt their systems for padel with sufficient investment. The club integration and gesture-based highlight system are defensible but not unassailable.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Gracias a modelos avanzados de estimación de pose, generamos un esqueleto digital de cada jugador",
+    "Nuestro sistema detecta y sigue a cada jugador y a la bola en tiempo real",
+    "Padmi genera estadísticas automáticas como el número y tipo de golpes, la velocidad de bola según el tipo de golpe, la actividad general en pista, mapas de calor",
+    "consejos personalizados para mejorar el rendimiento tras cada partido",
+    "Gesture-based highlight capture: Users can save match highlights by performing a physical gesture (raising arms in 'V'), which is detected by the system and automatically saves the relevant video segment without interrupting gameplay."
+  ],
+  "analyzed_at": "2026-02-06 17:01:43.596161+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 10608,
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "consumer_lifestyle",
+      "vertical_label": "Consumer & Lifestyle",
+      "sub_vertical_id": null,
+      "sub_vertical_label": null,
+      "leaf_id": "consumer_lifestyle",
+      "leaf_label": "Consumer & Lifestyle"
+    },
+    "path": [
+      {
+        "id": "consumer_lifestyle",
+        "label": "Consumer & Lifestyle",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

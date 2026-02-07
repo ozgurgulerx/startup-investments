@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Activity, RefreshCcw, Sparkles, ArrowUpRight } from 'lucide-react';
-import type { NewsEdition, NewsItemCard } from '@startup-intelligence/shared';
+import type { NewsEdition } from '@startup-intelligence/shared';
 import { CommandBar, type SortMode, type TimeWindow } from './command-bar';
 import { KpiStrip } from './kpi-strip';
 import { StoryRow, PinnedStoryCard } from './story-row';
@@ -41,9 +41,11 @@ interface InteractiveRadarProps {
   initialTopics: Array<{ topic: string; count: number }>;
   /** When true, disables live polling (e.g. archive pages). */
   isArchive?: boolean;
+  /** Region partition for the edition (global|turkey). */
+  region?: 'global' | 'turkey';
 }
 
-export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: InteractiveRadarProps) {
+export function InteractiveRadar({ initialEdition, initialTopics, isArchive, region = 'global' }: InteractiveRadarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get('story') || null;
@@ -57,6 +59,9 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
   const [isPolling, setIsPolling] = useState(false);
   const editionRef = useRef<NewsEdition>(initialEdition);
   const isPollingRef = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const clearNewStoryIdsTimeoutRef = useRef<number | null>(null);
+  const [newStoryIds, setNewStoryIds] = useState<Set<string>>(() => new Set());
 
   const [sortMode, setSortMode] = useState<SortMode>('impact');
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('all');
@@ -72,7 +77,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
       return;
     }
     setPendingEdition(data);
-    setNewStoryCount(Math.max(1, countNewStories(current, data)));
+    setNewStoryCount(countNewStories(current, data));
   }, []);
 
   useEffect(() => {
@@ -82,9 +87,10 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
       isPollingRef.current = true;
       setIsPolling(true);
       try {
+        const regionParam = region === 'turkey' ? '?region=turkey' : '';
         const [editionRes, topicsRes] = await Promise.all([
-          fetch('/api/news/latest', { cache: 'no-store' }),
-          fetch('/api/news/topics', { cache: 'no-store' }),
+          fetch(`/api/news/latest${regionParam}`, { cache: 'no-store' }),
+          fetch(`/api/news/topics${regionParam}`, { cache: 'no-store' }),
         ]);
         if (editionRes.ok) {
           applyEdition(await editionRes.json());
@@ -100,7 +106,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
       }
     }, 5 * 60 * 1000);
     return () => window.clearInterval(poll);
-  }, [applyEdition, isArchive]);
+  }, [applyEdition, isArchive, region]);
 
   // URL-driven story selection
   const selectStory = useCallback((id: string | null) => {
@@ -112,6 +118,26 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
     }
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
+
+  const handleSelectStory = useCallback((id: string | null) => {
+    if (id && newStoryIds.has(id)) {
+      setNewStoryIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+    selectStory(id);
+  }, [newStoryIds, selectStory]);
+
+  useEffect(() => {
+    return () => {
+      if (clearNewStoryIdsTimeoutRef.current) {
+        window.clearTimeout(clearNewStoryIdsTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Filter + sort
   const filteredItems = useMemo(() => {
@@ -210,6 +236,66 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
   // Pinned story = first item in impact sort
   const pinnedItem = filteredItems[0];
   const feedItems = filteredItems.slice(1);
+  const orderedIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems]);
+
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      if (!target) return false;
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      return target.isContentEditable;
+    }
+
+    function scrollStoryIntoView(id: string) {
+      const selectorId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id;
+      const el = document.querySelector<HTMLElement>(`[data-story-id="${selectorId}"]`);
+      el?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const typing = isTypingTarget(e.target);
+
+      if (e.key === '/' && !typing) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (selectedId) {
+          e.preventDefault();
+          handleSelectStory(null);
+        }
+        return;
+      }
+
+      const isNext = e.key === 'j' || e.key === 'ArrowDown';
+      const isPrev = e.key === 'k' || e.key === 'ArrowUp';
+      if ((!isNext && !isPrev) || typing) return;
+
+      if (orderedIds.length === 0) return;
+      e.preventDefault();
+
+      const currentIndex = selectedId ? orderedIds.indexOf(selectedId) : -1;
+      const nextIndex = currentIndex === -1
+        ? 0
+        : isNext
+          ? Math.min(orderedIds.length - 1, currentIndex + 1)
+          : Math.max(0, currentIndex - 1);
+      const nextId = orderedIds[nextIndex];
+      if (!nextId) return;
+      handleSelectStory(nextId);
+      requestAnimationFrame(() => scrollStoryIntoView(nextId));
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleSelectStory, orderedIds, selectedId]);
 
   const statusBanner = (() => {
     if (unsubscribed === '1') {
@@ -238,48 +324,71 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
   }, [router, searchParams]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Confirmation/unsubscribe banner */}
       {statusBanner && (
-        <div className={`mx-4 mt-2 rounded-xl border px-4 py-2.5 text-sm text-foreground ${
-          statusBanner.tone === 'success'
-            ? 'border-success/35 bg-success/10'
-            : 'border-amber-400/35 bg-amber-400/10'
-        }`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>{statusBanner.text}</span>
-            <button
-              type="button"
-              onClick={dismissStatusBanner}
-              className="inline-flex items-center rounded-full border border-border/40 px-3 py-1 text-xs uppercase tracking-wider text-muted-foreground hover:bg-muted/20 hover:text-foreground"
-            >
-              Dismiss
-            </button>
+        <div className="mx-auto w-full max-w-[1680px] px-6 pt-2">
+          <div className={`rounded-xl border px-4 py-2.5 text-sm text-foreground ${
+            statusBanner.tone === 'success'
+              ? 'border-success/35 bg-success/10'
+              : 'border-warning/35 bg-warning/10'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>{statusBanner.text}</span>
+              <button
+                type="button"
+                onClick={dismissStatusBanner}
+                className="inline-flex items-center rounded-full border border-border/40 px-3 py-1 text-xs uppercase tracking-wider text-muted-foreground hover:bg-muted/20 hover:text-foreground"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Pending update banner */}
       {pendingEdition && (
-        <div className="mx-4 mt-2 mb-0 rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-2.5 text-sm text-foreground">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-accent-info" />
-              <span><strong>{newStoryCount}</strong> new {newStoryCount === 1 ? 'story' : 'stories'} ready.</span>
+        <div className="mx-auto w-full max-w-[1680px] px-6 pt-2">
+          <div className="rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-2.5 text-sm text-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-accent-info" />
+                {newStoryCount > 0 ? (
+                  <span><strong>{newStoryCount}</strong> new {newStoryCount === 1 ? 'story' : 'stories'} ready.</span>
+                ) : (
+                  <span>Edition updated.</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextEdition = pendingEdition;
+                  if (!nextEdition) return;
+
+                  const current = editionRef.current;
+                  const seen = new Set(current.items.map((item) => item.id));
+                  const incoming = nextEdition.items.map((item) => item.id).filter((id) => !seen.has(id));
+
+                  setNewStoryIds(new Set(incoming));
+                  if (clearNewStoryIdsTimeoutRef.current) {
+                    window.clearTimeout(clearNewStoryIdsTimeoutRef.current);
+                  }
+                  clearNewStoryIdsTimeoutRef.current = window.setTimeout(() => {
+                    setNewStoryIds(new Set());
+                  }, 10 * 60 * 1000);
+
+                  editionRef.current = nextEdition;
+                  setEdition(nextEdition);
+                  setPendingEdition(null);
+                  setNewStoryCount(0);
+                }}
+                className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs uppercase tracking-wider text-accent hover:bg-accent/15"
+              >
+                Refresh feed
+                <ArrowUpRight className="h-3 w-3" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                editionRef.current = pendingEdition;
-                setEdition(pendingEdition);
-                setPendingEdition(null);
-                setNewStoryCount(0);
-              }}
-              className="inline-flex items-center gap-1 rounded-full border border-accent-info/40 px-3 py-1 text-xs uppercase tracking-wider text-accent-info hover:bg-accent-info/15"
-            >
-              Refresh feed
-              <ArrowUpRight className="h-3 w-3" />
-            </button>
           </div>
         </div>
       )}
@@ -295,40 +404,45 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
         topics={topics}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        searchInputRef={searchInputRef}
       />
 
       {/* KPI Strip + status */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border/20">
-        <KpiStrip
-          totalStories={filteredItems.length}
-          crossSourceCount={crossSourceCount}
-          totalEntities={totalEntities}
-          totalClusters={edition.stats.total_clusters}
-        />
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <Activity className="h-3 w-3 text-success" />
-            Live
-          </span>
-          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
-            <RefreshCcw className={`h-3 w-3 ${isPolling ? 'animate-spin text-accent-info' : ''}`} />
-            {formatTimestamp(edition.generated_at)}
-          </span>
+      <div className="border-b border-border/20">
+        <div className="mx-auto flex items-center justify-between max-w-[1680px] px-6 py-2">
+          <KpiStrip
+            totalStories={filteredItems.length}
+            crossSourceCount={crossSourceCount}
+            totalEntities={totalEntities}
+            totalClusters={edition.stats.total_clusters}
+          />
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <Activity className="h-3 w-3 text-success" />
+              Live
+            </span>
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
+              <RefreshCcw className={`h-3 w-3 ${isPolling ? 'animate-spin text-accent-info' : ''}`} />
+              {formatTimestamp(edition.generated_at)}
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Master-detail grid */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0">
-        {/* Feed (left) */}
-        <div className="lg:col-span-8 overflow-y-auto border-r border-border/20">
+      <div className="flex-1 min-h-0">
+        <div className="mx-auto grid h-full grid-cols-1 lg:grid-cols-12 min-h-0 max-w-[1680px]">
+          {/* Feed (left) */}
+          <div className="lg:col-span-8 overflow-y-auto border-r border-border/20">
           {/* Pinned top impact */}
           {pinnedItem && (
-            <div className="p-4 border-b border-border/20">
+            <div className="px-6 py-4 border-b border-border/20">
               <PinnedStoryCard
                 item={pinnedItem}
                 isSelected={selectedId === pinnedItem.id}
-                onSelect={selectStory}
+                onSelect={(id) => handleSelectStory(id)}
                 isPinned
+                isNew={newStoryIds.has(pinnedItem.id)}
               />
             </div>
           )}
@@ -340,7 +454,8 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
                 key={item.id}
                 item={item}
                 isSelected={selectedId === item.id}
-                onSelect={selectStory}
+                onSelect={(id) => handleSelectStory(id)}
+                isNew={newStoryIds.has(item.id)}
               />
             ))
           ) : (
@@ -350,22 +465,24 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
           )}
 
           {/* Subscribe CTA */}
-          <div className="p-4 border-t border-border/20 bg-background/40">
-            <NewsSubscriptionCard region="global" />
+          <div className="px-6 py-4 border-t border-border/20 bg-background/40">
+            <NewsSubscriptionCard region={region} />
           </div>
-        </div>
+          </div>
 
-        {/* Context panel (right) */}
-        <aside className="lg:col-span-4 overflow-y-auto hidden lg:block border-l border-border/20 bg-card/30">
-          <ContextPanel
-            selectedItem={selectedItem}
-            allItems={filteredItems}
-            onClose={() => selectStory(null)}
-            trendingEntities={trendingEntities}
-            fundingSignal={fundingSignal}
-            corroboratedStories={corroboratedStories}
-          />
-        </aside>
+          {/* Context panel (right) */}
+          <aside className="lg:col-span-4 overflow-hidden hidden lg:block bg-card/30">
+            <ContextPanel
+              selectedItem={selectedItem}
+              allItems={filteredItems}
+              onClose={() => handleSelectStory(null)}
+              onSelectStory={(id) => handleSelectStory(id)}
+              trendingEntities={trendingEntities}
+              fundingSignal={fundingSignal}
+              corroboratedStories={corroboratedStories}
+            />
+          </aside>
+        </div>
       </div>
 
       {/* Mobile: Story context as sheet overlay */}
@@ -373,13 +490,14 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive }: I
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={() => selectStory(null)}
+            onClick={() => handleSelectStory(null)}
           />
-          <div className="absolute inset-x-0 bottom-0 top-16 bg-card border-t border-border/30 rounded-t-2xl overflow-y-auto animate-slide-in-right">
+          <div className="absolute inset-x-0 bottom-0 top-16 bg-card border-t border-border/30 rounded-t-2xl overflow-hidden animate-slide-in-right">
             <ContextPanel
               selectedItem={selectedItem}
               allItems={filteredItems}
-              onClose={() => selectStory(null)}
+              onClose={() => handleSelectStory(null)}
+              onSelectStory={(id) => handleSelectStory(id)}
               trendingEntities={trendingEntities}
               fundingSignal={fundingSignal}
               corroboratedStories={corroboratedStories}

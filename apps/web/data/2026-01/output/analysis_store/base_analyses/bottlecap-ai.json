@@ -1,0 +1,510 @@
+{
+  "company_name": "BottleCap AI",
+  "company_slug": "bottlecap-ai",
+  "website": "https://www.bottlecapai.com",
+  "logo_url": null,
+  "description": "BottleCap AI is a startup dedicated to producing highly efficient large language models (LLMs) using unique architectures..",
+  "funding_amount": 7500000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [
+    "CAP1",
+    "LLMs",
+    "foundational model"
+  ],
+  "build_patterns": [
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.7,
+      "evidence": [
+        "community insights on how people are reacting in real-time to specific events",
+        "summarizing opinions of the whole community we can distinguish important signals from noise faster"
+      ],
+      "description": "Pulse aggregates community reactions and opinions in real-time, suggesting a feedback loop where user data and reactions can be used to improve model relevance and accuracy over time."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.6,
+      "evidence": [
+        "Pulse began as an internal tool designed to help the BottleCap team aggregate information and AI news, supporting us in prioritising research focus",
+        "efficiency-focused foundational model CAP1"
+      ],
+      "description": "The CAP1 model and Pulse app are built on domain-specific data (AI news, community insights), indicating a vertical data moat leveraging proprietary, industry-focused datasets for model training and application."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.5,
+      "evidence": [
+        "We’re not just rehashing trendy ideas like Mixture of Experts. Our new algorithms focus on speed, and in some cases have potential to even improve generalization"
+      ],
+      "description": "Mentions of Mixture of Experts and focus on new algorithms for speed and generalization hint at exploration of micro-model meshes or ensemble approaches, though direct implementation is not confirmed."
+    }
+  ],
+  "discovered_patterns": [
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Custom Foundational LLM (CAP1) with Efficiency-First Design",
+      "confidence": 0.95,
+      "evidence": [
+        "\"Making existing LLM’s radically more efficient. Try our new app powered by our foundational model\"",
+        "\"Pulse already runs on our efficiency focused foundational model CAP1, and it’s just the first of many applications we plan to build on top of our own technology.\"",
+        "\"We focus on architecture-first, efficiency-focused foundational LLMs, designed to reason better per unit of compute and unlock applications that were previously impractical.\""
+      ],
+      "description": "BottleCap AI develops its own foundational LLM, named CAP1, with a core focus on architectural efficiency. They do not simply fine-tune existing models but instead build models from scratch, prioritizing compute efficiency and improved reasoning per unit of compute.",
+      "novelty_score": 7,
+      "why_notable": "While building custom LLMs is not unique, the explicit focus on architectural efficiency (rather than scale or parameter count) and the claim of 50% training cost reduction suggest a non-standard approach."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Novel Training Algorithm for Cost Reduction",
+      "confidence": 0.9,
+      "evidence": [
+        "\"we’ve already built a new algorithm that cuts LLM’s training costs up to 50%\"",
+        "\"Our new algorithms focus on speed, and in some cases have potential to even improve generalization, which can bring completely new capability to current AI models.\"",
+        "\"We’re not just rehashing trendy ideas like Mixture of Experts.\""
+      ],
+      "description": "They claim to have developed a new training algorithm that reduces LLM training costs by up to 50%, focusing on speed and potentially improved generalization, and explicitly distancing themselves from Mixture-of-Experts approaches.",
+      "novelty_score": 8,
+      "why_notable": "A 50% reduction in LLM training cost via a novel algorithm (not MoE) is highly notable if substantiated, as most efficiency gains in the field are incremental or rely on well-known methods."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Research-to-Product Pipeline",
+      "confidence": 0.8,
+      "evidence": [
+        "\"If something works in the lab, we ship it into an application right away.\"",
+        "\"we pair foundational research with real product development harnessing architecture-first LLMs with efficiency as a core principle.\""
+      ],
+      "description": "There is a tight integration between research and productization, with a pipeline that rapidly deploys research breakthroughs into user-facing applications (e.g., Pulse app).",
+      "novelty_score": 6,
+      "why_notable": "While not unique, the speed and emphasis on direct research-to-product translation is less common in LLM startups, which often separate research and product teams."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Vertical Integration: Custom Model + Application Stack",
+      "confidence": 0.7,
+      "evidence": [
+        "\"Pulse already runs on our efficiency focused foundational model CAP1, and it’s just the first of many applications we plan to build on top of our own technology.\""
+      ],
+      "description": "They build both the foundational model (CAP1) and the applications (e.g., Pulse: Community News) on top of it, suggesting a vertically integrated stack.",
+      "novelty_score": 5,
+      "why_notable": "Vertical integration is common at scale, but notable here due to the focus on efficiency and rapid iteration."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Custom training algorithm that reduces LLM training costs by up to 50%, not based on Mixture-of-Experts.",
+      "why_novel": "Most efficiency gains in LLMs are incremental or based on MoE; a fundamentally new algorithm with this impact is rare.",
+      "potential_impact": "Enables training of large models at significantly lower cost, potentially democratizing access to advanced LLMs."
+    }
+  ],
+  "model_details": {
+    "primary_models": [
+      "CAP1 (custom foundational LLM)"
+    ],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": false,
+      "orchestration_pattern": ""
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "developer_tools",
+  "sub_vertical": "AI infrastructure / foundational model efficiency",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 3,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Team includes world-class AI researchers and engineers",
+      "Claims of proprietary foundational LLM model (CAP1)",
+      "Public launch of an iOS app built on their own model",
+      "Focus on efficiency and novel LLM architectures",
+      "Raised significant seed funding from reputable investors"
+    ]
+  },
+  "implementation_maturity": "prototype",
+  "team_analysis": {
+    "founders": [
+      {
+        "name": "Tomas Mikolov",
+        "role": "Chief Scientific Officer",
+        "background": "World-renowned AI researcher, creator of word2vec, foundational work in neural language models and RNNLM toolkit.",
+        "previous_companies": [
+          "Facebook",
+          "Google",
+          "Microsoft"
+        ],
+        "technical_depth": "high",
+        "domain_expertise": "Natural Language Processing, Large Language Models, AI Research"
+      },
+      {
+        "name": "Jaroslav Beck",
+        "role": "Chief Executive Officer",
+        "background": "Entrepreneur, Co-founder of Beat Games (Beat Saber), led studio acquisition by Meta, post-exit leadership, investor in tech and impact projects.",
+        "previous_companies": [
+          "Beat Games",
+          "Meta"
+        ],
+        "technical_depth": "medium",
+        "domain_expertise": "Product Development, VR Gaming, Tech Entrepreneurship"
+      },
+      {
+        "name": "David Herel",
+        "role": "Senior Scientist & Head of Development",
+        "background": "AI researcher specializing in advanced language modeling and generative AI, co-founder of algorithmic trading venture with Tomas Mikolov, published in top-tier conferences.",
+        "previous_companies": [],
+        "technical_depth": "high",
+        "domain_expertise": "Language Modeling, Generative AI, Algorithmic Trading"
+      }
+    ],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [
+        "NLP Researcher",
+        "Machine Learning Engineer",
+        "Product Engineer"
+      ],
+      "team_size_indicators": "small",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "Very strong; founders have deep technical expertise in AI and product development, with direct experience in building and scaling both research and consumer-facing products.",
+    "team_strengths": [
+      "World-class AI research pedigree (word2vec, RNNLM, publications at top conferences)",
+      "Proven product development and scaling experience (Beat Saber, Meta acquisition)",
+      "Early technical breakthroughs (algorithm reducing LLM training costs by 50%)",
+      "Strong network of investors and advisors from leading AI and tech companies"
+    ],
+    "team_red_flags": [
+      "Team size appears small and still forming, which may limit execution speed and breadth",
+      "Limited public information on broader team composition and operational experience outside core founders"
+    ],
+    "team_confidence": 0.8
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "unknown",
+      "pricing_evidence": [
+        "No specific pricing page or mention of pricing structure.",
+        "No references to free trial, free tier, or paid plans.",
+        "No 'Contact sales' or enterprise pricing indicators."
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": false,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "product_led",
+      "evidence": [
+        "Launching consumer-facing iOS app 'Pulse: Community News' built on their foundational model.",
+        "Emphasis on shipping research into real applications quickly.",
+        "No mention of sales teams, partnerships, or developer APIs."
+      ],
+      "target_segment": "consumer",
+      "sales_motion": "self_serve"
+    },
+    "revenue_model": {
+      "monetization_approach": "Not explicitly stated; likely to monetize through applications built on proprietary efficient LLMs, potentially via consumer app monetization or future B2B offerings.",
+      "unit_economics_signals": [
+        "Focus on radically reducing LLM training costs (up to 50% reduction), implying potential for high margins if commercialized.",
+        "No mention of ARPU, CAC, or other economic indicators."
+      ],
+      "recurring_revenue": false
+    },
+    "distribution_advantages": [
+      "Proprietary foundational LLM architecture focused on efficiency could enable differentiated applications and lower operating costs.",
+      "Backed by prominent investors and founders from leading tech companies, which may provide network effects and credibility."
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "App store distribution (iOS app)",
+        "Content marketing (blog, announcements)",
+        "Recruitment of top talent for visibility"
+      ],
+      "customer_proof_points": [
+        "No testimonials, case studies, or customer logos mentioned."
+      ]
+    },
+    "business_model_clarity": "evolving",
+    "business_model_confidence": 0.5
+  },
+  "product_analysis": {
+    "product_stage": "beta",
+    "stage_evidence": [
+      "First product (Pulse: Community News) launched on iOS, described as 'just the first of many applications'",
+      "Reference to turning lab research into applications immediately",
+      "Recent $7.5M seed round and active hiring for core development team",
+      "New foundational model (CAP1) already powering an app, but no evidence of broad general availability or mature ecosystem"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Pulse: Community News app aggregates AI news and community insights",
+        "Runs on BottleCap's own foundational model (CAP1)",
+        "Focus on efficiency-first LLM architecture"
+      ],
+      "differentiating_features": [
+        "Architecture-first, efficiency-focused foundational LLMs",
+        "Claims to reduce LLM training costs by up to 50%",
+        "Potential for improved generalization and reasoning per unit of compute",
+        "Immediate productization of lab research"
+      ],
+      "roadmap_signals": [
+        "Plans to build many applications on top of CAP1",
+        "Ambition to increase efficiency of prominent models by 100x",
+        "Hiring for NLP Researcher, ML Engineer, Product Engineer roles"
+      ],
+      "feature_completeness": "mvp"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [],
+      "api_maturity": "none",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": [
+        "Apple App Store (iOS app)"
+      ]
+    },
+    "use_cases": {
+      "primary_use_case": "Efficient aggregation and summarization of AI news with community insights using proprietary LLM",
+      "secondary_use_cases": [
+        "Internal research prioritization",
+        "Potential future applications leveraging efficient LLMs"
+      ],
+      "customer_stories": [],
+      "industry_focus": [
+        "AI research",
+        "News aggregation",
+        "Technology"
+      ]
+    },
+    "product_risks": [
+      "Limited public documentation and feature breakdown",
+      "No evidence of API or integration capabilities",
+      "Single public-facing product in early stage",
+      "Potentially unproven claims about efficiency and generalization"
+    ],
+    "product_strengths": [
+      "World-class founding team with deep AI and product experience",
+      "Strong focus on LLM efficiency and architecture innovation",
+      "Rapid productization of research",
+      "Significant seed funding and notable investor backing"
+    ],
+    "product_confidence": 0.5
+  },
+  "unique_findings": [
+    "BottleCap AI is explicitly focused on 'architecture-first, efficiency-focused foundational LLMs' rather than scaling existing transformer architectures with more compute, which is the prevailing industry approach. Their claim is to make LLMs radically more efficient, targeting a 100x efficiency improvement and already reporting a 50% reduction in training costs with a new algorithm.",
+    "They emphasize rapid translation of research into production: 'If something works in the lab, we ship it into an application right away.' This tight research-to-product loop is rare among foundational model startups, which often operate in longer cycles.",
+    "The CAP1 foundational model powers a real product (Pulse: Community News) that aggregates news and community insights, suggesting the model is tuned for real-time, multi-source aggregation and summarization, not just generic text generation.",
+    "They claim to avoid 'rehashing trendy ideas like Mixture of Experts,' implying a novel algorithmic approach focused on speed and possibly improved generalization, though specifics are lacking.",
+    "The founding team includes Tomas Mikolov (creator of word2vec and RNNLM toolkit), suggesting deep expertise in language model architectures and efficiency, which could inform genuinely novel approaches."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How BottleCap AI Is Rethinking LLMs: Architecture-First, Not Just More GPUs",
+      "summary": "BottleCap AI is challenging the dominant paradigm of scaling language models by simply adding more compute. Instead, they focus on architecture-first design, aiming to radically improve reasoning per unit of compute. This approach could unlock new applications and efficiencies previously thought impractical.",
+      "evidence": [
+        "BottleCap AI claims their foundational LLMs are designed for efficiency and better reasoning per unit of compute.",
+        "They explicitly state: 'If you think Transformers and a lot of GPUs is all you need, then you may be surprised!'"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Cutting LLM Training Costs by 50%: BottleCap AI’s Algorithmic Breakthrough",
+      "summary": "With a new training algorithm, BottleCap AI claims to halve the cost of training large language models—a process that typically costs tens of millions. If validated, this could dramatically lower the barrier to entry for advanced AI development and democratize access to powerful models.",
+      "evidence": [
+        "They report a new algorithm that 'cuts LLM’s training costs up to 50%'.",
+        "Training cutting-edge LLMs can cost tens of millions of dollars; BottleCap’s approach could drop that by nearly half."
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why BottleCap AI Is Betting Against Mixture-of-Experts—and What They’re Building Instead",
+      "summary": "While much of the AI world is chasing Mixture-of-Experts architectures, BottleCap AI is taking a different tack. Their focus is on speed and generalization, with algorithms that may offer new capabilities beyond what’s possible with current trends. Is this the next big leap for LLMs?",
+      "evidence": [
+        "They state: 'We’re not just rehashing trendy ideas like Mixture of Experts.'",
+        "Their algorithms focus on speed and potential improvements in generalization, suggesting a contrarian technical stance."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "From Beat Saber to Efficient AI: How BottleCap’s Team Brings Deep Product and Research Chops",
+      "summary": "BottleCap AI’s leadership blends world-class research (word2vec creator Tomas Mikolov) and product execution (Beat Saber co-founder Jaroslav Beck). This fusion of deep technical and entrepreneurial expertise could be key to rapidly translating research breakthroughs into real-world applications.",
+      "evidence": [
+        "Tomas Mikolov is a renowned AI researcher, creator of word2vec and RNNLM.",
+        "Jaroslav Beck led Beat Games (Beat Saber), steering the studio through Meta’s acquisition and beyond."
+      ],
+      "uniqueness_score": 6
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "The company claims to have developed a new algorithm that cuts LLM training costs by up to 50% and aims for a 100x efficiency improvement, but provides no technical details, benchmarks, or peer-reviewed validation. The language is heavy on ambitious claims and buzzwords without concrete evidence.",
+      "severity": "medium",
+      "evidence": [
+        "Claims of 'radically more efficient' LLMs and '100x' improvements without technical specifics.",
+        "'Our new algorithm cuts LLM’s training costs up to 50%' with no supporting data or benchmarks.",
+        "'Not just rehashing trendy ideas like Mixture of Experts' but no technical description of their unique approach."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "While the company claims to have a proprietary foundational model (CAP1) and novel algorithms, there is no evidence of a unique data advantage, defensible IP, or network effects. The competitive moat appears to be medium at best, and could be eroded if larger players adopt similar efficiency techniques.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary datasets, unique data flywheels, or exclusive partnerships.",
+        "Vertical integration is claimed, but no clear technical or data-based defensibility is demonstrated.",
+        "Efficiency improvements are a common goal in the LLM space, with many well-funded competitors."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The first product, 'Pulse: Community News', appears to be an application layer on top of their model, aggregating news and community insights. This could be easily replicated by incumbents or integrated as a feature in larger platforms.",
+      "severity": "low",
+      "evidence": [
+        "'Pulse: Community News' is described as an internal tool turned product, with no clear path to a defensible platform.",
+        "No evidence that Pulse or similar applications could not be absorbed by larger LLM providers."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The company positions itself as efficiency-focused in LLMs, but this is a crowded and highly competitive space. There is limited evidence of a unique angle beyond efficiency claims.",
+      "severity": "low",
+      "evidence": [
+        "Many startups and incumbents are pursuing efficiency in LLMs.",
+        "No clear articulation of what makes their approach uniquely defensible or differentiated in the market."
+      ]
+    },
+    {
+      "pattern_type": "wrapper",
+      "description": "No evidence of being 'just a wrapper' over OpenAI/Anthropic APIs. The company claims to have its own foundational model (CAP1) and custom algorithms.",
+      "severity": "low",
+      "evidence": [
+        "Explicit mention of a proprietary foundational model and custom training algorithms."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "OpenAI",
+        "similarity": "Both develop foundational large language models (LLMs) and focus on advancing AI capabilities.",
+        "how_different": "BottleCap AI focuses on radically improving efficiency and reducing compute/training costs, while OpenAI prioritizes scaling model size and capabilities, often at high computational expense."
+      },
+      {
+        "name": "Anthropic",
+        "similarity": "Both build foundational LLMs and emphasize safety and reliability.",
+        "how_different": "BottleCap AI’s main differentiator is efficiency-first architecture and cost reduction, whereas Anthropic focuses more on alignment and safety features."
+      },
+      {
+        "name": "Google DeepMind",
+        "similarity": "Both are engaged in advanced AI research and develop large-scale language models.",
+        "how_different": "BottleCap AI claims to move faster from research to product and targets efficiency as the core principle, while DeepMind’s models are typically resource-intensive and focused on broad scientific advancement."
+      },
+      {
+        "name": "Meta AI",
+        "similarity": "Both have leadership with deep ties to Meta and are involved in open foundational model development.",
+        "how_different": "BottleCap AI emphasizes European innovation and efficiency, whereas Meta AI leverages scale and integration with Meta’s ecosystem."
+      },
+      {
+        "name": "Mistral AI",
+        "similarity": "Both are European startups focused on foundational LLMs and efficiency.",
+        "how_different": "BottleCap AI claims unique architectural approaches and faster research-to-product cycles, while Mistral focuses on open-source and scalable models."
+      }
+    ],
+    "differentiation": {
+      "primary": "Efficiency-first foundational LLMs: BottleCap AI’s core focus is on making LLMs radically more efficient, reducing training and inference costs by up to 50%, and enabling applications previously impractical due to compute constraints.",
+      "technical": "Unique architecture-first approach (not just scaling Transformers or using Mixture of Experts), proprietary algorithms that improve speed and potentially generalization, led by Tomas Mikolov (creator of word2vec and RNNLM toolkit).",
+      "business": "Rapid transition from research to shipped products (e.g., Pulse app built on their CAP1 model), European research hub positioning, and strategic backing from prominent founders in the AI and tech ecosystem.",
+      "positioning": "BottleCap AI positions itself as the leader in efficient, architecture-first LLMs, challenging the dominant 'more compute' paradigm and aiming to make Europe globally competitive in AI innovation."
+    },
+    "secret_sauce": {
+      "core_advantage": "Proprietary algorithms and architectures that cut LLM training costs by up to 50% and potentially improve generalization, developed by a world-class team (notably Tomas Mikolov).",
+      "defensibility": "Deep technical expertise (Mikolov’s foundational contributions to NLP), unique architectural innovations not reliant on prevailing trends, and rapid research-to-product execution.",
+      "evidence": [
+        "“We’ve already built a new algorithm that cuts LLM’s training costs up to 50%.”",
+        "“We’re not just rehashing trendy ideas like Mixture of Experts. Our new algorithms focus on speed, and in some cases have potential to even improve generalization.”",
+        "“If something works in the lab, we ship it into an application right away.”",
+        "“Led by Tomas Mikolov, creator of word2vec and RNNLM toolkit.”"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "BottleCap AI’s moat is based on proprietary efficiency-focused algorithms, deep technical expertise, and rapid productization. While these are strong differentiators, the AI field is highly competitive and fast-moving, and efficiency improvements can be replicated over time by well-resourced competitors. Their defensibility is enhanced by unique talent (Mikolov) and a clear focus on efficiency, but lacks the scale, data, or ecosystem lock-in of larger incumbents.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Making existing LLM’s radically more efficient.",
+    "Try our new app powered by our foundational model",
+    "develop a new generation of large language models",
+    "architecture-first, efficiency-focused foundational LLMs",
+    "Pulse already runs on our efficiency focused foundational model CAP1",
+    "David Herel ... specializing in advanced language modeling and generative AI",
+    "our new algorithm that cuts LLM’s training costs up to 50%",
+    "Architecture-first, efficiency-focused foundational LLMs designed to reason better per unit of compute",
+    "A new algorithm that cuts LLM’s training costs up to 50%, focusing on speed and potentially improving generalization"
+  ],
+  "analyzed_at": "2026-02-04 18:38:14.622500+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 13606,
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "it_enterprise_software",
+      "vertical_label": "Information Technology & Enterprise Software",
+      "sub_vertical_id": "ai_ml_platforms",
+      "sub_vertical_label": "AI/ML Platforms",
+      "leaf_id": "ai_ml_platforms",
+      "leaf_label": "AI/ML Platforms"
+    },
+    "path": [
+      {
+        "id": "it_enterprise_software",
+        "label": "Information Technology & Enterprise Software",
+        "confidence": 0.95
+      },
+      {
+        "id": "ai_ml_platforms",
+        "label": "AI/ML Platforms",
+        "confidence": 0.98
+      }
+    ]
+  }
+}

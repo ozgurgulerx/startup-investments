@@ -58,7 +58,7 @@ class DailyNewsDigestSender:
             await self.pool.close()
             self.pool = None
 
-    async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str]) -> date:
+    async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str], *, region: str) -> date:
         if edition_date:
             # asyncpg expects Python date objects for DATE parameters.
             return datetime.strptime(edition_date, "%Y-%m-%d").date()
@@ -66,10 +66,12 @@ class DailyNewsDigestSender:
             """
             SELECT edition_date
             FROM news_daily_editions
-            WHERE status = 'ready'
+            WHERE status = 'ready' AND region = $1
             ORDER BY edition_date DESC
             LIMIT 1
             """
+            ,
+            region,
         )
         if not row:
             raise RuntimeError("No ready news edition found")
@@ -78,14 +80,14 @@ class DailyNewsDigestSender:
             return value
         return datetime.strptime(str(value), "%Y-%m-%d").date()
 
-    async def _load_stories(self, conn: asyncpg.Connection, edition_date: date) -> List[DigestStory]:
+    async def _load_stories(self, conn: asyncpg.Connection, edition_date: date, *, region: str) -> List[DigestStory]:
         rows = await conn.fetch(
             """
             WITH ordered AS (
               SELECT u.cluster_id, u.ord
               FROM news_daily_editions e,
               unnest(e.top_cluster_ids) WITH ORDINALITY AS u(cluster_id, ord)
-              WHERE e.edition_date = $1::date
+              WHERE e.edition_date = $1::date AND e.region = $2
             )
             SELECT
               c.title,
@@ -100,9 +102,10 @@ class DailyNewsDigestSender:
             LEFT JOIN news_sources ns ON ns.id = nir.source_id
             GROUP BY c.id, o.ord
             ORDER BY o.ord ASC
-            LIMIT $2
+            LIMIT $3
             """,
             edition_date,
+            region,
             self.max_items,
         )
 
@@ -258,9 +261,9 @@ class DailyNewsDigestSender:
         assert self.pool is not None
 
         async with self.pool.acquire() as conn:
-            resolved_date = await self._resolve_edition_date(conn, edition_date)
+            resolved_date = await self._resolve_edition_date(conn, edition_date, region=region)
             resolved_date_str = resolved_date.isoformat()
-            stories = await self._load_stories(conn, resolved_date)
+            stories = await self._load_stories(conn, resolved_date, region=region)
             all_subscribers = await self._load_subscribers(conn, region=region)
 
             # Avoid duplicate sends when workflows are re-run for the same edition date.

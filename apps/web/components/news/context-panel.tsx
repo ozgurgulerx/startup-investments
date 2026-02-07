@@ -8,14 +8,15 @@ interface SignalRailProps {
   trendingEntities: Array<[string, number]>;
   fundingSignal: { title: string; amount: string | null; url: string } | null;
   corroboratedStories: Array<{ id: string; title: string; sources: number }>;
+  onSelectStory?: (id: string) => void;
 }
 
-function SignalRail({ trendingEntities, fundingSignal, corroboratedStories }: SignalRailProps) {
+function SignalRail({ trendingEntities, fundingSignal, corroboratedStories, onSelectStory }: SignalRailProps) {
   return (
-    <div className="p-4 space-y-5">
+    <div className="px-6 py-5 space-y-5">
       <div className="flex items-center gap-2 mb-1">
         <TrendingUp className="h-4 w-4 text-accent-info" />
-        <h3 className="text-sm font-medium tracking-tight text-foreground">Signal Rail</h3>
+        <h3 className="text-sm font-medium tracking-tight text-foreground">Live Signal Rail</h3>
       </div>
 
       {/* Trending entities */}
@@ -53,10 +54,15 @@ function SignalRail({ trendingEntities, fundingSignal, corroboratedStories }: Si
         <div className="space-y-2">
           {corroboratedStories.length > 0 ? (
             corroboratedStories.map((story) => (
-              <p key={story.id} className="text-xs text-muted-foreground">
+              <button
+                key={story.id}
+                type="button"
+                onClick={() => onSelectStory?.(story.id)}
+                className="w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
                 <span className="text-foreground">{story.title}</span>{' '}
                 <span className="opacity-70">({story.sources} sources)</span>
-              </p>
+              </button>
             ))
           ) : (
             <p className="text-xs text-muted-foreground">Waiting for multi-source confirmation.</p>
@@ -71,22 +77,59 @@ interface ContextPanelProps {
   selectedItem: NewsItemCard | null;
   allItems: NewsItemCard[];
   onClose: () => void;
+  onSelectStory?: (id: string) => void;
   trendingEntities: Array<[string, number]>;
   fundingSignal: { title: string; amount: string | null; url: string } | null;
   corroboratedStories: Array<{ id: string; title: string; sources: number }>;
+}
+
+function ContextEmptyState() {
+  return (
+    <div className="h-full px-6 py-6">
+      <p className="text-sm font-medium tracking-tight text-foreground">Select a story</p>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground max-w-sm">
+        This space is reserved for context. Pick a story on the left to open the detail view with sources, entities, and related coverage.
+      </p>
+
+      <div className="mt-5 rounded-xl border border-border/35 bg-muted/15 p-4">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3">Keyboard</p>
+        <div className="grid gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-3">
+            <span>Search</span>
+            <kbd className="rounded border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-foreground">/</kbd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Navigate</span>
+            <span className="flex items-center gap-1.5">
+              <kbd className="rounded border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-foreground">↑</kbd>
+              <kbd className="rounded border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-foreground">↓</kbd>
+              <span className="text-[10px] opacity-70">or</span>
+              <kbd className="rounded border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-foreground">j</kbd>
+              <kbd className="rounded border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-foreground">k</kbd>
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Close</span>
+            <kbd className="rounded border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-foreground">Esc</kbd>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ContextPanel({
   selectedItem,
   allItems,
   onClose,
+  onSelectStory,
   trendingEntities,
   fundingSignal,
   corroboratedStories,
 }: ContextPanelProps) {
-  if (selectedItem) {
-    // Find related stories: same topic or overlapping entities
-    const related = allItems
+  // Find related stories: same topic or overlapping entities
+  const related = selectedItem
+    ? allItems
       .filter((item) => {
         if (item.id === selectedItem.id) return false;
         const sharedTopics = item.topic_tags.some((t) =>
@@ -97,22 +140,33 @@ export function ContextPanel({
         );
         return sharedTopics || sharedEntities;
       })
-      .slice(0, 3);
-
-    return (
-      <StoryContext
-        item={selectedItem}
-        onClose={onClose}
-        relatedStories={related}
-      />
-    );
-  }
+      .slice(0, 3)
+    : [];
 
   return (
-    <SignalRail
-      trendingEntities={trendingEntities}
-      fundingSignal={fundingSignal}
-      corroboratedStories={corroboratedStories}
-    />
+    <div className="h-full flex flex-col min-h-0">
+      {/* Always-visible rail */}
+      <div className="shrink-0 border-b border-border/20 bg-card/25 backdrop-blur-sm">
+        <SignalRail
+          trendingEntities={trendingEntities}
+          fundingSignal={fundingSignal}
+          corroboratedStories={corroboratedStories}
+          onSelectStory={onSelectStory}
+        />
+      </div>
+
+      {/* Reserved detail space */}
+      <div className="flex-1 min-h-0">
+        {selectedItem ? (
+          <StoryContext
+            item={selectedItem}
+            onClose={onClose}
+            relatedStories={related}
+          />
+        ) : (
+          <ContextEmptyState />
+        )}
+      </div>
+    </div>
   );
 }

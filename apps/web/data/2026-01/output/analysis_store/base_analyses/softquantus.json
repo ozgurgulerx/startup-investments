@@ -29,7 +29,7 @@
       "name": "Agentic Architectures",
       "confidence": 0.8,
       "evidence": [
-        "SynapseX\u2122 AI for quantum development",
+        "SynapseX™ AI for quantum development",
         "HPC orchestration platform for hybrid quantum-classical workloads",
         "SynapseX uses machine learning to optimize workload placement across heterogeneous clusters.",
         "Quantum Operations Lifecycle Management Implement enterprise-grade quantum infrastructure as code to automate policy enforcement, reduce manual effort, and improve consistency across hybrid environments."
@@ -113,8 +113,8 @@
   "unique_findings": [
     "Softquantus is building a quantum infrastructure layer that is explicitly provider-agnostic, supporting at least six quantum hardware backends (IBM, Google, IonQ, Amazon Braket, etc.), with a strong emphasis on reproducibility and auditability. This is unusual in a space where most platforms are tied to specific hardware or cloud ecosystems.",
     "Every quantum circuit execution generates a cryptographically verifiable evidence bundle (SHA-256 hashes, Ed25519 signatures, full config snapshot), enabling tamper-evident, replayable, and independently auditable quantum runs. This level of cryptographic provenance is rare in quantum infrastructure.",
-    "QCOS appears to implement a policy-governed, multi-cloud orchestration layer for quantum workloads, with features like native Kubernetes integration, OpenTelemetry observability, and a Terraform provider\u2014suggesting a deep alignment with modern DevOps and enterprise IT practices, which is not yet standard in quantum computing.",
-    "The platform offers a hybrid quantum-classical orchestration system (SynapseX) that leverages AI/ML for workload placement across heterogeneous clusters, indicating a convergence of HPC, AI, and quantum orchestration\u2014an emerging but still uncommon pattern.",
+    "QCOS appears to implement a policy-governed, multi-cloud orchestration layer for quantum workloads, with features like native Kubernetes integration, OpenTelemetry observability, and a Terraform provider—suggesting a deep alignment with modern DevOps and enterprise IT practices, which is not yet standard in quantum computing.",
+    "The platform offers a hybrid quantum-classical orchestration system (SynapseX) that leverages AI/ML for workload placement across heterogeneous clusters, indicating a convergence of HPC, AI, and quantum orchestration—an emerging but still uncommon pattern.",
     "Softquantus claims extreme sample efficiency in quantum circuit execution (e.g., 17 evaluations for high-fidelity Bell state prep on IBM Heron vs. 78-94% more with standard methods), implying proprietary optimization or compilation techniques.",
     "They provide a 'QCOS Compatible' certification and OEM program, signaling a platform strategy that could create an ecosystem lock-in for both hardware and software vendors."
   ],
@@ -126,7 +126,7 @@
       "headline": "How Softquantus Built a Provider-Agnostic Quantum OS for the Multi-Cloud Era",
       "summary": "Softquantus engineered QCOS as a quantum operating system that abstracts away hardware differences, enabling reproducible quantum execution across IBM, Google, IonQ, Amazon Braket, and more. Their architecture emphasizes open standards and auditability, making quantum workloads portable and compliant for enterprise use.",
       "evidence": [
-        "QCOS is built on OpenQASM, MLIR, and open formats\u2014no proprietary lock-in",
+        "QCOS is built on OpenQASM, MLIR, and open formats—no proprietary lock-in",
         "Supports 6 quantum providers with <1h backend migration time and 99.9% execution reproducibility"
       ],
       "uniqueness_score": 8
@@ -156,7 +156,7 @@
       "headline": "Why Softquantus Bets on Auditability Over Raw Qubit Counts in Quantum Infrastructure",
       "summary": "While much of the industry chases higher qubit numbers, Softquantus prioritizes reproducibility, audit trails, and compliance as the foundation for enterprise quantum adoption. This contrarian stance positions them as a trusted partner for regulated sectors, not just research labs.",
       "evidence": [
-        "Mission statement: 'Reproducible quantum execution\u2014provider-agnostic, audit-ready'",
+        "Mission statement: 'Reproducible quantum execution—provider-agnostic, audit-ready'",
         "Emphasis on policy-governed operations, audit logs, and SOC 2 alignment"
       ],
       "uniqueness_score": 7
@@ -178,7 +178,7 @@
       "description": "The offering risks being seen as a set of features (orchestration, audit, compliance, benchmarking) that could be absorbed by cloud providers or quantum incumbents. The platform approach is not clearly differentiated beyond combining existing best practices.",
       "severity": "medium",
       "evidence": [
-        "QCOS, QuantumLock, and SynapseX are positioned as orchestration, audit, and security layers\u2014functions that could be built into cloud-native quantum offerings.",
+        "QCOS, QuantumLock, and SynapseX are positioned as orchestration, audit, and security layers—functions that could be built into cloud-native quantum offerings.",
         "No evidence of a unique, defensible platform layer.",
         "Heavy focus on compliance and integration, which are important but not unique."
       ]
@@ -243,9 +243,9 @@
       "defensibility": "Deep integration of cryptographic primitives into the execution pipeline, tamper-evident logs, and policy-driven governance, combined with open standards and compliance focus. This is hard to replicate due to the need for both technical rigor and trust from regulated industries.",
       "evidence": [
         "Every QCOS execution generates a cryptographic evidence bundle: SHA-256 content hashes, Ed25519 signatures, and a complete configuration snapshot.",
-        "Auditors can independently verify that results haven't been modified and replay the exact execution environment. No trust required\u2014just math.",
+        "Auditors can independently verify that results haven't been modified and replay the exact execution environment. No trust required—just math.",
         "99.9% Execution Reproducibility",
-        "Record-efficient Bell state preparation: Only 17 circuit evaluations to achieve 0.85 fidelity on IBM's 156-qubit Heron r2 processor \u2014 78-94% fewer evaluations than standard methods.",
+        "Record-efficient Bell state preparation: Only 17 circuit evaluations to achieve 0.85 fidelity on IBM's 156-qubit Heron r2 processor — 78-94% fewer evaluations than standard methods.",
         "SOC 2 Controls Aligned; audit-ready exports; tamper-evident execution records."
       ]
     },
@@ -257,12 +257,36 @@
   "evidence_quotes": [
     "Softquantus has been selected to join the Microsoft for Startups Investor Network, gaining access to Azure credits, advanced AI services, GPU resources",
     "Optimizing HPC Workloads with SynapseX AI Routing Deep dive into how SynapseX uses machine learning to optimize workload placement across heterogeneous clusters.",
-    "SynapseX\u2122 AI for quantum development",
+    "SynapseX™ AI for quantum development",
     "Cryptographically verifiable evidence bundles (SHA-256 hashes, Ed25519 signatures, configuration snapshots) for quantum execution reproducibility and auditability.",
     "Provider-agnostic, policy-governed quantum infrastructure as code with automated compliance and lifecycle management.",
     "Integration of quantum and classical HPC orchestration with AI-driven workload optimization."
   ],
   "analyzed_at": "2026-01-23 07:58:41.392269+00:00",
   "confidence_score": 0.7,
-  "raw_content_analyzed": 153258
+  "raw_content_analyzed": 153258,
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "it_enterprise_software",
+      "vertical_label": "Information Technology & Enterprise Software",
+      "sub_vertical_id": "cloud_infrastructure_devops",
+      "sub_vertical_label": "Cloud Infrastructure/DevOps",
+      "leaf_id": "cloud_infrastructure_devops",
+      "leaf_label": "Cloud Infrastructure/DevOps"
+    },
+    "path": [
+      {
+        "id": "it_enterprise_software",
+        "label": "Information Technology & Enterprise Software",
+        "confidence": 0.95
+      },
+      {
+        "id": "cloud_infrastructure_devops",
+        "label": "Cloud Infrastructure/DevOps",
+        "confidence": 0.8
+      }
+    ]
+  }
 }

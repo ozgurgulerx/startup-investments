@@ -29,7 +29,7 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-border/30">
         <span className="text-[10px] uppercase tracking-wider text-accent-info">Story Detail</span>
         <button
           type="button"
@@ -41,7 +41,7 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
         {/* Title */}
         <div>
           <h3 className="text-base font-medium leading-snug tracking-tight text-foreground">
@@ -159,7 +159,7 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
       </div>
 
       {/* Actions footer */}
-      <div className="border-t border-border/30 px-4 py-3 flex items-center gap-2">
+      <div className="border-t border-border/30 px-6 py-3 flex items-center gap-2">
         {item.url && (
           <Link
             href={item.url}

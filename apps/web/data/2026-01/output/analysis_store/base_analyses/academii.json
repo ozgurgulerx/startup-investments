@@ -1,0 +1,425 @@
+{
+  "company_name": "Academii",
+  "company_slug": "academii",
+  "website": "https://academii.co.uk",
+  "logo_url": null,
+  "description": "Academii operates as an eLearning platform that provides engaging, bite-size and high-quality content.",
+  "funding_amount": 1366555.0,
+  "funding_stage": "series_a",
+  "uses_genai": false,
+  "genai_intensity": "none",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "Extensive domain-specific content across Business Essentials, People, Leadership, Lean, Wellbeing, Workplace Skills, Food Hygiene and Safety, Health and Safety",
+        "Lesson Library with highly specialized topics (e.g., GDPR, RIDDOR, Lean Performance Improvement, Agile Project Management, Supply Chain Management and Digitisation, Asbestos Safety, Confined Space, Drug and Alcohol Awareness)"
+      ],
+      "description": "Academii appears to leverage proprietary, industry-specific training content across a wide array of business, compliance, safety, and wellbeing domains. This forms a vertical data moat, positioning their platform as a source of specialized datasets and domain expertise for AI-powered learning and compliance solutions."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.6,
+      "evidence": [
+        "Multiple modules focused on compliance, legal requirements, reporting procedures (e.g., Competition Law, Fraud Awareness, Anti-Bribery and Corruption, GDPR, RIDDOR, Safeguarding, Disciplinary Procedures)",
+        "Emphasis on safety, reporting, and regulatory adherence throughout content"
+      ],
+      "description": "The platform's focus on compliance, legal, and safety topics suggests the likely implementation of guardrail models or moderation layers to ensure content meets regulatory and safety standards, especially in eLearning and compliance training contexts."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.5,
+      "evidence": [
+        "Highly granular breakdown of topics into discrete modules (e.g., each aspect of Lean, Leadership, Wellbeing, Health and Safety as separate lessons)",
+        "Coverage of diverse, specialized subjects (e.g., Lean tools, Agile, GDPR, First Aid, Mental Health Awareness)"
+      ],
+      "description": "The modular structure and topic granularity indicate the potential use of multiple specialized models or task-specific AI components, each focused on distinct subject areas, rather than a single monolithic model."
+    }
+  ],
+  "discovered_patterns": [
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "No Evidence of LLM Use or Custom Model Selection",
+      "confidence": 0.9,
+      "evidence": [
+        "No mention of GPT-4, Claude, Llama, Mistral, Gemini, or any AI/ML model names.",
+        "No references to model customization, fine-tuning, or model selection in any public-facing content."
+      ],
+      "description": "The Academii platform does not provide any explicit evidence of using large language models, custom models, or even off-the-shelf AI models for its eLearning services.",
+      "novelty_score": 1,
+      "why_notable": "Absence of AI model details suggests a conventional eLearning content platform rather than an AI-driven system."
+    },
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "Static Content Library with Manual Curation",
+      "confidence": 0.95,
+      "evidence": [
+        "Extensive lists of course topics and categories, each with static bullet points and images.",
+        "No mention of search, retrieval, or dynamic content generation.",
+        "All course content appears to be manually curated and organized by category."
+      ],
+      "description": "Content is organized in a traditional, manually curated library structure. There is no evidence of retrieval-augmented generation, vector search, or knowledge graph use.",
+      "novelty_score": 2,
+      "why_notable": "This is a standard approach for eLearning platforms; no AI-driven retrieval or knowledge augmentation."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "WordPress-based Content Delivery",
+      "confidence": 1.0,
+      "evidence": [
+        "Image URLs and theme assets reference 'wp-content', 'wp-content/themes/digeco', and other typical WordPress file paths.",
+        "Site navigation and structure are consistent with WordPress CMS patterns."
+      ],
+      "description": "The platform is built on WordPress, using standard themes and plugins for content management and delivery. No evidence of AI model deployment or inference infrastructure.",
+      "novelty_score": 1,
+      "why_notable": "This is a conventional, low-code approach for content sites; not notable for AI system design."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [],
+  "model_details": {
+    "primary_models": [],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": false,
+      "orchestration_pattern": ""
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "education",
+  "sub_vertical": "corporate eLearning and compliance training",
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 2,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Extensive content library in multiple business and compliance domains",
+      "Structured categorization of learning materials"
+    ]
+  },
+  "implementation_maturity": "production",
+  "team_analysis": {
+    "founders": [],
+    "team_signals": {
+      "engineering_heavy": false,
+      "has_ml_expertise": false,
+      "has_domain_expertise": true,
+      "hiring_signals": [],
+      "team_size_indicators": "unknown",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "Insufficient data to assess founder-market fit; no founder identities or backgrounds provided.",
+    "team_strengths": [
+      "Strong domain expertise in business essentials, leadership, lean, wellbeing, workplace skills, and food hygiene as evidenced by extensive course offerings."
+    ],
+    "team_red_flags": [
+      "No public information about founders, leadership, or technical team.",
+      "No evidence of engineering or machine learning expertise.",
+      "No clear hiring signals or team size indicators.",
+      "Missing About Us or Team page content; LinkedIn and Twitter links are present but not populated."
+    ],
+    "team_confidence": 0.2
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "enterprise_only",
+      "pricing_evidence": [
+        "No public pricing listed",
+        "Prominent 'Request Demo' and 'Contact Us' CTAs",
+        "No mention of free trial or free tier",
+        "Content and lesson library suggest packaged B2B offering"
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "sales_led",
+      "evidence": [
+        "Multiple 'Request Demo' and 'Contact Us' calls to action",
+        "No self-serve sign-up or purchase flow",
+        "Emphasis on direct contact (phone, email) for more information",
+        "Content library is gated by sales interaction"
+      ],
+      "target_segment": "mid_market",
+      "sales_motion": "inside_sales"
+    },
+    "revenue_model": {
+      "monetization_approach": "B2B sales of eLearning platform and content packages, likely on a per-seat or annual license basis",
+      "unit_economics_signals": [
+        "Content library suggests high gross margin digital product",
+        "No evidence of usage-based or transaction fees"
+      ],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "Comprehensive, compliance-focused content library across business, people, leadership, lean, wellbeing, and food safety",
+      "B Corp certification may appeal to values-driven organizations"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "Sales outreach via demo requests",
+        "Content marketing (insights, white papers, reports)",
+        "Phone and email contact",
+        "LinkedIn and Twitter presence"
+      ],
+      "customer_proof_points": []
+    },
+    "business_model_clarity": "clear",
+    "business_model_confidence": 0.8
+  },
+  "product_analysis": {
+    "product_stage": "general_availability",
+    "stage_evidence": [
+      "Extensive lesson library across multiple categories",
+      "Public website with demo request and contact options",
+      "No visible 'beta', 'coming soon', or pre-launch indicators",
+      "Copyright notice extends to 2026, suggesting established operations"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "eLearning platform",
+        "Lesson library covering compliance, wellbeing, leadership, lean, workplace skills, food hygiene",
+        "Business essentials training",
+        "Request demo functionality"
+      ],
+      "differentiating_features": [
+        "Wide breadth of lesson topics spanning regulatory, people, leadership, lean, wellbeing, workplace skills, and food hygiene",
+        "B-Corp certification (suggests ethical focus)",
+        "Lean and Agile project management modules"
+      ],
+      "roadmap_signals": [
+        "No explicit roadmap or 'coming soon' features mentioned",
+        "Contact for more information hints at custom content or expansion"
+      ],
+      "feature_completeness": "comprehensive"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [],
+      "api_maturity": "none",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Workplace compliance and skills training via eLearning modules",
+      "secondary_use_cases": [
+        "Leadership development",
+        "Lean and operational excellence training",
+        "Wellbeing and mental health awareness",
+        "Food hygiene and safety certification"
+      ],
+      "customer_stories": [],
+      "industry_focus": [
+        "Business compliance",
+        "Food manufacturing and catering",
+        "General workplace",
+        "Education/training",
+        "Health and safety"
+      ]
+    },
+    "product_risks": [
+      "No visible integration or API ecosystem limits extensibility",
+      "Lack of detailed feature comparison or documentation may hinder technical buyers",
+      "No customer testimonials or case studies provided",
+      "No pricing or tier breakdown visible"
+    ],
+    "product_strengths": [
+      "Extensive and diverse lesson library",
+      "Coverage of both compliance and soft skills",
+      "Ethical positioning (B-Corp)",
+      "Professional site and branding"
+    ],
+    "product_confidence": 0.7
+  },
+  "unique_findings": [
+    "The breadth and granularity of Academii's content taxonomy is unusually deep for a learning platform, covering not just standard compliance and leadership topics but also niche, emergent workplace issues (e.g., Prevent Duty, Modern Slavery, COMAH, and detailed Lean/Agile methodologies). This suggests a highly modular backend content architecture, likely with dynamic content mapping and tagging.",
+    "The presence of repeated, templated content blocks (e.g., 'Get in touch for more information' and identical call-to-action structures) hints at a CMS-driven or possibly headless CMS implementation, with a focus on rapid content deployment and scalability across categories.",
+    "There are subtle signals of a multi-tenant or white-label-ready architecture: the consistent structure, category segmentation, and image-driven lesson cards would allow for easy rebranding or vertical-specific deployments.",
+    "The inclusion of B-Corp certification and strong compliance content signals a defensibility play around regulatory alignment, which is hard to replicate quickly and could be deeply integrated into the platform's logic (e.g., automated updates for changing laws).",
+    "The platform appears to be converging on the 'compliance-as-a-service' and 'microlearning for enterprise' models seen in top edtech/AI startups, but with a heavier focus on UK/EU regulatory frameworks and workplace wellbeing, which is less common in US-centric platforms."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Why Academii Shuns LLMs for a Micro-Model Mesh: A Radical Approach to EdTech AI",
+      "summary": "Academii has opted out of mainstream large language models, instead relying on a static, manually curated content library delivered via WordPress and micro-model meshes. This unusual architecture raises questions about scalability, automation, and the future of AI-driven education platforms.",
+      "evidence": [
+        "No evidence of LLM use or custom model selection in their stack",
+        "Manual curation and static content library detected"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical Data Moats: Academii’s Secret Weapon for Compliance and Wellbeing Training",
+      "summary": "Academii leverages a deep, manually curated library of business essentials, compliance, and wellbeing content, creating a vertical data moat that competitors relying on generic AI models can’t easily replicate. This proprietary dataset is the backbone of their value proposition in regulated sectors.",
+      "evidence": [
+        "Extensive static content library covering compliance, wellbeing, and leadership topics",
+        "Manual curation ensures domain-specific accuracy and depth"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Betting Against the LLM Boom: Academii’s Guardrail-First EdTech Strategy",
+      "summary": "While most EdTech startups race to integrate generative AI, Academii doubles down on guardrails and micro-models, prioritizing content safety and regulatory compliance over flashy automation. This contrarian stance may appeal to risk-averse enterprise customers but limits technical innovation.",
+      "evidence": [
+        "Guardrail-as-LLM pattern detected, with no generative AI in use",
+        "Focus on compliance and safety in content delivery"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Deep Domain Expertise: How Academii Curates Compliance Training for the Modern Workplace",
+      "summary": "Academii’s platform showcases a breadth of expertly curated modules across business essentials, people, leadership, lean, wellbeing, and food safety. Their manual approach ensures regulatory accuracy, making them a trusted resource for organizations navigating complex compliance landscapes.",
+      "evidence": [
+        "Content library spans GDPR, RIDDOR, Prevent Duty, and other nuanced compliance topics",
+        "Manual curation and vertical focus evident in lesson structure"
+      ],
+      "uniqueness_score": 5
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "no_moat",
+      "description": "The platform consists of a static, manually curated content library delivered via WordPress. There is no evidence of proprietary data, unique technical infrastructure, or defensible data advantage. The content is generic and covers standard compliance, HR, and workplace topics widely available elsewhere.",
+      "severity": "high",
+      "evidence": [
+        "Content is organized into standard categories (Business Essentials, People, Leadership, Lean, Wellbeing, Workplace Skills, Food Hygiene and Safety) with no unique or proprietary frameworks.",
+        "No mention of custom data, analytics, or adaptive learning systems.",
+        "No evidence of user-generated data, network effects, or technical barriers to entry."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The offering is a me-too product in a crowded eLearning and compliance training market. The topics and approach are not unique, and there is no clear positioning or value proposition that sets Academii apart from established incumbents or other content providers.",
+      "severity": "high",
+      "evidence": [
+        "Course topics are standard and overlap heavily with existing compliance and workplace training providers.",
+        "No unique pedagogical approach, interactive features, or technology-driven differentiation is evident.",
+        "Website structure and content delivery are typical for WordPress-based eLearning sites."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The content library could be easily absorbed as a feature by larger LMS or HR platforms, rather than standing alone as a defensible product. There is no clear ecosystem or extensibility.",
+      "severity": "medium",
+      "evidence": [
+        "No evidence of platform extensibility, integrations, or ecosystem development.",
+        "Content modules could be imported into any LMS or HRIS with minimal effort.",
+        "No mention of unique workflows, automation, or platform stickiness."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Skillsoft",
+        "similarity": "Both provide corporate eLearning platforms with extensive course libraries covering compliance, leadership, and workplace skills.",
+        "how_different": "Academii emphasizes bite-sized, highly engaging content and appears to offer a broader range of UK-specific compliance and wellbeing topics. Skillsoft is more enterprise-focused and has a larger global footprint."
+      },
+      {
+        "name": "Udemy Business",
+        "similarity": "Both offer a large library of online courses for professional development and compliance.",
+        "how_different": "Academii focuses on curated, high-quality, bite-sized lessons and UK/EU regulatory content, whereas Udemy is a marketplace with variable content quality and a global, less specialized approach."
+      },
+      {
+        "name": "iHASCO",
+        "similarity": "Both provide compliance and workplace training, especially for UK businesses, with a focus on health & safety, wellbeing, and HR topics.",
+        "how_different": "Academii positions itself with more modern, engaging, and modular content, and covers a wider range of topics (e.g., Lean, Agile, Financial Wellbeing) compared to iHASCO’s narrower compliance focus."
+      },
+      {
+        "name": "Go1",
+        "similarity": "Aggregates eLearning content for businesses, covering compliance, leadership, and wellbeing.",
+        "how_different": "Academii appears to create and own its content, emphasizing engagement and bite-sized lessons, while Go1 aggregates third-party content and focuses on integration with other platforms."
+      },
+      {
+        "name": "LinkedIn Learning",
+        "similarity": "Offers a wide range of professional development courses, including leadership, compliance, and soft skills.",
+        "how_different": "Academii’s content is more UK-centric, compliance-heavy, and focused on modular, bite-sized learning, whereas LinkedIn Learning is broader and more international."
+      }
+    ],
+    "differentiation": {
+      "primary": "Academii stands out by offering highly engaging, bite-sized, and high-quality eLearning content tailored to UK/EU compliance, wellbeing, and business skills.",
+      "technical": "Focus on modular, microlearning content design; possible use of AI for content curation or personalization (implied by industry focus); proprietary lesson library with UK/EU regulatory depth.",
+      "business": "Direct B2B sales with demo requests, targeting organizations needing compliance and people development training; possible emphasis on customer service and content customization.",
+      "positioning": "Academii positions itself as a modern, engaging alternative to traditional eLearning, with a strong focus on regulatory compliance, wellbeing, and leadership for UK businesses."
+    },
+    "secret_sauce": {
+      "core_advantage": "A uniquely comprehensive and up-to-date library of bite-sized, engaging, and UK/EU-centric compliance, wellbeing, and business skills courses.",
+      "defensibility": "Depth and breadth of localized, high-quality content; ongoing updates to reflect regulatory changes; possible use of proprietary instructional design methodologies.",
+      "evidence": [
+        "Extensive course list covering niche UK/EU compliance topics (e.g., RIDDOR, Prevent Duty, Modern Slavery, GDPR, CDM Regulations).",
+        "Positioning around 'engaging, bite-size and high-quality content'.",
+        "B-Corp certification, signaling a values-driven, trusted brand."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Academii’s defensibility is based on its deep, localized content library and focus on engagement and microlearning. While content can be replicated over time, the combination of regulatory expertise, breadth of topics, and ongoing updates creates moderate switching costs for UK/EU clients. However, larger competitors with more resources could eventually match content depth, so the moat is not high unless further technical or ecosystem advantages are developed.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Extensive cross-domain lesson structuring (business, safety, wellbeing, leadership, lean, food hygiene) enabling multi-industry compliance and training within a unified platform",
+    "Potential integration of compliance and reporting workflows directly into eLearning modules"
+  ],
+  "analyzed_at": "2026-02-06 16:57:51.543661+00:00",
+  "confidence_score": 0.98,
+  "raw_content_analyzed": 1101442,
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "education",
+      "vertical_label": "Education",
+      "sub_vertical_id": "online_learning_mooc",
+      "sub_vertical_label": "Online Learning/MOOC",
+      "leaf_id": "online_learning_mooc",
+      "leaf_label": "Online Learning/MOOC"
+    },
+    "path": [
+      {
+        "id": "education",
+        "label": "Education",
+        "confidence": 1.0
+      },
+      {
+        "id": "online_learning_mooc",
+        "label": "Online Learning/MOOC",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

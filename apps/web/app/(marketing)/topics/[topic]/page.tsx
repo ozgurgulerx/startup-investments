@@ -36,7 +36,7 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
       <main className="mx-auto max-w-6xl px-6 pb-16 pt-12">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="label-xs text-accent">Topic Lens</p>
+            <p className="label-xs text-accent-info">Topic Lens</p>
             <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">{topic || 'Startup'} News</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Ranked stories for the selected topic from the latest generated edition.
