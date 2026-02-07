@@ -444,8 +444,48 @@ def ingest_news(
     console.print(f"[bold]Items fetched:[/bold] {result.get('items_fetched', 0)}")
     console.print(f"[bold]Items kept:[/bold] {result.get('items_kept', 0)}")
     console.print(f"[bold]Clusters built:[/bold] {result.get('clusters_built', 0)}")
+    llm_metrics = result.get("llm_metrics") or ((result.get("stats") or {}).get("llm"))
+    if isinstance(llm_metrics, dict):
+        console.print(
+            "[bold]LLM:[/bold] "
+            f"attempted={llm_metrics.get('attempted', 0)} "
+            f"succeeded={llm_metrics.get('succeeded', 0)} "
+            f"failed={llm_metrics.get('failed', 0)} "
+            f"timeouts={llm_metrics.get('timeouts', 0)} "
+            f"p50={llm_metrics.get('latency_ms_p50', 0)}ms "
+            f"p95={llm_metrics.get('latency_ms_p95', 0)}ms"
+        )
     if result.get("errors"):
         console.print(f"[yellow]Warnings:[/yellow] {len(result['errors'])}")
+
+
+@app.command("send-news-digest")
+def send_news_digest(
+    edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD (defaults to latest ready edition)"),
+):
+    """Send daily startup-news digest to active subscribers."""
+    from src.automation.news_digest import run_news_digest_sender
+
+    try:
+        result = asyncio.run(
+            run_news_digest_sender(
+                edition_date=edition_date,
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]News digest send failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Daily News Digest Send Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
+    console.print(f"[bold]Stories:[/bold] {result.get('stories', 0)}")
+    console.print(f"[bold]Subscribers:[/bold] {result.get('subscribers', 0)}")
+    console.print(f"[bold green]Sent:[/bold green] {result.get('sent', 0)}")
+    console.print(f"[bold yellow]Skipped:[/bold yellow] {result.get('skipped', 0)}")
+    console.print(f"[bold red]Failed:[/bold red] {result.get('failed', 0)}")
 
 
 @app.command()

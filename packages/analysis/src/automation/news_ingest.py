@@ -14,6 +14,7 @@ import json
 import math
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -189,6 +190,19 @@ class StoryCluster:
     members: List[NormalizedNewsItem]
 
 
+@dataclass
+class LLMEnrichmentResult:
+    llm_summary: Optional[str]
+    builder_takeaway: Optional[str]
+    llm_model: Optional[str]
+    llm_signal_score: Optional[float]
+    llm_confidence_score: Optional[float]
+    llm_topic_tags: Optional[List[str]]
+    llm_story_type: Optional[str]
+    timed_out: bool = False
+    error_code: Optional[str] = None
+
+
 def canonicalize_url(url: str) -> str:
     if not url:
         return ""
@@ -332,6 +346,29 @@ def normalize_llm_topic_tags(value: Any, fallback: Sequence[str]) -> List[str]:
         if tag not in deduped:
             deduped.append(tag)
     return deduped or ["startup"]
+
+
+def _is_timeout_exception(exc: Exception) -> bool:
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException)):
+        return True
+    text = str(exc).lower()
+    return "timeout" in text or "timed out" in text
+
+
+def _percentile(values: Sequence[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(float(v) for v in values)
+    if len(ordered) == 1:
+        return ordered[0]
+    pct = max(0.0, min(100.0, float(percentile)))
+    pos = (len(ordered) - 1) * (pct / 100.0)
+    lower = int(math.floor(pos))
+    upper = int(math.ceil(pos))
+    if lower == upper:
+        return ordered[lower]
+    weight = pos - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
 
 
 def compute_cluster_scores(
@@ -481,6 +518,19 @@ class DailyNewsIngestor:
         self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
         self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "12")))
         self.llm_concurrency = max(1, min(16, int(os.getenv("NEWS_LLM_CONCURRENCY", "4"))))
+        self._llm_metrics: Dict[str, Any] = {
+            "enabled": bool(self.llm_enrichment_enabled),
+            "model": self.llm_model,
+            "max_clusters": int(self.llm_max_clusters),
+            "concurrency": int(self.llm_concurrency),
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "timeouts": 0,
+            "latency_ms_p50": 0.0,
+            "latency_ms_p95": 0.0,
+            "latency_ms_avg": 0.0,
+        }
         self.azure_client: Optional[Any] = None
         if (
             AsyncAzureOpenAI is not None
@@ -1302,11 +1352,9 @@ class DailyNewsIngestor:
         clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
         return clusters
 
-    async def _llm_enrich_cluster(
-        self, cluster: StoryCluster
-    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[float], Optional[float], Optional[List[str]], Optional[str]]:
+    async def _llm_enrich_cluster(self, cluster: StoryCluster) -> LLMEnrichmentResult:
         if not self.openai_api_key and not self.azure_client:
-            return None, None, None, None, None, None, None
+            return LLMEnrichmentResult(None, None, None, None, None, None, None, error_code="no_provider")
 
         prompt = (
             "You are ranking startup news for builders. "
@@ -1330,16 +1378,14 @@ class DailyNewsIngestor:
         }
         debug_llm = os.getenv("NEWS_LLM_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
 
-        def parse_llm_payload(
-            parsed: Dict[str, Any], model_label: Optional[str]
-        ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[float], Optional[float], Optional[List[str]], Optional[str]]:
+        def parse_llm_payload(parsed: Dict[str, Any], model_label: Optional[str]) -> LLMEnrichmentResult:
             llm_summary = _shorten_text(str(parsed.get("summary") or ""), 180) or None
             builder_takeaway = _shorten_text(str(parsed.get("builder_takeaway") or ""), 150) or None
             signal_score = clamp01(parsed.get("signal_score"), default=None)
             confidence_score = clamp01(parsed.get("confidence_score"), default=None)
             llm_topic_tags = normalize_llm_topic_tags(parsed.get("topic_tags"), cluster.topic_tags)
             llm_story_type = normalize_llm_story_type(parsed.get("story_type"), cluster.story_type)
-            return (
+            return LLMEnrichmentResult(
                 llm_summary,
                 builder_takeaway,
                 model_label,
@@ -1349,6 +1395,7 @@ class DailyNewsIngestor:
                 llm_story_type,
             )
 
+        last_error_code: Optional[str] = None
         if self.azure_client is not None:
             for with_response_format in (True, False):
                 azure_payload: Dict[str, Any] = {
@@ -1372,6 +1419,7 @@ class DailyNewsIngestor:
                     if debug_llm:
                         mode = "json_object" if with_response_format else "no_response_format"
                         print(f"[news-ingest] Azure LLM enrichment failed ({mode}): {exc}")
+                    last_error_code = "azure_timeout" if _is_timeout_exception(exc) else "azure_error"
 
         if self.openai_api_key:
             try:
@@ -1397,7 +1445,17 @@ class DailyNewsIngestor:
                     if response.status_code >= 400:
                         if debug_llm:
                             print(f"[news-ingest] OpenAI LLM enrichment failed ({response.status_code}): {response.text[:200]}")
-                        return None, None, None, None, None, None, None
+                        return LLMEnrichmentResult(
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            timed_out=False,
+                            error_code=f"openai_http_{response.status_code}",
+                        )
                     payload = response.json() or {}
                     content = (
                         ((payload.get("choices") or [{}])[0].get("message") or {}).get("content")
@@ -1408,11 +1466,44 @@ class DailyNewsIngestor:
             except Exception as exc:
                 if debug_llm:
                     print(f"[news-ingest] OpenAI LLM enrichment exception: {exc}")
-                return None, None, None, None, None, None, None
+                is_timeout = _is_timeout_exception(exc)
+                return LLMEnrichmentResult(
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    timed_out=is_timeout,
+                    error_code="openai_timeout" if is_timeout else "openai_error",
+                )
 
-        return None, None, None, None, None, None, None
+        return LLMEnrichmentResult(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            error_code=last_error_code or "llm_unavailable",
+        )
 
     async def _enrich_clusters_with_llm(self, clusters: Sequence[StoryCluster]) -> None:
+        self._llm_metrics = {
+            "enabled": bool(self.llm_enrichment_enabled),
+            "model": self.llm_model,
+            "max_clusters": int(self.llm_max_clusters),
+            "concurrency": int(self.llm_concurrency),
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "timeouts": 0,
+            "latency_ms_p50": 0.0,
+            "latency_ms_p95": 0.0,
+            "latency_ms_avg": 0.0,
+        }
         if not clusters:
             return
         if not self.llm_enrichment_enabled or self.llm_max_clusters <= 0:
@@ -1423,43 +1514,35 @@ class DailyNewsIngestor:
         top_n = min(len(clusters), self.llm_max_clusters)
         top_clusters = list(clusters)[:top_n]
         semaphore = asyncio.Semaphore(self.llm_concurrency)
+        self._llm_metrics["attempted"] = int(top_n)
 
         async def enrich_one(
             cluster: StoryCluster,
-        ) -> Tuple[StoryCluster, Optional[str], Optional[str], Optional[str], Optional[float], Optional[float], Optional[List[str]], Optional[str]]:
+        ) -> Tuple[StoryCluster, LLMEnrichmentResult, float]:
             async with semaphore:
-                (
-                    llm_summary,
-                    builder_takeaway,
-                    llm_model,
-                    llm_signal_score,
-                    llm_confidence_score,
-                    llm_topic_tags,
-                    llm_story_type,
-                ) = await self._llm_enrich_cluster(cluster)
-                return (
-                    cluster,
-                    llm_summary,
-                    builder_takeaway,
-                    llm_model,
-                    llm_signal_score,
-                    llm_confidence_score,
-                    llm_topic_tags,
-                    llm_story_type,
-                )
+                started = time.perf_counter()
+                llm_result = await self._llm_enrich_cluster(cluster)
+                latency_ms = (time.perf_counter() - started) * 1000.0
+                return (cluster, llm_result, latency_ms)
 
         results = await asyncio.gather(*(enrich_one(cluster) for cluster in top_clusters))
+        latencies_ms = [latency for _, _, latency in results]
+        succeeded = 0
+        timeout_count = 0
 
-        for (
-            cluster,
-            llm_summary,
-            builder_takeaway,
-            llm_model,
-            llm_signal_score,
-            llm_confidence_score,
-            llm_topic_tags,
-            llm_story_type,
-        ) in results:
+        for (cluster, llm_result, _) in results:
+            llm_summary = llm_result.llm_summary
+            builder_takeaway = llm_result.builder_takeaway
+            llm_model = llm_result.llm_model
+            llm_signal_score = llm_result.llm_signal_score
+            llm_confidence_score = llm_result.llm_confidence_score
+            llm_topic_tags = llm_result.llm_topic_tags
+            llm_story_type = llm_result.llm_story_type
+
+            if llm_model:
+                succeeded += 1
+            if llm_result.timed_out:
+                timeout_count += 1
 
             if llm_model:
                 cluster.llm_model = llm_model
@@ -1481,6 +1564,16 @@ class DailyNewsIngestor:
                 cluster.trust_score = max(0.0, min(1.0, cluster.trust_score * 0.8 + llm_confidence_score * 0.2))
             if cluster.llm_model and "llm-enriched" not in cluster.rank_reason:
                 cluster.rank_reason = f"{cluster.rank_reason}, llm-enriched"
+
+        attempted = int(self._llm_metrics.get("attempted") or 0)
+        failed = max(0, attempted - succeeded)
+        self._llm_metrics["succeeded"] = int(succeeded)
+        self._llm_metrics["failed"] = int(failed)
+        self._llm_metrics["timeouts"] = int(timeout_count)
+        if latencies_ms:
+            self._llm_metrics["latency_ms_p50"] = round(_percentile(latencies_ms, 50), 2)
+            self._llm_metrics["latency_ms_p95"] = round(_percentile(latencies_ms, 95), 2)
+            self._llm_metrics["latency_ms_avg"] = round(sum(latencies_ms) / len(latencies_ms), 2)
 
         if isinstance(clusters, list):
             clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
@@ -1683,6 +1776,7 @@ class DailyNewsIngestor:
                     clusters=clusters,
                     cluster_ids=cluster_ids,
                 )
+                stats["llm"] = dict(self._llm_metrics)
 
                 result = {
                     "run_id": run_id,
@@ -1693,6 +1787,7 @@ class DailyNewsIngestor:
                     "items_kept": items_kept,
                     "clusters_built": len(clusters),
                     "top_clusters": int(stats.get("top_story_count") or 0),
+                    "llm_metrics": dict(self._llm_metrics),
                     "errors": errors,
                     "stats": stats,
                 }
@@ -1733,7 +1828,7 @@ class DailyNewsIngestor:
                     """,
                     str(run_id),
                     json.dumps(errors),
-                    json.dumps({"edition_date": e_date.isoformat()}),
+                    json.dumps({"edition_date": e_date.isoformat(), "llm": dict(self._llm_metrics)}),
                 )
                 raise
 
