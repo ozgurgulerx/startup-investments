@@ -480,6 +480,7 @@ class DailyNewsIngestor:
         self.llm_enrichment_enabled = os.getenv("NEWS_LLM_ENRICHMENT", "false").lower() in {"1", "true", "yes", "on"}
         self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
         self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "12")))
+        self.llm_concurrency = max(1, min(16, int(os.getenv("NEWS_LLM_CONCURRENCY", "4"))))
         self.azure_client: Optional[Any] = None
         if (
             AsyncAzureOpenAI is not None
@@ -1420,16 +1421,45 @@ class DailyNewsIngestor:
             return
 
         top_n = min(len(clusters), self.llm_max_clusters)
-        for cluster in list(clusters)[:top_n]:
-            (
-                llm_summary,
-                builder_takeaway,
-                llm_model,
-                llm_signal_score,
-                llm_confidence_score,
-                llm_topic_tags,
-                llm_story_type,
-            ) = await self._llm_enrich_cluster(cluster)
+        top_clusters = list(clusters)[:top_n]
+        semaphore = asyncio.Semaphore(self.llm_concurrency)
+
+        async def enrich_one(
+            cluster: StoryCluster,
+        ) -> Tuple[StoryCluster, Optional[str], Optional[str], Optional[str], Optional[float], Optional[float], Optional[List[str]], Optional[str]]:
+            async with semaphore:
+                (
+                    llm_summary,
+                    builder_takeaway,
+                    llm_model,
+                    llm_signal_score,
+                    llm_confidence_score,
+                    llm_topic_tags,
+                    llm_story_type,
+                ) = await self._llm_enrich_cluster(cluster)
+                return (
+                    cluster,
+                    llm_summary,
+                    builder_takeaway,
+                    llm_model,
+                    llm_signal_score,
+                    llm_confidence_score,
+                    llm_topic_tags,
+                    llm_story_type,
+                )
+
+        results = await asyncio.gather(*(enrich_one(cluster) for cluster in top_clusters))
+
+        for (
+            cluster,
+            llm_summary,
+            builder_takeaway,
+            llm_model,
+            llm_signal_score,
+            llm_confidence_score,
+            llm_topic_tags,
+            llm_story_type,
+        ) in results:
 
             if llm_model:
                 cluster.llm_model = llm_model

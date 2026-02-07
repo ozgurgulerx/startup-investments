@@ -93,6 +93,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           NEWS_LLM_ENRICHMENT: "true"
           NEWS_LLM_MAX_CLUSTERS: "24"
+          NEWS_LLM_CONCURRENCY: "4"
           NEWS_LLM_MODEL: "gpt-4o-mini"
         run: |
           LOOKBACK="${{ github.event.inputs.lookback_hours || '48' }}"
