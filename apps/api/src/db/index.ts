@@ -29,7 +29,7 @@ const pool = new Pool({
 });
 
 // Handle pool errors (connection drops, etc.)
-pool.on('error', (err: Error, client: PoolClient) => {
+pool.on('error', (err: Error, _client: PoolClient) => {
   console.error('Unexpected database pool error:', err.message);
   // Don't exit - pool will remove the bad client automatically
 });
@@ -67,6 +67,9 @@ export async function closePool(): Promise<void> {
   await pool.end();
   console.log('Database pool closed');
 }
+
+// Export pool for raw SQL operations (e.g., bulk upserts)
+export { pool };
 
 // For health checks - get pool statistics
 export function getPoolStats() {
