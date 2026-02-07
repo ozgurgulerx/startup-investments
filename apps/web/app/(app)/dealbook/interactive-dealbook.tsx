@@ -234,14 +234,18 @@ export function InteractiveDealbook({
           )}
         </div>
         <h1 className="briefing-headline">
-          {isFiltered
-            ? `${filteredTotals.count} of ${stats.deal_summary.total_deals} deals match your filters`
-            : `${stats.deal_summary.total_deals} deals tracked this period`}
+          {selectedMonth === 'all'
+            ? (isFiltered
+              ? `${filteredTotals.count} deals match your filters (all-time)`
+              : `${filteredTotals.count} deals in the all-time archive`)
+            : (isFiltered
+              ? `${filteredTotals.count} of ${stats.deal_summary.total_deals} deals match your filters`
+              : `${stats.deal_summary.total_deals} deals tracked this period`)}
         </h1>
       </header>
 
       {/* Stats Strip with month-over-month delta */}
-      {selectedMonth && availablePeriods.length > 0 && (
+      {selectedMonth && selectedMonth !== 'all' && availablePeriods.length > 0 && (
         <StatsStrip
           stats={stats}
           selectedMonth={selectedMonth}
