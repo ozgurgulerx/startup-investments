@@ -5,6 +5,7 @@ import { query } from '@/lib/db';
 import { InteractiveDealbook } from './interactive-dealbook';
 import { Pagination, PaginationInfo } from '@/components/ui';
 import type { SavedFilter } from '@/components/features';
+import { redirect } from 'next/navigation';
 
 const FALLBACK_PERIOD = '2026-01';
 const DEFAULT_LIMIT = 25;
@@ -35,11 +36,36 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   const availablePeriods = await getAvailablePeriods();
   const latestPeriod = availablePeriods[0]?.period || FALLBACK_PERIOD;
 
+  // If the user applies filters without explicitly choosing a month,
+  // default the scope to all-time (otherwise the latest month can look "broken" with tiny counts).
+  const hasAnyFilterWithoutMonth =
+    !params.month &&
+    !!(
+      params.stage ||
+      params.pattern ||
+      params.continent ||
+      params.minFunding ||
+      params.maxFunding ||
+      params.usesGenai ||
+      params.search
+    );
+  if (hasAnyFilterWithoutMonth) {
+    const nextParams = new URLSearchParams();
+    nextParams.set('month', 'all');
+    if (params.page) nextParams.set('page', params.page);
+    if (params.sort) nextParams.set('sort', params.sort);
+    if (params.stage) nextParams.set('stage', params.stage);
+    if (params.pattern) nextParams.set('pattern', params.pattern);
+    if (params.continent) nextParams.set('continent', params.continent);
+    if (params.minFunding) nextParams.set('minFunding', params.minFunding);
+    if (params.maxFunding) nextParams.set('maxFunding', params.maxFunding);
+    if (params.usesGenai) nextParams.set('usesGenai', params.usesGenai);
+    if (params.search) nextParams.set('search', params.search);
+    redirect(`/dealbook?${nextParams.toString()}`);
+  }
+
   // Support 'all' for all-time view, or specific month, or default to latest
   const selectedMonth = params.month === 'all' ? 'all' : (params.month || latestPeriod);
-
-  // For data fetching, use the selected month (or latest if 'all' - handled in data layer)
-  const fetchPeriod = selectedMonth === 'all' ? latestPeriod : selectedMonth;
 
   // Parse URL parameters
   const page = parseInt(params.page || '1', 10);
@@ -66,13 +92,13 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   };
 
   const [paginatedResult, filterOptions, stats, session] = await Promise.all([
-    getStartupsPaginated(fetchPeriod, {
+    getStartupsPaginated(selectedMonth, {
       page,
       limit: DEFAULT_LIMIT,
       ...filters,
     }),
-    getFilterOptions(fetchPeriod),
-    getMonthlyStats(fetchPeriod),
+    getFilterOptions(selectedMonth),
+    getMonthlyStats(selectedMonth),
     auth(),
   ]);
 
