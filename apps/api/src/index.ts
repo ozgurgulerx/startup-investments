@@ -57,11 +57,22 @@ app.get('/healthz', (_req, res) => {
 });
 
 // Readiness probe - checks pool stats in-memory only, for K8s readiness checks
-app.get('/readyz', (_req, res) => {
+// Pool is lazy (creates connections on demand), so totalCount=0 is OK at startup.
+app.get('/readyz', async (_req, res) => {
   const poolStats = getPoolStats();
-  const dbReady = poolStats.totalCount > 0 && poolStats.waitingCount < poolStats.totalCount;
-  res.status(dbReady ? 200 : 503).json({
-    status: dbReady ? 'ready' : 'not_ready',
+  // If pool has connections, check they're not all exhausted
+  if (poolStats.totalCount > 0) {
+    const dbReady = poolStats.waitingCount < poolStats.totalCount;
+    return res.status(dbReady ? 200 : 503).json({
+      status: dbReady ? 'ready' : 'not_ready',
+      timestamp: new Date().toISOString(),
+      pool: poolStats,
+    });
+  }
+  // Pool has no connections yet (lazy init) — verify DB is reachable
+  const dbOk = await testConnection(1, 0);
+  res.status(dbOk ? 200 : 503).json({
+    status: dbOk ? 'ready' : 'not_ready',
     timestamp: new Date().toISOString(),
     pool: poolStats,
   });
@@ -144,6 +155,7 @@ const limiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
 });
 
 // Apply rate limiting to API routes
@@ -426,7 +438,6 @@ app.get('/api/startups/:slug/logo', async (req, res) => {
   try {
     const slugExpr = computedSlugExpr();
     const [startup] = await db.select({
-      logoUrl: sql<string>`logo_url`,
       logoData: startups.logoData,
       logoContentType: startups.logoContentType,
     })
@@ -435,18 +446,7 @@ app.get('/api/startups/:slug/logo', async (req, res) => {
       .orderBy(desc(startups.period), desc(startups.updatedAt), desc(startups.createdAt))
       .limit(1);
 
-    if (!startup) {
-      return res.status(404).json({ error: 'Logo not found' });
-    }
-
-    // Prefer URL redirect (fast path — no binary transfer from DB)
-    if (startup.logoUrl) {
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      return res.redirect(301, startup.logoUrl);
-    }
-
-    // Fall back to binary data stored in database
-    if (!startup.logoData) {
+    if (!startup || !startup.logoData) {
       return res.status(404).json({ error: 'Logo not found' });
     }
 
