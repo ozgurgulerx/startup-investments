@@ -149,11 +149,11 @@
   "unique_findings": [
     "Fintool operates a multi-provider, multi-model LLM infrastructure with real-time observability and performance bottleneck detection. This is more advanced than the typical single-provider LLM setups and suggests a sophisticated orchestration layer for routing, monitoring, and fallback across models (see Datadog case study reference).",
     "They have moved LLM inference to GroqCloud, leveraging custom LPUs (Language Processing Units) for 7.41x speedup and 89% cost reduction. This is a rare, hardware-level optimization in financial AI, indicating deep integration with emerging AI chip ecosystems.",
-    "Fintool claims zero data retention and zero training/fine-tuning on user data, with immediate deletion after processing\u2014even when using OpenAI. This is stricter than most enterprise AI SaaS, which often retain logs for troubleshooting or product improvement.",
+    "Fintool claims zero data retention and zero training/fine-tuning on user data, with immediate deletion after processing—even when using OpenAI. This is stricter than most enterprise AI SaaS, which often retain logs for troubleshooting or product improvement.",
     "Their permissioning system is unusually granular: real-time permission sync, group-based controls, native IDP integration (Okta, Azure AD, Google Workspace), and access inheritance from source systems. This goes beyond standard RBAC and suggests a complex, dynamic permissions engine.",
     "The ingestion pipeline supports not just public data (SEC filings, transcripts, etc.) but also proprietary internal documents (investment memos, pitch decks, data rooms) with fine-grained content and search term controls. This dual-layered ingestion and indexing is non-trivial, especially with audit trails and SIEM integration.",
     "Their financial LLM benchmarks claim 98% accuracy on SEC filings, far exceeding GPT-4o and Perplexity. While marketing-heavy, if true, this implies significant domain-specific prompt engineering, retrieval-augmented generation, or custom model tuning.",
-    "The platform offers natural language multi-factor screening, real-time opportunity alerts, and portfolio risk analysis via NL queries\u2014indicating a verticalized agentic workflow, not just a chat wrapper.",
+    "The platform offers natural language multi-factor screening, real-time opportunity alerts, and portfolio risk analysis via NL queries—indicating a verticalized agentic workflow, not just a chat wrapper.",
     "They have commercial crime and cyber liability insurance, which is rare to see disclosed at this level of detail for an AI SaaS, signaling enterprise readiness."
   ],
   "technical_depth": "high",
@@ -161,8 +161,8 @@
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "Inside Fintool\u2019s Guardrail-as-LLM: How Financial AI Gets Enterprise-Grade Security Right",
-      "summary": "Fintool\u2019s architecture integrates guardrails directly into its LLM stack, enforcing granular permissions, real-time access syncing, and audit trails at the model layer. This approach goes beyond typical API wrappers, embedding compliance and security logic into the AI agent itself\u2014critical for regulated financial workflows.",
+      "headline": "Inside Fintool’s Guardrail-as-LLM: How Financial AI Gets Enterprise-Grade Security Right",
+      "summary": "Fintool’s architecture integrates guardrails directly into its LLM stack, enforcing granular permissions, real-time access syncing, and audit trails at the model layer. This approach goes beyond typical API wrappers, embedding compliance and security logic into the AI agent itself—critical for regulated financial workflows.",
       "evidence": [
         "Granular role-based access control with real-time permission updates and native IDP integration",
         "Comprehensive audit logs and SIEM export capabilities built into the platform"
@@ -171,8 +171,8 @@
     },
     {
       "angle_type": "data",
-      "headline": "Fintool\u2019s Vertical Data Moat: Why Proprietary Financial Documents Trump Generic LLM Training",
-      "summary": "Fintool\u2019s edge comes from its proprietary pipeline aggregating SEC filings, verbatim earnings transcripts, and internal investment memos\u2014feeding a domain-specific RAG system. This vertical data moat enables more accurate, context-rich answers than generalist LLMs trained on web data.",
+      "headline": "Fintool’s Vertical Data Moat: Why Proprietary Financial Documents Trump Generic LLM Training",
+      "summary": "Fintool’s edge comes from its proprietary pipeline aggregating SEC filings, verbatim earnings transcripts, and internal investment memos—feeding a domain-specific RAG system. This vertical data moat enables more accurate, context-rich answers than generalist LLMs trained on web data.",
       "evidence": [
         "Access to millions of SEC filings, transcripts, and internal documents via secure ingestion",
         "Benchmarked at 98% accuracy on FinanceBench, outperforming GPT-5 and Perplexity"
@@ -182,7 +182,7 @@
     {
       "angle_type": "contrarian",
       "headline": "No-Training, No-Storage: Why Fintool Refuses to Let OpenAI Touch User Data",
-      "summary": "While most LLM platforms quietly use customer data for model improvement, Fintool enforces a strict no-training, zero-storage policy\u2014deleting all data after processing and never sending it for model fine-tuning. This contrarian stance appeals to compliance-driven clients but challenges the AI status quo.",
+      "summary": "While most LLM platforms quietly use customer data for model improvement, Fintool enforces a strict no-training, zero-storage policy—deleting all data after processing and never sending it for model fine-tuning. This contrarian stance appeals to compliance-driven clients but challenges the AI status quo.",
       "evidence": [
         "Explicit guarantee: 'Your data is never used by OpenAI to train or improve their AI models'",
         "Immediate deletion of all data after processing, with no storage on OpenAI servers"
@@ -306,5 +306,29 @@
   ],
   "analyzed_at": "2026-01-23 02:52:17.506348+00:00",
   "confidence_score": 1.0,
-  "raw_content_analyzed": 75443
+  "raw_content_analyzed": 75443,
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "financial_services",
+      "vertical_label": "Financial Services",
+      "sub_vertical_id": "wealthtech_investing",
+      "sub_vertical_label": "WealthTech (Investing)",
+      "leaf_id": "wealthtech_investing",
+      "leaf_label": "WealthTech (Investing)"
+    },
+    "path": [
+      {
+        "id": "financial_services",
+        "label": "Financial Services",
+        "confidence": 1.0
+      },
+      {
+        "id": "wealthtech_investing",
+        "label": "WealthTech (Investing)",
+        "confidence": 0.95
+      }
+    ]
+  }
 }
