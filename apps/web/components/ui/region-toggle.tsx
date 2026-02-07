@@ -3,6 +3,7 @@
 import { useRegion } from '@/lib/region-context';
 import { cn } from '@/lib/utils';
 import type { Region } from '@/lib/region-context';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 interface RegionToggleProps {
   className?: string;
@@ -10,12 +11,32 @@ interface RegionToggleProps {
 
 export function RegionToggle({ className }: RegionToggleProps) {
   const { region, setRegion, isLoaded } = useRegion();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const handleKeyDown = (e: React.KeyboardEvent, value: Region) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      setRegion(value);
+      handleSelect(value);
     }
+  };
+
+  const handleSelect = (value: Region) => {
+    setRegion(value);
+
+    // Force server components to re-render under the new region by updating the URL query.
+    // Preserve existing query params; just add/remove `region` deterministically.
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'global') {
+      params.delete('region');
+    } else {
+      params.set('region', value);
+    }
+
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+    router.refresh();
   };
 
   // Prevent layout shift by rendering placeholder until loaded
@@ -41,7 +62,7 @@ export function RegionToggle({ className }: RegionToggleProps) {
         role="tab"
         aria-selected={region === 'global'}
         tabIndex={0}
-        onClick={() => setRegion('global')}
+        onClick={() => handleSelect('global')}
         onKeyDown={(e) => handleKeyDown(e, 'global')}
         className={cn(
           "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-150",
@@ -56,7 +77,7 @@ export function RegionToggle({ className }: RegionToggleProps) {
         role="tab"
         aria-selected={region === 'tr'}
         tabIndex={0}
-        onClick={() => setRegion('tr')}
+        onClick={() => handleSelect('tr')}
         onKeyDown={(e) => handleKeyDown(e, 'tr')}
         className={cn(
           "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-150",
