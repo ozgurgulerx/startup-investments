@@ -562,6 +562,10 @@ app.get('/api/v1/dealbook', async (req, res) => {
       stage,
       pattern,
       continent,
+      vertical,
+      verticalId,
+      subVerticalId,
+      leafId,
       minFunding,
       maxFunding,
       usesGenai,
@@ -575,7 +579,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     // Build cache key from query params
-    const filters = { limit: limitNum, stage, pattern, continent, minFunding, maxFunding, usesGenai, sortBy, sortOrder, search };
+    const filters = { limit: limitNum, stage, pattern, continent, vertical, verticalId, subVerticalId, leafId, minFunding, maxFunding, usesGenai, sortBy, sortOrder, search };
     const filtersHash = hashObject(filters);
     const cacheKey = dealBookKey(period, pageNum, filtersHash);
 
@@ -631,6 +635,38 @@ app.get('/api/v1/dealbook', async (req, res) => {
       conditions.push(eq(startups.continent, continent));
     }
 
+    // Vertical filter (normalized exact match against analysis_data->>'vertical')
+    if (vertical) {
+      const normalizedVertical = normalizeStageKey(vertical);
+      if (normalizedVertical) {
+        conditions.push(
+          sql`regexp_replace(
+                regexp_replace(lower(coalesce(${startups.analysisData}->>'vertical', '')), '[^a-z0-9]+', '_', 'g'),
+                '^_+|_+$',
+                '',
+                'g'
+              ) = ${normalizedVertical}` as ReturnType<typeof eq>
+        );
+      }
+    }
+
+    // New: Flexible vertical taxonomy filters (exact match on IDs)
+    if (verticalId) {
+      conditions.push(
+        sql`${startups.analysisData}->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}` as ReturnType<typeof eq>
+      );
+    }
+    if (subVerticalId) {
+      conditions.push(
+        sql`${startups.analysisData}->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}` as ReturnType<typeof eq>
+      );
+    }
+    if (leafId) {
+      conditions.push(
+        sql`${startups.analysisData}->'vertical_taxonomy'->'primary'->>'leaf_id' = ${leafId}` as ReturnType<typeof eq>
+      );
+    }
+
     // Funding range filters
     if (minFunding) {
       const minVal = parseInt(minFunding);
@@ -672,6 +708,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
           ilike(startups.industry, containsPattern),
           sql`${startups.analysisData}->>'vertical' ILIKE ${containsPattern}`,
           sql`${startups.analysisData}->>'sub_vertical' ILIKE ${containsPattern}`,
+          sql`${startups.analysisData}->>'sub_sub_vertical' ILIKE ${containsPattern}`,
         ) as ReturnType<typeof eq>
       );
     }
@@ -686,6 +723,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
           + CASE WHEN ${startups.industry} ILIKE ${containsPattern} THEN 30 ELSE 0 END
           + CASE WHEN ${startups.analysisData}->>'vertical' ILIKE ${containsPattern} THEN 20 ELSE 0 END
           + CASE WHEN ${startups.analysisData}->>'sub_vertical' ILIKE ${containsPattern} THEN 15 ELSE 0 END
+          + CASE WHEN ${startups.analysisData}->>'sub_sub_vertical' ILIKE ${containsPattern} THEN 12 ELSE 0 END
           + CASE WHEN ${startups.description} ILIKE ${containsPattern} THEN 10 ELSE 0 END
         )`
       : null;
@@ -728,6 +766,8 @@ app.get('/api/v1/dealbook', async (req, res) => {
       vertical: sql<string>`${startups.analysisData}->>'vertical'`,
       marketType: sql<string>`${startups.analysisData}->>'market_type'`,
       subVertical: sql<string>`${startups.analysisData}->>'sub_vertical'`,
+      subSubVertical: sql<string>`${startups.analysisData}->>'sub_sub_vertical'`,
+      verticalTaxonomy: sql<unknown>`${startups.analysisData}->'vertical_taxonomy'`,
       buildPatterns: sql<unknown>`${startups.analysisData}->'build_patterns'`,
       confidenceScore: sql<number>`(${startups.analysisData}->>'confidence_score')::float`,
       newsletterPotential: sql<string>`${startups.analysisData}->>'newsletter_potential'`,
@@ -755,6 +795,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
       if ((row.industry as string || '').toLowerCase().includes(t)) return 'industry';
       if ((row.vertical as string || '').toLowerCase().includes(t)) return 'vertical';
       if ((row.subVertical as string || '').toLowerCase().includes(t)) return 'sub_vertical';
+      if ((row.subSubVertical as string || '').toLowerCase().includes(t)) return 'sub_sub_vertical';
       if ((row.description as string || '').toLowerCase().includes(t)) return 'description';
       return 'fuzzy'; // trigram match
     }
@@ -772,6 +813,8 @@ app.get('/api/v1/dealbook', async (req, res) => {
       vertical: row.vertical,
       market_type: row.marketType,
       sub_vertical: row.subVertical,
+      sub_sub_vertical: row.subSubVertical,
+      vertical_taxonomy: row.verticalTaxonomy as any,
       funding_amount: row.moneyRaisedUsd,
       funding_stage: row.fundingStage,
       uses_genai: row.usesGenai,
@@ -795,6 +838,10 @@ app.get('/api/v1/dealbook', async (req, res) => {
         stage: stage || null,
         pattern: pattern || null,
         continent: continent || null,
+        vertical: vertical || null,
+        verticalId: verticalId || null,
+        subVerticalId: subVerticalId || null,
+        leafId: leafId || null,
         minFunding: minFunding ? parseInt(minFunding) : null,
         maxFunding: maxFunding ? parseInt(maxFunding) : null,
         usesGenai: usesGenai || null,
@@ -822,8 +869,8 @@ app.get('/api/v1/dealbook', async (req, res) => {
 // Get filter options for dealbook (available stages, patterns, continents)
 app.get('/api/v1/dealbook/filters', async (req, res) => {
   try {
-    const { period = 'all' } = req.query;
-    const cacheKey = filterOptionsKey(period as string);
+    const { period = 'all', verticalId, subVerticalId } = req.query as Record<string, string | undefined>;
+    const cacheKey = `${filterOptionsKey(period as string)}:${hashObject({ verticalId, subVerticalId })}`;
 
     // Check cache first
     const redis = await getRedisClient();
@@ -895,6 +942,98 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
               ORDER BY count DESC`
     );
 
+    // Distinct verticals (legacy string field in analysis JSON)
+    const verticalRows = await db.execute<{ vertical: string }>(
+      pf2
+        ? sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
+              FROM startups s
+              WHERE ${pf2}
+                AND s.analysis_data->>'vertical' IS NOT NULL
+                AND s.analysis_data->>'vertical' <> ''`
+        : sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
+              FROM startups s
+              WHERE s.analysis_data->>'vertical' IS NOT NULL
+                AND s.analysis_data->>'vertical' <> ''`
+    );
+
+    // New: Vertical taxonomy options (IDs + labels + counts)
+    const taxonomyVerticalRows = await db.execute<{ id: string; label: string; count: string }>(
+      pf2
+        ? sql`SELECT
+                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
+                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
+                COUNT(*) AS count
+              FROM startups s
+              WHERE ${pf2}
+                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
+                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
+              GROUP BY 1, 2
+              ORDER BY COUNT(*) DESC`
+        : sql`SELECT
+                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
+                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
+                COUNT(*) AS count
+              FROM startups s
+              WHERE s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
+                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
+              GROUP BY 1, 2
+              ORDER BY COUNT(*) DESC`
+    );
+
+    const taxonomySubRows = verticalId
+      ? await db.execute<{ id: string; label: string; count: string }>(
+          pf2
+            ? sql`SELECT
+                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
+                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
+                    COUNT(*) AS count
+                  FROM startups s
+                  WHERE ${pf2}
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
+                  GROUP BY 1, 2
+                  ORDER BY COUNT(*) DESC`
+            : sql`SELECT
+                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
+                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
+                    COUNT(*) AS count
+                  FROM startups s
+                  WHERE s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
+                  GROUP BY 1, 2
+                  ORDER BY COUNT(*) DESC`
+        )
+      : { rows: [] as Array<{ id: string; label: string; count: string }> };
+
+    const taxonomyLeafRows = subVerticalId
+      ? await db.execute<{ id: string; label: string; count: string }>(
+          pf2
+            ? sql`SELECT
+                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
+                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
+                    COUNT(*) AS count
+                  FROM startups s
+                  WHERE ${pf2}
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
+                  GROUP BY 1, 2
+                  ORDER BY COUNT(*) DESC`
+            : sql`SELECT
+                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
+                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
+                    COUNT(*) AS count
+                  FROM startups s
+                  WHERE s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
+                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
+                  GROUP BY 1, 2
+                  ORDER BY COUNT(*) DESC`
+        )
+      : { rows: [] as Array<{ id: string; label: string; count: string }> };
+
     const responseData = {
       stages: Array.from(new Set((stageRows.rows || []).map(s => s.stage).filter(Boolean))).sort(),
       continents: continents.map(c => c.continent).filter(Boolean).sort(),
@@ -902,6 +1041,12 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
         name: r.pattern,
         count: parseInt(r.count, 10),
       })),
+      verticals: Array.from(new Set((verticalRows.rows || []).map(v => v.vertical).filter(Boolean))).sort(),
+      vertical_taxonomy: {
+        verticals: (taxonomyVerticalRows.rows || []).map(r => ({ id: r.id, label: r.label, count: parseInt(r.count, 10) })),
+        sub_verticals: (taxonomySubRows.rows || []).map(r => ({ id: r.id, label: r.label, count: parseInt(r.count, 10) })),
+        leaves: (taxonomyLeafRows.rows || []).map(r => ({ id: r.id, label: r.label, count: parseInt(r.count, 10) })),
+      },
     };
 
     // Cache the response

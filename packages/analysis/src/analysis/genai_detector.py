@@ -162,7 +162,11 @@ OUTPUT (JSON only):
             result = await self._call_llm(prompt, use_reasoning=False)
             chosen = result.get("id") if isinstance(result, dict) else None
             if chosen not in set(allowed_ids):
-                return {"id": "none" if allow_none else (allowed_ids[0] if allowed_ids else "none"), "confidence": 0.0, "notes": "invalid id"}
+                # Never fall back to the first option (that silently misclassifies on connection failures).
+                # Prefer an explicit stop marker, or fail fast so callers can retry.
+                if allow_none:
+                    return {"id": "none", "confidence": 0.0, "notes": "no_valid_choice"}
+                raise RuntimeError("Vertical taxonomy LLM returned no valid choice")
             conf = result.get("confidence", 0.0)
             try:
                 conf = float(conf)
@@ -176,7 +180,7 @@ OUTPUT (JSON only):
         max_depth = 4  # vertical -> sub -> leaf -> (optional deeper)
 
         for depth in range(max_depth):
-            allow_none = depth > 0  # once we have a vertical, it's ok to stop at higher level
+            allow_none = True  # allow stopping at any level; better to return {} than misclassify
             choice = await pick(current_nodes, allow_none=allow_none)
             chosen_id = choice.get("id")
             if chosen_id == "none":
@@ -265,9 +269,13 @@ OUTPUT (JSON only):
         vertical_result = await self._analyze_vertical(
             startup.name, content, startup.description or "", industries_str
         )
-        vertical_taxonomy_result = await self._classify_vertical_taxonomy(
-            startup.name, content, startup.description or "", industries_str
-        )
+        try:
+            vertical_taxonomy_result = await self._classify_vertical_taxonomy(
+                startup.name, content, startup.description or "", industries_str
+            )
+        except Exception as e:
+            print(f"Vertical taxonomy classification failed for {startup.name}: {e}")
+            vertical_taxonomy_result = {}
 
         # NEW: Dynamic pattern discovery and business analysis
         pattern_discovery_result = await self._discover_patterns(startup.name, content)
