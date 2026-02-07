@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from openai import AzureOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 from src.config import settings
 from src.data.models import (
@@ -69,15 +70,45 @@ class GenAIAnalyzer:
     """Analyzes startups for GenAI usage and build patterns."""
 
     def __init__(self):
-        self.client = AzureOpenAI(
-            api_key=settings.azure_openai.api_key,
-            api_version=settings.azure_openai.api_version,
-            azure_endpoint=settings.azure_openai.endpoint,
-        )
+        self._using_aad = False
+        self._aad_credential = None
+        self._aad_token_provider = None
+        self.client = self._create_azure_client(prefer_key=True)
         self.fast_model = settings.azure_openai.fast_model
         self.reasoning_model = settings.azure_openai.reasoning_model
         self.crawler = StartupCrawler()
         self._vertical_taxonomy_ontology = self._load_vertical_taxonomy_ontology()
+
+    def _create_azure_client(self, prefer_key: bool) -> AzureOpenAI:
+        """
+        Create an AzureOpenAI client.
+
+        Some Azure OpenAI resources disable key-based authentication (AAD-only).
+        We default to API key when available, but can fall back to AAD.
+        """
+        if prefer_key and settings.azure_openai.api_key:
+            return AzureOpenAI(
+                api_key=settings.azure_openai.api_key,
+                api_version=settings.azure_openai.api_version,
+                azure_endpoint=settings.azure_openai.endpoint,
+            )
+
+        # AAD token via DefaultAzureCredential (uses Azure CLI / managed identity / env creds).
+        self._aad_credential = DefaultAzureCredential()
+        self._aad_token_provider = get_bearer_token_provider(
+            self._aad_credential, "https://cognitiveservices.azure.com/.default"
+        )
+        self._using_aad = True
+        return AzureOpenAI(
+            api_version=settings.azure_openai.api_version,
+            azure_endpoint=settings.azure_openai.endpoint,
+            azure_ad_token_provider=self._aad_token_provider,
+        )
+
+    def _ensure_aad_client(self) -> None:
+        if self._using_aad:
+            return
+        self.client = self._create_azure_client(prefer_key=False)
 
     def _load_vertical_taxonomy_ontology(self) -> Dict[str, Any]:
         """Load the versioned vertical taxonomy ontology JSON."""
@@ -471,21 +502,30 @@ OUTPUT (JSON only):
         model = self.reasoning_model if use_reasoning else self.fast_model
 
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": "You are a technical analyst. Always respond with valid JSON only."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=2000,
-            )
+            def _do_request() -> Dict[str, Any]:
+                r = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a technical analyst. Always respond with valid JSON only."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=2000,
+                )
+                content = r.choices[0].message.content
+                if content:
+                    return self._parse_json_response(content)
+                return {}
 
-            content = response.choices[0].message.content
-            if content:
-                # Try to extract JSON from response
-                return self._parse_json_response(content)
-            return {}
+            try:
+                return _do_request()
+            except Exception as e:
+                msg = str(e)
+                # If the resource disables API keys, fall back to AAD automatically and retry once.
+                if ("AuthenticationTypeDisabled" in msg or "Key based authentication is disabled" in msg) and not self._using_aad:
+                    self._ensure_aad_client()
+                    return _do_request()
+                raise
 
         except Exception as e:
             print(f"LLM call failed: {e}")
