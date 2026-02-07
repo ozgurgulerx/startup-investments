@@ -104,6 +104,22 @@ az role assignment create \
     --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/aistartupstr/providers/Microsoft.DBforPostgreSQL/flexibleServers/aistartupstr" \
     --output none 2>/dev/null || echo "    (already assigned)"
 
+# App Service: Contributor (to deploy frontend)
+echo "  - Contributor on App Service (buildatlas-web)..."
+az role assignment create \
+    --assignee "$PRINCIPAL_ID" \
+    --role "Contributor" \
+    --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/rg-startup-analysis/providers/Microsoft.Web/sites/buildatlas-web" \
+    --output none 2>/dev/null || echo "    (already assigned)"
+
+# ACR: AcrPush (to build and push Docker images for backend)
+echo "  - AcrPush on ACR (aistartuptr)..."
+az role assignment create \
+    --assignee "$PRINCIPAL_ID" \
+    --role "AcrPush" \
+    --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/aistartuptr" \
+    --output none 2>/dev/null || echo "    (already assigned)"
+
 # --- Step 4: NSG rule to restrict SSH ---
 echo ""
 echo "[4/4] Configuring network security..."

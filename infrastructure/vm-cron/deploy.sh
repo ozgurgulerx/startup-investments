@@ -51,4 +51,19 @@ chmod +x "$REPO_DIR/infrastructure/vm-cron/lib/"*.sh 2>/dev/null || true
 chmod +x "$REPO_DIR/infrastructure/vm-cron/jobs/"*.sh 2>/dev/null || true
 chmod +x "$REPO_DIR/infrastructure/vm-cron/monitoring/"*.sh 2>/dev/null || true
 
+RUNNER="$REPO_DIR/infrastructure/vm-cron/lib/runner.sh"
+JOBS_DIR="$REPO_DIR/infrastructure/vm-cron/jobs"
+
+# Auto-trigger backend deploy if API code changed
+if echo "$CHANGED_FILES" | grep -qE '^(apps/api/|packages/shared/|infrastructure/kubernetes/)'; then
+    echo "Backend code changed. Triggering backend deploy..."
+    "$RUNNER" backend-deploy 15 "$JOBS_DIR/backend-deploy.sh" || echo "Backend deploy failed (exit $?)"
+fi
+
+# Auto-trigger frontend deploy if web code changed
+if echo "$CHANGED_FILES" | grep -qE '^(apps/web/|packages/shared/)'; then
+    echo "Frontend code changed. Triggering frontend deploy..."
+    "$RUNNER" frontend-deploy 20 "$JOBS_DIR/frontend-deploy.sh" || echo "Frontend deploy failed (exit $?)"
+fi
+
 echo "Deploy complete at $(date -u '+%Y-%m-%d %H:%M UTC')"

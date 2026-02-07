@@ -1,10 +1,9 @@
 #!/bin/bash
-# sync-data.sh — Sync blob storage data, commit, and push (triggers GH deploy).
+# sync-data.sh — Sync blob storage data, commit, push, and deploy frontend.
 # Replaces: .github/workflows/sync-data.yml (scheduled runs)
 #
-# Design: The VM does NOT build or deploy the frontend. It syncs data from
-# blob storage, commits, and pushes. The push triggers frontend-deploy.yml
-# on GitHub Actions (which stays as CI/CD).
+# After syncing and pushing, triggers frontend-deploy.sh on this VM
+# (previously relied on GitHub Actions frontend-deploy.yml).
 set -uo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"
@@ -58,5 +57,10 @@ Trigger: vm-cron sync-data"
 
 git push origin main
 
-echo "Pushed $TOTAL changes. frontend-deploy.yml will handle App Service deployment."
+echo "Pushed $TOTAL changes. Triggering frontend deploy..."
+
+# Deploy frontend directly on VM (no longer relies on GitHub Actions)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/../lib/runner.sh" frontend-deploy 20 "$SCRIPT_DIR/frontend-deploy.sh"
+
 echo "=== Sync Data complete ==="

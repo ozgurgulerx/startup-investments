@@ -1,13 +1,8 @@
 name: Build and Deploy Backend to AKS
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'apps/api/**'
-      - 'packages/shared/**'
-      - 'infrastructure/kubernetes/**'
+  # VM cron handles backend deploys now (infrastructure/vm-cron/jobs/backend-deploy.sh)
+  # This workflow is kept as a manual backup only
   workflow_dispatch:
 
 permissions:

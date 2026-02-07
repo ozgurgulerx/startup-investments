@@ -1,13 +1,8 @@
 name: Deploy Frontend to Azure App Service
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'apps/web/**'
-      - 'packages/shared/**'
-      - '.github/workflows/frontend-deploy.yml'
+  # VM cron handles frontend deploys now (infrastructure/vm-cron/jobs/frontend-deploy.sh)
+  # This workflow is kept as a manual backup only
   workflow_dispatch:
 
 permissions:

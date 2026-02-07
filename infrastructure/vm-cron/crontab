@@ -27,6 +27,14 @@ MAILTO=""
 # === Sync Blob Data (every 30 min, weekdays 8am-8pm UTC) ===
 0,30 8-20 * * 1-5 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh sync-data 45 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/sync-data.sh
 
+# === Frontend Deploy (triggered by sync-data or manually) ===
+# Not scheduled — called by sync-data.sh after a push, or run manually:
+#   /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh frontend-deploy 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/frontend-deploy.sh
+
+# === Backend Deploy (triggered by code-update or manually) ===
+# Not scheduled — called by deploy.sh when apps/api/** changes, or run manually:
+#   /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh backend-deploy 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/backend-deploy.sh
+
 # === Code Update (every 6 hours) ===
 0 */6 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh code-update 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/deploy.sh
 
