@@ -31,33 +31,45 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate required secrets
+        id: secrets
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BROWSERLESS_ENDPOINT: ${{ secrets.BROWSERLESS_ENDPOINT }}
           BROWSERLESS_TOKEN: ${{ secrets.BROWSERLESS_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          skip=false
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::Missing required secret: DATABASE_URL"
             exit 1
           fi
           # Browserless is required when unblock provider is browserless (we set it in worker env below)
           if [ -z "$BROWSERLESS_ENDPOINT" ] || [ -z "$BROWSERLESS_TOKEN" ]; then
-            echo "::error::Missing required secrets: BROWSERLESS_ENDPOINT and/or BROWSERLESS_TOKEN"
-            exit 1
+            if [ "$EVENT_NAME" = "schedule" ]; then
+              echo "::warning::Missing BROWSERLESS_ENDPOINT/BROWSERLESS_TOKEN; skipping scheduled crawl-frontier run."
+              skip=true
+            else
+              echo "::error::Missing required secrets: BROWSERLESS_ENDPOINT and/or BROWSERLESS_TOKEN"
+              exit 1
+            fi
           fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
 
       - name: Setup Python
+        if: ${{ steps.secrets.outputs.skip != 'true' }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install analysis dependencies
+        if: ${{ steps.secrets.outputs.skip != 'true' }}
         working-directory: packages/analysis
         run: |
           pip install -r requirements.txt
           python -m playwright install chromium || true
 
       - name: Apply frontier migration
+        if: ${{ steps.secrets.outputs.skip != 'true' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -89,6 +101,7 @@ jobs:
           PY
 
       - name: Seed frontier queue
+        if: ${{ steps.secrets.outputs.skip != 'true' }}
         working-directory: packages/analysis
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -98,6 +111,7 @@ jobs:
           python main.py seed-frontier --limit "$SEED_LIMIT"
 
       - name: Run frontier worker
+        if: ${{ steps.secrets.outputs.skip != 'true' }}
         working-directory: packages/analysis
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -115,7 +129,7 @@ jobs:
           python -m src.crawl_runtime.worker --batch-size "$BATCH_SIZE" --max-loops "$LOOPS"
 
       - name: Cleanup old raw captures
-        if: ${{ github.event_name == 'schedule' }}
+        if: ${{ github.event_name == 'schedule' && steps.secrets.outputs.skip != 'true' }}
         working-directory: packages/analysis
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
