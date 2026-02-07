@@ -1,15 +1,18 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { CheckCircle2, Mail } from 'lucide-react';
 
 interface NewsSubscriptionCardProps {
   className?: string;
+  region?: 'global' | 'turkey';
 }
 
-export function NewsSubscriptionCard({ className }: NewsSubscriptionCardProps) {
+export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubscriptionCardProps) {
   const [email, setEmail] = useState('');
+  const [submittedEmail, setSubmittedEmail] = useState('');
   const [builderFocus, setBuilderFocus] = useState(true);
-  const [status, setStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'done' | 'already' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -24,15 +27,21 @@ export function NewsSubscriptionCard({ className }: NewsSubscriptionCardProps) {
         body: JSON.stringify({
           email,
           builderFocus,
+          region,
           source: 'news-module',
         }),
       });
-      const body = (await res.json()) as { message?: string; error?: string };
+      const body = (await res.json()) as {
+        message?: string;
+        error?: string;
+        already_confirmed?: boolean;
+      };
       if (!res.ok) {
         throw new Error(body.error || 'Failed to subscribe');
       }
-      setStatus('done');
-      setMessage(body.message || 'Subscribed');
+      setSubmittedEmail(email);
+      setStatus(body.already_confirmed ? 'already' : 'done');
+      setMessage(body.message || 'Check your inbox to confirm');
       setEmail('');
     } catch (error) {
       setStatus('error');
@@ -40,9 +49,57 @@ export function NewsSubscriptionCard({ className }: NewsSubscriptionCardProps) {
     }
   }
 
+  const regionLabel = region === 'turkey' ? 'Turkey' : 'Global';
+
+  // Show confirmation success state
+  if (status === 'done') {
+    return (
+      <section className={`rounded-2xl border border-success/25 bg-gradient-to-br from-success/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
+        <div className="flex items-start gap-3">
+          <Mail className="mt-0.5 h-5 w-5 text-success shrink-0" />
+          <div>
+            <h3 className="text-base font-medium tracking-tight text-foreground">Check your inbox to confirm</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              We sent a confirmation link to <span className="text-foreground">{submittedEmail}</span>. Click it to activate your {regionLabel} Signal Feed digest.
+            </p>
+            <p className="mt-3 text-xs text-muted-foreground/70">
+              Didn&apos;t receive it? Check your spam folder or{' '}
+              <button
+                type="button"
+                onClick={() => { setStatus('idle'); setMessage(''); }}
+                className="text-accent-info hover:text-accent-info/80 underline underline-offset-2"
+              >
+                try again
+              </button>.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Already confirmed state
+  if (status === 'already') {
+    return (
+      <section className={`rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 text-success shrink-0" />
+          <div>
+            <h3 className="text-base font-medium tracking-tight text-foreground">You&apos;re already subscribed</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              <span className="text-foreground">{submittedEmail}</span> is already receiving the {regionLabel} Signal Feed digest.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={`rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
-      <p className="label-xs text-accent-info">Daily Startup Digest</p>
+      <p className="label-xs text-accent-info">
+        {region === 'turkey' ? 'Turkey Signal Feed' : 'Daily Startup Digest'}
+      </p>
       <h3 className="mt-2 text-xl font-medium tracking-tight text-foreground">Get top stories by daily popularity</h3>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
         Each day we send a ranked digest with cross-source signals and a short builder takeaway.
@@ -76,8 +133,8 @@ export function NewsSubscriptionCard({ className }: NewsSubscriptionCardProps) {
         Prioritize builder-focused takeaways in digest
       </label>
 
-      {message ? (
-        <p className={`mt-3 text-xs ${status === 'done' ? 'text-success' : 'text-destructive'}`}>{message}</p>
+      {message && status === 'error' ? (
+        <p className="mt-3 text-xs text-destructive">{message}</p>
       ) : null}
     </section>
   );

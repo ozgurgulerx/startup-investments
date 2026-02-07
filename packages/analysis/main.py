@@ -494,14 +494,20 @@ def ingest_news(
 @app.command("send-news-digest")
 def send_news_digest(
     edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD (defaults to latest ready edition)"),
+    region: str = typer.Option("global", "--region", help="Subscriber region to send to (global or turkey)"),
 ):
-    """Send daily startup-news digest to active subscribers."""
+    """Send daily startup-news digest to active subscribers for a given region."""
     from src.automation.news_digest import run_news_digest_sender
+
+    if region not in ("global", "turkey"):
+        console.print(f"[red]Invalid region '{region}'. Must be 'global' or 'turkey'.[/red]")
+        raise typer.Exit(1)
 
     try:
         result = asyncio.run(
             run_news_digest_sender(
                 edition_date=edition_date,
+                region=region,
             )
         )
     except Exception as exc:
@@ -513,6 +519,7 @@ def send_news_digest(
         border_style="blue"
     ))
     console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
+    console.print(f"[bold]Region:[/bold] {result.get('region', 'global')}")
     console.print(f"[bold]Stories:[/bold] {result.get('stories', 0)}")
     console.print(f"[bold]Subscribers:[/bold] {result.get('subscribers', 0)}")
     console.print(f"[bold green]Sent:[/bold green] {result.get('sent', 0)}")

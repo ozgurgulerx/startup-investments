@@ -115,14 +115,15 @@ class DailyNewsDigestSender:
             )
         return stories
 
-    async def _load_subscribers(self, conn: asyncpg.Connection) -> List[Subscriber]:
+    async def _load_subscribers(self, conn: asyncpg.Connection, *, region: str = "global") -> List[Subscriber]:
         rows = await conn.fetch(
             """
             SELECT id::text AS id, email, unsubscribe_token::text AS unsubscribe_token
             FROM news_email_subscriptions
-            WHERE status = 'active'
+            WHERE status = 'active' AND region = $1
             ORDER BY created_at ASC
-            """
+            """,
+            region,
         )
         return [
             Subscriber(
@@ -248,17 +249,18 @@ class DailyNewsDigestSender:
             error_text,
         )
 
-    async def run(self, *, edition_date: Optional[str] = None) -> Dict[str, Any]:
+    async def run(self, *, edition_date: Optional[str] = None, region: str = "global") -> Dict[str, Any]:
         await self.connect()
         assert self.pool is not None
 
         async with self.pool.acquire() as conn:
             resolved_date = await self._resolve_edition_date(conn, edition_date)
             stories = await self._load_stories(conn, resolved_date)
-            subscribers = await self._load_subscribers(conn)
+            subscribers = await self._load_subscribers(conn, region=region)
 
             result: Dict[str, Any] = {
                 "edition_date": resolved_date,
+                "region": region,
                 "stories": len(stories),
                 "subscribers": len(subscribers),
                 "sent": 0,
@@ -352,17 +354,18 @@ class DailyNewsDigestSender:
             return result
 
 
-async def run_news_digest_sender(*, edition_date: Optional[str] = None) -> Dict[str, Any]:
+async def run_news_digest_sender(*, edition_date: Optional[str] = None, region: str = "global") -> Dict[str, Any]:
     sender = DailyNewsDigestSender()
     try:
-        return await sender.run(edition_date=edition_date)
+        return await sender.run(edition_date=edition_date, region=region)
     finally:
         await sender.close()
 
 
 def main() -> int:
     edition_date = os.getenv("NEWS_DIGEST_EDITION_DATE", "").strip() or None
-    result = asyncio.run(run_news_digest_sender(edition_date=edition_date))
+    region = os.getenv("NEWS_DIGEST_REGION", "global").strip()
+    result = asyncio.run(run_news_digest_sender(edition_date=edition_date, region=region))
     print(json.dumps(result, indent=2, default=str))
     return 0
 
