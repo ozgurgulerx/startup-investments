@@ -2,8 +2,8 @@ name: Keep Infrastructure Running
 
 on:
   schedule:
-    # Run every hour
-    - cron: '0 * * * *'
+    # Run every 30 minutes for faster recovery
+    - cron: '0,30 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -19,6 +19,7 @@ env:
 jobs:
   ensure-running:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Login to Azure (OIDC)
         uses: azure/login@v2
@@ -39,15 +40,17 @@ jobs:
           echo "Current PostgreSQL state: $PG_STATE"
 
           if [ "$PG_STATE" = "Stopped" ]; then
-            echo "PostgreSQL is stopped. Starting server..."
+            echo "::warning::PostgreSQL is stopped — starting server..."
             az postgres flexible-server start \
               --resource-group ${{ env.POSTGRES_RESOURCE_GROUP }} \
               --name ${{ env.POSTGRES_SERVER_NAME }}
             echo "PostgreSQL server started successfully"
+            # Wait for it to be ready before AKS starts reconnecting
+            sleep 30
           elif [ "$PG_STATE" = "UNKNOWN" ]; then
-            echo "PostgreSQL state could not be read (RBAC or transient issue). Continuing with AKS keep-alive."
+            echo "::warning::PostgreSQL state unknown (RBAC or transient issue). Continuing."
           else
-            echo "PostgreSQL is already running"
+            echo "PostgreSQL is already running ($PG_STATE)"
           fi
 
       - name: Check and Start AKS if Stopped
@@ -56,30 +59,58 @@ jobs:
           POWER_STATE=$(az aks show \
             --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
             --name ${{ env.AKS_CLUSTER_NAME }} \
-            --query "powerState.code" -o tsv)
+            --query "powerState.code" -o tsv 2>/dev/null || echo "UNKNOWN")
 
           echo "Current power state: $POWER_STATE"
 
           if [ "$POWER_STATE" = "Stopped" ]; then
-            echo "AKS is stopped. Starting cluster..."
+            echo "::warning::AKS is stopped — starting cluster..."
             az aks start \
               --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
               --name ${{ env.AKS_CLUSTER_NAME }}
             echo "AKS cluster started successfully"
+          elif [ "$POWER_STATE" = "UNKNOWN" ]; then
+            echo "::warning::AKS state unknown. Attempting start as precaution..."
+            az aks start \
+              --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+              --name ${{ env.AKS_CLUSTER_NAME }} 2>/dev/null || echo "AKS start attempt failed (may already be running)"
           else
-            echo "AKS is already running"
+            echo "AKS is already running ($POWER_STATE)"
           fi
 
       - name: Verify API Health
         run: |
           echo "Waiting for API to be healthy..."
           for i in {1..30}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health" 2>/dev/null || echo "000")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health" 2>/dev/null || echo "000")
             if [ "$STATUS" = "200" ]; then
               echo "API is healthy!"
+              # Fetch health details
+              curl -s "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health" | python3 -c "
+import json,sys
+try:
+  d=json.load(sys.stdin)
+  print(f\"  Status: {d.get('status')}\")
+  print(f\"  Database: {d.get('database')}\")
+  cache=d.get('cache',{})
+  print(f\"  Redis: connected={cache.get('connected')}\")
+except: pass
+" 2>/dev/null || true
               exit 0
             fi
-            echo "Attempt $i: Status $STATUS, waiting..."
+            echo "  Attempt $i/30: HTTP $STATUS, retrying in 10s..."
             sleep 10
           done
-          echo "Warning: API health check timed out"
+          echo "::error::API health check timed out after 5 minutes"
+          exit 1
+
+      - name: Verify Frontend Health
+        continue-on-error: true
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://buildatlas.net" 2>/dev/null || echo "000")
+          if [ "$STATUS" = "200" ]; then
+            echo "Frontend is healthy (HTTP $STATUS)"
+          else
+            echo "::warning::Frontend returned HTTP $STATUS"
+          fi
