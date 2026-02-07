@@ -1438,10 +1438,13 @@ class DailyNewsIngestor:
 
     async def _llm_generate_daily_brief(self, *, edition_date: date, clusters: Sequence[StoryCluster]) -> Optional[Dict[str, Any]]:
         if not clusters:
+            print("[news-ingest] daily brief skipped: no clusters")
             return None
         if not self.llm_daily_brief_enabled:
+            print("[news-ingest] daily brief skipped: not enabled")
             return None
         if not self.openai_api_key and self.azure_client is None:
+            print("[news-ingest] daily brief skipped: no API key / Azure client")
             return None
 
         top_n = min(len(clusters), max(3, int(self.llm_daily_brief_max_clusters)))
@@ -1474,8 +1477,6 @@ class DailyNewsIngestor:
                 for c in top_clusters
             ],
         }
-
-        debug_llm = os.getenv("NEWS_LLM_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
 
         def parse_daily_brief(parsed: Dict[str, Any], model_label: Optional[str]) -> Optional[Dict[str, Any]]:
             headline = _shorten_text(str(parsed.get("headline") or ""), 70)
@@ -1515,6 +1516,8 @@ class DailyNewsIngestor:
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
+        print(f"[news-ingest] generating daily brief for {edition_date} ({len(top_clusters)} clusters)")
+
         if self.azure_client is not None:
             for with_response_format in (True, False):
                 azure_payload: Dict[str, Any] = {
@@ -1535,11 +1538,14 @@ class DailyNewsIngestor:
                     parsed = json.loads(content) if isinstance(content, str) else {}
                     brief = parse_daily_brief(parsed, f"azure:{self.azure_openai_deployment}")
                     if brief is not None:
+                        print(f"[news-ingest] daily brief generated via Azure: \"{brief.get('headline', '')}\"")
                         return brief
-                except Exception as exc:
-                    if debug_llm:
+                    else:
                         mode = "json_object" if with_response_format else "no_response_format"
-                        print(f"[news-ingest] Azure daily brief failed ({mode}): {exc}")
+                        print(f"[news-ingest] Azure daily brief parse returned None ({mode}), content: {content[:200]}")
+                except Exception as exc:
+                    mode = "json_object" if with_response_format else "no_response_format"
+                    print(f"[news-ingest] Azure daily brief failed ({mode}): {exc}")
 
         if self.openai_api_key:
             try:
@@ -1563,8 +1569,7 @@ class DailyNewsIngestor:
                         },
                     )
                     if response.status_code >= 400:
-                        if debug_llm:
-                            print(f"[news-ingest] OpenAI daily brief failed ({response.status_code}): {response.text[:200]}")
+                        print(f"[news-ingest] OpenAI daily brief failed ({response.status_code}): {response.text[:200]}")
                         return None
                     payload = response.json() or {}
                     content = (
@@ -1572,12 +1577,17 @@ class DailyNewsIngestor:
                         or "{}"
                     )
                     parsed = json.loads(content) if isinstance(content, str) else {}
-                    return parse_daily_brief(parsed, self.llm_model)
+                    brief = parse_daily_brief(parsed, self.llm_model)
+                    if brief is not None:
+                        print(f"[news-ingest] daily brief generated via OpenAI: \"{brief.get('headline', '')}\"")
+                    else:
+                        print(f"[news-ingest] OpenAI daily brief parse returned None, content: {content[:200]}")
+                    return brief
             except Exception as exc:
-                if debug_llm:
-                    print(f"[news-ingest] OpenAI daily brief exception: {exc}")
+                print(f"[news-ingest] OpenAI daily brief exception: {exc}")
                 return None
 
+        print("[news-ingest] daily brief: no provider available")
         return None
 
     async def _llm_enrich_cluster(self, cluster: StoryCluster) -> LLMEnrichmentResult:

@@ -468,6 +468,9 @@ def ingest_news(
     console.print(f"[bold]Items fetched:[/bold] {result.get('items_fetched', 0)}")
     console.print(f"[bold]Items kept:[/bold] {result.get('items_kept', 0)}")
     console.print(f"[bold]Clusters built:[/bold] {result.get('clusters_built', 0)}")
+    images_enriched = result.get("images_enriched", 0)
+    if images_enriched:
+        console.print(f"[bold]Images enriched:[/bold] {images_enriched}")
     llm_metrics = result.get("llm_metrics") or ((result.get("stats") or {}).get("llm"))
     if isinstance(llm_metrics, dict):
         console.print(
@@ -479,8 +482,13 @@ def ingest_news(
             f"p50={llm_metrics.get('latency_ms_p50', 0)}ms "
             f"p95={llm_metrics.get('latency_ms_p95', 0)}ms"
         )
+    stats = result.get("stats") or {}
+    has_brief = bool(stats.get("daily_brief"))
+    console.print(f"[bold]Daily brief:[/bold] {'generated' if has_brief else '[yellow]not generated[/yellow]'}")
     if result.get("errors"):
         console.print(f"[yellow]Warnings:[/yellow] {len(result['errors'])}")
+        for err in result["errors"]:
+            console.print(f"  [dim]- {err}[/dim]")
 
 
 @app.command("send-news-digest")

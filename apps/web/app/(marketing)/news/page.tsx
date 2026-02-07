@@ -1,7 +1,11 @@
 import Link from 'next/link';
-import { getActiveNewsSources, getNewsArchive, getNewsEdition, getNewsTopics } from '@/lib/data/news';
+import { getNewsArchive, getNewsEdition, getNewsTopics } from '@/lib/data/news';
+import { sectionNewsItems } from '@/lib/news/section-items';
 import { NewsHeroCard } from '@/components/news/news-hero-card';
 import { NewsCard } from '@/components/news/news-card';
+import { SectionHeader } from '@/components/news/section-header';
+import { BreakingSection } from '@/components/news/breaking-section';
+import { TopicTabSection } from '@/components/news/topic-tab-section';
 import { TopicChipBar } from '@/components/news/topic-chip-bar';
 import { ArchiveTimeline } from '@/components/news/archive-timeline';
 import { NewsSubscriptionCard } from '@/components/news/news-subscription-card';
@@ -35,7 +39,6 @@ export default async function DailyNewsPage() {
   const edition = await getNewsEdition({ limit: 40 });
   const topics = await getNewsTopics({ date: edition?.edition_date, limit: 24 });
   const archive = await getNewsArchive({ limit: 30, offset: 0 });
-  const sources = await getActiveNewsSources();
 
   return (
     <div className="min-h-screen bg-background">
@@ -73,6 +76,7 @@ export default async function DailyNewsPage() {
           </div>
         ) : (
           <div className="mx-auto max-w-6xl">
+            {/* Hero masthead */}
             <section className="relative overflow-hidden rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/15 via-card/80 to-card/30 p-8">
               <div className="absolute -left-16 top-0 h-44 w-44 rounded-full bg-accent/20 blur-3xl" />
               <div className="absolute right-0 top-0 h-36 w-36 rounded-full bg-success/20 blur-3xl" />
@@ -112,40 +116,10 @@ export default async function DailyNewsPage() {
               <TopicChipBar topics={topics} />
             </section>
 
-            <section className="mt-6 rounded-xl border border-border/40 bg-card/60 p-4">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Active crawl/news sources</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {sources.slice(0, 24).map((source) => (
-                  <span
-                    key={source.key}
-                    className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
-                  >
-                    {source.name}
-                    <span className="opacity-60">({source.type})</span>
-                  </span>
-                ))}
-              </div>
-            </section>
+            {/* Editorial sections */}
+            <EditorialSections edition={edition} />
 
-            <section className="mt-8 grid gap-4 lg:grid-cols-5">
-              {edition.items[0] ? (
-                <div className="lg:col-span-3">
-                  <NewsHeroCard item={edition.items[0]} />
-                </div>
-              ) : null}
-              <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-2">
-                {edition.items.slice(1, 5).map((item) => (
-                  <NewsCard key={item.id} item={item} />
-                ))}
-              </div>
-            </section>
-
-            <section className="mt-8 grid gap-4 md:grid-cols-2">
-              {edition.items.slice(5).map((item) => (
-                <NewsCard key={item.id} item={item} />
-              ))}
-            </section>
-
+            {/* Footer */}
             <section className="mt-8 grid gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <NewsSubscriptionCard />
@@ -156,5 +130,75 @@ export default async function DailyNewsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function EditorialSections({
+  edition,
+}: {
+  edition: NonNullable<Awaited<ReturnType<typeof getNewsEdition>>>;
+}) {
+  const sections = sectionNewsItems(edition.items, edition.generated_at);
+
+  return (
+    <>
+      {/* Top Stories */}
+      {sections.topStories.length > 0 && (
+        <section className="mt-8">
+          <SectionHeader label="Top Stories" count={sections.topStories.length} />
+          <div className="mt-4 grid gap-4 lg:grid-cols-5">
+            {sections.topStories[0] && (
+              <div className="lg:col-span-3">
+                <NewsHeroCard item={sections.topStories[0]} />
+              </div>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-2">
+              {sections.topStories.slice(1).map((item) => (
+                <NewsCard key={item.id} item={item} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Breaking */}
+      {sections.breaking.length > 0 && (
+        <section className="mt-8">
+          <BreakingSection items={sections.breaking} />
+        </section>
+      )}
+
+      {/* Deep Reads */}
+      {sections.deepReads.length > 0 && (
+        <section className="mt-8">
+          <SectionHeader label="Deep Reads" indicator="signal" count={sections.deepReads.length} />
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {sections.deepReads.map((item) => (
+              <NewsCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* By Topic */}
+      {sections.topicOrder.length > 0 && (
+        <section id="by-topic" className="mt-8">
+          <SectionHeader label="By Topic" />
+          <TopicTabSection byTopic={sections.byTopic} topicOrder={sections.topicOrder} />
+        </section>
+      )}
+
+      {/* More Stories */}
+      {sections.remaining.length > 0 && (
+        <section className="mt-8">
+          <SectionHeader label="More Stories" count={sections.remaining.length} />
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {sections.remaining.map((item) => (
+              <NewsCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
   );
 }
