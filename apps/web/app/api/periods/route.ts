@@ -1,13 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getAvailablePeriods } from '@/lib/data';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/periods - Return available periods ordered newest -> oldest
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const region = searchParams.get('region') || undefined;
+    const region = req.nextUrl.searchParams.get('region') || undefined;
     const periods = await getAvailablePeriods(region);
     return NextResponse.json(periods);
   } catch (error) {
