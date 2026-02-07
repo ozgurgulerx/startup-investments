@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
+import { BrandMark } from '@/components/ui/brand-mark';
 
 interface NavItem {
   label: string;
@@ -24,19 +25,16 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-56 border-r border-border/50 bg-background">
+    <aside className="fixed left-0 top-0 z-40 h-screen w-56 border-r border-border/50 bg-background/95 backdrop-blur-sm">
       <div className="flex h-full flex-col">
-        {/* Logo - Minimal */}
+        {/* Logo */}
         <div className="px-6 py-8">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-accent" />
-            <span className="text-sm font-medium text-foreground tracking-tight">
-              Build Atlas
-            </span>
+          <Link href="/" className="inline-flex">
+            <BrandMark size="md" variant="accent" />
           </Link>
         </div>
 
-        {/* Navigation - Quiet */}
+        {/* Navigation */}
         <nav className="flex-1 px-4">
           <div className="space-y-0.5">
             {navItems.map((item) => {
@@ -59,11 +57,9 @@ export function Sidebar() {
           </div>
         </nav>
 
-        {/* Footer - Minimal */}
+        {/* Footer */}
         <div className="px-6 py-6 border-t border-border/30">
-          <p className="text-[10px] text-muted-foreground/60">
-            January 2026
-          </p>
+          <p className="text-[10px] text-muted-foreground/60">January 2026</p>
         </div>
       </div>
     </aside>

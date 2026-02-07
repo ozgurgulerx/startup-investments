@@ -22,14 +22,17 @@ interface CompanyRowProps {
 export function CompanyRow({ startup }: CompanyRowProps) {
   // Get top pattern (max 1)
   const topPattern = startup.build_patterns
-    ?.sort((a, b) => b.confidence - a.confidence)[0];
+    ?.slice()
+    .sort((a, b) => b.confidence - a.confidence)[0];
 
   return (
     <div className="startup-row group relative">
       <CompanyLogo
         slug={startup.company_slug}
         companyName={startup.company_name}
-        className="w-10 h-10 rounded-md object-contain bg-muted/20 flex-shrink-0"
+        size="sm"
+        variant="muted"
+        className="rounded-md"
       />
       <Link
         href={`/company/${startup.company_slug}`}
@@ -40,7 +43,7 @@ export function CompanyRow({ startup }: CompanyRowProps) {
             {startup.company_name}
           </h3>
           {topPattern && (
-            <span className="text-xs text-muted-foreground/60">
+            <span className="inline-flex items-center rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-accent/90">
               {topPattern.name}
             </span>
           )}
@@ -71,7 +74,7 @@ export function CompanyRow({ startup }: CompanyRowProps) {
             {formatCurrency(startup.funding_amount || 0, true)}
           </span>
           {startup.uses_genai && (
-            <p className="text-xs text-muted-foreground/60 mt-1">
+            <p className="text-xs text-accent/90 mt-1">
               GenAI
             </p>
           )}

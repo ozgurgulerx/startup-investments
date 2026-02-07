@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { UserMenu } from '@/components/auth/user-menu';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
 import { MobileNavTrigger } from '@/components/layout/mobile-nav';
+import { BrandMark } from '@/components/ui/brand-mark';
 
 interface AppHeaderProps {
   onSearch?: (query: string) => void;
@@ -19,10 +20,15 @@ export function AppHeader({ onSearch }: AppHeaderProps) {
   };
 
   return (
-    <header className="h-14 border-b border-border/30 bg-background/95 backdrop-blur-sm sticky top-0 z-30">
+    <header className="h-14 border-b border-border/35 bg-background/95 backdrop-blur-md sticky top-0 z-30">
       <div className="h-full flex items-center justify-between px-4 lg:px-6 gap-3 lg:gap-4">
         {/* Mobile: Hamburger menu */}
-        <MobileNavTrigger />
+        <div className="flex items-center gap-2">
+          <MobileNavTrigger />
+          <Link href="/" className="lg:hidden">
+            <BrandMark size="sm" showWordmark={false} variant="accent" />
+          </Link>
+        </div>
 
         {/* Left: Search */}
         <form onSubmit={handleSearch} className="flex-1 max-w-md">
@@ -45,9 +51,9 @@ export function AppHeader({ onSearch }: AppHeaderProps) {
               placeholder="Search companies, patterns..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-10 pr-4 text-sm bg-muted/30 border border-border/30 rounded-md
+              className="w-full h-9 pl-10 pr-4 text-sm bg-muted/25 border border-border/40 rounded-md
                 placeholder:text-muted-foreground/50 text-foreground
-                focus:outline-none focus:border-accent/50 focus:bg-muted/50
+                focus:outline-none focus:border-accent/55 focus:bg-muted/45
                 transition-colors"
             />
             <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-muted-foreground/50 bg-muted/50 rounded">
@@ -61,7 +67,7 @@ export function AppHeader({ onSearch }: AppHeaderProps) {
           {/* Watchlist */}
           <Link
             href="/watchlist"
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-md transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path

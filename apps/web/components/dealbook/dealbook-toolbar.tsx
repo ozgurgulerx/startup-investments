@@ -118,7 +118,7 @@ export function DealbookToolbar({
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === currentSort)?.label || 'Sort';
 
   return (
-    <div className={cn('flex items-center gap-3 flex-wrap', className)}>
+    <div className={cn('flex items-center gap-3 flex-wrap rounded-xl border border-border/35 bg-card/30 px-3 py-2', className)}>
       {/* Search input */}
       <div className="relative flex-1 min-w-[200px] max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -131,9 +131,9 @@ export function DealbookToolbar({
           placeholder="Search companies..."
           className={cn(
             'w-full pl-9 pr-4 py-2 text-sm rounded-lg',
-            'bg-muted/30 border border-border/50',
+            'bg-muted/25 border border-border/50',
             'placeholder:text-muted-foreground/60',
-            'focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent',
+            'focus:outline-none focus:ring-1 focus:ring-accent/70 focus:border-accent/70',
             'transition-colors'
           )}
         />
@@ -146,9 +146,9 @@ export function DealbookToolbar({
           onClick={() => setIsSortOpen(!isSortOpen)}
           className={cn(
             'flex items-center gap-2 px-3 py-2 text-sm rounded-lg',
-            'bg-muted/30 border border-border/50',
+            'bg-muted/25 border border-border/50',
             'hover:bg-muted/50 transition-colors',
-            'focus:outline-none focus:ring-1 focus:ring-accent'
+            'focus:outline-none focus:ring-1 focus:ring-accent/70'
           )}
         >
           <span className="text-muted-foreground">Sort:</span>
@@ -162,7 +162,7 @@ export function DealbookToolbar({
             className={cn(
               'absolute top-full right-0 mt-1 z-50',
               'min-w-[160px] py-1',
-              'bg-card rounded-lg border border-border/50 shadow-lg',
+              'bg-card/95 backdrop-blur-sm rounded-lg border border-border/50 shadow-lg shadow-black/20',
               'animate-in fade-in-0 slide-in-from-top-1 duration-150'
             )}
           >
@@ -188,7 +188,7 @@ export function DealbookToolbar({
         onClick={onOpenFilters}
         className={cn(
           'flex items-center gap-2 px-3 py-2 text-sm rounded-lg md:hidden',
-          'bg-muted/30 border border-border/50',
+          'bg-muted/25 border border-border/50',
           'hover:bg-muted/50 transition-colors',
           activeFilterCount > 0 && 'border-accent/50'
         )}

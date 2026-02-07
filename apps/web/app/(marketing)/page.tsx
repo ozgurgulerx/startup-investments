@@ -6,6 +6,7 @@ import { useAudience } from '@/lib/audience-context';
 import { AudienceToggle } from '@/components/ui/audience-toggle';
 import { UserMenu } from '@/components/auth/user-menu';
 import { DailyNewsModule } from '@/components/news/daily-news-module';
+import { BrandMark } from '@/components/ui/brand-mark';
 import { COPY, SUPPORTING_LINE, METRICS, FAQ_ITEMS, SIGN_IN_COPY } from '@/lib/copy';
 
 export default function LandingPage() {
@@ -16,13 +17,13 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/30">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/92 backdrop-blur-md border-b border-border/35">
         {/* Accent top line */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent/60 via-accent to-accent/60" />
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_12%_0%,rgba(245,158,11,0.12),transparent_38%)]" />
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-accent" />
-            <span className="text-base font-medium text-foreground tracking-tight">Build Atlas</span>
+          <Link href="/" className="inline-flex">
+            <BrandMark size="md" variant="accent" />
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/methodology" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -48,64 +49,76 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="pt-32 pb-20 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          {/* Audience Toggle */}
-          <div className="flex justify-center mb-6">
-            <AudienceToggle />
-          </div>
+      <section className="landing-atmosphere relative overflow-hidden pt-28 pb-12 px-6">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_10%,rgba(245,158,11,0.24),transparent_40%),radial-gradient(circle_at_92%_4%,rgba(16,185,129,0.18),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0)_45%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.17] [background-image:linear-gradient(to_right,rgba(255,255,255,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.10)_1px,transparent_1px)] [background-size:24px_24px]" />
 
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 text-xs text-accent bg-accent/10 rounded-full">
-            <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
-            January 2026 Brief
-          </div>
+        <div className="relative max-w-6xl mx-auto">
+          <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
+            <div className="lg:col-span-8">
+              <div className="flex items-center gap-3 mb-5">
+                <AudienceToggle />
+                <span className="inline-flex items-center gap-2 px-3 py-1 text-xs text-accent bg-accent/10 rounded-full border border-accent/25">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
+                  January 2026 Brief
+                </span>
+              </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-6 leading-tight">
-            {copy.heroHeadline}
-          </h1>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-5 leading-tight">
+                {copy.heroHeadline}
+              </h1>
 
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
-            {copy.heroSubhead}
-          </p>
+              <p className="text-lg text-muted-foreground max-w-3xl leading-relaxed">
+                {copy.heroSubhead}
+              </p>
 
-          {/* Bullets */}
-          <ul className="text-sm text-muted-foreground max-w-xl mx-auto mb-10 space-y-2 text-left">
-            {copy.heroBullets.map((bullet, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <span className="text-accent mt-1">-</span>
-                <span>{bullet}</span>
-              </li>
-            ))}
-          </ul>
+              <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
+                <Link
+                  href={copy.primaryCTAHref}
+                  className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
+                >
+                  {copy.primaryCTA}
+                </Link>
+                {session?.user ? (
+                  <Link
+                    href="/watchlist"
+                    className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
+                  >
+                    View Watchlist
+                  </Link>
+                ) : (
+                  <Link
+                    href={copy.secondaryCTAHref}
+                    className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
+                  >
+                    {copy.secondaryCTA}
+                  </Link>
+                )}
+              </div>
+            </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href={copy.primaryCTAHref}
-              className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
-            >
-              {copy.primaryCTA}
-            </Link>
-            {session?.user ? (
-              <Link
-                href="/watchlist"
-                className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
-              >
-                View Watchlist
-              </Link>
-            ) : (
-              <Link
-                href={copy.secondaryCTAHref}
-                className="px-8 py-3 text-base font-medium text-foreground border border-border/50 rounded hover:bg-muted/30 transition-colors"
-              >
-                {copy.secondaryCTA}
-              </Link>
-            )}
+            <div className="lg:col-span-4">
+              <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-card via-card to-emerald-400/10 p-5 shadow-[0_14px_40px_rgba(0,0,0,0.22)]">
+                <p className="label-xs text-accent mb-3">What You Track</p>
+                <ul className="space-y-3">
+                  {copy.heroBullets.slice(0, 3).map((bullet, index) => (
+                    <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground leading-relaxed">
+                      <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-accent" />
+                      <span>{bullet}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
+      {/* Daily News - primary surface */}
+      <DailyNewsModule className="pt-0 pb-8" />
+
       {/* Stats Bar */}
-      <section className="py-12 border-y border-accent/20 bg-muted/10">
+      <section className="py-12 border-y border-accent/20 bg-gradient-to-r from-muted/10 via-emerald-500/5 to-amber-400/5">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div className="relative group">
@@ -131,9 +144,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* Daily News */}
-      <DailyNewsModule />
 
       {/* What You Get */}
       <section className="py-20 px-6">
@@ -340,10 +350,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-border/30">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-accent" />
-            <span className="text-sm font-medium text-foreground">Build Atlas</span>
-          </div>
+          <BrandMark size="sm" variant="muted" />
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/methodology" className="hover:text-accent transition-colors">Methodology</Link>
             <Link href="/news" className="hover:text-accent transition-colors">Daily News</Link>

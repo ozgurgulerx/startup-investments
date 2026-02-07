@@ -6,7 +6,6 @@ import { FilterBuilder, type SavedFilter } from '@/components/features';
 import type { FilterQuery } from '@/lib/data/filtering';
 import type { StartupAnalysis, MonthlyStats, PeriodInfo } from '@startup-intelligence/shared';
 import { CompanyRow } from './company-row';
-import { formatCurrency } from '@/lib/utils';
 import { Sheet, SheetHeader, SheetContent } from '@/components/ui';
 import { MonthSelector, DealbookToolbar, StatsStrip } from '@/components/dealbook';
 import { X } from 'lucide-react';
@@ -268,7 +267,7 @@ export function InteractiveDealbook({
             <Link
               key={param}
               href={buildUrlWithoutFilter(param)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-sm hover:bg-accent/20 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-accent/25 bg-accent/10 text-accent text-sm hover:bg-accent/20 transition-colors"
             >
               <span className="text-muted-foreground">{label}:</span>
               <span className="font-medium">{value}</span>
@@ -278,7 +277,7 @@ export function InteractiveDealbook({
           {activeFilterBadges.length > 1 && (
             <Link
               href={searchParams.get('month') ? `/dealbook?month=${searchParams.get('month')}` : '/dealbook'}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-sm hover:bg-muted/80 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/40 bg-muted/30 text-muted-foreground text-sm hover:bg-muted/50 transition-colors"
             >
               Clear all
             </Link>
@@ -324,7 +323,7 @@ export function InteractiveDealbook({
       </Sheet>
 
       {/* Company List */}
-      <div className="space-y-0">
+      <div className="space-y-0 rounded-xl border border-border/35 bg-card/35 backdrop-blur-[1px] overflow-hidden">
         {startups.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
             <p className="text-lg">No deals match your current filters</p>

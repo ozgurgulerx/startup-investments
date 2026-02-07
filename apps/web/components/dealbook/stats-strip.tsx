@@ -72,7 +72,7 @@ export function StatsStrip({
   return (
     <div className={cn(
       'flex items-center gap-4 md:gap-6 py-3 px-4 rounded-lg',
-      'bg-muted/20 border border-border/30',
+      'bg-card/35 border border-border/35 backdrop-blur-[1px]',
       'text-sm overflow-x-auto',
       className
     )}>
@@ -92,7 +92,7 @@ export function StatsStrip({
         <span className="text-muted-foreground">Invested:</span>
         <span className="font-medium">{formatCurrency(totalFunding, true)}</span>
         {!isFiltered && delta && (
-          <DeltaIndicator value={delta.funding} percent={delta.fundingPercent} isCurrency />
+          <DeltaIndicator value={delta.funding} percent={delta.fundingPercent} />
         )}
       </div>
 
@@ -128,10 +128,9 @@ function Divider() {
 interface DeltaIndicatorProps {
   value: number;
   percent: number;
-  isCurrency?: boolean;
 }
 
-function DeltaIndicator({ value, percent, isCurrency = false }: DeltaIndicatorProps) {
+function DeltaIndicator({ value, percent }: DeltaIndicatorProps) {
   if (value === 0) {
     return (
       <span className="flex items-center gap-0.5 text-xs text-muted-foreground">

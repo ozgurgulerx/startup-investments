@@ -114,7 +114,7 @@ export function MonthSelector({
         className={cn(
           'p-1.5 rounded transition-colors duration-150',
           canGoPrev
-            ? 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+            ? 'text-muted-foreground hover:text-foreground hover:bg-muted/35'
             : 'text-muted-foreground/30 cursor-not-allowed'
         )}
       >
@@ -128,7 +128,7 @@ export function MonthSelector({
           className={cn(
             'flex items-center gap-2 px-3 py-1.5 rounded transition-colors duration-150',
             'text-sm font-medium',
-            'hover:bg-muted/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent'
+            'border border-border/35 bg-card/35 hover:bg-muted/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent/70'
           )}
         >
           <span>{formatMonthLabel(selectedMonth)}</span>
@@ -146,7 +146,7 @@ export function MonthSelector({
         <div className={cn(
           'absolute top-full left-0 mt-1 z-50',
           'min-w-[220px] max-h-[320px] overflow-y-auto',
-          'bg-card rounded-lg',
+          'bg-card/95 backdrop-blur-sm rounded-lg',
           'border border-border/50',
           'shadow-lg shadow-black/20',
           'opacity-0 invisible translate-y-1',
@@ -218,7 +218,7 @@ export function MonthSelector({
         className={cn(
           'p-1.5 rounded transition-colors duration-150',
           canGoNext
-            ? 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+            ? 'text-muted-foreground hover:text-foreground hover:bg-muted/35'
             : 'text-muted-foreground/30 cursor-not-allowed'
         )}
       >

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Sidebar } from './sidebar';
 import { MobileNavTrigger } from './mobile-nav';
+import { BrandMark } from '@/components/ui/brand-mark';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -20,11 +21,8 @@ export function DashboardLayout({
       <header className="lg:hidden sticky top-0 z-30 h-14 border-b border-border/30 bg-background/95 backdrop-blur-sm">
         <div className="h-full flex items-center px-4 gap-3">
           <MobileNavTrigger />
-          <Link href="/" className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-accent" />
-            <span className="text-sm font-medium text-foreground tracking-tight">
-              Build Atlas
-            </span>
+          <Link href="/" className="inline-flex">
+            <BrandMark size="sm" variant="accent" />
           </Link>
         </div>
       </header>

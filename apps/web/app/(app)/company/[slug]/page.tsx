@@ -168,6 +168,8 @@ async function CompanyBriefContent({ slug }: { slug: string }) {
             <CompanyLogo
               slug={startup.company_slug}
               companyName={startup.company_name}
+              size="lg"
+              variant="elevated"
             />
             <h1 className="text-2xl font-light tracking-tight text-foreground">
               {startup.company_name}

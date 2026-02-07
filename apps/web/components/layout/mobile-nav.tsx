@@ -7,6 +7,7 @@ import { Menu } from 'lucide-react';
 import { Sheet } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
+import { BrandMark } from '@/components/ui/brand-mark';
 
 interface NavItem {
   label: string;
@@ -40,11 +41,8 @@ export function MobileNavTrigger() {
       <Sheet open={open} onOpenChange={setOpen} side="left">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border/50 shrink-0">
-          <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <span className="w-2 h-2 rounded-full bg-accent" />
-            <span className="text-sm font-medium text-foreground tracking-tight">
-              Build Atlas
-            </span>
+          <Link href="/" className="inline-flex" onClick={() => setOpen(false)}>
+            <BrandMark size="sm" variant="accent" />
           </Link>
           <button
             onClick={() => setOpen(false)}
