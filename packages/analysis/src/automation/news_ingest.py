@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
 
@@ -25,6 +25,11 @@ try:
     import asyncpg
 except Exception:  # pragma: no cover - optional import at module import time
     asyncpg = None
+
+try:
+    from openai import AsyncAzureOpenAI
+except Exception:  # pragma: no cover - optional import at module import time
+    AsyncAzureOpenAI = None
 
 try:
     import feedparser
@@ -82,6 +87,8 @@ TOPIC_KEYWORDS: Dict[str, Tuple[str, ...]] = {
     "security": ("security", "breach", "vulnerability", "cyber", "zero-day"),
 }
 
+ALLOWED_STORY_TYPES = {"funding", "launch", "mna", "regulation", "hiring", "news"}
+
 
 @dataclass(frozen=True)
 class SourceDefinition:
@@ -130,6 +137,7 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("newsapi", "NewsAPI", "api", "https://newsapi.org/v2/everything", fetch_mode="api", credibility_weight=0.67),
     SourceDefinition("gnews", "GNews", "api", "https://gnews.io/api/v4/search", fetch_mode="api", credibility_weight=0.66),
     SourceDefinition("frontier_news", "Frontier News URLs", "crawler", "frontier://news", fetch_mode="crawler", credibility_weight=0.62),
+    SourceDefinition("startup_owned_feeds", "Startup-Owned Sources", "crawler", "startup://owned", fetch_mode="crawler", credibility_weight=0.79),
 ]
 
 
@@ -171,6 +179,13 @@ class StoryCluster:
     rank_score: float
     rank_reason: str
     trust_score: float
+    builder_takeaway: Optional[str]
+    llm_summary: Optional[str]
+    llm_model: Optional[str]
+    llm_signal_score: Optional[float]
+    llm_confidence_score: Optional[float]
+    llm_topic_tags: List[str]
+    llm_story_type: Optional[str]
     members: List[NormalizedNewsItem]
 
 
@@ -280,6 +295,45 @@ def classify_story_type(tags: Sequence[str]) -> str:
     return "news"
 
 
+def clamp01(value: Any, default: Optional[float] = None) -> Optional[float]:
+    try:
+        number = float(value)
+    except Exception:
+        return default
+    return max(0.0, min(1.0, number))
+
+
+def normalize_llm_story_type(value: Any, fallback: str) -> str:
+    if isinstance(value, str):
+        candidate = value.strip().lower()
+        if candidate in ALLOWED_STORY_TYPES:
+            return candidate
+    return fallback
+
+
+def normalize_llm_topic_tags(value: Any, fallback: Sequence[str]) -> List[str]:
+    out: List[str] = []
+    if isinstance(value, list):
+        for item in value:
+            if not isinstance(item, str):
+                continue
+            tag = normalize_text(item).lower()
+            if not tag:
+                continue
+            if tag not in out:
+                out.append(tag)
+            if len(out) >= 8:
+                break
+    if out:
+        return out
+    fallback_tags = [normalize_text(tag).lower() for tag in fallback if normalize_text(tag)]
+    deduped: List[str] = []
+    for tag in fallback_tags:
+        if tag not in deduped:
+            deduped.append(tag)
+    return deduped or ["startup"]
+
+
 def compute_cluster_scores(
     *,
     published_at: datetime,
@@ -330,17 +384,18 @@ def compute_cluster_scores(
     return rank_score, trust_score, ", ".join(reasons[:3])
 
 
-def extract_html_title_summary(html: str) -> Tuple[str, str, Optional[datetime]]:
+def extract_html_title_summary(html: str, source_url: str = "") -> Tuple[str, str, Optional[datetime], Optional[str]]:
     if not html:
-        return "", "", None
+        return "", "", None, None
 
     if BeautifulSoup is None:
-        return "", "", None
+        return "", "", None, None
 
     soup = BeautifulSoup(html, "html.parser")
     title = ""
     summary = ""
     published = None
+    image_url = None
 
     if soup.title and soup.title.string:
         title = normalize_text(soup.title.string)
@@ -361,7 +416,44 @@ def extract_html_title_summary(html: str) -> Tuple[str, str, Optional[datetime]]
         except Exception:
             published = None
 
-    return title, summary, published
+    meta_image = soup.find("meta", attrs={"property": "og:image"}) or soup.find("meta", attrs={"name": "twitter:image"})
+    if meta_image and meta_image.get("content"):
+        raw_image = str(meta_image.get("content")).strip()
+        if raw_image:
+            image_url = urljoin(source_url, raw_image) if source_url else raw_image
+
+    return title, summary, published, image_url
+
+
+def _shorten_text(value: str, limit: int = 180) -> str:
+    text = normalize_text(value)
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 3)].rstrip() + "..."
+
+
+def build_builder_takeaway(*, story_type: str, tags: Sequence[str], title: str, summary: str, entities: Sequence[str]) -> str:
+    focus = entities[0] if entities else "the company"
+    text = f"{title} {summary}".lower()
+
+    if story_type == "funding":
+        if "series a" in text or "series b" in text or "series c" in text:
+            return _shorten_text(f"{focus} is entering a scaling phase. Watch hiring and infra spend signals before copying the stack.")
+        return _shorten_text(f"{focus} just raised capital. Track whether they ship product velocity or mostly narrative in the next 60 days.")
+
+    if story_type == "launch":
+        return _shorten_text(f"{focus} is shipping now. Builders should evaluate adoption risk, integration friction, and pricing durability before switching.")
+
+    if story_type == "mna":
+        return _shorten_text(f"{focus} indicates market consolidation. Builders should expect tighter distribution and fewer independent integration points.")
+
+    if story_type == "regulation":
+        return _shorten_text(f"{focus} highlights compliance pressure. Factor governance and auditability into roadmap decisions this quarter.")
+
+    if "ai" in tags:
+        return _shorten_text(f"{focus} is part of the AI build race. Prioritize defensible data and eval quality over model-chasing.")
+
+    return _shorten_text(f"{focus} is a useful market signal. Validate demand with customer pull, not just headline momentum.")
 
 
 class DailyNewsIngestor:
@@ -380,6 +472,25 @@ class DailyNewsIngestor:
         self.product_hunt_token = os.getenv("PRODUCT_HUNT_TOKEN", "")
         self.newsapi_key = os.getenv("NEWS_API_KEY", "") or os.getenv("NEWSAPI_KEY", "")
         self.gnews_key = os.getenv("GNEWS_API_KEY", "")
+        self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
+        self.azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+        self.azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+        self.azure_openai_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01")
+        self.azure_openai_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        self.llm_enrichment_enabled = os.getenv("NEWS_LLM_ENRICHMENT", "false").lower() in {"1", "true", "yes", "on"}
+        self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
+        self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "12")))
+        self.azure_client: Optional[Any] = None
+        if (
+            AsyncAzureOpenAI is not None
+            and self.azure_openai_api_key
+            and self.azure_openai_endpoint
+        ):
+            self.azure_client = AsyncAzureOpenAI(
+                api_key=self.azure_openai_api_key,
+                api_version=self.azure_openai_api_version,
+                azure_endpoint=self.azure_openai_endpoint,
+            )
 
     async def connect(self):
         if self.pool is None:
@@ -440,6 +551,29 @@ class DailyNewsIngestor:
             summary_html = entry.get("summary", entry.get("description", ""))
             summary_text = normalize_text(re.sub(r"<[^>]+>", " ", summary_html or ""))
             summary = summary_text[:300]
+            image_url = ""
+
+            media_content = entry.get("media_content") or []
+            if media_content and isinstance(media_content, list):
+                first = media_content[0] or {}
+                image_url = str(first.get("url") or "")
+
+            if not image_url:
+                media_thumbnail = entry.get("media_thumbnail") or []
+                if media_thumbnail and isinstance(media_thumbnail, list):
+                    first = media_thumbnail[0] or {}
+                    image_url = str(first.get("url") or "")
+
+            if not image_url:
+                for link_obj in entry.get("links", []) or []:
+                    href = str(link_obj.get("href") or "")
+                    content_type = str(link_obj.get("type") or "")
+                    if href and content_type.startswith("image/"):
+                        image_url = href
+                        break
+
+            if image_url:
+                image_url = canonicalize_url(urljoin(link, image_url))
 
             canonical = canonicalize_url(link)
             item = NormalizedNewsItem(
@@ -453,7 +587,11 @@ class DailyNewsIngestor:
                 published_at=published,
                 language="en",
                 author=normalize_text(entry.get("author", "")) or None,
-                payload={"feed_title": parsed.feed.get("title", ""), "entry_id": entry.get("id", "")},
+                payload={
+                    "feed_title": parsed.feed.get("title", ""),
+                    "entry_id": entry.get("id", ""),
+                    "image_url": image_url or None,
+                },
                 source_weight=source.credibility_weight,
             ).with_external_id()
             items.append(item)
@@ -637,7 +775,11 @@ class DailyNewsIngestor:
                 published_at=published,
                 language=str(art.get("language") or "en")[:12],
                 author=normalize_text(str(art.get("author") or "")) or None,
-                payload={"provider": "newsapi", "source": art.get("source")},
+                payload={
+                    "provider": "newsapi",
+                    "source": art.get("source"),
+                    "image_url": canonicalize_url(str(art.get("urlToImage") or "")) if art.get("urlToImage") else None,
+                },
                 source_weight=source.credibility_weight,
             ).with_external_id()
             items.append(item)
@@ -692,7 +834,10 @@ class DailyNewsIngestor:
                 published_at=published,
                 language="en",
                 author=normalize_text(str(art.get("source", {}).get("name") or "")) or None,
-                payload={"provider": "gnews"},
+                payload={
+                    "provider": "gnews",
+                    "image_url": canonicalize_url(str(art.get("image") or "")) if art.get("image") else None,
+                },
                 source_weight=source.credibility_weight,
             ).with_external_id()
             items.append(item)
@@ -734,7 +879,7 @@ class DailyNewsIngestor:
                 if resp.status_code >= 400:
                     return None
                 html = resp.text or ""
-                title, summary, page_published = extract_html_title_summary(html)
+                title, summary, page_published, image_url = extract_html_title_summary(html, source_url=url)
                 if not title:
                     return None
                 return NormalizedNewsItem(
@@ -747,7 +892,11 @@ class DailyNewsIngestor:
                     summary=(summary or "")[:300],
                     published_at=page_published or published,
                     language="en",
-                    payload={"origin": "frontier", "page_type": row.get("page_type")},
+                    payload={
+                        "origin": "frontier",
+                        "page_type": row.get("page_type"),
+                        "image_url": canonicalize_url(image_url) if image_url else None,
+                    },
                     source_weight=source.credibility_weight,
                 ).with_external_id()
             except Exception:
@@ -764,6 +913,144 @@ class DailyNewsIngestor:
                     return out
 
         return out
+
+    async def _fetch_startup_owned_sources(self, conn: asyncpg.Connection, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        startup_rows = await conn.fetch(
+            """
+            SELECT
+              COALESCE(slug, '') AS slug,
+              COALESCE(name, '') AS name,
+              website
+            FROM startups
+            WHERE website IS NOT NULL
+              AND TRIM(website) <> ''
+            ORDER BY COALESCE(last_crawl_at, updated_at, created_at) DESC NULLS LAST
+            LIMIT $1
+            """,
+            min(220, max(40, self.max_per_source * 5)),
+        )
+        if not startup_rows:
+            return []
+
+        candidate_inputs: List[Tuple[str, str, str]] = []
+        for row in startup_rows:
+            raw_website = str(row.get("website") or "").strip()
+            slug = str(row.get("slug") or "").strip()
+            name = str(row.get("name") or "").strip()
+            if not raw_website:
+                continue
+            normalized = canonicalize_url(raw_website)
+            parsed = urlparse(normalized)
+            if not parsed.netloc:
+                continue
+            root = f"https://{parsed.netloc}".rstrip("/")
+            for suffix in (
+                "/blog/feed",
+                "/news/feed",
+                "/changelog/feed",
+                "/feed",
+                "/blog",
+                "/news",
+                "/changelog",
+                "/updates",
+                "/press",
+            ):
+                candidate_inputs.append((f"{root}{suffix}", slug, name))
+
+        deduped_candidates: List[Tuple[str, str, str]] = []
+        seen_urls: set[str] = set()
+        for candidate in candidate_inputs:
+            if candidate[0] in seen_urls:
+                continue
+            seen_urls.add(candidate[0])
+            deduped_candidates.append(candidate)
+
+        sem = asyncio.Semaphore(12)
+        items: List[NormalizedNewsItem] = []
+
+        async def parse_candidate(url: str, startup_slug: str, startup_name: str) -> List[NormalizedNewsItem]:
+            try:
+                async with sem:
+                    resp = await client.get(url)
+                if resp.status_code >= 400:
+                    return []
+
+                content_type = str(resp.headers.get("content-type") or "").lower()
+                body = resp.text or ""
+                out: List[NormalizedNewsItem] = []
+
+                if ("/feed" in url or "xml" in content_type or "rss" in content_type) and feedparser is not None:
+                    parsed_feed = feedparser.parse(body)
+                    for entry in parsed_feed.entries[:2]:
+                        title = normalize_text(entry.get("title", ""))
+                        link = str(entry.get("link") or "")
+                        if not title or not link:
+                            continue
+                        published = parse_entry_datetime(entry) or datetime.now(timezone.utc)
+                        if published < cutoff:
+                            continue
+
+                        summary_html = entry.get("summary", entry.get("description", ""))
+                        summary = normalize_text(re.sub(r"<[^>]+>", " ", summary_html or ""))[:280]
+                        out.append(
+                            NormalizedNewsItem(
+                                source_key=source.source_key,
+                                source_name=source.display_name,
+                                source_type=source.source_type,
+                                title=title[:300],
+                                url=link,
+                                canonical_url=canonicalize_url(link),
+                                summary=summary,
+                                published_at=published,
+                                language="en",
+                                payload={
+                                    "origin": "startup_owned_feed",
+                                    "startup_slug": startup_slug,
+                                    "startup_name": startup_name,
+                                },
+                                source_weight=source.credibility_weight,
+                            ).with_external_id()
+                        )
+                    return out
+
+                title, summary, page_published, image_url = extract_html_title_summary(body, source_url=url)
+                if not title:
+                    return []
+                out.append(
+                    NormalizedNewsItem(
+                        source_key=source.source_key,
+                        source_name=source.display_name,
+                        source_type=source.source_type,
+                        title=title[:300],
+                        url=url,
+                        canonical_url=canonicalize_url(url),
+                        summary=(summary or "")[:280],
+                        published_at=page_published or datetime.now(timezone.utc),
+                        language="en",
+                        payload={
+                            "origin": "startup_owned_page",
+                            "startup_slug": startup_slug,
+                            "startup_name": startup_name,
+                            "image_url": canonicalize_url(image_url) if image_url else None,
+                        },
+                        source_weight=source.credibility_weight,
+                    ).with_external_id()
+                )
+                return out
+            except Exception:
+                return []
+
+        for idx in range(0, len(deduped_candidates), 24):
+            chunk = deduped_candidates[idx: idx + 24]
+            chunk_tasks = [parse_candidate(url, slug, name) for url, slug, name in chunk]
+            for produced in await asyncio.gather(*chunk_tasks):
+                if produced:
+                    items.extend(produced)
+                if len(items) >= self.max_per_source:
+                    return items[: self.max_per_source]
+
+        return items[: self.max_per_source]
 
     async def _collect_items(self, conn: asyncpg.Connection, lookback_hours: int) -> Tuple[List[NormalizedNewsItem], List[str], int]:
         errors: List[str] = []
@@ -785,6 +1072,8 @@ class DailyNewsIngestor:
                         items = await self._fetch_newsapi(client, source, lookback_hours)
                     elif source.source_key == "gnews":
                         items = await self._fetch_gnews(client, source, lookback_hours)
+                    elif source.source_key == "startup_owned_feeds":
+                        items = await self._fetch_startup_owned_sources(conn, client, source, lookback_hours)
                     elif source.fetch_mode == "crawler":
                         items = await self._fetch_frontier_candidates(conn, client, source, lookback_hours)
                     else:
@@ -950,6 +1239,19 @@ class DailyNewsIngestor:
                         rank_score=rank_score,
                         rank_reason=reason,
                         trust_score=trust_score,
+                        builder_takeaway=build_builder_takeaway(
+                            story_type=classify_story_type(tags),
+                            tags=tags,
+                            title=primary.title,
+                            summary=primary.summary,
+                            entities=entities,
+                        ),
+                        llm_summary=cluster.llm_summary,
+                        llm_model=cluster.llm_model,
+                        llm_signal_score=cluster.llm_signal_score,
+                        llm_confidence_score=cluster.llm_confidence_score,
+                        llm_topic_tags=list(cluster.llm_topic_tags),
+                        llm_story_type=cluster.llm_story_type,
                         members=members,
                     )
                     placed = True
@@ -979,12 +1281,179 @@ class DailyNewsIngestor:
                     rank_score=rank_score,
                     rank_reason=reason,
                     trust_score=trust_score,
+                    builder_takeaway=build_builder_takeaway(
+                        story_type=classify_story_type(tags),
+                        tags=tags,
+                        title=item.title,
+                        summary=item.summary,
+                        entities=extract_entities(item.title),
+                    ),
+                    llm_summary=None,
+                    llm_model=None,
+                    llm_signal_score=None,
+                    llm_confidence_score=None,
+                    llm_topic_tags=[],
+                    llm_story_type=None,
                     members=[item],
                 )
             )
 
         clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
         return clusters
+
+    async def _llm_enrich_cluster(
+        self, cluster: StoryCluster
+    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[float], Optional[float], Optional[List[str]], Optional[str]]:
+        if not self.openai_api_key and not self.azure_client:
+            return None, None, None, None, None, None, None
+
+        prompt = (
+            "You are ranking startup news for builders. "
+            "Return strict JSON with keys: "
+            "summary (<=160 chars), builder_takeaway (<=140 chars), "
+            "story_type (funding|launch|mna|regulation|hiring|news), "
+            "topic_tags (array of up to 6 lowercase tags), "
+            "signal_score (0-1), confidence_score (0-1). "
+            "Be specific and practical. No prose outside JSON."
+        )
+        user_payload = {
+            "title": cluster.title,
+            "summary": cluster.summary,
+            "story_type": cluster.story_type,
+            "topic_tags": cluster.topic_tags[:6],
+            "entities": cluster.entities[:6],
+            "source_count": len(cluster.members),
+            "rank_reason": cluster.rank_reason,
+            "current_rank_score": cluster.rank_score,
+            "current_trust_score": cluster.trust_score,
+        }
+        debug_llm = os.getenv("NEWS_LLM_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
+
+        def parse_llm_payload(
+            parsed: Dict[str, Any], model_label: Optional[str]
+        ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[float], Optional[float], Optional[List[str]], Optional[str]]:
+            llm_summary = _shorten_text(str(parsed.get("summary") or ""), 180) or None
+            builder_takeaway = _shorten_text(str(parsed.get("builder_takeaway") or ""), 150) or None
+            signal_score = clamp01(parsed.get("signal_score"), default=None)
+            confidence_score = clamp01(parsed.get("confidence_score"), default=None)
+            llm_topic_tags = normalize_llm_topic_tags(parsed.get("topic_tags"), cluster.topic_tags)
+            llm_story_type = normalize_llm_story_type(parsed.get("story_type"), cluster.story_type)
+            return (
+                llm_summary,
+                builder_takeaway,
+                model_label,
+                signal_score,
+                confidence_score,
+                llm_topic_tags,
+                llm_story_type,
+            )
+
+        if self.azure_client is not None:
+            for with_response_format in (True, False):
+                azure_payload: Dict[str, Any] = {
+                    "model": self.azure_openai_deployment,
+                    "messages": [
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": json.dumps(user_payload)},
+                    ],
+                    "temperature": 0.2,
+                    "max_tokens": 220,
+                }
+                if with_response_format:
+                    azure_payload["response_format"] = {"type": "json_object"}
+
+                try:
+                    response = await self.azure_client.chat.completions.create(**azure_payload)
+                    content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
+                    parsed = json.loads(content) if isinstance(content, str) else {}
+                    return parse_llm_payload(parsed, f"azure:{self.azure_openai_deployment}")
+                except Exception as exc:
+                    if debug_llm:
+                        mode = "json_object" if with_response_format else "no_response_format"
+                        print(f"[news-ingest] Azure LLM enrichment failed ({mode}): {exc}")
+
+        if self.openai_api_key:
+            try:
+                timeout = httpx.Timeout(self.http_timeout)
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.openai_api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.llm_model,
+                            "temperature": 0.2,
+                            "max_tokens": 220,
+                            "response_format": {"type": "json_object"},
+                            "messages": [
+                                {"role": "system", "content": prompt},
+                                {"role": "user", "content": json.dumps(user_payload)},
+                            ],
+                        },
+                    )
+                    if response.status_code >= 400:
+                        if debug_llm:
+                            print(f"[news-ingest] OpenAI LLM enrichment failed ({response.status_code}): {response.text[:200]}")
+                        return None, None, None, None, None, None, None
+                    payload = response.json() or {}
+                    content = (
+                        ((payload.get("choices") or [{}])[0].get("message") or {}).get("content")
+                        or "{}"
+                    )
+                    parsed = json.loads(content) if isinstance(content, str) else {}
+                    return parse_llm_payload(parsed, self.llm_model)
+            except Exception as exc:
+                if debug_llm:
+                    print(f"[news-ingest] OpenAI LLM enrichment exception: {exc}")
+                return None, None, None, None, None, None, None
+
+        return None, None, None, None, None, None, None
+
+    async def _enrich_clusters_with_llm(self, clusters: Sequence[StoryCluster]) -> None:
+        if not clusters:
+            return
+        if not self.llm_enrichment_enabled or self.llm_max_clusters <= 0:
+            return
+        if not self.openai_api_key and self.azure_client is None:
+            return
+
+        top_n = min(len(clusters), self.llm_max_clusters)
+        for cluster in list(clusters)[:top_n]:
+            (
+                llm_summary,
+                builder_takeaway,
+                llm_model,
+                llm_signal_score,
+                llm_confidence_score,
+                llm_topic_tags,
+                llm_story_type,
+            ) = await self._llm_enrich_cluster(cluster)
+
+            if llm_model:
+                cluster.llm_model = llm_model
+            if llm_summary:
+                cluster.llm_summary = llm_summary
+            if builder_takeaway:
+                cluster.builder_takeaway = builder_takeaway
+            if llm_topic_tags:
+                cluster.llm_topic_tags = list(llm_topic_tags)
+                cluster.topic_tags = list(llm_topic_tags)
+            if llm_story_type:
+                cluster.llm_story_type = llm_story_type
+                cluster.story_type = llm_story_type
+            if llm_signal_score is not None:
+                cluster.llm_signal_score = llm_signal_score
+                cluster.rank_score = max(0.0, min(1.0, cluster.rank_score * 0.75 + llm_signal_score * 0.25))
+            if llm_confidence_score is not None:
+                cluster.llm_confidence_score = llm_confidence_score
+                cluster.trust_score = max(0.0, min(1.0, cluster.trust_score * 0.8 + llm_confidence_score * 0.2))
+            if cluster.llm_model and "llm-enriched" not in cluster.rank_reason:
+                cluster.rank_reason = f"{cluster.rank_reason}, llm-enriched"
+
+        if isinstance(clusters, list):
+            clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
 
     async def _persist_clusters(self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster]) -> Dict[str, str]:
         # Build map from raw item external keys to IDs for linking.
@@ -1003,9 +1472,11 @@ class DailyNewsIngestor:
                 """
                 INSERT INTO news_clusters (
                     cluster_key, canonical_url, title, summary, published_at, updated_at,
-                    topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score
+                    topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score,
+                    builder_takeaway, llm_summary, llm_model, llm_signal_score, llm_confidence_score,
+                    llm_topic_tags, llm_story_type
                 )
-                VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12)
+                VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::text[], $19)
                 ON CONFLICT (cluster_key) DO UPDATE
                 SET canonical_url = EXCLUDED.canonical_url,
                     title = EXCLUDED.title,
@@ -1018,7 +1489,14 @@ class DailyNewsIngestor:
                     source_count = EXCLUDED.source_count,
                     rank_score = EXCLUDED.rank_score,
                     rank_reason = EXCLUDED.rank_reason,
-                    trust_score = EXCLUDED.trust_score
+                    trust_score = EXCLUDED.trust_score,
+                    builder_takeaway = EXCLUDED.builder_takeaway,
+                    llm_summary = EXCLUDED.llm_summary,
+                    llm_model = EXCLUDED.llm_model,
+                    llm_signal_score = EXCLUDED.llm_signal_score,
+                    llm_confidence_score = EXCLUDED.llm_confidence_score,
+                    llm_topic_tags = EXCLUDED.llm_topic_tags,
+                    llm_story_type = EXCLUDED.llm_story_type
                 RETURNING id::text
                 """,
                 cluster.cluster_key,
@@ -1033,6 +1511,13 @@ class DailyNewsIngestor:
                 cluster.rank_score,
                 cluster.rank_reason,
                 cluster.trust_score,
+                cluster.builder_takeaway,
+                cluster.llm_summary,
+                cluster.llm_model,
+                cluster.llm_signal_score,
+                cluster.llm_confidence_score,
+                cluster.llm_topic_tags,
+                cluster.llm_story_type,
             )
             if not cluster_id:
                 continue
@@ -1160,6 +1645,7 @@ class DailyNewsIngestor:
 
                 items_for_clustering = await self._load_recent_items(conn, lookback_hours)
                 clusters = self._cluster_items(items_for_clustering)
+                await self._enrich_clusters_with_llm(clusters)
                 cluster_ids = await self._persist_clusters(conn, clusters)
                 stats = await self._persist_edition(
                     conn,

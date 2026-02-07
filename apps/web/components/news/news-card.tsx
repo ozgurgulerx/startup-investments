@@ -23,18 +23,59 @@ interface NewsCardProps {
   featured?: boolean;
 }
 
+function toneForStoryType(storyType: string): string {
+  const normalized = (storyType || '').toLowerCase();
+  if (normalized === 'funding') {
+    return 'border-emerald-400/30 bg-gradient-to-br from-emerald-400/12 via-card/70 to-card/60';
+  }
+  if (normalized === 'mna') {
+    return 'border-sky-400/30 bg-gradient-to-br from-sky-400/10 via-card/70 to-card/60';
+  }
+  if (normalized === 'regulation') {
+    return 'border-violet-400/28 bg-gradient-to-br from-violet-400/12 via-card/70 to-card/60';
+  }
+  if (normalized === 'launch') {
+    return 'border-amber-400/28 bg-gradient-to-br from-amber-400/12 via-card/70 to-card/60';
+  }
+  return 'border-border/40 bg-card/65';
+}
+
 export function NewsCard({ item, featured = false }: NewsCardProps) {
   const tags = item.topic_tags.slice(0, 3);
-  const summary = item.summary || item.rank_reason;
+  const summary = item.llm_summary || item.summary || item.rank_reason;
   const hasSourceUrl = Boolean(item.url);
   const sourceHref = item.url || '#';
+  const toneClass = toneForStoryType(item.story_type);
+  const hasImage = Boolean(item.image_url && item.image_url.startsWith('http'));
 
   return (
     <article
-      className={`group rounded-xl border border-border/40 bg-card/60 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] ${featured ? 'p-6' : 'p-4'}`}
+      className={`group rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
     >
+      {hasImage ? (
+        <div className="mb-3 overflow-hidden rounded-lg border border-border/35 bg-background/70">
+          <img
+            src={item.image_url}
+            alt=""
+            loading="lazy"
+            className={`w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${featured ? 'h-52' : 'h-36'}`}
+            onError={(event) => {
+              event.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      ) : null}
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
+        {typeof item.llm_signal_score === 'number' ? (
+          <span className="rounded-full border border-accent/35 bg-accent/12 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent">
+            AI Signal {Math.round(item.llm_signal_score * 100)}%
+          </span>
+        ) : null}
+        <span className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+          {item.story_type || 'news'}
+        </span>
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{item.primary_source}</span>
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{timeAgo(item.published_at)}</span>
       </div>
@@ -55,6 +96,13 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
         <p className={`mt-3 text-muted-foreground ${featured ? 'text-sm leading-relaxed' : 'text-xs leading-relaxed'}`}>
           {summary}
         </p>
+      ) : null}
+
+      {item.builder_takeaway ? (
+        <div className="mt-3 rounded-md border border-accent/25 bg-accent/10 px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-accent">Builder View</p>
+          <p className="mt-1 text-xs leading-relaxed text-foreground/90">{item.builder_takeaway}</p>
+        </div>
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-1.5">

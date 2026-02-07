@@ -593,6 +593,7 @@ export interface NewsItemCard {
   id: string;
   title: string;
   summary: string;
+  image_url?: string;
   url: string;
   canonical_url?: string;
   published_at: string;
@@ -605,6 +606,13 @@ export interface NewsItemCard {
   source_count: number;
   primary_source: string;
   sources: string[];
+  builder_takeaway?: string;
+  llm_summary?: string;
+  llm_model?: string;
+  llm_signal_score?: number;
+  llm_confidence_score?: number;
+  llm_topic_tags?: string[];
+  llm_story_type?: string;
 }
 
 export interface NewsEdition {
@@ -623,4 +631,11 @@ export interface NewsEdition {
 export interface NewsTopicStat {
   topic: string;
   count: number;
+}
+
+export interface NewsArchiveDay {
+  edition_date: string;
+  generated_at: string;
+  total_clusters: number;
+  top_story_count: number;
 }
