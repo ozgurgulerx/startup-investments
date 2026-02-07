@@ -34,6 +34,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # We need history for period auto-detection via git diff.
+          fetch-depth: 50
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -44,6 +47,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Install ripgrep (rg)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ripgrep
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -59,8 +67,22 @@ jobs:
           if [ -n "${{ github.event.inputs.period }}" ]; then
             PERIOD="${{ github.event.inputs.period }}"
           else
-            # Extract period from changed files or use latest
-            PERIOD="2026-01"
+            # Derive period from changed paths, else fall back to most recent directory under apps/web/data/
+            BEFORE_SHA="${{ github.event.before }}"
+            AFTER_SHA="${{ github.sha }}"
+            if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              RANGE="$BEFORE_SHA..$AFTER_SHA"
+            else
+              RANGE="$AFTER_SHA~1..$AFTER_SHA"
+            fi
+
+            PERIOD="$(git diff --name-only "$RANGE" 2>/dev/null | rg -o 'apps/web/data/\\d{4}-\\d{2}' | head -n 1 | sed 's#apps/web/data/##' || true)"
+            if [ -z "$PERIOD" ]; then
+              PERIOD="$(ls -1 apps/web/data 2>/dev/null | rg '^\\d{4}-\\d{2}$' | sort -r | head -n 1 || true)"
+            fi
+            if [ -z "$PERIOD" ]; then
+              PERIOD="2026-01"
+            fi
           fi
           echo "period=$PERIOD" >> $GITHUB_OUTPUT
           echo "Using period: $PERIOD"
@@ -555,10 +577,10 @@ jobs:
           except urllib.error.HTTPError as e:
               print(f"HTTP Error {e.code}: {e.reason}")
               print(e.read().decode('utf-8'))
-              print("Database sync failed - API may not be available")
+              raise SystemExit(1)
           except urllib.error.URLError as e:
               print(f"URL Error: {e.reason}")
-              print("Database sync failed - API may not be available")
+              raise SystemExit(1)
           EOF
 
       - name: Summary

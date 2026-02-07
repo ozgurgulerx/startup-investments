@@ -23,6 +23,8 @@ jobs:
       cancel-in-progress: false
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Login to Azure (OIDC)
         uses: azure/login@v2
         with:

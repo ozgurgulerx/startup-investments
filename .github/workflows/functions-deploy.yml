@@ -85,7 +85,8 @@ jobs:
             echo "Attempt $i: Status $STATUS, waiting..."
             sleep 10
           done
-          echo "Warning: Health check didn't return 200, but deployment completed"
+          echo "::error::Functions health check didn't return 200 after 5 minutes"
+          exit 1
 
       - name: Notify Slack (failure)
         if: failure()

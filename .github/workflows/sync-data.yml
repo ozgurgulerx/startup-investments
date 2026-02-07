@@ -31,6 +31,7 @@ env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '20.x'
   AZURE_WEBAPP_NAME: buildatlas-web
+  API_URL: ${{ vars.API_URL }}
 
 jobs:
   sync-and-deploy:
@@ -162,7 +163,8 @@ jobs:
         if: steps.check_changes.outputs.has_changes == 'true' && env.skip_build != 'true'
         run: pnpm --filter web build
         env:
-          NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+          # Keep consistent with frontend-deploy.yml (Front Door endpoint is the canonical prod API URL)
+          NEXT_PUBLIC_API_URL: ${{ vars.API_URL || 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}

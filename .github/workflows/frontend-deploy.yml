@@ -46,8 +46,8 @@ jobs:
       - name: Build frontend
         run: pnpm --filter web build
         env:
-          # HARDCODED: API URL must point to Front Door endpoint for production
-          NEXT_PUBLIC_API_URL: https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net
+          # Prefer the repo variable if set; otherwise fall back to Front Door endpoint
+          NEXT_PUBLIC_API_URL: ${{ vars.API_URL || 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net' }}
           API_KEY: ${{ secrets.API_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}

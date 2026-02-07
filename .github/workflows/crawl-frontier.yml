@@ -33,9 +33,16 @@ jobs:
       - name: Validate required secrets
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BROWSERLESS_ENDPOINT: ${{ secrets.BROWSERLESS_ENDPOINT }}
+          BROWSERLESS_TOKEN: ${{ secrets.BROWSERLESS_TOKEN }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::Missing required secret: DATABASE_URL"
+            exit 1
+          fi
+          # Browserless is required when unblock provider is browserless (we set it in worker env below)
+          if [ -z "$BROWSERLESS_ENDPOINT" ] || [ -z "$BROWSERLESS_TOKEN" ]; then
+            echo "::error::Missing required secrets: BROWSERLESS_ENDPOINT and/or BROWSERLESS_TOKEN"
             exit 1
           fi
 
