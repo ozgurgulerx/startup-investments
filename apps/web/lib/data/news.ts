@@ -169,7 +169,10 @@ async function getEditionClusterCards(editionDate: string, limit = 40): Promise<
         c.trust_score,
         c.source_count,
         COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
-        MAX(CASE WHEN nci.is_primary THEN nir.payload_json->>'image_url' END) AS image_url,
+        COALESCE(
+          MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
+          MAX(NULLIF(nir.payload_json->>'image_url', ''))
+        ) AS image_url,
         COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
       FROM ordered o
@@ -217,7 +220,10 @@ async function getEditionClusterCards(editionDate: string, limit = 40): Promise<
         c.trust_score,
         c.source_count,
         COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
-        MAX(CASE WHEN nci.is_primary THEN nir.payload_json->>'image_url' END) AS image_url,
+        COALESCE(
+          MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
+          MAX(NULLIF(nir.payload_json->>'image_url', ''))
+        ) AS image_url,
         COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
       FROM ordered o
@@ -259,7 +265,10 @@ async function getTopicClusterCards(topic: string, editionDate: string, limit = 
         c.trust_score,
         c.source_count,
         COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
-        MAX(CASE WHEN nci.is_primary THEN nir.payload_json->>'image_url' END) AS image_url,
+        COALESCE(
+          MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
+          MAX(NULLIF(nir.payload_json->>'image_url', ''))
+        ) AS image_url,
         COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
       FROM news_topic_index nti
@@ -302,7 +311,10 @@ async function getTopicClusterCards(topic: string, editionDate: string, limit = 
         c.trust_score,
         c.source_count,
         COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
-        MAX(CASE WHEN nci.is_primary THEN nir.payload_json->>'image_url' END) AS image_url,
+        COALESCE(
+          MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
+          MAX(NULLIF(nir.payload_json->>'image_url', ''))
+        ) AS image_url,
         COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
       FROM news_topic_index nti
