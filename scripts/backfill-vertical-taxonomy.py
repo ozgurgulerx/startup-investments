@@ -54,6 +54,7 @@ def main() -> int:
     parser.add_argument("--region", default="global", help="Dataset region: global|tr (default: global)")
     parser.add_argument("--limit", type=int, default=0, help="Process only N files (0 = all)")
     parser.add_argument("--only-missing", action="store_true", help="Only process files missing vertical_taxonomy")
+    parser.add_argument("--max-failures", type=int, default=10, help="Abort after this many classification failures")
     parser.add_argument("--dry-run", action="store_true", help="Compute but do not write files")
     args = parser.parse_args()
 
@@ -73,10 +74,30 @@ def main() -> int:
 
     import asyncio
 
+    async def classify_with_retries(
+        company_name: str,
+        content: str,
+        description: str,
+        industries_str: str,
+        attempts: int = 3,
+    ) -> Dict[str, Any]:
+        last: Dict[str, Any] = {}
+        for i in range(attempts):
+            try:
+                last = await analyzer._classify_vertical_taxonomy(company_name, content, description, industries_str)
+            except Exception:
+                last = {}
+            if isinstance(last, dict) and last:
+                return last
+            # backoff: 1s, 2s, 4s
+            await asyncio.sleep(2 ** i)
+        return last if isinstance(last, dict) else {}
+
     async def process_all() -> Tuple[int, int, int]:
         processed = 0
         updated = 0
         skipped = 0
+        failures = 0
 
         for fp in files:
             processed += 1
@@ -100,11 +121,14 @@ def main() -> int:
                 description.strip(),
             ]).strip()
 
-            tax = await analyzer._classify_vertical_taxonomy(company_name, content, description, industries_str)
+            tax = await classify_with_retries(company_name, content, description, industries_str)
 
             if not isinstance(tax, dict) or not tax:
-                # Don't write anything if taxonomy is empty (likely connectivity/config issue).
-                raise SystemExit(f"Taxonomy classification returned empty for {fp.name}. Aborting to avoid corrupt backfill.")
+                failures += 1
+                print(f"Classification failed ({failures}/{args.max_failures}): {fp.name}", flush=True)
+                if failures >= args.max_failures:
+                    raise SystemExit("Too many failures, aborting.")
+                continue
 
             obj["vertical_taxonomy"] = tax
 
@@ -120,12 +144,12 @@ def main() -> int:
                 fp.write_text(json.dumps(obj, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8")
 
             if processed % 25 == 0:
-                print(f"Processed {processed}/{len(files)} (updated={updated}, skipped={skipped})")
+                print(f"Processed {processed}/{len(files)} (updated={updated}, skipped={skipped})", flush=True)
 
         return processed, updated, skipped
 
     processed, updated, skipped = asyncio.run(process_all())
-    print(f"Done. processed={processed} updated={updated} skipped={skipped} dry_run={args.dry_run}")
+    print(f"Done. processed={processed} updated={updated} skipped={skipped} dry_run={args.dry_run}", flush=True)
     return 0
 
 
