@@ -140,6 +140,28 @@ Operational notes:
   - GitHub secrets (for workflows)
   - AKS secret (via backend deploy) and/or App Service settings (web)
 
+## Regions & Datasets (Global vs Turkey)
+
+Canonical dataset regions:
+- `global`
+- `turkey` (legacy alias `tr` is accepted in URLs/localStorage for backward compatibility)
+
+Region selection mechanics:
+- UI toggle persists to localStorage key `ba_region` and forces a Server Component re-render by updating `?region=...` in the URL.
+- Region-aware pages: `/brief`, `/dealbook`, `/signals`, `/capital`, `/company/[slug]`.
+
+On-disk data layout (file-based datasets):
+- Global: `apps/web/data/{YYYY-MM}/...`
+- Turkey: `apps/web/data/tr/{YYYY-MM}/...` (folder name stays `tr` for historical reasons)
+
+API limitations and performance implications:
+- Backend API serves **global** dataset only.
+- When `region != global`, the web app bypasses API calls and reads from files (slower; acceptable as a fallback/region mode).
+
+Quick checks:
+- `GET /api/periods?region=turkey` should return TR periods when `apps/web/data/tr/**` is deployed.
+- `/dealbook?region=turkey` should render non-empty dossiers if TR data exists for the latest period.
+
 ## Performance Notes (Why Dossiers Can Be Slow)
 
 Dealbook and signals pages are "API-first, fallback-to-files":
