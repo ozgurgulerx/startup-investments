@@ -447,6 +447,10 @@ class StartupAnalysis(BaseModel):
     market_type: MarketType = MarketType.HORIZONTAL
     vertical: Vertical = Vertical.OTHER
     sub_vertical: Optional[str] = None
+    sub_sub_vertical: Optional[str] = None
+    # Flexible, versioned industry taxonomy (supports arbitrary depth).
+    # Stored as JSON to avoid hardcoding enums for every subcategory.
+    vertical_taxonomy: Dict[str, Any] = Field(default_factory=dict)
     target_market: TargetMarket = TargetMarket.UNKNOWN
 
     # Technical Analysis

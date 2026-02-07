@@ -2,6 +2,7 @@
 
 import json
 import re
+from pathlib import Path
 from typing import Dict, Any, List
 from openai import AzureOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -76,6 +77,148 @@ class GenAIAnalyzer:
         self.fast_model = settings.azure_openai.fast_model
         self.reasoning_model = settings.azure_openai.reasoning_model
         self.crawler = StartupCrawler()
+        self._vertical_taxonomy_ontology = self._load_vertical_taxonomy_ontology()
+
+    def _load_vertical_taxonomy_ontology(self) -> Dict[str, Any]:
+        """Load the versioned vertical taxonomy ontology JSON."""
+        # genai_detector.py lives at src/analysis; ontology is at src/ontology.
+        ontology_path = Path(__file__).resolve().parents[1] / "ontology" / "startup_vertical_ontology_v1.json"
+        try:
+            with ontology_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict) or not isinstance(data.get("vertical_tree"), list):
+                return {}
+            return data
+        except Exception as e:
+            print(f"Failed to load vertical taxonomy ontology ({ontology_path}): {e}")
+            return {}
+
+    async def _classify_vertical_taxonomy(
+        self, company_name: str, content: str, description: str, industries: str
+    ) -> Dict[str, Any]:
+        """
+        Classify a startup into a flexible, hierarchical vertical taxonomy.
+
+        Notes:
+        - Content may be Turkish; the model should translate internally and pick canonical IDs/labels.
+        - We classify stepwise (root -> child -> ...), to avoid stuffing the entire ontology into one prompt.
+        """
+        ontology = self._vertical_taxonomy_ontology or {}
+        vertical_tree = ontology.get("vertical_tree") or []
+        if not isinstance(vertical_tree, list) or not vertical_tree:
+            return {}
+
+        # Keep context small but informative; we call the model multiple times.
+        excerpt = (content or "")[:4000]
+        context = (
+            f"COMPANY: {company_name}\n"
+            f"DESCRIPTION: {description}\n"
+            f"INDUSTRIES: {industries}\n"
+            f"CONTENT_EXCERPT (may be Turkish):\n{excerpt}"
+        ).strip()
+
+        def candidates_payload(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            payload: List[Dict[str, Any]] = []
+            for n in nodes:
+                if not isinstance(n, dict):
+                    continue
+                synonyms = n.get("synonyms") if isinstance(n.get("synonyms"), list) else []
+                payload.append(
+                    {
+                        "id": n.get("id"),
+                        "label": n.get("label"),
+                        "synonyms": [s for s in synonyms if isinstance(s, str)][:6],
+                    }
+                )
+            return payload
+
+        async def pick(nodes: List[Dict[str, Any]], allow_none: bool) -> Dict[str, Any]:
+            options = candidates_payload(nodes)
+            allowed_ids = [o["id"] for o in options if isinstance(o.get("id"), str)]
+            if allow_none:
+                allowed_ids.append("none")
+
+            prompt = f"""You are a startup classification assistant.
+
+The content may be in Turkish. If so, translate internally. Always pick from the allowed IDs.
+
+CONTEXT:
+{context}
+
+TASK:
+- Choose the single best matching category ID from the list below.
+- If none are a good fit, choose "none" (only allowed when present).
+
+ALLOWED_OPTIONS (JSON):
+{json.dumps(options, ensure_ascii=False)}
+
+OUTPUT (JSON only):
+{{
+  "id": "one of: {', '.join(allowed_ids)}",
+  "confidence": 0.0-1.0,
+  "notes": "short justification"
+}}
+"""
+            result = await self._call_llm(prompt, use_reasoning=False)
+            chosen = result.get("id") if isinstance(result, dict) else None
+            if chosen not in set(allowed_ids):
+                return {"id": "none" if allow_none else (allowed_ids[0] if allowed_ids else "none"), "confidence": 0.0, "notes": "invalid id"}
+            conf = result.get("confidence", 0.0)
+            try:
+                conf = float(conf)
+            except Exception:
+                conf = 0.0
+            return {"id": chosen, "confidence": max(0.0, min(1.0, conf)), "notes": str(result.get("notes", ""))[:240]}
+
+        # Walk the ontology tree.
+        path: List[Dict[str, Any]] = []
+        current_nodes: List[Dict[str, Any]] = vertical_tree
+        max_depth = 4  # vertical -> sub -> leaf -> (optional deeper)
+
+        for depth in range(max_depth):
+            allow_none = depth > 0  # once we have a vertical, it's ok to stop at higher level
+            choice = await pick(current_nodes, allow_none=allow_none)
+            chosen_id = choice.get("id")
+            if chosen_id == "none":
+                break
+
+            node = next((n for n in current_nodes if isinstance(n, dict) and n.get("id") == chosen_id), None)
+            if not node:
+                break
+
+            path.append(
+                {
+                    "id": node.get("id"),
+                    "label": node.get("label"),
+                    "confidence": choice.get("confidence", 0.0),
+                }
+            )
+
+            children = node.get("children") if isinstance(node.get("children"), list) else []
+            if not children:
+                break
+            current_nodes = children
+
+        if not path:
+            return {}
+
+        primary_vertical = path[0]
+        primary_sub = path[1] if len(path) > 1 else None
+        primary_leaf = path[-1]
+
+        return {
+            "ontology_id": ontology.get("ontology_id", "startup-vertical-taxonomy"),
+            "ontology_version": ontology.get("version", ""),
+            "primary": {
+                "vertical_id": primary_vertical.get("id"),
+                "vertical_label": primary_vertical.get("label"),
+                "sub_vertical_id": primary_sub.get("id") if primary_sub else None,
+                "sub_vertical_label": primary_sub.get("label") if primary_sub else None,
+                "leaf_id": primary_leaf.get("id"),
+                "leaf_label": primary_leaf.get("label"),
+            },
+            "path": path,
+        }
 
     async def analyze_startup(self, startup: StartupInput) -> StartupAnalysis:
         """Perform complete analysis of a startup."""
@@ -122,6 +265,9 @@ class GenAIAnalyzer:
         vertical_result = await self._analyze_vertical(
             startup.name, content, startup.description or "", industries_str
         )
+        vertical_taxonomy_result = await self._classify_vertical_taxonomy(
+            startup.name, content, startup.description or "", industries_str
+        )
 
         # NEW: Dynamic pattern discovery and business analysis
         pattern_discovery_result = await self._discover_patterns(startup.name, content)
@@ -165,6 +311,8 @@ class GenAIAnalyzer:
             market_type=self._parse_market_type(market_result.get("market_type", "horizontal")),
             vertical=self._parse_vertical(vertical_result.get("vertical", "other")),
             sub_vertical=vertical_result.get("sub_vertical") or market_result.get("sub_vertical"),
+            sub_sub_vertical=vertical_result.get("sub_sub_vertical") or market_result.get("sub_sub_vertical"),
+            vertical_taxonomy=vertical_taxonomy_result or {},
             target_market=self._parse_target_market(market_result.get("target_market", "unknown")),
             tech_stack=self._parse_tech_stack(tech_stack_result),
             engineering_quality=self._parse_engineering_quality(engineering_result),
