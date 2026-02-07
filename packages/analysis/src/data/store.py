@@ -131,10 +131,24 @@ class AnalysisStore:
         return index
 
     def _save_index(self):
-        """Save the store index."""
+        """Save the store index atomically (write-to-temp + rename)."""
+        import tempfile
+        import os
+
         self.index["stats"]["last_updated"] = datetime.now(timezone.utc).isoformat()
-        with open(self.index_file, "w") as f:
-            json.dump(self.index, f, indent=2, default=str)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.store_dir), suffix=".index.tmp"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(self.index, f, indent=2, default=str)
+            os.replace(tmp_path, str(self.index_file))
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def _get_startup_hash(self, startup: StartupInput) -> str:
         """Generate a hash for a startup to detect changes.
@@ -152,8 +166,35 @@ class AnalysisStore:
         return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
     def _get_slug(self, name: str) -> str:
-        """Convert name to filesystem-safe slug."""
-        return name.lower().replace(" ", "-").replace(".", "").replace(",", "").replace("&", "and")
+        """Convert name to filesystem-safe slug, with collision detection.
+
+        If two different company names produce the same slug (e.g. "AI & Co" and
+        "AI and Co"), appends a numeric suffix (-2, -3, etc.) to avoid overwriting.
+        """
+        base_slug = name.lower().replace(" ", "-").replace(".", "").replace(",", "").replace("&", "and")
+
+        # Check if this slug is already used by a *different* company name
+        for existing_name, meta in self.index.get("startups", {}).items():
+            if meta.get("slug") == base_slug and existing_name != name:
+                # Collision — find next available suffix
+                counter = 2
+                while True:
+                    candidate = f"{base_slug}-{counter}"
+                    taken = any(
+                        m.get("slug") == candidate
+                        for n, m in self.index["startups"].items()
+                        if n != name
+                    )
+                    if not taken:
+                        return candidate
+                    counter += 1
+
+        # Check if this name already has a slug assigned (return same one for stability)
+        existing_meta = self.index.get("startups", {}).get(name)
+        if existing_meta and existing_meta.get("slug"):
+            return existing_meta["slug"]
+
+        return base_slug
 
     def get_processed_names(self) -> Set[str]:
         """Get set of already processed startup names."""

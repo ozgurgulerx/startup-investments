@@ -224,10 +224,10 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
 
       <div className="relative max-w-6xl mx-auto px-6">
         {pendingEdition ? (
-          <div className="mb-4 rounded-xl border border-accent/35 bg-accent/10 px-4 py-3 text-sm text-foreground">
+          <div className="mb-4 rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-3 text-sm text-foreground">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" />
+                <Sparkles className="h-4 w-4 text-accent-info" />
                 <span>
                   <strong>{newStoryCount}</strong> new story{newStoryCount === 1 ? '' : 'ies'} ready.
                 </span>
@@ -240,7 +240,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
                   setPendingEdition(null);
                   setNewStoryCount(0);
                 }}
-                className="inline-flex items-center gap-1 rounded-full border border-accent/40 px-3 py-1 text-xs uppercase tracking-wider text-accent hover:bg-accent/15"
+                className="inline-flex items-center gap-1 rounded-full border border-accent-info/40 px-3 py-1 text-xs uppercase tracking-wider text-accent-info hover:bg-accent-info/15"
               >
                 Refresh feed
                 <ArrowUpRight className="h-3 w-3" />
@@ -251,8 +251,8 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
 
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="label-xs text-accent">Today&apos;s Briefing</div>
-            <h2 className="mt-2 text-4xl font-light tracking-tight text-foreground">Startup News Radar</h2>
+            <div className="label-xs text-accent-info">Today&apos;s Briefing</div>
+            <h2 className="mt-2 text-4xl font-light tracking-tight text-foreground">Signal Feed</h2>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground leading-relaxed">
               Live startup signals ranked by impact, trust, and multi-source corroboration.
             </p>
@@ -263,10 +263,10 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               Live
             </span>
             <span className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/20 px-3 py-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-              <RefreshCcw className={`h-3 w-3 ${isPolling ? 'animate-spin text-accent' : ''}`} />
+              <RefreshCcw className={`h-3 w-3 ${isPolling ? 'animate-spin text-accent-info' : ''}`} />
               Updated {formatTimestamp(edition.generated_at)}
             </span>
-            <Link href="/news" className="inline-flex items-center text-sm text-accent hover:text-accent/80">
+            <Link href="/news" className="inline-flex items-center text-sm text-accent-info hover:text-accent-info/80">
               Open full newsroom
             </Link>
           </div>
@@ -300,14 +300,14 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             <button
               type="button"
               onClick={() => setSortMode('impact')}
-              className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${sortMode === 'impact' ? 'border-accent/55 bg-accent/15 text-accent' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent/35 hover:text-foreground'}`}
+              className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${sortMode === 'impact' ? 'border-accent-info/55 bg-accent-info/15 text-accent-info' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent-info/35 hover:text-foreground'}`}
             >
               Rank: Impact
             </button>
             <button
               type="button"
               onClick={() => setSortMode('latest')}
-              className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${sortMode === 'latest' ? 'border-accent/55 bg-accent/15 text-accent' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent/35 hover:text-foreground'}`}
+              className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${sortMode === 'latest' ? 'border-accent-info/55 bg-accent-info/15 text-accent-info' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent-info/35 hover:text-foreground'}`}
             >
               Rank: Latest
             </button>
@@ -317,7 +317,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               <button
                 type="button"
                 onClick={() => setActiveTopic('all')}
-                className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${activeTopic === 'all' ? 'border-accent/55 bg-accent/15 text-accent' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent/35 hover:text-foreground'}`}
+                className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${activeTopic === 'all' ? 'border-accent-info/55 bg-accent-info/15 text-accent-info' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent-info/35 hover:text-foreground'}`}
               >
                 All topics
               </button>
@@ -328,7 +328,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
                     key={topic.topic}
                     type="button"
                     onClick={() => setActiveTopic(topic.topic)}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${isActive ? 'border-accent/55 bg-accent/15 text-accent' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent/35 hover:text-foreground'}`}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${isActive ? 'border-accent-info/55 bg-accent-info/15 text-accent-info' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent-info/35 hover:text-foreground'}`}
                   >
                     <span>{topic.topic}</span>
                     <span className="tabular-nums opacity-70">{topic.count}</span>
@@ -414,7 +414,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
           >
             <div className="rounded-2xl border border-emerald-400/20 bg-gradient-to-b from-emerald-400/10 via-card/80 to-card/70 p-4">
               <div className="mb-4 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-accent" />
+                <TrendingUp className="h-4 w-4 text-accent-info" />
                 <h3 className="text-sm font-medium tracking-tight text-foreground">Live Signal Rail</h3>
               </div>
 
@@ -436,7 +436,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
                   {fundingSignal ? (
                     <div className="mt-2 space-y-1">
                       <p className="text-sm text-foreground line-clamp-2">{fundingSignal.title}</p>
-                      <p className="text-xs text-accent">{fundingSignal.amount || 'Funding event detected'}</p>
+                      <p className="text-xs text-accent-info">{fundingSignal.amount || 'Funding event detected'}</p>
                     </div>
                   ) : (
                     <p className="mt-2 text-xs text-muted-foreground">No high-confidence funding signal right now.</p>
@@ -475,8 +475,8 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             ) : null}
             .
           </p>
-          <Link href="/news" className="inline-flex items-center gap-1 text-accent hover:text-accent/80">
-            Open full daily startup newsroom
+          <Link href="/news" className="inline-flex items-center gap-1 text-accent-info hover:text-accent-info/80">
+            Open full signal feed
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -486,14 +486,14 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             <NewsSubscriptionCard />
           </div>
           <div className="rounded-2xl border border-border/40 bg-card/60 p-4">
-            <p className="label-xs text-accent">Archive</p>
+            <p className="label-xs text-accent-info">Archive</p>
             <h3 className="mt-2 text-lg font-medium tracking-tight text-foreground">Scroll back by day</h3>
             <p className="mt-2 text-sm text-muted-foreground">
               Browse every generated daily edition to see how startup narratives shifted over time.
             </p>
             <Link
               href="/news"
-              className="mt-4 inline-flex items-center gap-1 text-sm text-accent hover:text-accent/80"
+              className="mt-4 inline-flex items-center gap-1 text-sm text-accent-info hover:text-accent-info/80"
             >
               Open archive timeline
               <ArrowUpRight className="h-3.5 w-3.5" />

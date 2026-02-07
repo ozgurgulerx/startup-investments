@@ -150,7 +150,7 @@ function BriefHeader({
         className="mb-4"
       />
       <h1 className="briefing-headline">{brief.title}</h1>
-      <p className="text-sm text-accent mb-2">{brief.subtitle}</p>
+      <p className="text-sm text-accent-info mb-2">{brief.subtitle}</p>
       <p className="briefing-subhead">{brief.hook}</p>
       <p className="text-xs text-muted-foreground mt-4">
         Generated: {new Date(brief.generatedAt).toLocaleDateString('en-US', {
@@ -289,12 +289,12 @@ function ThemeSection({ theme }: { theme: MonthlyBrief['theme'] }) {
       <div className="section-header">
         <span className="section-title">This Month&apos;s Theme</span>
       </div>
-      <div className="p-6 border border-accent/30 rounded-lg bg-accent/5">
+      <div className="p-6 border border-accent-info/30 rounded-lg bg-accent-info/5">
         <h3 className="text-xl font-medium text-foreground mb-4">{theme.name}</h3>
         <ul className="space-y-3">
           {theme.summaryBullets.map((bullet, i) => (
             <li key={i} className="flex gap-3 text-sm text-muted-foreground">
-              <span className="text-accent">•</span>
+              <span className="text-accent-info">•</span>
               <span>{bullet}</span>
             </li>
           ))}
@@ -362,7 +362,7 @@ function PatternLandscape({
             key={i}
             className="p-4 border border-border/30 rounded-lg bg-muted/20"
           >
-            <p className="text-xs text-accent mb-1">
+            <p className="text-xs text-accent-info mb-1">
               #{i + 1} Signal
             </p>
             <p className="font-medium text-sm mb-2">{signal.pattern}</p>
@@ -395,7 +395,7 @@ function FundingByStageSection({
             </span>
             <div className="flex-1 h-6 bg-muted/30 rounded overflow-hidden">
               <div
-                className="h-full bg-accent/60 rounded"
+                className="h-full bg-accent-info/60 rounded"
                 style={{ width: `${(stage.amount / maxAmount) * 100}%` }}
               />
             </div>
@@ -457,7 +457,7 @@ function TopDealsSection({ deals }: { deals: MonthlyBrief['topDeals'] }) {
                 <td className="py-3">
                   <Link
                     href={`/company/${deal.slug}`}
-                    className="font-medium hover:text-accent transition-colors"
+                    className="font-medium hover:text-accent-info transition-colors"
                   >
                     {deal.company}
                   </Link>
@@ -672,11 +672,11 @@ function SpotlightSection({
         <span className="section-title">Featured Spotlight</span>
       </div>
 
-      <div className="p-6 border border-accent/30 rounded-lg bg-accent/5">
+      <div className="p-6 border border-accent-info/30 rounded-lg bg-accent-info/5">
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <Link
             href={`/company/${spotlight.slug}`}
-            className="text-xl font-medium text-foreground hover:text-accent transition-colors"
+            className="text-xl font-medium text-foreground hover:text-accent-info transition-colors"
           >
             {spotlight.company}
           </Link>
@@ -743,7 +743,7 @@ function Implications({
                 </p>
                 <p className="text-sm text-muted-foreground">{lesson.text}</p>
                 {lesson.howToApply && (
-                  <p className="text-xs text-accent mt-2">
+                  <p className="text-xs text-accent-info mt-2">
                     How to apply: {lesson.howToApply}
                   </p>
                 )}
@@ -763,7 +763,7 @@ function Implications({
                 key={i}
                 className="flex gap-3 text-sm text-muted-foreground"
               >
-                <span className="text-accent">→</span>
+                <span className="text-accent-info">→</span>
                 <span>{item}</span>
               </li>
             ))}
@@ -815,7 +815,7 @@ function FooterCTA() {
     <div className="pt-8 border-t border-border/30">
       <Link
         href="/library"
-        className="inline-flex items-center gap-2 text-accent hover:text-accent/80 transition-colors"
+        className="inline-flex items-center gap-2 text-accent-info hover:text-accent-info/80 transition-colors"
       >
         Read the full report in Library
         <span>→</span>

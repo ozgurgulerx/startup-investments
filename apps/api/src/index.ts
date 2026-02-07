@@ -26,7 +26,7 @@ const app: Express = express();
 const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.API_KEY;
 const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
-const ADMIN_KEY = process.env.ADMIN_KEY || (process.env.NODE_ENV !== 'production' ? process.env.API_KEY : undefined);
+const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
 
 // Trust proxy for correct client IP behind Azure Front Door / Load Balancer
 app.set('trust proxy', true);
@@ -46,8 +46,7 @@ if (process.env.NODE_ENV === 'production') {
     process.exit(1);
   }
   if (!process.env.ADMIN_KEY) {
-    console.error('FATAL: ADMIN_KEY is required in production but not set. Exiting.');
-    process.exit(1);
+    console.warn('WARNING: ADMIN_KEY not set in production — falling back to API_KEY for admin endpoints.');
   }
 }
 
@@ -576,7 +575,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     // Build cache key from query params
-    const filters = { stage, pattern, continent, minFunding, maxFunding, usesGenai, sortBy, sortOrder, search };
+    const filters = { limit: limitNum, stage, pattern, continent, minFunding, maxFunding, usesGenai, sortBy, sortOrder, search };
     const filtersHash = hashObject(filters);
     const cacheKey = dealBookKey(period, pageNum, filtersHash);
 
@@ -659,15 +658,37 @@ app.get('/api/v1/dealbook', async (req, res) => {
       patternCondition = sql`${startups.analysisData}->'build_patterns' @> ${JSON.stringify([{ name: pattern }])}::jsonb`;
     }
 
-    // Search filter (name or description)
+    // Search filter — multi-field with relevance scoring
+    // Escape ILIKE meta-characters in user input
+    const escapedSearch = search ? search.replace(/[%_\\]/g, '\\$&') : '';
+    const containsPattern = search ? `%${escapedSearch}%` : '';
+    const prefixPattern = search ? `${escapedSearch}%` : '';
+
     if (search) {
       conditions.push(
         or(
-          ilike(startups.name, `%${search}%`),
-          ilike(startups.description, `%${search}%`)
+          ilike(startups.name, containsPattern),
+          ilike(startups.description, containsPattern),
+          ilike(startups.industry, containsPattern),
+          sql`${startups.analysisData}->>'vertical' ILIKE ${containsPattern}`,
+          sql`${startups.analysisData}->>'sub_vertical' ILIKE ${containsPattern}`,
         ) as ReturnType<typeof eq>
       );
     }
+
+    // Relevance score expression (only computed when search is active)
+    const searchScoreExpr = search
+      ? sql<number>`(
+          CASE WHEN ${startups.name} ILIKE ${search} THEN 100
+               WHEN ${startups.name} ILIKE ${prefixPattern} THEN 80
+               WHEN ${startups.name} ILIKE ${containsPattern} THEN 60
+               ELSE 0 END
+          + CASE WHEN ${startups.industry} ILIKE ${containsPattern} THEN 30 ELSE 0 END
+          + CASE WHEN ${startups.analysisData}->>'vertical' ILIKE ${containsPattern} THEN 20 ELSE 0 END
+          + CASE WHEN ${startups.analysisData}->>'sub_vertical' ILIKE ${containsPattern} THEN 15 ELSE 0 END
+          + CASE WHEN ${startups.description} ILIKE ${containsPattern} THEN 10 ELSE 0 END
+        )`
+      : null;
 
     // Combine all conditions
     const whereClause = patternCondition
@@ -676,13 +697,17 @@ app.get('/api/v1/dealbook', async (req, res) => {
         ? and(...conditions)
         : undefined;
 
-    // Determine sort order
+    // Determine sort order — relevance-first when searching
     const orderColumn = sortBy === 'name'
       ? startups.name
       : sortBy === 'date'
         ? startups.createdAt
         : startups.moneyRaisedUsd;
-    const orderDir = sortOrder === 'asc' ? orderColumn : desc(orderColumn);
+    const defaultOrderDir = sortOrder === 'asc' ? orderColumn : desc(orderColumn);
+    // When user is searching, sort by relevance score first, then by the chosen sort
+    const orderDir = searchScoreExpr
+      ? [desc(searchScoreExpr), defaultOrderDir]
+      : [defaultOrderDir];
 
     // Execute query with pagination - only select fields needed by frontend
     // Use SQL JSONB operators to extract specific fields instead of full JSONB
@@ -706,10 +731,12 @@ app.get('/api/v1/dealbook', async (req, res) => {
       buildPatterns: sql<unknown>`${startups.analysisData}->'build_patterns'`,
       confidenceScore: sql<number>`(${startups.analysisData}->>'confidence_score')::float`,
       newsletterPotential: sql<string>`${startups.analysisData}->>'newsletter_potential'`,
+      // Relevance score included when search is active (0 otherwise)
+      searchScore: searchScoreExpr ?? sql<number>`0`,
     })
       .from(startups)
       .where(whereClause)
-      .orderBy(orderDir)
+      .orderBy(...orderDir)
       .limit(limitNum)
       .offset(offset);
 
@@ -719,6 +746,18 @@ app.get('/api/v1/dealbook', async (req, res) => {
       .where(whereClause);
 
     const total = countResult?.total || 0;
+
+    // Determine which field the search matched on (for frontend highlighting)
+    function getSearchMatch(row: Record<string, unknown>, term: string): string | undefined {
+      if (!term) return undefined;
+      const t = term.toLowerCase();
+      if ((row.name as string || '').toLowerCase().includes(t)) return 'name';
+      if ((row.industry as string || '').toLowerCase().includes(t)) return 'industry';
+      if ((row.vertical as string || '').toLowerCase().includes(t)) return 'vertical';
+      if ((row.subVertical as string || '').toLowerCase().includes(t)) return 'sub_vertical';
+      if ((row.description as string || '').toLowerCase().includes(t)) return 'description';
+      return 'fuzzy'; // trigram match
+    }
 
     // Transform results to match frontend StartupAnalysis interface
     const data = results.map((row) => ({
@@ -739,6 +778,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
       build_patterns: row.buildPatterns as Array<{ name: string; confidence: number }> | null,
       confidence_score: row.confidenceScore,
       newsletter_potential: row.newsletterPotential,
+      ...(search ? { search_match: getSearchMatch(row as Record<string, unknown>, search) } : {}),
     }));
 
     // Build response

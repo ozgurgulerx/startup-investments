@@ -1,18 +1,29 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useAudience } from '@/lib/audience-context';
 import { AudienceToggle } from '@/components/ui/audience-toggle';
 import { UserMenu } from '@/components/auth/user-menu';
 import { DailyNewsModule } from '@/components/news/daily-news-module';
 import { BrandMark } from '@/components/ui/brand-mark';
+import { Search } from 'lucide-react';
 import { COPY, SUPPORTING_LINE, METRICS, FAQ_ITEMS, SIGN_IN_COPY } from '@/lib/copy';
+
+const HERO_PATTERN_CHIPS = [
+  { label: 'Agentic Architectures', param: 'Agentic Architectures' },
+  { label: 'Vertical Data Moats', param: 'Vertical Data Moats' },
+  { label: 'RAG', param: 'RAG' },
+];
 
 export default function LandingPage() {
   const { audience } = useAudience();
   const { data: session, status } = useSession();
+  const router = useRouter();
   const copy = COPY[audience];
+  const [heroSearch, setHeroSearch] = useState('');
 
   return (
     <div className="min-h-screen bg-background">
@@ -30,7 +41,7 @@ export default function LandingPage() {
               Methodology
             </Link>
             <Link href="/news" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Daily News
+              Signal Feed
             </Link>
             {status === 'loading' ? (
               <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
@@ -58,10 +69,6 @@ export default function LandingPage() {
             <div className="lg:col-span-8">
               <div className="flex items-center gap-3 mb-5">
                 <AudienceToggle />
-                <span className="inline-flex items-center gap-2 px-3 py-1 text-xs text-accent bg-accent/10 rounded-full border border-accent/25">
-                  <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
-                  January 2026 Brief
-                </span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-5 leading-tight">
@@ -72,7 +79,40 @@ export default function LandingPage() {
                 {copy.heroSubhead}
               </p>
 
-              <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
+              {/* Hero Search */}
+              <form
+                className="mt-8 max-w-lg"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (heroSearch.trim()) {
+                    router.push(`/dealbook?search=${encodeURIComponent(heroSearch.trim())}&month=all`);
+                  }
+                }}
+              >
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
+                  <input
+                    type="text"
+                    value={heroSearch}
+                    onChange={(e) => setHeroSearch(e.target.value)}
+                    placeholder={copy.heroSearchPlaceholder}
+                    className="w-full pl-12 pr-4 py-3.5 text-base rounded-lg bg-muted/25 border border-border/50 placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent/70 focus:border-accent/70 transition-colors"
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {HERO_PATTERN_CHIPS.map((chip) => (
+                    <Link
+                      key={chip.param}
+                      href={`/dealbook?pattern=${encodeURIComponent(chip.param)}&month=all`}
+                      className="inline-flex items-center px-3 py-1.5 text-xs rounded-full border border-accent/25 bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                    >
+                      {chip.label}
+                    </Link>
+                  ))}
+                </div>
+              </form>
+
+              <div className="mt-6 flex flex-col sm:flex-row items-center gap-4">
                 <Link
                   href={copy.primaryCTAHref}
                   className="px-8 py-3 text-base font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
@@ -144,6 +184,13 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Credibility strip */}
+      <div className="py-3 text-center">
+        <p className="text-xs text-muted-foreground/60 tracking-wide">
+          Updated continuously &middot; {METRICS.companies.value} companies tracked &middot; 50+ sources monitored
+        </p>
+      </div>
 
       {/* What You Get */}
       <section className="py-20 px-6">
@@ -353,7 +400,7 @@ export default function LandingPage() {
           <BrandMark size="sm" variant="muted" />
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/methodology" className="hover:text-accent transition-colors">Methodology</Link>
-            <Link href="/news" className="hover:text-accent transition-colors">Daily News</Link>
+            <Link href="/news" className="hover:text-accent transition-colors">Signal Feed</Link>
             <Link href="/brief" className="hover:text-accent transition-colors">Brief</Link>
             <Link href="/dealbook" className="hover:text-accent transition-colors">Dossiers</Link>
             <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>

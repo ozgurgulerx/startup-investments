@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { Search, SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type SortOption = 'funding_desc' | 'funding_asc' | 'recency_desc' | 'name_asc';
@@ -128,15 +128,25 @@ export function DealbookToolbar({
           onChange={(e) => setSearchValue(e.target.value)}
           onFocus={() => setIsSearchFocused(true)}
           onBlur={() => setIsSearchFocused(false)}
-          placeholder="Search companies..."
+          placeholder="Search by name, industry, vertical..."
           className={cn(
-            'w-full pl-9 pr-4 py-2 text-sm rounded-lg',
+            'w-full pl-9 py-2 text-sm rounded-lg',
+            searchValue ? 'pr-8' : 'pr-4',
             'bg-muted/25 border border-border/50',
             'placeholder:text-muted-foreground/60',
-            'focus:outline-none focus:ring-1 focus:ring-accent/70 focus:border-accent/70',
+            'focus:outline-none focus:ring-1 focus:ring-accent-info/70 focus:border-accent-info/70',
             'transition-colors'
           )}
         />
+        {searchValue && (
+          <button
+            onClick={() => setSearchValue('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-sm text-muted-foreground/60 hover:text-foreground transition-colors"
+            aria-label="Clear search"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Sort dropdown */}
@@ -148,7 +158,7 @@ export function DealbookToolbar({
             'flex items-center gap-2 px-3 py-2 text-sm rounded-lg',
             'bg-muted/25 border border-border/50',
             'hover:bg-muted/50 transition-colors',
-            'focus:outline-none focus:ring-1 focus:ring-accent/70'
+            'focus:outline-none focus:ring-1 focus:ring-accent-info/70'
           )}
         >
           <span className="text-muted-foreground">Sort:</span>
@@ -173,7 +183,7 @@ export function DealbookToolbar({
                 className={cn(
                   'w-full px-3 py-2 text-sm text-left',
                   'hover:bg-muted/30 transition-colors',
-                  option.value === currentSort && 'text-accent bg-accent/10'
+                  option.value === currentSort && 'text-accent-info bg-accent-info/10'
                 )}
               >
                 {option.label}
@@ -190,7 +200,7 @@ export function DealbookToolbar({
           'flex items-center gap-2 px-3 py-2 text-sm rounded-lg md:hidden',
           'bg-muted/25 border border-border/50',
           'hover:bg-muted/50 transition-colors',
-          activeFilterCount > 0 && 'border-accent/50'
+          activeFilterCount > 0 && 'border-accent-info/50'
         )}
       >
         <SlidersHorizontal className="h-4 w-4" />

@@ -20,7 +20,7 @@ export function TopicChipBar({ topics, activeTopic }: TopicChipBarProps) {
             <Link
               key={topic.topic}
               href={`/topics/${encodeURIComponent(topic.topic)}`}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${isActive ? 'border-accent/55 bg-accent/15 text-accent' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent/35 hover:text-foreground'}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${isActive ? 'border-accent-info/55 bg-accent-info/15 text-accent-info' : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent-info/35 hover:text-foreground'}`}
             >
               <span>{topic.topic}</span>
               <span className="tabular-nums opacity-70">{topic.count}</span>

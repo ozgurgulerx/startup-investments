@@ -209,6 +209,14 @@ class BlobProcessor:
             if waited >= max_wait:
                 raise RuntimeError(f"Blob copy timed out after {max_wait}s for {source} -> {destination}")
 
+            # Verify destination size matches source before deleting
+            source_props = source_blob.get_blob_properties()
+            dest_props = dest_blob.get_blob_properties()
+            if dest_props.size != source_props.size:
+                raise RuntimeError(
+                    f"Blob copy size mismatch: source={source_props.size}, dest={dest_props.size}"
+                )
+
             # Only delete source after verified copy
             source_blob.delete_blob()
 

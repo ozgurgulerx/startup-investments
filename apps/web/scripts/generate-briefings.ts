@@ -65,6 +65,9 @@ interface BriefingData {
 
 const DATA_PATH = path.join(process.cwd(), 'data');
 const OUTPUT_PATH = path.join(process.cwd(), 'public', 'data', 'briefings');
+const BRIEFS_PATH = path.join(process.cwd(), 'public', 'data', 'briefs');
+const FORCE_REGEN = process.env.FORCE_REGEN_BRIEFINGS === 'true';
+const GENERATE_LEGACY = process.env.GENERATE_LEGACY_BRIEFINGS !== 'false';
 
 function formatCurrency(value: number): string {
   if (value >= 1e9) {
@@ -149,6 +152,40 @@ async function getAvailablePeriods(): Promise<string[]> {
   return periods.sort((a, b) => b.localeCompare(a));
 }
 
+async function getMtimeMs(filePath: string): Promise<number> {
+  try {
+    const stat = await fs.stat(filePath);
+    return stat.mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+async function getPeriodInputMtime(period: string): Promise<number> {
+  const monthlyStatsPath = path.join(DATA_PATH, period, 'output', 'monthly_stats.json');
+  const indexPath = path.join(DATA_PATH, period, 'output', 'analysis_store', 'index.json');
+  const [statsMtime, indexMtime] = await Promise.all([
+    getMtimeMs(monthlyStatsPath),
+    getMtimeMs(indexPath),
+  ]);
+  return Math.max(statsMtime, indexMtime);
+}
+
+async function isPeriodUpToDate(period: string): Promise<boolean> {
+  const inputMtime = await getPeriodInputMtime(period);
+  if (!inputMtime) return false;
+
+  const legacyOutput = path.join(OUTPUT_PATH, `${period}.json`);
+  const briefOutput = path.join(BRIEFS_PATH, `${period}.json`);
+  const serverOutput = path.join(DATA_PATH, period, 'output', 'monthly_brief.json');
+
+  const outputPaths = GENERATE_LEGACY ? [legacyOutput, briefOutput, serverOutput] : [briefOutput, serverOutput];
+  const mtimes = await Promise.all(outputPaths.map((outPath) => getMtimeMs(outPath)));
+  if (mtimes.some((value) => value <= 0)) return false;
+
+  return mtimes.every((value) => value >= inputMtime);
+}
+
 function generateInsight(stats: MonthlyStats): string {
   const genaiRate = Math.round(stats.genai_analysis.genai_adoption_rate * 100);
   const patterns = Object.entries(stats.genai_analysis.pattern_distribution)
@@ -230,7 +267,6 @@ async function main() {
 
   // Ensure output directories exist
   await fs.mkdir(OUTPUT_PATH, { recursive: true });
-  const BRIEFS_PATH = path.join(process.cwd(), 'public', 'data', 'briefs');
   await fs.mkdir(BRIEFS_PATH, { recursive: true });
 
   // Get all available periods
@@ -243,11 +279,17 @@ async function main() {
   // Generate briefing for each period
   for (const period of periods) {
     try {
-      // Generate old format (for backward compatibility)
-      const briefing = await generateBriefing(period);
-      const outputFile = path.join(OUTPUT_PATH, `${period}.json`);
-      await fs.writeFile(outputFile, JSON.stringify(briefing, null, 2));
-      console.log(`  ✓ Generated briefings/${period}.json (legacy)`);
+      if (!FORCE_REGEN && await isPeriodUpToDate(period)) {
+        console.log(`  ↺ Skipped ${period} (already up to date)`);
+        continue;
+      }
+
+      if (GENERATE_LEGACY) {
+        const briefing = await generateBriefing(period);
+        const outputFile = path.join(OUTPUT_PATH, `${period}.json`);
+        await fs.writeFile(outputFile, JSON.stringify(briefing, null, 2));
+        console.log(`  ✓ Generated briefings/${period}.json (legacy)`);
+      }
 
       // Generate new Intelligence Brief format
       const brief = await generateMonthlyBrief(period);

@@ -5,14 +5,17 @@ import { getAvailablePeriods, getMonthlyStats } from '@/lib/data';
 import { StaticSignalStrip } from '@/components/features/signal-strip';
 import { formatCurrency } from '@/lib/utils';
 
-const DEFAULT_PERIOD = '2026-01';
+const FALLBACK_PERIOD = '2026-01';
 
 async function BriefContent() {
+  // Dynamically resolve latest period
+  const allPeriods = await getAvailablePeriods();
+  const latestPeriod = allPeriods[0]?.period || FALLBACK_PERIOD;
+
   // Load brief and stats only - startups loaded lazily in drawer
-  const [brief, allPeriods, stats] = await Promise.all([
-    getMonthlyBrief(DEFAULT_PERIOD),
-    getAvailablePeriods(),
-    getMonthlyStats(DEFAULT_PERIOD),
+  const [brief, stats] = await Promise.all([
+    getMonthlyBrief(latestPeriod),
+    getMonthlyStats(latestPeriod),
   ]);
 
   // Filter to periods with newsletters/briefs

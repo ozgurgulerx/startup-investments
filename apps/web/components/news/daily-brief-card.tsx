@@ -5,10 +5,10 @@ export function DailyBriefCard({ brief }: { brief: DailyNewsBrief }) {
   const themes = (brief.themes || []).slice(0, 6).filter(Boolean);
 
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/10 via-card/75 to-card/40 p-6">
+    <section className="mt-6 overflow-hidden rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/75 to-card/40 p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <p className="label-xs text-accent">Daily Brief</p>
+          <p className="label-xs text-accent-info">Daily Brief</p>
           <h2 className="mt-2 text-2xl font-light tracking-tight text-foreground">{brief.headline}</h2>
         </div>
         {brief.model ? (
@@ -29,7 +29,7 @@ export function DailyBriefCard({ brief }: { brief: DailyNewsBrief }) {
               key={`${idx}-${bullet.slice(0, 24)}`}
               className="rounded-lg border border-border/40 bg-background/70 px-3 py-2 text-sm text-foreground/90"
             >
-              <span className="mr-2 text-accent">•</span>
+              <span className="mr-2 text-accent-info">•</span>
               {bullet}
             </div>
           ))}

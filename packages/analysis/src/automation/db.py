@@ -433,7 +433,17 @@ class DatabaseConnection:
         """Atomically increment in_flight_count and check if allowed.
 
         Returns True if crawl is allowed, False if rate limited.
+        Ensures the domain row exists before attempting the atomic UPDATE,
+        so first-time crawls for new domains are not silently blocked.
         """
+        # Ensure domain row exists (no-op if already present)
+        await self.execute("""
+            INSERT INTO domain_stats (domain, in_flight_count, crawl_delay_ms)
+            VALUES ($1, 0, 2000)
+            ON CONFLICT (domain) DO NOTHING
+        """, domain)
+
+        # Atomic claim: only increments if under concurrency limit and not rate-limited
         result = await self.fetchrow("""
             UPDATE domain_stats
             SET in_flight_count = in_flight_count + 1,

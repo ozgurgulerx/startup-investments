@@ -9,11 +9,20 @@ import { createClient, RedisClientType } from 'redis';
 import crypto from 'crypto';
 
 let client: RedisClientType | null = null;
-let connectionAttempted = false;
+let lastAttemptTime = 0;
+let consecutiveFailures = 0;
+
+const BASE_BACKOFF_MS = 30_000;       // 30 seconds
+const MAX_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes cap
+
+function getBackoffMs(): number {
+  if (consecutiveFailures === 0) return 0;
+  return Math.min(BASE_BACKOFF_MS * Math.pow(2, consecutiveFailures - 1), MAX_BACKOFF_MS);
+}
 
 /**
- * Get Redis client (lazy initialization)
- * Returns null if REDIS_URL not configured or connection fails
+ * Get Redis client (lazy initialization with exponential backoff)
+ * Returns null if REDIS_URL not configured or within backoff window after failure
  */
 export async function getRedisClient(): Promise<RedisClientType | null> {
   if (!process.env.REDIS_URL) {
@@ -24,13 +33,21 @@ export async function getRedisClient(): Promise<RedisClientType | null> {
     return client;
   }
 
-  if (connectionAttempted && !client?.isReady) {
-    return null; // Don't retry failed connections on every request
+  // Check if we're still in the backoff window
+  const now = Date.now();
+  if (lastAttemptTime > 0 && now - lastAttemptTime < getBackoffMs()) {
+    return null;
   }
 
-  connectionAttempted = true;
+  lastAttemptTime = now;
 
   try {
+    // Disconnect stale client to avoid socket leaks
+    if (client) {
+      try { await client.disconnect(); } catch { /* ignore */ }
+      client = null;
+    }
+
     client = createClient({
       url: process.env.REDIS_URL,
       socket: {
@@ -55,12 +72,19 @@ export async function getRedisClient(): Promise<RedisClientType | null> {
 
     client.on('ready', () => {
       console.log('Redis: Ready');
+      consecutiveFailures = 0;
     });
 
     await client.connect();
+    consecutiveFailures = 0;
     return client;
   } catch (error) {
-    console.error('Redis: Connection failed:', error);
+    consecutiveFailures++;
+    const nextRetryMs = getBackoffMs();
+    console.error(
+      `Redis: Connection failed (failure #${consecutiveFailures}, next retry in ${Math.round(nextRetryMs / 1000)}s):`,
+      error instanceof Error ? error.message : error
+    );
     client = null;
     return null;
   }
@@ -72,8 +96,10 @@ export async function getRedisClient(): Promise<RedisClientType | null> {
 export async function closeRedisClient(): Promise<void> {
   if (client?.isReady) {
     await client.quit();
-    client = null;
   }
+  client = null;
+  lastAttemptTime = 0;
+  consecutiveFailures = 0;
 }
 
 // ============================================================================
@@ -172,7 +198,7 @@ export async function cached<T>(
  * Invalidate cache keys matching a pattern
  *
  * Use for cache invalidation on data updates.
- * Pattern uses Redis KEYS command (use sparingly in production).
+ * Uses SCAN iteration to avoid blocking Redis.
  *
  * @param pattern Redis key pattern (e.g., "dealbook:v1:*")
  */
@@ -183,9 +209,17 @@ export async function invalidatePattern(pattern: string): Promise<number> {
   }
 
   try {
-    const keys = await redis.keys(pattern);
+    const keys: string[] = [];
+    for await (const key of redis.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+      keys.push(key as string);
+    }
+
     if (keys.length > 0) {
-      await redis.del(keys);
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+        const batch = keys.slice(i, i + BATCH_SIZE);
+        await redis.del(batch);
+      }
       console.log(`Redis: Invalidated ${keys.length} keys matching ${pattern}`);
     }
     return keys.length;

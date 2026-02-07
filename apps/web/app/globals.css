@@ -23,8 +23,13 @@
     --muted: 40 10% 94%;
     --muted-foreground: 30 8% 45%;
 
-    --accent: 35 70% 48%;
+    /* Action accent - antique gold */
+    --accent: 35 60% 45%;
     --accent-foreground: 30 10% 15%;
+
+    /* Info accent - cool teal */
+    --accent-info: 192 60% 38%;
+    --accent-info-foreground: 30 10% 15%;
 
     --destructive: 0 65% 50%;
     --destructive-foreground: 0 0% 98%;
@@ -32,12 +37,27 @@
     --success: 145 50% 40%;
     --success-foreground: 0 0% 98%;
 
-    --warning: 35 70% 48%;
+    --warning: 35 60% 45%;
     --warning-foreground: 30 10% 15%;
+
+    /* Semantic: changed/delta */
+    --delta: 275 50% 48%;
+    --delta-foreground: 0 0% 98%;
+
+    /* Semantic: AI-synthesized content */
+    --synthesized: 265 25% 50%;
+    --synthesized-foreground: 0 0% 98%;
 
     --border: 40 10% 88%;
     --input: 40 10% 88%;
-    --ring: 30 15% 25%;
+    --ring: 192 60% 38%;
+
+    /* Chart palette - cool family */
+    --chart-1: 192 60% 38%;
+    --chart-2: 187 70% 40%;
+    --chart-3: 199 75% 40%;
+    --chart-4: 172 55% 40%;
+    --chart-5: 210 55% 45%;
 
     --radius: 0.25rem;
   }
@@ -48,26 +68,30 @@
     --background: 220 18% 6%;
     --foreground: 42 18% 89%;
 
-    /* Slightly elevated surfaces */
-    --card: 220 15% 9%;
+    /* Elevated surfaces - bumped for separation */
+    --card: 220 15% 10%;
     --card-foreground: 42 16% 88%;
 
-    --popover: 220 15% 9%;
+    --popover: 220 15% 10%;
     --popover-foreground: 42 16% 88%;
 
     /* Warm text as primary */
     --primary: 42 18% 89%;
     --primary-foreground: 220 18% 6%;
 
-    --secondary: 220 12% 14%;
+    --secondary: 220 12% 15%;
     --secondary-foreground: 42 10% 78%;
 
-    --muted: 220 12% 14%;
+    --muted: 220 12% 15%;
     --muted-foreground: 42 8% 56%;
 
-    /* Signature accent - vivid amber */
-    --accent: 42 90% 56%;
+    /* Action accent - antique gold (desaturated from vivid amber) */
+    --accent: 40 55% 52%;
     --accent-foreground: 220 18% 6%;
+
+    /* Info accent - cool cyan-teal */
+    --accent-info: 192 75% 52%;
+    --accent-info-foreground: 220 18% 6%;
 
     --destructive: 0 64% 56%;
     --destructive-foreground: 0 0% 98%;
@@ -75,13 +99,82 @@
     --success: 160 62% 45%;
     --success-foreground: 220 18% 6%;
 
-    --warning: 42 90% 56%;
+    --warning: 40 55% 52%;
     --warning-foreground: 220 18% 6%;
 
-    /* Subtle borders */
-    --border: 220 12% 18%;
-    --input: 220 12% 18%;
-    --ring: 42 90% 56%;
+    /* Semantic: changed/delta - violet */
+    --delta: 275 60% 60%;
+    --delta-foreground: 0 0% 98%;
+
+    /* Semantic: AI-synthesized - subtle purple */
+    --synthesized: 265 30% 55%;
+    --synthesized-foreground: 0 0% 98%;
+
+    /* Borders - bumped for crisper definition */
+    --border: 220 12% 20%;
+    --input: 220 12% 20%;
+    --ring: 192 75% 52%;
+
+    /* Chart palette - cyan/teal/sky/blue family */
+    --chart-1: 192 75% 52%;
+    --chart-2: 187 85% 48%;
+    --chart-3: 199 89% 48%;
+    --chart-4: 172 66% 50%;
+    --chart-5: 210 70% 55%;
+  }
+
+  /* Paper mode - warm reading theme for briefs/library/company pages */
+  .paper {
+    --background: 38 25% 95%;
+    --foreground: 30 15% 12%;
+
+    --card: 38 20% 97%;
+    --card-foreground: 30 15% 12%;
+
+    --popover: 38 20% 97%;
+    --popover-foreground: 30 15% 12%;
+
+    --primary: 30 15% 12%;
+    --primary-foreground: 38 25% 95%;
+
+    --secondary: 38 15% 91%;
+    --secondary-foreground: 30 10% 25%;
+
+    --muted: 38 12% 90%;
+    --muted-foreground: 30 8% 42%;
+
+    /* Action accent - darker gold on light bg */
+    --accent: 38 60% 42%;
+    --accent-foreground: 38 25% 95%;
+
+    /* Info accent - darker teal for readability */
+    --accent-info: 192 60% 35%;
+    --accent-info-foreground: 38 25% 95%;
+
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 145 50% 35%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 38 60% 42%;
+    --warning-foreground: 38 25% 95%;
+
+    --delta: 275 50% 45%;
+    --delta-foreground: 0 0% 98%;
+
+    --synthesized: 265 25% 48%;
+    --synthesized-foreground: 0 0% 98%;
+
+    --border: 35 12% 82%;
+    --input: 35 12% 82%;
+    --ring: 192 60% 35%;
+
+    --chart-1: 192 60% 35%;
+    --chart-2: 187 70% 38%;
+    --chart-3: 199 75% 38%;
+    --chart-4: 172 55% 38%;
+    --chart-5: 210 55% 42%;
   }
 }
 
@@ -247,11 +340,13 @@
    ============================================ */
 
 .intel-callout {
-  @apply border-l-2 border-accent/70 pl-5 py-1 my-6;
+  @apply border-l-2 pl-5 py-1 my-6;
+  border-color: hsl(var(--accent-info) / 0.7);
 }
 
 .intel-callout-label {
-  @apply label-xs text-accent mb-2 block;
+  @apply label-xs mb-2 block;
+  color: hsl(var(--accent-info));
 }
 
 .intel-callout-text {
@@ -264,7 +359,8 @@
 }
 
 .intel-enables-label {
-  @apply label-xs text-accent mb-3 block;
+  @apply label-xs mb-3 block;
+  color: hsl(var(--accent-info));
 }
 
 .intel-enables-text {
@@ -488,7 +584,9 @@
 }
 
 .nav-item.active {
-  @apply text-foreground bg-accent/10 border border-accent/20;
+  @apply text-foreground border;
+  background: hsl(var(--accent-info) / 0.1);
+  border-color: hsl(var(--accent-info) / 0.2);
 }
 
 .nav-item-icon {

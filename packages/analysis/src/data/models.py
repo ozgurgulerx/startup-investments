@@ -3,6 +3,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from enum import Enum
+import re
 from pydantic import BaseModel, Field
 
 
@@ -400,11 +401,7 @@ class StartupInput(BaseModel):
             stage = FundingStage.LATE_STAGE
 
         return cls(
-            name=row.get("Transaction Name", "").replace("Series A - ", "").replace("Series B - ", "")
-                .replace("Series C - ", "").replace("Series D - ", "").replace("Series E - ", "")
-                .replace("Seed Round - ", "").replace("Pre Seed Round - ", "").replace("Venture Round - ", "")
-                .replace("Debt Financing - ", "").replace("Private Equity Round - ", "")
-                .replace("Corporate Round - ", "").replace("Angel Round - ", "").replace("Funding Round - ", "").strip(),
+            name=re.sub(r'^[^-]+ - ', '', row.get("Transaction Name", "")).strip(),
             website=row.get("Organization Website"),
             description=row.get("Organization Description"),
             industries=industries,

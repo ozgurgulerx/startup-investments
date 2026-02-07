@@ -5,6 +5,7 @@ import { formatPeriod } from '@/lib/utils';
 import { NewsletterRenderer } from '@/components/features';
 import { Calendar, Download, Share2 } from 'lucide-react';
 import { PeriodNav } from '@/components/ui/period-nav';
+import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -23,12 +24,21 @@ async function LibraryContent({ selectedMonth }: { selectedMonth?: string }) {
 
   if (!markdown) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <p className="text-muted-foreground">No newsletter available for this period.</p>
-          <p className="text-sm text-muted-foreground/60 mt-2">
-            Check back later or select a different period.
-          </p>
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex items-start justify-between pb-4 border-b border-border/30">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Library</h1>
+            <p className="text-sm text-muted-foreground">AI Landscape Briefs Archive</p>
+          </div>
+          <PeriodNav availableMonths={availableMonths} currentMonth={period} />
+        </div>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <p className="text-muted-foreground">No newsletter available for this period.</p>
+            <p className="text-sm text-muted-foreground/60 mt-2">
+              Check back later or select a different period.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -111,8 +121,10 @@ export default async function LibraryPage({
 }) {
   const { month } = await searchParams;
   return (
-    <Suspense fallback={<LibraryLoading />}>
-      <LibraryContent selectedMonth={month} />
-    </Suspense>
+    <ReadingWrapper>
+      <Suspense fallback={<LibraryLoading />}>
+        <LibraryContent selectedMonth={month} />
+      </Suspense>
+    </ReadingWrapper>
   );
 }

@@ -52,7 +52,7 @@ export default async function DailyNewsPage() {
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/" className="hover:text-foreground transition-colors">Home</Link>
             <Link href="/methodology" className="hover:text-foreground transition-colors">Methodology</Link>
-            <span className="text-accent">Daily News</span>
+            <span className="text-accent-info">Signal Feed</span>
           </div>
         </div>
       </nav>
@@ -60,7 +60,7 @@ export default async function DailyNewsPage() {
       <main className="px-6 pb-20 pt-28">
         {!edition ? (
           <div className="mx-auto max-w-3xl rounded-2xl border border-border/40 bg-card/60 p-10 text-center">
-            <p className="label-xs text-accent">Daily Startup News</p>
+            <p className="label-xs text-accent-info">Signal Feed</p>
             <h1 className="mt-3 text-3xl font-light tracking-tight text-foreground">News edition is not ready yet</h1>
             <p className="mt-4 text-sm text-muted-foreground">
               The ingestion workflow has not produced a daily edition yet. Run the news ingest workflow or check database connectivity.
@@ -77,12 +77,12 @@ export default async function DailyNewsPage() {
         ) : (
           <div className="mx-auto max-w-6xl">
             {/* Hero masthead */}
-            <section className="relative overflow-hidden rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/15 via-card/80 to-card/30 p-8">
-              <div className="absolute -left-16 top-0 h-44 w-44 rounded-full bg-accent/20 blur-3xl" />
+            <section className="relative overflow-hidden rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/15 via-card/80 to-card/30 p-8">
+              <div className="absolute -left-16 top-0 h-44 w-44 rounded-full bg-accent-info/20 blur-3xl" />
               <div className="absolute right-0 top-0 h-36 w-36 rounded-full bg-success/20 blur-3xl" />
               <div className="relative">
                 <p className="label-xs text-accent">Live Startup Intelligence</p>
-                <h1 className="mt-2 text-4xl font-light tracking-tight text-foreground">Daily Startup News</h1>
+                <h1 className="mt-2 text-4xl font-light tracking-tight text-foreground">Signal Feed</h1>
                 <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground">
                   High-signal startup news clustered across global sources, ranked by freshness, trust score, and cross-source corroboration.
                 </p>

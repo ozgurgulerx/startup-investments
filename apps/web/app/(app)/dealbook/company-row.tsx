@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { WatchlistButton } from '@/components/ui/watchlist-button';
 import { CompanyLogo } from '@/components/ui/company-logo';
-import { formatCurrency } from '@/lib/utils';
+import { ConfidenceBadge } from '@/components/ui/confidence-badge';
+import { formatCurrency, formatStageName } from '@/lib/utils';
 
 interface CompanyRowProps {
   startup: {
@@ -15,6 +16,7 @@ interface CompanyRowProps {
     funding_stage?: string;
     funding_amount?: number;
     uses_genai?: boolean;
+    confidence_score?: number;
     build_patterns?: Array<{ name: string; confidence: number }>;
   };
 }
@@ -60,15 +62,18 @@ export function CompanyRow({ startup }: CompanyRowProps) {
             <span>{startup.location}</span>
           )}
           {startup.vertical && (
-            <span>{startup.vertical.replace(/_/g, ' ')}</span>
+            <span>{formatStageName(startup.vertical)}</span>
           )}
           {startup.funding_stage && (
-            <span>{startup.funding_stage.replace(/_/g, ' ')}</span>
+            <span>{formatStageName(startup.funding_stage)}</span>
           )}
         </div>
       </Link>
 
       <div className="flex items-center gap-3 shrink-0">
+        {startup.confidence_score != null && (
+          <ConfidenceBadge score={startup.confidence_score} size="sm" />
+        )}
         <div className="text-right">
           <span className="startup-amount">
             {formatCurrency(startup.funding_amount || 0, true)}

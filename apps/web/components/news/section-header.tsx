@@ -24,9 +24,9 @@ export function SectionHeader({
         </span>
       )}
       {indicator === 'signal' && (
-        <Sparkles className="h-3.5 w-3.5 text-accent" />
+        <Sparkles className="h-3.5 w-3.5 text-accent-info" />
       )}
-      <span className="label-xs text-accent">{label}</span>
+      <span className="label-xs text-accent-info">{label}</span>
       {typeof count === 'number' && count > 0 && (
         <span className="rounded-full border border-border/40 bg-muted/20 px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
           {count}

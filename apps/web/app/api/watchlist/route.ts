@@ -2,6 +2,38 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { query } from '@/lib/db';
 
+function parseAddWatchlistBody(body: unknown): {
+  data?: { companySlug: string; notes: string | null };
+  errors?: string[];
+} {
+  if (!body || typeof body !== 'object') {
+    return { errors: ['Body must be an object'] };
+  }
+
+  const payload = body as { companySlug?: unknown; notes?: unknown };
+  const errors: string[] = [];
+
+  if (typeof payload.companySlug !== 'string' || payload.companySlug.trim().length === 0) {
+    errors.push('companySlug is required');
+  } else if (payload.companySlug.length > 255) {
+    errors.push('companySlug must be 255 characters or fewer');
+  }
+
+  if (payload.notes !== undefined && payload.notes !== null && typeof payload.notes !== 'string') {
+    errors.push('notes must be a string');
+  } else if (typeof payload.notes === 'string' && payload.notes.length > 2000) {
+    errors.push('notes must be 2000 characters or fewer');
+  }
+
+  if (errors.length > 0) return { errors };
+  return {
+    data: {
+      companySlug: (payload.companySlug as string).trim(),
+      notes: (payload.notes as string | null | undefined) ?? null,
+    },
+  };
+}
+
 interface WatchlistRow {
   id: string;
   startup_id: string;
@@ -69,19 +101,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { companySlug, notes } = body;
-
-    if (!companySlug) {
+    const { data, errors } = parseAddWatchlistBody(await request.json());
+    if (!data) {
       return NextResponse.json(
-        { error: 'companySlug is required' },
+        {
+          error: 'Invalid request payload',
+          details: errors,
+        },
         { status: 400 }
       );
     }
+    const { companySlug, notes } = data;
 
     // First, find the startup by slug
     const startupResult = await query<{ id: string; name: string }>(
-      'SELECT id, name FROM startups WHERE slug = $1',
+      'SELECT id, name FROM startups WHERE slug = $1 LIMIT 1',
       [companySlug]
     );
 
@@ -133,8 +167,7 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const companySlug = searchParams.get('slug');
-
-    if (!companySlug) {
+    if (!companySlug || companySlug.trim().length === 0 || companySlug.length > 255) {
       return NextResponse.json(
         { error: 'slug query parameter is required' },
         { status: 400 }

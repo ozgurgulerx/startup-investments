@@ -96,7 +96,7 @@ export function InteractiveSignals({
           Analysis of {totalDeals} deals reveals conviction levels across{' '}
           {patterns.length} distinct build patterns.
           {emergingPatterns.length > 0 && (
-            <span className="text-accent"> {emergingPatterns.length} emerging patterns discovered.</span>
+            <span className="text-accent-info"> {emergingPatterns.length} emerging patterns discovered.</span>
           )}
         </p>
       </header>
@@ -138,7 +138,7 @@ export function InteractiveSignals({
         <section className="section mb-8">
           <div className="section-header">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-accent" />
+              <Sparkles className="w-4 h-4 text-accent-info" />
               <span className="section-title">Emerging Patterns</span>
             </div>
             <span className="text-xs text-muted-foreground">
@@ -150,7 +150,7 @@ export function InteractiveSignals({
             {filteredEmergingPatterns.slice(0, 6).map((pattern, index) => (
               <div
                 key={index}
-                className="p-4 border border-border/30 rounded-lg hover:border-accent/30 transition-colors"
+                className="p-4 border border-border/30 rounded-lg hover:border-accent-info/30 transition-colors"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div>
@@ -158,8 +158,8 @@ export function InteractiveSignals({
                     <span className="text-xs text-muted-foreground">{pattern.category}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <TrendingUp className="w-3 h-3 text-accent" />
-                    <span className="text-xs px-1.5 py-0.5 bg-accent/10 text-accent rounded">
+                    <TrendingUp className="w-3 h-3 text-accent-info" />
+                    <span className="text-xs px-1.5 py-0.5 bg-accent-info/10 text-accent-info rounded">
                       {pattern.avgNovelty.toFixed(1)}/10
                     </span>
                   </div>
@@ -181,7 +181,7 @@ export function InteractiveSignals({
                       patternName: pattern.name,
                       companies: pattern.companies,
                     })}
-                    className="text-xs text-accent hover:text-accent/80 transition-colors"
+                    className="text-xs text-accent-info hover:text-accent-info/80 transition-colors"
                   >
                     View companies →
                   </button>
@@ -245,7 +245,7 @@ export function InteractiveSignals({
 
               <Link
                 href={`/dealbook?pattern=${encodeURIComponent(pattern.name)}`}
-                className="inline-flex items-center gap-2 text-xs text-accent hover:text-accent/80 transition-colors"
+                className="inline-flex items-center gap-2 text-xs text-accent-info hover:text-accent-info/80 transition-colors"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Browse in Dealbook
@@ -278,7 +278,7 @@ export function InteractiveSignals({
         {/* Matrix insight */}
         <div className="mt-4 p-4 border border-border/30 rounded-lg bg-muted/10">
           <div className="flex items-start gap-3">
-            <Lightbulb className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
+            <Lightbulb className="w-4 h-4 text-accent-info mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-sm text-foreground font-medium mb-1">Pattern Insight</p>
               <p className="text-xs text-muted-foreground">

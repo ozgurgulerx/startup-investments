@@ -65,7 +65,7 @@ export function EvidencePopover({
                         {source.slug ? (
                           <Link
                             href={`/company/${source.slug}`}
-                            className="text-foreground hover:text-accent transition-colors font-medium"
+                            className="text-foreground hover:text-accent-info transition-colors font-medium"
                           >
                             {source.title}
                           </Link>
@@ -74,7 +74,7 @@ export function EvidencePopover({
                             href={source.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-foreground hover:text-accent transition-colors font-medium"
+                            className="text-foreground hover:text-accent-info transition-colors font-medium"
                           >
                             {source.title}
                           </a>
@@ -85,7 +85,7 @@ export function EvidencePopover({
                         )}
                         {source.quote && (
                           <p className="text-muted-foreground/70 mt-0.5 line-clamp-2">
-                            "{source.quote}"
+                            &ldquo;{source.quote}&rdquo;
                           </p>
                         )}
                       </div>

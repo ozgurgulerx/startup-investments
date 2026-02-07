@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+import { CHART_COLORS, CHART_GRID, CHART_AXIS, CHART_CURSOR } from '@/lib/chart-colors';
 
 interface ModelUsage {
   model: string;
@@ -37,9 +38,9 @@ interface ModelUsageChartProps {
 }
 
 const STAGE_COLORS = {
-  late_stage: 'hsl(217, 91%, 40%)',
-  early_stage: 'hsl(217, 91%, 55%)',
-  seed: 'hsl(217, 91%, 70%)',
+  late_stage: CHART_COLORS.primary,
+  early_stage: CHART_COLORS.secondary,
+  seed: CHART_COLORS.tertiary,
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -132,13 +133,13 @@ export function ModelUsageChart({ data, height = 300 }: ModelUsageChartProps) {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(240, 3.7%, 15.9%)"
+            stroke={CHART_GRID}
             horizontal={true}
             vertical={false}
           />
           <XAxis
             type="number"
-            stroke="hsl(240, 5%, 64.9%)"
+            stroke={CHART_AXIS}
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -147,13 +148,13 @@ export function ModelUsageChart({ data, height = 300 }: ModelUsageChartProps) {
           <YAxis
             type="category"
             dataKey="name"
-            stroke="hsl(240, 5%, 64.9%)"
+            stroke={CHART_AXIS}
             fontSize={11}
             tickLine={false}
             axisLine={false}
             width={95}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(240, 3.7%, 15.9%)', opacity: 0.5 }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: CHART_CURSOR, opacity: 0.5 }} />
           <Legend content={<CustomLegend />} />
           <Bar dataKey="Late Stage" stackId="a" fill={STAGE_COLORS.late_stage} />
           <Bar dataKey="Early Stage" stackId="a" fill={STAGE_COLORS.early_stage} />

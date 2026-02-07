@@ -131,8 +131,26 @@ class StartupEventProcessor:
         except Exception as e:
             logger.error(f"Error processing event {event_id}: {e}")
 
-            # Mark as processed to avoid retry loop (could add retry logic)
-            await self.db.mark_event_processed(event_id, triggered_reanalysis=False)
+            # Increment retry count instead of marking as permanently processed.
+            # After 3 failures, mark as status='failed' for manual review.
+            try:
+                await self.db.execute("""
+                    UPDATE startup_events
+                    SET retry_count = COALESCE(retry_count, 0) + 1,
+                        last_error = $2,
+                        last_error_at = NOW(),
+                        status = CASE
+                            WHEN COALESCE(retry_count, 0) + 1 >= 3 THEN 'failed'
+                            ELSE 'pending'
+                        END,
+                        processed = CASE
+                            WHEN COALESCE(retry_count, 0) + 1 >= 3 THEN true
+                            ELSE false
+                        END
+                    WHERE id = $1
+                """, event_id, str(e)[:500])
+            except Exception as db_err:
+                logger.error(f"Could not update retry count for event {event_id}: {db_err}")
 
             return ProcessingResult(
                 event_id=event_id,
@@ -155,18 +173,50 @@ class StartupEventProcessor:
         return "funding_detected", True
 
     async def _handle_website_change(self, event: Dict[str, Any]) -> tuple[str, bool]:
-        """Handle website change events - re-analyze if significant."""
-        event_content = event.get("event_content", "")
+        """Handle website change events - re-analyze only if significant.
 
-        # Determine if change is significant
-        # For now, always re-analyze on website changes
-        # Could add logic to check content hash diff significance
-        significant = True
+        Significance heuristics:
+        - Sites that rarely change (change_rate < 0.3) are more notable when they do
+        - Sites unchanged for 3+ consecutive checks are more notable
+        - Content containing key signals (launch, pivot, product, partnership) is notable
+        """
+        startup_id = event.get("startup_id")
+        significant = False
+
+        # Try DB-based significance check
+        try:
+            if startup_id:
+                stats = await self.db.fetchrow("""
+                    SELECT change_rate, consecutive_unchanged
+                    FROM startups
+                    WHERE id = $1
+                """, startup_id)
+
+                if stats:
+                    change_rate = stats.get("change_rate") or 0.5
+                    consecutive_unchanged = stats.get("consecutive_unchanged") or 0
+
+                    # Stable site changed → significant
+                    if change_rate < 0.3:
+                        significant = True
+                    # Long-unchanged site changed → significant
+                    elif consecutive_unchanged >= 3:
+                        significant = True
+        except Exception as e:
+            logger.debug(f"Could not check change stats for {startup_id}: {e}")
+
+        # Content-based significance check (fallback / supplemental)
+        if not significant:
+            event_content = (event.get("event_content") or "").lower()
+            signal_keywords = ("launch", "pivot", "rebrand", "product", "partnership", "acquisition", "hiring")
+            if any(kw in event_content for kw in signal_keywords):
+                significant = True
 
         if significant:
             logger.info(f"Significant website change detected for {event.get('startup_name')}")
             return "website_change_significant", True
         else:
+            logger.debug(f"Minor website change for {event.get('startup_name')}, skipping re-analysis")
             return "website_change_minor", False
 
     async def _handle_hackernews_mention(self, event: Dict[str, Any]) -> tuple[str, bool]:

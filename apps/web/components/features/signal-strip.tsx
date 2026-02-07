@@ -34,9 +34,9 @@ export function SignalStrip({
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-accent" />
+          <Zap className="w-4 h-4 text-accent-info" />
           <span className="text-xs font-medium text-foreground uppercase tracking-wider">
-            Today's Signals
+            Today&apos;s Signals
           </span>
         </div>
         <Link
@@ -60,9 +60,9 @@ export function SignalStrip({
             {anomaly.slug ? (
               <Link
                 href={`/company/${anomaly.slug}`}
-                className="block p-3 border border-accent/20 rounded bg-accent/5 hover:bg-accent/10 transition-colors"
+                className="block p-3 border border-accent-info/20 rounded bg-accent-info/5 hover:bg-accent-info/10 transition-colors"
               >
-                <p className="text-[10px] text-accent uppercase tracking-wider mb-1">
+                <p className="text-[10px] text-accent-info uppercase tracking-wider mb-1">
                   Top Deal
                 </p>
                 <p className="text-sm font-medium text-foreground truncate">
@@ -73,8 +73,8 @@ export function SignalStrip({
                 </p>
               </Link>
             ) : (
-              <div className="p-3 border border-accent/20 rounded bg-accent/5">
-                <p className="text-[10px] text-accent uppercase tracking-wider mb-1">
+              <div className="p-3 border border-accent-info/20 rounded bg-accent-info/5">
+                <p className="text-[10px] text-accent-info uppercase tracking-wider mb-1">
                   Top Deal
                 </p>
                 <p className="text-sm font-medium text-foreground truncate">
@@ -178,7 +178,7 @@ export function StaticSignalStrip({ metrics, className }: StaticSignalStripProps
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-accent" />
+          <Zap className="w-4 h-4 text-accent-info" />
           <span className="text-xs font-medium text-foreground uppercase tracking-wider">
             Quick Stats
           </span>
@@ -221,14 +221,14 @@ export function StaticSignalStrip({ metrics, className }: StaticSignalStripProps
         </div>
 
         {metrics.topDeal && (
-          <div className="p-3 border border-accent/20 rounded bg-accent/5">
-            <p className="text-[10px] text-accent uppercase tracking-wider mb-1">
+          <div className="p-3 border border-accent-info/20 rounded bg-accent-info/5">
+            <p className="text-[10px] text-accent-info uppercase tracking-wider mb-1">
               Top Deal
             </p>
             {metrics.topDeal.slug ? (
               <Link
                 href={`/company/${metrics.topDeal.slug}`}
-                className="text-sm font-medium text-foreground hover:text-accent transition-colors truncate block"
+                className="text-sm font-medium text-foreground hover:text-accent-info transition-colors truncate block"
               >
                 {metrics.topDeal.name}
               </Link>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input } from '@/components/ui';
 import { X, Plus, Bell, BellOff, Save, Trash2, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -21,6 +21,7 @@ export interface SavedFilter {
  * FilterBuilder props
  */
 export interface FilterBuilderProps {
+  initialQuery?: FilterQuery;
   availablePatterns: string[];
   availableStages: string[];
   availableContinents: string[];
@@ -214,7 +215,16 @@ function ActiveFilters({
 /**
  * FilterBuilder component
  */
+function hasActiveFilters(q: FilterQuery | undefined): boolean {
+  if (!q) return false;
+  return Object.keys(q).some(key => {
+    const val = q[key as keyof FilterQuery];
+    return val !== undefined && (Array.isArray(val) ? val.length > 0 : true);
+  });
+}
+
 export function FilterBuilder({
+  initialQuery,
   availablePatterns,
   availableStages,
   availableContinents,
@@ -225,11 +235,23 @@ export function FilterBuilder({
   onFilterToggleAlerts,
   className = '',
 }: FilterBuilderProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [query, setQuery] = useState<FilterQuery>({});
+  const [isExpanded, setIsExpanded] = useState(hasActiveFilters(initialQuery));
+  const [query, setQuery] = useState<FilterQuery>(initialQuery || {});
   const [filterName, setFilterName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveInput, setShowSaveInput] = useState(false);
+
+  // Sync internal state when parent's initialQuery changes
+  useEffect(() => {
+    const incoming = JSON.stringify(initialQuery || {});
+    const current = JSON.stringify(query);
+    if (incoming !== current) {
+      setQuery(initialQuery || {});
+      if (hasActiveFilters(initialQuery)) {
+        setIsExpanded(true);
+      }
+    }
+  }, [initialQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateQuery = useCallback((updates: Partial<FilterQuery>) => {
     const newQuery = { ...query, ...updates };
@@ -308,13 +330,13 @@ export function FilterBuilder({
                 >
                   <button
                     onClick={() => loadFilter(filter)}
-                    className="hover:text-accent transition-colors"
+                    className="hover:text-accent-info transition-colors"
                   >
                     {filter.name}
                   </button>
                   <button
                     onClick={() => onFilterToggleAlerts(filter.id, !filter.alertsEnabled)}
-                    className={`ml-1 ${filter.alertsEnabled ? 'text-accent' : 'text-muted-foreground'}`}
+                    className={`ml-1 ${filter.alertsEnabled ? 'text-accent-info' : 'text-muted-foreground'}`}
                     title={filter.alertsEnabled ? 'Alerts enabled' : 'Alerts disabled'}
                   >
                     {filter.alertsEnabled ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}

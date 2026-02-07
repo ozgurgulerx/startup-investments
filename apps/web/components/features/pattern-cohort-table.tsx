@@ -110,7 +110,7 @@ export function PatternCohortTable({
                       <td className="py-3">
                         <Link
                           href={`/company/${company.company_slug}`}
-                          className="font-medium text-foreground hover:text-accent transition-colors"
+                          className="font-medium text-foreground hover:text-accent-info transition-colors"
                         >
                           {company.company_name}
                         </Link>
@@ -136,7 +136,7 @@ export function PatternCohortTable({
                       </td>
                       <td className="text-center">
                         {company.uses_genai && (
-                          <span className="px-1.5 py-0.5 text-[10px] bg-accent/10 text-accent rounded">
+                          <span className="px-1.5 py-0.5 text-[10px] bg-accent-info/10 text-accent-info rounded">
                             Yes
                           </span>
                         )}

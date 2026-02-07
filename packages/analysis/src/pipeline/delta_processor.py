@@ -353,10 +353,8 @@ class DeltaProcessor:
                 # Also generate content for blob storage
                 updated_brief_content = generate_startup_brief(new_analysis, startup, logo_path)
 
-            # 7. Save merged analysis to store (local filesystem)
-            self._save_merged_analysis(slug, merged_analysis, startup)
-
-            # 8. Save to blob storage (if configured)
+            # 7. Save to blob storage FIRST (if configured)
+            # Blob write happens before local to prevent partial state on blob failure.
             # Determine what changed for reconciliation
             funding_changed = any(c.field in ("funding_amount", "funding_stage") for c in classified.changes)
             website_changed = any(c.field == "website_hash" for c in classified.changes)
@@ -374,6 +372,9 @@ class DeltaProcessor:
                 website_changed=website_changed,
                 description_changed=description_changed,
             )
+
+            # 8. Save merged analysis to store (local filesystem) — after blob succeeds
+            self._save_merged_analysis(slug, merged_analysis, startup)
 
             end_time = datetime.now(timezone.utc)
             return ProcessingResult(
@@ -411,11 +412,32 @@ class DeltaProcessor:
         brief_path.write_text(content)
 
     def _save_merged_analysis(self, slug: str, merged: Dict[str, Any], startup: StartupInput):
-        """Save merged analysis to store."""
+        """Save merged analysis to store using atomic writes.
+
+        Uses write-to-temp + os.replace() so a crash mid-write never leaves
+        a corrupt JSON file on disk.
+        """
         import json
+        import tempfile
+        import os
+
         analysis_path = self.store.base_dir / f"{slug}.json"
-        with open(analysis_path, "w") as f:
-            json.dump(merged, f, indent=2, default=str)
+
+        # Atomic write: write to temp file in same directory, then rename
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.store.base_dir), suffix=".json.tmp"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(merged, f, indent=2, default=str)
+            os.replace(tmp_path, str(analysis_path))
+        except Exception:
+            # Clean up temp file on failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
         # Update index — use same schema as store.save_base_analysis() for consistency
         existing_meta = self.store.index["startups"].get(startup.name, {})

@@ -18,35 +18,71 @@ export default function WatchlistPage() {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [showChanges, setShowChanges] = useState(true);
 
+  // Discover the latest available period dynamically
+  const [currentPeriod, setCurrentPeriod] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function discoverPeriod() {
+      try {
+        // Try to get available periods from the API-driven data loader
+        const res = await fetch('/api/periods');
+        if (res.ok) {
+          const periods = await res.json();
+          if (periods.length > 0) {
+            setCurrentPeriod(periods[0].period);
+            return;
+          }
+        }
+      } catch {
+        // Fallback: scan data directory structure
+      }
+      // Fallback: use current year-month format to find latest period
+      const now = new Date();
+      const candidates = [];
+      for (let m = now.getMonth() + 1; m >= 1; m--) {
+        candidates.push(`${now.getFullYear()}-${String(m).padStart(2, '0')}`);
+      }
+      for (const period of candidates) {
+        try {
+          const res = await fetch(`/data/${period}/output/analysis_store/index.json`, { method: 'HEAD' });
+          if (res.ok) {
+            setCurrentPeriod(period);
+            return;
+          }
+        } catch {
+          // Try next
+        }
+      }
+      // Last resort fallback
+      setCurrentPeriod(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    }
+    discoverPeriod();
+  }, []);
+
   // Load startup data for watchlisted companies
   useEffect(() => {
+    if (!currentPeriod) return;
+
     async function loadData() {
       try {
-        // Load startups data
-        const startupsRes = await fetch('/data/2026-01/output/analysis_store/index.json');
-        if (startupsRes.ok) {
-          const index = await startupsRes.json();
-          const slugs = watchlist?.items.map(i => i.companySlug) || [];
-
-          const loadedStartups: StartupAnalysis[] = [];
-          for (const slug of slugs) {
+        const slugs = watchlist?.items.map(i => i.companySlug) || [];
+        const startupResults = await Promise.all(
+          slugs.map(async (slug) => {
             try {
               const res = await fetch(
-                `/data/2026-01/output/analysis_store/base_analyses/${slug}.json`
+                `/data/${currentPeriod}/output/analysis_store/base_analyses/${slug}.json`
               );
-              if (res.ok) {
-                const data = await res.json();
-                loadedStartups.push(data);
-              }
+              if (!res.ok) return null;
+              return await res.json() as StartupAnalysis;
             } catch {
-              // Skip if can't load
+              return null;
             }
-          }
-          setStartups(loadedStartups);
-        }
+          })
+        );
+        setStartups(startupResults.filter((s): s is StartupAnalysis => s !== null));
 
         // Load stats
-        const statsRes = await fetch('/data/2026-01/output/monthly_stats.json');
+        const statsRes = await fetch(`/data/${currentPeriod}/output/monthly_stats.json`);
         if (statsRes.ok) {
           setStats(await statsRes.json());
         }
@@ -62,7 +98,7 @@ export default function WatchlistPage() {
     } else {
       setIsDataLoading(false);
     }
-  }, [watchlist?.items]);
+  }, [watchlist?.items, currentPeriod]);
 
   // Compute changes for watchlisted companies
   const changes = useMemo(() => {
@@ -88,7 +124,7 @@ export default function WatchlistPage() {
       <>
         <div className="briefing-header">
           <span className="briefing-date">Watchlist</span>
-          <h1 className="briefing-headline">Track companies you're interested in</h1>
+          <h1 className="briefing-headline">Track companies you&apos;re interested in</h1>
         </div>
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -102,12 +138,12 @@ export default function WatchlistPage() {
       <>
         <div className="briefing-header">
           <span className="briefing-date">Watchlist</span>
-          <h1 className="briefing-headline">Track companies you're interested in</h1>
+          <h1 className="briefing-headline">Track companies you&apos;re interested in</h1>
         </div>
 
         <div className="text-center py-16 border border-border/30 rounded-lg">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-accent/10 flex items-center justify-center">
-            <Bookmark className="w-6 h-6 text-accent" />
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-accent-info/10 flex items-center justify-center">
+            <Bookmark className="w-6 h-6 text-accent-info" />
           </div>
           <h3 className="text-lg font-medium text-foreground mb-2">
             Sign in to use watchlists
@@ -134,7 +170,7 @@ export default function WatchlistPage() {
       {/* Page Header */}
       <div className="briefing-header">
         <span className="briefing-date">Watchlist</span>
-        <h1 className="briefing-headline">Track companies you're interested in</h1>
+        <h1 className="briefing-headline">Track companies you&apos;re interested in</h1>
       </div>
 
       {items.length > 0 ? (

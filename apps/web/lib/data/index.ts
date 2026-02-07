@@ -7,6 +7,7 @@ import type {
   PeriodInfo,
 } from '@startup-intelligence/shared';
 import { api, isAPIConfigured, type DealbookFilters, type DealbookResponse } from '@/lib/api/client';
+import { normalizeStageKey } from '@/lib/utils';
 
 // Base data path - configurable via environment variable
 // For static export, use the data directory relative to the web app
@@ -26,13 +27,6 @@ const PERIODS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 // In-memory cache for monthly stats
 const statsCache = new Map<string, { data: MonthlyStats; timestamp: number }>();
 const STATS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-function normalizeStageKey(value: string | undefined | null): string {
-  return (value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
 
 /**
  * Get all available periods (with caching)
@@ -453,7 +447,9 @@ export async function getStartupsPaginated(
     const searchLower = options.search.toLowerCase();
     filtered = filtered.filter(s =>
       s.company_name.toLowerCase().includes(searchLower) ||
-      (s.description || '').toLowerCase().includes(searchLower)
+      (s.description || '').toLowerCase().includes(searchLower) ||
+      (s.vertical || '').toLowerCase().includes(searchLower) ||
+      (s.sub_vertical || '').toLowerCase().includes(searchLower)
     );
   }
 

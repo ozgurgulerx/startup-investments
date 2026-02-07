@@ -56,7 +56,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
 
   return (
     <article
-      className={`group rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
+      className={`group rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-info/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
     >
       {showImage ? (
         <div className="mb-3 overflow-hidden rounded-lg border border-border/35 bg-background/70">
@@ -76,7 +76,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
         {typeof item.llm_signal_score === 'number' ? (
-          <span className="rounded-full border border-accent/35 bg-accent/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent">
+          <span className="rounded-full border border-accent-info/35 bg-accent-info/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent-info">
             AI Signal {Math.round(item.llm_signal_score * 100)}%
           </span>
         ) : null}
@@ -89,7 +89,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
 
       {hasSourceUrl ? (
         <Link href={sourceHref} target="_blank" rel="noopener noreferrer" className="block">
-          <h3 className={`text-foreground tracking-tight transition-colors group-hover:text-accent ${featured ? 'text-xl font-medium leading-tight' : 'text-base font-medium leading-snug'}`}>
+          <h3 className={`text-foreground tracking-tight transition-colors group-hover:text-accent-info ${featured ? 'text-xl font-medium leading-tight' : 'text-base font-medium leading-snug'}`}>
             {item.title}
           </h3>
         </Link>
@@ -106,8 +106,8 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
       ) : null}
 
       {item.builder_takeaway ? (
-        <div className="mt-3 rounded-md border border-accent/25 bg-accent/10 px-2.5 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-accent">Builder View</p>
+        <div className="mt-3 rounded-md border border-accent-info/25 bg-accent-info/10 px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-accent-info">Builder View</p>
           <p className="mt-1 text-xs leading-relaxed text-foreground/90">{item.builder_takeaway}</p>
         </div>
       ) : null}
@@ -117,7 +117,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
           <Link
             key={tag}
             href={`/topics/${encodeURIComponent(tag)}`}
-            className="inline-flex items-center rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground hover:border-accent/40 hover:text-accent transition-colors"
+            className="inline-flex items-center rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground hover:border-accent-info/40 hover:text-accent-info transition-colors"
           >
             {tag}
           </Link>
@@ -131,7 +131,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
             href={sourceHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-accent/90 hover:text-accent"
+            className="inline-flex items-center gap-1 text-xs text-accent-info/90 hover:text-accent-info"
           >
             Read source
             <ExternalLink className="h-3 w-3" />

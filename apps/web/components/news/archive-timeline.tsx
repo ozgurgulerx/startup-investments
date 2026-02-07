@@ -55,7 +55,7 @@ export function ArchiveTimeline({ initialItems, pageSize = 20 }: ArchiveTimeline
           <Link
             key={entry.edition_date}
             href={`/news/${entry.edition_date}`}
-            className="flex items-center justify-between rounded-lg border border-border/35 bg-background/55 px-3 py-2 text-sm transition-colors hover:border-accent/35 hover:bg-accent/5"
+            className="flex items-center justify-between rounded-lg border border-border/35 bg-background/55 px-3 py-2 text-sm transition-colors hover:border-accent-info/35 hover:bg-accent-info/5"
           >
             <span className="text-foreground">{formatDate(entry.edition_date)}</span>
             <span className="text-xs text-muted-foreground tabular-nums">
@@ -70,7 +70,7 @@ export function ArchiveTimeline({ initialItems, pageSize = 20 }: ArchiveTimeline
           type="button"
           onClick={loadMore}
           disabled={loadingMore}
-          className="mt-3 inline-flex h-9 items-center justify-center rounded-md border border-border/50 px-3 text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:border-accent/35 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-3 inline-flex h-9 items-center justify-center rounded-md border border-border/50 px-3 text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:border-accent-info/35 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loadingMore ? 'Loading...' : 'Load Older Editions'}
         </button>

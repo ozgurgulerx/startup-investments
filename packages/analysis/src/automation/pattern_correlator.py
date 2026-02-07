@@ -71,13 +71,14 @@ class PatternCorrelator:
 
             for i, pattern_a in enumerate(patterns):
                 for pattern_b in patterns[i + 1:]:
-                    # Ensure consistent ordering (a < b)
-                    if pattern_a > pattern_b:
-                        pattern_a, pattern_b = pattern_b, pattern_a
+                    # Ensure consistent ordering (a < b) using min/max
+                    # to avoid swapping loop variables which can invert stats
+                    ordered_a = min(pattern_a, pattern_b)
+                    ordered_b = max(pattern_a, pattern_b)
 
                     correlation = self._compute_correlation(
-                        pattern_stats[pattern_a],
-                        pattern_stats[pattern_b],
+                        pattern_stats[ordered_a],
+                        pattern_stats[ordered_b],
                         total_startups
                     )
 
@@ -90,8 +91,8 @@ class PatternCorrelator:
                             pattern_b=correlation.pattern_b,
                             period=period,
                             co_occurrence_count=correlation.co_occurrence_count,
-                            total_a=pattern_stats[pattern_a].count,
-                            total_b=pattern_stats[pattern_b].count,
+                            total_a=pattern_stats[ordered_a].count,
+                            total_b=pattern_stats[ordered_b].count,
                             avg_funding_both=correlation.avg_funding_both,
                             avg_funding_a_only=correlation.avg_funding_a_only,
                             avg_funding_b_only=correlation.avg_funding_b_only,
@@ -113,7 +114,14 @@ class PatternCorrelator:
         """Build statistics for each pattern."""
         stats: Dict[str, PatternStats] = {}
 
+        # Also build per-startup funding lookup for correlation metrics
+        self._startup_funding: Dict[str, int] = {}
+
         for startup in startups:
+            startup_id = str(startup["id"])
+            funding = startup.get("total_funding") or 0
+            self._startup_funding[startup_id] = funding
+
             pattern = startup.get("pattern")
             if not pattern:
                 continue
@@ -132,9 +140,7 @@ class PatternCorrelator:
                     )
 
                 stats[p].count += 1
-                stats[p].startups.add(str(startup["id"]))
-
-                funding = startup.get("total_funding") or 0
+                stats[p].startups.add(startup_id)
                 stats[p].total_funding += funding
 
         # Calculate averages
@@ -180,16 +186,19 @@ class PatternCorrelator:
         else:
             correlation_coefficient = 0
 
-        # Compute funding averages
-        # Startups with A only
+        # Compute funding averages using per-startup funding lookup
         a_only = stats_a.startups - stats_b.startups
         b_only = stats_b.startups - stats_a.startups
 
-        # For simplicity, we'd need the actual funding data to compute these
-        # For now, return None for funding-based metrics
-        avg_funding_both = None
-        avg_funding_a_only = None
-        avg_funding_b_only = None
+        def _avg_funding(startup_ids: set) -> Optional[int]:
+            if not startup_ids:
+                return None
+            total = sum(self._startup_funding.get(sid, 0) for sid in startup_ids)
+            return int(total / len(startup_ids))
+
+        avg_funding_both = _avg_funding(both_startups)
+        avg_funding_a_only = _avg_funding(a_only)
+        avg_funding_b_only = _avg_funding(b_only)
 
         return CorrelationResult(
             pattern_a=stats_a.name,

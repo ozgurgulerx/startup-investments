@@ -98,8 +98,7 @@ export function deriveSignalEvents(
  */
 export function getWatchlistChanges(
   watchlistSlugs: string[],
-  startups: StartupAnalysis[],
-  since?: Date
+  startups: StartupAnalysis[]
 ): SignalEvent[] {
   const events: SignalEvent[] = [];
   const now = new Date().toISOString();

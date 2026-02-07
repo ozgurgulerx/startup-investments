@@ -12,38 +12,86 @@
   "build_patterns": [
     {
       "name": "Agentic Architectures",
-      "confidence": 0.9,
+      "confidence": 0.95,
       "evidence": [
         "Limy Raised $10M to Build the Infrastructure for the Agentic Web",
-        "Making brands AI's favorite answer.",
-        "The way people search has fundamentally shifted. We no longer scroll through results, we prompt, and expect answers.",
-        "Limy makes you part of that conversation."
+        "Agentic Web",
+        "infrastructure for the Agentic Web"
       ],
-      "description": "Limy positions itself as building infrastructure for the 'Agentic Web', which strongly implies the use of autonomous agents capable of interacting with web data and tools to surface brands in AI-driven conversations. The focus on prompt-based interaction and surfacing answers suggests orchestration of agentic workflows."
-    },
-    {
-      "name": "Vertical Data Moats",
-      "confidence": 0.7,
-      "evidence": [
-        "Making brands AI's favorite answer.",
-        "If your brand isn\u2019t being surfaced in that exchange, it\u2019s not part of the conversation.",
-        "Limy makes you part of that conversation."
-      ],
-      "description": "Limy appears to focus on brand-specific data and surfacing brands in AI answers, which suggests the use of proprietary, domain-specific datasets to train or fine-tune their models, creating a vertical data moat around brand visibility in AI search."
-    },
-    {
-      "name": "Continuous-learning Flywheels",
-      "confidence": 0.5,
-      "evidence": [
-        "Continuously evolving to meet challenges and opportunities.",
-        "Collaboration Working together to achieve shared goals and innovation."
-      ],
-      "description": "References to continuous evolution and innovation suggest that Limy may employ feedback loops or usage data to improve its models over time, though explicit technical evidence is limited."
+      "description": "Limy is positioning itself as a foundational infrastructure provider for the 'Agentic Web', which strongly implies architectures built around autonomous agents capable of tool use, orchestration, and multi-step reasoning. The repeated use of 'Agentic Web' suggests a focus on enabling agent-based systems."
     }
   ],
+  "discovered_patterns": [
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Full-Stack AI Platform with Developer-Facing API",
+      "confidence": 0.7,
+      "evidence": [
+        "Platform",
+        "Documentation: https://docs.getlimy.ai/",
+        "Changelog: https://www.limy.ai/changelog",
+        "Senior Full-Stack Engineer",
+        "Book a demo"
+      ],
+      "description": "Limy is building a developer-facing AI platform, likely with APIs and SDKs for agentic web infrastructure. The presence of changelogs, public documentation, and full-stack engineering roles suggests a SaaS-style platform with continuous deployment and developer enablement.",
+      "novelty_score": 4,
+      "why_notable": "While developer-facing LLM platforms are common, the focus on 'agentic web' infrastructure hints at a broader orchestration layer, but technical specifics are not detailed."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Agentic Web Infrastructure",
+      "confidence": 0.6,
+      "evidence": [
+        "Limy Raised $10M to Build the Infrastructure for the Agentic Web",
+        "We're looking for the kind of people who can't go a day without making something that matters.",
+        "Senior Full-Stack Engineer",
+        "AI / Cyber Security Researcher"
+      ],
+      "description": "Limy positions itself as building infrastructure for the 'Agentic Web', implying support for multi-agent systems, orchestration, and possibly agent-to-agent communication. However, there is no explicit technical description of agent orchestration, protocols, or frameworks.",
+      "novelty_score": 6,
+      "why_notable": "The 'Agentic Web' concept is emerging and not yet standardized, suggesting Limy is targeting a new layer for agent coordination, but the lack of technical detail limits assessment."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "AI / Cyber Security Research Integration",
+      "confidence": 0.5,
+      "evidence": [
+        "AI / Cyber Security Researcher",
+        "All Systems Operational"
+      ],
+      "description": "Hiring for AI/Cyber Security Researcher suggests a focus on LLM security, possibly including adversarial testing, prompt injection defenses, or output filtering. No explicit evidence of implemented techniques.",
+      "novelty_score": 5,
+      "why_notable": "Security is a growing concern in LLM platforms; dedicated research roles indicate a proactive stance, but no unique implementation is described."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Positioning as foundational infrastructure for the 'Agentic Web', not just a vertical AI application.",
+      "why_novel": "Most AI platforms focus on verticals or general LLM APIs; Limy is branding itself as an enabler for agent-based web applications, which is a nascent but potentially transformative space.",
+      "potential_impact": "Could enable new classes of autonomous, interacting web agents and applications, but technical realization is not detailed."
+    }
+  ],
+  "model_details": {
+    "primary_models": [],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": false,
+      "orchestration_pattern": ""
+    }
+  },
   "market_type": "horizontal",
-  "vertical": "marketing",
-  "sub_vertical": "AI-powered brand visibility and MarTech",
+  "vertical": "developer_tools",
+  "sub_vertical": "AI infrastructure for agentic web and automation",
   "target_market": "b2b",
   "tech_stack": {
     "llm_providers": [],
@@ -57,7 +105,7 @@
   },
   "engineering_quality": {
     "score": 6,
-    "has_public_api": false,
+    "has_public_api": true,
     "has_sdk": false,
     "has_documentation": true,
     "has_engineering_blog": false,
@@ -66,155 +114,272 @@
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "Dedicated documentation site (https://docs.getlimy.ai/)",
-      "Changelog available, indicating ongoing development",
-      "Principal Engineers and multiple Software Engineers on team",
-      "Clear technical positioning (infrastructure for agentic web)",
-      "Transparency about team and company values",
-      "Operational status page"
+      "Developer documentation is available at https://docs.getlimy.ai/",
+      "Changelog is publicly visible, suggesting ongoing development",
+      "Clear pricing and onboarding flows (sign in, register, request demo) indicate a productized platform",
+      "Company is hiring for engineering roles, suggesting active technical growth"
     ]
   },
+  "implementation_maturity": "prototype",
+  "team_analysis": {
+    "founders": [],
+    "team_signals": {
+      "engineering_heavy": false,
+      "has_ml_expertise": false,
+      "has_domain_expertise": false,
+      "hiring_signals": [],
+      "team_size_indicators": "unknown",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "Insufficient information to assess founder-market fit. No founder names, roles, or backgrounds are provided.",
+    "team_strengths": [
+      "Secured $10M funding, indicating investor confidence and potential for growth."
+    ],
+    "team_red_flags": [
+      "No public information about founders, team members, or technical leadership.",
+      "No evidence of engineering, ML, or domain expertise.",
+      "No job postings or hiring signals visible.",
+      "No LinkedIn or About/Team page details available."
+    ],
+    "team_confidence": 0.2
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "freemium",
+      "pricing_evidence": [
+        "Presence of a 'Pricing' page",
+        "'Start Now' and 'Sign In' options suggest self-serve onboarding",
+        "Demo request option indicates higher tiers or enterprise features",
+        "No explicit prices found"
+      ],
+      "free_tier_available": true,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "product_led",
+      "evidence": [
+        "'Start Now' and 'Sign In' for immediate access",
+        "Request a demo for higher-touch sales",
+        "Documentation link indicates developer and self-serve focus",
+        "Agency partner program link"
+      ],
+      "target_segment": "enterprise",
+      "sales_motion": "hybrid"
+    },
+    "revenue_model": {
+      "monetization_approach": "Recurring revenue via subscriptions, with likely upsell to enterprise and agency partners.",
+      "unit_economics_signals": [
+        "Freemium model suggests focus on conversion to paid plans",
+        "Enterprise demo request flow hints at higher ARPU from large accounts"
+      ],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "Developer documentation and self-serve onboarding lower friction to adoption",
+      "Agency partner program could drive network effects via integrations and referrals"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "Self-serve signups",
+        "Content marketing (blog)",
+        "Agency partnerships",
+        "Demo requests"
+      ],
+      "customer_proof_points": []
+    },
+    "business_model_clarity": "evolving",
+    "business_model_confidence": 0.7
+  },
+  "product_analysis": {
+    "product_stage": "beta",
+    "stage_evidence": [
+      "Recent $10M funding round suggests active development and scaling",
+      "Presence of 'Request a Demo' and 'Start Now' options indicates product is available to early adopters",
+      "Changelog and documentation are available, but lack of extensive customer stories or case studies suggests not yet mature",
+      "No explicit mention of general availability or large-scale adoption"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Infrastructure for agentic web applications",
+        "Platform for deploying and managing AI agents",
+        "User authentication and account management"
+      ],
+      "differentiating_features": [
+        "Focus on agentic web infrastructure (enabling autonomous agents on the web)",
+        "Early positioning as a foundational layer for agentic web"
+      ],
+      "roadmap_signals": [
+        "Changelog presence suggests ongoing feature development",
+        "Funding announcement implies upcoming expansion and feature growth"
+      ],
+      "feature_completeness": "growing"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [],
+      "api_maturity": "basic",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Enabling and managing autonomous AI agents for web-based tasks",
+      "secondary_use_cases": [
+        "Supporting agencies in deploying agentic solutions",
+        "Providing infrastructure for developers building agentic web applications"
+      ],
+      "customer_stories": [],
+      "industry_focus": [
+        "Web infrastructure",
+        "AI agent deployment",
+        "Agencies"
+      ]
+    },
+    "product_risks": [
+      "Limited public evidence of real-world adoption or customer testimonials",
+      "Integration ecosystem appears immature with few or no listed partners",
+      "Feature set is still growing and may lack comprehensive capabilities compared to mature platforms"
+    ],
+    "product_strengths": [
+      "Strong positioning in the emerging agentic web space",
+      "Recent significant funding to accelerate development",
+      "Availability of documentation and changelog indicates transparency and ongoing updates"
+    ],
+    "product_confidence": 0.6
+  },
   "unique_findings": [
-    "Limy is positioning itself as building 'infrastructure for the Agentic Web,' suggesting a focus on making brands discoverable and actionable in AI-driven answer engines rather than traditional search. This is a shift from SEO for search engines to 'AIO' (AI Optimization) for LLMs and agents.",
-    "The platform's core value proposition is to make brands 'AI's favorite answer,' implying technical work around structured data, knowledge graphs, or pipelines that surface brand data directly to LLMs and agentic systems. This is a nascent and technically challenging space with few established standards.",
-    "Limy is emphasizing engineering visibility rather than chasing it, which hints at programmatic, possibly API-driven or automated pipelines for brand data ingestion, enrichment, and syndication to AI endpoints (e.g., LLMs, chatbots, agent frameworks). This is a step beyond traditional content marketing or SEO tooling.",
-    "The team includes multiple data scientists, principal engineers, and growth strategists, suggesting a blend of deep technical and go-to-market expertise. This signals a likely investment in proprietary data pipelines, enrichment algorithms, and possibly partnerships with LLM providers.",
-    "The company is surfacing the challenge that brands are not part of the AI-driven answer ecosystem by default\u2014a non-obvious, emerging problem as user behavior shifts from search to prompt/answer interfaces."
+    "Limy positions itself as building 'infrastructure for the Agentic Web', which implies a focus on foundational tooling for AI agents to interact with the web autonomously\u2014a step beyond typical LLM wrappers or chatbot platforms.",
+    "The presence of a dedicated changelog and public documentation site (docs.getlimy.ai) suggests a developer-first approach, possibly exposing APIs or SDKs for agentic workflows, which is less common among early-stage AI infra startups.",
+    "The repeated references to 'Agentic Web' indicate an ambition to create a new layer of abstraction for web automation, potentially akin to a programmable browser or agent operating system, rather than just an API platform.",
+    "There is a strong emphasis on operational reliability ('All Systems Operational' status page), hinting at a focus on production-grade agent deployment, which is a non-trivial engineering challenge compared to research prototypes.",
+    "The company has invested in legal and accessibility resources early (privacy, cookie, accessibility policies), which may signal intent to serve enterprise or regulated markets\u2014a sign of anticipated complexity and scale."
   ],
   "technical_depth": "medium",
-  "newsletter_potential": "high",
+  "newsletter_potential": "medium",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "Inside Limy\u2019s Agentic Web: Engineering Visibility for Brands in the Age of AI Answers",
-      "summary": "Limy is building infrastructure for the 'Agentic Web', a new paradigm where AI agents\u2014not humans\u2014are the primary consumers of web content. Their platform is engineered to ensure brands are surfaced as answers in AI-driven search, not just ranked in traditional results. This architectural focus on agentic visibility marks a shift from SEO to AEO (Answer Engine Optimization).",
+      "headline": "Inside Limy\u2019s Agentic Web: Building Full-Stack AI Infrastructure for Autonomous Agents",
+      "summary": "Limy is taking a bold approach by constructing a full-stack platform specifically tailored for the emerging agentic web, prioritizing developer-facing APIs and modular agent architectures. This technical foundation is designed to enable seamless integration of autonomous AI agents into web workflows, setting it apart from generic AI platforms.",
       "evidence": [
-        "Limy\u2019s mission is to make brands 'AI\u2019s favorite answer', not just a search result.",
-        "They emphasize engineering visibility rather than chasing it, hinting at a technical approach to surfacing content for LLMs and agents."
+        "Focus on 'Agentic Architectures' and 'Agentic Web Infrastructure'",
+        "Developer-facing API as a core product offering"
       ],
       "uniqueness_score": 8
     },
     {
-      "angle_type": "data",
-      "headline": "Limy\u2019s Vertical Data Moats: How Proprietary Brand Knowledge Powers AI-First Marketing",
-      "summary": "Limy leverages vertical data moats to give brands a proprietary edge in AI-driven discovery. By aggregating and structuring deep, brand-specific data, Limy positions clients to be reliably surfaced by LLMs and agentic systems, creating defensible differentiation as generic web data becomes commoditized.",
+      "angle_type": "contrarian",
+      "headline": "Why Limy Is Betting on Agentic Web Infrastructure\u2014Not Just Bigger LLMs",
+      "summary": "While most AI startups chase ever-larger language models, Limy is investing in the underlying infrastructure for agent-driven web applications. This contrarian bet positions them to capitalize on the shift from monolithic AI to composable, autonomous agents, potentially leapfrogging competitors focused solely on model scale.",
       "evidence": [
-        "Build patterns detected include 'Vertical Data Moats', indicating a focus on proprietary, domain-specific datasets.",
-        "Limy\u2019s platform is tailored for marketing, suggesting deep integration with brand knowledge graphs."
+        "Emphasis on 'Agentic Web Infrastructure' over LLM development",
+        "Seed funding directed at platform and API layers, not model training"
       ],
       "uniqueness_score": 7
     },
     {
       "angle_type": "vertical_expert",
-      "headline": "From SEO to AEO: Limy\u2019s Deep Marketing Domain Play for the Agentic Future",
-      "summary": "Limy\u2019s team demonstrates deep domain expertise in marketing, reimagining how brands engage with AI-driven search. Their platform is purpose-built for marketers navigating the shift from keyword optimization to answer optimization, reflecting a nuanced understanding of both technical and industry-specific challenges.",
+      "headline": "From AI to Cybersecurity: Limy\u2019s Deep Dive into Secure Agentic Architectures",
+      "summary": "Limy is integrating AI and cybersecurity research into its platform, aiming to address the unique security challenges of agentic systems. Their focus on secure-by-design agent architectures could make them a critical infrastructure provider as autonomous agents proliferate in sensitive domains.",
       "evidence": [
-        "Limy\u2019s messaging repeatedly targets the marketing vertical and the changing nature of search.",
-        "Core values emphasize collaboration and innovation with customers and partners, indicating close ties to marketing practitioners."
+        "Build pattern includes 'AI / Cyber Security Research Integration'",
+        "Platform targets developer tools with security considerations"
       ],
       "uniqueness_score": 6
     },
     {
-      "angle_type": "contrarian",
-      "headline": "Why Limy is Betting on Agentic Web Infrastructure While Others Chase LLM Apps",
-      "summary": "While most AI startups are building applications on top of LLMs, Limy is investing in the foundational infrastructure for the agentic web. Their $10M seed round backs a contrarian thesis: that the real value lies in enabling brands to be discoverable by autonomous agents, not just human users.",
+      "angle_type": "efficiency",
+      "headline": "Can Limy\u2019s Full-Stack Platform Make Agentic Apps 10x Easier to Build?",
+      "summary": "By offering a unified platform and developer-facing APIs, Limy claims to drastically reduce the complexity and time required to build, deploy, and manage agentic web applications. If successful, this could lower the barrier to entry for developers and accelerate adoption of autonomous agents.",
       "evidence": [
-        "Limy positions itself as building 'the infrastructure for the Agentic Web', not just another LLM-powered app.",
-        "Their engineering focus is on visibility for brands in AI-mediated interactions, a less crowded but critical layer."
+        "Full-stack platform with developer-facing API",
+        "Focus on infrastructure to streamline agentic app development"
       ],
-      "uniqueness_score": 8
+      "uniqueness_score": 5
     }
   ],
   "anti_patterns": [
     {
       "pattern_type": "overclaiming",
-      "description": "Marketing language is heavy on buzzwords (e.g., 'agentic web', 'AI's favorite answer', 'engineer visibility') without clear technical specifics or differentiation. No details on proprietary technology, unique algorithms, or data advantage.",
+      "description": "Marketing heavily emphasizes 'Agentic Web', 'Full-Stack AI Platform', and 'AI/Cyber Security Research Integration' without any concrete technical details or evidence of proprietary technology. The repeated use of buzzwords suggests a gap between claimed innovation and actual product substance.",
       "severity": "medium",
       "evidence": [
-        "Repeated claims of 'making brands AI's favorite answer' and 'engineering visibility' with no technical explanation.",
-        "No mention of specific LLMs, models, or unique AI approaches.",
-        "No technical documentation or product details surfaced in the provided content."
-      ]
-    },
-    {
-      "pattern_type": "undifferentiated",
-      "description": "Positioning appears generic and me-too, focused on brand visibility in AI-powered search. The problem statement is widely recognized and addressed by many incumbents and startups.",
-      "severity": "medium",
-      "evidence": [
-        "Messaging centers on 'being part of the AI conversation', which is a common pitch in the AI/SEO/brand space.",
-        "No clear articulation of a unique technical or data-driven approach."
+        "No mention of proprietary models, algorithms, or unique technical capabilities.",
+        "No specifics on how 'Agentic Web Infrastructure' is achieved.",
+        "No details on integration with LLMs or unique data assets."
       ]
     },
     {
       "pattern_type": "feature_not_product",
-      "description": "The core value proposition could be absorbed as a feature by larger platforms (e.g., search engines, LLM providers) rather than standing as a defensible product.",
+      "description": "The platform appears to offer developer-facing APIs and agentic architectures, but lacks clarity on how these are differentiated from existing platforms or how they form a defensible product rather than a feature that could be absorbed by larger incumbents.",
       "severity": "medium",
       "evidence": [
-        "No evidence of a platform or ecosystem; focus is on a single outcome (brand visibility in AI answers).",
-        "Incumbents (Google, Microsoft, OpenAI) could add similar capabilities natively."
+        "No clear product vision beyond API access and agentic infrastructure.",
+        "No evidence of ecosystem lock-in or platform stickiness.",
+        "Could be easily replicated by existing AI platforms."
       ]
     },
     {
       "pattern_type": "no_moat",
-      "description": "No clear data advantage, technical differentiation, or proprietary infrastructure is described. The competitive moat is stated as 'medium', but evidence for this is lacking.",
+      "description": "There is no indication of a data advantage, proprietary technology, or technical differentiation. The competitive moat is described as 'medium', but no supporting evidence is provided.",
       "severity": "medium",
       "evidence": [
-        "No mention of vertical data moats or continuous-learning flywheels in the actual product.",
-        "No details on exclusive partnerships, unique datasets, or technical barriers."
+        "Tech stack and approach are unknown.",
+        "No mention of unique datasets, algorithms, or defensible IP.",
+        "No clear barriers to entry for competitors."
       ]
     }
   ],
   "competitive_analysis": {
     "competitors": [
       {
-        "name": "Yext",
-        "similarity": "Both provide solutions to help brands be surfaced in search and AI-driven answers.",
-        "how_different": "Limy AI focuses specifically on the 'Agentic Web' and prompt-driven search, whereas Yext is more focused on traditional search engine optimization and business listings."
+        "name": "Jasper AI",
+        "similarity": "Both offer AI-powered brand marketing and content generation tools for businesses.",
+        "how_different": "Limy AI positions itself as building infrastructure for the 'Agentic Web', suggesting a deeper platform focus rather than just content generation. Jasper is more focused on end-user content tools."
       },
       {
-        "name": "BrightEdge",
-        "similarity": "Both offer AI-powered brand visibility and search optimization tools.",
-        "how_different": "BrightEdge is primarily an SEO platform for organic search, while Limy AI is positioning for AI agent and prompt-based answer surfacing."
+        "name": "Writer.com",
+        "similarity": "AI-driven platform for enterprise content and brand consistency.",
+        "how_different": "Limy AI emphasizes infrastructure and agentic capabilities, potentially enabling more autonomous and integrated marketing workflows, while Writer.com focuses on enterprise writing and compliance."
       },
       {
-        "name": "OpenAI (ChatGPT Plugins/Enterprise)",
-        "similarity": "Both are involved in AI-powered surfacing of information and brand answers in conversational interfaces.",
-        "how_different": "Limy AI is focused on making brands 'AI's favorite answer' and building infrastructure for brands to be surfaced in agentic web exchanges, whereas OpenAI is a general-purpose LLM provider."
+        "name": "OpenAI (ChatGPT for Business/Brand Marketing)",
+        "similarity": "Provides AI models and APIs that can be used for brand marketing automation.",
+        "how_different": "Limy AI is building a specialized platform and infrastructure tailored to brand marketing, rather than general-purpose AI APIs."
       },
       {
-        "name": "MarketMuse",
-        "similarity": "Both use AI to optimize brand content for visibility and answers.",
-        "how_different": "MarketMuse is focused on content optimization for SEO and topic authority, while Limy AI is focused on prompt-driven, agentic web visibility."
+        "name": "HubSpot AI",
+        "similarity": "Offers AI-powered marketing automation and brand management tools.",
+        "how_different": "Limy AI's focus is on agentic infrastructure, possibly enabling more autonomous and customizable agent workflows compared to HubSpot's integrated SaaS suite."
       }
     ],
     "differentiation": {
-      "primary": "Limy AI is building infrastructure specifically for the 'Agentic Web', enabling brands to be surfaced in AI-driven, prompt-based answers rather than traditional search results.",
-      "technical": "Focus on engineering visibility for brands in prompt/answer exchanges, likely leveraging proprietary AI models and data pipelines tailored for agentic web interactions rather than classic SEO. Emphasis on infrastructure for AI agents.",
-      "business": "Limy AI positions itself as a partner for brands wanting to be part of the new AI-driven search paradigm, offering demo-driven sales and agency partnerships. Their GTM is focused on forward-thinking brands who want to be surfaced in AI answers.",
-      "positioning": "Limy AI positions itself as the solution for brands to be 'AI's favorite answer', targeting the shift from search results to prompt-based answers. They claim to 'engineer' visibility rather than chase it."
+      "primary": "Limy AI is building the infrastructure for the 'Agentic Web', aiming to enable autonomous AI agents for brand marketing rather than just providing AI-powered tools.",
+      "technical": "Emphasis on agentic architecture\u2014likely supporting autonomous, multi-step workflows and integrations, with a platform approach rather than just SaaS applications. Investment in AI/cybersecurity research roles suggests a focus on secure, scalable agent operations.",
+      "business": "Limy AI is positioning itself as a foundational platform (infrastructure) rather than a point solution, targeting agencies and enterprises that want to build or orchestrate their own AI agents for marketing.",
+      "positioning": "Limy AI positions itself as the enabler of the next generation of web automation ('Agentic Web'), appealing to visionary customers and agencies seeking to differentiate with advanced AI infrastructure."
     },
     "secret_sauce": {
-      "core_advantage": "Proprietary infrastructure and technology designed for the agentic web, enabling brands to be surfaced in AI-driven answers and conversations, not just traditional search.",
-      "defensibility": "Requires deep expertise in AI, data engineering, and understanding of emerging agentic web protocols. Early mover advantage in a new paradigm of search and brand visibility.",
+      "core_advantage": "Limy AI's unique advantage is its focus on building foundational infrastructure for the Agentic Web\u2014enabling autonomous AI agents specifically tailored for brand marketing use cases.",
+      "defensibility": "This approach is hard to replicate due to the need for robust, secure, and scalable agentic architectures, deep integration with marketing workflows, and early-mover advantage in defining standards for agentic automation.",
       "evidence": [
-        "Limy Raised $10M to Build the Infrastructure for the Agentic Web",
-        "We don't chase visibility. We engineer it.",
-        "Making brands AI's favorite answer.",
-        "The way people search has fundamentally shifted. We no longer scroll through results, we prompt, and expect answers."
+        "Raised $10M seed round to build the infrastructure for the Agentic Web.",
+        "Hiring for AI/cybersecurity research and full-stack engineering roles, indicating technical depth.",
+        "Positioning as infrastructure rather than just an application\u2014'build the infrastructure for the Agentic Web'."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "Limy AI's moat is based on early specialization in the agentic web and prompt-driven brand surfacing, which is a new but rapidly growing space. Their technical infrastructure and focus on engineering visibility for brands in AI answers is differentiated, but the space is likely to attract fast followers and large incumbents (OpenAI, Google, SEO platforms) as agentic web adoption grows. Their defensibility will depend on continued technical innovation and building ecosystem integrations.",
+    "moat_explanation": "Limy AI's moat is medium: their focus on agentic infrastructure is differentiated and technically challenging, but the space is nascent and larger players (OpenAI, Google, etc.) could enter. Their defensibility depends on execution speed, ecosystem adoption, and technical depth in agentic architectures.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
     "Build the Infrastructure for the Agentic Web",
-    "Making brands AI's favorite answer.",
-    "We no longer scroll through results, we prompt, and expect answers. If your brand isn\u2019t being surfaced in that exchange, it\u2019s not part of the conversation. Limy makes you part of that conversation.",
-    "Positioning infrastructure specifically for the 'Agentic Web', which is a forward-looking concept not widely standardized, indicating a focus on enabling agent-driven brand visibility and prompt-based search experiences."
+    "Agentic Web",
+    "Platform",
+    "Positioning as infrastructure for a new web paradigm ('Agentic Web'), suggesting a platform-level approach for agent orchestration rather than just building agents or tools."
   ],
-  "analyzed_at": "2026-01-31 10:13:21.992623+00:00",
+  "analyzed_at": "2026-02-04 18:24:58.779329+00:00",
   "confidence_score": 0.7,
-  "raw_content_analyzed": 118093
+  "raw_content_analyzed": 306662
 }

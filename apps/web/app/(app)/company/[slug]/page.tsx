@@ -219,7 +219,7 @@ async function CompanyBriefContent({ slug }: { slug: string }) {
               href={startup.website}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-accent hover:text-accent/80 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm text-accent-info hover:text-accent-info/80 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
@@ -682,7 +682,7 @@ async function CompanyBriefContent({ slug }: { slug: string }) {
               <span className="label-xs">Differentiating Features</span>
               <div className="mt-2 flex flex-wrap gap-2">
                 {startup.product_analysis.feature_depth!.differentiating_features!.slice(0, 5).map((feature: string, i: number) => (
-                  <span key={i} className="px-2 py-1 text-xs bg-accent/10 text-accent rounded">
+                  <span key={i} className="px-2 py-1 text-xs bg-accent-info/10 text-accent-info rounded">
                     {feature}
                   </span>
                 ))}
@@ -729,7 +729,7 @@ async function CompanyBriefContent({ slug }: { slug: string }) {
                 <div key={i} className="py-3 border-b border-border/30 last:border-0">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm font-medium text-foreground">{pattern.pattern_name}</span>
-                    <span className="text-xs px-1.5 py-0.5 bg-accent/10 text-accent rounded">
+                    <span className="text-xs px-1.5 py-0.5 bg-accent-info/10 text-accent-info rounded">
                       Novelty: {pattern.novelty_score}/10
                     </span>
                     <span className="text-xs text-muted-foreground">{pattern.category}</span>

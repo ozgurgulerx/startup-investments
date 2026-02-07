@@ -85,48 +85,42 @@ class DomainThrottler:
 
         try:
             async with self.pool.acquire() as conn:
-                row = await conn.fetchrow("""
-                    SELECT
-                        next_allowed_at,
-                        in_flight_count,
-                        crawl_delay_ms,
-                        error_rate
-                    FROM domain_stats
-                    WHERE domain = $1
-                """, domain)
-
-                now = datetime.now(timezone.utc)
-
-                if not row:
-                    # New domain - insert and allow
-                    await conn.execute("""
-                        INSERT INTO domain_stats (domain, in_flight_count, crawl_delay_ms)
-                        VALUES ($1, 1, $2)
-                        ON CONFLICT (domain) DO UPDATE
-                        SET in_flight_count = domain_stats.in_flight_count + 1,
-                            updated_at = NOW()
-                    """, domain, self.default_delay)
-                    return True, 0
-
-                # Check if we need to wait
-                if row['next_allowed_at'] and row['next_allowed_at'] > now:
-                    wait_ms = int((row['next_allowed_at'] - now).total_seconds() * 1000)
-                    return False, max(wait_ms, 0)
-
-                # Check concurrent limit
-                if row['in_flight_count'] >= self.max_concurrent:
-                    delay = row['crawl_delay_ms'] or self.default_delay
-                    return False, delay
-
-                # Claim a slot
+                # Ensure domain row exists (no-op if already present)
                 await conn.execute("""
+                    INSERT INTO domain_stats (domain, in_flight_count, crawl_delay_ms)
+                    VALUES ($1, 0, $2)
+                    ON CONFLICT (domain) DO NOTHING
+                """, domain, self.default_delay)
+
+                # Atomic check-and-claim: single UPDATE with all conditions
+                # Prevents race condition where separate SELECT + UPDATE allowed
+                # multiple workers to exceed max_concurrent_per_domain
+                result = await conn.fetchrow("""
                     UPDATE domain_stats
                     SET in_flight_count = in_flight_count + 1,
                         updated_at = NOW()
                     WHERE domain = $1
+                      AND in_flight_count < $2
+                      AND (next_allowed_at IS NULL OR next_allowed_at <= NOW())
+                    RETURNING in_flight_count, next_allowed_at, crawl_delay_ms
+                """, domain, self.max_concurrent)
+
+                if result:
+                    return True, 0
+
+                # Claim failed — read current state to determine wait time
+                row = await conn.fetchrow("""
+                    SELECT next_allowed_at, in_flight_count, crawl_delay_ms
+                    FROM domain_stats WHERE domain = $1
                 """, domain)
 
-                return True, 0
+                now = datetime.now(timezone.utc)
+                if row and row['next_allowed_at'] and row['next_allowed_at'] > now:
+                    wait_ms = int((row['next_allowed_at'] - now).total_seconds() * 1000)
+                    return False, max(wait_ms, 0)
+
+                delay = (row['crawl_delay_ms'] if row else None) or self.default_delay
+                return False, delay
 
         except Exception as e:
             logger.warning(f"Error checking domain throttle for {domain}: {e}")

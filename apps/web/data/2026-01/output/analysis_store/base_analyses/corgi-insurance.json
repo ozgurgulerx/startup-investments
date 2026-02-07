@@ -1,29 +1,109 @@
 {
   "company_name": "Corgi Insurance",
   "company_slug": "corgi-insurance",
-  "website": "https://www.corgi.insure/",
+  "website": "https://www.corgi.insure",
+  "logo_url": null,
   "description": "Corgi is the first AI Insurance and Financial Infrastructure Company.",
   "funding_amount": 108000000.0,
   "funding_stage": "series_a",
   "uses_genai": false,
-  "genai_intensity": "unclear",
+  "genai_intensity": "none",
   "models_mentioned": [],
   "build_patterns": [
     {
       "name": "Vertical Data Moats",
       "confidence": 0.9,
       "evidence": [
-        "We're the first full stack AI insurance carrier.",
-        "Our goal is to rebuild the $1T+ insurance industry from the ground up.",
-        "We're not just making a company; we're engineering financial infrastructure for the next hundred years.",
-        "Insurance built for founders."
+        "Insurance built for founders.",
+        "Startup Insurance",
+        "Coverage is subject to underwriting approval and availability varies by jurisdiction.",
+        "Insurance services are provided by Corgi Insurance Services, Inc.",
+        "Insurance products are underwritten and issued by Technology RRG, Inc., where permitted by law."
       ],
-      "description": "Corgi is positioning itself as an AI-native insurance carrier, indicating the use of proprietary, industry-specific data and workflows tailored to insurance. Their messaging focuses on rebuilding insurance infrastructure, which implies deep domain modeling and likely proprietary datasets for underwriting, claims, and risk modeling."
+      "description": "Corgi Insurance is focused on the startup/founder segment, indicating the use of industry-specific data and expertise to build proprietary insurance products. Their specialization in startup insurance and underwriting processes suggests a vertical data moat leveraging domain-specific datasets and regulatory knowledge."
     }
   ],
+  "discovered_patterns": [
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Next.js SSR/ISR for Insurance SaaS",
+      "confidence": 0.8,
+      "evidence": [
+        "All images and routes are served under /_next/image and /_next routes, indicating Next.js framework usage.",
+        "Links such as /app.corgi.insure/login and /app.corgi.insure/sign-up suggest a dedicated web app, likely deployed as a SaaS.",
+        "404 pages and dynamic routing patterns observed."
+      ],
+      "description": "Corgi Insurance uses Next.js for its web frontend, likely leveraging server-side rendering (SSR) or incremental static regeneration (ISR) for fast, dynamic insurance workflows. This is a common SaaS deployment pattern for fintech/insurtech.",
+      "novelty_score": 3,
+      "why_notable": "Standard for modern web SaaS, but notable for insurance vertical where legacy stacks are common."
+    },
+    {
+      "category": "Data Strategy",
+      "pattern_name": "Vertical Data Moat via Proprietary Insurance Data",
+      "confidence": 0.6,
+      "evidence": [
+        "Coverage is subject to underwriting approval and availability varies by jurisdiction.",
+        "Insurance services are provided by Corgi Insurance Services, Inc. Insurance products are underwritten and issued by Technology RRG, Inc.",
+        "Startup insurance is a set of business insurance policies designed to protect founders, the company, and the balance sheet from common risks."
+      ],
+      "description": "Corgi is building a proprietary dataset around startup insurance risk, underwriting, and claims, likely leveraging data partnerships with Technology RRG and direct customer interactions. This vertical data moat is foundational for future AI/LLM applications.",
+      "novelty_score": 5,
+      "why_notable": "Vertical data moats are increasingly important for AI differentiation, especially in regulated domains like insurance."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "No Evidence of Multi-Model Orchestration",
+      "confidence": 0.2,
+      "evidence": [
+        "No mention of LLMs, model handoffs, or agent-to-agent communication.",
+        "No visible tool use or function calling architectures."
+      ],
+      "description": "There is no direct evidence of compound AI systems, model orchestration, or agent architectures in the public-facing content.",
+      "novelty_score": 1,
+      "why_notable": "Absence of compound AI is notable given the sector's potential for automation."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Regulatory Compliance and Data Privacy",
+      "confidence": 0.7,
+      "evidence": [
+        "Coverage is subject to underwriting approval and availability varies by jurisdiction.",
+        "Privacy Policy and Terms of Service are prominently linked.",
+        "Insurance services are provided by Corgi Insurance Services, Inc. Insurance products are underwritten and issued by Technology RRG, Inc., where permitted by law."
+      ],
+      "description": "Corgi emphasizes regulatory compliance and privacy, likely implementing strict data governance and PII handling. No evidence of LLM-specific guardrails, but insurance compliance is a strong foundation.",
+      "novelty_score": 4,
+      "why_notable": "Standard for insurance, but critical for any future AI/LLM deployment."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Building a vertical data moat for startup insurance risk and underwriting, potentially enabling future AI/LLM applications.",
+      "why_novel": "Most insurtechs rely on legacy data or third-party APIs; Corgi's direct underwriting and proprietary insurance products position them to own unique, high-value datasets.",
+      "potential_impact": "Enables differentiated AI-powered underwriting, claims automation, and risk modeling in future iterations."
+    }
+  ],
+  "model_details": {
+    "primary_models": [],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": false,
+      "orchestration_pattern": ""
+    }
+  },
   "market_type": "vertical",
   "vertical": "financial_services",
-  "sub_vertical": "InsurTech (AI-powered insurance carrier)",
+  "sub_vertical": "InsurTech (AI-powered insurance infrastructure)",
   "target_market": "b2b",
   "tech_stack": {
     "llm_providers": [],
@@ -36,7 +116,7 @@
     "has_custom_models": false
   },
   "engineering_quality": {
-    "score": 2,
+    "score": 3,
     "has_public_api": false,
     "has_sdk": false,
     "has_documentation": false,
@@ -46,143 +126,287 @@
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "Claims to be a 'full stack AI insurance carrier' and rebuilding financial infrastructure",
-      "Significant fundraising ($108M Seed + Series A)",
-      "Some technical language in marketing ('engineering financial infrastructure')"
+      "Significant venture funding ($108M) suggests resources for future engineering investment",
+      "Company positions itself as building 'financial infrastructure' for startups"
     ]
   },
+  "implementation_maturity": "production",
+  "team_analysis": {
+    "founders": [
+      {
+        "name": "Nico Laqua",
+        "role": "Founder (likely CEO)",
+        "background": "No detailed background provided in available sources. LinkedIn post indicates founder status.",
+        "previous_companies": [],
+        "technical_depth": "unknown",
+        "domain_expertise": "unknown"
+      }
+    ],
+    "team_signals": {
+      "engineering_heavy": false,
+      "has_ml_expertise": false,
+      "has_domain_expertise": false,
+      "hiring_signals": [],
+      "team_size_indicators": "unknown",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "Insufficient information to assess founder-market fit. No details on founder's insurance, technical, or startup experience.",
+    "team_strengths": [
+      "Raised $108M in Seed + Series A, indicating strong investor confidence and network.",
+      "Featured in major publications (Forbes, Wall Street Journal, Inc), suggesting strong PR and market interest."
+    ],
+    "team_red_flags": [
+      "No public information about technical team, engineering leadership, or domain experts.",
+      "No visible evidence of ML, insurance, or software engineering expertise.",
+      "No hiring signals or job postings indicating team composition."
+    ],
+    "team_confidence": 0.2
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "custom",
+      "pricing_evidence": [
+        "No explicit pricing page or price points mentioned",
+        "Call-to-action for 'Book demo' and 'Get insured today' suggests custom quotes",
+        "Coverage subject to underwriting approval, typical of custom/enterprise insurance"
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "sales_led",
+      "evidence": [
+        "Book demo flow indicates sales-led motion",
+        "No self-serve pricing or instant quote, but direct sign-up for coverage",
+        "Featured on major business publications (Forbes, WSJ, etc.) suggests PR and credibility-building"
+      ],
+      "target_segment": "smb",
+      "sales_motion": "hybrid"
+    },
+    "revenue_model": {
+      "monetization_approach": "Earns revenue from insurance policy premiums sold to startups/founders; acts as broker and/or MGA for underwriter Technology RRG, Inc.",
+      "unit_economics_signals": [
+        "Underwriting approval required, implying risk-based pricing and insurance margins",
+        "No evidence of recurring SaaS fees, but insurance policies are typically annual/recurring"
+      ],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "Strong PR presence (featured in Forbes, WSJ, etc.) for credibility",
+      "Vertical focus on startups/founders creates tailored product moat",
+      "Direct digital onboarding ('Get insured today') streamlines acquisition"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "PR/media coverage",
+        "Direct website sign-up",
+        "Demo booking",
+        "LinkedIn presence"
+      ],
+      "customer_proof_points": [
+        "Featured logos from major publications, but no direct customer testimonials or case studies"
+      ]
+    },
+    "business_model_clarity": "clear",
+    "business_model_confidence": 0.8
+  },
+  "product_analysis": {
+    "product_stage": "general_availability",
+    "stage_evidence": [
+      "Public launch announcement with $108M Seed + Series A fundraise",
+      "Call-to-action for immediate sign-up ('Get insured today')",
+      "Live login and sign-up flows",
+      "Featured in major publications (Forbes, Wall Street Journal, etc.)",
+      "No 'beta', 'coming soon', or 'waitlist' language present"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Startup-focused insurance coverage",
+        "Online quote and sign-up process",
+        "Underwriting and policy issuance",
+        "Coverage management dashboard"
+      ],
+      "differentiating_features": [
+        "Insurance tailored specifically for startup founders",
+        "Single platform for multiple insurance needs ('under one roof')",
+        "Fast onboarding and digital-first experience"
+      ],
+      "roadmap_signals": [],
+      "feature_completeness": "growing"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [],
+      "api_maturity": "none",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Providing insurance coverage for startups and founders",
+      "secondary_use_cases": [
+        "Streamlined digital insurance onboarding",
+        "Centralized management of multiple insurance policies"
+      ],
+      "customer_stories": [],
+      "industry_focus": [
+        "Startups",
+        "Technology companies",
+        "Founders"
+      ]
+    },
+    "product_risks": [
+      "No public documentation or feature comparison available",
+      "No evidence of integrations or ecosystem partnerships",
+      "Limited transparency on policy types and coverage specifics",
+      "Jurisdictional availability and underwriting subject to approval"
+    ],
+    "product_strengths": [
+      "Strong funding and media visibility",
+      "Clear focus on startup and founder segment",
+      "Digital-first, fast onboarding experience",
+      "Backed by a dedicated insurance entity (Technology RRG, Inc.)"
+    ],
+    "product_confidence": 0.7
+  },
   "unique_findings": [
-    "Corgi claims to be the first 'full stack AI insurance carrier,' suggesting they are not just an MGA or broker, but actually own the risk and infrastructure end-to-end. This is rare in insurtech, where most startups partner with legacy carriers.",
-    "The language 'engineering financial infrastructure for the next hundred years' hints at a custom-built, possibly cloud-native core insurance platform, rather than relying on legacy policy admin systems. This could involve proprietary underwriting, claims, and policy management stacks.",
-    "Direct integration with calendly for advisor calls and a clear, modern web app sign-up flow suggest a focus on automation and minimizing human touchpoints, possibly with AI-driven onboarding and underwriting.",
-    "The repeated use of 'move fast, break things, stay covered' and targeting founders/startups indicates a niche, high-velocity risk appetite, which would require dynamic, real-time risk modeling\u2014something legacy insurers struggle with.",
-    "Underwriting and issuing policies through 'Technology RRG, Inc.' (a Risk Retention Group) is an unusual structural choice, allowing for more flexibility and speed in product design and launch, compared to traditional insurance carriers."
+    "Corgi Insurance is leveraging a full-stack digital insurance platform specifically targeted at startup founders, with a strong emphasis on speed and automation ('Move fast. Break things. Stay covered - Under one roof'). This signals a technical focus on rapid onboarding and self-service, likely involving automated underwriting and instant policy issuance.",
+    "The brand and UX are unusually founder-centric, using playful imagery (Corgi dog, robot hand, dog typing on laptop) and direct messaging to differentiate from legacy insurance platforms. This suggests a technical investment in modern web frameworks and possibly custom onboarding flows tailored for tech-savvy users.",
+    "Corgi is underwritten by Technology RRG, Inc., which implies a captive risk retention group structure. This is rare for insurtech startups and suggests a novel approach to regulatory and risk management, possibly enabling faster product iteration and more flexible coverage terms.",
+    "The site is built on Next.js (as indicated by the image URLs), which is common, but the heavy use of dynamic images and branded assets hints at a highly optimized, scalable frontend architecture, likely with CDN-backed asset delivery and real-time updates.",
+    "The $108M Series A fundraise and stealth launch indicate a convergence with other top-funded fintech/insurtech startups, suggesting a play for rapid market capture and defensibility through capital-intensive infrastructure and regulatory licensing."
   ],
-  "technical_depth": "medium",
-  "newsletter_potential": "high",
+  "technical_depth": "low",
+  "newsletter_potential": "medium",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "Inside Corgi: Rebuilding Insurance as a Full-Stack AI Carrier",
-      "summary": "Corgi Insurance claims to be the first full-stack AI insurance carrier, aiming to re-engineer the $1T+ insurance industry from the ground up. This story explores their technical architecture, the challenges of integrating underwriting, policy issuance, and claims into a unified AI-driven stack, and whether their engineering quality matches the ambition.",
+      "headline": "How Corgi Insurance Built a Vertical Data Moat with Next.js SSR for InsurTech",
+      "summary": "Corgi Insurance leverages Next.js server-side rendering and incremental static regeneration to power a seamless, founder-focused insurance SaaS platform. Their technical stack prioritizes regulatory compliance and data privacy, but their engineering quality score suggests growing pains for scaling such an ambitious architecture.",
       "evidence": [
-        "Corgi positions itself as the 'first full stack AI insurance carrier'",
-        "Engineering quality is currently rated 2/10, raising questions about execution"
+        "Detected use of Next.js SSR/ISR for Insurance SaaS",
+        "Engineering quality score: 3/10, indicating technical debt or early-stage tradeoffs"
       ],
       "uniqueness_score": 7
     },
     {
       "angle_type": "data",
-      "headline": "Corgi\u2019s Vertical Data Moat: Can Proprietary Founder Risk Data Outperform Legacy Insurers?",
-      "summary": "Corgi touts a vertical data moat as a key advantage, suggesting they leverage unique datasets on founders and startups to underwrite risk more accurately. We examine what proprietary data sources they might have, and whether these can create defensible, compounding advantages over traditional insurance models.",
+      "headline": "Corgi\u2019s Secret Weapon: Proprietary Startup Risk Data as a Vertical Moat",
+      "summary": "Corgi Insurance is betting big on proprietary insurance data tailored for startups, aiming to create a defensible vertical data moat. This approach could give them a unique edge in underwriting and risk assessment, but the lack of evidence for advanced LLM orchestration may limit their AI leverage\u2014at least for now.",
       "evidence": [
-        "Build patterns detected: Vertical Data Moats",
-        "Target market is founders/startups, implying access to novel risk data"
-      ],
-      "uniqueness_score": 6
-    },
-    {
-      "angle_type": "contrarian",
-      "headline": "Why Corgi Is Betting on Full-Stack Over API-First in Insurtech",
-      "summary": "While most insurtechs are going API-first or partnering with legacy carriers, Corgi is taking the contrarian route by becoming a full-stack carrier. This angle explores the risks and potential rewards of this approach, and whether vertical integration is a liability or a moat in a highly regulated space.",
-      "evidence": [
-        "Corgi is not just a software layer but an actual carrier (underwriting and issuing policies)",
-        "Positioning as 'engineering financial infrastructure for the next hundred years'"
+        "Vertical Data Moat via Proprietary Insurance Data detected",
+        "No evidence of multi-model orchestration or advanced LLMs"
       ],
       "uniqueness_score": 8
     },
     {
-      "angle_type": "efficiency",
-      "headline": "Move Fast, Stay Covered: Is Corgi\u2019s AI-Driven Insurance Actually 10x Faster for Startups?",
-      "summary": "Corgi promises founders the ability to 'move fast, break things, stay covered' under one roof. We investigate whether their AI stack delivers meaningful speed or cost advantages in quoting, underwriting, and claims compared to legacy insurers, or if it\u2019s just marketing.",
+      "angle_type": "contrarian",
+      "headline": "Why Corgi Insurance Is Doubling Down on Regulatory Compliance\u2014Not AI Hype",
+      "summary": "While many insurtechs chase the latest AI trends, Corgi Insurance is prioritizing regulatory compliance and data privacy as core differentiators. This contrarian bet could be a moat in a sector where trust and legal adherence are paramount, but it may slow their adoption of bleeding-edge AI.",
       "evidence": [
-        "Tagline: 'Move fast. Break things. Stay covered - Under one roof.'",
-        "No public evidence yet of actual speed or efficiency metrics"
+        "Emphasis on regulatory compliance and data privacy in product messaging",
+        "No evidence of multi-model orchestration or LLM-centric features"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Insurance Built for Founders: Corgi\u2019s Deep Domain Play in Startup Risk",
+      "summary": "Corgi Insurance positions itself as the go-to provider for startup founders, offering tailored coverage and a founder-centric experience. Their vertical focus could allow for better risk modeling and customer fit, but the technical execution appears early-stage compared to the ambition.",
+      "evidence": [
+        "Messaging: 'Insurance built for founders. Move fast. Break things. Stay covered.'",
+        "Coverage subject to jurisdictional and underwriting constraints"
       ],
       "uniqueness_score": 5
     }
   ],
   "anti_patterns": [
     {
-      "pattern_type": "overclaiming",
-      "description": "The company makes broad claims about being the 'first full stack AI insurance carrier' and 'rebuilding the $1T+ insurance industry from the ground up' without providing concrete details about proprietary technology, specific AI models, or technical differentiation.",
+      "pattern_type": "feature_not_product",
+      "description": "The offering appears to be focused on 'insurance for founders', which could be interpreted as a single feature (targeting startups) rather than a defensible product platform. Incumbents could easily add similar offerings.",
       "severity": "medium",
       "evidence": [
-        "Marketing language such as 'engineering financial infrastructure for the next hundred years' and 'Move fast. Break things. Stay covered - Under one roof.'",
-        "No mention of specific AI models, data pipelines, or technical breakthroughs.",
-        "Buzzword-heavy positioning (e.g., 'full stack AI', 'vertical data moats') without technical substantiation."
+        "Tagline: 'Insurance built for founders.'",
+        "'Move fast. Break things. Stay covered - Under one roof.'",
+        "No clear evidence of a broader platform or extensible product architecture."
       ]
     },
     {
       "pattern_type": "no_moat",
-      "description": "There is no clear evidence of a defensible data or technology moat. The only reference to a moat is 'vertical data moats', but there are no details on proprietary datasets, unique algorithms, or exclusive partnerships.",
+      "description": "While there are references to a 'vertical data moat', there is no clear evidence of proprietary technology, unique data assets, or technical differentiation. The insurance market is highly competitive and the described approach does not demonstrate a strong barrier to entry.",
       "severity": "medium",
       "evidence": [
-        "Moat is described as 'medium' with no supporting details.",
-        "No mention of proprietary data, exclusive partnerships, or unique underwriting models.",
-        "Insurance products are underwritten by a third-party (Technology RRG, Inc.), suggesting Corgi may not control the core risk models."
+        "No mention of proprietary algorithms, data sources, or unique technical capabilities.",
+        "Insurance products are underwritten and issued by Technology RRG, Inc., suggesting reliance on third-party underwriters.",
+        "No evidence of multi-model orchestration or advanced AI/ML capabilities."
       ]
     },
     {
-      "pattern_type": "feature_not_product",
-      "description": "The offering appears to be a digital-first insurance platform targeting founders/startups, which could be replicated by incumbents with digital transformation initiatives. There is no clear evidence of a broader, defensible platform.",
+      "pattern_type": "overclaiming",
+      "description": "Marketing language uses startup buzzwords ('Move fast. Break things.') and claims coverage 'under one roof', but there is little technical detail or substantiation of unique capabilities.",
+      "severity": "low",
+      "evidence": [
+        "Buzzword-heavy marketing with little technical specificity.",
+        "No details on how technology differentiates the offering."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The insurance space for startups is increasingly crowded, and the product positioning does not clearly stand out from existing insurtech offerings.",
       "severity": "medium",
       "evidence": [
-        "Positioning as 'insurance built for founders' is a go-to-market angle, not a product moat.",
-        "Incumbent insurers could add similar digital onboarding and AI-powered features.",
-        "No clear path to a broader platform or ecosystem."
+        "No unique angle or clear differentiation beyond targeting founders.",
+        "Featured in mainstream publications, but no evidence of technical or product innovation."
       ]
     }
   ],
   "competitive_analysis": {
     "competitors": [
       {
-        "name": "Next Insurance",
-        "similarity": "Both offer digital-first insurance solutions targeting small businesses and startups, using technology to streamline underwriting and policy management.",
-        "how_different": "Corgi positions itself as the first 'full stack AI insurance carrier' and emphasizes building financial infrastructure for the next century, whereas Next Insurance focuses on digital distribution and automation but is not an AI-native, full-stack carrier."
-      },
-      {
         "name": "Embroker",
-        "similarity": "Both provide insurance products tailored for startups and tech companies, with a focus on digital experience and fast coverage.",
-        "how_different": "Corgi claims to be the first to rebuild the insurance stack using AI end-to-end, while Embroker is primarily a digital broker/platform leveraging technology but not a carrier or infrastructure builder."
+        "similarity": "Both offer digital-first insurance solutions for startups, including D&O, E&O, cyber, and general liability coverage.",
+        "how_different": "Corgi positions itself as the first AI-driven insurance and financial infrastructure company, emphasizing automation and founder-centric coverage under one roof. Embroker relies more on traditional digital brokerage and less on proprietary AI infrastructure."
       },
       {
-        "name": "Lemonade",
-        "similarity": "Both leverage AI and automation to underwrite and manage insurance policies efficiently.",
-        "how_different": "Lemonade focuses on consumer lines (renters, homeowners, pet), while Corgi targets founders and startups with a B2B focus and claims to be a full-stack AI carrier, not just a tech-enabled MGA or broker."
+        "name": "Vouch Insurance",
+        "similarity": "Vouch targets startups with tailored insurance products and a digital onboarding experience.",
+        "how_different": "Corgi claims to be the first to integrate AI deeply into both underwriting and financial infrastructure, whereas Vouch focuses on custom policies and partnerships but does not claim a proprietary AI platform."
       },
       {
-        "name": "Coalition",
-        "similarity": "Both provide insurance for technology companies and use technology for risk assessment and underwriting.",
-        "how_different": "Coalition is known for cyber insurance and risk management, but Corgi claims to be a full-stack AI carrier with broader ambitions to rebuild financial infrastructure, not just offer cyber or specialty lines."
+        "name": "Next Insurance",
+        "similarity": "Next Insurance provides digital insurance for small businesses, including tech startups, with fast online quotes and coverage.",
+        "how_different": "Corgi differentiates by focusing exclusively on startups and founders, and by building a unified AI-powered platform for insurance and financial infrastructure, rather than serving a broad SMB market."
+      },
+      {
+        "name": "Founder Shield",
+        "similarity": "Founder Shield specializes in insurance for high-growth startups, offering similar lines of coverage.",
+        "how_different": "Corgi emphasizes its AI-first approach and claims to offer all necessary coverages 'under one roof' with a fast, automated process, whereas Founder Shield operates as a tech-enabled broker."
       }
     ],
     "differentiation": {
-      "primary": "Corgi positions itself as the first full-stack AI insurance carrier, rebuilding insurance and financial infrastructure from the ground up for founders and startups.",
-      "technical": "Corgi claims to be 'full stack' and AI-native, meaning it controls the entire insurance value chain (carrier, underwriting, issuance, claims) and leverages AI at every layer, not just as an add-on.",
-      "business": "Corgi targets founders and high-growth startups with a one-stop-shop approach ('under one roof'), offering speed ('move fast'), tailored coverage, and direct digital onboarding. They are not just a broker or MGA but an actual carrier.",
-      "positioning": "Corgi claims to be the first and only company rebuilding the $1T+ insurance industry with AI as core infrastructure, not just as a distribution or automation layer. They focus on being the insurance provider for the next hundred years, specifically for the startup ecosystem."
+      "primary": "Corgi is the first to offer AI-driven insurance and financial infrastructure specifically built for founders and startups, providing comprehensive coverage and automation under one platform.",
+      "technical": "Corgi leverages proprietary AI models and automation for underwriting, risk assessment, and policy management, aiming for speed and integration not matched by traditional or tech-enabled brokers.",
+      "business": "Corgi's business model centers on direct digital onboarding, founder-centric coverage bundles, and vertical integration with Technology RRG for underwriting. Their GTM focuses on rapid coverage for fast-moving startups.",
+      "positioning": "Corgi positions itself as the 'first AI Insurance and Financial Infrastructure Company' for founders, highlighting speed, automation, and a unified platform as key differentiators from legacy and tech-enabled competitors."
     },
     "secret_sauce": {
-      "core_advantage": "Corgi is the first full-stack AI-native insurance carrier, controlling the entire stack and using AI to automate and optimize every part of the insurance process.",
-      "defensibility": "Owning the full stack (carrier, underwriting, issuance, claims) with proprietary AI models and infrastructure is hard to replicate, especially for incumbents and MGAs who rely on legacy systems or third-party carriers.",
+      "core_advantage": "Proprietary AI-driven insurance platform that automates underwriting, risk management, and policy administration for startups, integrated with financial infrastructure.",
+      "defensibility": "Deep integration of AI into core insurance processes and direct underwriting relationships (via Technology RRG) make replication difficult for brokers and legacy carriers. The founder-focused bundle and rapid onboarding create switching costs for startups.",
       "evidence": [
-        "We're the first full stack AI insurance carrier.",
-        "Our goal is to rebuild the $1T+ insurance industry from the ground up.",
-        "We're not just making a company; we're engineering financial infrastructure for the next hundred years.",
-        "Insurance built for founders. Move fast. Break things. Stay covered - Under one roof."
+        "Corgi is the first AI Insurance and Financial Infrastructure Company.",
+        "Move fast. Break things. Stay covered - Under one roof.",
+        "Today, Corgi is coming out of stealth with a total of $108M raised at $630M valuation.",
+        "Insurance built for founders.",
+        "Coverage is provided only under the terms, conditions, exclusions, and limits of an issued policy. Insurance services are provided by Corgi Insurance Services, Inc. Insurance products are underwritten and issued by Technology RRG, Inc., where permitted by law."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "Corgi's moat is based on being a true full-stack AI carrier with proprietary infrastructure, which is defensible against digital brokers and MGAs. However, the insurance industry is highly regulated and capital-intensive, and larger incumbents or well-funded insurtechs could eventually replicate aspects of their model. Their focus on founders/startups and AI-native stack gives them a head start, but network effects and switching costs are not yet apparent.",
+    "moat_explanation": "Corgi's moat is medium: their AI-driven platform and direct underwriting relationships provide a defensible technical and business advantage over brokers and legacy carriers. However, other InsurTechs could potentially build similar AI capabilities, and regulatory barriers are not insurmountable. Their focus on founders and startups creates a strong niche, but the moat depends on continued technical innovation and execution.",
     "moat_types": []
   },
   "sources_crawled": [],
-  "evidence_quotes": [
-    "\"We're the first full stack AI insurance carrier. Our goal is to rebuild the $1T+ insurance industry from the ground up.\"",
-    "Full stack AI insurance carrier: Corgi claims to be the first to build an end-to-end AI-driven insurance company, not just an AI-enabled product. This suggests a vertically integrated approach where AI is embedded across all layers (underwriting, claims, customer experience, compliance), which is uncommon in the insurance sector."
-  ],
-  "analyzed_at": "2026-01-22 22:32:52.004925+00:00",
-  "confidence_score": 0.3,
-  "raw_content_analyzed": 119047
+  "evidence_quotes": [],
+  "analyzed_at": "2026-02-04 18:32:51.648225+00:00",
+  "confidence_score": 0.95,
+  "raw_content_analyzed": 119457
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { randomUUID } from 'crypto';
-import { canCreateSavedFilter, type UserPlan } from '@/lib/feature-flags';
+import { canCreateSavedFilter, getPlanLimits, type UserPlan } from '@/lib/feature-flags';
 
 /**
  * SavedFilter interface matching the schema in user_preferences.saved_filters
@@ -29,6 +29,59 @@ interface UserPreferencesRow {
 
 interface UserRow {
   plan: UserPlan | null;
+}
+
+function parseSavedFilterQuery(raw: unknown): {
+  data?: SavedFilter['query'];
+  errors?: string[];
+} {
+  if (!raw || typeof raw !== 'object') {
+    return { errors: ['query must be an object'] };
+  }
+
+  const value = raw as Record<string, unknown>;
+  const parsed: SavedFilter['query'] = {};
+  const errors: string[] = [];
+
+  const parseStringArray = (field: 'stages' | 'patterns' | 'continents' | 'verticals') => {
+    const input = value[field];
+    if (input === undefined) return;
+    if (!Array.isArray(input) || !input.every((v) => typeof v === 'string' && v.length <= 100)) {
+      errors.push(`${field} must be an array of strings (<=100 chars)`);
+      return;
+    }
+    parsed[field] = input;
+  };
+
+  parseStringArray('stages');
+  parseStringArray('patterns');
+  parseStringArray('continents');
+  parseStringArray('verticals');
+
+  const parseNumber = (field: 'fundingMin' | 'fundingMax') => {
+    const input = value[field];
+    if (input === undefined) return;
+    const num = typeof input === 'string' ? Number.parseFloat(input) : Number(input);
+    if (!Number.isFinite(num) || num < 0) {
+      errors.push(`${field} must be a non-negative number`);
+      return;
+    }
+    parsed[field] = num;
+  };
+
+  parseNumber('fundingMin');
+  parseNumber('fundingMax');
+
+  if (value.usesGenai !== undefined) {
+    if (typeof value.usesGenai !== 'boolean') {
+      errors.push('usesGenai must be a boolean');
+    } else {
+      parsed.usesGenai = value.usesGenai;
+    }
+  }
+
+  if (errors.length > 0) return { errors };
+  return { data: parsed };
 }
 
 // GET /api/filters - Get user's saved filters
@@ -75,14 +128,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, query: filterQuery, alertsEnabled = false } = body;
-
-    if (!name || !filterQuery) {
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    if (!name || name.length > 120) {
       return NextResponse.json(
-        { error: 'name and query are required' },
+        {
+          error: 'Invalid request payload',
+          details: ['name is required and must be <=120 characters'],
+        },
         { status: 400 }
       );
     }
+    const parsedQuery = parseSavedFilterQuery(body?.query);
+    if (!parsedQuery.data) {
+      return NextResponse.json(
+        {
+          error: 'Invalid request payload',
+          details: parsedQuery.errors,
+        },
+        { status: 400 }
+      );
+    }
+    const alertsEnabled = body?.alertsEnabled === undefined ? false : Boolean(body.alertsEnabled);
+    const filterQuery = parsedQuery.data;
 
     // Get user's plan and existing filters
     const [userResult, existingResult] = await Promise.all([
@@ -98,10 +165,11 @@ export async function POST(request: NextRequest) {
 
     // Check if user can create more filters
     if (!canCreateSavedFilter(userPlan, existingFilters.length)) {
+      const limits = getPlanLimits(userPlan);
       return NextResponse.json(
         {
           error: 'Filter limit reached',
-          message: `Your ${userPlan} plan allows up to ${existingFilters.length} saved filters. Upgrade to save more.`,
+          message: `Your ${userPlan} plan allows up to ${limits.savedFilters} saved filters. Upgrade to save more.`,
           code: 'LIMIT_REACHED',
         },
         { status: 403 }

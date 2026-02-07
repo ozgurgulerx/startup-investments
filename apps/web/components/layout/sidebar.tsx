@@ -17,7 +17,7 @@ const navItems: NavItem[] = [
   { label: 'Dossiers', href: '/dealbook' },
   { label: 'Signals', href: '/signals' },
   { label: 'Capital', href: '/capital' },
-  { label: 'Library', href: '/library' },
+  { label: 'Deep Dives', href: '/library' },
   { label: 'Watchlist', href: '/watchlist', showBadge: true },
 ];
 
@@ -59,7 +59,9 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="px-6 py-6 border-t border-border/30">
-          <p className="text-[10px] text-muted-foreground/60">January 2026</p>
+          <Link href="/methodology" className="text-[10px] text-muted-foreground/60 hover:text-accent-info transition-colors">
+            Methodology
+          </Link>
         </div>
       </div>
     </aside>

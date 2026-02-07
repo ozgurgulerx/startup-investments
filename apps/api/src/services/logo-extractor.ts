@@ -272,7 +272,7 @@ export class LogoExtractor {
         .where(eq(startups.id, startupId));
 
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -305,7 +305,7 @@ export class LogoExtractor {
         .where(eq(startups.id, startupId));
 
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

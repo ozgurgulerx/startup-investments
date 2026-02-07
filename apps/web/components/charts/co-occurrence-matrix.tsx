@@ -104,7 +104,7 @@ export function CoOccurrenceMatrix({
                               onClick={() => onCellClick?.(rowPattern, colPattern)}
                               className={cn(
                                 'w-8 h-8 rounded transition-all duration-150',
-                                'hover:ring-2 hover:ring-accent/50',
+                                'hover:ring-2 hover:ring-accent-info/50',
                                 getCellColor(correlation?.correlation || 0)
                               )}
                             />
@@ -147,11 +147,11 @@ export function CoOccurrenceMatrix({
           <span className="text-xs text-muted-foreground">Low</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 rounded bg-accent/30" />
+          <div className="w-4 h-4 rounded bg-accent-info/30" />
           <span className="text-xs text-muted-foreground">Medium</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 rounded bg-accent/60" />
+          <div className="w-4 h-4 rounded bg-accent-info/60" />
           <span className="text-xs text-muted-foreground">High</span>
         </div>
       </div>
@@ -160,9 +160,9 @@ export function CoOccurrenceMatrix({
 }
 
 function getCellColor(correlation: number): string {
-  if (correlation >= 0.3) return 'bg-accent/60';
-  if (correlation >= 0.15) return 'bg-accent/40';
-  if (correlation >= 0.05) return 'bg-accent/20';
+  if (correlation >= 0.3) return 'bg-accent-info/60';
+  if (correlation >= 0.15) return 'bg-accent-info/40';
+  if (correlation >= 0.05) return 'bg-accent-info/20';
   if (correlation > 0) return 'bg-muted/50';
   return 'bg-muted/20';
 }

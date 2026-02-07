@@ -25,6 +25,59 @@ interface UserPreferencesRow {
   saved_filters: SavedFilter[] | null;
 }
 
+function parseSavedFilterQuery(raw: unknown): {
+  data?: SavedFilter['query'];
+  errors?: string[];
+} {
+  if (!raw || typeof raw !== 'object') {
+    return { errors: ['query must be an object'] };
+  }
+
+  const value = raw as Record<string, unknown>;
+  const parsed: SavedFilter['query'] = {};
+  const errors: string[] = [];
+
+  const parseStringArray = (field: 'stages' | 'patterns' | 'continents' | 'verticals') => {
+    const input = value[field];
+    if (input === undefined) return;
+    if (!Array.isArray(input) || !input.every((v) => typeof v === 'string' && v.length <= 100)) {
+      errors.push(`${field} must be an array of strings (<=100 chars)`);
+      return;
+    }
+    parsed[field] = input;
+  };
+
+  parseStringArray('stages');
+  parseStringArray('patterns');
+  parseStringArray('continents');
+  parseStringArray('verticals');
+
+  const parseNumber = (field: 'fundingMin' | 'fundingMax') => {
+    const input = value[field];
+    if (input === undefined) return;
+    const num = typeof input === 'string' ? Number.parseFloat(input) : Number(input);
+    if (!Number.isFinite(num) || num < 0) {
+      errors.push(`${field} must be a non-negative number`);
+      return;
+    }
+    parsed[field] = num;
+  };
+
+  parseNumber('fundingMin');
+  parseNumber('fundingMax');
+
+  if (value.usesGenai !== undefined) {
+    if (typeof value.usesGenai !== 'boolean') {
+      errors.push('usesGenai must be a boolean');
+    } else {
+      parsed.usesGenai = value.usesGenai;
+    }
+  }
+
+  if (errors.length > 0) return { errors };
+  return { data: parsed };
+}
+
 // PUT /api/filters/[id] - Update a saved filter
 export async function PUT(
   request: NextRequest,
@@ -42,7 +95,49 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, query: filterQuery, alertsEnabled } = body;
+    const errors: string[] = [];
+
+    let name: string | undefined;
+    if (body?.name !== undefined) {
+      if (typeof body.name !== 'string' || body.name.trim().length === 0 || body.name.length > 120) {
+        errors.push('name must be a non-empty string <=120 characters');
+      } else {
+        name = body.name.trim();
+      }
+    }
+
+    let filterQuery: SavedFilter['query'] | undefined;
+    if (body?.query !== undefined) {
+      const parsedQuery = parseSavedFilterQuery(body.query);
+      if (!parsedQuery.data) {
+        errors.push(...(parsedQuery.errors || []));
+      } else {
+        filterQuery = parsedQuery.data;
+      }
+    }
+
+    let alertsEnabled: boolean | undefined;
+    if (body?.alertsEnabled !== undefined) {
+      if (typeof body.alertsEnabled !== 'boolean') {
+        errors.push('alertsEnabled must be a boolean');
+      } else {
+        alertsEnabled = body.alertsEnabled;
+      }
+    }
+
+    if (name === undefined && filterQuery === undefined && alertsEnabled === undefined) {
+      errors.push('At least one field must be provided');
+    }
+
+    if (errors.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Invalid request payload',
+          details: errors,
+        },
+        { status: 400 }
+      );
+    }
 
     // Get existing filters
     const existingResult = await query<UserPreferencesRow>(

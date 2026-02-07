@@ -43,6 +43,18 @@ const config: Config = {
           DEFAULT: 'hsl(var(--accent))',
           foreground: 'hsl(var(--accent-foreground))',
         },
+        'accent-info': {
+          DEFAULT: 'hsl(var(--accent-info))',
+          foreground: 'hsl(var(--accent-info-foreground))',
+        },
+        delta: {
+          DEFAULT: 'hsl(var(--delta))',
+          foreground: 'hsl(var(--delta-foreground))',
+        },
+        synthesized: {
+          DEFAULT: 'hsl(var(--synthesized))',
+          foreground: 'hsl(var(--synthesized-foreground))',
+        },
         popover: {
           DEFAULT: 'hsl(var(--popover))',
           foreground: 'hsl(var(--popover-foreground))',

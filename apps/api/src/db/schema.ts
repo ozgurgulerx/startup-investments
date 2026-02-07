@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, date, bigint, uniqueIndex, decimal, jsonb, check, customType } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, date, bigint, uniqueIndex, decimal, jsonb, customType } from 'drizzle-orm/pg-core';
 
 // Custom bytea type for binary data (logos)
 const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
@@ -6,7 +6,7 @@ const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
     return 'bytea';
   },
 });
-import { relations, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm';
 
 // Startups table
 export const startups = pgTable('startups', {
@@ -40,7 +40,9 @@ export const startups = pgTable('startups', {
   usesGenai: boolean('uses_genai').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => ({
+  uniqueSlug: uniqueIndex('idx_startups_slug').on(table.slug),
+}));
 
 // Funding rounds table
 export const fundingRounds = pgTable('funding_rounds', {
@@ -52,7 +54,9 @@ export const fundingRounds = pgTable('funding_rounds', {
   leadInvestor: varchar('lead_investor', { length: 255 }),
   valuationUsd: bigint('valuation_usd', { mode: 'number' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => ({
+  uniqueRound: uniqueIndex('idx_funding_rounds_unique').on(table.startupId, table.roundType, table.announcedDate),
+}));
 
 // Investors table
 export const investors = pgTable('investors', {

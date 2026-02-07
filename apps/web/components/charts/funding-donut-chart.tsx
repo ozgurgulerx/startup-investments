@@ -2,6 +2,7 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+import { CHART_COLORS, CHART_PALETTE, CHART_SEMANTIC } from '@/lib/chart-colors';
 
 interface FundingByStage {
   [stage: string]: {
@@ -15,17 +16,16 @@ interface FundingDonutChartProps {
   height?: number;
 }
 
-// Cyan/sky gradient palette for Bloomberg-inspired theme
 const STAGE_COLORS: Record<string, string> = {
-  series_d_plus: 'hsl(187, 94%, 43%)',  // Cyan-500 - brightest for largest
-  series_c: 'hsl(187, 85%, 50%)',        // Cyan-400
-  series_b: 'hsl(199, 89%, 48%)',        // Sky-500
-  series_a: 'hsl(199, 80%, 55%)',        // Sky-400
-  seed: 'hsl(187, 70%, 58%)',            // Cyan-300
-  pre_seed: 'hsl(199, 70%, 62%)',        // Sky-300
-  growth: 'hsl(160, 84%, 39%)',          // Emerald
-  late_stage: 'hsl(187, 60%, 48%)',      // Cyan variant
-  unknown: 'hsl(230, 20%, 35%)',         // Muted slate - less prominent
+  series_d_plus: CHART_COLORS.primary,
+  series_c: CHART_COLORS.secondary,
+  series_b: CHART_COLORS.tertiary,
+  series_a: CHART_COLORS.quaternary,
+  seed: CHART_COLORS.quinary,
+  pre_seed: CHART_PALETTE[5],
+  growth: CHART_SEMANTIC.growth,
+  late_stage: CHART_PALETTE[6],
+  unknown: CHART_SEMANTIC.unknown,
 };
 
 const formatStageName = (stage: string) => {
@@ -94,7 +94,7 @@ export function FundingDonutChart({ data, height = 300 }: FundingDonutChartProps
             outerRadius={85}
             paddingAngle={2}
             dataKey="value"
-            stroke="hsl(230, 20%, 8%)"
+            stroke="hsl(var(--background))"
             strokeWidth={2}
           >
             {chartData.map((entry, index) => (

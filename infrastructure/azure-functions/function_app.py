@@ -125,6 +125,7 @@ async def check_pending_blobs(timer: func.TimerRequest):
 
     except Exception as e:
         logging.error(f"Timer trigger error: {str(e)}")
+        raise
 
 
 @app.route(route="health", methods=["GET"])
@@ -227,6 +228,7 @@ async def monitor_websites(timer: func.TimerRequest):
 
     except Exception as e:
         logging.error(f"Website monitoring error: {str(e)}")
+        raise
 
 
 # =============================================================================
@@ -258,6 +260,7 @@ async def consume_rss_feeds(timer: func.TimerRequest):
 
     except Exception as e:
         logging.error(f"RSS consumption error: {str(e)}")
+        raise
 
 
 # =============================================================================
@@ -289,6 +292,7 @@ async def process_startup_events(timer: func.TimerRequest):
 
     except Exception as e:
         logging.error(f"Event processing error: {str(e)}")
+        raise
 
 
 # =============================================================================
@@ -321,6 +325,7 @@ async def process_research_queue(timer: func.TimerRequest):
 
     except Exception as e:
         logging.error(f"Research processing error: {str(e)}")
+        raise
 
 
 # =============================================================================
@@ -349,6 +354,7 @@ async def compute_pattern_correlations(timer: func.TimerRequest):
 
     except Exception as e:
         logging.error(f"Pattern correlation error: {str(e)}")
+        raise
 
 
 # =============================================================================
@@ -612,6 +618,7 @@ async def check_staleness(timer: func.TimerRequest):
 
     except Exception as e:
         logging.error(f"Staleness check error: {str(e)}")
+        raise
 
 
 @app.route(route="trigger/staleness", methods=["POST"])
@@ -737,7 +744,7 @@ async def check_deploy_trigger(timer: func.TimerRequest):
 
     except Exception as e:
         logging.error(f"Deploy trigger error: {str(e)}")
-
+        raise
 
 @app.route(route="trigger/deploy", methods=["POST"])
 async def manual_deploy_trigger(req: func.HttpRequest) -> func.HttpResponse:

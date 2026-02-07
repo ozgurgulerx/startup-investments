@@ -76,7 +76,7 @@ export function NewsletterRenderer({ content, className }: NewsletterRendererPro
               return (
                 <Link
                   href={href}
-                  className="text-accent hover:text-accent/80 underline underline-offset-2 transition-colors"
+                  className="text-accent-info hover:text-accent-info/80 underline underline-offset-2 transition-colors"
                 >
                   {children}
                 </Link>
@@ -182,7 +182,7 @@ export function NewsletterRenderer({ content, className }: NewsletterRendererPro
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                     <Link
                       href={`/dealbook?pattern=${encodeURIComponent(pattern)}`}
-                      className="text-accent hover:text-accent/80 underline underline-offset-2 transition-colors"
+                      className="text-accent-info hover:text-accent-info/80 underline underline-offset-2 transition-colors"
                     >
                       {children}
                     </Link>

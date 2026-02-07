@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+import { CHART_PALETTE, CHART_GRID, CHART_AXIS, CHART_CURSOR } from '@/lib/chart-colors';
 
 interface PatternData {
   name: string;
@@ -23,18 +24,6 @@ interface PatternBarChartProps {
   data: PatternData[];
   height?: number;
 }
-
-// Cyan/sky gradient palette
-const CHART_COLORS = [
-  'hsl(187, 94%, 43%)',  // Cyan-500
-  'hsl(187, 85%, 50%)',  // Cyan-400
-  'hsl(199, 89%, 48%)',  // Sky-500
-  'hsl(199, 80%, 55%)',  // Sky-400
-  'hsl(187, 70%, 58%)',  // Cyan-300
-  'hsl(199, 70%, 62%)',  // Sky-300
-  'hsl(187, 60%, 65%)',  // Cyan-200
-  'hsl(199, 60%, 68%)',  // Sky-200
-];
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
@@ -99,13 +88,13 @@ export function PatternBarChart({ data, height = 300 }: PatternBarChartProps) {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(230, 12%, 14%)"
+            stroke={CHART_GRID}
             horizontal={true}
             vertical={false}
           />
           <XAxis
             type="number"
-            stroke="hsl(230, 10%, 40%)"
+            stroke={CHART_AXIS}
             fontSize={10}
             tickLine={false}
             axisLine={false}
@@ -113,13 +102,13 @@ export function PatternBarChart({ data, height = 300 }: PatternBarChartProps) {
           <YAxis
             type="category"
             dataKey="shortName"
-            stroke="hsl(230, 10%, 40%)"
+            stroke={CHART_AXIS}
             fontSize={10}
             tickLine={false}
             axisLine={false}
             width={70}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(230, 12%, 14%)', opacity: 0.5 }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: CHART_CURSOR, opacity: 0.5 }} />
           <Bar
             dataKey="count"
             radius={[0, 4, 4, 0]}
@@ -128,7 +117,7 @@ export function PatternBarChart({ data, height = 300 }: PatternBarChartProps) {
             {chartData.map((_, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={CHART_COLORS[index % CHART_COLORS.length]}
+                fill={CHART_PALETTE[index % CHART_PALETTE.length]}
               />
             ))}
           </Bar>

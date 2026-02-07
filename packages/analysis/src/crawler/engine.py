@@ -82,7 +82,7 @@ class WebSearchClient:
 
             return results
         except Exception as e:
-            print(f"Web search error: {e}")
+            logger.warning(f"Web search error: {e}")
             return []
 
     async def close(self):
@@ -235,7 +235,7 @@ class YouTubeClient:
 
             return unique_videos
         except Exception as e:
-            print(f"YouTube search error: {e}")
+            logger.warning(f"YouTube search error: {e}")
             return []
 
     async def get_transcript(self, video_url: str) -> Optional[str]:
@@ -257,7 +257,7 @@ class YouTubeClient:
             return f"[Video found: {video_url} - Install youtube-transcript-api for full transcripts]"
 
         except Exception as e:
-            print(f"Transcript fetch error: {e}")
+            logger.warning(f"Transcript fetch error: {e}")
             return None
 
     async def close(self):
@@ -300,7 +300,7 @@ class NewsClient:
 
             return results
         except Exception as e:
-            print(f"News search error: {e}")
+            logger.warning(f"News search error: {e}")
             return []
 
     async def close(self):
@@ -525,7 +525,7 @@ class StartupCrawler:
                 sources.append(source)
 
         except Exception as e:
-            print(f"Web search error for {startup.name}: {e}")
+            logger.warning(f"Web search error for {startup.name}: {e}")
 
         return sources
 
@@ -596,7 +596,7 @@ class StartupCrawler:
             sources.append(source)
 
         except Exception as e:
-            print(f"GitHub crawl error for {startup.name}: {e}")
+            logger.warning(f"GitHub crawl error for {startup.name}: {e}")
 
         return sources
 
@@ -644,7 +644,7 @@ class StartupCrawler:
             sources.append(source)
 
         except Exception as e:
-            print(f"News crawl error for {startup.name}: {e}")
+            logger.warning(f"News crawl error for {startup.name}: {e}")
 
         return sources
 
@@ -695,7 +695,7 @@ class StartupCrawler:
             sources.append(source)
 
         except Exception as e:
-            print(f"YouTube crawl error for {startup.name}: {e}")
+            logger.warning(f"YouTube crawl error for {startup.name}: {e}")
 
         return sources
 
@@ -725,7 +725,7 @@ class StartupCrawler:
                 )
 
         except Exception as e:
-            print(f"Logo extraction error for {startup.name}: {e}")
+            logger.warning(f"Logo extraction error for {startup.name}: {e}")
 
         return None
 

@@ -34,9 +34,13 @@ class ResearchResult:
 class DeepResearchConsumer:
     """Consumes and processes deep research queue items."""
 
-    # Pricing per 1M tokens (approximate, adjust for your model)
-    INPUT_COST_PER_1M = 15.0   # $15 per 1M input tokens
-    OUTPUT_COST_PER_1M = 75.0  # $75 per 1M output tokens
+    # Model pricing per 1M tokens — keyed by model/deployment name
+    MODEL_PRICING = {
+        "gpt-4o":      {"input": 2.50,  "output": 10.0},
+        "gpt-4o-mini": {"input": 0.15,  "output": 0.60},
+        "gpt-4":       {"input": 30.0,  "output": 60.0},
+        "gpt-4-turbo": {"input": 10.0,  "output": 30.0},
+    }
 
     def __init__(
         self,
@@ -62,6 +66,9 @@ class DeepResearchConsumer:
 
         try:
             await self.db.connect()
+
+            # Reclaim items stuck in 'processing' for >30 minutes (crash recovery)
+            await self._reclaim_stale_items(stale_minutes=30)
 
             # Get pending items
             items = await self.db.get_pending_research_items(limit=batch_size)
@@ -98,6 +105,28 @@ class DeepResearchConsumer:
         finally:
             await self.db.close()
 
+    async def _reclaim_stale_items(self, stale_minutes: int = 30):
+        """Reclaim research items stuck in 'processing' state (crash recovery).
+
+        Items claimed by a worker that crashed remain in 'processing' forever.
+        This resets them to 'pending' so they can be picked up again.
+        """
+        try:
+            result = await self.db.execute("""
+                UPDATE deep_research_queue
+                SET status = 'pending',
+                    claimed_at = NULL,
+                    retry_count = COALESCE(retry_count, 0) + 1
+                WHERE status = 'processing'
+                  AND claimed_at < NOW() - INTERVAL '1 minute' * $1
+                  AND COALESCE(retry_count, 0) < $2
+            """, stale_minutes, self.max_retries)
+            # Log if items were reclaimed (result is the command tag like "UPDATE 2")
+            if result and not result.endswith("0"):
+                logger.info(f"Reclaimed stale research items: {result}")
+        except Exception as e:
+            logger.warning(f"Could not reclaim stale items: {e}")
+
     async def _process_item(self, item: Dict[str, Any]) -> ResearchResult:
         """Process a single research queue item."""
         start_time = datetime.now(timezone.utc)
@@ -122,12 +151,13 @@ class DeepResearchConsumer:
             # Perform deep research
             research_output, tokens_used = await self._perform_research(item)
 
-            # Calculate cost
+            # Calculate cost using model-specific pricing
             input_tokens = tokens_used.get("input", 0)
             output_tokens = tokens_used.get("output", 0)
+            pricing = self.MODEL_PRICING.get(self.model, {"input": 2.50, "output": 10.0})
             cost_usd = (
-                (input_tokens / 1_000_000) * self.INPUT_COST_PER_1M +
-                (output_tokens / 1_000_000) * self.OUTPUT_COST_PER_1M
+                (input_tokens / 1_000_000) * pricing["input"] +
+                (output_tokens / 1_000_000) * pricing["output"]
             )
 
             # Mark completed
@@ -187,16 +217,22 @@ class DeepResearchConsumer:
         else:
             prompt = self._build_standard_prompt(startup_name, website, description, focus_areas)
 
-        # Call LLM
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": self._get_system_prompt()},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=4000 if depth == "deep" else 2000
-        )
+        # Call LLM with timeout to prevent hung slots
+        try:
+            response = await asyncio.wait_for(
+                self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": self._get_system_prompt()},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=4000 if depth == "deep" else 2000
+                ),
+                timeout=180.0  # 3 minutes max per LLM call
+            )
+        except asyncio.TimeoutError:
+            raise TimeoutError(f"OpenAI API call timed out after 180s for {startup_name}")
 
         # Parse response
         content = response.choices[0].message.content

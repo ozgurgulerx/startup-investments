@@ -174,8 +174,9 @@ class WebsiteContentMonitor:
             text_content = extract_text_content(response.text)
             new_hash = compute_content_hash(text_content)
 
-            # Check for change
-            content_changed = old_hash is not None and old_hash != new_hash
+            # Check for change — only flag as changed if old_hash is non-empty.
+            # First crawl (old_hash is None or "") is a baseline, not a change.
+            content_changed = bool(old_hash) and old_hash != new_hash
 
             # Update database with enhanced fields
             await self.db.update_startup_content_hash(

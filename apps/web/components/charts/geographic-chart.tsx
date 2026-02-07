@@ -2,6 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+import { CHART_PALETTE, CHART_GRID, CHART_AXIS, CHART_CURSOR, CHART_SEMANTIC } from '@/lib/chart-colors';
 
 interface ContinentData {
   [continent: string]: {
@@ -15,15 +16,14 @@ interface GeographicChartProps {
   height?: number;
 }
 
-// Cyan/sky gradient palette for Bloomberg-inspired theme
 const CONTINENT_COLORS: Record<string, string> = {
-  'north_america': 'hsl(187, 94%, 43%)',   // Cyan-500 - brightest for largest
-  'asia': 'hsl(187, 85%, 50%)',             // Cyan-400
-  'europe': 'hsl(199, 89%, 48%)',           // Sky-500
-  'africa': 'hsl(199, 80%, 55%)',           // Sky-400
-  'oceania': 'hsl(187, 70%, 58%)',          // Cyan-300
-  'south_america': 'hsl(199, 70%, 62%)',    // Sky-300
-  'unknown': 'hsl(230, 20%, 35%)',          // Muted slate
+  'north_america': CHART_PALETTE[0],
+  'asia': CHART_PALETTE[1],
+  'europe': CHART_PALETTE[2],
+  'africa': CHART_PALETTE[3],
+  'oceania': CHART_PALETTE[4],
+  'south_america': CHART_PALETTE[5],
+  'unknown': CHART_SEMANTIC.unknown,
 };
 
 // Format continent names for display
@@ -81,24 +81,24 @@ export function GeographicChart({ data, height = 250 }: GeographicChartProps) {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(230, 12%, 14%)"
+            stroke={CHART_GRID}
             vertical={false}
           />
           <XAxis
             dataKey="name"
-            stroke="hsl(230, 10%, 40%)"
+            stroke={CHART_AXIS}
             fontSize={10}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
-            stroke="hsl(230, 10%, 40%)"
+            stroke={CHART_AXIS}
             fontSize={10}
             tickLine={false}
             axisLine={false}
             tickFormatter={(value) => formatCurrency(value, true)}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(230, 12%, 14%)', opacity: 0.5 }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: CHART_CURSOR, opacity: 0.5 }} />
           <Bar
             dataKey="funding"
             radius={[4, 4, 0, 0]}

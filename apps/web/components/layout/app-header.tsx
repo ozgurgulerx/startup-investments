@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { UserMenu } from '@/components/auth/user-menu';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
+import { ReadingModeToggle } from '@/components/ui/reading-mode-toggle';
 import { MobileNavTrigger } from '@/components/layout/mobile-nav';
 import { BrandMark } from '@/components/ui/brand-mark';
 
@@ -53,7 +54,7 @@ export function AppHeader({ onSearch }: AppHeaderProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full h-9 pl-10 pr-4 text-sm bg-muted/25 border border-border/40 rounded-md
                 placeholder:text-muted-foreground/50 text-foreground
-                focus:outline-none focus:border-accent/55 focus:bg-muted/45
+                focus:outline-none focus:border-accent-info/55 focus:bg-muted/45
                 transition-colors"
             />
             <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-muted-foreground/50 bg-muted/50 rounded">
@@ -64,6 +65,11 @@ export function AppHeader({ onSearch }: AppHeaderProps) {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-3">
+          {/* Reading Mode */}
+          <div className="hidden sm:block">
+            <ReadingModeToggle />
+          </div>
+
           {/* Watchlist */}
           <Link
             href="/watchlist"

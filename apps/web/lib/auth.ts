@@ -16,6 +16,56 @@ interface DbUser {
   last_login: Date | null;
 }
 
+interface LoginAttempt {
+  count: number;
+  firstFailedAt: number;
+  lockedUntil?: number;
+}
+
+const failedLoginAttempts = new Map<string, LoginAttempt>();
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+
+function getAttemptKey(email: string, ip: string): string {
+  return `${email}|${ip || 'unknown'}`;
+}
+
+function isLoginLocked(key: string): boolean {
+  const attempt = failedLoginAttempts.get(key);
+  if (!attempt?.lockedUntil) return false;
+
+  if (Date.now() >= attempt.lockedUntil) {
+    failedLoginAttempts.delete(key);
+    return false;
+  }
+
+  return true;
+}
+
+function recordFailedLogin(key: string): void {
+  const now = Date.now();
+  const existing = failedLoginAttempts.get(key);
+
+  if (!existing || now - existing.firstFailedAt > LOCKOUT_WINDOW_MS) {
+    failedLoginAttempts.set(key, {
+      count: 1,
+      firstFailedAt: now,
+    });
+    return;
+  }
+
+  const nextCount = existing.count + 1;
+  failedLoginAttempts.set(key, {
+    count: nextCount,
+    firstFailedAt: existing.firstFailedAt,
+    lockedUntil: nextCount >= MAX_FAILED_ATTEMPTS ? now + LOCKOUT_WINDOW_MS : undefined,
+  });
+}
+
+function clearFailedLogins(key: string): void {
+  failedLoginAttempts.delete(key);
+}
+
 // Check if users table exists (for graceful degradation)
 async function checkUsersTableExists(): Promise<boolean> {
   try {
@@ -47,13 +97,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
         const email = String(credentials.email).toLowerCase();
         const password = String(credentials.password);
+        const requestIp = request?.headers?.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+        const attemptKey = getAttemptKey(email, requestIp);
+
+        if (isLoginLocked(attemptKey)) {
+          return null;
+        }
 
         try {
           const result = await query<DbUser>(
@@ -64,12 +120,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const user = result.rows[0];
 
           if (!user || !user.password_hash) {
+            recordFailedLogin(attemptKey);
             return null;
           }
 
           const isValid = await verifyPassword(password, user.password_hash);
 
           if (!isValid) {
+            recordFailedLogin(attemptKey);
             return null;
           }
 
@@ -77,6 +135,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           await query('UPDATE users SET last_login = NOW() WHERE id = $1', [
             user.id,
           ]);
+          clearFailedLogins(attemptKey);
 
           return {
             id: user.id,

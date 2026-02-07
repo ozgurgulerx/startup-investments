@@ -133,7 +133,7 @@ export function MonthSelector({
         >
           <span>{formatMonthLabel(selectedMonth)}</span>
           {selectedMonth === latestPeriod && (
-            <span className="text-[10px] uppercase tracking-wider text-accent px-1.5 py-0.5 bg-accent/10 rounded">
+            <span className="text-[10px] uppercase tracking-wider text-accent-info px-1.5 py-0.5 bg-accent-info/10 rounded">
               Latest
             </span>
           )}
@@ -195,7 +195,7 @@ export function MonthSelector({
                 <span className="flex items-center gap-2">
                   <span>{formatMonthShort(period.period)}</span>
                   {isLatest && (
-                    <span className="text-[9px] uppercase tracking-wider text-accent/80">
+                    <span className="text-[9px] uppercase tracking-wider text-accent-info/80">
                       Latest
                     </span>
                   )}

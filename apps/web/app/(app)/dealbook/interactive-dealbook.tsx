@@ -8,8 +8,19 @@ import type { StartupAnalysis, MonthlyStats, PeriodInfo } from '@startup-intelli
 import { CompanyRow } from './company-row';
 import { Sheet, SheetHeader, SheetContent } from '@/components/ui';
 import { MonthSelector, DealbookToolbar, StatsStrip } from '@/components/dealbook';
+import { normalizeStageKey } from '@/lib/utils';
 import { X } from 'lucide-react';
 import Link from 'next/link';
+
+/**
+ * Resolve a URL slug value (e.g. "series_a") to the canonical display name
+ * (e.g. "Series A") by matching against available filter options via normalizeStageKey.
+ */
+function resolveToCanonical(urlValue: string, availableOptions: string[]): string {
+  const normalized = normalizeStageKey(urlValue);
+  const match = availableOptions.find(opt => normalizeStageKey(opt) === normalized);
+  return match || urlValue;
+}
 
 interface UrlFilters {
   stage?: string;
@@ -64,20 +75,6 @@ export function InteractiveDealbook({
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>(initialFilters);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
-  // Initialize activeQuery from URL filters
-  useEffect(() => {
-    if (urlFilters) {
-      const query: FilterQuery = {};
-      if (urlFilters.stage) query.stages = [urlFilters.stage];
-      if (urlFilters.pattern) query.patterns = [urlFilters.pattern];
-      if (urlFilters.continent) query.continents = [urlFilters.continent];
-      if (urlFilters.minFunding) query.fundingMin = urlFilters.minFunding;
-      if (urlFilters.maxFunding) query.fundingMax = urlFilters.maxFunding;
-      if (urlFilters.usesGenai !== undefined) query.usesGenai = urlFilters.usesGenai;
-      setActiveQuery(query);
-    }
-  }, [urlFilters]);
-
   // Use server-provided filter options (no client-side computation needed)
   const availablePatterns = useMemo(
     () => filterOptions?.patterns.map(p => p.name) || [],
@@ -93,6 +90,26 @@ export function InteractiveDealbook({
     () => filterOptions?.continents || [],
     [filterOptions]
   );
+
+  // Initialize activeQuery from URL filters, resolving slugs to canonical display names
+  useEffect(() => {
+    if (urlFilters) {
+      const query: FilterQuery = {};
+      if (urlFilters.stage) {
+        query.stages = [resolveToCanonical(urlFilters.stage, availableStages)];
+      }
+      if (urlFilters.pattern) {
+        query.patterns = [resolveToCanonical(urlFilters.pattern, availablePatterns)];
+      }
+      if (urlFilters.continent) {
+        query.continents = [resolveToCanonical(urlFilters.continent, availableContinents)];
+      }
+      if (urlFilters.minFunding) query.fundingMin = urlFilters.minFunding;
+      if (urlFilters.maxFunding) query.fundingMax = urlFilters.maxFunding;
+      if (urlFilters.usesGenai !== undefined) query.usesGenai = urlFilters.usesGenai;
+      setActiveQuery(query);
+    }
+  }, [urlFilters, availableStages, availablePatterns, availableContinents]);
 
   // Calculate totals - use pagination total if available (server-side filtered)
   const filteredTotals = useMemo(() => {
@@ -201,15 +218,16 @@ export function InteractiveDealbook({
     return count;
   }, [urlFilters]);
 
-  // Active filter badges for URL-based filters
+  // Active filter badges for URL-based filters (resolved to canonical display names)
   const activeFilterBadges = useMemo(() => {
     const badges: Array<{ label: string; value: string; param: string }> = [];
-    if (urlFilters?.pattern) badges.push({ label: 'Pattern', value: urlFilters.pattern, param: 'pattern' });
-    if (urlFilters?.stage) badges.push({ label: 'Stage', value: urlFilters.stage, param: 'stage' });
-    if (urlFilters?.continent) badges.push({ label: 'Region', value: urlFilters.continent, param: 'continent' });
+    if (urlFilters?.search) badges.push({ label: 'Search', value: urlFilters.search, param: 'search' });
+    if (urlFilters?.pattern) badges.push({ label: 'Pattern', value: resolveToCanonical(urlFilters.pattern, availablePatterns), param: 'pattern' });
+    if (urlFilters?.stage) badges.push({ label: 'Stage', value: resolveToCanonical(urlFilters.stage, availableStages), param: 'stage' });
+    if (urlFilters?.continent) badges.push({ label: 'Region', value: resolveToCanonical(urlFilters.continent, availableContinents), param: 'continent' });
     if (urlFilters?.usesGenai !== undefined) badges.push({ label: 'GenAI', value: urlFilters.usesGenai ? 'Yes' : 'No', param: 'usesGenai' });
     return badges;
-  }, [urlFilters]);
+  }, [urlFilters, availablePatterns, availableStages, availableContinents]);
 
   // Build URL without a specific filter
   const buildUrlWithoutFilter = (paramToRemove: string) => {
@@ -271,7 +289,7 @@ export function InteractiveDealbook({
             <Link
               key={param}
               href={buildUrlWithoutFilter(param)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-accent/25 bg-accent/10 text-accent text-sm hover:bg-accent/20 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-accent-info/25 bg-accent-info/10 text-accent-info text-sm hover:bg-accent-info/20 transition-colors"
             >
               <span className="text-muted-foreground">{label}:</span>
               <span className="font-medium">{value}</span>
@@ -292,6 +310,7 @@ export function InteractiveDealbook({
       {/* Filter Builder - Desktop */}
       <div className="hidden md:block">
         <FilterBuilder
+          initialQuery={activeQuery}
           availablePatterns={availablePatterns}
           availableStages={availableStages}
           availableContinents={availableContinents}
@@ -311,6 +330,7 @@ export function InteractiveDealbook({
         </SheetHeader>
         <SheetContent>
           <FilterBuilder
+            initialQuery={activeQuery}
             availablePatterns={availablePatterns}
             availableStages={availableStages}
             availableContinents={availableContinents}

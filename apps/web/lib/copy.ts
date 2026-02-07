@@ -13,10 +13,11 @@ export const COPY = {
       "Moat + GTM clarity, not vibes",
       "Comparable rounds, peers, and what to watch next"
     ],
-    primaryCTA: "Browse dossiers",
+    primaryCTA: "Explore dossiers",
     primaryCTAHref: "/dealbook",
     secondaryCTA: "Sign in to personalize",
     secondaryCTAHref: "/login",
+    heroSearchPlaceholder: "Search companies, patterns, verticals...",
   },
   investors: {
     heroHeadline: "Less narrative. More signal.",
@@ -27,10 +28,11 @@ export const COPY = {
       "Identify infra/platform timing shifts before the crowd",
       "Track who's compounding—by pattern, not hype"
     ],
-    primaryCTA: "Browse deal flow",
+    primaryCTA: "Explore live pipeline",
     primaryCTAHref: "/dealbook",
     secondaryCTA: "Sign in to personalize",
     secondaryCTAHref: "/login",
+    heroSearchPlaceholder: "Search companies, patterns, verticals...",
   },
 } as const;
 
@@ -74,7 +76,7 @@ export const TERMINOLOGY = {
   brief: "Brief",              // monthly landscape summary
   signals: "Signals",          // build patterns / insights
   capital: "Capital",          // capital & momentum trends
-  library: "Library",          // archive of past briefs
+  library: "Deep Dives",        // archive of past briefs & deep analysis
   watchlist: "Watchlist",      // saved companies (requires login)
 } as const;
 
@@ -84,7 +86,7 @@ export const NAV_ITEMS = [
   { label: 'Dossiers', href: '/dealbook' },
   { label: 'Signals', href: '/signals' },
   { label: 'Capital', href: '/capital' },
-  { label: 'Library', href: '/library' },
+  { label: 'Deep Dives', href: '/library' },
   { label: 'Watchlist', href: '/watchlist', requiresAuth: true },
 ] as const;
 
@@ -101,7 +103,7 @@ export const SIGN_IN_COPY = {
 export const FAQ_ITEMS = [
   {
     question: "How often is Build Atlas updated?",
-    answer: "We publish a new Brief by the 5th of each month covering the previous month. Company dossiers are refreshed continuously as new information surfaces."
+    answer: "Our pipeline monitors RSS feeds hourly, crawls company websites every 6 hours, and processes events every 15 minutes. Company dossiers are refreshed continuously as new information surfaces. Monthly briefs are published by the 5th of each month."
   },
   {
     question: "What funding stages do you cover?",

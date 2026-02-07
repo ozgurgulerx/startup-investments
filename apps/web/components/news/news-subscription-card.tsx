@@ -41,8 +41,8 @@ export function NewsSubscriptionCard({ className }: NewsSubscriptionCardProps) {
   }
 
   return (
-    <section className={`rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
-      <p className="label-xs text-accent">Daily Startup Digest</p>
+    <section className={`rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
+      <p className="label-xs text-accent-info">Daily Startup Digest</p>
       <h3 className="mt-2 text-xl font-medium tracking-tight text-foreground">Get top stories by daily popularity</h3>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
         Each day we send a ranked digest with cross-source signals and a short builder takeaway.
@@ -55,7 +55,7 @@ export function NewsSubscriptionCard({ className }: NewsSubscriptionCardProps) {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@company.com"
-          className="h-10 min-w-0 flex-1 rounded-md border border-border/60 bg-background/80 px-3 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground/80 focus:border-accent/60"
+          className="h-10 min-w-0 flex-1 rounded-md border border-border/60 bg-background/80 px-3 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground/80 focus:border-accent-info/60"
         />
         <button
           type="submit"

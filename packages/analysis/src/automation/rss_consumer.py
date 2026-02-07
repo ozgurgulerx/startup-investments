@@ -247,10 +247,16 @@ class RSSFeedConsumer:
             return None
 
         # Try to extract company name from title
-        # Common patterns: "CompanyName raises $X", "CompanyName announces..."
+        # Expanded patterns: handles possessives, articles, mid-sentence mentions, hyphens
         patterns = [
-            r'^([A-Z][a-zA-Z0-9]+(?:\s[A-Z][a-zA-Z0-9]+)*)\s+(?:raises|raised|announces|secures|closes)',
-            r'^([A-Z][a-zA-Z0-9]+(?:\s[A-Z][a-zA-Z0-9]+)*),?\s+(?:the|a|an)',
+            # "CompanyName raises/secures/closes/announces..."
+            r'^([A-Z][a-zA-Z0-9\-]+(?:\s[A-Z][a-zA-Z0-9\-]+)*)\s+(?:raises|raised|announces|secures|closes|bags|lands|nabs|gets)',
+            # "CompanyName's $X funding..."
+            r"^([A-Z][a-zA-Z0-9\-]+(?:\s[A-Z][a-zA-Z0-9\-]+)*)(?:'s)\s",
+            # Mid-sentence: "...by/from CompanyName..."
+            r'(?:by|from|at|into)\s+([A-Z][a-zA-Z0-9\-]+(?:\s[A-Z][a-zA-Z0-9\-]+)*)',
+            # "CompanyName, the/a/an..."
+            r'^([A-Z][a-zA-Z0-9\-]+(?:\s[A-Z][a-zA-Z0-9\-]+)*),?\s+(?:the|a|an)',
         ]
 
         company_name = None
@@ -266,11 +272,55 @@ class RSSFeedConsumer:
             if startup:
                 return startup
 
-        # If we couldn't extract a name, do a broader search
-        # This is more expensive so we only do it for high-signal items
+        # Fuzzy matching fallback for funding news — checks title against all startup names
         if is_funding_news:
-            # Could implement fuzzy matching here
-            pass
+            startup = await self._fuzzy_match_startup(item.title)
+            if startup:
+                return startup
+
+        return None
+
+    async def _fuzzy_match_startup(self, title: str) -> Optional[Dict[str, Any]]:
+        """Fuzzy match a title against tracked startup names.
+
+        Uses quick substring check first, then SequenceMatcher for closer matches.
+        """
+        from difflib import SequenceMatcher
+
+        try:
+            # Get all startup names from DB
+            rows = await self.db.fetch("""
+                SELECT id, name, website, description, content_hash FROM startups
+            """)
+
+            title_lower = title.lower()
+            best_match = None
+            best_ratio = 0.0
+
+            for row in rows:
+                name = row["name"]
+                name_lower = name.lower()
+
+                # Quick literal substring check
+                if name_lower in title_lower:
+                    return dict(row)
+
+                # Sliding window fuzzy match against title
+                if len(name_lower) >= 3:
+                    for start in range(len(title_lower) - len(name_lower) + 1):
+                        window = title_lower[start:start + len(name_lower)]
+                        ratio = SequenceMatcher(None, name_lower, window).ratio()
+                        if ratio > best_ratio:
+                            best_ratio = ratio
+                            best_match = dict(row)
+
+            # Return match only if confidence is high enough
+            if best_ratio >= 0.85 and best_match:
+                logger.info(f"Fuzzy matched '{title[:50]}' to '{best_match['name']}' (ratio={best_ratio:.2f})")
+                return best_match
+
+        except Exception as e:
+            logger.warning(f"Fuzzy matching failed: {e}")
 
         return None
 

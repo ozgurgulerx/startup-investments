@@ -65,6 +65,27 @@ export function slugify(text: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
+/**
+ * Normalize a funding stage value to a consistent slug for comparison.
+ * "Series A" → "series_a", "Pre-Seed" → "pre_seed", "Early Stage Venture" → "early_stage_venture"
+ */
+export function normalizeStageKey(value: string | undefined | null): string {
+  return (value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/**
+ * Format a snake_case stage/vertical slug to proper display name.
+ * "series_a" → "Series A", "pre_seed" → "Pre Seed"
+ */
+export function formatStageName(stage: string): string {
+  return stage
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export function getPatternColor(pattern: string): string {
   const colors: Record<string, string> = {
     'Agentic Architectures': 'pattern-agentic',

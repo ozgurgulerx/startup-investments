@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+import { CHART_COLORS, CHART_GRID, CHART_AXIS, CHART_SEMANTIC } from '@/lib/chart-colors';
 
 interface TrendDataPoint {
   period: string;
@@ -90,19 +91,19 @@ export function TrendLineChart({
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(240, 3.7%, 15.9%)"
+            stroke={CHART_GRID}
           />
           <XAxis
             dataKey="period"
             tickFormatter={formatPeriodLabel}
-            stroke="hsl(240, 5%, 64.9%)"
+            stroke={CHART_AXIS}
             fontSize={12}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             yAxisId="left"
-            stroke="hsl(240, 5%, 64.9%)"
+            stroke={CHART_AXIS}
             fontSize={12}
             tickLine={false}
             axisLine={false}
@@ -112,7 +113,7 @@ export function TrendLineChart({
             <YAxis
               yAxisId="right"
               orientation="right"
-              stroke="hsl(240, 5%, 64.9%)"
+              stroke={CHART_AXIS}
               fontSize={12}
               tickLine={false}
               axisLine={false}
@@ -125,9 +126,9 @@ export function TrendLineChart({
             type="monotone"
             dataKey="funding"
             name="Funding"
-            stroke="hsl(217, 91%, 60%)"
+            stroke={CHART_COLORS.primary}
             strokeWidth={2}
-            dot={{ fill: 'hsl(217, 91%, 60%)', strokeWidth: 0, r: 4 }}
+            dot={{ fill: CHART_COLORS.primary, strokeWidth: 0, r: 4 }}
             activeDot={{ r: 6, strokeWidth: 0 }}
           />
           {showDeals && (
@@ -136,9 +137,9 @@ export function TrendLineChart({
               type="monotone"
               dataKey="deals"
               name="Deals"
-              stroke="hsl(142, 71%, 45%)"
+              stroke={CHART_COLORS.quaternary}
               strokeWidth={2}
-              dot={{ fill: 'hsl(142, 71%, 45%)', strokeWidth: 0, r: 4 }}
+              dot={{ fill: CHART_COLORS.quaternary, strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6, strokeWidth: 0 }}
             />
           )}
@@ -148,9 +149,9 @@ export function TrendLineChart({
               type="monotone"
               dataKey="genaiRate"
               name="GenAI Rate"
-              stroke="hsl(262, 83%, 58%)"
+              stroke={CHART_SEMANTIC.delta}
               strokeWidth={2}
-              dot={{ fill: 'hsl(262, 83%, 58%)', strokeWidth: 0, r: 4 }}
+              dot={{ fill: CHART_SEMANTIC.delta, strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6, strokeWidth: 0 }}
             />
           )}

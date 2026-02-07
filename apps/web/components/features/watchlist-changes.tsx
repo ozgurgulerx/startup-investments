@@ -22,10 +22,10 @@ const eventIcons: Record<SignalEvent['type'], React.ComponentType<{ className?: 
 
 const eventColors: Record<SignalEvent['type'], string> = {
   funding: 'text-success',
-  pattern: 'text-accent',
+  pattern: 'text-accent-info',
   website: 'text-muted-foreground',
   news: 'text-foreground',
-  trend: 'text-accent',
+  trend: 'text-accent-info',
 };
 
 export function WatchlistChanges({ events, className }: WatchlistChangesProps) {
@@ -48,7 +48,7 @@ export function WatchlistChanges({ events, className }: WatchlistChangesProps) {
       <div className="px-4 py-3 bg-muted/10 border-b border-border/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Bell className="w-4 h-4 text-accent" />
+            <Bell className="w-4 h-4 text-accent-info" />
             <h3 className="text-sm font-medium text-foreground">What Changed</h3>
           </div>
           <span className="text-xs text-muted-foreground">
@@ -96,7 +96,7 @@ function EventRow({ event }: { event: SignalEvent }) {
             {event.title}
           </span>
           {event.importance === 'high' && (
-            <span className="px-1.5 py-0.5 text-[10px] bg-accent/10 text-accent rounded">
+            <span className="px-1.5 py-0.5 text-[10px] bg-accent-info/10 text-accent-info rounded">
               Important
             </span>
           )}
