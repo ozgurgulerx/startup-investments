@@ -217,7 +217,7 @@ function DealRow({ deal, rank }: DealRowProps) {
             {deal.company_name}
           </span>
           {deal.uses_genai && (
-            <span className="px-1.5 py-0.5 text-[10px] bg-accent/10 text-accent rounded">
+            <span className="px-1.5 py-0.5 text-[10px] bg-accent-info/10 text-accent-info rounded">
               GenAI
             </span>
           )}

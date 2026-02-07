@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+import { CHART_COLORS, CHART_GRID, CHART_AXIS, CHART_CURSOR, CHART_SEMANTIC } from '@/lib/chart-colors';
 
 interface VerticalInvestmentData {
   vertical?: string;
@@ -34,10 +35,10 @@ interface VerticalInvestmentChartProps {
 }
 
 const STAGE_COLORS = {
-  seed: 'hsl(217, 91%, 70%)',
-  early_stage: 'hsl(217, 91%, 55%)',
-  late_stage: 'hsl(217, 91%, 40%)',
-  other: 'hsl(240, 5%, 50%)',
+  seed: CHART_COLORS.tertiary,
+  early_stage: CHART_COLORS.secondary,
+  late_stage: CHART_COLORS.primary,
+  other: CHART_SEMANTIC.unknown,
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -133,13 +134,13 @@ export function VerticalInvestmentChart({
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(240, 3.7%, 15.9%)"
+            stroke={CHART_GRID}
             horizontal={true}
             vertical={false}
           />
           <XAxis
             type="number"
-            stroke="hsl(240, 5%, 64.9%)"
+            stroke={CHART_AXIS}
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -148,13 +149,13 @@ export function VerticalInvestmentChart({
           <YAxis
             type="category"
             dataKey="name"
-            stroke="hsl(240, 5%, 64.9%)"
+            stroke={CHART_AXIS}
             fontSize={11}
             tickLine={false}
             axisLine={false}
             width={115}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(240, 3.7%, 15.9%)', opacity: 0.5 }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: CHART_CURSOR, opacity: 0.5 }} />
           <Legend content={<CustomLegend />} />
           <Bar dataKey="Seed" stackId="a" fill={STAGE_COLORS.seed} />
           <Bar dataKey="Early Stage" stackId="a" fill={STAGE_COLORS.early_stage} />

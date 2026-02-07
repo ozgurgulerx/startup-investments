@@ -101,19 +101,19 @@ export default function MethodologyPage() {
               </p>
               <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
+                  <span className="text-accent-info">•</span>
                   <strong className="text-foreground">Definition:</strong> What the pattern means
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
+                  <span className="text-accent-info">•</span>
                   <strong className="text-foreground">Implications:</strong> Considerations for builders and investors
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
+                  <span className="text-accent-info">•</span>
                   <strong className="text-foreground">Time horizon:</strong> Expected maturity timeline
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
+                  <span className="text-accent-info">•</span>
                   <strong className="text-foreground">Failure modes:</strong> What could derail the approach
                 </li>
               </ul>
@@ -159,19 +159,19 @@ export default function MethodologyPage() {
               </p>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
+                  <span className="text-accent-info">•</span>
                   Evidence count showing how many source documents were analyzed
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
+                  <span className="text-accent-info">•</span>
                   Freshness timestamp indicating when data was last updated
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
+                  <span className="text-accent-info">•</span>
                   Source evidence quotes with citations
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">•</span>
+                  <span className="text-accent-info">•</span>
                   Confidence scores for pattern assignments
                 </li>
               </ul>
@@ -201,10 +201,10 @@ export default function MethodologyPage() {
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/methodology" className="text-foreground">Methodology</Link>
-            <Link href="/brief" className="hover:text-accent transition-colors">Brief</Link>
-            <Link href="/dealbook" className="hover:text-accent transition-colors">Dossiers</Link>
-            <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
+            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
+            <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas

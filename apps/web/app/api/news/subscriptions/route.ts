@@ -341,32 +341,7 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/news/subscriptions
-// body: { email: string, region?: string }
-export async function DELETE(req: NextRequest) {
-  try {
-    const body = (await req.json()) as { email?: string; region?: string };
-    const email = normalizeEmail(body.email || '');
-    if (!email || !EMAIL_REGEX.test(email)) {
-      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
-    }
-
-    const region: Region = VALID_REGIONS.includes(body.region as Region)
-      ? (body.region as Region)
-      : 'global';
-
-    await query(
-      `
-      UPDATE news_email_subscriptions
-      SET status = 'unsubscribed',
-          updated_at = NOW()
-      WHERE email_normalized = $1 AND region = $2
-      `,
-      [email, region]
-    );
-
-    return NextResponse.json({ ok: true, message: 'Unsubscribed' });
-  } catch (error) {
-    console.error('Error removing news subscription:', error);
-    return NextResponse.json({ error: 'Failed to unsubscribe' }, { status: 500 });
-  }
-}
+// Intentionally not implemented (Next.js will return 405).
+// Unsubscribe must be done via the signed token link (GET /api/news/subscriptions?token=...),
+// which proves the requester controls the inbox. If you need an authenticated "manage subscriptions"
+// UI, add it behind auth/admin and avoid raw email-based actions.

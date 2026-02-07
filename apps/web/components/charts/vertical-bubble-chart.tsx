@@ -14,6 +14,7 @@ import {
   Label,
 } from 'recharts';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
+import { CHART_COLORS, CHART_GRID, CHART_AXIS } from '@/lib/chart-colors';
 
 interface VerticalStats {
   vertical: string;
@@ -33,8 +34,8 @@ interface VerticalBubbleChartProps {
 }
 
 const COLORS = {
-  horizontal: 'hsl(217, 91%, 60%)',
-  vertical: 'hsl(172, 66%, 50%)',
+  horizontal: CHART_COLORS.primary,
+  vertical: CHART_COLORS.quaternary,
 };
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -98,13 +99,13 @@ export function VerticalBubbleChart({ data, height = 400 }: VerticalBubbleChartP
         <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(240, 3.7%, 15.9%)"
+            stroke={CHART_GRID}
           />
           <XAxis
             type="number"
             dataKey="x"
             domain={[0, maxX]}
-            stroke="hsl(240, 5%, 64.9%)"
+            stroke={CHART_AXIS}
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -114,14 +115,14 @@ export function VerticalBubbleChart({ data, height = 400 }: VerticalBubbleChartP
               value="GenAI Adoption %"
               offset={-10}
               position="insideBottom"
-              style={{ fill: 'hsl(240, 5%, 64.9%)', fontSize: 11 }}
+              style={{ fill: CHART_AXIS, fontSize: 11 }}
             />
           </XAxis>
           <YAxis
             type="number"
             dataKey="y"
             domain={[0, maxY]}
-            stroke="hsl(240, 5%, 64.9%)"
+            stroke={CHART_AXIS}
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -130,7 +131,7 @@ export function VerticalBubbleChart({ data, height = 400 }: VerticalBubbleChartP
               value="Companies"
               angle={-90}
               position="insideLeft"
-              style={{ fill: 'hsl(240, 5%, 64.9%)', fontSize: 11, textAnchor: 'middle' }}
+              style={{ fill: CHART_AXIS, fontSize: 11, textAnchor: 'middle' }}
             />
           </YAxis>
           <ZAxis
@@ -141,7 +142,7 @@ export function VerticalBubbleChart({ data, height = 400 }: VerticalBubbleChartP
           <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
           <ReferenceLine
             x={50}
-            stroke="hsl(240, 5%, 40%)"
+            stroke={CHART_AXIS}
             strokeDasharray="5 5"
           />
           <Scatter data={chartData} name="Verticals">

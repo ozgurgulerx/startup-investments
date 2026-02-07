@@ -62,19 +62,19 @@ export default function TermsPage() {
               </p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Company dossiers with architecture, stack, and positioning analysis
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Monthly Brief reports on AI startup funding and trends
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Build pattern signals and market intelligence
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Capital flow tracking and analysis
                 </li>
               </ul>
@@ -100,19 +100,19 @@ export default function TermsPage() {
               </p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Use the service for any unlawful purpose
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Attempt to gain unauthorized access to our systems
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Scrape or bulk download content beyond reasonable personal use
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Redistribute our content commercially without permission
                 </li>
               </ul>
@@ -183,11 +183,11 @@ export default function TermsPage() {
             <span className="text-sm font-medium text-foreground">Build Atlas</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <Link href="/methodology" className="hover:text-accent transition-colors">Methodology</Link>
-            <Link href="/brief" className="hover:text-accent transition-colors">Brief</Link>
-            <Link href="/dealbook" className="hover:text-accent transition-colors">Dossiers</Link>
+            <Link href="/methodology" className="hover:text-accent-info transition-colors">Methodology</Link>
+            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
+            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
             <Link href="/terms" className="text-foreground">Terms</Link>
-            <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+            <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas

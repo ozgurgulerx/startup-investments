@@ -15,6 +15,9 @@ export interface FilterQuery {
   fundingMax?: number;
   usesGenai?: boolean;
   verticals?: string[];
+  verticalId?: string;
+  subVerticalId?: string;
+  leafId?: string;
 }
 
 /**
@@ -53,6 +56,20 @@ export function filterStartups(
       const vertical = startup.vertical?.toLowerCase() || '';
       const matches = query.verticals.some(v => vertical.includes(v.toLowerCase()));
       if (!matches) return false;
+    }
+
+    // New: Flexible vertical taxonomy filter (IDs)
+    if (query.verticalId) {
+      const vId = startup.vertical_taxonomy?.primary?.vertical_id || '';
+      if (vId !== query.verticalId) return false;
+    }
+    if (query.subVerticalId) {
+      const svId = startup.vertical_taxonomy?.primary?.sub_vertical_id || '';
+      if (svId !== query.subVerticalId) return false;
+    }
+    if (query.leafId) {
+      const leafId = startup.vertical_taxonomy?.primary?.leaf_id || '';
+      if (leafId !== query.leafId) return false;
     }
 
     // Funding range

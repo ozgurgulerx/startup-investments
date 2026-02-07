@@ -3,6 +3,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { CHART_COLORS as COLORS, CHART_SEMANTIC } from '@/lib/chart-colors';
 
 interface DistributionItem {
   name: string;
@@ -17,17 +18,9 @@ interface MarketBreakdownChartProps {
   className?: string;
 }
 
-// Unified color palette - subtle, professional
-const CHART_COLORS = {
-  primary: 'hsl(187 94% 43%)',
-  secondary: 'hsl(199 89% 48%)',
-  tertiary: 'hsl(230 40% 50%)',
-  muted: 'hsl(230 20% 30%)',
-};
-
-const TARGET_MARKET_COLORS = [CHART_COLORS.primary, CHART_COLORS.secondary, CHART_COLORS.tertiary];
-const MARKET_TYPE_COLORS = [CHART_COLORS.primary, CHART_COLORS.secondary];
-const GENAI_INTENSITY_COLORS = [CHART_COLORS.primary, CHART_COLORS.secondary, CHART_COLORS.tertiary, CHART_COLORS.muted];
+const TARGET_MARKET_COLORS = [COLORS.primary, COLORS.secondary, COLORS.tertiary];
+const MARKET_TYPE_COLORS = [COLORS.primary, COLORS.secondary];
+const GENAI_INTENSITY_COLORS = [COLORS.primary, COLORS.secondary, COLORS.tertiary, CHART_SEMANTIC.muted];
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {

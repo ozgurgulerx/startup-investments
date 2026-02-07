@@ -49,8 +49,11 @@ export async function fetchFromAPI<T>(
       headers['X-API-Key'] = API_KEY;
     }
 
+    // Do not let Next.js cache API responses by default. The backend already has its own caching
+    // (Redis + CDN headers), and Next-level caching can cause confusing staleness after deploys.
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...fetchOptions,
+      cache: fetchOptions.cache ?? 'no-store',
       signal: controller.signal,
       headers,
     });
@@ -143,6 +146,9 @@ export interface DealbookFilters {
   pattern?: string;
   continent?: string;
   vertical?: string;
+  verticalId?: string;
+  subVerticalId?: string;
+  leafId?: string;
   minFunding?: number;
   maxFunding?: number;
   usesGenai?: boolean;
@@ -161,6 +167,8 @@ export interface DealbookStartup {
   vertical: string | null;
   market_type: string | null;
   sub_vertical: string | null;
+  sub_sub_vertical: string | null;
+  vertical_taxonomy?: Record<string, unknown> | null;
   funding_amount: number | null;
   funding_stage: string | null;
   uses_genai: boolean;
@@ -184,6 +192,10 @@ export interface DealbookResponse {
     stage: string | null;
     pattern: string | null;
     continent: string | null;
+    vertical: string | null;
+    verticalId?: string | null;
+    subVerticalId?: string | null;
+    leafId?: string | null;
     minFunding: number | null;
     maxFunding: number | null;
     usesGenai: string | null;
@@ -195,7 +207,12 @@ export interface DealbookFiltersResponse {
   stages: string[];
   continents: string[];
   patterns: Array<{ name: string; count: number }>;
-  verticals?: string[];
+  verticals: string[];
+  vertical_taxonomy?: {
+    verticals: Array<{ id: string; label: string; count: number }>;
+    sub_verticals?: Array<{ id: string; label: string; count: number }>;
+    leaves?: Array<{ id: string; label: string; count: number }>;
+  };
 }
 
 export interface CompanyBySlugResponse {
@@ -253,6 +270,10 @@ export const api = {
     if (filters.stage) searchParams.set('stage', filters.stage);
     if (filters.pattern) searchParams.set('pattern', filters.pattern);
     if (filters.continent) searchParams.set('continent', filters.continent);
+    if (filters.vertical) searchParams.set('vertical', filters.vertical);
+    if (filters.verticalId) searchParams.set('verticalId', filters.verticalId);
+    if (filters.subVerticalId) searchParams.set('subVerticalId', filters.subVerticalId);
+    if (filters.leafId) searchParams.set('leafId', filters.leafId);
     if (filters.minFunding) searchParams.set('minFunding', filters.minFunding.toString());
     if (filters.maxFunding) searchParams.set('maxFunding', filters.maxFunding.toString());
     if (filters.usesGenai !== undefined) searchParams.set('usesGenai', filters.usesGenai.toString());
@@ -266,8 +287,13 @@ export const api = {
   /**
    * Get available filter options for dealbook
    */
-  getDealbookFilters: (period = 'all'): Promise<DealbookFiltersResponse> =>
-    fetchFromAPI(`/api/v1/dealbook/filters?period=${period}`),
+  getDealbookFilters: (period = 'all', opts?: { verticalId?: string; subVerticalId?: string }): Promise<DealbookFiltersResponse> => {
+    const searchParams = new URLSearchParams();
+    searchParams.set('period', period);
+    if (opts?.verticalId) searchParams.set('verticalId', opts.verticalId);
+    if (opts?.subVerticalId) searchParams.set('subVerticalId', opts.subVerticalId);
+    return fetchFromAPI(`/api/v1/dealbook/filters?${searchParams.toString()}`);
+  },
 
   /**
    * Get company profile by slug (analysis data when available).

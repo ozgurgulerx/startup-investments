@@ -13,12 +13,20 @@ import { formatCurrency } from '../utils';
 
 const DATA_PATH = process.env.DATA_PATH || path.join(process.cwd(), 'data');
 
+function getDataPathForRegion(region?: string): string {
+  if (!region || region === 'global') return DATA_PATH;
+  // Turkey data is stored under DATA_PATH/tr on disk for historical reasons.
+  if (region === 'turkey' || region === 'tr') return path.join(DATA_PATH, 'tr');
+  return path.join(DATA_PATH, region);
+}
+
 /**
  * Get monthly brief - reads from pre-generated file for performance
  * Falls back to dynamic generation if file doesn't exist
  */
-export async function getMonthlyBrief(period: string): Promise<MonthlyBrief> {
-  const briefPath = path.join(DATA_PATH, period, 'output', 'monthly_brief.json');
+export async function getMonthlyBrief(period: string, region?: string): Promise<MonthlyBrief> {
+  const basePath = getDataPathForRegion(region);
+  const briefPath = path.join(basePath, period, 'output', 'monthly_brief.json');
 
   try {
     const content = await fs.readFile(briefPath, 'utf-8');
@@ -26,7 +34,7 @@ export async function getMonthlyBrief(period: string): Promise<MonthlyBrief> {
   } catch {
     // Fall back to dynamic generation if file doesn't exist
     console.log(`Pre-generated brief not found for ${period}, generating dynamically...`);
-    return generateMonthlyBrief(period);
+    return generateMonthlyBrief(period, region);
   }
 }
 
@@ -72,10 +80,10 @@ function formatMonthDisplay(period: string): { month: string; year: string } {
 /**
  * Generate the complete monthly brief from existing data
  */
-export async function generateMonthlyBrief(period: string): Promise<MonthlyBrief> {
+export async function generateMonthlyBrief(period: string, region?: string): Promise<MonthlyBrief> {
   const [stats, startups] = await Promise.all([
-    getMonthlyStats(period),
-    getStartups(period),
+    getMonthlyStats(period, region),
+    getStartups(period, region),
   ]);
 
   const { month, year } = formatMonthDisplay(period);

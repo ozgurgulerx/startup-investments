@@ -286,19 +286,19 @@ export default function WatchlistPage() {
         </h3>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start gap-2">
-            <span className="text-accent">-</span>
+            <span className="text-accent-info">-</span>
             Track unlimited companies across all verticals
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-accent">-</span>
+            <span className="text-accent-info">-</span>
             See changes and updates for your tracked companies
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-accent">-</span>
+            <span className="text-accent-info">-</span>
             Compare your portfolio against market baseline
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-accent">-</span>
+            <span className="text-accent-info">-</span>
             Export your watchlist as a markdown memo
           </li>
         </ul>
@@ -323,12 +323,12 @@ function WatchlistItem({
           <div className="flex items-center gap-2">
             <Link
               href={`/company/${item.companySlug}`}
-              className="text-sm font-medium text-foreground hover:text-accent transition-colors"
+              className="text-sm font-medium text-foreground hover:text-accent-info transition-colors"
             >
               {item.companyName}
             </Link>
             {startupData?.uses_genai && (
-              <span className="px-1.5 py-0.5 text-[10px] bg-accent/10 text-accent rounded">
+              <span className="px-1.5 py-0.5 text-[10px] bg-accent-info/10 text-accent-info rounded">
                 GenAI
               </span>
             )}

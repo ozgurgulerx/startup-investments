@@ -20,7 +20,9 @@ const DATA_PATH = process.env.DATA_PATH || path.join(process.cwd(), 'data');
  */
 function getDataPath(region?: string): string {
   const r = normalizeDatasetRegion(region);
-  return r !== 'global' ? path.join(DATA_PATH, r) : DATA_PATH;
+  // Turkey data is stored under DATA_PATH/tr on disk for historical reasons.
+  const folder = r === 'turkey' ? 'tr' : null;
+  return folder ? path.join(DATA_PATH, folder) : DATA_PATH;
 }
 
 /** Build a cache key that includes the region prefix */
@@ -375,6 +377,8 @@ export async function getStartups(period: string, region?: string): Promise<Star
         vertical: s.vertical || undefined,
         market_type: s.market_type || undefined,
         sub_vertical: s.sub_vertical || undefined,
+        sub_sub_vertical: s.sub_sub_vertical || undefined,
+        vertical_taxonomy: s.vertical_taxonomy || undefined,
         funding_amount: s.funding_amount || undefined,
         funding_stage: s.funding_stage || undefined,
         uses_genai: s.uses_genai,
@@ -468,6 +472,18 @@ export async function getStartupsPaginated(
     const selectedVertical = normalizeStageKey(options.vertical);
     filtered = filtered.filter(s => normalizeStageKey(s.vertical) === selectedVertical);
   }
+  if (options.verticalId) {
+    const vId = options.verticalId;
+    filtered = filtered.filter(s => (s.vertical_taxonomy?.primary?.vertical_id || '') === vId);
+  }
+  if (options.subVerticalId) {
+    const svId = options.subVerticalId;
+    filtered = filtered.filter(s => (s.vertical_taxonomy?.primary?.sub_vertical_id || '') === svId);
+  }
+  if (options.leafId) {
+    const leafId = options.leafId;
+    filtered = filtered.filter(s => (s.vertical_taxonomy?.primary?.leaf_id || '') === leafId);
+  }
   if (options.minFunding !== undefined) {
     filtered = filtered.filter(s => (s.funding_amount || 0) >= options.minFunding!);
   }
@@ -483,7 +499,8 @@ export async function getStartupsPaginated(
       s.company_name.toLowerCase().includes(searchLower) ||
       (s.description || '').toLowerCase().includes(searchLower) ||
       (s.vertical || '').toLowerCase().includes(searchLower) ||
-      (s.sub_vertical || '').toLowerCase().includes(searchLower)
+      (s.sub_vertical || '').toLowerCase().includes(searchLower) ||
+      (s.sub_sub_vertical || '').toLowerCase().includes(searchLower)
     );
   }
 
@@ -527,19 +544,30 @@ export async function getStartupsPaginated(
 /**
  * Get available filter options for a period
  */
-export async function getFilterOptions(period: string, region?: string): Promise<{
+export async function getFilterOptions(
+  period: string,
+  region?: string,
+  opts?: { verticalId?: string; subVerticalId?: string }
+): Promise<{
   stages: string[];
   continents: string[];
   patterns: Array<{ name: string; count: number }>;
   verticals: string[];
+  vertical_taxonomy?: {
+    verticals: Array<{ id: string; label: string; count: number }>;
+    sub_verticals?: Array<{ id: string; label: string; count: number }>;
+    leaves?: Array<{ id: string; label: string; count: number }>;
+  };
 }> {
+  // Optional cascading taxonomy selection (only affects which sub/leaf options we return).
+  const taxonomyVerticalId = opts?.verticalId;
+  const taxonomySubVerticalId = opts?.subVerticalId;
   const isRegional = region && region !== 'global';
 
   // Try API first if configured (API only has global data)
   if (!isRegional && isAPIConfigured()) {
     try {
-      const apiFilters = await api.getDealbookFilters(period);
-      return { ...apiFilters, verticals: apiFilters.verticals ?? [] };
+      return await api.getDealbookFilters(period, { verticalId: taxonomyVerticalId, subVerticalId: taxonomySubVerticalId });
     } catch (error) {
       console.error('API request failed, falling back to file-based data:', error);
     }
@@ -552,6 +580,9 @@ export async function getFilterOptions(period: string, region?: string): Promise
   const continentSet = new Set<string>();
   const patternMap = new Map<string, number>();
   const verticalSet = new Set<string>();
+  const taxonomyVerticalMap = new Map<string, { id: string; label: string; count: number }>();
+  const taxonomySubMap = new Map<string, { id: string; label: string; count: number }>();
+  const taxonomyLeafMap = new Map<string, { id: string; label: string; count: number }>();
 
   for (const startup of startups) {
     if (startup.funding_stage) stageSet.add(startup.funding_stage);
@@ -571,6 +602,32 @@ export async function getFilterOptions(period: string, region?: string): Promise
     }
 
     if (startup.vertical) verticalSet.add(startup.vertical);
+
+    const primary = startup.vertical_taxonomy?.primary;
+    const vId = primary?.vertical_id || undefined;
+    const vLabel = primary?.vertical_label || undefined;
+    const svId = primary?.sub_vertical_id || undefined;
+    const svLabel = primary?.sub_vertical_label || undefined;
+    const leafId = primary?.leaf_id || undefined;
+    const leafLabel = primary?.leaf_label || undefined;
+
+    if (vId && vLabel) {
+      const curr = taxonomyVerticalMap.get(vId) || { id: vId, label: vLabel, count: 0 };
+      curr.count += 1;
+      taxonomyVerticalMap.set(vId, curr);
+    }
+
+    if (taxonomyVerticalId && vId === taxonomyVerticalId && svId && svLabel) {
+      const curr = taxonomySubMap.get(svId) || { id: svId, label: svLabel, count: 0 };
+      curr.count += 1;
+      taxonomySubMap.set(svId, curr);
+    }
+
+    if (taxonomySubVerticalId && svId === taxonomySubVerticalId && leafId && leafLabel) {
+      const curr = taxonomyLeafMap.get(leafId) || { id: leafId, label: leafLabel, count: 0 };
+      curr.count += 1;
+      taxonomyLeafMap.set(leafId, curr);
+    }
   }
 
   return {
@@ -580,6 +637,11 @@ export async function getFilterOptions(period: string, region?: string): Promise
       .sort((a, b) => b[1] - a[1])
       .map(([name, count]) => ({ name, count })),
     verticals: Array.from(verticalSet).sort(),
+    vertical_taxonomy: {
+      verticals: Array.from(taxonomyVerticalMap.values()).sort((a, b) => b.count - a.count),
+      sub_verticals: Array.from(taxonomySubMap.values()).sort((a, b) => b.count - a.count),
+      leaves: Array.from(taxonomyLeafMap.values()).sort((a, b) => b.count - a.count),
+    },
   };
 }
 

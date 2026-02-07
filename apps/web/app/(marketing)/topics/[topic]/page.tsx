@@ -83,7 +83,7 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
             </section>
 
             <section className="mt-8">
-              <NewsSubscriptionCard />
+              <NewsSubscriptionCard region="global" />
             </section>
           </>
         )}

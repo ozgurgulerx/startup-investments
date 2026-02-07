@@ -104,7 +104,7 @@ export default function LandingPage() {
                     <Link
                       key={chip.param}
                       href={`/dealbook?pattern=${encodeURIComponent(chip.param)}&month=all`}
-                      className="inline-flex items-center px-3 py-1.5 text-xs rounded-full border border-accent/25 bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                      className="inline-flex items-center px-3 py-1.5 text-xs rounded-full border border-accent-info/25 bg-accent-info/10 text-accent-info hover:bg-accent-info/20 transition-colors"
                     >
                       {chip.label}
                     </Link>
@@ -139,7 +139,7 @@ export default function LandingPage() {
 
             <div className="lg:col-span-4">
               <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-card via-card to-emerald-400/10 p-5 shadow-[0_14px_40px_rgba(0,0,0,0.22)]">
-                <p className="label-xs text-accent mb-3">What You Track</p>
+                <p className="label-xs text-accent-info mb-3">What You Track</p>
                 <ul className="space-y-3">
                   {copy.heroBullets.slice(0, 3).map((bullet, index) => (
                     <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground leading-relaxed">
@@ -206,8 +206,8 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="p-6 border border-border/30 rounded-lg">
-              <div className="w-10 h-10 mb-4 rounded bg-accent/10 flex items-center justify-center">
-                <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-10 h-10 mb-4 rounded bg-accent-info/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
@@ -218,8 +218,8 @@ export default function LandingPage() {
             </div>
 
             <div className="p-6 border border-border/30 rounded-lg">
-              <div className="w-10 h-10 mb-4 rounded bg-accent/10 flex items-center justify-center">
-                <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-10 h-10 mb-4 rounded bg-accent-info/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
@@ -230,8 +230,8 @@ export default function LandingPage() {
             </div>
 
             <div className="p-6 border border-border/30 rounded-lg">
-              <div className="w-10 h-10 mb-4 rounded bg-accent/10 flex items-center justify-center">
-                <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-10 h-10 mb-4 rounded bg-accent-info/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
@@ -260,7 +260,7 @@ export default function LandingPage() {
           <div className="max-w-3xl mx-auto p-8 bg-card border border-border/30 rounded-lg relative overflow-hidden">
             {/* Accent left border */}
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-accent via-accent/60 to-accent/20" />
-            <div className="label-xs text-accent mb-4">JANUARY 2026 BRIEF</div>
+            <div className="label-xs text-accent-info mb-4">JANUARY 2026 BRIEF</div>
             <h3 className="text-xl font-light text-foreground mb-4 leading-relaxed">
               Agentic architectures dominate new funding, with <span className="text-accent">{METRICS.genai.value}</span> of startups building
               on generative AI infrastructure and multi-model orchestration.
@@ -291,8 +291,8 @@ export default function LandingPage() {
       {!session?.user && (
         <section id="personalize" className="py-20 px-6">
           <div className="max-w-2xl mx-auto text-center">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent/10 flex items-center justify-center">
-              <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent-info/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -324,8 +324,8 @@ export default function LandingPage() {
       {session?.user && (
         <section id="personalize" className="py-20 px-6">
           <div className="max-w-2xl mx-auto text-center">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent/10 flex items-center justify-center">
-              <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent-info/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
               </svg>
             </div>
@@ -366,7 +366,7 @@ export default function LandingPage() {
           </p>
           <Link
             href="/methodology"
-            className="inline-flex items-center gap-2 text-accent hover:text-accent/80 transition-colors"
+            className="inline-flex items-center gap-2 text-accent-info hover:text-accent-info/80 transition-colors"
           >
             Read our methodology
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -399,12 +399,12 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <BrandMark size="sm" variant="muted" />
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <Link href="/methodology" className="hover:text-accent transition-colors">Methodology</Link>
-            <Link href="/news" className="hover:text-accent transition-colors">Signal Feed</Link>
-            <Link href="/brief" className="hover:text-accent transition-colors">Brief</Link>
-            <Link href="/dealbook" className="hover:text-accent transition-colors">Dossiers</Link>
-            <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+            <Link href="/methodology" className="hover:text-accent-info transition-colors">Methodology</Link>
+            <Link href="/news" className="hover:text-accent-info transition-colors">Signal Feed</Link>
+            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
+            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
+            <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas

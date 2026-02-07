@@ -4,18 +4,19 @@ import { getMonthlyBrief } from '@/lib/data/generate-monthly-brief';
 import { getAvailablePeriods, getMonthlyStats } from '@/lib/data';
 import { StaticSignalStrip } from '@/components/features/signal-strip';
 import { formatCurrency } from '@/lib/utils';
+import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 
 const FALLBACK_PERIOD = '2026-01';
 
-async function BriefContent() {
+async function BriefContent({ region }: { region?: string }) {
   // Dynamically resolve latest period
-  const allPeriods = await getAvailablePeriods();
+  const allPeriods = await getAvailablePeriods(region);
   const latestPeriod = allPeriods[0]?.period || FALLBACK_PERIOD;
 
   // Load brief and stats only - startups loaded lazily in drawer
   const [brief, stats] = await Promise.all([
-    getMonthlyBrief(latestPeriod),
-    getMonthlyStats(latestPeriod),
+    getMonthlyBrief(latestPeriod, region),
+    getMonthlyStats(latestPeriod, region),
   ]);
 
   // Filter to periods with newsletters/briefs
@@ -81,10 +82,18 @@ function BriefLoading() {
   );
 }
 
-export default function BriefPage() {
+export default async function BriefPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ region?: string }>;
+}) {
+  const { region } = await searchParams;
+
   return (
-    <Suspense fallback={<BriefLoading />}>
-      <BriefContent />
-    </Suspense>
+    <ReadingWrapper>
+      <Suspense fallback={<BriefLoading />}>
+        <BriefContent region={region} />
+      </Suspense>
+    </ReadingWrapper>
   );
 }

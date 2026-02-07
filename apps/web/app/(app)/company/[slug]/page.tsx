@@ -15,6 +15,7 @@ import {
   getStartups,
 } from '@/lib/data';
 import { formatCurrency } from '@/lib/utils';
+import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -124,21 +125,27 @@ function getConviction(pattern: any, totalPatterns: number): 'high' | 'medium' |
 
 interface PageProps {
   params: { slug: string };
+  searchParams: Promise<{
+    region?: string;
+  }>;
 }
 
-async function CompanyBriefContent({ slug }: { slug: string }) {
+async function CompanyBriefContent({ slug, region }: { slug: string; region?: string }) {
   // Dynamically resolve latest period
-  const availablePeriods = await getAvailablePeriods();
+  const availablePeriods = await getAvailablePeriods(region);
   const period = availablePeriods[0]?.period || FALLBACK_PERIOD;
 
-  const startup = await getStartup(period, slug);
+  const startup = await getStartup(period, slug, region);
 
   if (!startup) {
     // Don't 404: the dealbook can show records that don't yet have full analysis materialized.
+    const dealbookHref = region && region !== 'global'
+      ? `/dealbook?region=${encodeURIComponent(region)}`
+      : '/dealbook';
     return (
       <>
         <Link
-          href="/dealbook"
+          href={dealbookHref}
           className="inline-block text-xs text-muted-foreground hover:text-foreground transition-colors mb-8"
         >
           ← Dealbook
@@ -166,12 +173,17 @@ async function CompanyBriefContent({ slug }: { slug: string }) {
     : secretSauce?.core_advantage;
 
   const competitors = startup.competitive_analysis?.competitors?.slice(0, 3) || [];
+  const dealbookHref = region && region !== 'global'
+    ? `/dealbook?region=${encodeURIComponent(region)}`
+    : '/dealbook';
+  // Keep this as a single expression to avoid any TSX parser edge-cases with leading-dot chaining.
+  const verticalChain = [startup.vertical, startup.sub_vertical, startup.sub_sub_vertical].filter(Boolean).map((v: any) => String(v).replace(/_/g, ' ')).join(' / ');
 
   return (
     <>
       {/* Back navigation - quiet */}
       <Link
-        href="/dealbook"
+        href={dealbookHref}
         className="inline-block text-xs text-muted-foreground hover:text-foreground transition-colors mb-8"
       >
         ← Dealbook
@@ -236,9 +248,9 @@ async function CompanyBriefContent({ slug }: { slug: string }) {
           )}
           {startup.market_type === 'horizontal' ? (
             <span>Horizontal AI</span>
-          ) : startup.vertical && (
-            <span>{startup.vertical.replace(/_/g, ' ')}</span>
-          )}
+          ) : verticalChain ? (
+            <span>{verticalChain}</span>
+          ) : null}
           {startup.uses_genai && startup.genai_intensity && (
             <span>GenAI: {startup.genai_intensity}</span>
           )}
@@ -878,10 +890,14 @@ export async function generateStaticParams() {
   return Array.from(slugSet).map((slug) => ({ slug }));
 }
 
-export default function CompanyBriefPage({ params }: PageProps) {
+export default async function CompanyBriefPage({ params, searchParams }: PageProps) {
+  const sp = await searchParams;
+  const region = sp.region || 'global';
   return (
-    <Suspense fallback={<CompanyBriefLoading />}>
-      <CompanyBriefContent slug={params.slug} />
-    </Suspense>
+    <ReadingWrapper>
+      <Suspense fallback={<CompanyBriefLoading />}>
+        <CompanyBriefContent slug={params.slug} region={region} />
+      </Suspense>
+    </ReadingWrapper>
   );
 }

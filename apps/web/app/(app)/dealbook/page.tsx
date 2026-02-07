@@ -20,10 +20,15 @@ interface PageProps {
   searchParams: Promise<{
     page?: string;
     month?: string;
+    region?: string;
     sort?: string;
     stage?: string;
     pattern?: string;
     continent?: string;
+    vertical?: string;
+    verticalId?: string;
+    subVerticalId?: string;
+    leafId?: string;
     minFunding?: string;
     maxFunding?: string;
     usesGenai?: string;
@@ -33,9 +38,10 @@ interface PageProps {
 
 async function DealbookContent({ searchParams }: { searchParams: PageProps['searchParams'] }) {
   const params = await searchParams;
+  const region = params.region || 'global';
 
   // Get available periods and determine selected month
-  const availablePeriods = await getAvailablePeriods();
+  const availablePeriods = await getAvailablePeriods(region);
   const latestPeriod = availablePeriods[0]?.period || FALLBACK_PERIOD;
 
   // If the user applies filters without explicitly choosing a month,
@@ -46,6 +52,10 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
       params.stage ||
       params.pattern ||
       params.continent ||
+      params.vertical ||
+      params.verticalId ||
+      params.subVerticalId ||
+      params.leafId ||
       params.minFunding ||
       params.maxFunding ||
       params.usesGenai ||
@@ -54,11 +64,16 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   if (hasAnyFilterWithoutMonth) {
     const nextParams = new URLSearchParams();
     nextParams.set('month', 'all');
+    if (params.region) nextParams.set('region', params.region);
     if (params.page) nextParams.set('page', params.page);
     if (params.sort) nextParams.set('sort', params.sort);
     if (params.stage) nextParams.set('stage', params.stage);
     if (params.pattern) nextParams.set('pattern', params.pattern);
     if (params.continent) nextParams.set('continent', params.continent);
+    if (params.vertical) nextParams.set('vertical', params.vertical);
+    if (params.verticalId) nextParams.set('verticalId', params.verticalId);
+    if (params.subVerticalId) nextParams.set('subVerticalId', params.subVerticalId);
+    if (params.leafId) nextParams.set('leafId', params.leafId);
     if (params.minFunding) nextParams.set('minFunding', params.minFunding);
     if (params.maxFunding) nextParams.set('maxFunding', params.maxFunding);
     if (params.usesGenai) nextParams.set('usesGenai', params.usesGenai);
@@ -89,6 +104,10 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
     stage: params.stage,
     pattern: params.pattern,
     continent: params.continent,
+    vertical: params.vertical,
+    verticalId: params.verticalId,
+    subVerticalId: params.subVerticalId,
+    leafId: params.leafId,
     minFunding: params.minFunding ? parseInt(params.minFunding, 10) : undefined,
     maxFunding: params.maxFunding ? parseInt(params.maxFunding, 10) : undefined,
     usesGenai: params.usesGenai === 'true' ? true : params.usesGenai === 'false' ? false : undefined,
@@ -100,10 +119,11 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
     getStartupsPaginated(selectedMonth, {
       page,
       limit: DEFAULT_LIMIT,
+      region,
       ...filters,
     }),
-    getFilterOptions(selectedMonth),
-    getMonthlyStats(statsPeriod),
+    getFilterOptions(selectedMonth, region, { verticalId: params.verticalId, subVerticalId: params.subVerticalId }),
+    getMonthlyStats(statsPeriod, region),
     auth(),
   ]);
 
@@ -127,12 +147,19 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   if (params.month && params.month !== latestPeriod) {
     currentSearchParams.month = params.month;
   }
+  if (params.region && params.region !== 'global') {
+    currentSearchParams.region = params.region;
+  }
   if (params.sort && params.sort !== 'funding_desc') {
     currentSearchParams.sort = params.sort;
   }
   if (filters.stage) currentSearchParams.stage = filters.stage;
   if (filters.pattern) currentSearchParams.pattern = filters.pattern;
   if (filters.continent) currentSearchParams.continent = filters.continent;
+  if (filters.vertical) currentSearchParams.vertical = filters.vertical;
+  if (filters.verticalId) currentSearchParams.verticalId = filters.verticalId;
+  if (filters.subVerticalId) currentSearchParams.subVerticalId = filters.subVerticalId;
+  if (filters.leafId) currentSearchParams.leafId = filters.leafId;
   if (filters.minFunding) currentSearchParams.minFunding = filters.minFunding.toString();
   if (filters.maxFunding) currentSearchParams.maxFunding = filters.maxFunding.toString();
   if (filters.usesGenai !== undefined) currentSearchParams.usesGenai = filters.usesGenai.toString();
@@ -152,6 +179,7 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
         hasUrlFilters={hasFilters}
         selectedMonth={selectedMonth}
         availablePeriods={availablePeriods}
+        region={region}
       />
 
       {/* Pagination controls */}

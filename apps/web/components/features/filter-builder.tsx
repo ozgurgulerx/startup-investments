@@ -25,6 +25,7 @@ export interface FilterBuilderProps {
   availablePatterns: string[];
   availableStages: string[];
   availableContinents: string[];
+  availableVerticals: string[];
   savedFilters: SavedFilter[];
   onFilterApply: (query: FilterQuery) => void;
   onFilterSave: (name: string, query: FilterQuery, alertsEnabled: boolean) => Promise<void>;
@@ -143,6 +144,7 @@ function ActiveFilters({
     (query.stages?.length ?? 0) > 0 ||
     (query.patterns?.length ?? 0) > 0 ||
     (query.continents?.length ?? 0) > 0 ||
+    (query.verticals?.length ?? 0) > 0 ||
     query.fundingMin !== undefined ||
     query.fundingMax !== undefined ||
     query.usesGenai !== undefined;
@@ -175,6 +177,15 @@ function ActiveFilters({
         <Badge key={continent} variant="secondary" className="gap-1">
           {continent}
           <button onClick={() => onClear('continents', continent)} className="hover:text-destructive">
+            <X className="h-3 w-3" />
+          </button>
+        </Badge>
+      ))}
+
+      {query.verticals?.map(vertical => (
+        <Badge key={vertical} variant="secondary" className="gap-1">
+          {vertical}
+          <button onClick={() => onClear('verticals', vertical)} className="hover:text-destructive">
             <X className="h-3 w-3" />
           </button>
         </Badge>
@@ -228,6 +239,7 @@ export function FilterBuilder({
   availablePatterns,
   availableStages,
   availableContinents,
+  availableVerticals,
   savedFilters,
   onFilterApply,
   onFilterSave,
@@ -378,6 +390,14 @@ export function FilterBuilder({
               options={availableContinents}
               selected={query.continents || []}
               onChange={(continents) => updateQuery({ continents })}
+            />
+
+            {/* Vertical Filter */}
+            <ChipSelect
+              label="Vertical"
+              options={availableVerticals}
+              selected={query.verticals || []}
+              onChange={(verticals) => updateQuery({ verticals })}
             />
 
             {/* Funding Range */}

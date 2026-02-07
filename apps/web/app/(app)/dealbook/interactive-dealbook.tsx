@@ -26,6 +26,10 @@ interface UrlFilters {
   stage?: string;
   pattern?: string;
   continent?: string;
+  vertical?: string;
+  verticalId?: string;
+  subVerticalId?: string;
+  leafId?: string;
   minFunding?: number;
   maxFunding?: number;
   usesGenai?: boolean;
@@ -43,6 +47,12 @@ interface FilterOptions {
   stages: string[];
   continents: string[];
   patterns: Array<{ name: string; count: number }>;
+  verticals: string[];
+  vertical_taxonomy?: {
+    verticals: Array<{ id: string; label: string; count: number }>;
+    sub_verticals?: Array<{ id: string; label: string; count: number }>;
+    leaves?: Array<{ id: string; label: string; count: number }>;
+  };
 }
 
 interface InteractiveDealbookProps {
@@ -55,7 +65,13 @@ interface InteractiveDealbookProps {
   hasUrlFilters?: boolean;
   selectedMonth?: string;
   availablePeriods?: PeriodInfo[];
+  region?: string;
 }
+
+const REGION_LABELS: Record<string, string> = {
+  global: 'Dealbook',
+  turkey: 'Turkey Dealbook',
+};
 
 export function InteractiveDealbook({
   startups,
@@ -67,6 +83,7 @@ export function InteractiveDealbook({
   hasUrlFilters = false,
   selectedMonth,
   availablePeriods = [],
+  region = 'global',
 }: InteractiveDealbookProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -91,6 +108,33 @@ export function InteractiveDealbook({
     [filterOptions]
   );
 
+  const availableVerticals = useMemo(
+    () => filterOptions?.verticals || [],
+    [filterOptions]
+  );
+
+  const taxonomyVerticals = useMemo(
+    () => filterOptions?.vertical_taxonomy?.verticals || [],
+    [filterOptions]
+  );
+  const taxonomySubVerticals = useMemo(
+    () => filterOptions?.vertical_taxonomy?.sub_verticals || [],
+    [filterOptions]
+  );
+  const taxonomyLeaves = useMemo(
+    () => filterOptions?.vertical_taxonomy?.leaves || [],
+    [filterOptions]
+  );
+
+  const taxonomyLabelFor = useCallback((id: string | undefined) => {
+    if (!id) return undefined;
+    const match =
+      taxonomyLeaves.find(o => o.id === id) ||
+      taxonomySubVerticals.find(o => o.id === id) ||
+      taxonomyVerticals.find(o => o.id === id);
+    return match?.label || id;
+  }, [taxonomyLeaves, taxonomySubVerticals, taxonomyVerticals]);
+
   // Initialize activeQuery from URL filters, resolving slugs to canonical display names
   useEffect(() => {
     if (urlFilters) {
@@ -104,12 +148,18 @@ export function InteractiveDealbook({
       if (urlFilters.continent) {
         query.continents = [resolveToCanonical(urlFilters.continent, availableContinents)];
       }
+      if (urlFilters.vertical) {
+        query.verticals = [resolveToCanonical(urlFilters.vertical, availableVerticals)];
+      }
+      if (urlFilters.verticalId) query.verticalId = urlFilters.verticalId;
+      if (urlFilters.subVerticalId) query.subVerticalId = urlFilters.subVerticalId;
+      if (urlFilters.leafId) query.leafId = urlFilters.leafId;
       if (urlFilters.minFunding) query.fundingMin = urlFilters.minFunding;
       if (urlFilters.maxFunding) query.fundingMax = urlFilters.maxFunding;
       if (urlFilters.usesGenai !== undefined) query.usesGenai = urlFilters.usesGenai;
       setActiveQuery(query);
     }
-  }, [urlFilters, availableStages, availablePatterns, availableContinents]);
+  }, [urlFilters, availableStages, availablePatterns, availableContinents, availableVerticals]);
 
   // Calculate totals - use pagination total if available (server-side filtered)
   const filteredTotals = useMemo(() => {
@@ -127,6 +177,9 @@ export function InteractiveDealbook({
   const updateUrlWithFilters = useCallback((query: FilterQuery) => {
     const params = new URLSearchParams();
 
+    // Preserve region parameter
+    if (region !== 'global') params.set('region', region);
+
     // Preserve the month parameter if it's set (non-default)
     const currentMonth = searchParams.get('month');
     if (currentMonth) params.set('month', currentMonth);
@@ -134,13 +187,17 @@ export function InteractiveDealbook({
     if (query.stages?.length === 1) params.set('stage', query.stages[0]);
     if (query.patterns?.length === 1) params.set('pattern', query.patterns[0]);
     if (query.continents?.length === 1) params.set('continent', query.continents[0]);
+    if (query.verticals?.length === 1) params.set('vertical', query.verticals[0]);
+    if (query.verticalId) params.set('verticalId', query.verticalId);
+    if (query.subVerticalId) params.set('subVerticalId', query.subVerticalId);
+    if (query.leafId) params.set('leafId', query.leafId);
     if (query.fundingMin) params.set('minFunding', query.fundingMin.toString());
     if (query.fundingMax) params.set('maxFunding', query.fundingMax.toString());
     if (query.usesGenai !== undefined) params.set('usesGenai', query.usesGenai.toString());
 
     const queryString = params.toString();
     router.push(queryString ? `/dealbook?${queryString}` : '/dealbook');
-  }, [router, searchParams]);
+  }, [router, searchParams, region]);
 
   const handleFilterApply = useCallback((query: FilterQuery) => {
     setActiveQuery(query);
@@ -213,6 +270,10 @@ export function InteractiveDealbook({
     if (urlFilters?.stage) count++;
     if (urlFilters?.pattern) count++;
     if (urlFilters?.continent) count++;
+    if (urlFilters?.vertical) count++;
+    if (urlFilters?.verticalId) count++;
+    if (urlFilters?.subVerticalId) count++;
+    if (urlFilters?.leafId) count++;
     if (urlFilters?.minFunding || urlFilters?.maxFunding) count++;
     if (urlFilters?.usesGenai !== undefined) count++;
     return count;
@@ -225,9 +286,13 @@ export function InteractiveDealbook({
     if (urlFilters?.pattern) badges.push({ label: 'Pattern', value: resolveToCanonical(urlFilters.pattern, availablePatterns), param: 'pattern' });
     if (urlFilters?.stage) badges.push({ label: 'Stage', value: resolveToCanonical(urlFilters.stage, availableStages), param: 'stage' });
     if (urlFilters?.continent) badges.push({ label: 'Region', value: resolveToCanonical(urlFilters.continent, availableContinents), param: 'continent' });
+    if (urlFilters?.vertical) badges.push({ label: 'Vertical', value: resolveToCanonical(urlFilters.vertical, availableVerticals), param: 'vertical' });
+    if (urlFilters?.verticalId) badges.push({ label: 'Industry', value: taxonomyLabelFor(urlFilters.verticalId) || urlFilters.verticalId, param: 'verticalId' });
+    if (urlFilters?.subVerticalId) badges.push({ label: 'Sub-vertical', value: taxonomyLabelFor(urlFilters.subVerticalId) || urlFilters.subVerticalId, param: 'subVerticalId' });
+    if (urlFilters?.leafId) badges.push({ label: 'Category', value: taxonomyLabelFor(urlFilters.leafId) || urlFilters.leafId, param: 'leafId' });
     if (urlFilters?.usesGenai !== undefined) badges.push({ label: 'GenAI', value: urlFilters.usesGenai ? 'Yes' : 'No', param: 'usesGenai' });
     return badges;
-  }, [urlFilters, availablePatterns, availableStages, availableContinents]);
+  }, [urlFilters, availablePatterns, availableStages, availableContinents, availableVerticals, taxonomyLabelFor]);
 
   // Build URL without a specific filter
   const buildUrlWithoutFilter = (paramToRemove: string) => {
@@ -243,7 +308,7 @@ export function InteractiveDealbook({
       {/* Page Header */}
       <header className="briefing-header">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <span className="briefing-date">Dealbook</span>
+          <span className="briefing-date">{REGION_LABELS[region] || 'Dealbook'}</span>
           {selectedMonth && availablePeriods.length > 0 && (
             <MonthSelector
               selectedMonth={selectedMonth}
@@ -298,7 +363,14 @@ export function InteractiveDealbook({
           ))}
           {activeFilterBadges.length > 1 && (
             <Link
-              href={searchParams.get('month') ? `/dealbook?month=${searchParams.get('month')}` : '/dealbook'}
+              href={(() => {
+                const p = new URLSearchParams();
+                if (region !== 'global') p.set('region', region);
+                const m = searchParams.get('month');
+                if (m) p.set('month', m);
+                const qs = p.toString();
+                return qs ? `/dealbook?${qs}` : '/dealbook';
+              })()}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/40 bg-muted/30 text-muted-foreground text-sm hover:bg-muted/50 transition-colors"
             >
               Clear all
@@ -314,6 +386,7 @@ export function InteractiveDealbook({
           availablePatterns={availablePatterns}
           availableStages={availableStages}
           availableContinents={availableContinents}
+          availableVerticals={availableVerticals}
           savedFilters={savedFilters}
           onFilterApply={handleFilterApply}
           onFilterSave={handleFilterSave}
@@ -334,6 +407,7 @@ export function InteractiveDealbook({
             availablePatterns={availablePatterns}
             availableStages={availableStages}
             availableContinents={availableContinents}
+            availableVerticals={availableVerticals}
             savedFilters={savedFilters}
             onFilterApply={(query) => {
               handleFilterApply(query);

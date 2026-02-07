@@ -62,15 +62,15 @@ export default function PrivacyPage() {
               </p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   <strong className="text-foreground">Account information:</strong> Email address if you choose to create an account
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   <strong className="text-foreground">Usage data:</strong> Pages visited and features used to improve our service
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   <strong className="text-foreground">Preferences:</strong> Watchlist items and saved filters if you have an account
                 </li>
               </ul>
@@ -83,19 +83,19 @@ export default function PrivacyPage() {
               </p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Provide and maintain our service
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Save your watchlists and preferences
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Improve our content and features
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Send service-related communications (optional)
                 </li>
               </ul>
@@ -134,19 +134,19 @@ export default function PrivacyPage() {
               </p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Access your personal data
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Request deletion of your account and data
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Export your watchlist and preferences
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-accent">-</span>
+                  <span className="text-accent-info">-</span>
                   Opt out of non-essential communications
                 </li>
               </ul>
@@ -199,10 +199,10 @@ export default function PrivacyPage() {
             <span className="text-sm font-medium text-foreground">Build Atlas</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <Link href="/methodology" className="hover:text-accent transition-colors">Methodology</Link>
-            <Link href="/brief" className="hover:text-accent transition-colors">Brief</Link>
-            <Link href="/dealbook" className="hover:text-accent transition-colors">Dossiers</Link>
-            <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
+            <Link href="/methodology" className="hover:text-accent-info transition-colors">Methodology</Link>
+            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
+            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
+            <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
             <Link href="/privacy" className="text-foreground">Privacy</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">

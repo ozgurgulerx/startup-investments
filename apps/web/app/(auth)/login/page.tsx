@@ -92,7 +92,7 @@ function LoginPageContent() {
             <div className="pt-6 border-t border-border/30">
               <p className="body-sm text-center">
                 Don&apos;t have an account?{' '}
-                <Link href="/dealbook" className="text-foreground hover:text-accent transition-colors">
+                <Link href="/dealbook" className="text-foreground hover:text-accent-info transition-colors">
                   {copy.primaryCTA}
                 </Link>
               </p>

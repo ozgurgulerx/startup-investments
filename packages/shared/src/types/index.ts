@@ -367,6 +367,28 @@ export interface StartupAnalysis {
   market_type?: MarketType;
   vertical?: Vertical;
   sub_vertical?: string;
+  sub_sub_vertical?: string;
+  /**
+   * Flexible, versioned vertical taxonomy (supports arbitrary depth).
+   * Stored in DB under startups.analysis_data.vertical_taxonomy.
+   */
+  vertical_taxonomy?: {
+    ontology_id?: string;
+    ontology_version?: string;
+    primary?: {
+      vertical_id?: string | null;
+      vertical_label?: string | null;
+      sub_vertical_id?: string | null;
+      sub_vertical_label?: string | null;
+      leaf_id?: string | null;
+      leaf_label?: string | null;
+    };
+    path?: Array<{
+      id: string;
+      label: string;
+      confidence?: number;
+    }>;
+  };
   target_market?: TargetMarket;
 
   // Technical

@@ -128,7 +128,7 @@ export function MonthSelector({
           className={cn(
             'flex items-center gap-2 px-3 py-1.5 rounded transition-colors duration-150',
             'text-sm font-medium',
-            'border border-border/35 bg-card/35 hover:bg-muted/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent/70'
+            'border border-border/35 bg-card/35 hover:bg-muted/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/70'
           )}
         >
           <span>{formatMonthLabel(selectedMonth)}</span>

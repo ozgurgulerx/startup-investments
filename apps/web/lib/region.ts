@@ -1,15 +1,14 @@
-export type DatasetRegion = 'global' | 'tr';
+export type DatasetRegion = 'global' | 'turkey';
 
 /**
  * Normalize the dataset region used across the site.
  *
  * We accept a couple of aliases for compatibility:
- * - `turkey` (human-friendly) maps to `tr` (the on-disk data folder name)
+ * - `tr` (legacy) maps to `turkey`
  * - unknown/missing values default to `global`
  */
 export function normalizeDatasetRegion(input?: string | null): DatasetRegion {
   const raw = (input || '').toLowerCase().trim();
-  if (raw === 'tr' || raw === 'turkey') return 'tr';
+  if (raw === 'tr' || raw === 'turkey') return 'turkey';
   return 'global';
 }
-

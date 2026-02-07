@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { WatchlistButton } from '@/components/ui/watchlist-button';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { ConfidenceBadge } from '@/components/ui/confidence-badge';
@@ -13,6 +14,8 @@ interface CompanyRowProps {
     description?: string;
     location?: string;
     vertical?: string;
+    sub_vertical?: string;
+    sub_sub_vertical?: string;
     funding_stage?: string;
     funding_amount?: number;
     uses_genai?: boolean;
@@ -22,10 +25,22 @@ interface CompanyRowProps {
 }
 
 export function CompanyRow({ startup }: CompanyRowProps) {
+  const searchParams = useSearchParams();
+  const region = searchParams.get('region');
+
   // Get top pattern (max 1)
   const topPattern = startup.build_patterns
     ?.slice()
     .sort((a, b) => b.confidence - a.confidence)[0];
+
+  const verticalLabel = [startup.vertical, startup.sub_vertical, startup.sub_sub_vertical]
+    .filter(Boolean)
+    .map(v => formatStageName(v as string))
+    .join(' / ');
+
+  const companyHref = region && region !== 'global'
+    ? `/company/${startup.company_slug}?region=${encodeURIComponent(region)}`
+    : `/company/${startup.company_slug}`;
 
   return (
     <div className="startup-row group relative">
@@ -37,7 +52,7 @@ export function CompanyRow({ startup }: CompanyRowProps) {
         className="rounded-md"
       />
       <Link
-        href={`/company/${startup.company_slug}`}
+        href={companyHref}
         className="flex-1 min-w-0 block"
       >
         <div className="flex items-baseline gap-3">
@@ -61,8 +76,8 @@ export function CompanyRow({ startup }: CompanyRowProps) {
           {startup.location && (
             <span>{startup.location}</span>
           )}
-          {startup.vertical && (
-            <span>{formatStageName(startup.vertical)}</span>
+          {verticalLabel && (
+            <span>{verticalLabel}</span>
           )}
           {startup.funding_stage && (
             <span>{formatStageName(startup.funding_stage)}</span>

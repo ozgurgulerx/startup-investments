@@ -17,8 +17,8 @@ import { PeriodNav } from '@/components/ui/period-nav';
 
 const FALLBACK_PERIOD = '2026-01';
 
-async function CapitalContent({ selectedMonth }: { selectedMonth?: string }) {
-  const periods = await getAvailablePeriods();
+async function CapitalContent({ selectedMonth, region }: { selectedMonth?: string; region?: string }) {
+  const periods = await getAvailablePeriods(region);
   const latestPeriod = periods[0]?.period || FALLBACK_PERIOD;
   const period = (selectedMonth && periods.some(p => p.period === selectedMonth))
     ? selectedMonth
@@ -26,13 +26,13 @@ async function CapitalContent({ selectedMonth }: { selectedMonth?: string }) {
   const availableMonths = periods.map(p => p.period);
 
   const [stats, startups] = await Promise.all([
-    getMonthlyStats(period),
-    getStartups(period),
+    getMonthlyStats(period, region),
+    getStartups(period, region),
   ]);
 
   // Build trend data from the most recent available periods (up to 6)
   const trendPeriods = periods.slice(0, 6).map((p) => p.period).reverse();
-  const trendStats = await Promise.all(trendPeriods.map((trendPeriod) => getMonthlyStats(trendPeriod)));
+  const trendStats = await Promise.all(trendPeriods.map((trendPeriod) => getMonthlyStats(trendPeriod, region)));
 
   // Compute anomalies and concentration metrics
   const outlierRounds = detectOutlierRounds(startups, stats);
@@ -455,12 +455,12 @@ function CapitalLoading() {
 export default async function CapitalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; region?: string }>;
 }) {
-  const { month } = await searchParams;
+  const { month, region } = await searchParams;
   return (
     <Suspense fallback={<CapitalLoading />}>
-      <CapitalContent selectedMonth={month} />
+      <CapitalContent selectedMonth={month} region={region} />
     </Suspense>
   );
 }

@@ -483,7 +483,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
 
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <NewsSubscriptionCard />
+            <NewsSubscriptionCard region="global" />
           </div>
           <div className="rounded-2xl border border-border/40 bg-card/60 p-4">
             <p className="label-xs text-accent-info">Archive</p>

@@ -75,13 +75,13 @@ export function RegionToggle({ className }: RegionToggleProps) {
       </button>
       <button
         role="tab"
-        aria-selected={region === 'tr'}
+        aria-selected={region === 'turkey'}
         tabIndex={0}
-        onClick={() => handleSelect('tr')}
-        onKeyDown={(e) => handleKeyDown(e, 'tr')}
+        onClick={() => handleSelect('turkey')}
+        onKeyDown={(e) => handleKeyDown(e, 'turkey')}
         className={cn(
           "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-150",
-          region === 'tr'
+          region === 'turkey'
             ? "bg-accent text-accent-foreground"
             : "text-muted-foreground hover:text-foreground"
         )}

@@ -85,13 +85,13 @@ export interface CategoryData {
   patterns: string[];
 }
 
-async function SignalsContent() {
-  const availablePeriods = await getAvailablePeriods();
+async function SignalsContent({ region }: { region?: string }) {
+  const availablePeriods = await getAvailablePeriods(region);
   const latestPeriod = availablePeriods[0]?.period || FALLBACK_PERIOD;
 
   const [stats, startups] = await Promise.all([
-    getMonthlyStats(latestPeriod),
-    getStartups(latestPeriod),
+    getMonthlyStats(latestPeriod, region),
+    getStartups(latestPeriod, region),
   ]);
 
   const totalDeals = stats.deal_summary.total_deals;
@@ -227,10 +227,15 @@ function SignalsLoading() {
   );
 }
 
-export default function SignalsPage() {
+export default async function SignalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ region?: string }>;
+}) {
+  const { region } = await searchParams;
   return (
     <Suspense fallback={<SignalsLoading />}>
-      <SignalsContent />
+      <SignalsContent region={region} />
     </Suspense>
   );
 }
