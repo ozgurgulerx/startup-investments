@@ -57,15 +57,30 @@ Important headers/invariants:
 
 ## CI/CD Workflows (Source of Truth)
 
+Primary automation is now **VM cron** (cost control) and GitHub Actions workflows are kept as **manual backups**.
+
+VM cron runner:
+- Config: `infrastructure/vm-cron/crontab`
+- Wrapper (locks, timeouts, logs, Slack alerts): `infrastructure/vm-cron/lib/runner.sh`
+- Code updater (git pull + triggers deploys): `infrastructure/vm-cron/deploy.sh`
+- Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
+- Slack notifications:
+  - Set `SLACK_WEBHOOK_URL` (or legacy `SLACK_WEBHOOK`) in `/etc/buildatlas/.env`.
+  - Optional success notifications for selected jobs via `SLACK_NOTIFY_SUCCESS_JOBS` (see `infrastructure/vm-cron/.env.example`).
+  - If you **don't** want Slack webhooks on the VM, `scripts/slack_notify.py` can fall back to GitHub `repository_dispatch`:
+    - Requires `GITHUB_TOKEN` + `GITHUB_REPOSITORY` on the VM.
+    - GitHub workflow handler: `.github/workflows/vm-cron-slack-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
+    - Dispatch fallback is only used when `BUILDATLAS_RUNNER=vm-cron` (set by `runner.sh` and `heartbeat.sh`).
+
 Frontend:
 - `.github/workflows/frontend-deploy.yml`
-  - Trigger: pushes touching `apps/web/**` (and a few others).
-  - Deploy: Azure App Service `buildatlas-web`.
+  - Manual backup only (`workflow_dispatch`).
+  - VM job: `infrastructure/vm-cron/jobs/frontend-deploy.sh` (deploys to App Service `buildatlas-web`).
 
 Backend:
 - `.github/workflows/backend-deploy.yml`
-  - Trigger: pushes touching `apps/api/**`, `packages/shared/**`, `infrastructure/kubernetes/**`.
-  - Builds/pushes Docker to ACR, then deploys to AKS via `kubectl apply`.
+  - Manual backup only (`workflow_dispatch`).
+  - VM job: `infrastructure/vm-cron/jobs/backend-deploy.sh` (ACR remote build + `kubectl apply`).
   - Common failure modes:
     - Missing secrets (`ADMIN_KEY`, etc).
     - AKS control plane unreachable if the cluster is stopped.
@@ -79,8 +94,12 @@ Uptime automation:
   - This is the primary "prevent cluster stopped -> API 504" guardrail.
 
 News:
-- `.github/workflows/news-ingest.yml`: builds daily news editions into Postgres.
-- `.github/workflows/news-digest-daily.yml`: sends daily digest emails.
+- Manual backups:
+  - `.github/workflows/news-ingest.yml`
+  - `.github/workflows/news-digest-daily.yml`
+- VM jobs:
+  - `infrastructure/vm-cron/jobs/news-ingest.sh`
+  - `infrastructure/vm-cron/jobs/news-digest.sh`
 
 ### News Regions (Global vs Turkey)
 
@@ -103,8 +122,12 @@ Web/UI surfaces:
 ## News Digest Runbook (Email)
 
 The daily news email is a **separate pipeline** from ingestion:
-- Ingest/build editions: `.github/workflows/news-ingest.yml` (writes `news_daily_editions`, `news_clusters`, etc.)
-- Send email: `.github/workflows/news-digest-daily.yml` (reads latest `status='ready'` edition + active subscribers)
+- Ingest/build editions:
+  - VM: `infrastructure/vm-cron/jobs/news-ingest.sh` (primary)
+  - GitHub Actions: `.github/workflows/news-ingest.yml` (manual backup)
+- Send email:
+  - VM: `infrastructure/vm-cron/jobs/news-digest.sh` (primary)
+  - GitHub Actions: `.github/workflows/news-digest-daily.yml` (manual backup)
 
 Entry points:
 - CLI: `cd packages/analysis && python main.py send-news-digest --region global|turkey|all`

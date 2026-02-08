@@ -3,18 +3,50 @@
 # Runs every 5 minutes. Alerts via Slack on problems.
 set -uo pipefail
 
-ENV_FILE="/etc/buildatlas/.env"
 REPO_DIR="/opt/buildatlas/startup-analysis"
 VENV_DIR="/opt/buildatlas/venv"
+ENV_FILE_PRIMARY="/etc/buildatlas/.env"
+ENV_FILE_FALLBACK="$REPO_DIR/.env"
 
-if [ -f "$ENV_FILE" ]; then
+if [ -f "$ENV_FILE_PRIMARY" ]; then
     set -a
     # shellcheck disable=SC1090
-    source "$ENV_FILE"
+    source "$ENV_FILE_PRIMARY"
+    set +a
+elif [ -f "$ENV_FILE_FALLBACK" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE_FALLBACK"
     set +a
 fi
 
 export PATH="$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+export BUILDATLAS_RUNNER="vm-cron"
+export BUILDATLAS_JOB="heartbeat"
+export BUILDATLAS_HOST="${HOSTNAME:-vm-buildatlas-cron}"
+export BUILDATLAS_LOG="/var/log/buildatlas/heartbeat.log"
+
+derive_github_repository() {
+    local origin=""
+    origin="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)"
+    origin="${origin%.git}"
+
+    if [[ "$origin" == https://github.com/* ]]; then
+        echo "${origin#https://github.com/}"
+        return 0
+    fi
+    if [[ "$origin" == git@github.com:* ]]; then
+        echo "${origin#git@github.com:}"
+        return 0
+    fi
+    return 1
+}
+
+if [ -z "${GITHUB_REPOSITORY:-}" ]; then
+    GITHUB_REPOSITORY="$(derive_github_repository || true)"
+    export GITHUB_REPOSITORY
+fi
 
 ALERT=false
 ALERT_LINES=()
