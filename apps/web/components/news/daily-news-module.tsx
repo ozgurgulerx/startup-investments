@@ -60,6 +60,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
   const [activeTopic, setActiveTopic] = useState<string>('all');
   const [sortMode, setSortMode] = useState<SortMode>('impact');
   const [isPolling, setIsPolling] = useState(false);
+  const [turkeyStoryCount, setTurkeyStoryCount] = useState<number | null>(null);
   const editionRef = useRef<NewsEdition | null>(null);
   const isPollingRef = useRef(false);
 
@@ -95,9 +96,10 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
       setLoading(true);
     }
     try {
-      const [editionRes, topicsRes] = await Promise.all([
+      const [editionRes, topicsRes, turkeyRes] = await Promise.all([
         fetch('/api/news/latest', { cache: 'no-store' }),
         fetch('/api/news/topics', { cache: 'no-store' }),
+        fetch('/api/news/latest?region=turkey', { cache: 'no-store' }),
       ]);
 
       if (editionRes.ok) {
@@ -108,6 +110,11 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
       if (topicsRes.ok) {
         const data = (await topicsRes.json()) as Array<{ topic: string; count: number }>;
         setTopics(data);
+      }
+
+      if (turkeyRes.ok) {
+        const data = (await turkeyRes.json()) as NewsEdition;
+        setTurkeyStoryCount(data.items.length);
       }
     } catch (error) {
       console.error('Failed to load daily news module', error);
@@ -185,11 +192,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
           <div className="animate-pulse space-y-5">
             <div className="h-4 w-44 rounded bg-muted" />
             <div className="h-12 w-96 rounded bg-muted" />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-xl bg-muted" />
-              ))}
-            </div>
+            <div className="h-16 rounded-xl bg-muted" />
             <div className="grid gap-4 lg:grid-cols-5">
               <div className="h-72 rounded-xl bg-muted lg:col-span-3" />
               <div className="grid gap-4 lg:col-span-2">
@@ -264,9 +267,22 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="label-xs text-accent-info">Today&apos;s Briefing</div>
-            <h2 className="mt-2 text-4xl font-light tracking-tight text-foreground">Signal Feed</h2>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground leading-relaxed">
-              Live startup signals ranked by impact, trust, and multi-source corroboration.
+            <div className="mt-2 flex items-center gap-3">
+              <h2 className="text-4xl font-light tracking-tight text-foreground">Signal Feed</h2>
+              <div className="flex items-center gap-1">
+                <span className="rounded-full border border-accent-info/25 bg-accent-info/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info">
+                  Signal Feed
+                </span>
+                <Link
+                  href="/news"
+                  className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted/25 hover:text-foreground"
+                >
+                  Newsroom
+                </Link>
+              </div>
+            </div>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Live startup signals ranked by impact, trust, and corroboration.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -287,47 +303,37 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               <RefreshCcw className={`h-3 w-3 ${isPolling ? 'animate-spin text-accent-info' : ''}`} />
               Updated {formatTimestamp(edition.generated_at)}
             </span>
-            <Link href="/news" className="inline-flex items-center text-sm text-accent-info hover:text-accent-info/80">
-              Open full newsroom
-            </Link>
+            {crossSourceCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-3 py-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                {crossSourceCount} corroborated
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Stats row */}
-        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div
-            className="rounded-xl border border-border/40 bg-card/60 px-4 py-3"
-            title="How many stories are in the current feed view."
-          >
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Stories</p>
-            <p className="mt-1 text-2xl font-light tabular-nums text-foreground">{edition.items.length}</p>
+        {/* Newsroom preview card */}
+        <Link
+          href="/news"
+          className="group mb-6 flex flex-col gap-3 rounded-xl border border-accent-info/25 bg-gradient-to-br from-accent-info/8 via-card/80 to-card/50 px-5 py-4 transition-all hover:border-accent-info/40 hover:shadow-[0_0_24px_rgba(59,130,246,0.06)] sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+            <span className="text-muted-foreground">
+              <span className="font-medium text-foreground tabular-nums">{edition.items.length}</span> stories today
+            </span>
+            <span className="text-muted-foreground">
+              Turkey: <span className="font-medium text-foreground tabular-nums">{turkeyStoryCount ?? '—'}</span> stories
+            </span>
+            {topics.length > 0 && (
+              <span className="hidden text-muted-foreground sm:inline">
+                Top: {topics.slice(0, 3).map((t) => t.topic).join(', ')}
+              </span>
+            )}
           </div>
-          <div
-            className="rounded-xl border border-accent-info/25 bg-accent-info/10 px-4 py-3"
-            title="Deduped story clusters detected for this edition. Includes clusters not shown in the top feed."
-          >
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Signals</p>
-            <p className="mt-1 text-2xl font-light tabular-nums text-foreground">
-              {formatCompactCount(edition.stats.total_clusters)}
-            </p>
-          </div>
-          <div
-            className="rounded-xl border border-border/40 bg-card/60 px-4 py-3"
-            title="Topic buckets available for filtering (top topics by volume for this edition)."
-          >
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Top Topics</p>
-            <p className="mt-1 text-2xl font-light tabular-nums text-foreground">{topics.length}</p>
-          </div>
-          <div
-            className="rounded-xl border border-success/25 bg-success/10 px-4 py-3"
-            title={`Stories covered by ${CORROBORATED_MIN_SOURCES}+ sources in this feed. Higher = more corroboration.`}
-          >
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Corroborated</p>
-            <p className="mt-1 text-2xl font-light tabular-nums text-foreground">
-              {crossSourceCount}
-            </p>
-          </div>
-        </div>
+          <span className="inline-flex items-center gap-1 text-sm text-accent-info transition-colors group-hover:text-accent-info/80">
+            Go to Newsroom
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </span>
+        </Link>
 
         {/* Sort + topic filters */}
         <div className="mb-6 flex flex-col gap-3">
@@ -451,7 +457,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             .
           </p>
           <Link href="/news" className="inline-flex items-center gap-1 text-accent-info hover:text-accent-info/80">
-            Open full signal feed
+            Open full newsroom
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>

@@ -41,7 +41,7 @@ export default function LandingPage() {
               Methodology
             </Link>
             <Link href="/news" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Signal Feed
+              Newsroom
             </Link>
             {status === 'loading' ? (
               <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
@@ -400,7 +400,7 @@ export default function LandingPage() {
           <BrandMark size="sm" variant="muted" />
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/methodology" className="hover:text-accent-info transition-colors">Methodology</Link>
-            <Link href="/news" className="hover:text-accent-info transition-colors">Signal Feed</Link>
+            <Link href="/news" className="hover:text-accent-info transition-colors">Newsroom</Link>
             <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
             <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
             <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
