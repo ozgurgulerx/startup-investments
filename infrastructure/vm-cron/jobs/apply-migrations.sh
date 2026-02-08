@@ -29,6 +29,8 @@ SETS = {
         # Regional editions (number may vary across branches; apply whichever exists)
         "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
+        # Memory-gated editorial intelligence system (Phase 1)
+        "023_memory_system.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
@@ -40,6 +42,7 @@ SETS = {
         "014_news_llm_scoring_and_classification.sql",
         "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
+        "023_memory_system.sql",
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
     ],
