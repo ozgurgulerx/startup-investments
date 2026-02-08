@@ -191,23 +191,23 @@ export function newsSourcesKey(region: string): string {
   return `news:v1:sources:${region}`;
 }
 
+// Sort keys recursively so logically equivalent objects hash consistently.
+// Note: we preserve array ordering (arrays are not sorted).
+function sortDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortDeep);
+  if (!value || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(record).sort()) {
+    out[key] = sortDeep(record[key]);
+  }
+  return out;
+}
+
 /**
  * Hash an object to create a stable cache key component
  */
 export function hashObject(obj: object): string {
-  // Sort keys recursively so logically equivalent objects hash consistently.
-  // Note: we preserve array ordering (arrays are not sorted).
-  const sortDeep = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(sortDeep);
-    if (!value || typeof value !== 'object') return value;
-    const record = value as Record<string, unknown>;
-    const out: Record<string, unknown> = {};
-    for (const key of Object.keys(record).sort()) {
-      out[key] = sortDeep(record[key]);
-    }
-    return out;
-  };
-
   const sorted = JSON.stringify(sortDeep(obj));
   // 64-bit truncation: keeps keys short while making collisions vanishingly unlikely in practice.
   return crypto.createHash('md5').update(sorted).digest('hex').slice(0, 16);

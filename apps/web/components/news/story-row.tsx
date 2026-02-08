@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { TrustBadge } from './trust-badge';
 
@@ -24,17 +25,19 @@ function storyTypeBadge(type: string): string {
   return 'border-border/40 bg-muted/10 text-muted-foreground';
 }
 
-interface StoryRowProps {
+interface StoryCardProps {
   item: NewsItemCard;
   isSelected: boolean;
   onSelect: (id: string) => void;
   isNew?: boolean;
 }
 
-export function StoryCard({ item, isSelected, onSelect, isNew }: StoryRowProps) {
+export function StoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadge(item.story_type);
   const tags = item.topic_tags.slice(0, 2);
+  const imageUrl = item.image_url && /^https?:\/\//i.test(item.image_url) ? item.image_url : null;
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <button
@@ -45,10 +48,23 @@ export function StoryCard({ item, isSelected, onSelect, isNew }: StoryRowProps) 
       className={`group w-full text-left rounded-xl border p-3 transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60
         ${isSelected
           ? 'border-accent-info/45 bg-accent-info/10'
-          : 'border-border/40 bg-card/30 hover:border-accent-info/30 hover:bg-muted/15'
+          : 'border-border/40 bg-card hover:border-accent-info/30 hover:bg-muted/15'
         }
       `}
     >
+      {imageUrl && !imageFailed && (
+        <div className="mb-3 overflow-hidden rounded-lg border border-border/35 bg-muted/10">
+          <img
+            src={imageUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-28 w-full object-cover"
+            onError={() => setImageFailed(true)}
+          />
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         {isNew && (
           <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-success">
@@ -103,8 +119,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew }: StoryRowProps) 
   );
 }
 
-/** Pinned top-impact card variant for the first story */
-export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryRowProps) {
+export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadge(item.story_type);
 
@@ -137,16 +152,19 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryRowP
           {timeAgo(item.published_at)}
         </span>
       </div>
+
       <h3 className={`text-base font-medium leading-snug tracking-tight
         ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}
       `}>
         {item.title}
       </h3>
+
       {summary && (
         <p className="mt-2 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
           {summary}
         </p>
       )}
+
       {item.builder_takeaway && (
         <p className="mt-2 text-[10px] text-accent-info/80 line-clamp-1">
           Builder: {item.builder_takeaway}
@@ -155,3 +173,4 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryRowP
     </button>
   );
 }
+

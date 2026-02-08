@@ -144,7 +144,7 @@ while IFS= read -r dir; do
         PKG_MAP["$pkg"]="$dir"
     fi
 done < <(find deploy/node_modules/.pnpm -type d -path "*/node_modules/*" \
-    ! -path "*/node_modules/.pnpm/*" 2>/dev/null)
+    2>/dev/null)
 
 # Fallback map from repo root
 declare -A ROOT_PKG_MAP
@@ -154,7 +154,7 @@ while IFS= read -r dir; do
         ROOT_PKG_MAP["$pkg"]="$dir"
     fi
 done < <(find "$REPO_DIR/node_modules/.pnpm" -maxdepth 5 -type d -path "*/node_modules/*" \
-    ! -path "*/node_modules/.pnpm/*" 2>/dev/null)
+    2>/dev/null)
 echo "  Lookup map: ${#PKG_MAP[@]} deploy + ${#ROOT_PKG_MAP[@]} root packages"
 
 fix_package() {

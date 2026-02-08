@@ -211,11 +211,15 @@ class UrlFrontierStore:
                     SELECT q.canonical_url
                     FROM crawl_frontier_queue q
                     JOIN crawl_frontier_urls u ON u.canonical_url = q.canonical_url
-                    LEFT JOIN domain_policies p ON p.domain = u.domain
                     WHERE q.leased_at IS NULL
                       AND q.available_at <= NOW()
                       AND u.next_crawl_at <= NOW()
-                      AND COALESCE(p.blocked, FALSE) = FALSE
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM domain_policies p
+                          WHERE p.domain = u.domain
+                            AND p.blocked = TRUE
+                      )
                     ORDER BY u.priority_score DESC, q.available_at ASC
                     LIMIT $1
                     FOR UPDATE SKIP LOCKED

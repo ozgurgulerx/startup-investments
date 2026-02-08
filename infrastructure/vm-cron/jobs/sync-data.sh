@@ -104,6 +104,11 @@ else
 fi
 
 # Step 3: Pull latest to avoid conflicts, then commit and push
+# Serialize git operations with code-update/slack-commit-notify.
+GIT_LOCK_FILE="/tmp/buildatlas-git.lock"
+exec 201>"$GIT_LOCK_FILE"
+flock -w 120 201
+
 cd "$REPO_DIR"
 git pull --rebase origin main 2>/dev/null || git pull origin main
 
@@ -123,6 +128,9 @@ Synced at: $TIMESTAMP
 Trigger: vm-cron sync-data"
 
 git push origin main
+
+# Release lock early (deploy can take time).
+exec 201>&-
 
 echo "Pushed $TOTAL changes. Triggering frontend deploy..."
 

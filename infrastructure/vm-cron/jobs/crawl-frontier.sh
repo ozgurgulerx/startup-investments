@@ -1,7 +1,7 @@
 #!/bin/bash
 # crawl-frontier.sh — Crawl frontier worker (every 30 min).
 # Replaces: .github/workflows/crawl-frontier.yml (scheduled runs)
-set -uo pipefail
+set -euo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"

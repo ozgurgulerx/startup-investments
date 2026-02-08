@@ -11,6 +11,14 @@ VENV_DIR="/opt/buildatlas/venv"
 
 cd "$REPO_DIR"
 
+# Serialize git operations across cron jobs (slack-commit-notify, sync-data, code-update).
+GIT_LOCK_FILE="/tmp/buildatlas-git.lock"
+exec 201>"$GIT_LOCK_FILE"
+if ! flock -w 120 201; then
+    echo "ERROR: Could not acquire git lock: $GIT_LOCK_FILE"
+    exit 1
+fi
+
 # Ensure the VM crontab is installed and matches the repo version.
 # This keeps cron stable even if entries are accidentally edited/removed.
 ensure_crontab_installed() {

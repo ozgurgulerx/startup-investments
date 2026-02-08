@@ -27,6 +27,13 @@ fi
 
 cd "$REPO_DIR"
 
+# Avoid racing code-update/sync-data git operations.
+GIT_LOCK_FILE="/tmp/buildatlas-git.lock"
+exec 201>"$GIT_LOCK_FILE"
+if ! flock -w 20 201; then
+  exit 0
+fi
+
 git fetch --quiet origin "$BRANCH" || exit 0
 
 HEAD_SHA="$(git rev-parse "$REMOTE_REF")"
@@ -116,4 +123,3 @@ python3 "$REPO_DIR/scripts/slack_notify.py"
 
 # Only advance the cursor if Slack post succeeded.
 echo "$HEAD_SHA" > "$STATE_FILE" 2>/dev/null || true
-

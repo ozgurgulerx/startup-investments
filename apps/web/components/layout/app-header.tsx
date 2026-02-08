@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { UserMenu } from '@/components/auth/user-menu';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
@@ -67,8 +67,17 @@ export function AppHeader({ onSearch }: AppHeaderProps) {
         {/* Right: Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Region */}
-          <RegionSwitch variant="compact" className="sm:hidden" mode="url_when_region_aware" />
-          <RegionSwitch variant="full" className="hidden sm:inline-flex" mode="url_when_region_aware" />
+          <Suspense
+            fallback={
+              <>
+                <div className="inline-flex h-8 w-[92px] rounded-full bg-muted/30 border border-border/30 sm:hidden" />
+                <div className="hidden sm:inline-flex h-8 w-[152px] rounded-full bg-muted/30 border border-border/30" />
+              </>
+            }
+          >
+            <RegionSwitch variant="compact" className="sm:hidden" mode="url_when_region_aware" />
+            <RegionSwitch variant="full" className="hidden sm:inline-flex" mode="url_when_region_aware" />
+          </Suspense>
 
           {/* Reading Mode */}
           <div className="hidden sm:block">
