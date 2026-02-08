@@ -116,7 +116,9 @@ function rowToCard(row: Record<string, unknown>): NewsItemCard {
     sources: Array.isArray(row.sources) ? (row.sources as string[]) : [],
     builder_takeaway: row.builder_takeaway ? String(row.builder_takeaway) : undefined,
     llm_summary: row.llm_summary ? String(row.llm_summary) : undefined,
-    llm_model: row.llm_model ? String(row.llm_model) : undefined,
+    // Don't expose model identifiers in the UI/API response; it's not user-value and
+    // it can create confusion when deployments/labels change.
+    llm_model: undefined,
     llm_signal_score: row.llm_signal_score === null || row.llm_signal_score === undefined
       ? undefined
       : toNumber(row.llm_signal_score),
@@ -525,7 +527,6 @@ export function makeNewsService(pool: Pool) {
             summary: String(statsJson.daily_brief.summary || ''),
             bullets: Array.isArray(statsJson.daily_brief.bullets) ? statsJson.daily_brief.bullets : [],
             themes: Array.isArray(statsJson.daily_brief.themes) ? statsJson.daily_brief.themes : undefined,
-            model: statsJson.daily_brief.model ? String(statsJson.daily_brief.model) : undefined,
             generated_at: statsJson.daily_brief.generated_at ? String(statsJson.daily_brief.generated_at) : undefined,
           }
         : undefined;

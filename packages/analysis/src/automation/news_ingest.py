@@ -869,6 +869,11 @@ class DailyNewsIngestor:
             or os.getenv("AZURE_OPENAI_DEPLOYMENT")
             or "gpt-4o"
         )
+        # Safety net: if the configured deployment doesn't exist (404) or has
+        # incompatible parameters, we try this fallback.
+        self.azure_openai_fallback_deployment = (
+            os.getenv("AZURE_OPENAI_FALLBACK_DEPLOYMENT_NAME") or "gpt-4o"
+        )
         # Daily briefs benefit from higher-quality synthesis. Prefer the "reasoning" deployment
         # (often gpt-5-mini) with low effort, but always fall back to the primary deployment.
         self.azure_openai_daily_brief_deployment = (
@@ -1970,7 +1975,11 @@ class DailyNewsIngestor:
             # Prefer responses API when available so we can set reasoning effort.
             # Fall back to chat.completions for older deployments.
             preferred_models = []
-            for m in [self.azure_openai_daily_brief_deployment, self.azure_openai_deployment]:
+            for m in [
+                self.azure_openai_daily_brief_deployment,
+                self.azure_openai_deployment,
+                self.azure_openai_fallback_deployment,
+            ]:
                 if m and m not in preferred_models:
                     preferred_models.append(m)
 
@@ -2142,39 +2151,45 @@ class DailyNewsIngestor:
 
         last_error_code: Optional[str] = None
         if self.azure_client is not None:
-            for with_response_format in (True, False):
-                token_param = _azure_token_param_name(self.azure_openai_deployment)
-                azure_payload: Dict[str, Any] = {
-                    "model": self.azure_openai_deployment,
-                    "messages": [
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": json.dumps(user_payload)},
-                    ],
-                }
-                if _azure_supports_temperature(self.azure_openai_deployment):
-                    azure_payload["temperature"] = 0.2
-                azure_payload[token_param] = 220
-                if with_response_format:
-                    azure_payload["response_format"] = {"type": "json_object"}
+            candidate_models: List[str] = []
+            for m in [self.azure_openai_deployment, self.azure_openai_fallback_deployment]:
+                if m and m not in candidate_models:
+                    candidate_models.append(m)
 
-                try:
+            for model_name in candidate_models:
+                for with_response_format in (True, False):
+                    token_param = _azure_token_param_name(model_name)
+                    azure_payload: Dict[str, Any] = {
+                        "model": model_name,
+                        "messages": [
+                            {"role": "system", "content": prompt},
+                            {"role": "user", "content": json.dumps(user_payload)},
+                        ],
+                    }
+                    if _azure_supports_temperature(model_name):
+                        azure_payload["temperature"] = 0.2
+                    azure_payload[token_param] = 220
+                    if with_response_format:
+                        azure_payload["response_format"] = {"type": "json_object"}
+
                     try:
-                        response = await self.azure_client.chat.completions.create(**azure_payload)
-                    except Exception as exc:
-                        if _is_unsupported_temperature_exception(exc):
-                            azure_payload.pop("temperature", None)
+                        try:
                             response = await self.azure_client.chat.completions.create(**azure_payload)
-                        else:
-                            raise
+                        except Exception as exc:
+                            if _is_unsupported_temperature_exception(exc):
+                                azure_payload.pop("temperature", None)
+                                response = await self.azure_client.chat.completions.create(**azure_payload)
+                            else:
+                                raise
 
-                    content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
-                    parsed = json.loads(content) if isinstance(content, str) else {}
-                    return parse_llm_payload(parsed, f"azure:{self.azure_openai_deployment}")
-                except Exception as exc:
-                    if debug_llm:
-                        mode = "json_object" if with_response_format else "no_response_format"
-                        print(f"[news-ingest] Azure LLM enrichment failed ({mode}): {exc}")
-                    last_error_code = "azure_timeout" if _is_timeout_exception(exc) else "azure_error"
+                        content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
+                        parsed = json.loads(content) if isinstance(content, str) else {}
+                        return parse_llm_payload(parsed, f"azure:{model_name}")
+                    except Exception as exc:
+                        if debug_llm:
+                            mode = "json_object" if with_response_format else "no_response_format"
+                            print(f"[news-ingest] Azure LLM enrichment failed ({mode} model={model_name}): {exc}")
+                        last_error_code = "azure_timeout" if _is_timeout_exception(exc) else "azure_error"
 
         if self.openai_api_key:
             try:

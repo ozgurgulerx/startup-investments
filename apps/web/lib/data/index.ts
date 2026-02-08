@@ -59,11 +59,13 @@ export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]
 
   // Prefer API-backed periods when available so "latest" matches what the Dealbook API can serve.
   // (Files can be ahead of DB, which makes the UI look empty if we pick a month the API lacks.)
-  if (isAPIConfigured() && regionKey === 'global') {
+  if (isAPIConfigured()) {
     try {
       const periods = await api.getPeriods(regionKey);
-      periodsCache.set(regionKey, { data: periods, timestamp: Date.now() });
-      return periods;
+      if (periods.length > 0) {
+        periodsCache.set(regionKey, { data: periods, timestamp: Date.now() });
+        return periods;
+      }
     } catch (error) {
       console.error('API request failed for getAvailablePeriods, falling back to file-based periods:', error);
     }
@@ -381,7 +383,7 @@ export async function getStartups(period: string, region?: string): Promise<Star
   const regionKey = normalizeDatasetRegion(region);
 
   // Try API first if configured (much faster than loading 275+ files)
-  if (isAPIConfigured() && regionKey === 'global') {
+  if (isAPIConfigured()) {
     try {
       // Check cache first to avoid API call if we have recent data
       const cached = startupsCache.get(cacheKey(region, period));
@@ -479,7 +481,7 @@ export async function getStartupsPaginated(
   const regionKey = normalizeDatasetRegion(region);
 
   // Try API first if configured (much faster + consistent with API-backed filters)
-  if (isAPIConfigured() && regionKey === 'global') {
+  if (isAPIConfigured()) {
     try {
       const response = await api.getDealbook({
         region: regionKey,
@@ -667,16 +669,36 @@ export async function getFilterOptions(
   const regionKey = normalizeDatasetRegion(region);
 
   // Try API first if configured
-  if (isAPIConfigured() && regionKey === 'global') {
+  if (isAPIConfigured()) {
     try {
-      return await api.getDealbookFilters(period, { region: regionKey, verticalId: taxonomyVerticalId, subVerticalId: taxonomySubVerticalId });
+      const response = await api.getDealbookFilters(period, {
+        region: regionKey,
+        verticalId: taxonomyVerticalId,
+        subVerticalId: taxonomySubVerticalId,
+      });
+
+      const isEmpty =
+        response.stages.length === 0 &&
+        response.continents.length === 0 &&
+        response.patterns.length === 0 &&
+        response.verticals.length === 0 &&
+        (response.vertical_taxonomy?.verticals?.length || 0) === 0;
+
+      // If the DB is behind deployed datasets for a region (or not yet synced), degrade to
+      // file-based options so the UI doesn't look broken/empty.
+      if (!isEmpty) {
+        return response;
+      }
     } catch (error) {
       console.error('API request failed, falling back to file-based data:', error);
     }
   }
 
   // Fallback to computing from file data
-  const startups = await getStartups(period, region);
+  const startups =
+    period === 'all'
+      ? await getAllStartupsAcrossPeriods(region)
+      : await getStartupsForPeriod(period, region);
 
   const stageSet = new Set<string>();
   const continentSet = new Set<string>();
@@ -758,7 +780,7 @@ export async function getStartup(
   const regionKey = normalizeDatasetRegion(region);
 
   // Prefer API when configured.
-  if (isAPIConfigured() && regionKey === 'global') {
+  if (isAPIConfigured()) {
     try {
       const response = await api.getCompanyBySlug(slug, period, regionKey);
       if (response && (response as any).data) {
