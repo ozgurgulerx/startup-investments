@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useTransition, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MonthSwitcher, formatMonthLabel } from '@/components/ui/month-switcher';
 import { formatCurrency } from '@/lib/utils';
@@ -104,11 +104,11 @@ const dataCache = new Map<string, BriefingData>();
 
 export function BriefingClient({ initialData, availablePeriods }: BriefingClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [urlMonth, setUrlMonth] = useState<string | null>(null);
 
   // Get current period from URL or default to initial
-  const currentPeriod = searchParams.get('month') || initialData.period;
+  const currentPeriod = urlMonth || initialData.period;
 
   // Validate the period
   const validPeriod = availablePeriods.includes(currentPeriod)
@@ -123,6 +123,18 @@ export function BriefingClient({ initialData, availablePeriods }: BriefingClient
   });
 
   const [isLoading, setIsLoading] = useState(false);
+
+  // Initialize + keep URL month in sync on browser back/forward.
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search || '');
+      setUrlMonth(params.get('month'));
+    };
+
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, []);
 
   // Fetch briefing data for a period
   const fetchBriefingData = useCallback(async (period: string): Promise<BriefingData> => {
@@ -151,8 +163,11 @@ export function BriefingClient({ initialData, availablePeriods }: BriefingClient
     try {
       // Update URL (shallow)
       startTransition(() => {
-        router.push(`?month=${newPeriod}`, { scroll: false });
+        const params = new URLSearchParams(window.location.search || '');
+        params.set('month', newPeriod);
+        router.push(`?${params.toString()}`, { scroll: false });
       });
+      setUrlMonth(newPeriod);
 
       // Fetch new data
       const newData = await fetchBriefingData(newPeriod);

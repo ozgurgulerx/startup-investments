@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useRegion } from '@/lib/region-context';
 import { normalizeDatasetRegion, type DatasetRegion } from '@/lib/region';
@@ -23,7 +23,6 @@ export function RegionSwitch({
   const { region, setRegion, isLoaded } = useRegion();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const selected = normalizeDatasetRegion(region);
 
@@ -39,7 +38,7 @@ export function RegionSwitch({
 
     if (!shouldUpdateUrl()) return;
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search || '');
     applyRegionParam(params, next);
 
     const qs = params.toString();
@@ -105,4 +104,3 @@ export function RegionSwitch({
     </div>
   );
 }
-

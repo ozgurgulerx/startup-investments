@@ -3,7 +3,7 @@
 import { useRegion } from '@/lib/region-context';
 import { cn } from '@/lib/utils';
 import type { Region } from '@/lib/region-context';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface RegionToggleProps {
   className?: string;
@@ -13,7 +13,6 @@ export function RegionToggle({ className }: RegionToggleProps) {
   const { region, setRegion, isLoaded } = useRegion();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const handleKeyDown = (e: React.KeyboardEvent, value: Region) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -27,7 +26,7 @@ export function RegionToggle({ className }: RegionToggleProps) {
 
     // Force server components to re-render under the new region by updating the URL query.
     // Preserve existing query params; just add/remove `region` deterministically.
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search || '');
     if (value === 'global') {
       params.delete('region');
     } else {

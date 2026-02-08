@@ -3,7 +3,7 @@
 import posthog from 'posthog-js';
 import { PostHogProvider as PHProvider, usePostHog } from 'posthog-js/react';
 import { Suspense, useEffect, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 
 // PostHog configuration
@@ -15,17 +15,15 @@ const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posth
  */
 function PostHogPageView() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (pathname && posthog.__loaded) {
-      let url = window.origin + pathname;
-      if (searchParams?.toString()) {
-        url = url + '?' + searchParams.toString();
-      }
+      // Avoid useSearchParams() to prevent Next.js build-time CSR bailout errors.
+      // window.location.href includes query string and hash.
+      const url = window.location.href;
       posthog.capture('$pageview', { $current_url: url });
     }
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   return null;
 }

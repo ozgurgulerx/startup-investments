@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { FilterBuilder, type SavedFilter } from '@/components/features';
 import type { FilterQuery } from '@/lib/data/filtering';
 import type { StartupAnalysis, MonthlyStats, PeriodInfo } from '@startup-intelligence/shared';
@@ -86,7 +86,6 @@ export function InteractiveDealbook({
   region = 'global',
 }: InteractiveDealbookProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [activeQuery, setActiveQuery] = useState<FilterQuery>({});
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>(initialFilters);
@@ -175,8 +174,10 @@ export function InteractiveDealbook({
 
   // Update URL when filter changes (for client-side filtering)
   const updateUrlWithFilters = useCallback((query: FilterQuery) => {
+    if (typeof window === 'undefined') return;
+
     // Start from current URL so we preserve non-filter params (search, sort, month, region, etc).
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search || '');
 
     // Always reflect the current region prop (single source of truth)
     if (region !== 'global') params.set('region', region);
@@ -211,7 +212,7 @@ export function InteractiveDealbook({
 
     const queryString = params.toString();
     router.push(queryString ? `/dealbook/?${queryString}` : '/dealbook/');
-  }, [router, searchParams, region]);
+  }, [router, region]);
 
   const handleFilterApply = useCallback((query: FilterQuery) => {
     setActiveQuery(query);
@@ -308,14 +309,39 @@ export function InteractiveDealbook({
     return badges;
   }, [urlFilters, availablePatterns, availableStages, availableContinents, availableVerticals, taxonomyLabelFor]);
 
-  // Build URL without a specific filter
-  const buildUrlWithoutFilter = (paramToRemove: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+  const navigateWithoutParam = useCallback((paramToRemove: string) => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search || '');
     params.delete(paramToRemove);
     params.delete('page'); // Reset to page 1 when filter changes
     const queryString = params.toString();
-    return queryString ? `/dealbook/?${queryString}` : '/dealbook/';
-  };
+    router.push(queryString ? `/dealbook/?${queryString}` : '/dealbook/');
+  }, [router]);
+
+  const clearAllUrlFilters = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search || '');
+
+    for (const key of [
+      'stage',
+      'pattern',
+      'continent',
+      'vertical',
+      'verticalId',
+      'subVerticalId',
+      'leafId',
+      'minFunding',
+      'maxFunding',
+      'usesGenai',
+      'search',
+    ]) {
+      params.delete(key);
+    }
+    params.delete('page');
+
+    const queryString = params.toString();
+    router.push(queryString ? `/dealbook/?${queryString}` : '/dealbook/');
+  }, [router]);
 
   return (
     <>
@@ -365,30 +391,25 @@ export function InteractiveDealbook({
       {activeFilterBadges.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4">
           {activeFilterBadges.map(({ label, value, param }) => (
-            <Link
+            <button
               key={param}
-              href={buildUrlWithoutFilter(param)}
+              type="button"
+              onClick={() => navigateWithoutParam(param)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-accent-info/25 bg-accent-info/10 text-accent-info text-sm hover:bg-accent-info/20 transition-colors"
             >
               <span className="text-muted-foreground">{label}:</span>
               <span className="font-medium">{value}</span>
               <X className="h-3.5 w-3.5" />
-            </Link>
+            </button>
           ))}
           {activeFilterBadges.length > 1 && (
-            <Link
-              href={(() => {
-                const p = new URLSearchParams();
-                if (region !== 'global') p.set('region', region);
-                const m = searchParams.get('month');
-                if (m) p.set('month', m);
-                const qs = p.toString();
-                return qs ? `/dealbook/?${qs}` : '/dealbook/';
-              })()}
+            <button
+              type="button"
+              onClick={clearAllUrlFilters}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/40 bg-muted/30 text-muted-foreground text-sm hover:bg-muted/50 transition-colors"
             >
               Clear all
-            </Link>
+            </button>
           )}
         </div>
       )}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Search, SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RegionSwitch } from '@/components/ui/region-switch';
@@ -32,22 +32,21 @@ export function DealbookToolbar({
   className,
 }: DealbookToolbarProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Search state with debounce
-  const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
+  const [searchValue, setSearchValue] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout>();
 
   // Sort state
   const [isSortOpen, setIsSortOpen] = useState(false);
-  const currentSort = (searchParams.get('sort') as SortOption) || 'funding_desc';
+  const [currentSort, setCurrentSort] = useState<SortOption>('funding_desc');
   const sortButtonRef = useRef<HTMLButtonElement>(null);
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   // Update URL with new params
   const updateUrl = useCallback((updates: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search || '');
 
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null || value === '') {
@@ -62,7 +61,25 @@ export function DealbookToolbar({
 
     const queryString = params.toString();
     router.push(queryString ? `/dealbook?${queryString}` : '/dealbook');
-  }, [router, searchParams]);
+  }, [router]);
+
+  // Initialize + keep state in sync on browser back/forward.
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search || '');
+      const urlSearch = params.get('search') || '';
+      const urlSort = (params.get('sort') as SortOption) || 'funding_desc';
+
+      if (!isSearchFocused) {
+        setSearchValue(urlSearch);
+      }
+      setCurrentSort(urlSort);
+    };
+
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, [isSearchFocused]);
 
   // Debounced search
   useEffect(() => {
@@ -71,7 +88,8 @@ export function DealbookToolbar({
     }
 
     debounceRef.current = setTimeout(() => {
-      const currentSearch = searchParams.get('search') || '';
+      const params = new URLSearchParams(window.location.search || '');
+      const currentSearch = params.get('search') || '';
       if (searchValue !== currentSearch) {
         updateUrl({ search: searchValue || null });
       }
@@ -82,15 +100,7 @@ export function DealbookToolbar({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [searchValue, searchParams, updateUrl]);
-
-  // Sync search value with URL
-  useEffect(() => {
-    const urlSearch = searchParams.get('search') || '';
-    if (urlSearch !== searchValue && !isSearchFocused) {
-      setSearchValue(urlSearch);
-    }
-  }, [searchParams]);
+  }, [searchValue, updateUrl]);
 
   // Close sort dropdown on outside click
   useEffect(() => {
@@ -113,6 +123,7 @@ export function DealbookToolbar({
 
   const handleSortChange = (sort: SortOption) => {
     updateUrl({ sort: sort === 'funding_desc' ? null : sort });
+    setCurrentSort(sort);
     setIsSortOpen(false);
   };
 

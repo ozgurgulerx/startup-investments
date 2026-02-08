@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, useCallback, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MonthlyBrief } from '@/lib/types/monthly-brief';
 import { MonthSwitcher } from '@/components/ui/month-switcher';
@@ -21,11 +21,11 @@ export function IntelligenceBrief({
   availablePeriods,
 }: IntelligenceBriefProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [urlMonth, setUrlMonth] = useState<string | null>(null);
 
   // Get current period from URL or default to initial
-  const currentPeriod = searchParams.get('month') || initialBrief.monthKey;
+  const currentPeriod = urlMonth || initialBrief.monthKey;
   const validPeriod = availablePeriods.includes(currentPeriod)
     ? currentPeriod
     : availablePeriods[0] || initialBrief.monthKey;
@@ -37,6 +37,18 @@ export function IntelligenceBrief({
   });
   const [isLoading, setIsLoading] = useState(false);
 
+  // Initialize + keep URL month in sync on browser back/forward.
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search || '');
+      setUrlMonth(params.get('month'));
+    };
+
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, []);
+
   // Handle month change
   const handleMonthChange = useCallback(
     async (newPeriod: string) => {
@@ -45,8 +57,11 @@ export function IntelligenceBrief({
 
       try {
         startTransition(() => {
-          router.push(`?month=${newPeriod}`, { scroll: false });
+          const params = new URLSearchParams(window.location.search || '');
+          params.set('month', newPeriod);
+          router.push(`?${params.toString()}`, { scroll: false });
         });
+        setUrlMonth(newPeriod);
 
         // Check cache first
         if (briefCache.has(newPeriod)) {
@@ -67,6 +82,37 @@ export function IntelligenceBrief({
     },
     [validPeriod, router]
   );
+
+  // Ensure brief data stays consistent with URL (e.g. browser back/forward).
+  useEffect(() => {
+    if (brief.monthKey === validPeriod) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        if (briefCache.has(validPeriod)) {
+          if (!cancelled) setBrief(briefCache.get(validPeriod)!);
+          return;
+        }
+        const response = await fetch(`/data/briefs/${validPeriod}.json`);
+        if (response.ok) {
+          const data = await response.json();
+          briefCache.set(validPeriod, data);
+          if (!cancelled) setBrief(data);
+        }
+      } catch (error) {
+        console.error('Failed to load brief:', error);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [validPeriod, brief.monthKey]);
 
   const fadeClass = isLoading ? 'opacity-60' : 'opacity-100';
 

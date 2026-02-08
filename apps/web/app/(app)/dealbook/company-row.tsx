@@ -2,11 +2,12 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { WatchlistButton } from '@/components/ui/watchlist-button';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { ConfidenceBadge } from '@/components/ui/confidence-badge';
 import { formatCurrency, formatStageName } from '@/lib/utils';
+import { useRegion } from '@/lib/region-context';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 interface CompanyRowProps {
   startup: {
@@ -34,8 +35,8 @@ interface CompanyRowProps {
 }
 
 export const CompanyRow = React.memo(function CompanyRow({ startup }: CompanyRowProps) {
-  const searchParams = useSearchParams();
-  const region = searchParams.get('region');
+  const { region } = useRegion();
+  const selectedRegion = normalizeDatasetRegion(region);
 
   // Get pattern with highest confidence
   const topPattern = startup.build_patterns?.reduce<{ name: string; confidence: number } | undefined>(
@@ -65,8 +66,8 @@ export const CompanyRow = React.memo(function CompanyRow({ startup }: CompanyRow
 
   const verticalLabel = taxonomyLabel || legacyVerticalLabel;
 
-  const companyHref = region && region !== 'global'
-    ? `/company/${startup.company_slug}?region=${encodeURIComponent(region)}`
+  const companyHref = selectedRegion !== 'global'
+    ? `/company/${startup.company_slug}?region=${encodeURIComponent(selectedRegion)}`
     : `/company/${startup.company_slug}`;
 
   return (

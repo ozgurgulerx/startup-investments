@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { PeriodInfo } from '@startup-intelligence/shared';
@@ -34,7 +34,6 @@ export function MonthSelector({
   className,
 }: MonthSelectorProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Get sorted periods (most recent first)
   const sortedPeriods = useMemo(
@@ -52,7 +51,7 @@ export function MonthSelector({
 
   // Navigate to a month
   const navigateToMonth = useCallback((month: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search || '');
 
     // Remove page param when switching months
     params.delete('page');
@@ -66,7 +65,7 @@ export function MonthSelector({
 
     const queryString = params.toString();
     router.push(queryString ? `/dealbook/?${queryString}` : '/dealbook/');
-  }, [router, searchParams, latestPeriod]);
+  }, [router, latestPeriod]);
 
   // Prev/next navigation
   const canGoPrev = currentIndex < sortedPeriods.length - 1;
