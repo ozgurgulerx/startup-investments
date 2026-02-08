@@ -71,6 +71,7 @@ VM cron runner:
     - Requires `GITHUB_TOKEN` + `GITHUB_REPOSITORY` on the VM.
     - GitHub workflow handler: `.github/workflows/vm-cron-slack-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
     - Dispatch fallback is only used when `BUILDATLAS_RUNNER=vm-cron` (set by `runner.sh` and `heartbeat.sh`).
+    - If GitHub Actions is blocked/disabled (billing/spending limits), dispatch fallback will not deliver; set a VM webhook instead.
   - Quick test (GitHub -> Slack):
     - `gh workflow run vm-cron-slack-notify.yml -f title="Slack test" -f status=info -f body="Hello from GitHub Actions"`
     - Then verify it ran: `gh run list --workflow vm-cron-slack-notify.yml -L 5`
