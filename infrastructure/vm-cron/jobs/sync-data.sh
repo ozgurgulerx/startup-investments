@@ -49,7 +49,7 @@ if [ "$TOTAL" -eq 0 ]; then
     fi
     DB_SYNC_SENTINEL="$STATE_DIR/sync-data.db-sync.last"
 
-    if [ -n "${DATABASE_URL:-}" ] && [ -n "${ADMIN_KEY:-}" ]; then
+    if [ -n "${DATABASE_URL:-}" ]; then
         SHOULD_DB_SYNC=1
         if [ -f "$DB_SYNC_SENTINEL" ]; then
             LAST_TS="$(stat -c %Y "$DB_SYNC_SENTINEL" 2>/dev/null || echo 0)"
@@ -69,14 +69,14 @@ if [ "$TOTAL" -eq 0 ]; then
             bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" startups
 
             if [ -n "$GLOBAL_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" ]; then
-                "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
+                "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-db.py" \
                   --csv "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" \
                   --region global
                 "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$GLOBAL_PERIOD" --region global
             fi
 
             if [ -n "$TR_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" ]; then
-                "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
+                "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-db.py" \
                   --csv "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" \
                   --region turkey
                 "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$TR_PERIOD" --region turkey
@@ -140,27 +140,24 @@ if [ -n "${DATABASE_URL:-}" ]; then
     echo "Applying startup migrations..."
     bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" startups
 
-    if [ -n "${ADMIN_KEY:-}" ]; then
-        # 1) Upsert startup rows from startups.csv via admin API.
-        if [ -n "$GLOBAL_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" ]; then
-            echo "Syncing startups.csv to API (region=global period=$GLOBAL_PERIOD)..."
-            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
-              --csv "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" \
-              --region global
-        else
-            echo "WARN: Global startups.csv not found for period $GLOBAL_PERIOD; skipping global upsert."
-        fi
-
-        if [ -n "$TR_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" ]; then
-            echo "Syncing startups.csv to API (region=turkey period=$TR_PERIOD)..."
-            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
-              --csv "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" \
-              --region turkey
-        else
-            echo "INFO: Turkey startups.csv not found for period $TR_PERIOD; skipping turkey upsert."
-        fi
+    # 1) Upsert startup rows from startups.csv directly into Postgres.
+    # (Avoids Azure Front Door timeouts on admin HTTP endpoints; period/analysis fields are set in step (2).)
+    if [ -n "$GLOBAL_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" ]; then
+        echo "Syncing startups.csv to Postgres (region=global period=$GLOBAL_PERIOD)..."
+        "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-db.py" \
+          --csv "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" \
+          --region global
     else
-        echo "WARN: ADMIN_KEY not set; skipping /api/admin/sync-startups (DB may miss new startups)."
+        echo "WARN: Global startups.csv not found for period $GLOBAL_PERIOD; skipping global upsert."
+    fi
+
+    if [ -n "$TR_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" ]; then
+        echo "Syncing startups.csv to Postgres (region=turkey period=$TR_PERIOD)..."
+        "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-db.py" \
+          --csv "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" \
+          --region turkey
+    else
+        echo "INFO: Turkey startups.csv not found for period $TR_PERIOD; skipping turkey upsert."
     fi
 
     # 2) Populate analysis_data JSONB from analysis_store (region-aware).

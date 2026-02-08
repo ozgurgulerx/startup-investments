@@ -134,6 +134,25 @@ News:
     - Back-compat: `AZURE_OPENAI_DEPLOYMENT`
   - Verify in `/var/log/buildatlas/news-ingest.log`:
     - `[news-ingest] daily brief generated via Azure: "..."` and `Daily brief: generated`.
+- Memory-Gated Editorial Intelligence (Phase 1: entity linking + fact extraction):
+  - Migration: `database/migrations/023_memory_system.sql`
+  - Runtime: `packages/analysis/src/automation/memory_gate.py` (zero-LLM; regex + DB lookups)
+  - Ingest integration: `packages/analysis/src/automation/news_ingest.py` runs the memory gate after clustering and persists results after cluster IDs are created.
+  - Deployment invariant:
+    - VM cron `news-ingest` runs `apply-migrations.sh news`; ensure `023_memory_system.sql` is included in the `news` migration set (see `infrastructure/vm-cron/jobs/apply-migrations.sh`).
+    - If the migration is not applied, the pipeline will log `[memory_gate] Load failed (tables may not exist yet)` and skip memory persistence (graceful degradation).
+  - One-time rollout (prod VM):
+    - Apply migrations (after code update): `infrastructure/vm-cron/jobs/apply-migrations.sh news`
+    - Trigger an ingest run: `infrastructure/vm-cron/lib/runner.sh news-ingest 30 infrastructure/vm-cron/jobs/news-ingest.sh`
+    - Optional backfill (last N days): `cd packages/analysis && python main.py memory-backfill --days 30 --dry-run` then re-run without `--dry-run`.
+  - Verification queries (DB):
+    - Tables exist:
+      - `SELECT to_regclass('public.news_entity_facts'), to_regclass('public.news_item_extractions');`
+    - Memory stats on latest ingestion runs:
+      - `SELECT started_at, stats_json->'memory' AS memory FROM news_ingestion_runs ORDER BY started_at DESC LIMIT 3;`
+    - Extractions / facts are being written:
+      - `SELECT COUNT(*) FROM news_item_extractions;`
+      - `SELECT COUNT(*) FROM news_entity_facts WHERE is_current = TRUE;`
 
 ## Startups: Vertical Taxonomy + Dealbook Filters
 
@@ -277,7 +296,7 @@ API behavior and performance implications:
 - Backend API is **region-aware** (`global` + `turkey`) via `startups.dataset_region`.
 - The web app is **API-first** when configured (for both regions) and **falls back to files** when the API is unavailable or the DB is behind deployed datasets.
 - VM cron `sync-data` keeps Postgres in sync with disk datasets (when `DATABASE_URL` is set):
-  - Upsert startups from `apps/web/data/**/input/startups.csv` via `scripts/sync-startups-to-api.py` → `POST /api/admin/sync-startups?region=...`
+  - Upsert `startups` + `funding_rounds` from `apps/web/data/**/input/startups.csv` via `scripts/sync-startups-to-db.py` (direct Postgres; avoids Front Door timeouts on admin HTTP sync)
   - Populate `startups.analysis_data` from `analysis_store` via `scripts/populate-analysis-data.py --region ...`
 
 Quick checks:
