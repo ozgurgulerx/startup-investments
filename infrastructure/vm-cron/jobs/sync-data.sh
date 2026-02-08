@@ -67,6 +67,10 @@ check_taxonomy() {
     fi
 
     echo "vertical_taxonomy incomplete; attempting backfill (region=$region period=$period)..."
+    if [ -z "${AZURE_OPENAI_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+        echo "ERROR: Missing AZURE_OPENAI_API_KEY/OPENAI_API_KEY; cannot run LLM backfill for vertical_taxonomy."
+        return 1
+    fi
     "$VENV_DIR/bin/python" "$REPO_DIR/scripts/backfill-vertical-taxonomy.py" --period "$period" --region "$region" --only-incomplete --max-failures 20
 
     echo "Re-checking vertical_taxonomy (region=$region period=$period)..."
