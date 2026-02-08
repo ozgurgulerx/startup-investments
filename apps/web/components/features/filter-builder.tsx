@@ -26,12 +26,50 @@ export interface FilterBuilderProps {
   availableStages: string[];
   availableContinents: string[];
   availableVerticals: string[];
+  taxonomyVerticals?: Array<{ id: string; label: string; count: number }>;
+  taxonomySubVerticals?: Array<{ id: string; label: string; count: number }>;
+  taxonomyLeaves?: Array<{ id: string; label: string; count: number }>;
   savedFilters: SavedFilter[];
   onFilterApply: (query: FilterQuery) => void;
   onFilterSave: (name: string, query: FilterQuery, alertsEnabled: boolean) => Promise<void>;
   onFilterDelete: (filterId: string) => Promise<void>;
   onFilterToggleAlerts: (filterId: string, enabled: boolean) => Promise<void>;
   className?: string;
+}
+
+function TaxonomySelect({
+  label,
+  value,
+  options,
+  placeholder,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string | undefined;
+  options: Array<{ id: string; label: string; count?: number }>;
+  placeholder: string;
+  onChange: (value: string | undefined) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="label-sm text-muted-foreground">{label}</label>
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value ? e.target.value : undefined)}
+        disabled={disabled}
+        className="w-full px-3 py-2 text-sm rounded-lg bg-muted/25 border border-border/50 text-foreground focus:outline-none focus:ring-1 focus:ring-accent-info/70 focus:border-accent-info/70 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <option value="">{placeholder}</option>
+        {options.map(o => (
+          <option key={o.id} value={o.id}>
+            {o.label}{typeof o.count === 'number' ? ` (${o.count})` : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 /**
@@ -135,16 +173,21 @@ function ActiveFilters({
   query,
   onClear,
   onClearAll,
+  taxonomyLabelFor,
 }: {
   query: FilterQuery;
   onClear: (key: keyof FilterQuery, value?: string) => void;
   onClearAll: () => void;
+  taxonomyLabelFor?: (id: string | undefined) => string | undefined;
 }) {
   const hasFilters =
     (query.stages?.length ?? 0) > 0 ||
     (query.patterns?.length ?? 0) > 0 ||
     (query.continents?.length ?? 0) > 0 ||
     (query.verticals?.length ?? 0) > 0 ||
+    query.verticalId !== undefined ||
+    query.subVerticalId !== undefined ||
+    query.leafId !== undefined ||
     query.fundingMin !== undefined ||
     query.fundingMax !== undefined ||
     query.usesGenai !== undefined;
@@ -190,6 +233,33 @@ function ActiveFilters({
           </button>
         </Badge>
       ))}
+
+      {query.verticalId && (
+        <Badge variant="secondary" className="gap-1">
+          {taxonomyLabelFor?.(query.verticalId) || query.verticalId}
+          <button onClick={() => { onClear('verticalId'); onClear('subVerticalId'); onClear('leafId'); }} className="hover:text-destructive">
+            <X className="h-3 w-3" />
+          </button>
+        </Badge>
+      )}
+
+      {query.subVerticalId && (
+        <Badge variant="secondary" className="gap-1">
+          {taxonomyLabelFor?.(query.subVerticalId) || query.subVerticalId}
+          <button onClick={() => { onClear('subVerticalId'); onClear('leafId'); }} className="hover:text-destructive">
+            <X className="h-3 w-3" />
+          </button>
+        </Badge>
+      )}
+
+      {query.leafId && (
+        <Badge variant="secondary" className="gap-1">
+          {taxonomyLabelFor?.(query.leafId) || query.leafId}
+          <button onClick={() => onClear('leafId')} className="hover:text-destructive">
+            <X className="h-3 w-3" />
+          </button>
+        </Badge>
+      )}
 
       {(query.fundingMin !== undefined || query.fundingMax !== undefined) && (
         <Badge variant="secondary" className="gap-1">
@@ -240,6 +310,9 @@ export function FilterBuilder({
   availableStages,
   availableContinents,
   availableVerticals,
+  taxonomyVerticals = [],
+  taxonomySubVerticals = [],
+  taxonomyLeaves = [],
   savedFilters,
   onFilterApply,
   onFilterSave,
@@ -305,6 +378,15 @@ export function FilterBuilder({
     onFilterApply(filter.query);
   }, [onFilterApply]);
 
+  const taxonomyLabelFor = useCallback((id: string | undefined) => {
+    if (!id) return undefined;
+    const match =
+      taxonomyLeaves.find(o => o.id === id) ||
+      taxonomySubVerticals.find(o => o.id === id) ||
+      taxonomyVerticals.find(o => o.id === id);
+    return match?.label || id;
+  }, [taxonomyLeaves, taxonomySubVerticals, taxonomyVerticals]);
+
   return (
     <Card className={className}>
       <CardHeader className="pb-2">
@@ -328,7 +410,7 @@ export function FilterBuilder({
 
       <CardContent className="space-y-4">
         {/* Active Filters */}
-        <ActiveFilters query={query} onClear={clearFilter} onClearAll={clearAll} />
+        <ActiveFilters query={query} onClear={clearFilter} onClearAll={clearAll} taxonomyLabelFor={taxonomyLabelFor} />
 
         {/* Saved Filters */}
         {savedFilters.length > 0 && (
@@ -399,6 +481,37 @@ export function FilterBuilder({
               selected={query.verticals || []}
               onChange={(verticals) => updateQuery({ verticals })}
             />
+
+            {/* Taxonomy (preferred) */}
+            {taxonomyVerticals.length > 0 && (
+              <TaxonomySelect
+                label="Industry (taxonomy)"
+                value={query.verticalId}
+                options={taxonomyVerticals}
+                placeholder="Any industry"
+                onChange={(verticalId) => updateQuery({ verticalId, subVerticalId: undefined, leafId: undefined })}
+              />
+            )}
+            {query.verticalId && (
+              <TaxonomySelect
+                label="Sub-vertical (taxonomy)"
+                value={query.subVerticalId}
+                options={taxonomySubVerticals}
+                placeholder={taxonomySubVerticals.length > 0 ? 'Any sub-vertical' : 'Pick an industry first'}
+                onChange={(subVerticalId) => updateQuery({ subVerticalId, leafId: undefined })}
+                disabled={taxonomySubVerticals.length === 0}
+              />
+            )}
+            {query.subVerticalId && (
+              <TaxonomySelect
+                label="Category (taxonomy)"
+                value={query.leafId}
+                options={taxonomyLeaves}
+                placeholder={taxonomyLeaves.length > 0 ? 'Any category' : 'Pick a sub-vertical first'}
+                onChange={(leafId) => updateQuery({ leafId })}
+                disabled={taxonomyLeaves.length === 0}
+              />
+            )}
 
             {/* Funding Range */}
             <FundingRange

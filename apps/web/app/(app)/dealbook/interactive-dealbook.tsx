@@ -175,14 +175,28 @@ export function InteractiveDealbook({
 
   // Update URL when filter changes (for client-side filtering)
   const updateUrlWithFilters = useCallback((query: FilterQuery) => {
-    const params = new URLSearchParams();
+    // Start from current URL so we preserve non-filter params (search, sort, month, region, etc).
+    const params = new URLSearchParams(searchParams.toString());
 
-    // Preserve region parameter
+    // Always reflect the current region prop (single source of truth)
     if (region !== 'global') params.set('region', region);
+    else params.delete('region');
 
-    // Preserve the month parameter if it's set (non-default)
-    const currentMonth = searchParams.get('month');
-    if (currentMonth) params.set('month', currentMonth);
+    // Remove filter params we manage (we'll re-apply from `query`)
+    for (const key of [
+      'stage',
+      'pattern',
+      'continent',
+      'vertical',
+      'verticalId',
+      'subVerticalId',
+      'leafId',
+      'minFunding',
+      'maxFunding',
+      'usesGenai',
+    ]) {
+      params.delete(key);
+    }
 
     if (query.stages?.length === 1) params.set('stage', query.stages[0]);
     if (query.patterns?.length === 1) params.set('pattern', query.patterns[0]);
@@ -387,6 +401,9 @@ export function InteractiveDealbook({
           availableStages={availableStages}
           availableContinents={availableContinents}
           availableVerticals={availableVerticals}
+          taxonomyVerticals={taxonomyVerticals}
+          taxonomySubVerticals={taxonomySubVerticals}
+          taxonomyLeaves={taxonomyLeaves}
           savedFilters={savedFilters}
           onFilterApply={handleFilterApply}
           onFilterSave={handleFilterSave}
@@ -408,6 +425,9 @@ export function InteractiveDealbook({
             availableStages={availableStages}
             availableContinents={availableContinents}
             availableVerticals={availableVerticals}
+            taxonomyVerticals={taxonomyVerticals}
+            taxonomySubVerticals={taxonomySubVerticals}
+            taxonomyLeaves={taxonomyLeaves}
             savedFilters={savedFilters}
             onFilterApply={(query) => {
               handleFilterApply(query);

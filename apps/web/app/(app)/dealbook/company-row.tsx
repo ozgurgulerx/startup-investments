@@ -17,6 +17,14 @@ interface CompanyRowProps {
     vertical?: string;
     sub_vertical?: string;
     sub_sub_vertical?: string;
+    vertical_taxonomy?: {
+      primary?: {
+        vertical_label?: string | null;
+        sub_vertical_label?: string | null;
+        leaf_label?: string | null;
+      };
+      path?: Array<{ label: string }>;
+    };
     funding_stage?: string;
     funding_amount?: number;
     uses_genai?: boolean;
@@ -35,10 +43,27 @@ export const CompanyRow = React.memo(function CompanyRow({ startup }: CompanyRow
     undefined,
   );
 
-  const verticalLabel = [startup.vertical, startup.sub_vertical, startup.sub_sub_vertical]
+  const taxonomyPathLabels = startup.vertical_taxonomy?.path
+    ?.map(p => p?.label)
+    .filter(Boolean) as string[] | undefined;
+  const taxonomyPrimaryLabels = [
+    startup.vertical_taxonomy?.primary?.vertical_label,
+    startup.vertical_taxonomy?.primary?.sub_vertical_label,
+    startup.vertical_taxonomy?.primary?.leaf_label,
+  ].filter(Boolean) as string[];
+  const taxonomyLabel = (taxonomyPathLabels && taxonomyPathLabels.length > 0
+    ? taxonomyPathLabels
+    : taxonomyPrimaryLabels
+  )
+    .map(v => formatStageName(v as string))
+    .join(' / ');
+
+  const legacyVerticalLabel = [startup.vertical, startup.sub_vertical, startup.sub_sub_vertical]
     .filter(Boolean)
     .map(v => formatStageName(v as string))
     .join(' / ');
+
+  const verticalLabel = taxonomyLabel || legacyVerticalLabel;
 
   const companyHref = region && region !== 'global'
     ? `/company/${startup.company_slug}?region=${encodeURIComponent(region)}`
