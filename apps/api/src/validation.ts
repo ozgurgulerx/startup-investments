@@ -21,6 +21,7 @@ function optionalTrimmedString(max: number) {
 const optionalString = optionalTrimmedString(500);
 const optionalSearchString = optionalTrimmedString(200);
 const optionalTopicString = optionalTrimmedString(100);
+const datasetRegionParam = z.enum(['global', 'turkey']).default('global');
 const newsRegionParam = z.enum(['global', 'turkey']).default('global');
 const newsDateParam = z.preprocess((value) => {
   if (value === undefined || value === null) return undefined;
@@ -36,22 +37,26 @@ const newsDateParam = z.preprocess((value) => {
 export const startupsQuerySchema = z.object({
   page: paginationPage,
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  region: datasetRegionParam,
 });
 
 export const companyQuerySchema = z.object({
   period: periodParam,
+  region: datasetRegionParam,
 });
 
 export const statsQuerySchema = z.object({
   period: periodParam,
+  region: datasetRegionParam,
 });
 
 export const periodsQuerySchema = z.object({
-  region: z.enum(['global']).default('global'),
+  region: datasetRegionParam,
 });
 
 export const dealBookQuerySchema = z.object({
   period: periodParam,
+  region: datasetRegionParam,
   page: paginationPage,
   limit: paginationLimit,
   stage: optionalString,
@@ -71,6 +76,7 @@ export const dealBookQuerySchema = z.object({
 
 export const dealBookFiltersQuerySchema = z.object({
   period: periodParam,
+  region: datasetRegionParam,
   verticalId: optionalString,
   subVerticalId: optionalString,
 });

@@ -373,8 +373,8 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const { period } = parsed.data;
-    const cacheKey = companyBySlugKey(period, slug);
+    const { period, region } = parsed.data;
+    const cacheKey = companyBySlugKey(region, period, slug);
 
     // Check cache first
     const redis = await getRedisClient();
@@ -399,8 +399,8 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
     const slugExpr = computedSlugExpr();
 
     const whereForPeriod = pf
-      ? and(pf, or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`))
-      : or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`);
+      ? and(eq(startups.datasetRegion, region), pf, or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`))
+      : and(eq(startups.datasetRegion, region), or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`));
 
     const baseQuery = db.select({
       id: startups.id,
@@ -448,7 +448,7 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
         updatedAt: startups.updatedAt,
       })
         .from(startups)
-        .where(or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`) as any)
+        .where(and(eq(startups.datasetRegion, region), or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`)) as any)
         .orderBy(desc(startups.period), desc(startups.updatedAt), desc(startups.createdAt))
         .limit(1);
     }
@@ -500,13 +500,20 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
 // Get startup logo by slug
 app.get('/api/startups/:slug/logo', async (req, res) => {
   try {
+    // Optional dataset region (defaults to global for backward compatibility).
+    const rawRegion = String((req.query as any)?.region || '').toLowerCase().trim();
+    const region = rawRegion === 'turkey' || rawRegion === 'tr' ? 'turkey' : 'global';
+
     const slugExpr = computedSlugExpr();
     const [startup] = await db.select({
       logoData: startups.logoData,
       logoContentType: startups.logoContentType,
     })
       .from(startups)
-      .where(or(eq(startups.slug, req.params.slug), sql`${slugExpr} = ${req.params.slug}`) as any)
+      .where(and(
+        eq(startups.datasetRegion, region),
+        or(eq(startups.slug, req.params.slug), sql`${slugExpr} = ${req.params.slug}`)
+      ) as any)
       .orderBy(desc(startups.period), desc(startups.updatedAt), desc(startups.createdAt))
       .limit(1);
 
@@ -533,8 +540,8 @@ app.get('/api/v1/stats', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const { period } = parsed.data;
-    const cacheKey = statsKey(period);
+    const { period, region } = parsed.data;
+    const cacheKey = statsKey(region, period);
 
     // Check cache first
     const redis = await getRedisClient();
@@ -555,21 +562,22 @@ app.get('/api/v1/stats', async (req, res) => {
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const pf = periodFilter(period);
+    const baseWhere = pf ? and(eq(startups.datasetRegion, region), pf) : eq(startups.datasetRegion, region);
 
-    // Total funding (join through startups for period filter)
-    const fundingQuery = db.select({
+    // Total funding (always join through startups so we can filter by dataset_region)
+    const [fundingResult] = await db.select({
       total: sum(fundingRounds.amountUsd),
       count: count(),
-    }).from(fundingRounds);
-    const [fundingResult] = pf
-      ? await fundingQuery.innerJoin(startups, eq(fundingRounds.startupId, startups.id)).where(pf)
-      : await fundingQuery;
+    })
+      .from(fundingRounds)
+      .innerJoin(startups, eq(fundingRounds.startupId, startups.id))
+      .where(baseWhere as any);
 
     // Startup count + GenAI count in single query
     const [countResult] = await db.select({
       startupCount: count(),
       genaiCount: sql<number>`COUNT(*) FILTER (WHERE ${startups.genaiNative} = true)`,
-    }).from(startups).where(pf);
+    }).from(startups).where(baseWhere as any);
 
     // Pattern distribution
     const patternDistribution = await db.select({
@@ -577,7 +585,7 @@ app.get('/api/v1/stats', async (req, res) => {
       count: count(),
     })
       .from(startups)
-      .where(pf)
+      .where(baseWhere as any)
       .groupBy(startups.pattern);
 
     // Stage distribution
@@ -586,7 +594,7 @@ app.get('/api/v1/stats', async (req, res) => {
       count: count(),
     })
       .from(startups)
-      .where(pf)
+      .where(baseWhere as any)
       .groupBy(startups.stage);
 
     const responseData = {
@@ -629,10 +637,11 @@ app.get('/api/v1/periods', async (req, res) => {
   try {
     const parsed = periodsQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      return res.status(400).json({ error: 'Invalid query parameters. Only region=global is supported.' });
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
 
-    const cacheKey = periodsKey();
+    const { region } = parsed.data;
+    const cacheKey = periodsKey(region);
 
     // Check cache first
     const redis = await getRedisClient();
@@ -662,7 +671,8 @@ app.get('/api/v1/periods', async (req, res) => {
         COUNT(*)::text AS deal_count,
         COALESCE(SUM(${startups.moneyRaisedUsd}), 0)::text AS total_funding
       FROM ${startups}
-      WHERE ${startups.period} IS NOT NULL AND ${startups.period} <> ''
+      WHERE ${startups.datasetRegion} = ${region}
+        AND ${startups.period} IS NOT NULL AND ${startups.period} <> ''
       GROUP BY ${startups.period}
       ORDER BY ${startups.period} DESC
     `);
@@ -702,6 +712,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
     }
     const {
       period,
+      region,
       page: pageNum,
       limit: limitNum,
       stage,
@@ -724,7 +735,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
     // Build cache key from query params
     const filters = { limit: limitNum, stage, pattern, continent, vertical, verticalId, subVerticalId, leafId, minFunding, maxFunding, usesGenai, sortBy, sortOrder, search };
     const filtersHash = hashObject(filters);
-    const cacheKey = dealBookKey(period, pageNum, filtersHash);
+    const cacheKey = dealBookKey(region, period, pageNum, filtersHash);
 
     // Check cache first
     const redis = await getRedisClient();
@@ -755,7 +766,13 @@ app.get('/api/v1/dealbook', async (req, res) => {
     const effectiveStageExpr = sql<string | null>`COALESCE(${latestRoundTypeExpr}, ${startups.fundingStage})`;
 
     // Build WHERE conditions
-    const conditions: ReturnType<typeof eq>[] = [];
+	    const conditions: ReturnType<typeof eq>[] = [];
+	
+	    // Dataset filter (global vs regional datasets)
+	    conditions.push(eq(startups.datasetRegion, region));
+
+    // Always scope by dataset region
+    conditions.push(eq(startups.datasetRegion, region));
 
     // Period filter (omitted when 'all')
     const pf = periodFilter(period);
@@ -975,6 +992,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
       },
       filters: {
         period,
+        region,
         stage: stage || null,
         pattern: pattern || null,
         continent: continent || null,
@@ -1009,12 +1027,12 @@ app.get('/api/v1/dealbook', async (req, res) => {
 // Get filter options for dealbook (available stages, patterns, continents)
 app.get('/api/v1/dealbook/filters', async (req, res) => {
   try {
-    const parsed = dealBookFiltersQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
-    }
-    const { period, verticalId, subVerticalId } = parsed.data;
-    const cacheKey = `${filterOptionsKey(period)}:${hashObject({ verticalId, subVerticalId })}`;
+	    const parsed = dealBookFiltersQuerySchema.safeParse(req.query);
+	    if (!parsed.success) {
+	      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+	    }
+	    const { period, region, verticalId, subVerticalId } = parsed.data;
+	    const cacheKey = `${filterOptionsKey(region, period)}:${hashObject({ verticalId, subVerticalId })}`;
 
     // Check cache first
     const redis = await getRedisClient();
@@ -1034,151 +1052,159 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
     }
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
-    // Get distinct stages (prefer latest funding round type, fallback to startup funding_stage)
-    const pf = periodFilter(period);
-    const stageRows = await db.execute<{ stage: string }>(
-      pf
-        ? sql`
-            SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
-            FROM startups s
+	    // Get distinct stages (prefer latest funding round type, fallback to startup funding_stage)
+	    const pf = periodFilter(period);
+	    const baseWhere = pf ? and(eq(startups.datasetRegion, region), pf) : eq(startups.datasetRegion, region);
+	    const stageRows = await db.execute<{ stage: string }>(
+	      pf
+	        ? sql`
+	            SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
+	            FROM startups s
             LEFT JOIN LATERAL (
               SELECT fr.round_type
               FROM funding_rounds fr
               WHERE fr.startup_id = s.id
               ORDER BY fr.announced_date DESC NULLS LAST, fr.created_at DESC
               LIMIT 1
-            ) lr ON TRUE
-            WHERE ${pf}
-              AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
-          `
-        : sql`
-            SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
-            FROM startups s
+	            ) lr ON TRUE
+	            WHERE ${pf}
+	              AND s.dataset_region = ${region}
+	              AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
+	          `
+	        : sql`
+	            SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
+	            FROM startups s
             LEFT JOIN LATERAL (
               SELECT fr.round_type
               FROM funding_rounds fr
               WHERE fr.startup_id = s.id
               ORDER BY fr.announced_date DESC NULLS LAST, fr.created_at DESC
               LIMIT 1
-            ) lr ON TRUE
-            WHERE COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
-          `
-    );
+	            ) lr ON TRUE
+	            WHERE s.dataset_region = ${region}
+	              AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
+	          `
+	    );
 
     // Get distinct continents
-    const continents = await db.selectDistinct({ continent: startups.continent })
-      .from(startups)
-      .where(and(
-        periodFilter(period),
-        sql`${startups.continent} IS NOT NULL`
-      ));
+	    const continents = await db.selectDistinct({ continent: startups.continent })
+	      .from(startups)
+	      .where(and(baseWhere, sql`${startups.continent} IS NOT NULL`) as any);
 
     // Get pattern counts from JSONB (aggregated in SQL)
     const pf2 = periodFilter(period);
-    const patternRows = await db.execute<{ pattern: string; count: string }>(
-      pf2
-        ? sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
-              FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
-              WHERE ${pf2} AND elem->>'name' IS NOT NULL
-              GROUP BY elem->>'name'
-              ORDER BY count DESC`
-        : sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
-              FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
-              WHERE elem->>'name' IS NOT NULL
-              GROUP BY elem->>'name'
-              ORDER BY count DESC`
-    );
+	    const patternRows = await db.execute<{ pattern: string; count: string }>(
+	      pf2
+	        ? sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
+	              FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
+	              WHERE ${pf2} AND s.dataset_region = ${region} AND elem->>'name' IS NOT NULL
+	              GROUP BY elem->>'name'
+	              ORDER BY count DESC`
+	        : sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
+	              FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
+	              WHERE s.dataset_region = ${region} AND elem->>'name' IS NOT NULL
+	              GROUP BY elem->>'name'
+	              ORDER BY count DESC`
+	    );
 
     // Distinct verticals (legacy string field in analysis JSON)
-    const verticalRows = await db.execute<{ vertical: string }>(
-      pf2
-        ? sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
-              FROM startups s
-              WHERE ${pf2}
-                AND s.analysis_data->>'vertical' IS NOT NULL
-                AND s.analysis_data->>'vertical' <> ''`
-        : sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
-              FROM startups s
-              WHERE s.analysis_data->>'vertical' IS NOT NULL
-                AND s.analysis_data->>'vertical' <> ''`
-    );
+	    const verticalRows = await db.execute<{ vertical: string }>(
+	      pf2
+	        ? sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
+	              FROM startups s
+	              WHERE ${pf2}
+	                AND s.dataset_region = ${region}
+	                AND s.analysis_data->>'vertical' IS NOT NULL
+	                AND s.analysis_data->>'vertical' <> ''`
+	        : sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
+	              FROM startups s
+	              WHERE s.dataset_region = ${region}
+	                AND s.analysis_data->>'vertical' IS NOT NULL
+	                AND s.analysis_data->>'vertical' <> ''`
+	    );
 
     // New: Vertical taxonomy options (IDs + labels + counts)
-    const taxonomyVerticalRows = await db.execute<{ id: string; label: string; count: string }>(
-      pf2
-        ? sql`SELECT
-                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
-                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
-                COUNT(*) AS count
-              FROM startups s
-              WHERE ${pf2}
-                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
-                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
-              GROUP BY 1, 2
-              ORDER BY COUNT(*) DESC`
-        : sql`SELECT
-                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
-                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
-                COUNT(*) AS count
-              FROM startups s
-              WHERE s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
-                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
-              GROUP BY 1, 2
-              ORDER BY COUNT(*) DESC`
-    );
+	    const taxonomyVerticalRows = await db.execute<{ id: string; label: string; count: string }>(
+	      pf2
+	        ? sql`SELECT
+	                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
+	                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
+	                COUNT(*) AS count
+	              FROM startups s
+	              WHERE ${pf2}
+	                AND s.dataset_region = ${region}
+	                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
+	                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
+	              GROUP BY 1, 2
+	              ORDER BY COUNT(*) DESC`
+	        : sql`SELECT
+	                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
+	                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
+	                COUNT(*) AS count
+	              FROM startups s
+	              WHERE s.dataset_region = ${region}
+	                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
+	                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
+	              GROUP BY 1, 2
+	              ORDER BY COUNT(*) DESC`
+	    );
 
-    const taxonomySubRows = verticalId
-      ? await db.execute<{ id: string; label: string; count: string }>(
-          pf2
-            ? sql`SELECT
-                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
-                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
-                    COUNT(*) AS count
-                  FROM startups s
-                  WHERE ${pf2}
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
-                  GROUP BY 1, 2
-                  ORDER BY COUNT(*) DESC`
-            : sql`SELECT
-                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
-                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
-                    COUNT(*) AS count
-                  FROM startups s
-                  WHERE s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
-                  GROUP BY 1, 2
-                  ORDER BY COUNT(*) DESC`
-        )
+	    const taxonomySubRows = verticalId
+	      ? await db.execute<{ id: string; label: string; count: string }>(
+	          pf2
+	            ? sql`SELECT
+	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
+	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
+	                    COUNT(*) AS count
+	                  FROM startups s
+	                  WHERE ${pf2}
+	                    AND s.dataset_region = ${region}
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
+	                  GROUP BY 1, 2
+	                  ORDER BY COUNT(*) DESC`
+	            : sql`SELECT
+	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
+	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
+	                    COUNT(*) AS count
+	                  FROM startups s
+	                  WHERE s.dataset_region = ${region}
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
+	                  GROUP BY 1, 2
+	                  ORDER BY COUNT(*) DESC`
+	        )
       : { rows: [] as Array<{ id: string; label: string; count: string }> };
 
-    const taxonomyLeafRows = subVerticalId
-      ? await db.execute<{ id: string; label: string; count: string }>(
-          pf2
-            ? sql`SELECT
-                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
-                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
-                    COUNT(*) AS count
-                  FROM startups s
-                  WHERE ${pf2}
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
-                  GROUP BY 1, 2
-                  ORDER BY COUNT(*) DESC`
-            : sql`SELECT
-                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
-                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
-                    COUNT(*) AS count
-                  FROM startups s
-                  WHERE s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
-                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
-                  GROUP BY 1, 2
-                  ORDER BY COUNT(*) DESC`
-        )
+	    const taxonomyLeafRows = subVerticalId
+	      ? await db.execute<{ id: string; label: string; count: string }>(
+	          pf2
+	            ? sql`SELECT
+	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
+	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
+	                    COUNT(*) AS count
+	                  FROM startups s
+	                  WHERE ${pf2}
+	                    AND s.dataset_region = ${region}
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
+	                  GROUP BY 1, 2
+	                  ORDER BY COUNT(*) DESC`
+	            : sql`SELECT
+	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
+	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
+	                    COUNT(*) AS count
+	                  FROM startups s
+	                  WHERE s.dataset_region = ${region}
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
+	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
+	                  GROUP BY 1, 2
+	                  ORDER BY COUNT(*) DESC`
+	        )
       : { rows: [] as Array<{ id: string; label: string; count: string }> };
 
     const responseData = {

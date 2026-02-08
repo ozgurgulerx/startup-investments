@@ -109,38 +109,43 @@ export async function closeRedisClient(): Promise<void> {
 /**
  * Generate cache key for dealbook queries
  */
-export function dealBookKey(period: string, page: number, filtersHash: string): string {
-  return `dealbook:v1:${period}:p${page}:${filtersHash}`;
+export function dealBookKey(region: string, period: string, page: number, filtersHash: string): string {
+  const safeRegion = (region || 'global').toLowerCase().trim() || 'global';
+  return `dealbook:v1:${safeRegion}:${period}:p${page}:${filtersHash}`;
 }
 
 /**
  * Generate cache key for company profile queries (by slug + period).
  */
-export function companyBySlugKey(period: string, slug: string): string {
+export function companyBySlugKey(region: string, period: string, slug: string): string {
+  const safeRegion = (region || 'global').toLowerCase().trim() || 'global';
   const safePeriod = (period || 'all').toLowerCase();
   const safeSlug = (slug || '').toLowerCase().trim();
-  return `company:v1:${safePeriod}:${safeSlug}`;
+  return `company:v1:${safeRegion}:${safePeriod}:${safeSlug}`;
 }
 
 /**
  * Generate cache key for monthly stats
  */
-export function statsKey(period: string): string {
-  return `stats:v1:${period}`;
+export function statsKey(region: string, period: string): string {
+  const safeRegion = (region || 'global').toLowerCase().trim() || 'global';
+  return `stats:v1:${safeRegion}:${period}`;
 }
 
 /**
  * Generate cache key for available periods
  */
-export function periodsKey(): string {
-  return 'periods:v1';
+export function periodsKey(region: string): string {
+  const safeRegion = (region || 'global').toLowerCase().trim() || 'global';
+  return `periods:v1:${safeRegion}`;
 }
 
 /**
  * Generate cache key for filter options
  */
-export function filterOptionsKey(period: string): string {
-  return `filters:v1:${period}`;
+export function filterOptionsKey(region: string, period: string): string {
+  const safeRegion = (region || 'global').toLowerCase().trim() || 'global';
+  return `filters:v1:${safeRegion}:${period}`;
 }
 
 /**
@@ -333,7 +338,7 @@ export async function invalidateAll(): Promise<void> {
   await invalidatePattern('dealbook:v1:*');
   await invalidatePattern('company:v1:*');
   await invalidatePattern('stats:v1:*');
-  await invalidatePattern('periods:v1');
+  await invalidatePattern('periods:v1:*');
   await invalidatePattern('filters:v1:*');
   await invalidatePattern('news:v1:*');
 }
