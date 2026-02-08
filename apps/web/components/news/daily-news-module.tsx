@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Activity, ArrowUpRight, RefreshCcw, Sparkles, TrendingUp } from 'lucide-react';
+import { Activity, ArrowUpRight, RefreshCcw, Sparkles } from 'lucide-react';
 import type { NewsEdition } from '@startup-intelligence/shared';
 import { sectionNewsItems } from '@/lib/news/section-items';
 import { SectionHeader } from './section-header';
@@ -44,11 +44,6 @@ function formatTimestamp(value: string): string {
     hour: 'numeric',
     minute: '2-digit',
   });
-}
-
-function extractFundingSignal(text: string): string | null {
-  const match = text.match(/([$€£]\s?\d+(?:\.\d+)?\s?(?:[mb]|million|billion)?)/i);
-  return match?.[1] || null;
 }
 
 function formatCompactCount(value: number): string {
@@ -161,45 +156,6 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
       maxDeepReads: 2,
     });
   }, [sortedItems, edition]);
-
-  const trendingEntities = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of sortedItems.slice(0, 20)) {
-      for (const entity of item.entities || []) {
-        const normalized = entity.trim();
-        if (normalized.length < 3) continue;
-        counts.set(normalized, (counts.get(normalized) || 0) + 1);
-      }
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6);
-  }, [sortedItems]);
-
-  const fundingSignal = useMemo(() => {
-    const item = sortedItems.find((entry) =>
-      entry.topic_tags.some((tag) => tag.toLowerCase() === 'funding')
-    );
-    if (!item) return null;
-    return {
-      title: item.title,
-      amount: extractFundingSignal(`${item.title} ${item.summary}`),
-      url: item.url,
-    };
-  }, [sortedItems]);
-
-  const corroboratedStories = useMemo(
-    () =>
-      sortedItems
-        .filter((item) => item.source_count >= CONFIRMED_MIN_SOURCES)
-        .slice(0, 3)
-        .map((item) => ({
-          id: item.id,
-          title: item.title,
-          sources: item.source_count,
-        })),
-    [sortedItems]
-  );
 
   const crossSourceCount = useMemo(
     () => edition?.items.filter((item) => item.source_count >= CORROBORATED_MIN_SOURCES).length || 0,
@@ -393,9 +349,9 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
           </div>
         </div>
 
-        {/* Main content: sections + sidebar */}
-            <div className="grid items-start gap-4 lg:grid-cols-12">
-          <div className="lg:col-span-8 space-y-6">
+        {/* Main content */}
+        <div className="space-y-7">
+          <div className="space-y-7">
             {/* Top Stories */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
@@ -405,7 +361,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             >
               <NewsHeroCard item={sections.topStories[0]} />
               {sections.topStories.length > 1 && (
-                <div className="mt-4 grid items-start gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid items-start gap-5 sm:grid-cols-2">
                   {sections.topStories.slice(1).map((item, i) => (
                     <motion.div
                       key={item.id}
@@ -425,7 +381,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.breaking.length > 0 && (
               <div>
                 <SectionHeader label="Breaking" indicator="pulse" count={sections.breaking.length} />
-                <div className="mt-3 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-3 grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {sections.breaking.map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -437,7 +393,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.deepReads.length > 0 && (
               <div>
                 <SectionHeader label="Deep Reads" indicator="signal" count={sections.deepReads.length} />
-                <div className="mt-3 grid items-start gap-4 sm:grid-cols-2">
+                <div className="mt-3 grid items-start gap-5 sm:grid-cols-2">
                   {sections.deepReads.map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -449,7 +405,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.remaining.length > 0 && (
               <div>
                 <SectionHeader label="More Stories" count={sections.remaining.length} />
-                <div className="mt-3 grid items-start gap-4 sm:grid-cols-2">
+                <div className="mt-3 grid items-start gap-5 sm:grid-cols-2">
                   {sections.remaining.slice(0, 6).map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -457,69 +413,6 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               </div>
             )}
           </div>
-
-          {/* Sidebar */}
-          <motion.aside
-            className="lg:col-span-4"
-            initial={{ opacity: 0, x: 8 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.35 }}
-          >
-            <div className="rounded-2xl border border-border/40 bg-card/60 p-4">
-              <div className="mb-4 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-accent-info" />
-                <h3 className="text-sm font-medium tracking-tight text-foreground">Live Signal Rail</h3>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Trending entities</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {trendingEntities.slice(0, 5).map(([entity, count]) => (
-                      <span key={entity} className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground">
-                        {entity}
-                        <span className="tabular-nums opacity-70">{count}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-border/40 bg-background/60 p-3">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Biggest funding signal</p>
-                  {fundingSignal ? (
-                    <div className="mt-2 space-y-1">
-                      <p className="text-sm text-foreground line-clamp-2">{fundingSignal.title}</p>
-                      <p className="text-xs text-accent-info">{fundingSignal.amount || 'Funding event detected'}</p>
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-xs text-muted-foreground">No high-confidence funding signal right now.</p>
-                  )}
-                </div>
-
-                <div>
-                  <p
-                    className="text-[11px] uppercase tracking-wider text-muted-foreground"
-                    title={`High-confidence stories covered by ${CONFIRMED_MIN_SOURCES}+ sources.`}
-                  >
-                    Confirmed stories
-                  </p>
-                  <div className="mt-2 space-y-2">
-                    {corroboratedStories.length ? (
-                      corroboratedStories.map((story) => (
-                        <p key={story.id} className="text-xs text-muted-foreground">
-                          <span className="text-foreground">{story.title}</span>{' '}
-                          <span className="opacity-70">({story.sources} sources)</span>
-                        </p>
-                      ))
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Waiting for multi-source confirmation.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.aside>
         </div>
 
         {/* Footer bar */}
