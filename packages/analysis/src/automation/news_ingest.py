@@ -119,6 +119,14 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("crunchbase_news", "Crunchbase News", "rss", "https://news.crunchbase.com/feed/", credibility_weight=0.85),
     SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", region="turkey", credibility_weight=0.74),
     SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", region="turkey", credibility_weight=0.70),
+    # Turkey: API sources (Turkish language queries via existing API keys)
+    SourceDefinition("gnews_turkey", "GNews Turkey", "api", "https://gnews.io/api/v4/search", region="turkey", fetch_mode="api", credibility_weight=0.66),
+    SourceDefinition("newsapi_turkey", "NewsAPI Turkey", "api", "https://newsapi.org/v2/everything", region="turkey", fetch_mode="api", credibility_weight=0.67),
+    # Turkey: additional RSS feeds
+    SourceDefinition("shiftdelete", "ShiftDelete.Net", "rss", "https://www.shiftdelete.net/feed", region="turkey", credibility_weight=0.62),
+    SourceDefinition("webtekno", "Webtekno", "rss", "https://www.webtekno.com/rss.xml", region="turkey", credibility_weight=0.60),
+    SourceDefinition("donanimhaber", "DonanımHaber", "rss", "https://www.donanimhaber.com/rss/tum/", region="turkey", credibility_weight=0.58),
+    SourceDefinition("technopat", "Technopat", "rss", "https://www.technopat.net/feed/", region="turkey", credibility_weight=0.60),
     SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
     SourceDefinition("inc", "Inc", "rss", "https://www.inc.com/rss", credibility_weight=0.74),
@@ -998,6 +1006,125 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
+    async def _fetch_newsapi_turkey(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        if not self.newsapi_key:
+            return []
+
+        now = datetime.now(timezone.utc)
+        since = (now - timedelta(hours=max(1, lookback_hours))).isoformat()
+        params = {
+            "q": "girişim OR startup OR yapay zeka OR AI OR yatırım OR fonlama",
+            "language": "tr",
+            "sortBy": "publishedAt",
+            "from": since,
+            "pageSize": str(min(100, self.max_per_source)),
+            "apiKey": self.newsapi_key,
+        }
+        resp = await client.get(source.base_url, params=params)
+        if resp.status_code >= 400:
+            return []
+
+        body = resp.json() or {}
+        raw_articles = body.get("articles") or []
+        items: List[NormalizedNewsItem] = []
+
+        for art in raw_articles:
+            title = normalize_text(str(art.get("title") or ""))
+            url = str(art.get("url") or "")
+            if not title or not url:
+                continue
+
+            published_raw = art.get("publishedAt") or now.isoformat()
+            try:
+                published = datetime.fromisoformat(str(published_raw).replace("Z", "+00:00"))
+                if published.tzinfo is None:
+                    published = published.replace(tzinfo=timezone.utc)
+                else:
+                    published = published.astimezone(timezone.utc)
+            except Exception:
+                published = now
+
+            item = NormalizedNewsItem(
+                source_key=source.source_key,
+                source_name=source.display_name,
+                source_type=source.source_type,
+                title=title[:300],
+                url=url,
+                canonical_url=canonicalize_url(url),
+                summary=normalize_text(str(art.get("description") or ""))[:300],
+                published_at=published,
+                language="tr",
+                author=normalize_text(str(art.get("author") or "")) or None,
+                payload={
+                    "provider": "newsapi",
+                    "source": art.get("source"),
+                    "image_url": normalize_image_url(str(art.get("urlToImage") or "")) if art.get("urlToImage") else None,
+                },
+                source_weight=source.credibility_weight,
+            ).with_external_id()
+            items.append(item)
+
+        return items[: self.max_per_source]
+
+    async def _fetch_gnews_turkey(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        if not self.gnews_key:
+            return []
+
+        now = datetime.now(timezone.utc)
+        since = (now - timedelta(hours=max(1, lookback_hours))).isoformat()
+        params = {
+            "q": "girişim OR yatırım OR yapay zeka OR startup OR AI",
+            "lang": "tr",
+            "country": "tr",
+            "max": str(min(50, self.max_per_source)),
+            "from": since,
+            "token": self.gnews_key,
+        }
+        resp = await client.get(source.base_url, params=params)
+        if resp.status_code >= 400:
+            return []
+
+        body = resp.json() or {}
+        articles = body.get("articles") or []
+        items: List[NormalizedNewsItem] = []
+
+        for art in articles:
+            title = normalize_text(str(art.get("title") or ""))
+            url = str(art.get("url") or "")
+            if not title or not url:
+                continue
+
+            published_raw = art.get("publishedAt") or now.isoformat()
+            try:
+                published = datetime.fromisoformat(str(published_raw).replace("Z", "+00:00"))
+                if published.tzinfo is None:
+                    published = published.replace(tzinfo=timezone.utc)
+                else:
+                    published = published.astimezone(timezone.utc)
+            except Exception:
+                published = now
+
+            item = NormalizedNewsItem(
+                source_key=source.source_key,
+                source_name=source.display_name,
+                source_type=source.source_type,
+                title=title[:300],
+                url=url,
+                canonical_url=canonicalize_url(url),
+                summary=normalize_text(str(art.get("description") or ""))[:300],
+                published_at=published,
+                language="tr",
+                author=normalize_text(str(art.get("source", {}).get("name") or "")) or None,
+                payload={
+                    "provider": "gnews",
+                    "image_url": normalize_image_url(str(art.get("image") or "")) if art.get("image") else None,
+                },
+                source_weight=source.credibility_weight,
+            ).with_external_id()
+            items.append(item)
+
+        return items[: self.max_per_source]
+
     async def _fetch_frontier_candidates(self, conn: asyncpg.Connection, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
         rows = await conn.fetch(
@@ -1228,6 +1355,10 @@ class DailyNewsIngestor:
                         items = await self._fetch_newsapi(client, source, lookback_hours)
                     elif source.source_key == "gnews":
                         items = await self._fetch_gnews(client, source, lookback_hours)
+                    elif source.source_key == "newsapi_turkey":
+                        items = await self._fetch_newsapi_turkey(client, source, lookback_hours)
+                    elif source.source_key == "gnews_turkey":
+                        items = await self._fetch_gnews_turkey(client, source, lookback_hours)
                     elif source.source_key == "startup_owned_feeds":
                         items = await self._fetch_startup_owned_sources(conn, client, source, lookback_hours)
                     elif source.fetch_mode == "crawler":
