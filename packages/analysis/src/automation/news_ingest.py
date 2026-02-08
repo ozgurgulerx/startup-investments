@@ -133,7 +133,6 @@ TR_ECOSYSTEM_KEYWORDS: Tuple[str, ...] = (
     "seed",
     "series",
     "seri",
-    "tur",
     "turda",
     "turunda",
     "degerleme",
@@ -514,6 +513,21 @@ def _is_timeout_exception(exc: Exception) -> bool:
     return "timeout" in text or "timed out" in text
 
 
+def _is_unsupported_temperature_exception(exc: Exception) -> bool:
+    text = str(exc).lower()
+    if "temperature" not in text:
+        return False
+    # Azure/OpenAI error variants we have observed in the wild:
+    # - "Unsupported value: 'temperature' does not support 0.25 with this model. Only the default (1) value is supported."
+    # - "temperature is not supported with this model"
+    return (
+        "unsupported value" in text
+        or "does not support" in text
+        or "only the default (1)" in text
+        or "not support" in text
+    )
+
+
 def _percentile(values: Sequence[float], percentile: float) -> float:
     if not values:
         return 0.0
@@ -713,10 +727,52 @@ def _azure_token_param_name(model_name: str) -> str:
         return "max_completion_tokens"
     return "max_tokens"
 
+def _azure_supports_temperature(model_name: str) -> bool:
+    """
+    Some Azure deployments (notably GPT-5 family, Feb 2026) reject non-default
+    temperature values. Keep requests compatible by omitting `temperature`.
+    """
+    m = (model_name or "").strip().lower()
+    return not m.startswith("gpt-5")
+
 
 def _contains_any(haystack: str, needles: Sequence[str]) -> bool:
-    h = (haystack or "").lower()
-    return any(n and n in h for n in needles)
+    """
+    Conservative keyword matcher tuned for Turkish content.
+
+    Important: avoid naive substring matching for short tokens (e.g. "tur", "ai")
+    because Turkish text contains many incidental overlaps (false positives).
+    """
+    h = (haystack or "").casefold()
+    if not h:
+        return False
+
+    # Treat these chars as "word" characters for boundary checks.
+    # (Python's \\b is not great with mixed-language + punctuation.)
+    word_chars = r"0-9a-zA-ZçğıöşüÇĞİÖŞÜıİ"
+
+    for raw in needles:
+        n = (raw or "").strip()
+        if not n:
+            continue
+        k = n.casefold()
+        if not k:
+            continue
+
+        # If it's a single "word" token (no spaces) prefer boundary matching.
+        # This prevents hits like "tur" in "turkiye", or "ai" in "mail".
+        is_single_token = " " not in k and "\t" not in k and "\n" not in k
+        is_alnumish = re.fullmatch(rf"[{word_chars}]+", k) is not None
+        if is_single_token and is_alnumish:
+            if re.search(rf"(?<![{word_chars}]){re.escape(k)}(?![{word_chars}])", h):
+                return True
+            continue
+
+        # Multi-word / punctuated keywords: substring is fine.
+        if k in h:
+            return True
+
+    return False
 
 
 def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
@@ -733,7 +789,7 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
         country = str((item.payload or {}).get("startup_country") or "").strip().lower()
         return country == "turkey"
 
-    text = f"{item.title} {item.summary or ''}".strip().lower()
+    text = f"{item.title} {item.summary or ''}".strip().casefold()
 
     has_ai = _contains_any(text, TR_AI_KEYWORDS)
     if not has_ai:
@@ -894,6 +950,7 @@ class DailyNewsIngestor:
                     source_type = EXCLUDED.source_type,
                     base_url = EXCLUDED.base_url,
                     region = EXCLUDED.region,
+                    is_active = true,
                     credibility_weight = EXCLUDED.credibility_weight,
                     legal_mode = EXCLUDED.legal_mode,
                     updated_at = NOW()
@@ -906,6 +963,39 @@ class DailyNewsIngestor:
                 src.credibility_weight,
                 src.legal_mode,
             )
+
+    async def _sync_source_activity(self, conn: asyncpg.Connection, sources: Sequence[SourceDefinition]) -> None:
+        """
+        Keep `news_sources.is_active` aligned with DEFAULT_SOURCES.
+
+        This matters because:
+        - The web UI uses `/api/v1/news/sources` to populate the Sources list.
+        - We occasionally remove/replace sources; old rows should not stay "active"
+          forever (otherwise Turkey feed UX shows consumer-tech sources we no longer ingest).
+        """
+        try:
+            by_region: Dict[str, List[str]] = {}
+            for src in sources:
+                region = (src.region or "global").strip().lower() or "global"
+                by_region.setdefault(region, [])
+                if src.source_key not in by_region[region]:
+                    by_region[region].append(src.source_key)
+
+            for region, keys in by_region.items():
+                if not keys:
+                    continue
+                await conn.execute(
+                    """
+                    UPDATE news_sources
+                    SET is_active = (source_key = ANY($2::text[]))
+                    WHERE region = $1
+                    """,
+                    region,
+                    keys,
+                )
+        except Exception:
+            # Back-compat: older schemas may not have is_active/region; don't fail ingestion.
+            return
 
     async def _fetch_rss_source(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         if feedparser is None:
@@ -1887,17 +1977,29 @@ class DailyNewsIngestor:
             if hasattr(self.azure_client, "responses"):
                 for model_name in preferred_models:
                     try:
-                        response = await self.azure_client.responses.create(
-                            model=model_name,
-                            input=[
+                        payload: Dict[str, Any] = {
+                            "model": model_name,
+                            "input": [
                                 {"role": "system", "content": prompt},
                                 {"role": "user", "content": json.dumps(user_payload)},
                             ],
-                            reasoning={"effort": self.azure_openai_daily_brief_effort},
-                            temperature=0.25,
-                            max_output_tokens=380,
-                            text={"format": {"type": "json_object"}},
-                        )
+                            "reasoning": {"effort": self.azure_openai_daily_brief_effort},
+                            "max_output_tokens": 380,
+                            "text": {"format": {"type": "json_object"}},
+                        }
+                        if _azure_supports_temperature(model_name):
+                            payload["temperature"] = 0.25
+
+                        try:
+                            response = await self.azure_client.responses.create(**payload)
+                        except Exception as exc:
+                            # Some Azure deployments (notably certain reasoning models) reject non-default temperature.
+                            if _is_unsupported_temperature_exception(exc):
+                                payload.pop("temperature", None)
+                                response = await self.azure_client.responses.create(**payload)
+                            else:
+                                raise
+
                         # openai-python returns helpers in newer versions; be defensive.
                         content = getattr(response, "output_text", None)
                         if callable(content):
@@ -1922,14 +2024,23 @@ class DailyNewsIngestor:
                             {"role": "system", "content": prompt},
                             {"role": "user", "content": json.dumps(user_payload)},
                         ],
-                        "temperature": 0.25,
                     }
+                    if _azure_supports_temperature(model_name):
+                        azure_payload["temperature"] = 0.25
                     azure_payload[token_param] = 340
                     if with_response_format:
                         azure_payload["response_format"] = {"type": "json_object"}
 
                     try:
-                        response = await self.azure_client.chat.completions.create(**azure_payload)
+                        try:
+                            response = await self.azure_client.chat.completions.create(**azure_payload)
+                        except Exception as exc:
+                            if _is_unsupported_temperature_exception(exc):
+                                azure_payload.pop("temperature", None)
+                                response = await self.azure_client.chat.completions.create(**azure_payload)
+                            else:
+                                raise
+
                         content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
                         parsed = json.loads(content) if isinstance(content, str) else {}
                         brief = parse_daily_brief(parsed, f"azure:{model_name}")
@@ -2039,14 +2150,23 @@ class DailyNewsIngestor:
                         {"role": "system", "content": prompt},
                         {"role": "user", "content": json.dumps(user_payload)},
                     ],
-                    "temperature": 0.2,
                 }
+                if _azure_supports_temperature(self.azure_openai_deployment):
+                    azure_payload["temperature"] = 0.2
                 azure_payload[token_param] = 220
                 if with_response_format:
                     azure_payload["response_format"] = {"type": "json_object"}
 
                 try:
-                    response = await self.azure_client.chat.completions.create(**azure_payload)
+                    try:
+                        response = await self.azure_client.chat.completions.create(**azure_payload)
+                    except Exception as exc:
+                        if _is_unsupported_temperature_exception(exc):
+                            azure_payload.pop("temperature", None)
+                            response = await self.azure_client.chat.completions.create(**azure_payload)
+                        else:
+                            raise
+
                     content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
                     parsed = json.loads(content) if isinstance(content, str) else {}
                     return parse_llm_payload(parsed, f"azure:{self.azure_openai_deployment}")
@@ -2483,6 +2603,7 @@ class DailyNewsIngestor:
 
             try:
                 await self._upsert_sources(conn, DEFAULT_SOURCES)
+                await self._sync_source_activity(conn, DEFAULT_SOURCES)
 
                 if not rebuild_only:
                     collected, collect_errors, sources_attempted = await self._collect_items(conn, lookback_hours)

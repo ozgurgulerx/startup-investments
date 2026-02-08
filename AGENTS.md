@@ -9,7 +9,7 @@ Goals:
 - Make recovery/debug of "site is slow/down" deterministic.
 - Avoid accidental changes that break deploys, auth, or data pipelines.
 
-Last verified: 2026-02-07
+Last verified: 2026-02-08
 
 ## Repo Map
 
