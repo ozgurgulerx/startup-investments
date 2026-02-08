@@ -2635,15 +2635,15 @@ class DailyNewsIngestor:
                 turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
                 turkey_clusters: List[StoryCluster] = []
                 for c in clusters:
-                    if any(m.source_key in turkey_source_keys for m in c.members):
-                        turkey_clusters.append(c)
+                    # Only include clusters that have at least one Turkey-partitioned member
+                    # (or Turkey startup-owned member), and that pass the Turkey relevance gate.
+                    turkey_members = [
+                        m for m in c.members
+                        if m.source_key in turkey_source_keys or m.source_key == "startup_owned_feeds"
+                    ]
+                    if not turkey_members:
                         continue
-                    # Include startup-owned items when the underlying startup is Turkey-based.
-                    if any(
-                        (m.source_key == "startup_owned_feeds")
-                        and str((m.payload or {}).get("startup_country") or "").strip().lower() == "turkey"
-                        for m in c.members
-                    ):
+                    if any(_is_relevant_turkey_news_item(m) for m in turkey_members):
                         turkey_clusters.append(c)
 
                 global_stats = await self._persist_edition(
