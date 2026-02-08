@@ -38,8 +38,9 @@ MAILTO=""
 # Not scheduled — called by deploy.sh when apps/api/** changes, or run manually:
 #   /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh backend-deploy 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/backend-deploy.sh
 
-# === Code Update (every 6 hours) ===
-0 */6 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh code-update 45 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/deploy.sh
+# === Code Update (every 15 min, staggered) ===
+# Runs git pull + conditional deploys. Staggered to avoid colliding with :00/:15/:30/:45 jobs.
+7,22,37,52 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh code-update 45 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/deploy.sh
 
 # === VM Health Monitoring (every 5 min) ===
 */5 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/monitoring/heartbeat.sh >> /var/log/buildatlas/heartbeat.log 2>&1
