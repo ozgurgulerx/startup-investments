@@ -13,6 +13,7 @@ export const startups = pgTable('startups', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }),
+  datasetRegion: varchar('dataset_region', { length: 20 }).notNull().default('global'),
   description: text('description'),
   website: varchar('website', { length: 500 }),
   foundedDate: date('founded_date'),
@@ -41,7 +42,7 @@ export const startups = pgTable('startups', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (table) => ({
-  uniqueSlug: uniqueIndex('idx_startups_slug').on(table.slug),
+  uniqueSlug: uniqueIndex('idx_startups_slug').on(table.datasetRegion, table.slug),
 }));
 
 // Funding rounds table

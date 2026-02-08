@@ -48,6 +48,7 @@ SETS = {
         "010_add_constraints.sql",
         "019_startup_vertical_taxonomy_indexes.sql",
         "021_build_patterns_and_funding_indexes.sql",
+        "022_startup_dataset_region.sql",
     ],
     "performance": [
         "015_performance_indexes.sql",

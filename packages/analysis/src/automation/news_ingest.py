@@ -580,6 +580,18 @@ def _shorten_text(value: str, limit: int = 180) -> str:
     return text[: max(0, limit - 3)].rstrip() + "..."
 
 
+def _azure_token_param_name(model_name: str) -> str:
+    """Azure OpenAI model families can differ in token limit parameter names.
+
+    Empirically (Feb 2026), some deployments reject `max_tokens` and require
+    `max_completion_tokens` instead (e.g. GPT-5 family).
+    """
+    m = (model_name or "").strip().lower()
+    if m.startswith("gpt-5"):
+        return "max_completion_tokens"
+    return "max_tokens"
+
+
 def build_builder_takeaway(*, story_type: str, tags: Sequence[str], title: str, summary: str, entities: Sequence[str]) -> str:
     focus = entities[0] if entities else "the company"
     text = f"{title} {summary}".lower()
@@ -1220,6 +1232,7 @@ class DailyNewsIngestor:
             SELECT
               COALESCE(slug, '') AS slug,
               COALESCE(name, '') AS name,
+              COALESCE(headquarters_country, '') AS headquarters_country,
               website
             FROM startups
             WHERE website IS NOT NULL
@@ -1232,11 +1245,12 @@ class DailyNewsIngestor:
         if not startup_rows:
             return []
 
-        candidate_inputs: List[Tuple[str, str, str]] = []
+        candidate_inputs: List[Tuple[str, str, str, str]] = []
         for row in startup_rows:
             raw_website = str(row.get("website") or "").strip()
             slug = str(row.get("slug") or "").strip()
             name = str(row.get("name") or "").strip()
+            headquarters_country = str(row.get("headquarters_country") or "").strip()
             if not raw_website:
                 continue
             normalized = canonicalize_url(raw_website)
@@ -1255,9 +1269,9 @@ class DailyNewsIngestor:
                 "/updates",
                 "/press",
             ):
-                candidate_inputs.append((f"{root}{suffix}", slug, name))
+                candidate_inputs.append((f"{root}{suffix}", slug, name, headquarters_country))
 
-        deduped_candidates: List[Tuple[str, str, str]] = []
+        deduped_candidates: List[Tuple[str, str, str, str]] = []
         seen_urls: set[str] = set()
         for candidate in candidate_inputs:
             if candidate[0] in seen_urls:
@@ -1268,7 +1282,7 @@ class DailyNewsIngestor:
         sem = asyncio.Semaphore(12)
         items: List[NormalizedNewsItem] = []
 
-        async def parse_candidate(url: str, startup_slug: str, startup_name: str) -> List[NormalizedNewsItem]:
+        async def parse_candidate(url: str, startup_slug: str, startup_name: str, startup_country: str) -> List[NormalizedNewsItem]:
             try:
                 async with sem:
                     resp = await client.get(url)
@@ -1308,6 +1322,7 @@ class DailyNewsIngestor:
                                     "origin": "startup_owned_feed",
                                     "startup_slug": startup_slug,
                                     "startup_name": startup_name,
+                                    "startup_country": startup_country,
                                     "image_url": feed_image or None,
                                 },
                                 source_weight=source.credibility_weight,
@@ -1333,6 +1348,7 @@ class DailyNewsIngestor:
                             "origin": "startup_owned_page",
                             "startup_slug": startup_slug,
                             "startup_name": startup_name,
+                            "startup_country": startup_country,
                             "image_url": normalize_image_url(image_url, base_url=url) if image_url else None,
                         },
                         source_weight=source.credibility_weight,
@@ -1344,7 +1360,7 @@ class DailyNewsIngestor:
 
         for idx in range(0, len(deduped_candidates), 24):
             chunk = deduped_candidates[idx: idx + 24]
-            chunk_tasks = [parse_candidate(url, slug, name) for url, slug, name in chunk]
+            chunk_tasks = [parse_candidate(url, slug, name, country) for url, slug, name, country in chunk]
             for produced in await asyncio.gather(*chunk_tasks):
                 if produced:
                     items.extend(produced)
@@ -1727,6 +1743,7 @@ class DailyNewsIngestor:
 
             for model_name in preferred_models:
                 for with_response_format in (True, False):
+                    token_param = _azure_token_param_name(model_name)
                     azure_payload: Dict[str, Any] = {
                         "model": model_name,
                         "messages": [
@@ -1734,8 +1751,8 @@ class DailyNewsIngestor:
                             {"role": "user", "content": json.dumps(user_payload)},
                         ],
                         "temperature": 0.25,
-                        "max_tokens": 340,
                     }
+                    azure_payload[token_param] = 340
                     if with_response_format:
                         azure_payload["response_format"] = {"type": "json_object"}
 
@@ -1843,6 +1860,7 @@ class DailyNewsIngestor:
         last_error_code: Optional[str] = None
         if self.azure_client is not None:
             for with_response_format in (True, False):
+                token_param = _azure_token_param_name(self.azure_openai_deployment)
                 azure_payload: Dict[str, Any] = {
                     "model": self.azure_openai_deployment,
                     "messages": [
@@ -1850,8 +1868,8 @@ class DailyNewsIngestor:
                         {"role": "user", "content": json.dumps(user_payload)},
                     ],
                     "temperature": 0.2,
-                    "max_tokens": 220,
                 }
+                azure_payload[token_param] = 220
                 if with_response_format:
                     azure_payload["response_format"] = {"type": "json_object"}
 
@@ -2307,7 +2325,18 @@ class DailyNewsIngestor:
                 cluster_ids = await self._persist_clusters(conn, clusters)
 
                 turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
-                turkey_clusters = [c for c in clusters if any(m.source_key in turkey_source_keys for m in c.members)]
+                turkey_clusters: List[StoryCluster] = []
+                for c in clusters:
+                    if any(m.source_key in turkey_source_keys for m in c.members):
+                        turkey_clusters.append(c)
+                        continue
+                    # Include startup-owned items when the underlying startup is Turkey-based.
+                    if any(
+                        (m.source_key == "startup_owned_feeds")
+                        and str((m.payload or {}).get("startup_country") or "").strip().lower() == "turkey"
+                        for m in c.members
+                    ):
+                        turkey_clusters.append(c)
 
                 global_stats = await self._persist_edition(
                     conn,

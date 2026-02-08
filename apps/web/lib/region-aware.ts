@@ -1,6 +1,6 @@
 import { normalizeDatasetRegion, type DatasetRegion } from '@/lib/region';
 
-export const REGION_AWARE_PREFIXES = ['/brief', '/dealbook', '/signals', '/capital', '/company'] as const;
+export const REGION_AWARE_PREFIXES = ['/brief', '/dealbook', '/dossiers', '/signals', '/capital', '/company'] as const;
 
 export function isRegionAwarePath(pathname: string): boolean {
   return REGION_AWARE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -20,4 +20,3 @@ export function applyRegionParam(params: URLSearchParams, region: DatasetRegion)
   }
   return params;
 }
-
