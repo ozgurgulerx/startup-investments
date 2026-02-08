@@ -335,7 +335,8 @@ def _slack_post(webhook_url: str, payload: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    webhook_url = _env("SLACK_WEBHOOK_URL")
+    # Back-compat: some environments use SLACK_WEBHOOK instead of SLACK_WEBHOOK_URL.
+    webhook_url = _env("SLACK_WEBHOOK_URL") or _env("SLACK_WEBHOOK")
     if not webhook_url:
         return 0
 
@@ -444,4 +445,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
