@@ -3,6 +3,20 @@ name: VM Cron Slack Notify
 on:
   repository_dispatch:
     types: [vm-cron-slack-notify]
+  workflow_dispatch:
+    inputs:
+      title:
+        description: "Slack title"
+        required: false
+        default: "BuildAtlas VM Cron (manual)"
+      status:
+        description: "success|failure|warning|info"
+        required: false
+        default: "info"
+      body:
+        description: "Slack message body"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -28,7 +42,9 @@ jobs:
           with open(event_path, "r", encoding="utf-8") as f:
               event = json.load(f)
 
-          payload = event.get("client_payload") or {}
+          # repository_dispatch => client_payload
+          # workflow_dispatch => inputs
+          payload = event.get("client_payload") or event.get("inputs") or {}
           if not isinstance(payload, dict):
               payload = {}
 
@@ -53,4 +69,3 @@ jobs:
 
           subprocess.check_call([sys.executable, "scripts/slack_notify.py"])
           PY
-

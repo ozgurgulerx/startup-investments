@@ -134,7 +134,7 @@ if [ $EXIT_CODE -eq 0 ]; then
 *Duration:* ${DURATION_SEC}s
 *SHA:* ${SHA_SHORT:-unknown}
 *Log:* ${LOG_FILE}" \
-        python3 "$REPO_DIR/scripts/slack_notify.py" 2>/dev/null || true
+        python3 "$REPO_DIR/scripts/slack_notify.py" >> "$LOG_FILE" 2>&1 || true
     fi
 elif [ $EXIT_CODE -eq 124 ]; then
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] TIMEOUT: $JOB_NAME (killed after ${TIMEOUT_MIN}m)" >> "$LOG_FILE"
@@ -143,7 +143,7 @@ elif [ $EXIT_CODE -eq 124 ]; then
     SLACK_BODY="Job killed after exceeding ${TIMEOUT_MIN}m timeout on ${BUILDATLAS_HOST}.
 *Duration:* ${DURATION_SEC}s
 *Log:* ${LOG_FILE}" \
-    python3 "$REPO_DIR/scripts/slack_notify.py" 2>/dev/null || true
+    python3 "$REPO_DIR/scripts/slack_notify.py" >> "$LOG_FILE" 2>&1 || true
 else
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] FAILED: $JOB_NAME (exit $EXIT_CODE)" >> "$LOG_FILE"
     TAIL_OUTPUT=$(tail -15 "$LOG_FILE" 2>/dev/null | head -10 || echo "(no output)")
@@ -157,7 +157,7 @@ else
 \`\`\`
 ${TAIL_OUTPUT}
 \`\`\`" \
-    python3 "$REPO_DIR/scripts/slack_notify.py" 2>/dev/null || true
+    python3 "$REPO_DIR/scripts/slack_notify.py" >> "$LOG_FILE" 2>&1 || true
 fi
 
 exit $EXIT_CODE

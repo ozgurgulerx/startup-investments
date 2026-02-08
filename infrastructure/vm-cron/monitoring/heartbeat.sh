@@ -27,6 +27,8 @@ export BUILDATLAS_JOB="heartbeat"
 export BUILDATLAS_HOST="${HOSTNAME:-vm-buildatlas-cron}"
 export BUILDATLAS_LOG="/var/log/buildatlas/heartbeat.log"
 
+mkdir -p "$(dirname "$BUILDATLAS_LOG")"
+
 derive_github_repository() {
     local origin=""
     origin="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)"
@@ -92,5 +94,5 @@ if [ "$ALERT" = true ]; then
     SLACK_TITLE="VM Health Alert (vm-buildatlas-cron)" \
     SLACK_STATUS="warning" \
     SLACK_BODY="$BODY" \
-    python3 "$REPO_DIR/scripts/slack_notify.py" 2>/dev/null || true
+    python3 "$REPO_DIR/scripts/slack_notify.py" >> "$BUILDATLAS_LOG" 2>&1 || true
 fi

@@ -71,6 +71,12 @@ VM cron runner:
     - Requires `GITHUB_TOKEN` + `GITHUB_REPOSITORY` on the VM.
     - GitHub workflow handler: `.github/workflows/vm-cron-slack-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
     - Dispatch fallback is only used when `BUILDATLAS_RUNNER=vm-cron` (set by `runner.sh` and `heartbeat.sh`).
+  - Quick test (GitHub -> Slack):
+    - `gh workflow run vm-cron-slack-notify.yml -f title="Slack test" -f status=info -f body="Hello from GitHub Actions"`
+    - Then verify it ran: `gh run list --workflow vm-cron-slack-notify.yml -L 5`
+    - If it fails, inspect: `gh run view <run_id> --log-failed`
+  - VM debugging:
+    - Slack-post failures are appended into the job log (e.g. `/var/log/buildatlas/news-ingest.log`) and `heartbeat.log`.
 
 Frontend:
 - `.github/workflows/frontend-deploy.yml`
