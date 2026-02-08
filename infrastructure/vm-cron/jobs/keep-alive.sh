@@ -2,13 +2,25 @@
 # keep-alive.sh — Consolidated infrastructure keep-alive.
 # Merges keep-aks-alive.yml + keep-aks-running.yml into one job.
 # Checks: PostgreSQL → AKS → API health → Frontend
-set -uo pipefail
+set -euo pipefail
 
 echo "=== Infrastructure Keep-Alive ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
-# Azure CLI login with managed identity (silent refresh)
-az login --identity --output none 2>/dev/null || true
+# Azure CLI login with managed identity (required)
+az_login() {
+    for i in 1 2 3; do
+        if az login --identity --output none 2>/dev/null; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+if ! az_login; then
+    echo "ERROR: Azure managed identity login failed"
+    exit 1
+fi
 
 # --- Step 1: Check PostgreSQL ---
 echo ""

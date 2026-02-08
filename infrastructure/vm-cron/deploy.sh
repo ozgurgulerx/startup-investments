@@ -4,12 +4,40 @@
 # Usage:
 #   deploy.sh          # Interactive mode
 #   deploy.sh --auto   # Quiet mode (for cron)
-set -uo pipefail
+set -euo pipefail
 
 REPO_DIR="/opt/buildatlas/startup-analysis"
 VENV_DIR="/opt/buildatlas/venv"
 
 cd "$REPO_DIR"
+
+# Ensure the VM crontab is installed and matches the repo version.
+# This keeps cron stable even if entries are accidentally edited/removed.
+ensure_crontab_installed() {
+    local expected_file="$REPO_DIR/infrastructure/vm-cron/crontab"
+    if ! command -v crontab >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ ! -f "$expected_file" ]; then
+        return 0
+    fi
+
+    local current=""
+    current="$(crontab -l 2>/dev/null || true)"
+
+    # If no crontab exists (or ours isn't installed), install it.
+    if [ -z "$current" ] || ! echo "$current" | grep -q "BuildAtlas VM Cron Jobs"; then
+        echo "Crontab missing/unexpected. Installing BuildAtlas VM crontab..."
+        crontab "$expected_file"
+        return 0
+    fi
+
+    # If content drifted from the repo version, reinstall it (cron-as-code).
+    if ! diff -q <(printf "%s\n" "$current") "$expected_file" >/dev/null 2>&1; then
+        echo "Crontab drift detected. Reinstalling BuildAtlas VM crontab..."
+        crontab "$expected_file"
+    fi
+}
 
 # Stash any local changes (shouldn't exist, but safety)
 git stash --include-untracked 2>/dev/null || true
@@ -20,6 +48,9 @@ OLD_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
 # Pull latest
 echo "Pulling latest code..."
 git pull --ff-only origin main
+
+# Keep cron current even if the crontab file itself didn't change in this pull.
+ensure_crontab_installed
 
 # Check what changed in the pull range (handles multiple commits).
 NEW_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
@@ -65,7 +96,7 @@ JOBS_DIR="$REPO_DIR/infrastructure/vm-cron/jobs"
 # Apply database migrations if new migration files were added
 if echo "$CHANGED_FILES" | grep -qE '^database/migrations/'; then
     echo "New migrations detected. Applying performance indexes..."
-    bash "$JOBS_DIR/apply-migrations.sh" performance || echo "Migration apply failed (exit $?)"
+    bash "$JOBS_DIR/apply-migrations.sh" performance
 fi
 
 # Auto-trigger deploys in parallel if both changed
@@ -110,7 +141,8 @@ if [ -n "$FRONTEND_PID" ]; then
 fi
 
 if [ "$DEPLOY_FAILED" = "true" ]; then
-    echo "WARNING: One or more deploys failed. Check logs."
+    echo "ERROR: One or more deploys failed. Check logs."
+    exit 1
 fi
 
 echo "Deploy complete at $(date -u '+%Y-%m-%d %H:%M UTC')"

@@ -24,7 +24,19 @@ echo "  Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo ""
 
 # Azure CLI login (managed identity, needed for az webapp deploy)
-az login --identity --output none 2>/dev/null || true
+az_login() {
+    for i in 1 2 3; do
+        if az login --identity --output none 2>/dev/null; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+if ! az_login; then
+    echo "ERROR: Azure managed identity login failed"
+    exit 1
+fi
 
 echo "  Commit: $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 echo ""

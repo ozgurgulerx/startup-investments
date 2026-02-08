@@ -26,7 +26,19 @@ echo "  Commit: $COMMIT_SHA"
 echo ""
 
 # Azure CLI login (managed identity)
-az login --identity --output none 2>/dev/null || true
+az_login() {
+    for i in 1 2 3; do
+        if az login --identity --output none 2>/dev/null; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+if ! az_login; then
+    echo "ERROR: Azure managed identity login failed"
+    exit 1
+fi
 
 # --- Step 1: Validate required env vars ---
 echo "[1/6] Validating environment..."

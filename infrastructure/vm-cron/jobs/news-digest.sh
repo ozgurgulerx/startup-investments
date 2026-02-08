@@ -1,7 +1,7 @@
 #!/bin/bash
 # news-digest.sh — Daily digest sender for both regions.
 # Replaces: .github/workflows/news-digest-daily.yml (scheduled runs)
-set -uo pipefail
+set -euo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"
@@ -14,12 +14,19 @@ bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" news-digest
 
 cd "$REPO_DIR/packages/analysis"
 
-# Send for global region
+set +e
 echo "--- Sending global digest ---"
 "$VENV_DIR/bin/python" main.py send-news-digest --region global
+GLOBAL_EXIT=$?
 
-# Send for turkey region
 echo "--- Sending turkey digest ---"
 "$VENV_DIR/bin/python" main.py send-news-digest --region turkey
+TURKEY_EXIT=$?
+set -e
+
+if [ "$GLOBAL_EXIT" -ne 0 ] || [ "$TURKEY_EXIT" -ne 0 ]; then
+    echo "ERROR: Digest send failed (global=$GLOBAL_EXIT, turkey=$TURKEY_EXIT)"
+    exit 1
+fi
 
 echo "=== News Digest complete ==="

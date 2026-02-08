@@ -1,7 +1,7 @@
 #!/bin/bash
 # news-ingest.sh — Hourly news ingestion.
 # Replaces: .github/workflows/news-ingest.yml (scheduled runs)
-set -uo pipefail
+set -euo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"

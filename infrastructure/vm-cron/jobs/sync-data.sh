@@ -4,7 +4,7 @@
 #
 # After syncing and pushing, triggers frontend-deploy.sh on this VM
 # (previously relied on GitHub Actions frontend-deploy.yml).
-set -uo pipefail
+set -euo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"
@@ -13,17 +13,30 @@ echo "=== Sync Data ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
 # Azure CLI login (managed identity, for blob storage access)
-az login --identity --output none 2>/dev/null || true
+az_login() {
+    for i in 1 2 3; do
+        if az login --identity --output none 2>/dev/null; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+if ! az_login; then
+    echo "ERROR: Azure managed identity login failed (needed for blob storage access)"
+    exit 1
+fi
 
 cd "$REPO_DIR/packages/analysis"
 
 # Step 1: Check for changes
 echo "Checking blob storage for changes..."
-"$VENV_DIR/bin/python" -m src.sync.blob_sync --check --target "$REPO_DIR/apps/web/data" > /tmp/sync-changes.txt 2>&1 || true
-cat /tmp/sync-changes.txt
+SYNC_CHECK_LOG="/tmp/sync-changes.txt"
+"$VENV_DIR/bin/python" -m src.sync.blob_sync --check --target "$REPO_DIR/apps/web/data" > "$SYNC_CHECK_LOG" 2>&1
+cat "$SYNC_CHECK_LOG"
 
-ADDED=$(grep "Added:" /tmp/sync-changes.txt 2>/dev/null | awk '{print $2}' || echo "0")
-MODIFIED=$(grep "Modified:" /tmp/sync-changes.txt 2>/dev/null | awk '{print $2}' || echo "0")
+ADDED=$(grep "Added:" "$SYNC_CHECK_LOG" 2>/dev/null | awk '{print $2}' || echo "0")
+MODIFIED=$(grep "Modified:" "$SYNC_CHECK_LOG" 2>/dev/null | awk '{print $2}' || echo "0")
 TOTAL=$((ADDED + MODIFIED))
 
 if [ "$TOTAL" -eq 0 ]; then

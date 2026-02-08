@@ -17,9 +17,13 @@ echo "[1/8] Installing system packages..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
     software-properties-common curl git jq unzip logrotate \
+    cron \
     build-essential libffi-dev libssl-dev \
     apt-transport-https ca-certificates gnupg lsb-release \
     util-linux zip rsync
+
+# Ensure cron daemon is enabled and running
+sudo systemctl enable --now cron 2>/dev/null || true
 
 # --- Python 3.11 ---
 echo ""
