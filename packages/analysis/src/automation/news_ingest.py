@@ -1003,7 +1003,22 @@ def _azure_supports_temperature(model_name: str) -> bool:
     temperature values. Keep requests compatible by omitting `temperature`.
     """
     m = (model_name or "").strip().lower()
-    return not m.startswith("gpt-5")
+    if not m:
+        return True
+    if m.startswith("gpt-5"):
+        return False
+    if m.startswith("o1") or m.startswith("o3") or m.startswith("o4"):
+        return False
+    return True
+
+
+def _azure_supports_reasoning_effort(model_name: str) -> bool:
+    """Whether Azure accepts `reasoning.effort` for this deployment.
+
+    In practice this is supported on the GPT-5 family via the Responses API.
+    """
+    m = (model_name or "").strip().lower()
+    return bool(m) and m.startswith("gpt-5")
 
 
 def _contains_any(haystack: str, needles: Sequence[str]) -> bool:
@@ -2760,7 +2775,6 @@ class DailyNewsIngestor:
                 "summary": summary,
                 "bullets": bullets,
                 "themes": themes,
-                "model": model_label,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -2779,6 +2793,26 @@ class DailyNewsIngestor:
                     preferred_models.append(m)
 
             if hasattr(self.azure_client, "responses"):
+                json_schema = {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "headline": {"type": "string", "minLength": 1, "maxLength": 120},
+                        "summary": {"type": "string", "maxLength": 600},
+                        "bullets": {
+                            "type": "array",
+                            "minItems": 3,
+                            "maxItems": 5,
+                            "items": {"type": "string", "maxLength": 240},
+                        },
+                        "themes": {
+                            "type": "array",
+                            "maxItems": 6,
+                            "items": {"type": "string", "maxLength": 32},
+                        },
+                    },
+                    "required": ["headline", "summary", "bullets", "themes"],
+                }
                 for model_name in preferred_models:
                     try:
                         payload: Dict[str, Any] = {
@@ -2787,10 +2821,18 @@ class DailyNewsIngestor:
                                 {"role": "system", "content": prompt},
                                 {"role": "user", "content": json.dumps(user_payload)},
                             ],
-                            "reasoning": {"effort": self.azure_openai_daily_brief_effort},
-                            "max_output_tokens": 380,
-                            "text": {"format": {"type": "json_object"}},
+                            "max_output_tokens": 520,
+                            "text": {
+                                "format": {
+                                    "type": "json_schema",
+                                    "name": "daily_news_brief",
+                                    "schema": json_schema,
+                                    "strict": True,
+                                }
+                            },
                         }
+                        if _azure_supports_reasoning_effort(model_name):
+                            payload["reasoning"] = {"effort": self.azure_openai_daily_brief_effort}
                         if _azure_supports_temperature(model_name):
                             payload["temperature"] = 0.25
 
@@ -2812,7 +2854,7 @@ class DailyNewsIngestor:
                             # Fallback: attempt to read common dict-like shapes.
                             content = getattr(response, "text", None) or "{}"
                         parsed = json.loads(content) if isinstance(content, str) else {}
-                        brief = parse_daily_brief(parsed, f"azure:{model_name}")
+                        brief = parse_daily_brief(parsed, None)
                         if brief is not None:
                             print(f"[news-ingest] daily brief generated via Azure (responses): \"{brief.get('headline', '')}\"")
                             return brief
@@ -2847,7 +2889,7 @@ class DailyNewsIngestor:
 
                         content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
                         parsed = json.loads(content) if isinstance(content, str) else {}
-                        brief = parse_daily_brief(parsed, f"azure:{model_name}")
+                        brief = parse_daily_brief(parsed, None)
                         if brief is not None:
                             print(f"[news-ingest] daily brief generated via Azure: \"{brief.get('headline', '')}\"")
                             return brief
