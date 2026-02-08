@@ -9,6 +9,7 @@ import { sectionNewsItems } from '@/lib/news/section-items';
 import { SectionHeader } from './section-header';
 import { NewsHeroCard } from './news-hero-card';
 import { NewsCard } from './news-card';
+import { DailyBriefCard } from './daily-brief-card';
 import { NewsSubscriptionCard } from './news-subscription-card';
 
 interface DailyNewsModuleProps {
@@ -348,6 +349,13 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             </div>
           </div>
         </div>
+
+        {/* Daily brief */}
+        {edition.brief && activeTopic === 'all' && (
+          <div className="mb-6">
+            <DailyBriefCard brief={edition.brief} />
+          </div>
+        )}
 
         {/* Main content */}
         <div className="space-y-7">
