@@ -80,6 +80,9 @@ VM cron runner:
   - GitHub push notifications:
     - Each push to `main` posts a Slack message via `.github/workflows/slack-commit-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
     - Opt-out per commit: include `[skip slack]` (or `[no-slack]`) in the commit message.
+  - VM fallback when GitHub Actions is blocked:
+    - VM cron job `slack-commit-notify` (see `infrastructure/vm-cron/jobs/slack-commit-notify.sh`) polls `origin/main` and posts Slack notifications.
+    - Cursor file is stored under `/var/lib/buildatlas/slack-commit-notify.main.last` (or `$REPO_DIR/.tmp` fallback).
   - If you **don't** want Slack webhooks on the VM, `scripts/slack_notify.py` can fall back to GitHub `repository_dispatch`:
     - Requires `GITHUB_TOKEN` + `GITHUB_REPOSITORY` on the VM.
     - GitHub workflow handler: `.github/workflows/vm-cron-slack-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).

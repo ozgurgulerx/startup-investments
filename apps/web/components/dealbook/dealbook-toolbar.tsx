@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { RegionSwitch } from '@/components/ui/region-switch';
 
 export type SortOption = 'funding_desc' | 'funding_asc' | 'recency_desc' | 'name_asc';
 
@@ -119,6 +120,14 @@ export function DealbookToolbar({
 
   return (
     <div className={cn('flex items-center gap-3 flex-wrap rounded-xl border border-border/35 bg-card/30 px-3 py-2', className)}>
+      {/* Region (context control) */}
+      <div className="flex items-center gap-2 shrink-0">
+        <span className="hidden lg:inline text-[10px] uppercase tracking-wider text-muted-foreground/70">
+          Dataset
+        </span>
+        <RegionSwitch variant="compact" mode="url_always" />
+      </div>
+
       {/* Search input */}
       <div className="relative flex-1 min-w-[200px] max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

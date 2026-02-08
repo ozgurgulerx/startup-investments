@@ -7,6 +7,7 @@ import { WatchlistBadge } from '@/components/ui/watchlist-button';
 import { ReadingModeToggle } from '@/components/ui/reading-mode-toggle';
 import { MobileNavTrigger } from '@/components/layout/mobile-nav';
 import { BrandMark } from '@/components/ui/brand-mark';
+import { RegionSwitch } from '@/components/ui/region-switch';
 
 interface AppHeaderProps {
   onSearch?: (query: string) => void;
@@ -64,7 +65,11 @@ export function AppHeader({ onSearch }: AppHeaderProps) {
         </form>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Region */}
+          <RegionSwitch variant="compact" className="sm:hidden" mode="url_when_region_aware" />
+          <RegionSwitch variant="full" className="hidden sm:inline-flex" mode="url_when_region_aware" />
+
           {/* Reading Mode */}
           <div className="hidden sm:block">
             <ReadingModeToggle />

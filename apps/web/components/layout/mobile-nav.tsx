@@ -8,18 +8,20 @@ import { Sheet } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
 import { BrandMark } from '@/components/ui/brand-mark';
+import { useRegion } from '@/lib/region-context';
 
 interface NavItem {
   label: string;
   href: string;
   showBadge?: boolean;
+  regionAware?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { label: 'Brief', href: '/brief' },
-  { label: 'Dossiers', href: '/dealbook' },
-  { label: 'Signals', href: '/signals' },
-  { label: 'Capital', href: '/capital' },
+  { label: 'Brief', href: '/brief', regionAware: true },
+  { label: 'Dossiers', href: '/dealbook', regionAware: true },
+  { label: 'Signals', href: '/signals', regionAware: true },
+  { label: 'Capital', href: '/capital', regionAware: true },
   { label: 'Library', href: '/library' },
   { label: 'Watchlist', href: '/watchlist', showBadge: true },
 ];
@@ -27,6 +29,7 @@ const navItems: NavItem[] = [
 export function MobileNavTrigger() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const { region } = useRegion();
 
   return (
     <>
@@ -61,10 +64,13 @@ export function MobileNavTrigger() {
             {navItems.map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== '/' && pathname.startsWith(item.href));
+              const href = item.regionAware && region !== 'global'
+                ? `${item.href}?region=${region}`
+                : item.href;
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={href}
                   onClick={() => setOpen(false)}
                   className={cn(
                     'block px-4 py-3 text-base rounded-md transition-colors',

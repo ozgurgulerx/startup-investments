@@ -4,12 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRegion } from '@/lib/region-context';
 import { normalizeDatasetRegion } from '@/lib/region';
-
-const REGION_AWARE_PREFIXES = ['/brief', '/dealbook', '/signals', '/capital', '/company'];
-
-function isRegionAwarePath(pathname: string): boolean {
-  return REGION_AWARE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
+import { isRegionAwarePath } from '@/lib/region-aware';
 
 /**
  * Keep URL `?region=` and localStorage-backed region selection in sync.

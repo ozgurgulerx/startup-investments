@@ -103,6 +103,13 @@ should_notify_success() {
         raw="$DEFAULT_SLACK_SUCCESS_JOBS"
     fi
     raw="$(echo "$raw" | tr -d '[:space:]')"
+
+    # Footgun prevention: a blank value (e.g. `SLACK_NOTIFY_SUCCESS_JOBS=` in .env)
+    # should behave like "use defaults", not "disable everything".
+    if [ -z "$raw" ]; then
+        raw="$DEFAULT_SLACK_SUCCESS_JOBS"
+    fi
+
     if [ -z "$raw" ]; then
         return 1
     fi
@@ -122,12 +129,21 @@ git_sha_short() {
     git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || true
 }
 
+slack_url_for_job() {
+    case "$JOB_NAME" in
+        frontend-deploy) echo "${PUBLIC_BASE_URL:-https://buildatlas.net}" ;;
+        backend-deploy) echo "${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/health" ;;
+        *) echo "" ;;
+    esac
+}
+
 # Log and notify
 if [ $EXIT_CODE -eq 0 ]; then
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] SUCCESS: $JOB_NAME" >> "$LOG_FILE"
 
     if should_notify_success; then
         SHA_SHORT="$(git_sha_short)"
+        SLACK_URL="$(slack_url_for_job)" \
         SLACK_TITLE="Cron success: $JOB_NAME" \
         SLACK_STATUS="success" \
         SLACK_BODY="*Host:* ${BUILDATLAS_HOST}

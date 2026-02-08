@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
 import { BrandMark } from '@/components/ui/brand-mark';
-import { RegionToggle } from '@/components/ui/region-toggle';
 import { useRegion } from '@/lib/region-context';
 
 interface NavItem {
@@ -36,11 +35,6 @@ export function Sidebar() {
           <Link href="/" className="inline-flex">
             <BrandMark size="md" variant="accent" />
           </Link>
-        </div>
-
-        {/* Region Toggle */}
-        <div className="px-4 pb-4">
-          <RegionToggle className="w-full justify-center" />
         </div>
 
         {/* Navigation */}
