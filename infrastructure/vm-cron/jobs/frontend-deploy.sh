@@ -41,10 +41,19 @@ fi
 echo "  Commit: $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 echo ""
 
+# runner.sh sources /etc/buildatlas/.env (or repo .env fallback). For convenience, also
+# allow web-scoped overrides from apps/web/.env.local (not committed).
+if [ -f "$WEB_DIR/.env.local" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$WEB_DIR/.env.local"
+    set +a
+fi
+
 # Fail fast: in production the backend requires X-API-Key for all non-health routes.
 if [ -z "${API_KEY:-}" ]; then
     echo "ERROR: API_KEY is not set. This will break backend calls (401) in production."
-    echo "Set API_KEY in /etc/buildatlas/.env (loaded by runner.sh) and re-run."
+    echo "Set API_KEY in /etc/buildatlas/.env or $REPO_DIR/.env (loaded by runner.sh), or $WEB_DIR/.env.local, then re-run."
     exit 1
 fi
 
