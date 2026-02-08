@@ -11,12 +11,6 @@ import { StoryCard, PinnedStoryCard } from './story-row';
 import { ContextPanel } from './context-panel';
 import { NewsSubscriptionCard } from './news-subscription-card';
 
-function extractFundingSignal(text: string): string | null {
-  // Best-effort: match "$21M", "€3.2 million", etc.
-  const match = text.match(/(?:US\$|\$|€|£)\s?\d+(?:[.,]\d+)?\s?(?:[kmb]|thousand|million|billion)?/i);
-  return match?.[0]?.replace(/\s+/g, ' ') || null;
-}
-
 function formatTimestamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -189,40 +183,6 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
     return items;
   }, [edition.items, timeWindow, activeTopic, searchQuery, sortMode]);
-
-  const trendingEntities = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of filteredItems.slice(0, 24)) {
-      for (const entity of item.entities || []) {
-        const normalized = entity.trim();
-        if (normalized.length < 3) continue;
-        counts.set(normalized, (counts.get(normalized) || 0) + 1);
-      }
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  }, [filteredItems]);
-
-  const fundingSignal = useMemo(() => {
-    const item = filteredItems.find((entry) =>
-      entry.story_type?.toLowerCase() === 'funding' ||
-      entry.topic_tags.some((tag) => tag.toLowerCase() === 'funding')
-    );
-    if (!item) return null;
-    return {
-      title: item.title,
-      amount: extractFundingSignal(`${item.title} ${item.summary} ${item.llm_summary || ''}`),
-      url: item.url,
-    };
-  }, [filteredItems]);
-
-  const corroboratedStories = useMemo(
-    () =>
-      filteredItems
-        .filter((item) => item.source_count >= 3)
-        .slice(0, 3)
-        .map((item) => ({ id: item.id, title: item.title, sources: item.source_count })),
-    [filteredItems]
-  );
 
   const totalEntities = useMemo(() => {
     const set = new Set<string>();
@@ -442,9 +402,9 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
       {/* Feed + context */}
       <div className="flex-1 min-h-0">
-        <div className="mx-auto h-full min-h-0 max-w-[1680px] grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_460px]">
+        <div className="mx-auto h-full min-h-0 max-w-[1680px]">
           {/* Feed */}
-          <div className="min-h-0 overflow-y-auto">
+          <div className="h-full min-h-0 overflow-y-auto">
             {/* Pinned top impact */}
             {pinnedItem && (
               <div className="px-6 py-4 border-b border-border/20">
@@ -460,7 +420,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
             {/* Story cards */}
             {feedItems.length > 0 ? (
               <div className="px-6 py-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {feedItems.map((item) => (
                     <StoryCard
                       key={item.id}
@@ -485,38 +445,21 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
               <NewsSubscriptionCard region={region} />
             </div>
           </div>
-
-          {/* Desktop context (reserved space) */}
-          <div className="hidden lg:block min-h-0 border-l border-border/20 bg-card/10">
-            <ContextPanel
-              selectedItem={selectedItem}
-              allItems={filteredItems}
-              onClose={() => handleSelectStory(null)}
-              onSelectStory={(id) => handleSelectStory(id)}
-              trendingEntities={trendingEntities}
-              fundingSignal={fundingSignal}
-              corroboratedStories={corroboratedStories}
-            />
-          </div>
         </div>
       </div>
 
-      {/* Mobile story context drawer (overlay) */}
+      {/* Story context drawer (overlay) */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50">
           <div
             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
             onClick={() => handleSelectStory(null)}
           />
-          <div className="absolute inset-x-0 bottom-0 top-16 bg-card border-t border-border/30 rounded-t-2xl overflow-hidden animate-slide-in-right">
+          <div className="absolute inset-x-0 bottom-0 top-16 bg-card border-t border-border/30 rounded-t-2xl overflow-hidden animate-fade-up lg:inset-y-0 lg:right-0 lg:left-auto lg:top-0 lg:bottom-0 lg:w-[520px] lg:rounded-none lg:border-t-0 lg:border-l lg:animate-slide-in-right">
             <ContextPanel
               selectedItem={selectedItem}
               allItems={filteredItems}
               onClose={() => handleSelectStory(null)}
-              onSelectStory={(id) => handleSelectStory(id)}
-              trendingEntities={trendingEntities}
-              fundingSignal={fundingSignal}
-              corroboratedStories={corroboratedStories}
             />
           </div>
         </div>
