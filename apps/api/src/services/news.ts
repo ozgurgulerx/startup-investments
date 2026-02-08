@@ -533,7 +533,7 @@ export function makeNewsService(pool: Pool) {
           [region]
         );
         if (fallback.rows[0]?.edition_date) {
-          editionDate = fallback.rows[0].edition_date;
+          editionDate = String(fallback.rows[0].edition_date);
           meta = await getEditionMeta(editionDate, region);
         }
       }
