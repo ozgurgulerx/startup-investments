@@ -88,6 +88,83 @@ for lockfile in /tmp/buildatlas-*.lock; do
     fi
 done
 
+# ---------------------------------------------------------------------------
+# Job freshness checks — alert when scheduled jobs haven't run on time.
+#
+# Format: "job_name:overdue_minutes:schedule"
+#   overdue_minutes = alert if last run was more than this many minutes ago
+#   schedule:
+#     always           — checked 24/7
+#     weekday_business — only checked Mon-Fri 08:00-20:30 UTC (sync-data window + buffer)
+# ---------------------------------------------------------------------------
+FRESHNESS_JOBS=(
+    "keep-alive:40:always"
+    "news-ingest:150:always"
+    "crawl-frontier:90:always"
+    "news-digest:3000:always"
+    "sync-data:90:weekday_business"
+    "code-update:800:always"
+)
+
+LOG_DIR="/var/log/buildatlas"
+STALE_ALERT_DIR="/tmp/buildatlas-stale-alerts"
+mkdir -p "$STALE_ALERT_DIR"
+NOW_TS=$(date +%s)
+DOW=$(date -u +%u)        # 1=Mon … 7=Sun
+HOUR=$(date -u +%-H)
+
+for entry in "${FRESHNESS_JOBS[@]}"; do
+    IFS=: read -r JOB OVERDUE_MIN SCHEDULE <<< "$entry"
+
+    # Skip schedule-restricted jobs outside their window
+    if [ "$SCHEDULE" = "weekday_business" ]; then
+        if [ "$DOW" -gt 5 ] || [ "$HOUR" -lt 8 ] || [ "$HOUR" -ge 21 ]; then
+            continue
+        fi
+    fi
+
+    JOB_LOG="$LOG_DIR/$JOB.log"
+    [ -f "$JOB_LOG" ] || continue
+
+    # Find last completion timestamp (SUCCESS, FAILED, or TIMEOUT — any means it ran)
+    LAST_LINE=$(grep -E '^\[.*UTC\] (SUCCESS|FAILED|TIMEOUT):' "$JOB_LOG" | tail -1)
+    if [ -z "$LAST_LINE" ]; then
+        continue  # No runs recorded yet, skip
+    fi
+
+    # Parse timestamp: [2026-02-08 07:00:06 UTC] SUCCESS: keep-alive
+    LAST_TS_STR=$(echo "$LAST_LINE" | sed -n 's/^\[\(.*\) UTC\].*/\1/p')
+    if [ -z "$LAST_TS_STR" ]; then
+        continue
+    fi
+    LAST_TS=$(date -u -d "$LAST_TS_STR" +%s 2>/dev/null || echo "0")
+    if [ "$LAST_TS" -eq 0 ]; then
+        continue
+    fi
+
+    MINS_AGO=$(( (NOW_TS - LAST_TS) / 60 ))
+
+    if [ "$MINS_AGO" -gt "$OVERDUE_MIN" ]; then
+        # Dedup: only alert once per hour per job
+        SENTINEL="$STALE_ALERT_DIR/$JOB"
+        if [ -f "$SENTINEL" ]; then
+            SENTINEL_AGE=$(( NOW_TS - $(stat -c %Y "$SENTINEL" 2>/dev/null || echo "$NOW_TS") ))
+            if [ "$SENTINEL_AGE" -lt 3600 ]; then
+                continue  # Already alerted within the last hour
+            fi
+        fi
+        touch "$SENTINEL"
+
+        # Extract last status from the line
+        LAST_STATUS=$(echo "$LAST_LINE" | sed -n 's/.*UTC\] \(SUCCESS\|FAILED\|TIMEOUT\):.*/\1/p')
+        ALERT=true
+        ALERT_LINES+=("- Job '$JOB' overdue: last ran ${MINS_AGO}min ago (threshold: ${OVERDUE_MIN}min, last status: ${LAST_STATUS})")
+    else
+        # Job is on time — remove stale sentinel if it exists
+        rm -f "$STALE_ALERT_DIR/$JOB"
+    fi
+done
+
 # Send alert if needed
 if [ "$ALERT" = true ]; then
     BODY=$(printf '%s\n' "${ALERT_LINES[@]}")

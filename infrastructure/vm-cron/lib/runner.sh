@@ -23,7 +23,7 @@ REPO_DIR="/opt/buildatlas/startup-analysis"
 VENV_DIR="/opt/buildatlas/venv"
 ENV_FILE_PRIMARY="/etc/buildatlas/.env"
 ENV_FILE_FALLBACK="$REPO_DIR/.env"
-DEFAULT_SLACK_SUCCESS_JOBS="news-ingest,news-digest,frontend-deploy,backend-deploy,code-update"
+DEFAULT_SLACK_SUCCESS_JOBS="news-ingest,news-digest,frontend-deploy,backend-deploy,code-update,sync-data,crawl-frontier"
 
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
