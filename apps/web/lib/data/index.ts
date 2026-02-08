@@ -7,7 +7,7 @@ import type {
   PeriodInfo,
 } from '@startup-intelligence/shared';
 import { api, isAPIConfigured, type DealbookFilters, type DealbookResponse } from '@/lib/api/client';
-import { normalizeStageKey } from '@/lib/utils';
+import { normalizeStageKey, slugify } from '@/lib/utils';
 import { normalizeDatasetRegion } from '@/lib/region';
 
 // Base data path - configurable via environment variable
@@ -57,11 +57,11 @@ export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]
     return cached.data;
   }
 
-  // For global data, prefer API-backed periods so "latest" matches what the Dealbook API can serve.
-  // (Files can be ahead of DB, which makes global look empty if we pick a month the API lacks.)
-  if (regionKey === 'global' && isAPIConfigured()) {
+  // Prefer API-backed periods when available so "latest" matches what the Dealbook API can serve.
+  // (Files can be ahead of DB, which makes the UI look empty if we pick a month the API lacks.)
+  if (isAPIConfigured() && regionKey === 'global') {
     try {
-      const periods = await api.getPeriods();
+      const periods = await api.getPeriods(regionKey);
       periodsCache.set(regionKey, { data: periods, timestamp: Date.now() });
       return periods;
     } catch (error) {
@@ -282,8 +282,19 @@ async function getStartupsForPeriod(period: string, region?: string): Promise<St
     const indexContent = await fs.readFile(indexPath, 'utf-8');
     const index = JSON.parse(indexContent);
 
+    // If the analysis_store is missing/empty (seen in some deployments), fall back to CSV
+    // so Dealbook doesn't render as empty in degradation mode.
+    const entries = Object.entries(index.startups || {});
+    if (entries.length === 0) {
+      const fromCsv = await getStartupsForPeriodFromCsv(period, region);
+      if (fromCsv.length > 0) {
+        startupsCache.set(key, { data: fromCsv, timestamp: Date.now() });
+        return fromCsv;
+      }
+    }
+
     // Load all startup files in parallel for performance
-    const loadPromises = Object.entries(index.startups || {}).map(
+    const loadPromises = entries.map(
       async ([name, info]): Promise<StartupAnalysis | null> => {
         const startupInfo = info as { slug: string; has_base: boolean; has_viral: boolean };
 
@@ -320,6 +331,15 @@ async function getStartupsForPeriod(period: string, region?: string): Promise<St
     // Sort by funding amount descending
     const sorted = startups.sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
 
+    // If the index points to no readable base analyses, try CSV as a last resort.
+    if (sorted.length === 0) {
+      const fromCsv = await getStartupsForPeriodFromCsv(period, region);
+      if (fromCsv.length > 0) {
+        startupsCache.set(key, { data: fromCsv, timestamp: Date.now() });
+        return fromCsv;
+      }
+    }
+
     // Cache the result
     startupsCache.set(key, {
       data: sorted,
@@ -329,6 +349,18 @@ async function getStartupsForPeriod(period: string, region?: string): Promise<St
     return sorted;
   } catch (error) {
     console.error('Error reading startups:', error);
+
+    // If analysis_store isn't present, attempt CSV fallback.
+    try {
+      const fromCsv = await getStartupsForPeriodFromCsv(period, region);
+      if (fromCsv.length > 0) {
+        startupsCache.set(key, { data: fromCsv, timestamp: Date.now() });
+        return fromCsv;
+      }
+    } catch (csvErr) {
+      console.error('Error reading startups CSV fallback:', csvErr);
+    }
+
     return [];
   }
 }
@@ -346,11 +378,10 @@ export async function getStartups(period: string, region?: string): Promise<Star
     return getAllStartupsAcrossPeriods(region);
   }
 
-  // Regional data is always file-based (API only has global data)
-  const isRegional = normalizeDatasetRegion(region) !== 'global';
+  const regionKey = normalizeDatasetRegion(region);
 
   // Try API first if configured (much faster than loading 275+ files)
-  if (!isRegional && isAPIConfigured()) {
+  if (isAPIConfigured() && regionKey === 'global') {
     try {
       // Check cache first to avoid API call if we have recent data
       const cached = startupsCache.get(cacheKey(region, period));
@@ -365,6 +396,7 @@ export async function getStartups(period: string, region?: string): Promise<Star
       let hasMore = true;
       while (hasMore) {
         const response = await api.getDealbook({
+          region: regionKey,
           period,
           page,
           limit: 100,
@@ -376,11 +408,9 @@ export async function getStartups(period: string, region?: string): Promise<Star
         page++;
       }
 
-      const response = { data: allStartups };
-
       // Convert API response to StartupAnalysis format
       // Using type assertion since API returns compatible data but with string types
-      const startups = response.data.map(s => ({
+      const startups = allStartups.map(s => ({
         company_name: s.company_name,
         company_slug: s.company_slug,
         description: s.description || undefined,
@@ -400,6 +430,12 @@ export async function getStartups(period: string, region?: string): Promise<Star
         tech_stack: s.tech_stack || undefined,
         models_mentioned: s.models_mentioned || [],
       })) as StartupAnalysis[];
+
+      // If API returned nothing but file data exists (e.g. DB lag), fall back.
+      if (startups.length === 0) {
+        const fromFiles = await getStartupsForPeriod(period, region);
+        if (fromFiles.length > 0) return fromFiles;
+      }
 
       // Cache the result
       startupsCache.set(cacheKey(region, period), {
@@ -440,20 +476,74 @@ export async function getStartupsPaginated(
   options: DealbookFilters & { region?: string } = {}
 ): Promise<PaginatedStartupsResponse> {
   const { region, ...apiOptions } = options;
-  const isRegional = region && region !== 'global';
+  const regionKey = normalizeDatasetRegion(region);
 
-  // Try API first if configured (API only has global data)
-  if (!isRegional && isAPIConfigured()) {
+  // Try API first if configured (much faster + consistent with API-backed filters)
+  if (isAPIConfigured() && regionKey === 'global') {
     try {
       const response = await api.getDealbook({
+        region: regionKey,
         period,
         ...apiOptions,
       });
 
+      // If the API returns empty for an unfiltered query, try file/CSV degradation mode.
+      // (Prevents global Dealbook from looking "broken" when DB is behind deployed files.)
+      const hasRealFilters = !!(
+        apiOptions.stage ||
+        apiOptions.pattern ||
+        apiOptions.continent ||
+        apiOptions.vertical ||
+        apiOptions.verticalId ||
+        apiOptions.subVerticalId ||
+        apiOptions.leafId ||
+        apiOptions.minFunding !== undefined ||
+        apiOptions.maxFunding !== undefined ||
+        apiOptions.usesGenai !== undefined ||
+        (apiOptions.search && apiOptions.search.trim().length > 0)
+      );
+      if (!hasRealFilters && response.pagination.total === 0) {
+        const fromFiles = await getStartupsForPeriod(period, region);
+        if (fromFiles.length > 0) {
+          const sortBy = apiOptions.sortBy || 'funding';
+          const sortOrder = apiOptions.sortOrder || 'desc';
+          const sorted = [...fromFiles].sort((a, b) => {
+            let comparison = 0;
+            if (sortBy === 'funding') {
+              comparison = (a.funding_amount || 0) - (b.funding_amount || 0);
+            } else if (sortBy === 'name') {
+              comparison = a.company_name.localeCompare(b.company_name);
+            } else if (sortBy === 'date') {
+              const dateA = a.analyzed_at ? new Date(a.analyzed_at).getTime() : 0;
+              const dateB = b.analyzed_at ? new Date(b.analyzed_at).getTime() : 0;
+              comparison = dateA - dateB;
+            }
+            return sortOrder === 'desc' ? -comparison : comparison;
+          });
+
+          const page = apiOptions.page || 1;
+          const limit = apiOptions.limit || 25;
+          const total = sorted.length;
+          const startIndex = (page - 1) * limit;
+          const paginatedData = sorted.slice(startIndex, startIndex + limit);
+
+          return {
+            data: paginatedData,
+            pagination: {
+              page,
+              limit,
+              total,
+              totalPages: Math.ceil(total / limit),
+            },
+            filters: { region: regionKey, ...apiOptions },
+          };
+        }
+      }
+
       return {
         data: response.data as unknown as StartupAnalysis[],
         pagination: response.pagination,
-        filters: apiOptions,
+        filters: { region: regionKey, ...apiOptions },
       };
     } catch (error) {
       console.error('API request failed, falling back to file-based data:', error);
@@ -574,12 +664,12 @@ export async function getFilterOptions(
   // Optional cascading taxonomy selection (only affects which sub/leaf options we return).
   const taxonomyVerticalId = opts?.verticalId;
   const taxonomySubVerticalId = opts?.subVerticalId;
-  const isRegional = region && region !== 'global';
+  const regionKey = normalizeDatasetRegion(region);
 
-  // Try API first if configured (API only has global data)
-  if (!isRegional && isAPIConfigured()) {
+  // Try API first if configured
+  if (isAPIConfigured() && regionKey === 'global') {
     try {
-      return await api.getDealbookFilters(period, { verticalId: taxonomyVerticalId, subVerticalId: taxonomySubVerticalId });
+      return await api.getDealbookFilters(period, { region: regionKey, verticalId: taxonomyVerticalId, subVerticalId: taxonomySubVerticalId });
     } catch (error) {
       console.error('API request failed, falling back to file-based data:', error);
     }
@@ -665,12 +755,12 @@ export async function getStartup(
   slug: string,
   region?: string
 ): Promise<StartupAnalysis | null> {
-  const isRegional = region && region !== 'global';
+  const regionKey = normalizeDatasetRegion(region);
 
-  // Prefer API when configured (API only has global data).
-  if (!isRegional && isAPIConfigured()) {
+  // Prefer API when configured.
+  if (isAPIConfigured() && regionKey === 'global') {
     try {
-      const response = await api.getCompanyBySlug(slug, period);
+      const response = await api.getCompanyBySlug(slug, period, regionKey);
       if (response && (response as any).data) {
         return (response as any).data as StartupAnalysis;
       }
@@ -696,8 +786,221 @@ export async function getStartup(
       return baseAnalysis;
     }
   } catch {
-    return null;
+    // If analysis_store isn't available, fall back to cached period data (CSV degradation mode).
+    try {
+      const all = await getStartupsForPeriod(period, region);
+      return all.find(s => s.company_slug === slug) || null;
+    } catch {
+      return null;
+    }
   }
+}
+
+// -----------------------------------------------------------------------------
+// CSV Degradation Mode (when analysis_store JSON isn't present)
+// -----------------------------------------------------------------------------
+
+function parseCsvRows(input: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+
+  // Strip BOM if present
+  const text = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        // Escaped quote
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (ch === ',') {
+      row.push(field);
+      field = '';
+      continue;
+    }
+
+    if (ch === '\n') {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+      continue;
+    }
+
+    if (ch === '\r') {
+      continue;
+    }
+
+    field += ch;
+  }
+
+  // Flush trailing field/row
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function parseNumber(value: string | undefined): number | undefined {
+  const raw = (value || '').trim();
+  if (!raw) return undefined;
+  const n = Number(raw.replace(/,/g, ''));
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parseYesNo(value: string | undefined): boolean {
+  const raw = (value || '').trim().toLowerCase();
+  if (raw === 'yes' || raw === 'true' || raw === '1') return true;
+  return false;
+}
+
+function splitList(value: string | undefined, delimiter: string): string[] {
+  const raw = (value || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(delimiter)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+function mapFundingTypeToStage(value: string | undefined): StartupAnalysis['funding_stage'] {
+  const raw = (value || '').trim().toLowerCase();
+  if (!raw) return 'unknown';
+
+  if (raw.includes('pre-seed') || raw.includes('pre seed')) return 'pre_seed';
+  if (raw === 'seed') return 'seed';
+  if (raw.startsWith('series a')) return 'series_a';
+  if (raw.startsWith('series b')) return 'series_b';
+  if (raw.startsWith('series c')) return 'series_c';
+  if (raw.startsWith('series d')) return 'series_d_plus';
+  if (raw.startsWith('series e')) return 'series_d_plus';
+  if (raw.startsWith('series f')) return 'series_d_plus';
+  if (raw.startsWith('series g')) return 'series_d_plus';
+  if (raw.startsWith('series h')) return 'series_d_plus';
+
+  // Crunchbase-ish buckets
+  if (raw.includes('late stage')) return 'late_stage';
+  if (raw.includes('growth')) return 'growth';
+
+  return 'unknown';
+}
+
+function extractCompanyName(transactionName: string): string {
+  const raw = (transactionName || '').trim();
+  if (!raw) return '';
+  const parts = raw.split(' - ');
+  if (parts.length >= 2) return parts.slice(1).join(' - ').trim();
+  return raw;
+}
+
+async function getStartupsForPeriodFromCsv(period: string, region?: string): Promise<StartupAnalysis[]> {
+  const csvPath = path.join(getDataPath(region), period, 'output', 'startups_enriched_with_analysis.csv');
+  const csvContent = await fs.readFile(csvPath, 'utf-8');
+  const rows = parseCsvRows(csvContent);
+  if (rows.length < 2) return [];
+
+  const header = rows[0].map(h => h.trim());
+  const idx: Record<string, number> = {};
+  for (let i = 0; i < header.length; i++) idx[header[i]] = i;
+
+  const get = (row: string[], key: string): string | undefined => {
+    const i = idx[key];
+    if (i === undefined) return undefined;
+    return row[i];
+  };
+
+  const bySlug = new Map<string, StartupAnalysis>();
+
+  for (const row of rows.slice(1)) {
+    if (!row || row.length === 0) continue;
+
+    const transactionName = (get(row, 'Transaction Name') || '').trim();
+    const companyName = extractCompanyName(transactionName);
+    if (!companyName) continue;
+
+    const slug = slugify(companyName);
+
+    const industries = splitList(get(row, 'Organization Industries'), ',');
+    const patterns = splitList(get(row, 'analysis_build_patterns'), ';');
+    const models = splitList(get(row, 'analysis_models_mentioned'), ';');
+
+    const fundingUsd =
+      parseNumber(get(row, 'Money Raised (in USD)')) ??
+      parseNumber(get(row, 'Money Raised'));
+
+    const analyzedAt = (get(row, 'Announced Date') || '').trim() || undefined;
+
+    const item: StartupAnalysis = {
+      company_name: companyName,
+      company_slug: slug,
+      website: (get(row, 'Organization Website') || '').trim() || undefined,
+      description: (get(row, 'Organization Description') || '').trim() || undefined,
+      location: (get(row, 'Organization Location') || '').trim() || undefined,
+      industries: industries.length > 0 ? industries : undefined,
+      // Use first industry as a pragmatic "vertical" so the UI has something filterable.
+      vertical: (industries[0] || undefined) as any,
+      funding_amount: fundingUsd,
+      funding_stage: mapFundingTypeToStage(get(row, 'Funding Type')),
+      uses_genai: parseYesNo(get(row, 'analysis_uses_genai')),
+      genai_intensity: ((get(row, 'analysis_genai_intensity') || '').trim().toLowerCase() as any) || undefined,
+      models_mentioned: models.length > 0 ? models : [],
+      build_patterns: patterns.map(name => ({
+        name,
+        confidence: 0.5,
+        evidence: [],
+      })),
+      market_type: ((get(row, 'analysis_market_type') || '').trim().toLowerCase() as any) || undefined,
+      sub_vertical: (get(row, 'analysis_sub_vertical') || '').trim() || undefined,
+      target_market: ((get(row, 'analysis_target_market') || '').trim().toLowerCase() as any) || undefined,
+      newsletter_potential: ((get(row, 'analysis_newsletter_potential') || '').trim().toLowerCase() as any) || undefined,
+      technical_depth: ((get(row, 'analysis_technical_depth') || '').trim().toLowerCase() as any) || undefined,
+      confidence_score: parseNumber(get(row, 'analysis_confidence_score')),
+      analyzed_at: analyzedAt,
+    };
+
+    const prev = bySlug.get(slug);
+    if (!prev) {
+      bySlug.set(slug, item);
+      continue;
+    }
+
+    // Keep the "best" row per company for list rendering stability.
+    const prevFunding = prev.funding_amount || 0;
+    const nextFunding = item.funding_amount || 0;
+    if (nextFunding > prevFunding) {
+      bySlug.set(slug, item);
+      continue;
+    }
+
+    const prevDate = prev.analyzed_at ? new Date(prev.analyzed_at).getTime() : 0;
+    const nextDate = item.analyzed_at ? new Date(item.analyzed_at).getTime() : 0;
+    if (nextDate > prevDate) {
+      bySlug.set(slug, item);
+    }
+  }
+
+  return Array.from(bySlug.values()).sort((a, b) => (b.funding_amount || 0) - (a.funding_amount || 0));
 }
 
 /**

@@ -164,7 +164,19 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   if (filters.usesGenai !== undefined) currentSearchParams.usesGenai = filters.usesGenai.toString();
   if (filters.search) currentSearchParams.search = filters.search;
 
-  const hasFilters = Object.values(filters).some(v => v !== undefined);
+  const hasFilters = !!(
+    filters.stage ||
+    filters.pattern ||
+    filters.continent ||
+    filters.vertical ||
+    filters.verticalId ||
+    filters.subVerticalId ||
+    filters.leafId ||
+    filters.minFunding !== undefined ||
+    filters.maxFunding !== undefined ||
+    filters.usesGenai !== undefined ||
+    (filters.search && filters.search.trim().length > 0)
+  );
 
   return (
     <>

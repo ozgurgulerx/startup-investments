@@ -150,6 +150,7 @@ export interface HealthResponse {
 
 export interface DealbookFilters {
   period?: string;
+  region?: string;
   page?: number;
   limit?: number;
   stage?: string;
@@ -199,6 +200,7 @@ export interface DealbookResponse {
   };
   filters: {
     period: string;
+    region?: string | null;
     stage: string | null;
     pattern: string | null;
     continent: string | null;
@@ -235,8 +237,6 @@ export interface CompanyBySlugResponse {
 export const api = {
   /**
    * Get available periods ordered newest -> oldest.
-   *
-   * Note: backend is currently global-only; `region` is reserved for future use.
    */
   getPeriods: (region?: string): Promise<PeriodInfo[]> => {
     const searchParams = new URLSearchParams();
@@ -253,7 +253,13 @@ export const api = {
   /**
    * Get platform statistics
    */
-  getStats: (): Promise<StatsResponse> => fetchFromAPI('/api/v1/stats'),
+  getStats: (params?: { period?: string; region?: string }): Promise<StatsResponse> => {
+    const searchParams = new URLSearchParams();
+    if (params?.period) searchParams.set('period', params.period);
+    if (params?.region && params.region !== 'global') searchParams.set('region', params.region);
+    const query = searchParams.toString();
+    return fetchFromAPI(`/api/v1/stats${query ? `?${query}` : ''}`);
+  },
 
   /**
    * Get list of startups with pagination
@@ -261,10 +267,12 @@ export const api = {
   getStartups: (params?: {
     page?: number;
     limit?: number;
+    region?: string;
   }): Promise<StartupResponse> => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set('page', params.page.toString());
     if (params?.limit) searchParams.set('limit', params.limit.toString());
+    if (params?.region && params.region !== 'global') searchParams.set('region', params.region);
     const query = searchParams.toString();
     return fetchFromAPI(`/api/v1/startups${query ? `?${query}` : ''}`);
   },
@@ -287,6 +295,7 @@ export const api = {
   getDealbook: (filters: DealbookFilters = {}): Promise<DealbookResponse> => {
     const searchParams = new URLSearchParams();
     if (filters.period) searchParams.set('period', filters.period);
+    if (filters.region && filters.region !== 'global') searchParams.set('region', filters.region);
     if (filters.page) searchParams.set('page', filters.page.toString());
     if (filters.limit) searchParams.set('limit', filters.limit.toString());
     if (filters.stage) searchParams.set('stage', filters.stage);
@@ -309,9 +318,10 @@ export const api = {
   /**
    * Get available filter options for dealbook
    */
-  getDealbookFilters: (period = 'all', opts?: { verticalId?: string; subVerticalId?: string }): Promise<DealbookFiltersResponse> => {
+  getDealbookFilters: (period = 'all', opts?: { region?: string; verticalId?: string; subVerticalId?: string }): Promise<DealbookFiltersResponse> => {
     const searchParams = new URLSearchParams();
     searchParams.set('period', period);
+    if (opts?.region && opts.region !== 'global') searchParams.set('region', opts.region);
     if (opts?.verticalId) searchParams.set('verticalId', opts.verticalId);
     if (opts?.subVerticalId) searchParams.set('subVerticalId', opts.subVerticalId);
     return fetchFromAPI(`/api/v1/dealbook/filters?${searchParams.toString()}`);
@@ -320,9 +330,12 @@ export const api = {
   /**
    * Get company profile by slug (analysis data when available).
    */
-  getCompanyBySlug: (slug: string, period: string = 'all'): Promise<CompanyBySlugResponse> => {
-    const query = period && period !== 'all' ? `?period=${encodeURIComponent(period)}` : '';
-    return fetchFromAPI(`/api/v1/companies/${encodeURIComponent(slug)}${query}`);
+  getCompanyBySlug: (slug: string, period: string = 'all', region?: string): Promise<CompanyBySlugResponse> => {
+    const searchParams = new URLSearchParams();
+    if (period && period !== 'all') searchParams.set('period', period);
+    if (region && region !== 'global') searchParams.set('region', region);
+    const query = searchParams.toString();
+    return fetchFromAPI(`/api/v1/companies/${encodeURIComponent(slug)}${query ? `?${query}` : ''}`);
   },
 };
 
@@ -330,7 +343,10 @@ export const api = {
  * Check if API is available
  */
 export function isAPIConfigured(): boolean {
-  return !!process.env.NEXT_PUBLIC_API_URL;
+  // In production we always have a safe default API base URL (Front Door),
+  // so treat the backend as "configured" even if NEXT_PUBLIC_API_URL isn't set.
+  // In dev, we only opt into API calls when an explicit URL is provided.
+  return process.env.NODE_ENV === 'production' ? true : !!process.env.NEXT_PUBLIC_API_URL;
 }
 
 // Re-export health utilities
