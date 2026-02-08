@@ -48,6 +48,12 @@ try:
 except Exception:  # pragma: no cover - optional import at module import time
     BeautifulSoup = None
 
+try:
+    # Used for Amazon "New Releases" scraping (optional).
+    from playwright.async_api import async_playwright
+except Exception:  # pragma: no cover - optional import at module import time
+    async_playwright = None
+
 TRACKING_PARAMS = {
     "utm_source",
     "utm_medium",
@@ -155,6 +161,41 @@ TR_ECOSYSTEM_KEYWORDS: Tuple[str, ...] = (
     "kosgeb",
 )
 
+TR_STARTUP_CONTEXT_KEYWORDS: Tuple[str, ...] = (
+    "startup",
+    "start-up",
+    "girişim",
+    "giris",
+    "şirket",
+    "sirket",
+    "company",
+    "kurucu",
+    "founder",
+    "vc",
+    "yatırım",
+    "yatirim",
+    "yatırımcı",
+    "yatirimci",
+    "fon",
+)
+
+TR_MNA_KEYWORDS: Tuple[str, ...] = (
+    "satın al",
+    "satinal",
+    "acquisition",
+    "exit",
+    "ipo",
+    "halka arz",
+)
+
+TR_DOMAIN_EXCLUDE_KEYWORDS: Tuple[str, ...] = (
+    "alan adı",
+    "alan adi",
+    "alanadi",
+    "domain",
+    "domain name",
+)
+
 TR_POLICY_KEYWORDS: Tuple[str, ...] = (
     "regülasyon",
     "regulasyon",
@@ -234,6 +275,36 @@ class SourceDefinition:
     legal_mode: str = "headline_snippet"
 
 
+BOOL_TRUE = {"1", "true", "yes", "on"}
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return bool(default)
+    return raw.lower() in BOOL_TRUE
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return int(default)
+    try:
+        return int(raw)
+    except Exception:
+        return int(default)
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return float(default)
+    try:
+        return float(raw)
+    except Exception:
+        return float(default)
+
+
 # 30+ sources across publishers, community, and aggregators.
 DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("techcrunch", "TechCrunch", "rss", "https://techcrunch.com/feed/", credibility_weight=0.92),
@@ -273,6 +344,9 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("hackernews_api", "Hacker News API", "api", "https://hacker-news.firebaseio.com/v0", fetch_mode="api", credibility_weight=0.88),
     SourceDefinition("newsapi", "NewsAPI", "api", "https://newsapi.org/v2/everything", fetch_mode="api", credibility_weight=0.67),
     SourceDefinition("gnews", "GNews", "api", "https://gnews.io/api/v4/search", fetch_mode="api", credibility_weight=0.66),
+    # Diff-based sources (daily snapshots + deltas), fetched from the hourly job.
+    SourceDefinition("github_trending_ai", "GitHub Trending AI (Search)", "api", "github://search/repositories", fetch_mode="api", credibility_weight=0.70),
+    SourceDefinition("amazon_new_releases_ai", "Amazon New Releases (AI Books)", "community", "amazon://new-releases", fetch_mode="api", credibility_weight=0.55),
     SourceDefinition("frontier_news", "Frontier News URLs", "crawler", "frontier://news", fetch_mode="crawler", credibility_weight=0.62),
     SourceDefinition("startup_owned_feeds", "Startup-Owned Sources", "crawler", "startup://owned", fetch_mode="crawler", credibility_weight=0.79),
 ]
@@ -324,6 +398,8 @@ class StoryCluster:
     llm_topic_tags: List[str]
     llm_story_type: Optional[str]
     members: List[NormalizedNewsItem]
+    # Memory gate fields (populated by MemoryGate.process_cluster)
+    memory_result: Optional[Any] = None  # MemoryResult from memory_gate.py
 
 
 @dataclass
@@ -716,6 +792,200 @@ def _shorten_text(value: str, limit: int = 180) -> str:
     return text[: max(0, limit - 3)].rstrip() + "..."
 
 
+def _utc_midnight(day: date) -> datetime:
+    return datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+
+
+def _stable_external_id(*parts: Any) -> str:
+    """Deterministic external_id for diff-style sources.
+
+    Hourly runs should upsert, not duplicate.
+    """
+    cleaned: List[str] = []
+    for part in parts:
+        if part is None:
+            continue
+        text = str(part).strip()
+        if not text:
+            continue
+        cleaned.append(text)
+    base = "|".join(cleaned)
+    return hashlib.sha1(base.encode("utf-8")).hexdigest()[:24]
+
+
+_AMAZON_ASIN_RE = re.compile(r"/(?:dp|gp/product)/([A-Z0-9]{10})", re.IGNORECASE)
+
+
+def _extract_amazon_asin(value: str) -> str:
+    m = _AMAZON_ASIN_RE.search(value or "")
+    if not m:
+        return ""
+    return str(m.group(1) or "").upper()
+
+
+def _is_amazon_bot_page(html: str) -> bool:
+    lower = (html or "").lower()
+    if not lower:
+        return False
+    if "robot check" in lower:
+        return True
+    if "validatecaptcha" in lower or "/errors/validatecaptcha" in lower:
+        return True
+    if "captcha" in lower and "enter the characters you see below" in lower:
+        return True
+    return False
+
+
+def _parse_amazon_new_releases_html(html: str, *, category_url: str, max_items: int) -> List[Dict[str, Any]]:
+    """Best-effort parser for Amazon "New Releases" pages.
+
+    We only extract lightweight metadata (ASIN/title/author/rank) for diff alerts.
+    """
+    if not html:
+        return []
+    if _is_amazon_bot_page(html):
+        return []
+
+    host = urlparse(category_url or "").netloc or "www.amazon.com"
+    host = host.strip() or "www.amazon.com"
+
+    if BeautifulSoup is not None:
+        soup = BeautifulSoup(html, "html.parser")
+
+        # 1) Legacy: ordered list with explicit rank positions.
+        ordered = soup.select_one("ol#zg-ordered-list")
+        if ordered is not None:
+            out: List[Dict[str, Any]] = []
+            for li in ordered.find_all("li", recursive=False):
+                if len(out) >= max(1, max_items):
+                    break
+                asin = ""
+                link_tag = li.find("a", href=True)
+                if link_tag and link_tag.get("href"):
+                    asin = _extract_amazon_asin(str(link_tag.get("href")))
+                if not asin:
+                    asin = _extract_amazon_asin(str(li))
+                if not asin:
+                    continue
+
+                title = ""
+                img = li.find("img", alt=True)
+                if img and img.get("alt"):
+                    candidate = normalize_text(str(img.get("alt") or ""))
+                    if candidate and candidate.lower() not in {"product image", "image"}:
+                        title = candidate
+                if not title and link_tag:
+                    title = normalize_text(link_tag.get_text(" ", strip=True))
+
+                author = ""
+                for a in li.find_all("a", href=True):
+                    classes = " ".join(a.get("class") or [])
+                    if "a-link-child" not in classes:
+                        continue
+                    txt = normalize_text(a.get_text(" ", strip=True))
+                    if txt and txt != title:
+                        author = f"{author}, {txt}".strip(", ") if author else txt
+                    if len(author) >= 120:
+                        break
+
+                out.append(
+                    {
+                        "asin": asin,
+                        "canonical_url": canonicalize_url(f"https://{host}/dp/{asin}"),
+                        "title": title,
+                        "author": author,
+                    }
+                )
+
+            for idx, item in enumerate(out):
+                item["rank"] = idx + 1
+            if out:
+                return out
+
+        # 2) Current (Feb 2026): grid list with `data-asin` and rank badge.
+        grid: List[Dict[str, Any]] = []
+        for li in soup.select("ol li.zg-no-numbers"):
+            if len(grid) >= max(1, max_items):
+                break
+
+            asin = ""
+            asin_node = li.find(attrs={"data-asin": True})
+            if asin_node is not None:
+                asin = str(asin_node.get("data-asin") or "").strip().upper()
+            if not asin:
+                asin = _extract_amazon_asin(str(li))
+            if not asin:
+                continue
+
+            title = ""
+            img = li.find("img", alt=True)
+            if img and img.get("alt"):
+                candidate = normalize_text(str(img.get("alt") or ""))
+                if candidate and candidate.lower() not in {"product image", "image"}:
+                    title = candidate
+
+            author = ""
+            for a in li.find_all("a", href=True):
+                classes = " ".join(a.get("class") or [])
+                if "a-link-child" not in classes:
+                    continue
+                txt = normalize_text(a.get_text(" ", strip=True))
+                if txt and txt != title:
+                    author = f"{author}, {txt}".strip(", ") if author else txt
+                if len(author) >= 120:
+                    break
+
+            rank = 0
+            badge = li.select_one("span.zg-bdg-text")
+            if badge is not None:
+                m = re.search(r"#\\s*(\\d+)", badge.get_text(" ", strip=True))
+                if m:
+                    try:
+                        rank = int(m.group(1))
+                    except Exception:
+                        rank = 0
+            if not rank:
+                rank = len(grid) + 1
+
+            grid.append(
+                {
+                    "asin": asin,
+                    "canonical_url": canonicalize_url(f"https://{host}/dp/{asin}"),
+                    "title": title,
+                    "author": author,
+                    "rank": rank,
+                }
+            )
+
+        if grid:
+            return grid
+
+    # 3) Fallback: regex scan links; rank is appearance order.
+    asins: List[str] = []
+    seen: set[str] = set()
+    for match in _AMAZON_ASIN_RE.finditer(html):
+        asin = str(match.group(1) or "").upper()
+        if not asin or asin in seen:
+            continue
+        seen.add(asin)
+        asins.append(asin)
+        if len(asins) >= max(1, max_items):
+            break
+
+    out: List[Dict[str, Any]] = []
+    for idx, asin in enumerate(asins):
+        out.append(
+            {
+                "asin": asin,
+                "canonical_url": canonicalize_url(f"https://{host}/dp/{asin}"),
+                "title": "",
+                "author": "",
+                "rank": idx + 1,
+            }
+        )
+    return out
+
+
 def _azure_token_param_name(model_name: str) -> str:
     """Azure OpenAI model families can differ in token limit parameter names.
 
@@ -789,6 +1059,9 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
         country = str((item.payload or {}).get("startup_country") or "").strip().lower()
         if country != "turkey":
             return False
+        # Avoid index/listing pages (blog/news landing pages are not "news items").
+        if not is_likely_content_url(item.url or item.canonical_url or ""):
+            return False
         # Treat startup-owned pages as signals only when they are clearly AI-related.
         text = f"{item.title} {item.summary or ''}".strip().casefold()
         return _contains_any(text, TR_AI_KEYWORDS)
@@ -799,15 +1072,23 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     if not has_ai:
         return False
 
-    has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
     has_policy = _contains_any(text, TR_POLICY_KEYWORDS)
-    if not (has_ecosystem or has_policy):
+    has_startup_context = _contains_any(text, TR_STARTUP_CONTEXT_KEYWORDS)
+    has_mna = _contains_any(text, TR_MNA_KEYWORDS)
+    # "Ecosystem relevance" needs to be about companies/deals, not generic purchases (e.g. domain names).
+    has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
+    has_strong_ecosystem = has_ecosystem and (has_startup_context or ("yatırım" in text) or ("yatirim" in text))
+    if not (has_policy or has_strong_ecosystem or (has_mna and has_startup_context)):
         return False
 
     # For broad Turkish aggregators, require explicit Turkey context so we don't pull translated global chatter.
     if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
         if not _contains_any(text, TR_CONTEXT_KEYWORDS) and not has_ecosystem:
             return False
+
+    # Domain/SEO chatter often matches "ai" and "satın alındı" but is not startup intelligence.
+    if _contains_any(text, TR_DOMAIN_EXCLUDE_KEYWORDS) and not (has_policy or has_strong_ecosystem):
+        return False
 
     # Consumer exclusion: allow only if it's clearly an ecosystem signal (e.g. funding/acquisition)
     if _contains_any(text, TR_CONSUMER_EXCLUDE_KEYWORDS) and not (has_ecosystem or has_policy):
@@ -860,6 +1141,16 @@ class DailyNewsIngestor:
         self.product_hunt_token = os.getenv("PRODUCT_HUNT_TOKEN", "")
         self.newsapi_key = os.getenv("NEWS_API_KEY", "") or os.getenv("NEWSAPI_KEY", "")
         self.gnews_key = os.getenv("GNEWS_API_KEY", "")
+        self.github_token = os.getenv("GITHUB_TOKEN", "")
+        self.github_trending_topics = os.getenv("GITHUB_TRENDING_TOPICS", "artificial-intelligence,llm,generative-ai")
+        self.github_trending_created_days = _env_int("GITHUB_TRENDING_CREATED_DAYS", 30)
+        self.github_trending_min_stars = _env_int("GITHUB_TRENDING_MIN_STARS", 50)
+        self.github_trending_limit = _env_int("GITHUB_TRENDING_LIMIT", 30)
+        self.github_trending_min_star_delta = _env_int("GITHUB_TRENDING_MIN_STAR_DELTA", 50)
+        self.amazon_new_releases_urls = os.getenv("AMAZON_NEW_RELEASES_URLS", "")
+        self.amazon_new_releases_max_items = _env_int("AMAZON_NEW_RELEASES_MAX_ITEMS", 30)
+        self.amazon_new_releases_min_rank_delta = _env_int("AMAZON_NEW_RELEASES_MIN_RANK_DELTA", 10)
+        self.amazon_playwright_timeout_ms = _env_int("AMAZON_PLAYWRIGHT_TIMEOUT_MS", 20000)
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
         self.azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
@@ -1005,6 +1296,83 @@ class DailyNewsIngestor:
         except Exception:
             # Back-compat: older schemas may not have is_active/region; don't fail ingestion.
             return
+
+    def _github_headers(self) -> Dict[str, str]:
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        if self.github_token:
+            headers["Authorization"] = f"Bearer {self.github_token}"
+        return headers
+
+    async def _load_snapshot_payload_rows(
+        self,
+        conn: asyncpg.Connection,
+        *,
+        source_key: str,
+        snapshot_date: str,
+    ) -> List[Tuple[str, Dict[str, Any]]]:
+        rows = await conn.fetch(
+            """
+            SELECT nir.canonical_url, nir.payload_json
+            FROM news_items_raw nir
+            JOIN news_sources ns ON ns.id = nir.source_id
+            WHERE ns.source_key = $1
+              AND COALESCE(nir.payload_json->>'kind', '') = 'snapshot'
+              AND COALESCE(nir.payload_json->>'snapshot_date', '') = $2
+            """,
+            source_key,
+            snapshot_date,
+        )
+        out: List[Tuple[str, Dict[str, Any]]] = []
+        for row in rows:
+            canonical = str(row.get("canonical_url") or "").strip()
+            if not canonical:
+                continue
+            out.append((canonical, ensure_json_object(row.get("payload_json"))))
+        return out
+
+    async def _count_snapshot_rows(
+        self,
+        conn: asyncpg.Connection,
+        *,
+        source_key: str,
+        snapshot_date: str,
+        category_url: str = "",
+    ) -> int:
+        if category_url:
+            value = await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM news_items_raw nir
+                JOIN news_sources ns ON ns.id = nir.source_id
+                WHERE ns.source_key = $1
+                  AND COALESCE(nir.payload_json->>'kind', '') = 'snapshot'
+                  AND COALESCE(nir.payload_json->>'snapshot_date', '') = $2
+                  AND COALESCE(nir.payload_json->>'category_url', '') = $3
+                """,
+                source_key,
+                snapshot_date,
+                category_url,
+            )
+        else:
+            value = await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM news_items_raw nir
+                JOIN news_sources ns ON ns.id = nir.source_id
+                WHERE ns.source_key = $1
+                  AND COALESCE(nir.payload_json->>'kind', '') = 'snapshot'
+                  AND COALESCE(nir.payload_json->>'snapshot_date', '') = $2
+                """,
+                source_key,
+                snapshot_date,
+            )
+        try:
+            return int(value or 0)
+        except Exception:
+            return 0
 
     async def _fetch_rss_source(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         if feedparser is None:
@@ -1303,6 +1671,428 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
+    async def _fetch_github_trending_ai(
+        self,
+        conn: asyncpg.Connection,
+        client: httpx.AsyncClient,
+        source: SourceDefinition,
+        lookback_hours: int,
+    ) -> List[NormalizedNewsItem]:
+        del lookback_hours  # Diff sources are daily snapshots, not lookback-window feeds.
+
+        today = datetime.now(timezone.utc).date()
+        snapshot_date = today.isoformat()
+        yesterday_date = (today - timedelta(days=1)).isoformat()
+        today_midnight = _utc_midnight(today)
+        hidden_published_at = today_midnight - timedelta(days=30)
+
+        limit = max(1, min(100, int(self.github_trending_limit)))
+        created_days = max(1, int(self.github_trending_created_days))
+        created_cutoff = (today - timedelta(days=created_days)).isoformat()
+        min_stars = max(0, int(self.github_trending_min_stars))
+        min_star_delta = max(1, int(self.github_trending_min_star_delta))
+
+        # Avoid unnecessary hourly calls if today's snapshot is already present.
+        existing = await self._count_snapshot_rows(conn, source_key=source.source_key, snapshot_date=snapshot_date)
+        if existing >= max(5, min(12, limit // 2)):
+            return []
+
+        topics: List[str] = []
+        for raw in (self.github_trending_topics or "").split(","):
+            t = raw.strip()
+            if t and t not in topics:
+                topics.append(t)
+        if not topics:
+            topics = ["artificial-intelligence", "llm", "generative-ai"]
+
+        repos_by_canonical: Dict[str, Dict[str, Any]] = {}
+        headers = self._github_headers()
+
+        per_page = str(min(50, limit))
+        for topic in topics:
+            q = f"topic:{topic} created:>{created_cutoff} stars:>{min_stars}"
+            params = {
+                "q": q,
+                "sort": "stars",
+                "order": "desc",
+                "per_page": per_page,
+            }
+            resp = await client.get("https://api.github.com/search/repositories", params=params, headers=headers)
+            if resp.status_code >= 400:
+                continue
+            body = resp.json() or {}
+            for repo in body.get("items") or []:
+                html_url = str(repo.get("html_url") or "").strip()
+                if not html_url:
+                    continue
+                canonical = canonicalize_url(html_url)
+                if not canonical:
+                    continue
+
+                full_name = str(repo.get("full_name") or "").strip()
+                description = normalize_text(str(repo.get("description") or ""))[:280]
+                stars = int(repo.get("stargazers_count") or 0)
+                forks = int(repo.get("forks_count") or 0)
+                language = str(repo.get("language") or "").strip()
+                created_at = str(repo.get("created_at") or "").strip()
+                pushed_at = str(repo.get("pushed_at") or "").strip()
+
+                existing_row = repos_by_canonical.get(canonical)
+                if existing_row is None:
+                    repos_by_canonical[canonical] = {
+                        "full_name": full_name,
+                        "html_url": html_url,
+                        "canonical_url": canonical,
+                        "description": description,
+                        "stars": stars,
+                        "forks": forks,
+                        "language": language,
+                        "created_at": created_at,
+                        "pushed_at": pushed_at,
+                        "topics_matched": [topic],
+                    }
+                else:
+                    topics_matched = list(existing_row.get("topics_matched") or [])
+                    if topic not in topics_matched:
+                        topics_matched.append(topic)
+                    existing_row["topics_matched"] = topics_matched
+                    existing_row["stars"] = max(int(existing_row.get("stars") or 0), stars)
+                    existing_row["forks"] = max(int(existing_row.get("forks") or 0), forks)
+                    if not existing_row.get("description") and description:
+                        existing_row["description"] = description
+                    if not existing_row.get("language") and language:
+                        existing_row["language"] = language
+                    if not existing_row.get("pushed_at") and pushed_at:
+                        existing_row["pushed_at"] = pushed_at
+
+        if not repos_by_canonical:
+            return []
+
+        yesterday_rows = await self._load_snapshot_payload_rows(
+            conn,
+            source_key=source.source_key,
+            snapshot_date=yesterday_date,
+        )
+        yesterday_map: Dict[str, Dict[str, Any]] = {c: p for c, p in yesterday_rows if c}
+
+        ranked = sorted(
+            repos_by_canonical.values(),
+            key=lambda r: (int(r.get("stars") or 0), str(r.get("pushed_at") or "")),
+            reverse=True,
+        )[:limit]
+
+        items: List[NormalizedNewsItem] = []
+        for repo in ranked:
+            canonical = str(repo.get("canonical_url") or "").strip()
+            if not canonical:
+                continue
+
+            full_name = normalize_text(str(repo.get("full_name") or "")) or canonical
+            description = normalize_text(str(repo.get("description") or ""))[:280]
+            html_url = str(repo.get("html_url") or canonical).strip()
+
+            stars_today = int(repo.get("stars") or 0)
+            forks_today = int(repo.get("forks") or 0)
+            language = str(repo.get("language") or "").strip()[:64]
+            topics_matched = list(repo.get("topics_matched") or [])
+
+            snapshot_payload = {
+                "provider": "github",
+                "kind": "snapshot",
+                "snapshot_date": snapshot_date,
+                "full_name": full_name,
+                "stars": stars_today,
+                "forks": forks_today,
+                "language": language,
+                "topics_matched": topics_matched,
+                "origin": "github_search_velocity",
+            }
+            items.append(
+                NormalizedNewsItem(
+                    source_key=source.source_key,
+                    source_name=source.display_name,
+                    source_type=source.source_type,
+                    title=f"GitHub repo: {full_name}"[:300],
+                    url=html_url,
+                    canonical_url=canonical,
+                    summary=_shorten_text(description or f"GitHub repo snapshot ({stars_today} stars).")[:300],
+                    published_at=hidden_published_at,
+                    language="en",
+                    external_id=_stable_external_id(source.source_key, "snapshot", snapshot_date, canonical),
+                    payload=snapshot_payload,
+                    source_weight=source.credibility_weight,
+                )
+            )
+
+            prev = yesterday_map.get(canonical) or {}
+            stars_yesterday = int(prev.get("stars") or 0)
+            delta_type = ""
+            stars_delta = 0
+            if not prev:
+                delta_type = "added"
+            else:
+                stars_delta = stars_today - stars_yesterday
+                if stars_delta >= min_star_delta:
+                    delta_type = "mover"
+
+            if not delta_type:
+                continue
+
+            if delta_type == "added":
+                delta_title = f"GitHub trending repo: {full_name}"
+                delta_summary = _shorten_text(f"New repo in trending-like AI set: {full_name}. {description}")
+            else:
+                delta_title = f"GitHub repo mover: {full_name}"
+                delta_summary = _shorten_text(
+                    f"Star growth +{stars_delta} (now {stars_today}). {full_name}. {description}"
+                )
+
+            delta_payload = {
+                "provider": "github",
+                "kind": "delta",
+                "delta_type": delta_type,
+                "snapshot_date": snapshot_date,
+                "full_name": full_name,
+                "stars_today": stars_today,
+                "stars_yesterday": stars_yesterday or None,
+                "stars_delta": stars_delta or None,
+                "forks": forks_today,
+                "language": language,
+                "topics_matched": topics_matched,
+                "origin": "github_search_velocity",
+            }
+            items.append(
+                NormalizedNewsItem(
+                    source_key=source.source_key,
+                    source_name=source.display_name,
+                    source_type=source.source_type,
+                    title=delta_title[:300],
+                    url=html_url,
+                    canonical_url=canonical,
+                    summary=delta_summary[:300],
+                    published_at=today_midnight,
+                    language="en",
+                    external_id=_stable_external_id(source.source_key, "delta", snapshot_date, delta_type, canonical),
+                    payload=delta_payload,
+                    source_weight=source.credibility_weight,
+                )
+            )
+
+        return items
+
+    async def _fetch_amazon_new_releases_ai(
+        self,
+        conn: asyncpg.Connection,
+        source: SourceDefinition,
+        lookback_hours: int,
+    ) -> List[NormalizedNewsItem]:
+        del lookback_hours
+
+        raw_urls: List[str] = []
+        for raw in (self.amazon_new_releases_urls or "").split(","):
+            u = raw.strip()
+            if not u:
+                continue
+            canonical = canonicalize_url(u)
+            raw_urls.append(canonical or u)
+        if not raw_urls:
+            return []
+        if async_playwright is None:
+            return []
+
+        today = datetime.now(timezone.utc).date()
+        snapshot_date = today.isoformat()
+        yesterday_date = (today - timedelta(days=1)).isoformat()
+        today_midnight = _utc_midnight(today)
+        hidden_published_at = today_midnight - timedelta(days=30)
+
+        max_items = max(1, min(60, int(self.amazon_new_releases_max_items)))
+        min_rank_delta = max(1, int(self.amazon_new_releases_min_rank_delta))
+
+        yesterday_rows = await self._load_snapshot_payload_rows(
+            conn,
+            source_key=source.source_key,
+            snapshot_date=yesterday_date,
+        )
+        yesterday_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        for canonical, payload in yesterday_rows:
+            category_url = str(payload.get("category_url") or "").strip()
+            if not category_url:
+                continue
+            yesterday_map[(category_url, canonical)] = payload
+
+        scrape_targets: List[str] = []
+        for category_url in raw_urls:
+            # If we already stored a reasonable snapshot for today, don't keep hammering Amazon hourly.
+            existing = await self._count_snapshot_rows(
+                conn,
+                source_key=source.source_key,
+                snapshot_date=snapshot_date,
+                category_url=category_url,
+            )
+            if existing >= max(5, min(12, max_items // 2)):
+                continue
+            scrape_targets.append(category_url)
+
+        if not scrape_targets:
+            return []
+
+        timeout_ms = max(5000, int(self.amazon_playwright_timeout_ms))
+        items: List[NormalizedNewsItem] = []
+        seen_snapshot_ids: set[str] = set()
+        seen_delta_ids: set[str] = set()
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                # Use a normal browser UA; explicit bots get blocked frequently.
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                locale="en-US",
+            )
+            page = await context.new_page()
+
+            for category_url in scrape_targets:
+                try:
+                    await page.goto(category_url, timeout=timeout_ms, wait_until="domcontentloaded")
+                    html = await page.content()
+                except Exception:
+                    continue
+
+                parsed = _parse_amazon_new_releases_html(
+                    html,
+                    category_url=category_url,
+                    max_items=max_items,
+                )
+                if not parsed:
+                    continue
+
+                for entry in parsed:
+                    canonical_url = str(entry.get("canonical_url") or "").strip()
+                    asin = str(entry.get("asin") or "").strip().upper()
+                    if not canonical_url or not asin:
+                        continue
+
+                    title = normalize_text(str(entry.get("title") or ""))[:300]
+                    author = normalize_text(str(entry.get("author") or ""))[:200]
+                    try:
+                        rank = int(entry.get("rank") or 0)
+                    except Exception:
+                        rank = 0
+
+                    snapshot_id = _stable_external_id(source.source_key, "snapshot", snapshot_date, category_url, canonical_url)
+                    if snapshot_id not in seen_snapshot_ids:
+                        seen_snapshot_ids.add(snapshot_id)
+                        snapshot_payload = {
+                            "provider": "amazon",
+                            "kind": "snapshot",
+                            "snapshot_date": snapshot_date,
+                            "category_url": category_url,
+                            "asin": asin,
+                            "title": title,
+                            "author": author,
+                            "rank": rank,
+                            "origin": "amazon_new_releases",
+                        }
+                        summary = _shorten_text(
+                            f"Amazon AI book snapshot (rank #{rank}). " + (f"by {author}." if author else "")
+                        )
+                        items.append(
+                            NormalizedNewsItem(
+                                source_key=source.source_key,
+                                source_name=source.display_name,
+                                source_type=source.source_type,
+                                title=f"Amazon AI book: {title or asin}"[:300],
+                                url=canonical_url,
+                                canonical_url=canonical_url,
+                                summary=summary[:300],
+                                published_at=hidden_published_at,
+                                language="en",
+                                external_id=snapshot_id,
+                                payload=snapshot_payload,
+                                source_weight=source.credibility_weight,
+                            )
+                        )
+
+                    delta_type = ""
+                    rank_yesterday = 0
+                    rank_delta = 0
+                    prev = yesterday_map.get((category_url, canonical_url))
+                    if prev is None:
+                        delta_type = "added"
+                    else:
+                        try:
+                            rank_yesterday = int(prev.get("rank") or 0)
+                        except Exception:
+                            rank_yesterday = 0
+                        if rank_yesterday > 0 and rank > 0:
+                            rank_delta = rank_yesterday - rank
+                            if rank_delta >= min_rank_delta:
+                                delta_type = "mover"
+
+                    if not delta_type:
+                        continue
+
+                    # Dedupe delta items across categories to keep the feed readable.
+                    delta_id = _stable_external_id(source.source_key, "delta", snapshot_date, delta_type, canonical_url)
+                    if delta_id in seen_delta_ids:
+                        continue
+                    seen_delta_ids.add(delta_id)
+
+                    if delta_type == "added":
+                        delta_title = f"Amazon AI new release: {title or asin}"
+                        delta_summary = _shorten_text(
+                            f"New on Amazon AI new releases (rank #{rank}). " + (f"by {author}. " if author else "") + title
+                        )
+                    else:
+                        delta_title = f"Amazon AI mover: {title or asin}"
+                        delta_summary = _shorten_text(
+                            f"Amazon AI new releases mover: rank up {rank_delta} to #{rank} (from #{rank_yesterday}). "
+                            + (f"by {author}. " if author else "")
+                            + title
+                        )
+
+                    delta_payload = {
+                        "provider": "amazon",
+                        "kind": "delta",
+                        "delta_type": delta_type,
+                        "snapshot_date": snapshot_date,
+                        "category_url": category_url,
+                        "asin": asin,
+                        "title": title,
+                        "author": author,
+                        "rank_today": rank,
+                        "rank_yesterday": rank_yesterday or None,
+                        "rank_delta": rank_delta or None,
+                        "origin": "amazon_new_releases",
+                    }
+                    items.append(
+                        NormalizedNewsItem(
+                            source_key=source.source_key,
+                            source_name=source.display_name,
+                            source_type=source.source_type,
+                            title=delta_title[:300],
+                            url=canonical_url,
+                            canonical_url=canonical_url,
+                            summary=delta_summary[:300],
+                            published_at=today_midnight,
+                            language="en",
+                            external_id=delta_id,
+                            payload=delta_payload,
+                            source_weight=source.credibility_weight,
+                        )
+                    )
+
+            try:
+                await context.close()
+            except Exception:
+                pass
+            try:
+                await browser.close()
+            except Exception:
+                pass
+
+        return items
+
     async def _fetch_newsapi_turkey(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         if not self.newsapi_key:
             return []
@@ -1530,11 +2320,6 @@ class DailyNewsIngestor:
                 "/news/feed",
                 "/changelog/feed",
                 "/feed",
-                "/blog",
-                "/news",
-                "/changelog",
-                "/updates",
-                "/press",
             ):
                 candidate_inputs.append((f"{root}{suffix}", slug, name, headquarters_country))
 
@@ -1566,6 +2351,8 @@ class DailyNewsIngestor:
                         title = normalize_text(entry.get("title", ""))
                         link = str(entry.get("link") or "")
                         if not title or not link:
+                            continue
+                        if not is_likely_content_url(link):
                             continue
                         published = parse_entry_datetime(entry) or datetime.now(timezone.utc)
                         if published < cutoff:
@@ -1656,6 +2443,10 @@ class DailyNewsIngestor:
                         items = await self._fetch_newsapi(client, source, lookback_hours)
                     elif source.source_key == "gnews":
                         items = await self._fetch_gnews(client, source, lookback_hours)
+                    elif source.source_key == "github_trending_ai":
+                        items = await self._fetch_github_trending_ai(conn, client, source, lookback_hours)
+                    elif source.source_key == "amazon_new_releases_ai":
+                        items = await self._fetch_amazon_new_releases_ai(conn, source, lookback_hours)
                     elif source.source_key == "newsapi_turkey":
                         items = await self._fetch_newsapi_turkey(client, source, lookback_hours)
                     elif source.source_key == "gnews_turkey":
@@ -2429,6 +3220,70 @@ class DailyNewsIngestor:
 
         return enriched
 
+    async def _run_memory_gate(
+        self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster]
+    ) -> Dict[str, Any]:
+        """Run memory gate on all clusters: entity linking + fact extraction.
+
+        Populates cluster.memory_result for each cluster. Does NOT persist yet
+        (persistence happens after _persist_clusters creates the cluster IDs).
+        """
+        from .memory_gate import MemoryGate
+
+        gate = MemoryGate()
+        try:
+            await gate.load(conn)
+        except Exception as exc:
+            print(f"[memory_gate] Load failed (tables may not exist yet): {exc}")
+            return {"skipped": True, "error": str(exc)}
+
+        for cluster in clusters:
+            try:
+                member_urls = [m.url for m in cluster.members if m.url]
+                result = await gate.process_cluster(
+                    conn,
+                    cluster_key=cluster.cluster_key,
+                    title=cluster.title,
+                    summary=cluster.summary or "",
+                    story_type=cluster.story_type,
+                    entities=cluster.entities,
+                    canonical_url=cluster.canonical_url or "",
+                    trust_score=cluster.trust_score,
+                    members_urls=member_urls,
+                )
+                cluster.memory_result = result
+            except Exception as exc:
+                print(f"[memory_gate] Failed for cluster {cluster.cluster_key}: {exc}")
+
+        self._memory_gate = gate
+        return gate.stats
+
+    async def _persist_memory_results(
+        self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster], cluster_ids: Dict[str, str]
+    ) -> int:
+        """Persist memory gate results (extractions + facts) after clusters are saved."""
+        gate = getattr(self, "_memory_gate", None)
+        if not gate:
+            return 0
+
+        facts_written = 0
+        for cluster in clusters:
+            result = cluster.memory_result
+            if not result:
+                continue
+            cid = cluster_ids.get(cluster.cluster_key)
+            if not cid:
+                continue
+            try:
+                await gate.persist_extraction(conn, cid, result)
+                facts_written += await gate.persist_facts(
+                    conn, cid, cluster.canonical_url or "", result
+                )
+            except Exception as exc:
+                print(f"[memory_gate] Persist failed for cluster {cluster.cluster_key}: {exc}")
+
+        return facts_written
+
     async def _persist_clusters(self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster]) -> Dict[str, str]:
         # Build map from raw item external keys to IDs for linking.
         raw_rows = await conn.fetch("SELECT id::text, source_id::text, external_id FROM news_items_raw")
@@ -2632,9 +3487,17 @@ class DailyNewsIngestor:
 
                 items_for_clustering = await self._load_recent_items(conn, lookback_hours)
                 clusters = self._cluster_items(items_for_clustering)
+
+                # --- Memory gate: entity linking + fact extraction ---
+                memory_stats = await self._run_memory_gate(conn, clusters)
+
                 await self._enrich_clusters_with_llm(clusters)
                 images_enriched = await self._enrich_missing_images(conn, clusters)
                 cluster_ids = await self._persist_clusters(conn, clusters)
+
+                # Persist memory gate results (entity facts + extractions)
+                memory_facts_written = await self._persist_memory_results(conn, clusters, cluster_ids)
+                memory_stats["facts_written"] = memory_facts_written
 
                 turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
                 turkey_clusters: List[StoryCluster] = []
@@ -2672,6 +3535,7 @@ class DailyNewsIngestor:
                         "turkey_total_clusters": int(turkey_stats.get("total_clusters") or 0),
                     },
                     "llm": dict(self._llm_metrics),
+                    "memory": memory_stats,
                 }
 
                 result = {
