@@ -1,0 +1,85 @@
+name: Slack Commit Notify
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Post push notification to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+          
+          event_path = os.environ.get("GITHUB_EVENT_PATH")
+          with open(event_path, "r", encoding="utf-8") as f:
+              event = json.load(f)
+          
+          commits = event.get("commits") or []
+          if not isinstance(commits, list):
+              commits = []
+          
+          def _lower(s: str) -> str:
+              return (s or "").lower()
+          
+          # Opt-out tag for noisy pushes.
+          for c in commits:
+              msg = _lower((c or {}).get("message") or "")
+              if "[skip slack]" in msg or "[no-slack]" in msg:
+                  sys.exit(0)
+          
+          ref = os.environ.get("GITHUB_REF_NAME") or "main"
+          repo = os.environ.get("GITHUB_REPOSITORY") or ""
+          pusher = (event.get("pusher") or {}).get("name") or (event.get("sender") or {}).get("login") or "unknown"
+          
+          compare_url = event.get("compare") or ""
+          if not compare_url and repo:
+              compare_url = f"https://github.com/{repo}/commits/{ref}"
+          
+          max_lines = 8
+          lines = []
+          for c in commits[:max_lines]:
+              sha = ((c or {}).get("id") or "")[:7]
+              msg = ((c or {}).get("message") or "").splitlines()[0].strip()
+              author = ((c or {}).get("author") or {}).get("name") or "unknown"
+              url = (c or {}).get("url") or ""
+              if url:
+                  lines.append(f"- <{url}|`{sha}`> {msg} ({author})")
+              else:
+                  lines.append(f"- `{sha}` {msg} ({author})")
+          
+          remaining = max(0, len(commits) - max_lines)
+          if remaining:
+              lines.append(f"- …and {remaining} more")
+          
+          body_bits = [
+              f"*Repo:* `{repo}`" if repo else None,
+              f"*Branch:* `{ref}`",
+              f"*Pusher:* `{pusher}`",
+              f"*Commits:* {len(commits)}",
+              "",
+              *lines,
+          ]
+          body = "\n".join([b for b in body_bits if b is not None]).strip()
+          
+          os.environ["SLACK_TITLE"] = f"Push to {ref}"
+          os.environ["SLACK_STATUS"] = "info"
+          os.environ["SLACK_BODY"] = body
+          os.environ["SLACK_URL"] = compare_url
+          
+          subprocess.check_call([sys.executable, "scripts/slack_notify.py"])
+          PY
+

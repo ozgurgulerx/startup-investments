@@ -77,6 +77,9 @@ VM cron runner:
 - Slack notifications:
   - Set `SLACK_WEBHOOK_URL` (or legacy `SLACK_WEBHOOK`) in `/etc/buildatlas/.env`.
   - Optional success notifications for selected jobs via `SLACK_NOTIFY_SUCCESS_JOBS` (see `infrastructure/vm-cron/.env.example`).
+  - GitHub push notifications:
+    - Each push to `main` posts a Slack message via `.github/workflows/slack-commit-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
+    - Opt-out per commit: include `[skip slack]` (or `[no-slack]`) in the commit message.
   - If you **don't** want Slack webhooks on the VM, `scripts/slack_notify.py` can fall back to GitHub `repository_dispatch`:
     - Requires `GITHUB_TOKEN` + `GITHUB_REPOSITORY` on the VM.
     - GitHub workflow handler: `.github/workflows/vm-cron-slack-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
