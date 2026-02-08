@@ -41,6 +41,13 @@ fi
 echo "  Commit: $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 echo ""
 
+# Fail fast: in production the backend requires X-API-Key for all non-health routes.
+if [ -z "${API_KEY:-}" ]; then
+    echo "ERROR: API_KEY is not set. This will break backend calls (401) in production."
+    echo "Set API_KEY in /etc/buildatlas/.env (loaded by runner.sh) and re-run."
+    exit 1
+fi
+
 # --- Step 1: Pull latest code (skip if deploy.sh already did it) ---
 if [ "${SKIP_PULL:-}" != "1" ]; then
     echo "[1/7] Pulling latest code..."

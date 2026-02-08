@@ -8,7 +8,10 @@
 
 import type { PeriodInfo } from '@startup-intelligence/shared';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const DEFAULT_PROD_API_URL = 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net';
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'production' ? DEFAULT_PROD_API_URL : 'http://localhost:3001');
 
 // Server-side only API key (not exposed to client)
 const API_KEY = process.env.API_KEY;
@@ -41,6 +44,11 @@ export async function fetchFromAPI<T>(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
+    if (process.env.NODE_ENV === 'production' && !API_KEY) {
+      // In prod the backend requires X-API-Key, so fail fast with a clear message.
+      throw new APIError('Server misconfigured: API_KEY is not set', 500, 'Misconfigured');
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...fetchOptions.headers as Record<string, string>,
