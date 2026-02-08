@@ -44,8 +44,10 @@ ensure_crontab_installed() {
     fi
 }
 
-# Stash any local changes (shouldn't exist, but safety)
-git stash --include-untracked 2>/dev/null || true
+# Stash any local changes (shouldn't exist, but safety). Avoid creating empty stashes.
+if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then
+    git stash --include-untracked 2>/dev/null || true
+fi
 
 # Record current HEAD so we can diff the full pulled range (not just the last commit).
 OLD_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
@@ -135,12 +137,22 @@ DEPLOY_FAILED=false
 if [ -n "$BACKEND_PID" ]; then
     if ! wait "$BACKEND_PID"; then
         echo "Backend deploy failed (pid $BACKEND_PID)"
+        echo ""
+        echo "---- backend-deploy log tail ----"
+        tail -60 /var/log/buildatlas/backend-deploy.log 2>/dev/null || true
+        echo "---- end backend-deploy log tail ----"
+        echo ""
         DEPLOY_FAILED=true
     fi
 fi
 if [ -n "$FRONTEND_PID" ]; then
     if ! wait "$FRONTEND_PID"; then
         echo "Frontend deploy failed (pid $FRONTEND_PID)"
+        echo ""
+        echo "---- frontend-deploy log tail ----"
+        tail -60 /var/log/buildatlas/frontend-deploy.log 2>/dev/null || true
+        echo "---- end frontend-deploy log tail ----"
+        echo ""
         DEPLOY_FAILED=true
     fi
 fi
