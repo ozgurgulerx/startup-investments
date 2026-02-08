@@ -129,6 +129,9 @@ News:
 - Daily brief + LLM enrichment (news):
   - Controlled by `NEWS_LLM_ENRICHMENT=true` (and optional `NEWS_LLM_DAILY_BRIEF=true`) in `/etc/buildatlas/.env`.
   - Production Azure OpenAI may have **key auth disabled**. Prefer AAD via managed identity (requires `azure-identity` in the venv and RBAC on the Azure OpenAI resource).
+  - Azure model selection uses **deployment names** (not raw model IDs):
+    - Preferred: `AZURE_OPENAI_DEPLOYMENT_NAME` (e.g. `gpt-5-nano`)
+    - Back-compat: `AZURE_OPENAI_DEPLOYMENT`
   - Verify in `/var/log/buildatlas/news-ingest.log`:
     - `[news-ingest] daily brief generated via Azure: "..."` and `Daily brief: generated`.
 
