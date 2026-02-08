@@ -56,7 +56,10 @@ class ScrapyPlaywrightRuntime:
 
     @staticmethod
     def _slugify(name: str) -> str:
-        return name.lower().replace(" ", "-").replace(".", "").replace(",", "").replace("&", "and")
+        import re
+        slug = name.lower().replace(" ", "-").replace(".", "").replace(",", "").replace("&", "and")
+        # Strip any path traversal characters for safe filesystem use
+        return re.sub(r'[^a-z0-9\-]', '', slug)
 
     @staticmethod
     def _seed_targets_from_urls(urls: List[str]) -> List[Dict[str, Any]]:
@@ -115,14 +118,19 @@ class ScrapyPlaywrightRuntime:
 
         with tempfile.TemporaryDirectory(prefix="scrapy_crawl_") as tmp_dir:
             out_file = Path(tmp_dir) / "crawl_output.json"
+            # Write seed targets to a temp file to avoid shell arg length limits
+            # and prevent command injection via startup_name or seed_targets.
+            seed_file = Path(tmp_dir) / "seed_targets.json"
+            seed_file.write_text(json.dumps(seed_targets), encoding="utf-8")
+
             cmd = [
                 sys.executable,
                 "-m",
                 "src.crawl_runtime.run_spider",
                 "--startup-name",
                 startup_name,
-                "--seed-targets",
-                json.dumps(seed_targets),
+                "--seed-targets-file",
+                str(seed_file),
                 "--allowed-domain",
                 allowed_domain,
                 "--output-path",

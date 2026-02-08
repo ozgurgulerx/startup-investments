@@ -33,6 +33,12 @@ except Exception:  # pragma: no cover - optional import at module import time
     AsyncAzureOpenAI = None
 
 try:
+    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+except Exception:  # pragma: no cover - optional import at module import time
+    DefaultAzureCredential = None
+    get_bearer_token_provider = None
+
+try:
     import feedparser
 except Exception:  # pragma: no cover - optional import at module import time
     feedparser = None
@@ -109,18 +115,18 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("techcrunch_startups", "TechCrunch Startups", "rss", "https://techcrunch.com/category/startups/feed/", credibility_weight=0.94),
     SourceDefinition("venturebeat", "VentureBeat", "rss", "https://venturebeat.com/feed/", credibility_weight=0.86),
     SourceDefinition("wired", "WIRED", "rss", "https://www.wired.com/feed/rss", credibility_weight=0.80),
-    SourceDefinition("sifted", "Sifted", "rss", "https://sifted.eu/feed/", credibility_weight=0.78),
+    SourceDefinition("sifted", "Sifted", "rss", "https://sifted.eu/feed", credibility_weight=0.78),
     SourceDefinition("crunchbase_news", "Crunchbase News", "rss", "https://news.crunchbase.com/feed/", credibility_weight=0.85),
     SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", region="turkey", credibility_weight=0.74),
     SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", region="turkey", credibility_weight=0.70),
-    SourceDefinition("producthunt_blog", "Product Hunt Blog", "rss", "https://www.producthunt.com/blog/feed", credibility_weight=0.82),
+    SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
     SourceDefinition("inc", "Inc", "rss", "https://www.inc.com/rss", credibility_weight=0.74),
     SourceDefinition("fastcompany", "Fast Company", "rss", "https://www.fastcompany.com/rss", credibility_weight=0.75),
     SourceDefinition("techeu", "Tech.eu", "rss", "https://tech.eu/feed/", credibility_weight=0.81),
     SourceDefinition("mashable", "Mashable", "rss", "https://mashable.com/feeds/rss/all", credibility_weight=0.68),
     SourceDefinition("hackernoon", "HackerNoon", "rss", "https://hackernoon.com/feed", credibility_weight=0.64),
-    SourceDefinition("a16z_blog", "a16z Blog", "rss", "https://a16z.com/feed/", credibility_weight=0.76),
+    SourceDefinition("yc_blog", "Y Combinator Blog", "rss", "https://www.ycombinator.com/blog/rss/", credibility_weight=0.78),
     SourceDefinition("avc_blog", "AVC", "rss", "https://avc.com/feed/", credibility_weight=0.74),
     SourceDefinition("strictlyvc", "StrictlyVC", "rss", "https://strictlyvc.com/feed", credibility_weight=0.80),
     SourceDefinition("hn_rss_startup", "HN RSS Startup", "community", "https://hnrss.org/newest?q=startup", credibility_weight=0.83),
@@ -635,16 +641,25 @@ class DailyNewsIngestor:
             "latency_ms_avg": 0.0,
         }
         self.azure_client: Optional[Any] = None
-        if (
-            AsyncAzureOpenAI is not None
-            and self.azure_openai_api_key
-            and self.azure_openai_endpoint
-        ):
-            self.azure_client = AsyncAzureOpenAI(
-                api_key=self.azure_openai_api_key,
-                api_version=self.azure_openai_api_version,
-                azure_endpoint=self.azure_openai_endpoint,
-            )
+        if AsyncAzureOpenAI is not None and self.azure_openai_endpoint:
+            if DefaultAzureCredential is not None:
+                # Prefer AAD (managed identity / Azure CLI) — some resources disable key auth
+                _credential = DefaultAzureCredential()
+                _token_provider = get_bearer_token_provider(
+                    _credential, "https://cognitiveservices.azure.com/.default"
+                )
+                self.azure_client = AsyncAzureOpenAI(
+                    azure_ad_token_provider=_token_provider,
+                    api_version=self.azure_openai_api_version,
+                    azure_endpoint=self.azure_openai_endpoint,
+                )
+            elif self.azure_openai_api_key:
+                # Fall back to API key if azure-identity not installed
+                self.azure_client = AsyncAzureOpenAI(
+                    api_key=self.azure_openai_api_key,
+                    api_version=self.azure_openai_api_version,
+                    azure_endpoint=self.azure_openai_endpoint,
+                )
 
     async def connect(self):
         if self.pool is None:

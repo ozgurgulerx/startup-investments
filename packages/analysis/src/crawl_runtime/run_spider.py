@@ -361,6 +361,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run startup crawl spider")
     parser.add_argument("--startup-name", required=True)
     parser.add_argument("--seed-targets", default="", help="JSON array of objects: [{url, headers?, page_type?}]")
+    parser.add_argument("--seed-targets-file", default="", help="Path to JSON file containing seed targets (preferred over --seed-targets)")
     parser.add_argument("--seed-urls", default="", help="Backward compatible JSON array of URLs")
     parser.add_argument("--allowed-domain", required=True)
     parser.add_argument("--output-path", required=True)
@@ -381,6 +382,13 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     seed_targets = args.seed_targets
+    # Prefer file-based seed targets (avoids shell argument length/injection issues)
+    if args.seed_targets_file:
+        try:
+            seed_targets = Path(args.seed_targets_file).read_text(encoding="utf-8")
+        except Exception as exc:
+            print(json.dumps({"error": f"Failed to read seed targets file: {exc}"}))
+            return 2
     if not seed_targets:
         if args.seed_urls:
             try:
