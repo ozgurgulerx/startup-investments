@@ -1519,7 +1519,7 @@ class DailyNewsIngestor:
                     if not text:
                         continue
                     # keep tags compact; normalize spaces to hyphens
-                    text = re.sub(r"[^a-z0-9\\- ]+", "", text).strip().replace(" ", "-")
+                    text = re.sub(r"[^a-z0-9 -]+", "", text).strip().replace(" ", "-")
                     if text:
                         themes.append(text[:32])
                     if len(themes) >= 6:
