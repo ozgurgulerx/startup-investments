@@ -116,7 +116,8 @@ chmod +x "$REPO_DIR/infrastructure/vm-cron/monitoring/"*.sh
 
 # --- Install crontab ---
 echo "Installing crontab..."
-crontab "$REPO_DIR/infrastructure/vm-cron/crontab"
+# crontab(5) is sensitive to CRLF; strip CR characters defensively.
+tr -d '\r' < "$REPO_DIR/infrastructure/vm-cron/crontab" | crontab -
 
 echo ""
 echo "=========================================="

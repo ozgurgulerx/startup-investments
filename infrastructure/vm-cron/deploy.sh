@@ -22,20 +22,25 @@ ensure_crontab_installed() {
         return 0
     fi
 
+    # crontab(5) is sensitive to CRLF; always strip CR characters when installing/comparing.
+    install_expected() {
+        tr -d '\r' < "$expected_file" | crontab -
+    }
+
     local current=""
     current="$(crontab -l 2>/dev/null || true)"
 
     # If no crontab exists (or ours isn't installed), install it.
     if [ -z "$current" ] || ! echo "$current" | grep -q "BuildAtlas VM Cron Jobs"; then
         echo "Crontab missing/unexpected. Installing BuildAtlas VM crontab..."
-        crontab "$expected_file"
+        install_expected
         return 0
     fi
 
     # If content drifted from the repo version, reinstall it (cron-as-code).
-    if ! diff -q <(printf "%s\n" "$current") "$expected_file" >/dev/null 2>&1; then
+    if ! diff -q <(printf "%s\n" "$current") <(tr -d '\r' < "$expected_file") >/dev/null 2>&1; then
         echo "Crontab drift detected. Reinstalling BuildAtlas VM crontab..."
-        crontab "$expected_file"
+        install_expected
     fi
 }
 
@@ -75,7 +80,7 @@ fi
 # Reinstall crontab if changed
 if echo "$CHANGED_FILES" | grep -q 'infrastructure/vm-cron/crontab'; then
     echo "Crontab changed. Reinstalling..."
-    crontab "$REPO_DIR/infrastructure/vm-cron/crontab"
+    ensure_crontab_installed
 fi
 
 # Update logrotate if changed
