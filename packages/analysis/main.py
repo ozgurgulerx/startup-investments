@@ -482,6 +482,19 @@ def ingest_news(
             f"p50={llm_metrics.get('latency_ms_p50', 0)}ms "
             f"p95={llm_metrics.get('latency_ms_p95', 0)}ms"
         )
+    memory = result.get("stats", {}).get("memory") or {}
+    if memory and not memory.get("skipped"):
+        console.print(
+            "[bold]Memory:[/bold] "
+            f"entities={memory.get('entities_linked', 0)} "
+            f"claims={memory.get('claims_extracted', 0)} "
+            f"new_facts={memory.get('new_facts', 0)} "
+            f"confirmations={memory.get('confirmations', 0)} "
+            f"contradictions={memory.get('contradictions', 0)} "
+            f"written={memory.get('facts_written', 0)}"
+        )
+    elif memory.get("skipped"):
+        console.print("[bold]Memory:[/bold] [yellow]skipped (tables may not exist yet)[/yellow]")
     stats = result.get("stats") or {}
     has_brief = bool(stats.get("daily_brief"))
     console.print(f"[bold]Daily brief:[/bold] {'generated' if has_brief else '[yellow]not generated[/yellow]'}")
@@ -1193,6 +1206,219 @@ def intelligence(
                 console.print(f"    Accelerators: {', '.join(accels)}")
             if programs:
                 console.print(f"    Tech programs: {', '.join(programs)}")
+
+
+@app.command("memory-backfill")
+def memory_backfill(
+    days: int = typer.Option(7, "--days", help="How many days of existing clusters to backfill"),
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print stats without persisting"),
+):
+    """Backfill memory gate on existing news clusters.
+
+    Runs entity linking + fact extraction on clusters from the last N days
+    and populates news_entity_facts + news_item_extractions tables.
+
+    Use --region turkey to backfill with Turkish-language patterns and
+    write facts with region='turkey'.
+    """
+    from src.automation.memory_gate import MemoryGate
+    import asyncpg as apg
+
+    if region not in ("global", "turkey"):
+        console.print(f"[red]Invalid region '{region}'. Use 'global' or 'turkey'.[/red]")
+        raise typer.Exit(1)
+
+    async def run_backfill():
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            return
+
+        pool = await apg.create_pool(db_url, min_size=2, max_size=5, command_timeout=60)
+        async with pool.acquire() as conn:
+            gate = MemoryGate()
+            await gate.load(conn, region=region)
+
+            rows = await conn.fetch(
+                """
+                SELECT id::text, cluster_key, canonical_url, title, summary,
+                       story_type, entities, trust_score
+                FROM news_clusters
+                WHERE published_at >= NOW() - ($1 || ' days')::interval
+                ORDER BY published_at DESC
+                """,
+                str(days),
+            )
+            console.print(f"[bold]Found {len(rows)} clusters from last {days} days (region={region})[/bold]")
+
+            processed = 0
+            facts_written = 0
+            for row in rows:
+                result = await gate.process_cluster(
+                    conn,
+                    cluster_key=row["cluster_key"],
+                    title=row["title"],
+                    summary=row["summary"] or "",
+                    story_type=row["story_type"],
+                    entities=list(row["entities"] or []),
+                    canonical_url=row["canonical_url"] or "",
+                    trust_score=float(row["trust_score"] or 0),
+                    region=region,
+                )
+                if not dry_run:
+                    await gate.persist_extraction(conn, row["id"], result)
+                    facts_written += await gate.persist_facts(
+                        conn, row["id"], row["canonical_url"] or "", result, region=region,
+                    )
+                processed += 1
+
+            stats = gate.stats
+            stats["facts_written"] = facts_written
+
+        await pool.close()
+        return stats
+
+    try:
+        stats = asyncio.run(run_backfill())
+    except Exception as exc:
+        console.print(f"[red]Memory backfill failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    if not stats:
+        return
+
+    console.print(Panel.fit(
+        f"[bold blue]Memory Backfill Summary ({region})[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Clusters processed:[/bold] {stats.get('clusters_processed', 0)}")
+    console.print(f"[bold]Entities linked:[/bold] {stats.get('entities_linked', 0)}")
+    console.print(f"[bold]Claims extracted:[/bold] {stats.get('claims_extracted', 0)}")
+    console.print(f"[bold]New facts:[/bold] {stats.get('new_facts', 0)}")
+    console.print(f"[bold]Confirmations:[/bold] {stats.get('confirmations', 0)}")
+    console.print(f"[bold]Contradictions:[/bold] {stats.get('contradictions', 0)}")
+    console.print(f"[bold]Facts written:[/bold] {stats.get('facts_written', 0)}")
+    if dry_run:
+        console.print("[yellow]Dry run — nothing was persisted[/yellow]")
+
+
+@app.command("generate-weekly-brief")
+def generate_weekly_brief(
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+    week: str = typer.Option("", "--week", help="Monday of the week (YYYY-MM-DD). Defaults to last week."),
+):
+    """Generate a weekly intelligence brief.
+
+    Aggregates stories from the past week, computes stats, and generates
+    LLM narrative sections (executive summary, trend analysis, builder lessons).
+    """
+    from src.automation.periodic_briefs import WeeklyBriefGenerator
+    import asyncpg as apg
+
+    if region not in ("global", "turkey"):
+        console.print(f"[red]Invalid region '{region}'. Use 'global' or 'turkey'.[/red]")
+        raise typer.Exit(1)
+
+    week_start = None
+    if week:
+        try:
+            from datetime import date as dt_date
+            week_start = dt_date.fromisoformat(week)
+        except ValueError:
+            console.print(f"[red]Invalid date '{week}'. Use YYYY-MM-DD format.[/red]")
+            raise typer.Exit(1)
+
+    async def run():
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            return None
+        pool = await apg.create_pool(db_url, min_size=2, max_size=5, command_timeout=120)
+        async with pool.acquire() as conn:
+            gen = WeeklyBriefGenerator()
+            result = await gen.run(conn, region=region, week_start=week_start)
+        await pool.close()
+        return result
+
+    try:
+        result = asyncio.run(run())
+    except Exception as exc:
+        console.print(f"[red]Weekly brief generation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    if not result:
+        return
+
+    if result.get("status") == "empty":
+        console.print("[yellow]No stories found for the period.[/yellow]")
+        return
+
+    console.print(Panel.fit(
+        f"[bold blue]Weekly Brief Generated ({region})[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Title:[/bold] {result.get('title', '')}")
+    console.print(f"[bold]Period:[/bold] {result.get('period_start')} to {result.get('period_end')}")
+    console.print(f"[bold]Stories:[/bold] {result.get('story_count', 0)}")
+    console.print(f"[bold]LLM narrative:[/bold] {'Yes' if result.get('has_narrative') else 'No'}")
+    console.print(f"[bold]Status:[/bold] {result.get('status')}")
+
+
+@app.command("generate-monthly-brief-news")
+def generate_monthly_brief_news(
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+    month: str = typer.Option("", "--month", help="Month (YYYY-MM). Defaults to previous month."),
+):
+    """Generate a monthly intelligence brief from news data.
+
+    Aggregates stories from the month, computes stats, and generates
+    LLM narrative sections. Different from the existing monthly brief
+    which is based on startup analysis data.
+    """
+    from src.automation.periodic_briefs import MonthlyBriefGenerator
+    import asyncpg as apg
+
+    if region not in ("global", "turkey"):
+        console.print(f"[red]Invalid region '{region}'. Use 'global' or 'turkey'.[/red]")
+        raise typer.Exit(1)
+
+    month_val = month if month else None
+
+    async def run():
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            return None
+        pool = await apg.create_pool(db_url, min_size=2, max_size=5, command_timeout=120)
+        async with pool.acquire() as conn:
+            gen = MonthlyBriefGenerator()
+            result = await gen.run(conn, region=region, month=month_val)
+        await pool.close()
+        return result
+
+    try:
+        result = asyncio.run(run())
+    except Exception as exc:
+        console.print(f"[red]Monthly brief generation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    if not result:
+        return
+
+    if result.get("status") == "empty":
+        console.print("[yellow]No stories found for the period.[/yellow]")
+        return
+
+    console.print(Panel.fit(
+        f"[bold blue]Monthly Brief Generated ({region})[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Title:[/bold] {result.get('title', '')}")
+    console.print(f"[bold]Period:[/bold] {result.get('period_start')} to {result.get('period_end')}")
+    console.print(f"[bold]Stories:[/bold] {result.get('story_count', 0)}")
+    console.print(f"[bold]LLM narrative:[/bold] {'Yes' if result.get('has_narrative') else 'No'}")
+    console.print(f"[bold]Status:[/bold] {result.get('status')}")
 
 
 @app.command("extract-logos")

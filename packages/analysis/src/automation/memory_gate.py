@@ -3,6 +3,10 @@
 Phase 1: Entity linking, heuristic fact extraction, and memory store.
 Inserted between _cluster_items() and _enrich_clusters_with_llm() in news_ingest.py.
 
+Region-aware: Turkey memory reads global + turkey facts (one-way merge),
+global memory reads only global facts. Turkish-language regex patterns
+are applied when region="turkey".
+
 Zero LLM cost — all operations are dictionary lookups, regex, and database queries.
 """
 
@@ -125,9 +129,15 @@ class EntityIndex:
         self._domain_index: Dict[str, str] = {}
         self._loaded = False
 
-    async def load(self, conn: asyncpg.Connection) -> None:
-        """Load startups + investors into the in-memory index."""
-        # Startups: name, slug, website
+    async def load(self, conn: asyncpg.Connection, region: str = "global") -> None:
+        """Load startups + investors into the in-memory index.
+
+        Args:
+            region: 'global' loads only global entity facts.
+                    'turkey' loads global + turkey entity facts (one-way merge).
+                    Startups and investors are always loaded globally.
+        """
+        # Startups: name, slug, website (always global — all startups are relevant)
         rows = await conn.fetch(
             "SELECT id::text, name, slug, website FROM startups WHERE name IS NOT NULL"
         )
@@ -151,7 +161,7 @@ class EntityIndex:
                 if domain:
                     self._domain_index[domain] = sid
 
-        # Investors
+        # Investors (always global)
         inv_rows = await conn.fetch(
             "SELECT id::text, name FROM investors WHERE name IS NOT NULL"
         )
@@ -163,9 +173,14 @@ class EntityIndex:
                 self._name_index[name_lower] = ("investor", None, inv_id)
 
         # Known entity names from prior extractions
+        # Turkey loads both global + turkey facts; global loads only global
+        if region == "turkey":
+            region_filter = "region IN ('global', 'turkey')"
+        else:
+            region_filter = "region = 'global'"
         fact_rows = await conn.fetch(
-            """SELECT DISTINCT entity_name, entity_type, linked_startup_id::text, linked_investor_id::text
-               FROM news_entity_facts WHERE is_current = TRUE"""
+            f"""SELECT DISTINCT entity_name, entity_type, linked_startup_id::text, linked_investor_id::text
+               FROM news_entity_facts WHERE is_current = TRUE AND {region_filter}"""
         )
         for row in fact_rows:
             name_lower = row["entity_name"].strip().lower()
@@ -177,7 +192,7 @@ class EntityIndex:
                 )
 
         self._loaded = True
-        logger.info("EntityIndex loaded: %d names, %d domains", len(self._name_index), len(self._domain_index))
+        logger.info("EntityIndex loaded (%s): %d names, %d domains", region, len(self._name_index), len(self._domain_index))
 
     def link(self, entity_names: Sequence[str], urls: Sequence[str] = ()) -> List[LinkedEntity]:
         """Link a list of entity names (from a cluster) to known entities.
@@ -329,6 +344,49 @@ _LAUNCH_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ---------------------------------------------------------------------------
+# Turkish-language patterns (applied when region="turkey")
+# ---------------------------------------------------------------------------
+_TR_AMOUNT_RE = re.compile(
+    r"(\d[\d,.]*)\s*(milyon|milyar)\s*(dolar|tl|euro)\b",
+    re.IGNORECASE,
+)
+_TR_SERIES_RE = re.compile(
+    r"\b(tohum|pre-?seed|seed|seri\s+[a-f]|büyüme\s+turu|köprü\s+tur)\b",
+    re.IGNORECASE,
+)
+_TR_LED_BY_RE = re.compile(
+    r"(?:liderliğinde|öncülüğünde|liderliginde|onculugunde)\s+([A-Za-z0-9][A-Za-z0-9\s&]+?)(?:\s+(?:ile|ve\s+katılımıyla)|[.,;]|$)",
+    re.IGNORECASE,
+)
+_TR_VALUATION_RE = re.compile(
+    r"(?:değerleme(?:si)?|degerleme(?:si)?)\s+(\d[\d,.]*)\s*(milyon|milyar)\s*(dolar|tl)\b",
+    re.IGNORECASE,
+)
+_TR_ACQUIRED_RE = re.compile(
+    r"(?:[Ss]atın\s+al|[Ss]atinal|[Bb]ünyesine\s+kat)\w*\s+([A-ZÇĞİÖŞÜ][A-Za-zçğıöşü\s&]+?)(?:\s+(?:şirketini|firmasını|için|ile|olarak)|[.,;]|$)",
+)
+_TR_LAUNCH_RE = re.compile(
+    r"\b(lansm|kullanıma\s+sun|yayınla|piyasaya\s+sür|beta\s+sürüm|duyur)",
+    re.IGNORECASE,
+)
+
+
+def _normalize_tr_amount(value_str: str, unit: str, currency: str) -> str:
+    """Normalize a Turkish funding amount to USD standard format."""
+    cleaned = value_str.replace(",", "").replace(".", "")
+    try:
+        num = float(cleaned)
+    except ValueError:
+        return f"{value_str} {unit} {currency}"
+    unit_lower = unit.lower()
+    # Convert to standard $ format
+    if unit_lower == "milyar":
+        return f"${num}B"
+    elif unit_lower == "milyon":
+        return f"${num}M"
+    return f"${value_str}{unit}"
+
 
 def _normalize_amount(value_str: str, unit: str) -> str:
     """Normalize a funding amount string to a standard format."""
@@ -352,6 +410,7 @@ class FactExtractor:
     """Heuristic regex-based fact extraction by story_type.
 
     Phase 1: No LLM calls. Extracts from cluster title + summary.
+    Region-aware: applies both English and Turkish patterns when region="turkey".
     """
 
     def extract(
@@ -361,6 +420,7 @@ class FactExtractor:
         title: str,
         summary: str,
         entities: Sequence[str],
+        region: str = "global",
     ) -> List[ExtractedClaim]:
         """Extract structured claims from a cluster."""
         text = f"{title} {summary}"
@@ -384,6 +444,10 @@ class FactExtractor:
                 claims.extend(funding)
             else:
                 claims.extend(self._extract_general(text, primary_entity, story_type))
+
+        # Turkish patterns — run in addition to English when region is turkey
+        if region == "turkey":
+            claims.extend(self._extract_turkish(text, primary_entity, story_type))
 
         return claims
 
@@ -483,6 +547,95 @@ class FactExtractor:
 
         return claims
 
+    def _extract_turkish(
+        self, text: str, entity: Optional[str], story_type: str
+    ) -> List[ExtractedClaim]:
+        """Extract claims using Turkish-language patterns.
+
+        Only adds claims that weren't already captured by English patterns.
+        """
+        claims: List[ExtractedClaim] = []
+
+        # Turkish funding amount (e.g., "5 milyon dolar", "1.2 milyar dolar")
+        m = _TR_AMOUNT_RE.search(text)
+        if m and story_type in ("funding", "news", ""):
+            amount = _normalize_tr_amount(m.group(1), m.group(2), m.group(3))
+            claims.append(ExtractedClaim(
+                fact_key="funding_amount",
+                fact_value=amount,
+                text_span=m.group(0).strip(),
+                confidence=0.80,
+                entity_name=entity,
+            ))
+
+        # Turkish round type (e.g., "seri A", "tohum", "büyüme turu")
+        m = _TR_SERIES_RE.search(text)
+        if m:
+            raw = m.group(1).strip()
+            # Normalize Turkish round names to English
+            _TR_ROUND_MAP = {
+                "tohum": "Seed", "seed": "Seed", "pre-seed": "Pre-Seed",
+                "büyüme turu": "Growth", "köprü tur": "Bridge",
+            }
+            round_type = _TR_ROUND_MAP.get(raw.lower(), raw.title())
+            claims.append(ExtractedClaim(
+                fact_key="round_type",
+                fact_value=round_type,
+                text_span=m.group(0).strip(),
+                confidence=0.85,
+                entity_name=entity,
+            ))
+
+        # Turkish lead investor
+        m = _TR_LED_BY_RE.search(text)
+        if m:
+            lead = m.group(1).strip().rstrip(",. ")
+            claims.append(ExtractedClaim(
+                fact_key="lead_investor",
+                fact_value=lead,
+                text_span=m.group(0).strip(),
+                confidence=0.75,
+                entity_name=entity,
+            ))
+
+        # Turkish valuation
+        m = _TR_VALUATION_RE.search(text)
+        if m:
+            val = _normalize_tr_amount(m.group(1), m.group(2), m.group(3))
+            claims.append(ExtractedClaim(
+                fact_key="valuation",
+                fact_value=val,
+                text_span=m.group(0).strip(),
+                confidence=0.70,
+                entity_name=entity,
+            ))
+
+        # Turkish M&A
+        if story_type in ("mna", "news", ""):
+            m = _TR_ACQUIRED_RE.search(text)
+            if m:
+                target = m.group(1).strip().rstrip(",. ")
+                claims.append(ExtractedClaim(
+                    fact_key="acquisition_target",
+                    fact_value=target,
+                    text_span=m.group(0).strip(),
+                    confidence=0.75,
+                    entity_name=entity,
+                ))
+
+        # Turkish launch
+        if story_type in ("launch", "news", ""):
+            if _TR_LAUNCH_RE.search(text):
+                claims.append(ExtractedClaim(
+                    fact_key="product_launched",
+                    fact_value="true",
+                    text_span=text[:200].strip(),
+                    confidence=0.65,
+                    entity_name=entity,
+                ))
+
+        return claims
+
     def _extract_general(
         self, text: str, entity: Optional[str], story_type: str
     ) -> List[ExtractedClaim]:
@@ -515,11 +668,22 @@ class MemoryStore:
         self,
         conn: asyncpg.Connection,
         claims: Sequence[ExtractedClaim],
+        region: str = "global",
     ) -> List[FactComparison]:
         """Compare extracted claims against stored facts.
 
+        Args:
+            region: 'global' compares against global facts only.
+                    'turkey' compares against global + turkey facts (one-way merge).
+
         Returns: list of FactComparison with status new_fact / confirmation / contradiction.
         """
+        # Turkey sees both global and turkey facts; global sees only global
+        if region == "turkey":
+            region_filter = "AND region IN ('global', 'turkey')"
+        else:
+            region_filter = "AND region = 'global'"
+
         results: List[FactComparison] = []
 
         for claim in claims:
@@ -528,12 +692,13 @@ class MemoryStore:
                 continue
 
             existing = await conn.fetchrow(
-                """
+                f"""
                 SELECT id::text, fact_value
                 FROM news_entity_facts
                 WHERE LOWER(entity_name) = LOWER($1)
                   AND fact_key = $2
                   AND is_current = TRUE
+                  {region_filter}
                 ORDER BY last_confirmed_at DESC
                 LIMIT 1
                 """,
@@ -567,8 +732,12 @@ class MemoryStore:
         linked_entities: Sequence[LinkedEntity],
         cluster_id: str,
         source_url: str,
+        region: str = "global",
     ) -> int:
-        """Write new/updated facts to news_entity_facts. Returns count of rows written."""
+        """Write new/updated facts to news_entity_facts. Returns count of rows written.
+
+        Facts are always tagged with the given region so they stay scoped.
+        """
         # Build entity → linked IDs map
         entity_map: Dict[str, LinkedEntity] = {}
         for le in linked_entities:
@@ -592,9 +761,10 @@ class MemoryStore:
                         entity_name, entity_type, linked_startup_id, linked_investor_id,
                         fact_key, fact_value, fact_confidence,
                         source_cluster_id, source_url, source_text_span,
-                        is_current, confirmation_count, first_seen_at, last_confirmed_at
+                        is_current, confirmation_count, first_seen_at, last_confirmed_at,
+                        region
                     ) VALUES ($1, $2, $3::uuid, $4::uuid, $5, $6, $7, $8::uuid, $9, $10,
-                              TRUE, 1, NOW(), NOW())
+                              TRUE, 1, NOW(), NOW(), $11)
                     """,
                     claim.entity_name,
                     entity_type,
@@ -606,6 +776,7 @@ class MemoryStore:
                     cluster_id,
                     source_url,
                     claim.text_span,
+                    region,
                 )
                 count += 1
 
@@ -629,9 +800,10 @@ class MemoryStore:
                         entity_name, entity_type, linked_startup_id, linked_investor_id,
                         fact_key, fact_value, fact_confidence,
                         source_cluster_id, source_url, source_text_span,
-                        is_current, confirmation_count, first_seen_at, last_confirmed_at
+                        is_current, confirmation_count, first_seen_at, last_confirmed_at,
+                        region
                     ) VALUES ($1, $2, $3::uuid, $4::uuid, $5, $6, $7, $8::uuid, $9, $10,
-                              TRUE, 1, NOW(), NOW())
+                              TRUE, 1, NOW(), NOW(), $11)
                     RETURNING id::text
                     """,
                     claim.entity_name,
@@ -644,6 +816,7 @@ class MemoryStore:
                     cluster_id,
                     source_url,
                     claim.text_span,
+                    region,
                 )
                 # Mark old fact as superseded
                 await conn.execute(
@@ -675,17 +848,21 @@ class MemoryStore:
 class MemoryGate:
     """Orchestrates memory gate processing for clusters.
 
+    Region-aware: pass region to load() and process_cluster() to control
+    which facts are visible and how extraction works.
+
     Usage in news_ingest.py:
         gate = MemoryGate()
-        await gate.load(conn)
+        await gate.load(conn, region="turkey")
         for cluster in clusters:
-            result = await gate.process_cluster(conn, cluster_key, ...)
+            result = await gate.process_cluster(conn, cluster_key, ..., region="turkey")
     """
 
     def __init__(self) -> None:
         self.entity_index = EntityIndex()
         self.fact_extractor = FactExtractor()
         self.memory_store = MemoryStore()
+        self._region = "global"
         self._stats = {
             "clusters_processed": 0,
             "entities_linked": 0,
@@ -695,9 +872,10 @@ class MemoryGate:
             "contradictions": 0,
         }
 
-    async def load(self, conn: asyncpg.Connection) -> None:
-        """Load entity index from database."""
-        await self.entity_index.load(conn)
+    async def load(self, conn: asyncpg.Connection, region: str = "global") -> None:
+        """Load entity index from database with region-appropriate facts."""
+        self._region = region
+        await self.entity_index.load(conn, region=region)
 
     async def process_cluster(
         self,
@@ -711,6 +889,7 @@ class MemoryGate:
         canonical_url: str,
         trust_score: float,
         members_urls: Sequence[str] = (),
+        region: str = "global",
     ) -> MemoryResult:
         """Run memory gate on a single cluster.
 
@@ -724,18 +903,19 @@ class MemoryGate:
             all_urls.insert(0, canonical_url)
         result.linked_entities = self.entity_index.link(entities, all_urls)
 
-        # Step 2: Fact extraction
+        # Step 2: Fact extraction (region-aware — applies Turkish patterns for turkey)
         result.extracted_claims = self.fact_extractor.extract(
             story_type=story_type,
             title=title,
             summary=summary or "",
             entities=entities,
+            region=region,
         )
 
-        # Step 3: Memory comparison
+        # Step 3: Memory comparison (region-aware — turkey sees global+turkey facts)
         if result.extracted_claims:
             result.fact_comparisons = await self.memory_store.compare_claims(
-                conn, result.extracted_claims
+                conn, result.extracted_claims, region=region,
             )
 
         self._stats["clusters_processed"] += 1
@@ -782,6 +962,7 @@ class MemoryGate:
         cluster_id: str,
         canonical_url: str,
         result: MemoryResult,
+        region: str = "global",
     ) -> int:
         """Persist new/updated entity facts. Returns count of new facts written."""
         if not result.fact_comparisons:
@@ -792,6 +973,7 @@ class MemoryGate:
             result.linked_entities,
             cluster_id,
             canonical_url,
+            region=region,
         )
 
     @property

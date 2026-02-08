@@ -3432,20 +3432,24 @@ class DailyNewsIngestor:
         return enriched
 
     async def _run_memory_gate(
-        self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster]
+        self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster], region: str = "global"
     ) -> Dict[str, Any]:
-        """Run memory gate on all clusters: entity linking + fact extraction.
+        """Run memory gate on clusters for a specific region.
 
         Populates cluster.memory_result for each cluster. Does NOT persist yet
         (persistence happens after _persist_clusters creates the cluster IDs).
+
+        Args:
+            region: 'global' or 'turkey'. Controls which entity facts are visible
+                    and whether Turkish-language patterns are applied.
         """
         from .memory_gate import MemoryGate
 
         gate = MemoryGate()
         try:
-            await gate.load(conn)
+            await gate.load(conn, region=region)
         except Exception as exc:
-            print(f"[memory_gate] Load failed (tables may not exist yet): {exc}")
+            print(f"[memory_gate:{region}] Load failed (tables may not exist yet): {exc}")
             return {"skipped": True, "error": str(exc)}
 
         for cluster in clusters:
@@ -3461,19 +3465,30 @@ class DailyNewsIngestor:
                     canonical_url=cluster.canonical_url or "",
                     trust_score=cluster.trust_score,
                     members_urls=member_urls,
+                    region=region,
                 )
                 cluster.memory_result = result
             except Exception as exc:
-                print(f"[memory_gate] Failed for cluster {cluster.cluster_key}: {exc}")
+                print(f"[memory_gate:{region}] Failed for cluster {cluster.cluster_key}: {exc}")
 
+        # Store gate per region for later persistence
+        if not hasattr(self, "_memory_gates"):
+            self._memory_gates: Dict[str, Any] = {}
+        self._memory_gates[region] = gate
+        # Keep backward compat
         self._memory_gate = gate
         return gate.stats
 
     async def _persist_memory_results(
-        self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster], cluster_ids: Dict[str, str]
+        self,
+        conn: asyncpg.Connection,
+        clusters: Sequence[StoryCluster],
+        cluster_ids: Dict[str, str],
+        region: str = "global",
     ) -> int:
         """Persist memory gate results (extractions + facts) after clusters are saved."""
-        gate = getattr(self, "_memory_gate", None)
+        gates = getattr(self, "_memory_gates", {})
+        gate = gates.get(region) or getattr(self, "_memory_gate", None)
         if not gate:
             return 0
 
@@ -3488,10 +3503,10 @@ class DailyNewsIngestor:
             try:
                 await gate.persist_extraction(conn, cid, result)
                 facts_written += await gate.persist_facts(
-                    conn, cid, cluster.canonical_url or "", result
+                    conn, cid, cluster.canonical_url or "", result, region=region,
                 )
             except Exception as exc:
-                print(f"[memory_gate] Persist failed for cluster {cluster.cluster_key}: {exc}")
+                print(f"[memory_gate:{region}] Persist failed for cluster {cluster.cluster_key}: {exc}")
 
         return facts_written
 
@@ -3699,17 +3714,7 @@ class DailyNewsIngestor:
                 items_for_clustering = await self._load_recent_items(conn, lookback_hours)
                 clusters = self._cluster_items(items_for_clustering)
 
-                # --- Memory gate: entity linking + fact extraction ---
-                memory_stats = await self._run_memory_gate(conn, clusters)
-
-                await self._enrich_clusters_with_llm(clusters)
-                images_enriched = await self._enrich_missing_images(conn, clusters)
-                cluster_ids = await self._persist_clusters(conn, clusters)
-
-                # Persist memory gate results (entity facts + extractions)
-                memory_facts_written = await self._persist_memory_results(conn, clusters, cluster_ids)
-                memory_stats["facts_written"] = memory_facts_written
-
+                # --- Split into global / turkey clusters FIRST ---
                 turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
                 turkey_clusters: List[StoryCluster] = []
                 for c in clusters:
@@ -3723,6 +3728,23 @@ class DailyNewsIngestor:
                         continue
                     if any(_is_relevant_turkey_news_item(m) for m in turkey_members):
                         turkey_clusters.append(c)
+
+                # --- Memory gate: run per-region (global then turkey) ---
+                memory_stats_global = await self._run_memory_gate(conn, clusters, region="global")
+                memory_stats_turkey = await self._run_memory_gate(conn, turkey_clusters, region="turkey")
+                memory_stats = {
+                    "global": memory_stats_global,
+                    "turkey": memory_stats_turkey,
+                }
+
+                await self._enrich_clusters_with_llm(clusters)
+                images_enriched = await self._enrich_missing_images(conn, clusters)
+                cluster_ids = await self._persist_clusters(conn, clusters)
+
+                # Persist memory gate results per-region
+                mem_facts_global = await self._persist_memory_results(conn, clusters, cluster_ids, region="global")
+                mem_facts_turkey = await self._persist_memory_results(conn, turkey_clusters, cluster_ids, region="turkey")
+                memory_stats["facts_written"] = mem_facts_global + mem_facts_turkey
 
                 global_stats = await self._persist_edition(
                     conn,
