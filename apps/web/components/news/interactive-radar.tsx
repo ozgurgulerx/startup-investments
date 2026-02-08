@@ -7,7 +7,7 @@ import type { NewsEdition } from '@startup-intelligence/shared';
 import { CommandBar, type SortMode, type TimeWindow } from './command-bar';
 import { DailyBriefCard } from './daily-brief-card';
 import { KpiStrip } from './kpi-strip';
-import { StoryCard, PinnedStoryCard } from './story-row';
+import { StoryCard } from './story-row';
 import { ContextPanel } from './context-panel';
 import { NewsSubscriptionCard } from './news-subscription-card';
 
@@ -195,9 +195,6 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   const crossSourceCount = edition.items.filter((item) => item.source_count >= 2).length;
   const selectedItem = selectedId ? filteredItems.find((item) => item.id === selectedId) || null : null;
 
-  // Pinned story = first item in impact sort
-  const pinnedItem = filteredItems[0];
-  const feedItems = filteredItems.slice(1);
   const orderedIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems]);
 
   useEffect(() => {
@@ -289,7 +286,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
     <div className="flex flex-col flex-1 min-h-0">
       {/* Confirmation/unsubscribe banner */}
       {statusBanner && (
-        <div className="mx-auto w-full max-w-[1680px] px-6 pt-2">
+        <div className="mx-auto w-full max-w-6xl px-6 pt-2">
           <div className={`rounded-xl border px-4 py-2.5 text-sm text-foreground ${
             statusBanner.tone === 'success'
               ? 'border-success/35 bg-success/10'
@@ -311,7 +308,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
       {/* Pending update banner */}
       {pendingEdition && (
-        <div className="mx-auto w-full max-w-[1680px] px-6 pt-2">
+        <div className="mx-auto w-full max-w-6xl px-6 pt-2">
           <div className="rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-2.5 text-sm text-foreground">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -371,7 +368,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
       {/* KPI Strip + status */}
       <div className="border-b border-border/20">
-        <div className="mx-auto flex items-center justify-between max-w-[1680px] px-6 py-2">
+        <div className="mx-auto flex items-center justify-between max-w-6xl px-6 py-2">
           <KpiStrip
             totalStories={filteredItems.length}
             crossSourceCount={crossSourceCount}
@@ -394,7 +391,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
       {/* LLM daily brief */}
       {edition.brief && activeTopic === 'all' && !searchQuery.trim() && (
         <div className="border-b border-border/20">
-          <div className="mx-auto max-w-[1680px] px-6">
+          <div className="mx-auto max-w-6xl px-6">
             <DailyBriefCard brief={edition.brief} />
           </div>
         </div>
@@ -402,26 +399,14 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
       {/* Feed + context */}
       <div className="flex-1 min-h-0">
-        <div className="mx-auto h-full min-h-0 max-w-[1680px]">
+        <div className="mx-auto h-full min-h-0 max-w-6xl">
           {/* Feed */}
           <div className="h-full min-h-0 overflow-y-auto">
-            {/* Pinned top impact */}
-            {pinnedItem && (
-              <div className="px-6 py-4 border-b border-border/20">
-                <PinnedStoryCard
-                  item={pinnedItem}
-                  isSelected={selectedId === pinnedItem.id}
-                  onSelect={(id) => handleSelectStory(id)}
-                  isNew={newStoryIds.has(pinnedItem.id)}
-                />
-              </div>
-            )}
-
             {/* Story cards */}
-            {feedItems.length > 0 ? (
+            {filteredItems.length > 0 ? (
               <div className="px-6 py-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {feedItems.map((item) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredItems.map((item) => (
                     <StoryCard
                       key={item.id}
                       item={item}
@@ -433,11 +418,9 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                 </div>
               </div>
             ) : (
-              !pinnedItem && (
-                <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-                  No stories match your filters.
-                </div>
-              )
+              <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                No stories match your filters.
+              </div>
             )}
 
             {/* Subscribe CTA */}

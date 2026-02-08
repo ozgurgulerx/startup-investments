@@ -361,7 +361,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             >
               <NewsHeroCard item={sections.topStories[0]} />
               {sections.topStories.length > 1 && (
-                <div className="mt-4 grid items-start gap-5 sm:grid-cols-2">
+                <div className="mt-4 grid gap-5 sm:grid-cols-2">
                   {sections.topStories.slice(1).map((item, i) => (
                     <motion.div
                       key={item.id}
@@ -381,7 +381,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.breaking.length > 0 && (
               <div>
                 <SectionHeader label="Breaking" indicator="pulse" count={sections.breaking.length} />
-                <div className="mt-3 grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {sections.breaking.map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -393,7 +393,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.deepReads.length > 0 && (
               <div>
                 <SectionHeader label="Deep Reads" indicator="signal" count={sections.deepReads.length} />
-                <div className="mt-3 grid items-start gap-5 sm:grid-cols-2">
+                <div className="mt-3 grid gap-5 sm:grid-cols-2">
                   {sections.deepReads.map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -405,7 +405,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.remaining.length > 0 && (
               <div>
                 <SectionHeader label="More Stories" count={sections.remaining.length} />
-                <div className="mt-3 grid items-start gap-5 sm:grid-cols-2">
+                <div className="mt-3 grid gap-5 sm:grid-cols-2">
                   {sections.remaining.slice(0, 6).map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
