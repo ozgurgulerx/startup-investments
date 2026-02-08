@@ -135,11 +135,73 @@ export function filterOptionsKey(period: string): string {
 }
 
 /**
+ * Generate cache key for news edition queries
+ */
+export function newsEditionKey(params: {
+  region: string;
+  date: string;
+  topic?: string | null;
+  limit: number;
+}): string {
+  const topicPart = (params.topic || '').toLowerCase().trim() || 'all';
+  return `news:v1:edition:${params.region}:${params.date}:${topicPart}:l${params.limit}`;
+}
+
+/**
+ * Generate cache key for latest news edition date
+ */
+export function newsLatestDateKey(region: string): string {
+  return `news:v1:latest-date:${region}`;
+}
+
+/**
+ * Generate cache key for latest news edition content (no explicit date)
+ */
+export function newsLatestKey(region: string, limit: number): string {
+  return `news:v1:latest:${region}:l${limit}`;
+}
+
+/**
+ * Generate cache key for news topics
+ */
+export function newsTopicsKey(params: { region: string; date: string; limit: number }): string {
+  return `news:v1:topics:${params.region}:${params.date}:l${params.limit}`;
+}
+
+/**
+ * Generate cache key for news archive
+ */
+export function newsArchiveKey(params: { region: string; limit: number; offset: number }): string {
+  return `news:v1:archive:${params.region}:l${params.limit}:o${params.offset}`;
+}
+
+/**
+ * Generate cache key for active news sources
+ */
+export function newsSourcesKey(region: string): string {
+  return `news:v1:sources:${region}`;
+}
+
+/**
  * Hash an object to create a stable cache key component
  */
 export function hashObject(obj: object): string {
   const sorted = JSON.stringify(obj, Object.keys(obj).sort());
   return crypto.createHash('md5').update(sorted).digest('hex').slice(0, 8);
+}
+
+/**
+ * Safely parse a cached JSON string. Returns null on parse failure and
+ * schedules deletion of the corrupted key.
+ */
+export function safeCacheParse<T>(raw: string, key: string, redis: RedisClientType | null): T | null {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    console.warn(`Redis: corrupted cache for key ${key}, deleting`);
+    if (redis) { redis.del(key).catch(() => {}); }
+    return null;
+  }
 }
 
 // ============================================================================
@@ -173,10 +235,15 @@ export async function cached<T>(
     try {
       const cachedValue = await redis.get(key);
       if (cachedValue) {
-        return {
-          data: JSON.parse(cachedValue) as T,
-          fromCache: true,
-        };
+        try {
+          return {
+            data: JSON.parse(cachedValue) as T,
+            fromCache: true,
+          };
+        } catch {
+          console.warn(`Redis: corrupted cache value for key ${key}, deleting`);
+          try { await redis.del(key); } catch { /* best effort */ }
+        }
       }
     } catch (error) {
       console.error(`Redis GET error for key ${key}:`, error);
@@ -243,6 +310,7 @@ export async function invalidateAll(): Promise<void> {
   await invalidatePattern('dealbook:v1:*');
   await invalidatePattern('stats:v1:*');
   await invalidatePattern('filters:v1:*');
+  await invalidatePattern('news:v1:*');
 }
 
 /**
@@ -287,4 +355,9 @@ export const CACHE_TTL = {
   PERIODS: 3600,      // 1 hour - period list changes infrequently (monthly)
   FILTERS: 3600,      // 1 hour - filter options very stable
   STARTUP: 600,       // 10 minutes - individual startup data
+  NEWS_LATEST_DATE: 120, // 2 minutes - cheap and used as a pointer
+  NEWS_EDITION: 300,     // 5 minutes - refreshed daily but read heavily
+  NEWS_TOPICS: 300,      // 5 minutes
+  NEWS_ARCHIVE: 900,     // 15 minutes
+  NEWS_SOURCES: 1800,    // 30 minutes - very stable
 } as const;

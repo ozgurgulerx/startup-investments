@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
@@ -6,8 +7,23 @@ import { db, pool, testConnection, closePool, getPoolStats } from './db';
 import { startups, fundingRounds, investors } from './db/schema';
 import { eq, desc, sql, count, sum, and, gte, lte, ilike, or } from 'drizzle-orm';
 import { logoExtractor } from './services/logo-extractor';
-import { syncRequestSchema } from './validation';
+import {
+  syncRequestSchema,
+  startupsQuerySchema,
+  companyQuerySchema,
+  statsQuerySchema,
+  periodsQuerySchema,
+  dealBookQuerySchema,
+  dealBookFiltersQuerySchema,
+  investorsQuerySchema,
+  newsLatestQuerySchema,
+  newsEditionQuerySchema,
+  newsTopicsQuerySchema,
+  newsArchiveQuerySchema,
+  newsSourcesQuerySchema,
+} from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
+import { makeNewsService } from './services/news';
 import {
   getRedisClient,
   closeRedisClient,
@@ -17,7 +33,14 @@ import {
   periodsKey,
   statsKey,
   filterOptionsKey,
+  newsEditionKey,
+  newsLatestDateKey,
+  newsLatestKey,
+  newsTopicsKey,
+  newsArchiveKey,
+  newsSourcesKey,
   hashObject,
+  safeCacheParse,
   CACHE_TTL,
 } from './cache/redis';
 
@@ -28,6 +51,7 @@ const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.API_KEY;
 const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
 const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
+const newsService = makeNewsService(pool);
 
 // Trust proxy for correct client IP behind Azure Front Door / Load Balancer
 app.set('trust proxy', true);
@@ -146,6 +170,7 @@ app.use(cors({
   },
   credentials: true,
 }));
+app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 
 // Rate limiting
@@ -223,8 +248,11 @@ app.use((req, res, next) => {
 // List all startups with pagination
 app.get('/api/v1/startups', async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const parsed = startupsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { page, limit } = parsed.data;
     const offset = (page - 1) * limit;
 
     const results = await db.select({
@@ -335,11 +363,15 @@ app.get('/api/v1/startups/:id', async (req, res) => {
 app.get('/api/v1/companies/:slug', async (req, res) => {
   try {
     const slug = String(req.params.slug || '').trim();
-    if (!slug) {
-      return res.status(400).json({ error: 'Missing slug' });
+    if (!slug || slug.length > 255) {
+      return res.status(400).json({ error: 'Invalid slug' });
     }
 
-    const period = (req.query.period as string) || 'all';
+    const parsed = companyQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { period } = parsed.data;
     const pf = periodFilter(period);
     const slugExpr = computedSlugExpr();
 
@@ -465,7 +497,11 @@ app.get('/api/startups/:slug/logo', async (req, res) => {
 
 app.get('/api/v1/stats', async (req, res) => {
   try {
-    const period = (req.query.period as string) || 'all';
+    const parsed = statsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { period } = parsed.data;
     const cacheKey = statsKey(period);
 
     // Check cache first
@@ -474,8 +510,11 @@ app.get('/api/v1/stats', async (req, res) => {
       try {
         const cachedData = await redis.get(cacheKey);
         if (cachedData) {
-          res.setHeader('X-Cache', 'HIT');
-          return res.json(JSON.parse(cachedData));
+          const data = safeCacheParse(cachedData, cacheKey, redis);
+          if (data) {
+            res.setHeader('X-Cache', 'HIT');
+            return res.json(data);
+          }
         }
       } catch (cacheErr) {
         console.error('Redis cache read error:', cacheErr);
@@ -556,10 +595,9 @@ app.get('/api/v1/stats', async (req, res) => {
 
 app.get('/api/v1/periods', async (req, res) => {
   try {
-    // Region-aware periods are planned. For now, only global data exists in Postgres.
-    const region = (req.query.region as string) || 'global';
-    if (region !== 'global') {
-      return res.status(400).json({ error: 'Only global periods are available via API (yet)' });
+    const parsed = periodsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters. Only region=global is supported.' });
     }
 
     const cacheKey = periodsKey();
@@ -570,8 +608,11 @@ app.get('/api/v1/periods', async (req, res) => {
       try {
         const cachedData = await redis.get(cacheKey);
         if (cachedData) {
-          res.setHeader('X-Cache', 'HIT');
-          return res.json(JSON.parse(cachedData));
+          const data = safeCacheParse(cachedData, cacheKey, redis);
+          if (data) {
+            res.setHeader('X-Cache', 'HIT');
+            return res.json(data);
+          }
         }
       } catch (cacheErr) {
         console.error('Redis cache read error:', cacheErr);
@@ -623,10 +664,14 @@ app.get('/api/v1/periods', async (req, res) => {
 
 app.get('/api/v1/dealbook', async (req, res) => {
   try {
+    const parsed = dealBookQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
     const {
-      period = 'all',
-      page = '1',
-      limit = '25',
+      period,
+      page: pageNum,
+      limit: limitNum,
       stage,
       pattern,
       continent,
@@ -637,13 +682,11 @@ app.get('/api/v1/dealbook', async (req, res) => {
       minFunding,
       maxFunding,
       usesGenai,
-      sortBy = 'funding',
-      sortOrder = 'desc',
+      sortBy,
+      sortOrder,
       search,
-    } = req.query as Record<string, string | undefined>;
+    } = parsed.data;
 
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 25));
     const offset = (pageNum - 1) * limitNum;
 
     // Build cache key from query params
@@ -657,9 +700,12 @@ app.get('/api/v1/dealbook', async (req, res) => {
       try {
         const cachedData = await redis.get(cacheKey);
         if (cachedData) {
-          res.setHeader('X-Cache', 'HIT');
-          res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
-          return res.json(JSON.parse(cachedData));
+          const data = safeCacheParse(cachedData, cacheKey, redis);
+          if (data) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+            return res.json(data);
+          }
         }
       } catch (cacheErr) {
         console.error('Redis cache read error:', cacheErr);
@@ -735,18 +781,12 @@ app.get('/api/v1/dealbook', async (req, res) => {
       );
     }
 
-    // Funding range filters
-    if (minFunding) {
-      const minVal = parseInt(minFunding);
-      if (!isNaN(minVal)) {
-        conditions.push(gte(startups.moneyRaisedUsd, minVal));
-      }
+    // Funding range filters (already validated as numbers by Zod)
+    if (minFunding != null) {
+      conditions.push(gte(startups.moneyRaisedUsd, minFunding));
     }
-    if (maxFunding) {
-      const maxVal = parseInt(maxFunding);
-      if (!isNaN(maxVal)) {
-        conditions.push(lte(startups.moneyRaisedUsd, maxVal));
-      }
+    if (maxFunding != null) {
+      conditions.push(lte(startups.moneyRaisedUsd, maxFunding));
     }
 
     // GenAI filter
@@ -831,14 +871,14 @@ app.get('/api/v1/dealbook', async (req, res) => {
       moneyRaisedUsd: startups.moneyRaisedUsd,
       usesGenai: startups.usesGenai,
       // Extract from JSONB (columns exist but aren't always populated by sync)
-      vertical: sql<string>`${startups.analysisData}->>'vertical'`,
-      marketType: sql<string>`${startups.analysisData}->>'market_type'`,
-      subVertical: sql<string>`${startups.analysisData}->>'sub_vertical'`,
-      subSubVertical: sql<string>`${startups.analysisData}->>'sub_sub_vertical'`,
+      vertical: sql<string | null>`${startups.analysisData}->>'vertical'`,
+      marketType: sql<string | null>`${startups.analysisData}->>'market_type'`,
+      subVertical: sql<string | null>`${startups.analysisData}->>'sub_vertical'`,
+      subSubVertical: sql<string | null>`${startups.analysisData}->>'sub_sub_vertical'`,
       verticalTaxonomy: sql<unknown>`${startups.analysisData}->'vertical_taxonomy'`,
       buildPatterns: sql<unknown>`${startups.analysisData}->'build_patterns'`,
-      confidenceScore: sql<number>`(${startups.analysisData}->>'confidence_score')::float`,
-      newsletterPotential: sql<string>`${startups.analysisData}->>'newsletter_potential'`,
+      confidenceScore: sql<number | null>`(${startups.analysisData}->>'confidence_score')::float`,
+      newsletterPotential: sql<string | null>`${startups.analysisData}->>'newsletter_potential'`,
       // Relevance score included when search is active (0 otherwise)
       searchScore: searchScoreExpr ?? sql<number>`0`,
     })
@@ -910,8 +950,8 @@ app.get('/api/v1/dealbook', async (req, res) => {
         verticalId: verticalId || null,
         subVerticalId: subVerticalId || null,
         leafId: leafId || null,
-        minFunding: minFunding ? parseInt(minFunding) : null,
-        maxFunding: maxFunding ? parseInt(maxFunding) : null,
+        minFunding: minFunding ?? null,
+        maxFunding: maxFunding ?? null,
         usesGenai: usesGenai || null,
         search: search || null,
       },
@@ -937,8 +977,12 @@ app.get('/api/v1/dealbook', async (req, res) => {
 // Get filter options for dealbook (available stages, patterns, continents)
 app.get('/api/v1/dealbook/filters', async (req, res) => {
   try {
-    const { period = 'all', verticalId, subVerticalId } = req.query as Record<string, string | undefined>;
-    const cacheKey = `${filterOptionsKey(period as string)}:${hashObject({ verticalId, subVerticalId })}`;
+    const parsed = dealBookFiltersQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { period, verticalId, subVerticalId } = parsed.data;
+    const cacheKey = `${filterOptionsKey(period)}:${hashObject({ verticalId, subVerticalId })}`;
 
     // Check cache first
     const redis = await getRedisClient();
@@ -946,8 +990,11 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
       try {
         const cachedData = await redis.get(cacheKey);
         if (cachedData) {
-          res.setHeader('X-Cache', 'HIT');
-          return res.json(JSON.parse(cachedData));
+          const data = safeCacheParse(cachedData, cacheKey, redis);
+          if (data) {
+            res.setHeader('X-Cache', 'HIT');
+            return res.json(data);
+          }
         }
       } catch (cacheErr) {
         console.error('Redis cache read error:', cacheErr);
@@ -956,7 +1003,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
     res.setHeader('X-Cache', 'MISS');
 
     // Get distinct stages (prefer latest funding round type, fallback to startup funding_stage)
-    const pf = periodFilter(period as string);
+    const pf = periodFilter(period);
     const stageRows = await db.execute<{ stage: string }>(
       pf
         ? sql`
@@ -990,12 +1037,12 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
     const continents = await db.selectDistinct({ continent: startups.continent })
       .from(startups)
       .where(and(
-        periodFilter(period as string),
+        periodFilter(period),
         sql`${startups.continent} IS NOT NULL`
       ));
 
     // Get pattern counts from JSONB (aggregated in SQL)
-    const pf2 = periodFilter(period as string);
+    const pf2 = periodFilter(period);
     const patternRows = await db.execute<{ pattern: string; count: string }>(
       pf2
         ? sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
@@ -1139,8 +1186,11 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
 
 app.get('/api/v1/investors', async (req, res) => {
   try {
-    const page = Math.min(100, Math.max(1, parseInt(req.query.page as string) || 1));
-    const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const parsed = investorsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { page, limit: limitNum } = parsed.data;
     const offset = (page - 1) * limitNum;
 
     const results = await db.select()
@@ -1158,6 +1208,345 @@ app.get('/api/v1/investors', async (req, res) => {
   } catch (error) {
     console.error('Error fetching investors:', error);
     res.status(500).json({ error: 'Failed to fetch investors' });
+  }
+});
+
+// =============================================================================
+// News API (read-only, cached)
+// =============================================================================
+
+app.get('/api/v1/news/latest-date', async (req, res) => {
+  try {
+    const parsed = newsSourcesQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region } = parsed.data;
+
+    const cacheKey = newsLatestDateKey(region);
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse<{ edition_date: string | null }>(cachedData, cacheKey, redis);
+          if (data) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
+
+    const edition_date = await newsService.getLatestEditionDate({ region });
+    const responseData = { edition_date };
+
+    if (redis) {
+      try {
+        await redis.setEx(cacheKey, CACHE_TTL.NEWS_LATEST_DATE, JSON.stringify(responseData));
+      } catch (cacheErr) {
+        console.error('Redis cache write error:', cacheErr);
+      }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+    return res.json(responseData);
+  } catch (error) {
+    console.error('Error fetching latest news edition date:', error);
+    return res.status(500).json({ error: 'Failed to fetch latest news edition date' });
+  }
+});
+
+app.get('/api/v1/news/latest', async (req, res) => {
+  try {
+    const parsed = newsLatestQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, limit } = parsed.data;
+
+    const cacheKey = newsLatestKey(region, limit);
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          if (cachedData === 'null') {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+            return res.status(404).json({ error: 'No news edition available' });
+          }
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
+
+    const edition = await newsService.getNewsEdition({ region, limit });
+    if (!edition) {
+      if (redis) {
+        try { await redis.setEx(cacheKey, 60, JSON.stringify(null)); } catch { /* best effort */ }
+      }
+      return res.status(404).json({ error: 'No news edition available' });
+    }
+
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_EDITION, JSON.stringify(edition)); } catch { /* best effort */ }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+    return res.json(edition);
+  } catch (error) {
+    console.error('Error fetching latest news edition:', error);
+    return res.status(500).json({ error: 'Failed to fetch latest news edition' });
+  }
+});
+
+app.get('/api/v1/news', async (req, res) => {
+  try {
+    const parsed = newsEditionQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, date, topic, limit } = parsed.data;
+
+    const redis = await getRedisClient();
+
+    // If no date is provided, resolve via a cached "latest-date" pointer to reduce DB pressure.
+    let resolvedDate = date;
+    if (!resolvedDate && redis) {
+      try {
+        const pointerRaw = await redis.get(newsLatestDateKey(region));
+        if (pointerRaw) {
+          const pointer = safeCacheParse<{ edition_date: string | null }>(pointerRaw, newsLatestDateKey(region), redis);
+          if (pointer?.edition_date) {
+            resolvedDate = pointer.edition_date;
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    if (!resolvedDate) {
+      resolvedDate = await newsService.getLatestEditionDate({ region }) || undefined;
+      if (redis) {
+        try {
+          await redis.setEx(
+            newsLatestDateKey(region),
+            CACHE_TTL.NEWS_LATEST_DATE,
+            JSON.stringify({ edition_date: resolvedDate || null })
+          );
+        } catch (cacheErr) {
+          console.error('Redis cache write error:', cacheErr);
+        }
+      }
+    }
+    if (!resolvedDate) {
+      return res.status(404).json({ error: 'No news edition available' });
+    }
+
+    const cacheKey = newsEditionKey({ region, date: resolvedDate, topic: topic || null, limit });
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          if (cachedData === 'null') {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+            return res.status(404).json({ error: 'No news edition available' });
+          }
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
+
+    const edition = await newsService.getNewsEdition({ region, date: resolvedDate, topic, limit });
+    if (!edition) {
+      if (redis) {
+        try { await redis.setEx(cacheKey, 60, JSON.stringify(null)); } catch { /* best effort */ }
+      }
+      return res.status(404).json({ error: 'No news edition available' });
+    }
+
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_EDITION, JSON.stringify(edition)); } catch { /* best effort */ }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+    return res.json(edition);
+  } catch (error) {
+    console.error('Error fetching news edition:', error);
+    return res.status(500).json({ error: 'Failed to fetch news edition' });
+  }
+});
+
+app.get('/api/v1/news/topics', async (req, res) => {
+  try {
+    const parsed = newsTopicsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, date, limit } = parsed.data;
+
+    const redis = await getRedisClient();
+
+    let resolvedDate = date;
+    if (!resolvedDate && redis) {
+      try {
+        const pointerRaw = await redis.get(newsLatestDateKey(region));
+        if (pointerRaw) {
+          const pointer = safeCacheParse<{ edition_date: string | null }>(pointerRaw, newsLatestDateKey(region), redis);
+          if (pointer?.edition_date) resolvedDate = pointer.edition_date;
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    if (!resolvedDate) {
+      resolvedDate = await newsService.getLatestEditionDate({ region }) || undefined;
+      if (redis) {
+        try {
+          await redis.setEx(
+            newsLatestDateKey(region),
+            CACHE_TTL.NEWS_LATEST_DATE,
+            JSON.stringify({ edition_date: resolvedDate || null })
+          );
+        } catch (cacheErr) {
+          console.error('Redis cache write error:', cacheErr);
+        }
+      }
+    }
+    if (!resolvedDate) {
+      return res.json([]);
+    }
+
+    const cacheKey = newsTopicsKey({ region, date: resolvedDate, limit });
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
+
+    const topics = await newsService.getNewsTopics({ region, date: resolvedDate, limit });
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_TOPICS, JSON.stringify(topics)); } catch { /* best effort */ }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+    return res.json(topics);
+  } catch (error) {
+    console.error('Error fetching news topics:', error);
+    return res.status(500).json({ error: 'Failed to fetch news topics' });
+  }
+});
+
+app.get('/api/v1/news/archive', async (req, res) => {
+  try {
+    const parsed = newsArchiveQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, limit, offset } = parsed.data;
+
+    const cacheKey = newsArchiveKey({ region, limit, offset });
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
+
+    const archive = await newsService.getNewsArchive({ region, limit, offset });
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_ARCHIVE, JSON.stringify(archive)); } catch { /* best effort */ }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+    return res.json(archive);
+  } catch (error) {
+    console.error('Error fetching news archive:', error);
+    return res.status(500).json({ error: 'Failed to fetch news archive' });
+  }
+});
+
+app.get('/api/v1/news/sources', async (req, res) => {
+  try {
+    const parsed = newsSourcesQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region } = parsed.data;
+
+    const cacheKey = newsSourcesKey(region);
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', 'MISS');
+
+    const sources = await newsService.getActiveNewsSources({ region });
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_SOURCES, JSON.stringify(sources)); } catch { /* best effort */ }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+    return res.json(sources);
+  } catch (error) {
+    console.error('Error fetching news sources:', error);
+    return res.status(500).json({ error: 'Failed to fetch news sources' });
   }
 });
 
@@ -1435,7 +1824,7 @@ app.post('/api/admin/extract-logos', async (req, res) => {
     });
   } catch (error) {
     console.error('Logo extraction error:', error);
-    res.status(500).json({ error: 'Logo extraction failed', details: String(error) });
+    res.status(500).json({ error: 'Logo extraction failed' });
   }
 });
 
@@ -1498,9 +1887,9 @@ async function gracefulShutdown(signal: string) {
 
   server.close(async () => {
     console.log('HTTP server closed');
-    await closeRedisClient();
+    try { await closeRedisClient(); } catch (err) { console.error('Redis close error:', err); }
     console.log('Redis connection closed');
-    await closePool();
+    try { await closePool(); } catch (err) { console.error('Pool close error:', err); }
     console.log('Cleanup complete. Exiting.');
     process.exit(0);
   });

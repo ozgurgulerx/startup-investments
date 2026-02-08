@@ -133,8 +133,17 @@ Daily news editions are **partitioned by region**:
 Web/UI surfaces:
 - Global feed: `/news` and `/news/[date]`
 - Turkey feed: `/news/turkey` and `/news/turkey/[date]`
-- Internal API routes support `?region=global|turkey`:
-  - `/api/news/latest`, `/api/news/topics`, `/api/news/archive`, `/api/news/sources`
+- Web API routes support `?region=global|turkey` (public, no API key in browser):
+  - `/api/news/latest`, `/api/news`, `/api/news/topics`, `/api/news/archive`, `/api/news/sources`
+- Backend API routes (server-to-server, cached in Redis when `REDIS_URL` is set):
+  - `/api/v1/news/latest-date`
+  - `/api/v1/news/latest`
+  - `/api/v1/news` (supports `date`, `topic`, `limit`)
+  - `/api/v1/news/topics`
+  - `/api/v1/news/archive`
+  - `/api/v1/news/sources`
+- Implementation note:
+  - `apps/web/lib/data/news.ts` must not query Postgres directly; it should call the backend (`apps/web/lib/api/client.ts` -> `NEXT_PUBLIC_API_URL` + server-side `API_KEY`).
 
 ## News Digest Runbook (Email)
 

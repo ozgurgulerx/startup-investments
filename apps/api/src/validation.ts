@@ -1,5 +1,99 @@
 import { z } from 'zod';
 
+// =============================================================================
+// Reusable primitives
+// =============================================================================
+
+const paginationPage = z.coerce.number().int().min(1).max(1000).default(1);
+const paginationLimit = z.coerce.number().int().min(1).max(100).default(25);
+const periodParam = z.string().max(10).regex(/^(all|\d{4}-\d{2})$/).default('all');
+const optionalString = z.string().max(500).optional();
+const newsRegionParam = z.enum(['global', 'turkey']).default('global');
+const newsDateParam = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
+
+// =============================================================================
+// GET endpoint schemas
+// =============================================================================
+
+export const startupsQuerySchema = z.object({
+  page: paginationPage,
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const companyQuerySchema = z.object({
+  period: periodParam,
+});
+
+export const statsQuerySchema = z.object({
+  period: periodParam,
+});
+
+export const periodsQuerySchema = z.object({
+  region: z.enum(['global']).default('global'),
+});
+
+export const dealBookQuerySchema = z.object({
+  period: periodParam,
+  page: paginationPage,
+  limit: paginationLimit,
+  stage: optionalString,
+  pattern: optionalString,
+  continent: optionalString,
+  vertical: optionalString,
+  verticalId: optionalString,
+  subVerticalId: optionalString,
+  leafId: optionalString,
+  minFunding: z.coerce.number().int().min(0).optional(),
+  maxFunding: z.coerce.number().int().min(0).optional(),
+  usesGenai: z.enum(['true', 'false']).optional(),
+  sortBy: z.enum(['funding', 'name', 'date']).default('funding'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  search: z.string().max(200).optional(),
+});
+
+export const dealBookFiltersQuerySchema = z.object({
+  period: periodParam,
+  verticalId: optionalString,
+  subVerticalId: optionalString,
+});
+
+export const investorsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(100).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const newsLatestQuerySchema = z.object({
+  region: newsRegionParam,
+  limit: z.coerce.number().int().min(1).max(100).default(40),
+});
+
+export const newsEditionQuerySchema = z.object({
+  region: newsRegionParam,
+  date: newsDateParam,
+  topic: z.string().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(40),
+});
+
+export const newsTopicsQuerySchema = z.object({
+  region: newsRegionParam,
+  date: newsDateParam,
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const newsArchiveQuerySchema = z.object({
+  region: newsRegionParam,
+  limit: z.coerce.number().int().min(1).max(180).default(30),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const newsSourcesQuerySchema = z.object({
+  region: newsRegionParam,
+});
+
+// =============================================================================
+// Admin / POST schemas
+// =============================================================================
+
 export const syncStartupSchema = z.object({
   name: z.string().min(1).max(500),
   description: z.string().max(5000).optional().default(''),
