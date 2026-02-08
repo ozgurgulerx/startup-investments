@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { NewsArchiveDay, NewsEdition, NewsSourceRef, NewsTopicStat } from '@startup-intelligence/shared';
+import type { NewsArchiveDay, NewsEdition, NewsSourceRef, NewsTopicStat, PeriodicBrief, PeriodicBriefSummary } from '@startup-intelligence/shared';
 import { APIError, fetchFromAPI } from '@/lib/api/client';
 
 export type NewsRegion = 'global' | 'turkey';
@@ -84,4 +84,31 @@ export async function getNewsArchive(params?: {
 export async function getActiveNewsSources(params?: { region?: NewsRegion }): Promise<NewsSourceRef[]> {
   const region = normalizeNewsRegion(params?.region);
   return fetchListFromAPI<NewsSourceRef>(`/api/v1/news/sources?region=${region}`);
+}
+
+export async function getPeriodicBrief(params: {
+  periodType: 'weekly' | 'monthly';
+  region?: NewsRegion;
+  date?: string;
+}): Promise<PeriodicBrief | null> {
+  const region = normalizeNewsRegion(params.region);
+  const datePart = params.date ? `/${params.date}` : '';
+  return fetchOptionalFromAPI<PeriodicBrief>(
+    `/api/v1/news/briefs/${params.periodType}${datePart}?region=${region}`
+  );
+}
+
+export async function getPeriodicBriefArchive(params: {
+  periodType: 'weekly' | 'monthly';
+  region?: NewsRegion;
+  limit?: number;
+  offset?: number;
+}): Promise<PeriodicBriefSummary[]> {
+  const region = normalizeNewsRegion(params.region);
+  const qs = new URLSearchParams();
+  qs.set('region', region);
+  qs.set('type', params.periodType);
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  if (params.offset != null) qs.set('offset', String(params.offset));
+  return fetchListFromAPI<PeriodicBriefSummary>(`/api/v1/news/briefs/archive?${qs.toString()}`);
 }

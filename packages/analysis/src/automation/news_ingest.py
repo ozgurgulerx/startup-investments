@@ -1238,6 +1238,18 @@ class DailyNewsIngestor:
                     azure_endpoint=self.azure_openai_endpoint,
                 )
 
+        # Diagnostic: log daily brief prerequisites on startup
+        _bp = []
+        if self.azure_client is not None:
+            _bp.append(f"Azure({self.azure_openai_daily_brief_deployment})")
+        if self.openai_api_key:
+            _bp.append("OpenAI")
+        print(
+            f"[news-ingest] brief config: enabled={self.llm_daily_brief_enabled} "
+            f"providers=[{', '.join(_bp) or 'NONE'}] "
+            f"endpoint={'set' if self.azure_openai_endpoint else 'MISSING'}"
+        )
+
     async def connect(self):
         if self.pool is None:
             self.pool = await asyncpg.create_pool(self.database_url, min_size=1, max_size=6)
@@ -2990,7 +3002,7 @@ class DailyNewsIngestor:
                                 {"role": "system", "content": prompt},
                                 {"role": "user", "content": json.dumps(user_payload)},
                             ],
-                            "max_output_tokens": 650,
+                            "max_output_tokens": 1024,
                             "text": {
                                 "format": {
                                     "type": "json_schema",
@@ -3042,7 +3054,7 @@ class DailyNewsIngestor:
                     }
                     if _azure_supports_temperature(model_name):
                         azure_payload["temperature"] = 0.25
-                    azure_payload[token_param] = 650
+                    azure_payload[token_param] = 1024
                     if with_response_format:
                         azure_payload["response_format"] = {"type": "json_object"}
 
@@ -3082,7 +3094,7 @@ class DailyNewsIngestor:
                         json={
                             "model": self.llm_model,
                             "temperature": 0.25,
-                            "max_tokens": 650,
+                            "max_tokens": 1024,
                             "response_format": {"type": "json_object"},
                             "messages": [
                                 {"role": "system", "content": prompt},
@@ -3632,6 +3644,22 @@ class DailyNewsIngestor:
         daily_brief = await self._llm_generate_daily_brief(conn=conn, edition_date=edition_date, region=region, clusters=clusters)
         if daily_brief:
             stats["daily_brief"] = daily_brief
+        else:
+            # Preserve existing brief from a previous successful run to avoid
+            # erasure when LLM calls fail on re-runs.
+            existing = await conn.fetchval(
+                "SELECT stats_json->'daily_brief' FROM news_daily_editions WHERE edition_date = $1 AND region = $2",
+                edition_date,
+                region,
+            )
+            if existing:
+                try:
+                    prev = json.loads(existing) if isinstance(existing, str) else existing
+                    if isinstance(prev, dict) and prev.get("headline"):
+                        stats["daily_brief"] = prev
+                        print(f"[news-ingest] preserving existing daily brief for {edition_date} {region}")
+                except Exception:
+                    pass
 
         await conn.execute(
             """

@@ -43,7 +43,7 @@ export default async function NewsArchivePage({ params }: NewsArchivePageProps) 
     <div className="flex h-screen flex-col bg-background">
       {/* Nav */}
       <nav className="shrink-0 border-b border-border/30 bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-[1680px] items-center justify-between px-6">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-accent" />
             <span className="text-base font-medium tracking-tight text-foreground">Build Atlas</span>

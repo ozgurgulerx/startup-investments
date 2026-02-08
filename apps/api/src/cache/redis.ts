@@ -196,6 +196,21 @@ export function newsSourcesKey(region: string): string {
   return `news:v1:sources:${region}`;
 }
 
+/**
+ * Generate cache key for a periodic brief (weekly/monthly)
+ */
+export function newsBriefKey(params: { region: string; periodType: string; date?: string }): string {
+  const datePart = params.date || 'latest';
+  return `news:v1:brief:${params.region}:${params.periodType}:${datePart}`;
+}
+
+/**
+ * Generate cache key for periodic brief archive listing
+ */
+export function newsBriefArchiveKey(params: { region: string; periodType: string; limit: number; offset: number }): string {
+  return `news:v1:brief-archive:${params.region}:${params.periodType}:l${params.limit}:o${params.offset}`;
+}
+
 // Sort keys recursively so logically equivalent objects hash consistently.
 // Note: we preserve array ordering (arrays are not sorted).
 function sortDeep(value: unknown): unknown {
@@ -390,4 +405,6 @@ export const CACHE_TTL = {
   NEWS_TOPICS: 300,      // 5 minutes
   NEWS_ARCHIVE: 900,     // 15 minutes
   NEWS_SOURCES: 1800,    // 30 minutes - very stable
+  NEWS_BRIEF: 900,       // 15 minutes - generated periodically, read often
+  NEWS_BRIEF_ARCHIVE: 1800, // 30 minutes - listing changes infrequently
 } as const;

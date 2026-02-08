@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { getNewsEdition, getNewsTopics } from '@/lib/data/news';
 import { InteractiveRadar } from '@/components/news/interactive-radar';
+import { NewsNav } from '@/components/news/news-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,33 +14,7 @@ export default async function TurkeySignalFeedPage() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      {/* Nav */}
-      <nav className="shrink-0 border-b border-border/30 bg-background/95 backdrop-blur-sm">
-        <div className="absolute left-0 right-0 top-0 h-[2px] bg-gradient-to-r from-accent/60 via-accent to-accent/60" />
-        <div className="mx-auto flex h-14 max-w-[1680px] items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-accent" />
-            <span className="text-base font-medium tracking-tight text-foreground">Build Atlas</span>
-          </Link>
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <Link href="/methodology" className="hover:text-foreground transition-colors">Methodology</Link>
-            <div className="flex items-center gap-1.5 rounded-full border border-border/40 bg-muted/15 p-0.5">
-              <Link
-                href="/news"
-                className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted/25 transition-colors"
-              >
-                Global
-              </Link>
-              <Link
-                href="/news/turkey"
-                className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info bg-accent-info/10 border border-accent-info/25"
-              >
-                Turkey
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <NewsNav activeRegion="turkey" activePeriod="daily" />
 
       {/* Content */}
       {!edition ? (
@@ -62,7 +37,7 @@ export default async function TurkeySignalFeedPage() {
         </div>
       ) : (
         <>
-          <div className="mx-auto w-full max-w-[1680px] px-6 pt-3">
+          <div className="mx-auto w-full max-w-6xl px-6 pt-3">
             <div className="rounded-xl border border-accent-info/25 bg-accent-info/10 px-4 py-2.5 text-xs text-foreground">
               Turkey edition: ranked stories sourced from Turkey ecosystem feeds (e.g. Webrazzi, Egirisim).
             </div>

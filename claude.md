@@ -101,6 +101,47 @@ runner.sh backend-deploy 15 /opt/buildatlas/startup-analysis/infrastructure/vm-c
 
 All API requests must go through Front Door with `X-API-Key` header. Direct AKS access returns 403. `/health` is public (K8s probes). Admin endpoints use `X-Admin-Key` (same as API_KEY).
 
+### News Pipeline & Memory Gate
+
+The news pipeline (`packages/analysis/src/automation/news_ingest.py`) runs hourly via VM cron, ingesting from 40+ sources, deduplicating into story clusters, and producing daily editions with LLM enrichment.
+
+**The memory gate** (`packages/analysis/src/automation/memory_gate.py`) sits between clustering and LLM enrichment. It adds persistent editorial intelligence by comparing each incoming cluster against what the system already knows:
+
+```
+Sources → collect → cluster → MEMORY GATE → LLM enrich → persist → edition
+                                   │
+                         ┌─────────┴──────────┐
+                         │  1. Entity linking   │  Link to known startups/investors
+                         │  2. Fact extraction   │  Heuristic regex (funding, M&A, launch)
+                         │  3. Memory diff       │  new_fact / confirmation / contradiction
+                         │  4. Novelty scoring   │  (Phase 3: 4-dimension rubric)
+                         │  5. Gating decision   │  (Phase 3: publish/watchlist/accumulate/drop)
+                         └──────────────────────┘
+```
+
+**Expected impact:**
+- ~60% of clusters are redundant rehashes of known stories; memory gate routes these to accumulate/drop
+- LLM enrichment cost drops ~60-75% by only enriching the publish tier
+- Entity facts build a structured knowledge base of startup claims over time
+- Contradiction detection surfaces genuinely newsworthy updates
+- Pattern novelty scoring prioritizes emerging build patterns over well-covered ones
+
+**Region-aware:** Turkey memory reads global+turkey facts (one-way merge); global reads only global. Turkish-language regex patterns (milyon dolar, seri A, liderliğinde, satın al) applied for `region="turkey"`. Memory gate runs per-region AFTER turkey cluster filtering in the pipeline.
+
+**Periodic briefs:** `packages/analysis/src/automation/periodic_briefs.py` — `WeeklyBriefGenerator` and `MonthlyBriefGenerator`. Hybrid format: template stats (story counts, funding, top entities) + LLM narrative (executive summary, trends, builder lessons). Stored in `news_periodic_briefs` table.
+
+**Key files:**
+- `memory_gate.py` — EntityIndex, FactExtractor, MemoryStore, MemoryGate (region-aware)
+- `periodic_briefs.py` — WeeklyBriefGenerator, MonthlyBriefGenerator
+- Migrations: `023_memory_system.sql` (6 tables), `024_regional_memory.sql` (region columns), `025_periodic_briefs.sql` (briefs table + digest_frequency)
+
+**CLI:**
+- `python main.py memory-backfill --region turkey --days 7`
+- `python main.py generate-weekly-brief --region turkey --week 2026-02-03`
+- `python main.py generate-monthly-brief-news --region turkey --month 2026-01`
+
+**Status:** Phase 1 complete (entity linking + fact extraction + regional memory + periodic brief generators). Remaining: API endpoints for briefs, frontend pages, email delivery, cron jobs, nav updates. Phases 2-4 pending (pattern matching, scoring/gating, calibration).
+
 ## Project Structure
 
 ```

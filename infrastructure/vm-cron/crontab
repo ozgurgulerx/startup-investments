@@ -21,6 +21,12 @@ MAILTO=""
 # === News Digest (daily 13:10 UTC) ===
 10 13 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-digest 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-digest.sh
 
+# === Weekly Brief (Monday 06:00 UTC) ===
+0 6 * * 1 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh weekly-brief 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/weekly-brief.sh
+
+# === Monthly Brief (1st of month 06:00 UTC) ===
+0 6 1 * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh monthly-brief 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/monthly-brief.sh
+
 # === Slack Daily Summary (daily 14:00 UTC) ===
 0 14 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh slack-summary 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/slack-summary.sh
 

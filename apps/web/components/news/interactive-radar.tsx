@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Activity, RefreshCcw, Sparkles, ArrowUpRight } from 'lucide-react';
+import { Activity, RefreshCcw, Sparkles, ArrowUpRight, Newspaper } from 'lucide-react';
 import type { NewsEdition } from '@startup-intelligence/shared';
 import { CommandBar, type SortMode, type TimeWindow } from './command-bar';
 import { DailyBriefCard } from './daily-brief-card';
@@ -63,6 +63,22 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('all');
   const [activeTopic, setActiveTopic] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Brief dismiss state (persisted in localStorage)
+  const [briefDismissed, setBriefDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('buildatlas:brief-state') === 'dismissed';
+    }
+    return false;
+  });
+  const handleDismissBrief = useCallback(() => {
+    setBriefDismissed(true);
+    localStorage.setItem('buildatlas:brief-state', 'dismissed');
+  }, []);
+  const handleRestoreBrief = useCallback(() => {
+    setBriefDismissed(false);
+    localStorage.removeItem('buildatlas:brief-state');
+  }, []);
 
   // Polling
   const applyEdition = useCallback((data: NewsEdition) => {
@@ -376,6 +392,15 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
             totalClusters={edition.stats.total_clusters}
           />
           <div className="flex items-center gap-2">
+            {briefDismissed && edition.brief && activeTopic === 'all' && !searchQuery.trim() && (
+              <button
+                onClick={handleRestoreBrief}
+                className="inline-flex items-center gap-1 text-[10px] text-accent-info/60 transition-colors hover:text-accent-info"
+              >
+                <Newspaper className="h-3 w-3" />
+                Show briefing
+              </button>
+            )}
             <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
               <Activity className="h-3 w-3 text-success" />
               Live
@@ -389,10 +414,10 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
       </div>
 
       {/* LLM daily brief */}
-      {edition.brief && activeTopic === 'all' && !searchQuery.trim() && (
+      {edition.brief && activeTopic === 'all' && !searchQuery.trim() && !briefDismissed && (
         <div className="border-b border-border/20">
           <div className="mx-auto max-w-6xl px-6">
-            <DailyBriefCard brief={edition.brief} />
+            <DailyBriefCard brief={edition.brief} onDismiss={handleDismissBrief} />
           </div>
         </div>
       )}

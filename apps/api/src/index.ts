@@ -22,6 +22,8 @@ import {
   newsTopicsQuerySchema,
   newsArchiveQuerySchema,
   newsSourcesQuerySchema,
+  newsBriefQuerySchema,
+  newsBriefArchiveQuerySchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -41,6 +43,8 @@ import {
   newsTopicsKey,
   newsArchiveKey,
   newsSourcesKey,
+  newsBriefKey,
+  newsBriefArchiveKey,
   hashObject,
   safeCacheParse,
   CACHE_TTL,
@@ -1608,6 +1612,260 @@ app.get('/api/v1/news/sources', async (req, res) => {
   } catch (error) {
     console.error('Error fetching news sources:', error);
     return res.status(500).json({ error: 'Failed to fetch news sources' });
+  }
+});
+
+// =============================================================================
+// Periodic Briefs API (weekly / monthly, read-only, cached)
+// =============================================================================
+
+app.get('/api/v1/news/briefs/weekly', async (req, res) => {
+  try {
+    const parsed = newsBriefQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region } = parsed.data;
+
+    const cacheKey = newsBriefKey({ region, periodType: 'weekly' });
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          if (cachedData === 'null') {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+            return res.status(404).json({ error: 'No weekly brief available' });
+          }
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const brief = await newsService.getPeriodicBrief({ region, periodType: 'weekly' });
+    if (!brief) {
+      if (redis) {
+        try { await redis.setEx(cacheKey, 300, JSON.stringify(null)); } catch { /* best effort */ }
+      }
+      return res.status(404).json({ error: 'No weekly brief available' });
+    }
+
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_BRIEF, JSON.stringify(brief)); } catch { /* best effort */ }
+    }
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+    return res.json(brief);
+  } catch (error) {
+    console.error('Error fetching weekly brief:', error);
+    return res.status(500).json({ error: 'Failed to fetch weekly brief' });
+  }
+});
+
+app.get('/api/v1/news/briefs/weekly/:date', async (req, res) => {
+  try {
+    const dateParam = req.params.date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return res.status(400).json({ error: 'Invalid date format, expected YYYY-MM-DD' });
+    }
+    const parsed = newsBriefQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region } = parsed.data;
+
+    const cacheKey = newsBriefKey({ region, periodType: 'weekly', date: dateParam });
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          if (cachedData === 'null') {
+            res.setHeader('X-Cache', 'HIT');
+            return res.status(404).json({ error: 'Weekly brief not found for this date' });
+          }
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const brief = await newsService.getPeriodicBrief({ region, periodType: 'weekly', date: dateParam });
+    if (!brief) {
+      if (redis) {
+        try { await redis.setEx(cacheKey, 300, JSON.stringify(null)); } catch { /* best effort */ }
+      }
+      return res.status(404).json({ error: 'Weekly brief not found for this date' });
+    }
+
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_BRIEF, JSON.stringify(brief)); } catch { /* best effort */ }
+    }
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+    return res.json(brief);
+  } catch (error) {
+    console.error('Error fetching weekly brief by date:', error);
+    return res.status(500).json({ error: 'Failed to fetch weekly brief' });
+  }
+});
+
+app.get('/api/v1/news/briefs/monthly', async (req, res) => {
+  try {
+    const parsed = newsBriefQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region } = parsed.data;
+
+    const cacheKey = newsBriefKey({ region, periodType: 'monthly' });
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          if (cachedData === 'null') {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+            return res.status(404).json({ error: 'No monthly brief available' });
+          }
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const brief = await newsService.getPeriodicBrief({ region, periodType: 'monthly' });
+    if (!brief) {
+      if (redis) {
+        try { await redis.setEx(cacheKey, 300, JSON.stringify(null)); } catch { /* best effort */ }
+      }
+      return res.status(404).json({ error: 'No monthly brief available' });
+    }
+
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_BRIEF, JSON.stringify(brief)); } catch { /* best effort */ }
+    }
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+    return res.json(brief);
+  } catch (error) {
+    console.error('Error fetching monthly brief:', error);
+    return res.status(500).json({ error: 'Failed to fetch monthly brief' });
+  }
+});
+
+app.get('/api/v1/news/briefs/monthly/:date', async (req, res) => {
+  try {
+    const dateParam = req.params.date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return res.status(400).json({ error: 'Invalid date format, expected YYYY-MM-DD' });
+    }
+    const parsed = newsBriefQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region } = parsed.data;
+
+    const cacheKey = newsBriefKey({ region, periodType: 'monthly', date: dateParam });
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          if (cachedData === 'null') {
+            res.setHeader('X-Cache', 'HIT');
+            return res.status(404).json({ error: 'Monthly brief not found for this date' });
+          }
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const brief = await newsService.getPeriodicBrief({ region, periodType: 'monthly', date: dateParam });
+    if (!brief) {
+      if (redis) {
+        try { await redis.setEx(cacheKey, 300, JSON.stringify(null)); } catch { /* best effort */ }
+      }
+      return res.status(404).json({ error: 'Monthly brief not found for this date' });
+    }
+
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_BRIEF, JSON.stringify(brief)); } catch { /* best effort */ }
+    }
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+    return res.json(brief);
+  } catch (error) {
+    console.error('Error fetching monthly brief by date:', error);
+    return res.status(500).json({ error: 'Failed to fetch monthly brief' });
+  }
+});
+
+app.get('/api/v1/news/briefs/archive', async (req, res) => {
+  try {
+    const parsed = newsBriefArchiveQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, type, limit, offset } = parsed.data;
+
+    const cacheKey = newsBriefArchiveKey({ region, periodType: type, limit, offset });
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const archive = await newsService.getPeriodicBriefArchive({ region, periodType: type, limit, offset });
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_BRIEF_ARCHIVE, JSON.stringify(archive)); } catch { /* best effort */ }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+    return res.json(archive);
+  } catch (error) {
+    console.error('Error fetching brief archive:', error);
+    return res.status(500).json({ error: 'Failed to fetch brief archive' });
   }
 });
 

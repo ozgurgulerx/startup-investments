@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Activity, ArrowUpRight, RefreshCcw, Sparkles } from 'lucide-react';
+import { Activity, ArrowUpRight, Newspaper, RefreshCcw, Sparkles } from 'lucide-react';
 import type { NewsEdition } from '@startup-intelligence/shared';
 import { sectionNewsItems } from '@/lib/news/section-items';
 import { SectionHeader } from './section-header';
-import { NewsHeroCard } from './news-hero-card';
 import { NewsCard } from './news-card';
 import { DailyBriefCard } from './daily-brief-card';
 import { NewsSubscriptionCard } from './news-subscription-card';
@@ -63,6 +62,22 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
   const [isPolling, setIsPolling] = useState(false);
   const editionRef = useRef<NewsEdition | null>(null);
   const isPollingRef = useRef(false);
+
+  // Brief dismiss state (shared with interactive-radar via same localStorage key)
+  const [briefDismissed, setBriefDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('buildatlas:brief-state') === 'dismissed';
+    }
+    return false;
+  });
+  const handleDismissBrief = useCallback(() => {
+    setBriefDismissed(true);
+    localStorage.setItem('buildatlas:brief-state', 'dismissed');
+  }, []);
+  const handleRestoreBrief = useCallback(() => {
+    setBriefDismissed(false);
+    localStorage.removeItem('buildatlas:brief-state');
+  }, []);
 
   const applyEdition = useCallback((data: NewsEdition) => {
     const current = editionRef.current;
@@ -153,8 +168,8 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
     if (!edition) return null;
     return sectionNewsItems(sortedItems, edition.generated_at, {
       topStoriesCount: 3,
-      maxBreaking: 3,
-      maxDeepReads: 2,
+      maxBreaking: 6,
+      maxDeepReads: 3,
     });
   }, [sortedItems, edition]);
 
@@ -255,6 +270,15 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {briefDismissed && edition.brief && activeTopic === 'all' && (
+              <button
+                onClick={handleRestoreBrief}
+                className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/20 px-3 py-1 text-[11px] uppercase tracking-wider text-accent-info/60 transition-colors hover:text-accent-info"
+              >
+                <Newspaper className="h-3 w-3" />
+                Show briefing
+              </button>
+            )}
             <span className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/20 px-3 py-1 text-[11px] uppercase tracking-wider text-muted-foreground">
               <Activity className="h-3 w-3 text-success" />
               Live
@@ -351,9 +375,9 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
         </div>
 
         {/* Daily brief */}
-        {edition.brief && activeTopic === 'all' && (
+        {edition.brief && activeTopic === 'all' && !briefDismissed && (
           <div className="mb-6">
-            <DailyBriefCard brief={edition.brief} />
+            <DailyBriefCard brief={edition.brief} onDismiss={handleDismissBrief} />
           </div>
         )}
 
@@ -361,29 +385,20 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
         <div className="space-y-7">
           <div className="space-y-7">
             {/* Top Stories */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.4 }}
-            >
-              <NewsHeroCard item={sections.topStories[0]} />
-              {sections.topStories.length > 1 && (
-                <div className="mt-4 grid gap-5 sm:grid-cols-2">
-                  {sections.topStories.slice(1).map((item, i) => (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, amount: 0.2 }}
-                      transition={{ duration: 0.35, delay: 0.07 * (i + 1) }}
-                    >
-                      <NewsCard item={item} />
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {sections.topStories.map((item, i) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{ duration: 0.35, delay: 0.07 * i }}
+                  className={i === 0 ? 'rounded-xl ring-1 ring-accent-info/30' : ''}
+                >
+                  <NewsCard item={item} featured={i === 0} />
+                </motion.div>
+              ))}
+            </div>
 
             {/* Breaking strip */}
             {sections.breaking.length > 0 && (
@@ -401,7 +416,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.deepReads.length > 0 && (
               <div>
                 <SectionHeader label="Deep Reads" indicator="signal" count={sections.deepReads.length} />
-                <div className="mt-3 grid gap-5 sm:grid-cols-2">
+                <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {sections.deepReads.map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}
@@ -413,7 +428,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {sections.remaining.length > 0 && (
               <div>
                 <SectionHeader label="More Stories" count={sections.remaining.length} />
-                <div className="mt-3 grid gap-5 sm:grid-cols-2">
+                <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {sections.remaining.slice(0, 6).map((item) => (
                     <NewsCard key={item.id} item={item} />
                   ))}

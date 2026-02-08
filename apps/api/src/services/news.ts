@@ -717,6 +717,123 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Periodic Briefs (weekly / monthly)
+  // ---------------------------------------------------------------------------
+
+  interface PeriodicBriefRow {
+    id: string;
+    region: string;
+    period_type: string;
+    period_start: string;
+    period_end: string;
+    title: string | null;
+    stats_json: Record<string, unknown>;
+    narrative_json: Record<string, unknown>;
+    top_entity_names: string[];
+    story_count: number;
+    status: string;
+    generated_at: string;
+  }
+
+  function rowToBrief(row: PeriodicBriefRow) {
+    return {
+      id: String(row.id),
+      region: String(row.region) as 'global' | 'turkey',
+      period_type: String(row.period_type) as 'weekly' | 'monthly',
+      period_start: String(row.period_start),
+      period_end: String(row.period_end),
+      title: row.title ? String(row.title) : null,
+      stats: (row.stats_json && typeof row.stats_json === 'object') ? row.stats_json : {},
+      narrative: (row.narrative_json && typeof row.narrative_json === 'object') ? row.narrative_json : {},
+      top_entity_names: Array.isArray(row.top_entity_names) ? row.top_entity_names : [],
+      story_count: toNumber(row.story_count),
+      status: String(row.status),
+      generated_at: String(row.generated_at),
+    };
+  }
+
+  async function getPeriodicBrief(params: {
+    region: NewsRegion;
+    periodType: 'weekly' | 'monthly';
+    date?: string;
+  }) {
+    const { region, periodType, date } = params;
+    try {
+      let result;
+      if (date) {
+        result = await pool.query(
+          `SELECT id::text, region, period_type,
+                  period_start::text, period_end::text,
+                  title, stats_json, narrative_json,
+                  top_entity_names, story_count, status,
+                  generated_at::text
+           FROM news_periodic_briefs
+           WHERE region = $1 AND period_type = $2 AND period_start = $3::date
+             AND status IN ('ready', 'sent')
+           LIMIT 1`,
+          [region, periodType, date]
+        );
+      } else {
+        result = await pool.query(
+          `SELECT id::text, region, period_type,
+                  period_start::text, period_end::text,
+                  title, stats_json, narrative_json,
+                  top_entity_names, story_count, status,
+                  generated_at::text
+           FROM news_periodic_briefs
+           WHERE region = $1 AND period_type = $2
+             AND status IN ('ready', 'sent')
+           ORDER BY period_start DESC
+           LIMIT 1`,
+          [region, periodType]
+        );
+      }
+      if (!result.rows[0]) return null;
+      return rowToBrief(result.rows[0] as PeriodicBriefRow);
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return null;
+      throw error;
+    }
+  }
+
+  async function getPeriodicBriefArchive(params: {
+    region: NewsRegion;
+    periodType: 'weekly' | 'monthly';
+    limit: number;
+    offset: number;
+  }) {
+    const { region, periodType, limit, offset } = params;
+    const safeLimit = Math.max(1, Math.min(100, limit));
+    const safeOffset = Math.max(0, offset);
+    try {
+      const result = await pool.query(
+        `SELECT id::text, period_type,
+                period_start::text, period_end::text,
+                title, story_count,
+                generated_at::text
+         FROM news_periodic_briefs
+         WHERE region = $1 AND period_type = $2
+           AND status IN ('ready', 'sent')
+         ORDER BY period_start DESC
+         LIMIT $3 OFFSET $4`,
+        [region, periodType, safeLimit, safeOffset]
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        period_type: String(row.period_type),
+        period_start: String(row.period_start),
+        period_end: String(row.period_end),
+        title: row.title ? String(row.title) : null,
+        story_count: toNumber(row.story_count),
+        generated_at: String(row.generated_at),
+      }));
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return [];
+      throw error;
+    }
+  }
+
   return {
     normalizeRegion,
     getLatestEditionDate,
@@ -724,5 +841,7 @@ export function makeNewsService(pool: Pool) {
     getNewsTopics,
     getNewsArchive,
     getActiveNewsSources,
+    getPeriodicBrief,
+    getPeriodicBriefArchive,
   };
 }

@@ -672,3 +672,48 @@ export interface NewsArchiveDay {
   total_clusters: number;
   top_story_count: number;
 }
+
+// Periodic Briefs (Weekly / Monthly)
+// -----------------------------------------------------------------------------
+
+export interface PeriodicBriefNarrative {
+  executive_summary?: string;
+  trend_analysis?: string;
+  builder_lessons?: string;
+  outlook?: string;
+}
+
+export interface PeriodicBriefStats {
+  total_stories: number;
+  top_stories: Array<{ title: string; story_type: string; rank_score: number }>;
+  top_topics: Array<{ topic: string; count: number }>;
+  story_types: Record<string, number>;
+  funding_total_usd?: number;
+  new_entities_count?: number;
+  weekly_breakdown?: Array<{ week_start: string; story_count: number }>;
+}
+
+export interface PeriodicBrief {
+  id: string;
+  region: 'global' | 'turkey';
+  period_type: 'weekly' | 'monthly';
+  period_start: string;
+  period_end: string;
+  title: string | null;
+  stats: PeriodicBriefStats;
+  narrative: PeriodicBriefNarrative;
+  top_entity_names: string[];
+  story_count: number;
+  status: string;
+  generated_at: string;
+}
+
+export interface PeriodicBriefSummary {
+  id: string;
+  period_type: 'weekly' | 'monthly';
+  period_start: string;
+  period_end: string;
+  title: string | null;
+  story_count: number;
+  generated_at: string;
+}

@@ -31,6 +31,8 @@ SETS = {
         "020_news_editions_by_region.sql",
         # Memory-gated editorial intelligence system (Phase 1)
         "023_memory_system.sql",
+        "024_regional_memory.sql",
+        "025_periodic_briefs.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
@@ -43,6 +45,8 @@ SETS = {
         "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
         "023_memory_system.sql",
+        "024_regional_memory.sql",
+        "025_periodic_briefs.sql",
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
     ],

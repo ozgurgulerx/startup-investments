@@ -60,7 +60,7 @@ export function CommandBar({
 
   return (
     <div className="sticky top-14 z-20 border-b border-border/30 bg-background/95 backdrop-blur-md">
-      <div className="mx-auto flex flex-wrap items-center gap-2 max-w-[1680px] px-6 py-2.5">
+      <div className="mx-auto flex flex-wrap items-center gap-2 max-w-6xl px-6 py-2.5">
         {/* Search */}
         <div className="relative flex-1 min-w-[160px] max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
@@ -124,7 +124,7 @@ export function CommandBar({
       {/* Topic chips row (collapsible) */}
       {showTopics && (
         <div className="overflow-x-auto border-t border-border/20">
-          <div className="mx-auto max-w-[1680px] px-6 py-2">
+          <div className="mx-auto max-w-6xl px-6 py-2">
             <div className="flex min-w-max items-center gap-1.5">
               <PillButton active={activeTopic === 'all'} onClick={() => { onTopicChange('all'); setShowTopics(false); }}>
                 All

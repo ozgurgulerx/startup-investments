@@ -114,6 +114,17 @@ export const newsSourcesQuerySchema = z.object({
   region: newsRegionParam,
 });
 
+export const newsBriefQuerySchema = z.object({
+  region: newsRegionParam,
+});
+
+export const newsBriefArchiveQuerySchema = z.object({
+  region: newsRegionParam,
+  type: z.enum(['weekly', 'monthly']).default('weekly'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
 // =============================================================================
 // Admin / POST schemas
 // =============================================================================

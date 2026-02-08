@@ -69,7 +69,8 @@ A full-stack platform for tracking and analyzing AI startup investments, featuri
 │   │    Access: Private Endpoint Only                                                    │ │
 │   │                                                                                      │ │
 │   │    Tables: startups, funding_rounds, investors, investments, startup_events,        │ │
-│   │            deep_research_queue, pattern_correlations, users, watchlist_items        │ │
+│   │            news_clusters, news_entity_facts, news_item_extractions,               │ │
+│   │            news_daily_editions, users, watchlist_items, crawl_frontier_urls        │ │
 │   └─────────────────────────────────────────────────────────────────────────────────────┘ │
 │                                               ▲                                            │
 │                                               │                                            │
@@ -130,6 +131,21 @@ CSV Upload → Blob Storage → Azure Function → Delta Processing → PostgreS
                                   ├── startup_events created
                                   ├── deep_research_queue (LLM analysis)
                                   └── GitHub Action → Frontend redeploy
+
+News Pipeline (hourly):
+
+40+ Sources → Fetch → Normalize → Cluster → Memory Gate → LLM Enrich → Edition
+  (RSS, API,     │                    │            │
+   community,    │                    │       ┌────┴────────────────┐
+   frontier)     │                    │       │ Entity linking      │
+                 │                    │       │ Fact extraction     │
+                 │                    │       │ Memory comparison   │
+                 │                    │       │ (new/confirm/contra)│
+                 │                    │       └────┬────────────────┘
+                 │                    │            │
+                 │                    ▼            ▼
+                 └──────────────> PostgreSQL (news_clusters, news_entity_facts,
+                                              news_item_extractions, editions)
 ```
 
 ## Project Structure
@@ -149,17 +165,57 @@ startup-analysis/
 ├── infrastructure/
 │   ├── kubernetes/             # K8s manifests for AKS
 │   ├── azure/                  # Bicep templates
-│   └── azure-functions/        # Azure Functions (Python)
+│   ├── azure-functions/        # Azure Functions (Python)
+│   ├── vm-cron/                # VM cron jobs, deploy scripts, monitoring
+│   └── monitoring/             # Azure Monitor alert setup
 ├── database/
-│   └── migrations/             # SQL migrations
+│   └── migrations/             # SQL migrations (001-023)
+├── scripts/                    # Slack notifications, daily summaries
 └── packages/
-    ├── shared/                 # Shared types/utilities
+    ├── shared/                 # Shared types/utilities (BUILD_PATTERNS, etc.)
     └── analysis/               # Python analysis package
         └── src/
-            ├── automation/     # Event processors, monitors
+            ├── automation/     # News pipeline, memory gate, digest sender
+            ├── crawl_runtime/  # Frontier crawler (Scrapy-based)
             ├── pipeline/       # CSV processing pipeline
             └── crawler/        # Web crawling & enrichment
 ```
+
+## Intelligence Pipeline
+
+BuildAtlas includes an automated news intelligence pipeline that ingests, deduplicates, enriches, and publishes startup news on an hourly cadence.
+
+### News Ingestion
+
+The pipeline collects from 40+ sources (RSS feeds, APIs, community sites, crawl frontier), normalizes items, and deduplicates into story clusters using Jaccard similarity. Top clusters receive LLM enrichment (signal scoring, builder takeaways) via Azure OpenAI, and daily editions are assembled for both global and Turkey regions.
+
+### Memory-Gated Editorial Intelligence
+
+A persistent memory system compares every incoming story against what the platform already knows, ensuring only genuinely new signal reaches subscribers.
+
+**How it works:**
+1. **Entity Linking** — matches cluster entities to known startups and investors via dictionary lookup, domain matching, and fuzzy token overlap (zero LLM cost)
+2. **Fact Extraction** — pulls structured claims (funding amounts, round types, lead investors, valuations, M&A targets) using heuristic regex patterns
+3. **Memory Comparison** — checks extracted facts against the `news_entity_facts` table, tagging each as `new_fact`, `confirmation`, or `contradiction`
+4. **Novelty Scoring** (planned) — 4-dimension scoring rubric: builder insight, pattern novelty, GTM uniqueness, evidence quality
+5. **Gating Decision** (planned) — routes clusters to publish, watchlist, accumulate, or drop based on composite scores
+
+**Expected impact:**
+- Reduces noise by ~60% by filtering redundant stories before LLM enrichment
+- Cuts Azure OpenAI spend ~60-75% by only enriching the publish tier
+- Builds a structured knowledge base of entity claims with provenance tracking
+- Surfaces contradictions and evolving narratives that human editors would miss
+- Tracks build pattern frequency to prioritize emerging over well-covered patterns
+
+**Database tables:** `news_entity_facts`, `news_item_extractions`, `news_item_decisions`, `news_pattern_library`, `news_gtm_taxonomy`, `news_calibration_labels`
+
+### Email Digests
+
+Daily email digests are sent via Resend API to subscribers in two regions (global, Turkey), featuring the top-ranked stories with builder takeaways.
+
+### VM Cron Infrastructure
+
+All scheduled jobs run on a dedicated Azure VM (`vm-buildatlas-cron`), replacing GitHub Actions for cost efficiency. Jobs include news ingestion (hourly), crawl frontier (30min), email digests (daily), data sync (30min weekdays), and automated frontend/backend deployments triggered by code changes.
 
 ## Tech Stack
 
@@ -176,17 +232,20 @@ startup-analysis/
 - **Caching**: Azure Cache for Redis
 - **Hosting**: Azure Kubernetes Service (AKS)
 
-### Automation
-- **Functions**: Azure Functions (Python)
-- **Triggers**: Timer, Blob, HTTP
-- **Processing**: LLM-based analysis, RSS monitoring
+### Intelligence & Automation
+- **News Pipeline**: 40+ source ingestion, Jaccard clustering, Azure OpenAI enrichment
+- **Memory Gate**: Entity linking, fact extraction, contradiction detection (zero LLM cost)
+- **Crawl Frontier**: PostgreSQL-backed URL queue with Scrapy runtime
+- **Scheduled Jobs**: VM cron (hourly news, 30min crawl, daily digests)
+- **Functions**: Azure Functions (blob triggers, DB sync)
+- **Email**: Resend API (double opt-in, regional digests)
 
 ### Infrastructure
 - **CDN/Security**: Azure Front Door
 - **Container Registry**: Azure Container Registry
 - **Orchestration**: Kubernetes (AKS) with HPA
-- **IaC**: Bicep
-- **CI/CD**: GitHub Actions (OIDC auth)
+- **Monitoring**: Azure Application Insights, Slack alerting
+- **CI/CD**: VM cron (primary), GitHub Actions (functions + DB sync)
 
 ## Getting Started
 
@@ -235,16 +294,16 @@ startup-analysis/
 
 ## Deployment
 
-### CI/CD (Automatic)
+### CI/CD
 
-Deployments are automatic via GitHub Actions:
+Primary deployments run via VM cron (`vm-buildatlas-cron`). The VM pulls code every 6 hours and auto-deploys if relevant files changed. GitHub Actions remain active for Functions and DB sync.
 
-| Trigger | Workflow | Target |
-|---------|----------|--------|
-| `apps/web/**` changes | `frontend-deploy.yml` | App Service |
-| `apps/api/**` changes | `backend-deploy.yml` | ACR → AKS |
-| `azure-functions/**` changes | `functions-deploy.yml` | Azure Functions |
-| `data/**` changes | `sync-to-database.yml` | Regenerate & sync DB |
+| Trigger | System | Target |
+|---------|--------|--------|
+| `apps/web/**` changes | VM cron (`code-update`) | App Service |
+| `apps/api/**` changes | VM cron (`code-update`) | ACR → AKS |
+| `azure-functions/**` changes | GitHub Actions | Azure Functions |
+| `data/**` changes | GitHub Actions | Regenerate & sync DB |
 
 ### Manual Backend Deployment
 
