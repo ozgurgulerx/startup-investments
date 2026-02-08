@@ -96,6 +96,132 @@ TOPIC_KEYWORDS: Dict[str, Tuple[str, ...]] = {
 
 ALLOWED_STORY_TYPES = {"funding", "launch", "mna", "regulation", "hiring", "news"}
 
+TR_AI_KEYWORDS: Tuple[str, ...] = (
+    "yapay zeka",
+    "yapay-zeka",
+    "ai",
+    "llm",
+    "genai",
+    "generatif",
+    "gpt",
+    "agent",
+    "rag",
+    "inference",
+    "model",
+    "foundation model",
+    "machine learning",
+    "deep learning",
+    "ml",
+    "computer vision",
+    "nlp",
+)
+
+TR_ECOSYSTEM_KEYWORDS: Tuple[str, ...] = (
+    "startup",
+    "start-up",
+    "girişim",
+    "giris",
+    "yatırım",
+    "yatirim",
+    "fon",
+    "fonlama",
+    "yatirimci",
+    "yatırımcı",
+    "vc",
+    "melek",
+    "tohum",
+    "seed",
+    "series",
+    "seri",
+    "tur",
+    "turda",
+    "turunda",
+    "degerleme",
+    "değerleme",
+    "satın",
+    "satinal",
+    "satın al",
+    "acquisition",
+    "exit",
+    "halka arz",
+    "ipo",
+    "hiring",
+    "işe al",
+    "ise al",
+    "acik pozisyon",
+    "açık pozisyon",
+    "teknopark",
+    "tubitak",
+    "tübitak",
+    "kosgeb",
+)
+
+TR_POLICY_KEYWORDS: Tuple[str, ...] = (
+    "regülasyon",
+    "regulasyon",
+    "düzenleme",
+    "duzenleme",
+    "yasa",
+    "kanun",
+    "yönetmelik",
+    "yonetmelik",
+    "kvkk",
+    "ai act",
+    "compliance",
+    "policy",
+    "law",
+)
+
+TR_CONTEXT_KEYWORDS: Tuple[str, ...] = (
+    "türkiye",
+    "turkiye",
+    "istanbul",
+    "ankara",
+    "izmir",
+    "turkish",
+    "türk",
+    "turk",
+)
+
+TR_CONSUMER_EXCLUDE_KEYWORDS: Tuple[str, ...] = (
+    "iphone",
+    "ipad",
+    "airpods",
+    "apple",
+    "samsung",
+    "xiaomi",
+    "huawei",
+    "whatsapp",
+    "youtube",
+    "instagram",
+    "tiktok",
+    "facebook",
+    "meta",
+    "snapchat",
+    "telegram",
+    "spotify",
+    "netflix",
+    "prime video",
+    "xbox",
+    "game pass",
+    "playstation",
+    "nintendo",
+    "a101",
+    "bim",
+    "migros",
+)
+
+TR_BIGTECH_KEYWORDS: Tuple[str, ...] = (
+    "openai",
+    "google",
+    "meta",
+    "microsoft",
+    "amazon",
+    "apple",
+    "samsung",
+    "huawei",
+)
+
 
 @dataclass(frozen=True)
 class SourceDefinition:
@@ -122,11 +248,7 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     # Turkey: API sources (Turkish language queries via existing API keys)
     SourceDefinition("gnews_turkey", "GNews Turkey", "api", "https://gnews.io/api/v4/search", region="turkey", fetch_mode="api", credibility_weight=0.66),
     SourceDefinition("newsapi_turkey", "NewsAPI Turkey", "api", "https://newsapi.org/v2/everything", region="turkey", fetch_mode="api", credibility_weight=0.67),
-    # Turkey: additional RSS feeds
-    SourceDefinition("shiftdelete", "ShiftDelete.Net", "rss", "https://www.shiftdelete.net/feed", region="turkey", credibility_weight=0.62),
-    SourceDefinition("webtekno", "Webtekno", "rss", "https://www.webtekno.com/rss.xml", region="turkey", credibility_weight=0.60),
-    SourceDefinition("donanimhaber", "DonanımHaber", "rss", "https://www.donanimhaber.com/rss/tum/", region="turkey", credibility_weight=0.58),
-    SourceDefinition("technopat", "Technopat", "rss", "https://www.technopat.net/feed/", region="turkey", credibility_weight=0.60),
+    # NOTE: Consumer-tech feeds (e.g. phone/app updates) are intentionally excluded from the Turkey edition.
     SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
     SourceDefinition("inc", "Inc", "rss", "https://www.inc.com/rss", credibility_weight=0.74),
@@ -590,6 +712,52 @@ def _azure_token_param_name(model_name: str) -> str:
     if m.startswith("gpt-5"):
         return "max_completion_tokens"
     return "max_tokens"
+
+
+def _contains_any(haystack: str, needles: Sequence[str]) -> bool:
+    h = (haystack or "").lower()
+    return any(n and n in h for n in needles)
+
+
+def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
+    """
+    Turkey feed should be "AI startup / AI systems" intelligence, not general consumer tech.
+
+    Rules (heuristic, intentionally conservative):
+    - Must mention AI (broad).
+    - Must indicate startup/ecosystem relevance (funding, startup terms, hiring, policy) OR be a Turkey startup-owned item.
+    - Exclude consumer product / retail chatter unless it is clearly ecosystem-relevant.
+    - Exclude global big-tech product updates in the Turkey feed unless they are framed as ecosystem events.
+    """
+    if item.source_key == "startup_owned_feeds":
+        country = str((item.payload or {}).get("startup_country") or "").strip().lower()
+        return country == "turkey"
+
+    text = f"{item.title} {item.summary or ''}".strip().lower()
+
+    has_ai = _contains_any(text, TR_AI_KEYWORDS)
+    if not has_ai:
+        return False
+
+    has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
+    has_policy = _contains_any(text, TR_POLICY_KEYWORDS)
+    if not (has_ecosystem or has_policy):
+        return False
+
+    # For broad Turkish aggregators, require explicit Turkey context so we don't pull translated global chatter.
+    if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
+        if not _contains_any(text, TR_CONTEXT_KEYWORDS) and not has_ecosystem:
+            return False
+
+    # Consumer exclusion: allow only if it's clearly an ecosystem signal (e.g. funding/acquisition)
+    if _contains_any(text, TR_CONSUMER_EXCLUDE_KEYWORDS) and not (has_ecosystem or has_policy):
+        return False
+
+    # Big-tech exclusion: Turkey feed shouldn't be dominated by product updates from incumbents.
+    if _contains_any(text, TR_BIGTECH_KEYWORDS) and not (has_ecosystem or has_policy):
+        return False
+
+    return True
 
 
 def build_builder_takeaway(*, story_type: str, tags: Sequence[str], title: str, summary: str, entities: Sequence[str]) -> str:
@@ -1399,6 +1567,10 @@ class DailyNewsIngestor:
                         items = await self._fetch_frontier_candidates(conn, client, source, lookback_hours)
                     else:
                         items = []
+
+                    # Turkey pipeline should stay tightly scoped to AI startup / AI systems signals.
+                    if (source.region or "global") == "turkey":
+                        items = [i for i in items if _is_relevant_turkey_news_item(i)]
 
                     collected.extend(items)
                 except Exception as exc:
