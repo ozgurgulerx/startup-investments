@@ -50,6 +50,20 @@ if [ -f "$WEB_DIR/.env.local" ]; then
     set +a
 fi
 
+# If API_KEY is missing, attempt to reuse the existing App Service setting to avoid
+# breaking deploys when /etc/buildatlas/.env isn't present on the VM.
+if [ -z "${API_KEY:-}" ]; then
+    EXISTING_API_KEY="$(az webapp config appsettings list \
+        --resource-group rg-startup-analysis \
+        --name "$WEBAPP_NAME" \
+        --query "[?name=='API_KEY'].value | [0]" \
+        -o tsv 2>/dev/null || true)"
+    if [ -n "${EXISTING_API_KEY:-}" ] && [ "${EXISTING_API_KEY:-}" != "null" ]; then
+        export API_KEY="$EXISTING_API_KEY"
+        echo "  Loaded API_KEY from existing App Service settings."
+    fi
+fi
+
 # Fail fast: in production the backend requires X-API-Key for all non-health routes.
 if [ -z "${API_KEY:-}" ]; then
     echo "ERROR: API_KEY is not set. This will break backend calls (401) in production."
