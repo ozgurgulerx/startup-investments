@@ -10,6 +10,7 @@ const passthroughLoader: ImageLoader = ({ src }) => src;
 interface CompanyLogoProps {
   slug: string;
   companyName: string;
+  region?: string;
   apiUrl?: string;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
@@ -44,6 +45,7 @@ function getInitials(name: string): string {
 export function CompanyLogo({
   slug,
   companyName,
+  region,
   apiUrl = DEFAULT_API_URL,
   className,
   size = 'md',
@@ -54,6 +56,7 @@ export function CompanyLogo({
   const initials = getInitials(companyName);
   const shouldShowFallback = hasError || !slug;
   const imageSize = pixelSizes[size];
+  const regionQuery = region && region !== 'global' ? `?region=${encodeURIComponent(region)}` : '';
 
   return (
     <span
@@ -70,7 +73,7 @@ export function CompanyLogo({
         <Image
           loader={passthroughLoader}
           unoptimized
-          src={`${apiUrl}/api/startups/${slug}/logo`}
+          src={`${apiUrl}/api/startups/${slug}/logo${regionQuery}`}
           alt={`${companyName} logo`}
           className={cn(
             'h-full w-full object-contain p-1.5 transition-opacity duration-300',

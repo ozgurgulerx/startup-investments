@@ -46,6 +46,7 @@ async function BriefContent({ region }: { region?: string }) {
       <IntelligenceBrief
         initialBrief={brief}
         availablePeriods={availablePeriods}
+        region={region}
       />
     </>
   );

@@ -14,10 +14,21 @@ import {
 } from '@/lib/data/anomalies';
 import Link from 'next/link';
 import { PeriodNav } from '@/components/ui/period-nav';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 const FALLBACK_PERIOD = '2026-01';
 
 async function CapitalContent({ selectedMonth, region }: { selectedMonth?: string; region?: string }) {
+  const regionKey = normalizeDatasetRegion(region);
+  const withRegion = (href: string) => {
+    if (regionKey === 'global') return href;
+    const [path, query] = href.split('?');
+    const params = new URLSearchParams(query || '');
+    params.set('region', regionKey);
+    const qs = params.toString();
+    return qs ? `${path}?${qs}` : path;
+  };
+
   const periods = await getAvailablePeriods(region);
   const latestPeriod = periods[0]?.period || FALLBACK_PERIOD;
   const period = (selectedMonth && periods.some(p => p.period === selectedMonth))
@@ -177,7 +188,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
           </CardHeader>
           <CardContent className="space-y-4">
             <Link
-              href={`/dealbook?pattern=${encodeURIComponent('Agentic Architectures')}`}
+              href={withRegion(`/dealbook?pattern=${encodeURIComponent('Agentic Architectures')}`)}
               className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
             >
               <TrendingUp className="h-5 w-5 text-success mt-0.5" />
@@ -191,7 +202,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
             </Link>
 
             <Link
-              href="/dealbook"
+              href={withRegion('/dealbook')}
               className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
             >
               <TrendingUp className="h-5 w-5 text-success mt-0.5" />
@@ -205,7 +216,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
             </Link>
 
             <Link
-              href={`/dealbook?pattern=${encodeURIComponent('Vertical Data Moats')}`}
+              href={withRegion(`/dealbook?pattern=${encodeURIComponent('Vertical Data Moats')}`)}
               className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
             >
               <ArrowRight className="h-5 w-5 text-primary mt-0.5" />
@@ -350,7 +361,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
                 {outlierRounds.slice(0, 5).map((outlier, index) => (
                   <Link
                     key={index}
-                    href={`/company/${outlier.slug}`}
+                    href={withRegion(`/company/${outlier.slug}`)}
                     className="block p-3 rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 transition-colors"
                   >
                     <div className="flex items-start justify-between">
@@ -397,7 +408,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
                 {stageAnomalies.slice(0, 5).map((anomaly, index) => (
                   <Link
                     key={index}
-                    href={`/company/${anomaly.slug}`}
+                    href={withRegion(`/company/${anomaly.slug}`)}
                     className="block p-3 rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 transition-colors"
                   >
                     <div className="flex items-start justify-between">

@@ -7,22 +7,39 @@ import { MonthlyBrief } from '@/lib/types/monthly-brief';
 import { MonthSwitcher } from '@/components/ui/month-switcher';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { formatCurrency } from '@/lib/utils';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 interface IntelligenceBriefProps {
   initialBrief: MonthlyBrief;
   availablePeriods: string[];
+  region?: string;
 }
 
-// Cache for fetched briefs
+function briefCacheKey(region: string, period: string): string {
+  return `${region}:${period}`;
+}
+
+function withRegionHref(href: string, region: string): string {
+  if (!region || region === 'global') return href;
+  const [path, query] = href.split('?');
+  const params = new URLSearchParams(query || '');
+  params.set('region', region);
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+// Cache for fetched briefs (keyed by region+period)
 const briefCache = new Map<string, MonthlyBrief>();
 
 export function IntelligenceBrief({
   initialBrief,
   availablePeriods,
+  region,
 }: IntelligenceBriefProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [urlMonth, setUrlMonth] = useState<string | null>(null);
+  const regionKey = normalizeDatasetRegion(region);
 
   // Get current period from URL or default to initial
   const currentPeriod = urlMonth || initialBrief.monthKey;
@@ -32,7 +49,7 @@ export function IntelligenceBrief({
 
   // State for brief data
   const [brief, setBrief] = useState<MonthlyBrief>(() => {
-    briefCache.set(initialBrief.monthKey, initialBrief);
+    briefCache.set(briefCacheKey(regionKey, initialBrief.monthKey), initialBrief);
     return initialBrief;
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -64,13 +81,17 @@ export function IntelligenceBrief({
         setUrlMonth(newPeriod);
 
         // Check cache first
-        if (briefCache.has(newPeriod)) {
-          setBrief(briefCache.get(newPeriod)!);
+        const key = briefCacheKey(regionKey, newPeriod);
+        if (briefCache.has(key)) {
+          setBrief(briefCache.get(key)!);
         } else {
-          const response = await fetch(`/data/briefs/${newPeriod}.json`);
+          const params = new URLSearchParams();
+          params.set('period', newPeriod);
+          if (regionKey !== 'global') params.set('region', regionKey);
+          const response = await fetch(`/api/brief?${params.toString()}`);
           if (response.ok) {
             const data = await response.json();
-            briefCache.set(newPeriod, data);
+            briefCache.set(key, data);
             setBrief(data);
           }
         }
@@ -80,7 +101,7 @@ export function IntelligenceBrief({
         setIsLoading(false);
       }
     },
-    [validPeriod, router]
+    [validPeriod, router, regionKey]
   );
 
   // Ensure brief data stays consistent with URL (e.g. browser back/forward).
@@ -91,14 +112,18 @@ export function IntelligenceBrief({
     const run = async () => {
       setIsLoading(true);
       try {
-        if (briefCache.has(validPeriod)) {
-          if (!cancelled) setBrief(briefCache.get(validPeriod)!);
+        const key = briefCacheKey(regionKey, validPeriod);
+        if (briefCache.has(key)) {
+          if (!cancelled) setBrief(briefCache.get(key)!);
           return;
         }
-        const response = await fetch(`/data/briefs/${validPeriod}.json`);
+        const params = new URLSearchParams();
+        params.set('period', validPeriod);
+        if (regionKey !== 'global') params.set('region', regionKey);
+        const response = await fetch(`/api/brief?${params.toString()}`);
         if (response.ok) {
           const data = await response.json();
-          briefCache.set(validPeriod, data);
+          briefCache.set(key, data);
           if (!cancelled) setBrief(data);
         }
       } catch (error) {
@@ -112,7 +137,7 @@ export function IntelligenceBrief({
     return () => {
       cancelled = true;
     };
-  }, [validPeriod, brief.monthKey]);
+  }, [validPeriod, brief.monthKey, regionKey]);
 
   const fadeClass = isLoading ? 'opacity-60' : 'opacity-100';
 
@@ -130,19 +155,19 @@ export function IntelligenceBrief({
       <ExecutiveSummary summary={brief.executiveSummary} />
 
       {/* By the Numbers */}
-      <MetricsSection metrics={brief.metrics} />
+      <MetricsSection metrics={brief.metrics} region={regionKey} />
 
       {/* This Month's Theme */}
       <ThemeSection theme={brief.theme} />
 
       {/* Pattern Landscape */}
-      <PatternLandscape patterns={brief.patternLandscape} />
+      <PatternLandscape patterns={brief.patternLandscape} region={regionKey} />
 
       {/* Market Landscape - Funding by Stage */}
       <FundingByStageSection stages={brief.fundingByStage} />
 
       {/* Top Deals */}
-      <TopDealsSection deals={brief.topDeals} />
+      <TopDealsSection deals={brief.topDeals} region={regionKey} />
 
       {/* Geographic Intelligence */}
       <GeographicSection
@@ -155,7 +180,7 @@ export function IntelligenceBrief({
       <InvestorSection investors={brief.investors} />
 
       {/* Featured Spotlight */}
-      {brief.spotlight && <SpotlightSection spotlight={brief.spotlight} />}
+      {brief.spotlight && <SpotlightSection spotlight={brief.spotlight} region={regionKey} />}
 
       {/* Implications & What We're Watching */}
       <Implications
@@ -220,50 +245,55 @@ function ExecutiveSummary({ summary }: { summary: string }) {
   );
 }
 
-function MetricsSection({ metrics }: { metrics: MonthlyBrief['metrics'] }) {
+function MetricsSection({ metrics, region }: { metrics: MonthlyBrief['metrics']; region: string }) {
   return (
     <section className="section">
       <div className="section-header">
         <span className="section-title">By the Numbers</span>
-        <Link href="/dealbook" className="section-link">
+        <Link href={withRegionHref('/dealbook', region)} className="section-link">
           View all deals
         </Link>
       </div>
 
       {/* KPI Strip - Links to dealbook */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <Link href="/dealbook?sortBy=funding&sortOrder=desc">
+        <Link href={withRegionHref('/dealbook?sortBy=funding&sortOrder=desc', region)}>
           <KpiCard
             label="Total Funding"
             value={formatCurrency(metrics.totalFunding, true)}
           />
         </Link>
-        <Link href="/dealbook">
+        <Link href={withRegionHref('/dealbook', region)}>
           <KpiCard
             label="Total Deals"
             value={metrics.totalDeals.toString()}
           />
         </Link>
-        <Link href="/dealbook?sortBy=funding&sortOrder=desc">
+        <Link href={withRegionHref('/dealbook?sortBy=funding&sortOrder=desc', region)}>
           <KpiCard
             label="Average Deal"
             value={formatCurrency(metrics.avgDeal, true)}
           />
         </Link>
-        <Link href="/dealbook?sortBy=funding&sortOrder=desc">
+        <Link href={withRegionHref('/dealbook?sortBy=funding&sortOrder=desc', region)}>
           <KpiCard
             label="Median Deal"
             value={formatCurrency(metrics.medianDeal, true)}
           />
         </Link>
-        <Link href={`/company/${metrics.largestDeal.company.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+        <Link
+          href={withRegionHref(
+            `/company/${metrics.largestDeal.company.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+            region
+          )}
+        >
           <KpiCard
             label="Largest Deal"
             value={formatCurrency(metrics.largestDeal.amount, true)}
             subtext={metrics.largestDeal.company}
           />
         </Link>
-        <Link href="/dealbook?usesGenai=true">
+        <Link href={withRegionHref('/dealbook?usesGenai=true', region)}>
           <KpiCard
             label="GenAI Adoption"
             value={`${metrics.genaiAdoptionPct}%`}
@@ -352,8 +382,10 @@ function ThemeSection({ theme }: { theme: MonthlyBrief['theme'] }) {
 
 function PatternLandscape({
   patterns,
+  region,
 }: {
   patterns: MonthlyBrief['patternLandscape'];
+  region: string;
 }) {
   // Top 3 signals for callout cards
   const topSignals = patterns.slice(0, 3);
@@ -362,7 +394,7 @@ function PatternLandscape({
     <section className="section">
       <div className="section-header">
         <span className="section-title">Pattern Landscape</span>
-        <Link href="/signals" className="section-link">
+        <Link href={withRegionHref('/signals', region)} className="section-link">
           Full signal analysis
         </Link>
       </div>
@@ -465,12 +497,12 @@ function FundingByStageSection({
   );
 }
 
-function TopDealsSection({ deals }: { deals: MonthlyBrief['topDeals'] }) {
+function TopDealsSection({ deals, region }: { deals: MonthlyBrief['topDeals']; region: string }) {
   return (
     <section className="section">
       <div className="section-header">
         <span className="section-title">Top Deals</span>
-        <Link href="/dealbook" className="section-link">
+        <Link href={withRegionHref('/dealbook', region)} className="section-link">
           View all companies
         </Link>
       </div>
@@ -502,7 +534,7 @@ function TopDealsSection({ deals }: { deals: MonthlyBrief['topDeals'] }) {
                 <td className="py-3 text-muted-foreground">{deal.rank}</td>
                 <td className="py-3">
                   <Link
-                    href={`/company/${deal.slug}`}
+                    href={withRegionHref(`/company/${deal.slug}`, region)}
                     className="font-medium hover:text-accent-info transition-colors"
                   >
                     {deal.company}
@@ -709,8 +741,10 @@ function InvestorSection({
 
 function SpotlightSection({
   spotlight,
+  region,
 }: {
   spotlight: NonNullable<MonthlyBrief['spotlight']>;
+  region: string;
 }) {
   return (
     <section className="section">
@@ -721,7 +755,7 @@ function SpotlightSection({
       <div className="p-6 border border-accent-info/30 rounded-lg bg-accent-info/5">
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <Link
-            href={`/company/${spotlight.slug}`}
+            href={withRegionHref(`/company/${spotlight.slug}`, region)}
             className="text-xl font-medium text-foreground hover:text-accent-info transition-colors"
           >
             {spotlight.company}

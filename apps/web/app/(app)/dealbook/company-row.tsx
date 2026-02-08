@@ -75,6 +75,7 @@ export const CompanyRow = React.memo(function CompanyRow({ startup }: CompanyRow
       <CompanyLogo
         slug={startup.company_slug}
         companyName={startup.company_name}
+        region={selectedRegion}
         size="sm"
         variant="muted"
         className="rounded-md"

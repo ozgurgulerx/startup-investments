@@ -8,11 +8,13 @@ import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
 import type { PatternData, EmergingPattern, CategoryData } from './page';
 import type { PatternCorrelation } from '@/lib/data/signals';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 interface InteractiveSignalsProps {
   patterns: PatternData[];
   correlations: PatternCorrelation[];
   totalDeals: number;
+  region?: string;
   emergingPatterns?: EmergingPattern[];
   categories?: CategoryData[];
 }
@@ -21,9 +23,20 @@ export function InteractiveSignals({
   patterns,
   correlations,
   totalDeals,
+  region,
   emergingPatterns = [],
   categories = [],
 }: InteractiveSignalsProps) {
+  const regionKey = normalizeDatasetRegion(region);
+  const withRegion = (href: string) => {
+    if (regionKey === 'global') return href;
+    const [path, query] = href.split('?');
+    const params = new URLSearchParams(query || '');
+    params.set('region', regionKey);
+    const qs = params.toString();
+    return qs ? `${path}?${qs}` : path;
+  };
+
   const [cohortModal, setCohortModal] = useState<{
     isOpen: boolean;
     patternName: string;
@@ -244,7 +257,7 @@ export function InteractiveSignals({
               </button>
 
               <Link
-                href={`/dealbook?pattern=${encodeURIComponent(pattern.name)}`}
+                href={withRegion(`/dealbook?pattern=${encodeURIComponent(pattern.name)}`)}
                 className="inline-flex items-center gap-2 text-xs text-accent-info hover:text-accent-info/80 transition-colors"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -295,6 +308,7 @@ export function InteractiveSignals({
         onClose={closeCohort}
         patternName={cohortModal.patternName}
         companies={cohortModal.companies}
+        region={regionKey}
       />
     </>
   );

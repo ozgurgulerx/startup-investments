@@ -219,6 +219,7 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
             <CompanyLogo
               slug={startup.company_slug}
               companyName={startup.company_name}
+              region={region}
               size="lg"
               variant="elevated"
             />
@@ -338,7 +339,10 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
         <section className="section">
           <div className="section-header">
             <span className="section-title">Build Signals</span>
-            <Link href="/signals" className="section-link">
+            <Link
+              href={region && region !== 'global' ? `/signals?region=${encodeURIComponent(region)}` : '/signals'}
+              className="section-link"
+            >
               Full pattern analysis
             </Link>
           </div>

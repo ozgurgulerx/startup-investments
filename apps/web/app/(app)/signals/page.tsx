@@ -200,6 +200,7 @@ async function SignalsContent({ region }: { region?: string }) {
       patterns={patterns}
       correlations={correlations}
       totalDeals={totalDeals}
+      region={region}
       emergingPatterns={emergingPatterns}
       categories={categories}
     />
