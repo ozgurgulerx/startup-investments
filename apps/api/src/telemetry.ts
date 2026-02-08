@@ -2,7 +2,7 @@
 // MUST be imported at the very top of index.ts, before Express/pg/redis.
 // The SDK hooks into Node.js module loading to auto-instrument dependencies.
 
-import appInsights from 'applicationinsights';
+import * as appInsights from 'applicationinsights';
 
 const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
 
