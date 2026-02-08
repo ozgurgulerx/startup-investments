@@ -2714,16 +2714,56 @@ class DailyNewsIngestor:
         top_clusters = list(clusters)[:top_n]
 
         prompt = (
-            "You write a daily startup news brief for builders. "
+            "You are a senior technology correspondent writing a daily briefing "
+            "for startup builders and investors. "
+            "Your tone is authoritative and analytical — like a Financial Times "
+            "tech column or BBC World Service technology bulletin. "
+            "Synthesise ALL the stories provided into a panoramic overview of the day. "
+            "The headline should capture the day's dominant theme or tension, NOT a single company. "
+            "The summary is your editorial paragraph — connect the dots across stories, "
+            "identify patterns, shifts, or contradictions in today's market. "
+            "Each bullet MUST cover a DIFFERENT story or development from the input. "
+            "Never repeat the same company or topic across bullets. "
+            "Where available, use key_facts (funding amounts, investors, valuations) "
+            "and key_entities to add concrete specifics. "
+            "If a story has_conflicting_reports, note the tension. "
             "Return strict JSON with keys: "
-            "headline (<=70 chars), summary (<=320 chars), "
-            "bullets (array of 3-5 strings, each <=110 chars), "
-            "themes (array of up to 6 lowercase tags). "
-            "Be concrete, avoid hype. No prose outside JSON."
+            "headline (<=80 chars, thematic — no company names), "
+            "summary (<=550 chars, editorial synthesis paragraph), "
+            "bullets (array of 4-6 strings, each <=120 chars, each a different story), "
+            "themes (array of up to 6 lowercase hyphenated tags). "
+            "Be concrete, cite specifics. No prose outside JSON."
         )
 
         def pick_summary(c: StoryCluster) -> str:
             return normalize_text(c.llm_summary or c.summary or c.rank_reason or "")
+
+        def _memory_enrichment(c: StoryCluster) -> Dict[str, Any]:
+            """Extract memory gate data for richer editorial context."""
+            enrichment: Dict[str, Any] = {}
+            mr = getattr(c, "memory_result", None)
+            if mr is None:
+                return enrichment
+            # Key facts (funding amounts, round types, investors, valuations)
+            claims = getattr(mr, "extracted_claims", None) or []
+            if claims:
+                key_facts = []
+                for claim in claims[:5]:
+                    key_facts.append(f"{claim.fact_key}: {claim.fact_value}")
+                if key_facts:
+                    enrichment["key_facts"] = key_facts
+            # Named entities (companies, investors)
+            entities = getattr(mr, "linked_entities", None) or []
+            if entities:
+                names = [e.entity_name for e in entities[:4] if e.match_score >= 0.7]
+                if names:
+                    enrichment["key_entities"] = names
+            # Novelty signals
+            if getattr(mr, "has_new_facts", False):
+                enrichment["has_new_information"] = True
+            if getattr(mr, "has_contradictions", False):
+                enrichment["has_conflicting_reports"] = True
+            return enrichment
 
         user_payload = {
             "edition_date": edition_date.isoformat(),
@@ -2736,22 +2776,23 @@ class DailyNewsIngestor:
                     "rank_score": float(round(c.rank_score, 4)),
                     "trust_score": float(round(c.trust_score, 4)),
                     "source_count": int(len(c.members)),
+                    **_memory_enrichment(c),
                 }
                 for c in top_clusters
             ],
         }
 
         def parse_daily_brief(parsed: Dict[str, Any], model_label: Optional[str]) -> Optional[Dict[str, Any]]:
-            headline = _shorten_text(str(parsed.get("headline") or ""), 70)
-            summary = _shorten_text(str(parsed.get("summary") or ""), 320)
+            headline = _shorten_text(str(parsed.get("headline") or ""), 80)
+            summary = _shorten_text(str(parsed.get("summary") or ""), 550)
             raw_bullets = parsed.get("bullets") or []
             bullets: List[str] = []
             if isinstance(raw_bullets, list):
                 for b in raw_bullets:
                     if not b:
                         continue
-                    bullets.append(_shorten_text(str(b), 110))
-                    if len(bullets) >= 5:
+                    bullets.append(_shorten_text(str(b), 120))
+                    if len(bullets) >= 6:
                         break
             raw_themes = parsed.get("themes") or []
             themes: List[str] = []
@@ -2775,6 +2816,7 @@ class DailyNewsIngestor:
                 "summary": summary,
                 "bullets": bullets,
                 "themes": themes,
+                "cluster_count": top_n,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -2801,8 +2843,8 @@ class DailyNewsIngestor:
                         "summary": {"type": "string", "maxLength": 600},
                         "bullets": {
                             "type": "array",
-                            "minItems": 3,
-                            "maxItems": 5,
+                            "minItems": 4,
+                            "maxItems": 6,
                             "items": {"type": "string", "maxLength": 240},
                         },
                         "themes": {
@@ -2821,7 +2863,7 @@ class DailyNewsIngestor:
                                 {"role": "system", "content": prompt},
                                 {"role": "user", "content": json.dumps(user_payload)},
                             ],
-                            "max_output_tokens": 520,
+                            "max_output_tokens": 650,
                             "text": {
                                 "format": {
                                     "type": "json_schema",
@@ -2873,7 +2915,7 @@ class DailyNewsIngestor:
                     }
                     if _azure_supports_temperature(model_name):
                         azure_payload["temperature"] = 0.25
-                    azure_payload[token_param] = 340
+                    azure_payload[token_param] = 650
                     if with_response_format:
                         azure_payload["response_format"] = {"type": "json_object"}
 
@@ -2913,7 +2955,7 @@ class DailyNewsIngestor:
                         json={
                             "model": self.llm_model,
                             "temperature": 0.25,
-                            "max_tokens": 340,
+                            "max_tokens": 650,
                             "response_format": {"type": "json_object"},
                             "messages": [
                                 {"role": "system", "content": prompt},

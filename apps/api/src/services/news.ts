@@ -35,6 +35,7 @@ export interface DailyNewsBrief {
   themes?: string[];
   model?: string;
   generated_at?: string;
+  cluster_count?: number;
 }
 
 export interface NewsEdition {
@@ -528,6 +529,7 @@ export function makeNewsService(pool: Pool) {
             bullets: Array.isArray(statsJson.daily_brief.bullets) ? statsJson.daily_brief.bullets : [],
             themes: Array.isArray(statsJson.daily_brief.themes) ? statsJson.daily_brief.themes : undefined,
             generated_at: statsJson.daily_brief.generated_at ? String(statsJson.daily_brief.generated_at) : undefined,
+            cluster_count: typeof statsJson.daily_brief.cluster_count === 'number' ? statsJson.daily_brief.cluster_count : undefined,
           }
         : undefined;
 

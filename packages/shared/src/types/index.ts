@@ -644,6 +644,7 @@ export interface DailyNewsBrief {
   themes?: string[];
   model?: string;
   generated_at?: string;
+  cluster_count?: number;
 }
 
 export interface NewsEdition {
