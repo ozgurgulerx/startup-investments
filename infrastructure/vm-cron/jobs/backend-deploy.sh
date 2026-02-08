@@ -50,6 +50,23 @@ for KEY in DATABASE_URL API_KEY ADMIN_KEY FRONT_DOOR_ID; do
 done
 echo "  All required vars present."
 
+# If REDIS_URL is missing, try to preserve the currently deployed value so a deploy
+# doesn't accidentally disable caching by overwriting the secret with an empty string.
+if [ -z "${REDIS_URL:-}" ]; then
+    EXISTING_REDIS_URL_B64="$(kubectl get secret startup-investments-secrets -o jsonpath='{.data.redis-url}' 2>/dev/null || true)"
+    if [ -n "${EXISTING_REDIS_URL_B64:-}" ]; then
+        EXISTING_REDIS_URL="$(echo "$EXISTING_REDIS_URL_B64" | base64 --decode 2>/dev/null || true)"
+        if [ -n "${EXISTING_REDIS_URL:-}" ]; then
+            export REDIS_URL="$EXISTING_REDIS_URL"
+            echo "  Loaded REDIS_URL from existing Kubernetes secret."
+        fi
+    fi
+fi
+
+if [ -z "${REDIS_URL:-}" ]; then
+    echo "  WARNING: REDIS_URL is not set; Redis caching will be disabled."
+fi
+
 # --- Step 2: Build and push image via ACR ---
 echo ""
 echo "[2/6] Building Docker image on ACR..."
