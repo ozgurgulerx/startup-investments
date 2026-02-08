@@ -58,7 +58,8 @@ class DeepResearchConsumer:
             api_version="2024-02-15-preview",
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
         )
-        self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        # Azure uses deployment names; prefer *_DEPLOYMENT_NAME but keep legacy var.
+        self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
 
     async def process_queue(self, batch_size: int = 10) -> List[ResearchResult]:
         """Process a batch of research items from the queue."""

@@ -624,7 +624,15 @@ class DailyNewsIngestor:
         self.azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
         self.azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
         self.azure_openai_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01")
-        self.azure_openai_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        # Azure uses *deployment names* as the model identifier.
+        # Support both:
+        # - AZURE_OPENAI_DEPLOYMENT_NAME (preferred)
+        # - AZURE_OPENAI_DEPLOYMENT (legacy/back-compat)
+        self.azure_openai_deployment = (
+            os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+            or os.getenv("AZURE_OPENAI_DEPLOYMENT")
+            or "gpt-4o"
+        )
         self.llm_enrichment_enabled = os.getenv("NEWS_LLM_ENRICHMENT", "false").lower() in {"1", "true", "yes", "on"}
         self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
         self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "12")))

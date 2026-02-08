@@ -19,9 +19,20 @@ class AzureOpenAIConfig(BaseModel):
     endpoint: str = Field(default_factory=lambda: os.getenv("AZURE_OPENAI_ENDPOINT", ""))
     api_version: str = Field(default_factory=lambda: os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"))
 
-    # Deployment names - use gpt-4.1 as the default since gpt-5-nano/mini don't exist
-    fast_model: str = Field(default_factory=lambda: os.getenv("AZURE_OPENAI_VISION_DEPLOYMENT_NAME", "gpt-4.1"))
-    reasoning_model: str = Field(default_factory=lambda: os.getenv("AZURE_OPENAI_VISION_DEPLOYMENT_NAME", "gpt-4.1"))
+    # Azure uses deployment names as the `model=` parameter.
+    # Prefer the explicit env vars; keep compatibility fallbacks.
+    fast_model: str = Field(default_factory=lambda: (
+        os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        or os.getenv("AZURE_OPENAI_FAST_DEPLOYMENT_NAME")
+        or os.getenv("AZURE_OPENAI_VISION_DEPLOYMENT_NAME")
+        or "gpt-4.1"
+    ))
+    reasoning_model: str = Field(default_factory=lambda: (
+        os.getenv("AZURE_OPENAI_REASONING_DEPLOYMENT_NAME")
+        or os.getenv("AZURE_OPENAI_REASONING_MODEL")
+        or os.getenv("AZURE_OPENAI_VISION_DEPLOYMENT_NAME")
+        or "gpt-4.1"
+    ))
     embedding_model: str = Field(default_factory=lambda: os.getenv("AZURE_TEXT_EMBEDDING_DEPLOYMENT_NAME", "text-embedding-3-small"))
 
 
