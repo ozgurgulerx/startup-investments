@@ -41,6 +41,53 @@ MODIFIED=$(grep "Modified:" "$SYNC_CHECK_LOG" 2>/dev/null | awk '{print $2}' || 
 TOTAL=$((ADDED + MODIFIED))
 
 if [ "$TOTAL" -eq 0 ]; then
+    # Even if blob data hasn't changed, the DB can lag (e.g. after VM upgrades or missed runs).
+    # Run a low-frequency "DB sync-only" pass so region pages (global + turkey) don't look empty.
+    STATE_DIR="/var/lib/buildatlas"
+    if [ ! -d "$STATE_DIR" ] || [ ! -w "$STATE_DIR" ]; then
+        STATE_DIR="/tmp"
+    fi
+    DB_SYNC_SENTINEL="$STATE_DIR/sync-data.db-sync.last"
+
+    if [ -n "${DATABASE_URL:-}" ] && [ -n "${ADMIN_KEY:-}" ]; then
+        SHOULD_DB_SYNC=1
+        if [ -f "$DB_SYNC_SENTINEL" ]; then
+            LAST_TS="$(stat -c %Y "$DB_SYNC_SENTINEL" 2>/dev/null || echo 0)"
+            AGE_SEC=$(( $(date +%s) - LAST_TS ))
+            # Default: once per day
+            if [ "$AGE_SEC" -lt 86400 ] 2>/dev/null; then
+                SHOULD_DB_SYNC=0
+            fi
+        fi
+
+        if [ "$SHOULD_DB_SYNC" -eq 1 ]; then
+            echo "No blob changes detected. Running daily DB sync-only pass..."
+
+            GLOBAL_PERIOD="$(ls -1 "$REPO_DIR/apps/web/data" 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}$' | sort -r | head -n 1 || true)"
+            TR_PERIOD="$(ls -1 "$REPO_DIR/apps/web/data/tr" 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}$' | sort -r | head -n 1 || true)"
+
+            bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" startups
+
+            if [ -n "$GLOBAL_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" ]; then
+                "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
+                  --csv "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" \
+                  --region global
+                "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$GLOBAL_PERIOD" --region global
+            fi
+
+            if [ -n "$TR_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" ]; then
+                "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
+                  --csv "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" \
+                  --region turkey
+                "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$TR_PERIOD" --region turkey
+            fi
+
+            touch "$DB_SYNC_SENTINEL"
+            echo "DB sync-only pass complete. Done."
+            exit 0
+        fi
+    fi
+
     echo "No changes detected. Done."
     exit 0
 fi
@@ -87,20 +134,48 @@ if [ -n "$TR_PERIOD" ]; then
     check_taxonomy "tr" "$REPO_DIR/apps/web/data/tr" "$TR_PERIOD"
 fi
 
-# Step 2.5: Materialize analysis_store into Postgres for DB-driven Dealbook filters.
-# This makes vertical_taxonomy (and other analysis_data fields) queryable via the backend API.
+# Step 2.5: Keep Postgres in sync with the on-disk datasets (global + turkey).
+# This enables region-aware API queries (Dealbook filters, company pages, stats).
 if [ -n "${DATABASE_URL:-}" ]; then
-    PERIOD="$(ls -1 "$REPO_DIR/apps/web/data" 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}$' | sort -r | head -n 1 || true)"
-    if [ -n "$PERIOD" ]; then
-        echo "Applying startup migrations + populating analysis_data for period: $PERIOD"
-        bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" startups
-        "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$PERIOD"
-        echo "DB analysis_data population complete."
+    echo "Applying startup migrations..."
+    bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" startups
+
+    if [ -n "${ADMIN_KEY:-}" ]; then
+        # 1) Upsert startup rows from startups.csv via admin API.
+        if [ -n "$GLOBAL_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" ]; then
+            echo "Syncing startups.csv to API (region=global period=$GLOBAL_PERIOD)..."
+            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
+              --csv "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" \
+              --region global
+        else
+            echo "WARN: Global startups.csv not found for period $GLOBAL_PERIOD; skipping global upsert."
+        fi
+
+        if [ -n "$TR_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" ]; then
+            echo "Syncing startups.csv to API (region=turkey period=$TR_PERIOD)..."
+            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
+              --csv "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" \
+              --region turkey
+        else
+            echo "INFO: Turkey startups.csv not found for period $TR_PERIOD; skipping turkey upsert."
+        fi
     else
-        echo "WARN: Could not determine latest period under apps/web/data; skipping DB populate."
+        echo "WARN: ADMIN_KEY not set; skipping /api/admin/sync-startups (DB may miss new startups)."
     fi
+
+    # 2) Populate analysis_data JSONB from analysis_store (region-aware).
+    if [ -n "$GLOBAL_PERIOD" ]; then
+        echo "Populating analysis_data (region=global period=$GLOBAL_PERIOD)..."
+        "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$GLOBAL_PERIOD" --region global
+    fi
+    if [ -n "$TR_PERIOD" ]; then
+        echo "Populating analysis_data (region=turkey period=$TR_PERIOD)..."
+        "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$TR_PERIOD" --region turkey
+    fi
+
+    echo "DB sync complete."
 else
-    echo "WARN: DATABASE_URL not set; skipping DB populate."
+    echo "WARN: DATABASE_URL not set; skipping DB sync."
 fi
 
 # Step 3: Pull latest to avoid conflicts, then commit and push

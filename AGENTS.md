@@ -273,9 +273,12 @@ On-disk data layout (file-based datasets):
 - Global: `apps/web/data/{YYYY-MM}/...`
 - Turkey: `apps/web/data/tr/{YYYY-MM}/...` (folder name stays `tr` for historical reasons)
 
-API limitations and performance implications:
-- Backend API serves **global** dataset only.
-- When `region != global`, the web app bypasses API calls and reads from files (slower; acceptable as a fallback/region mode).
+API behavior and performance implications:
+- Backend API is **region-aware** (`global` + `turkey`) via `startups.dataset_region`.
+- The web app is **API-first** when configured (for both regions) and **falls back to files** when the API is unavailable or the DB is behind deployed datasets.
+- VM cron `sync-data` keeps Postgres in sync with disk datasets (when `DATABASE_URL` is set):
+  - Upsert startups from `apps/web/data/**/input/startups.csv` via `scripts/sync-startups-to-api.py` → `POST /api/admin/sync-startups?region=...`
+  - Populate `startups.analysis_data` from `analysis_store` via `scripts/populate-analysis-data.py --region ...`
 
 Quick checks:
 - `GET /api/periods?region=turkey` should return TR periods when `apps/web/data/tr/**` is deployed.

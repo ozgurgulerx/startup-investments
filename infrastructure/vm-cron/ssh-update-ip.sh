@@ -52,7 +52,7 @@ if [ -n "$OVERRIDE_IP" ]; then
   MY_IP="$OVERRIDE_IP"
 else
   # Prefer Cloudflare trace (does not rely on external DNS resolvers as heavily).
-  MY_IP="$(curl -fsS --max-time 8 https://1.1.1.1/cdn-cgi/trace 2>/dev/null | awk -F= '$1==\"ip\"{print $2; exit}' || true)"
+  MY_IP="$(curl -fsS --max-time 8 https://1.1.1.1/cdn-cgi/trace 2>/dev/null | awk -F= '$1=="ip"{print $2; exit}' || true)"
   if ! is_ipv4 "$MY_IP"; then
     MY_IP="$(curl -fsS --max-time 8 https://ifconfig.me/ip 2>/dev/null || true)"
   fi
