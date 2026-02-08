@@ -1484,5 +1484,61 @@ def extract_logos(
             console.print(f"  {item['name']}: {item['logo_url']}")
 
 
+@app.command("seed-pattern-library")
+def seed_pattern_library(
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+):
+    """Seed the news_pattern_library with canonical build patterns.
+
+    Populates 20 canonical patterns from the PatternRegistry. Idempotent —
+    skips patterns that already exist.
+    """
+    from src.automation.memory_gate import PatternMatcher
+    import asyncpg as apg
+
+    async def run_seed():
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            return
+
+        pool = await apg.create_pool(db_url, min_size=1, max_size=3, command_timeout=60)
+        async with pool.acquire() as conn:
+            pm = PatternMatcher()
+            await pm.seed_canonical_patterns(conn, region)
+            console.print(f"[green]Pattern library seeded for region={region}[/green]")
+        await pool.close()
+
+    asyncio.run(run_seed())
+
+
+@app.command("seed-gtm-taxonomy")
+def seed_gtm_taxonomy(
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+):
+    """Seed the news_gtm_taxonomy with the GTM/delivery classification hierarchy.
+
+    Populates ~21 GTM tags across 6 parent categories. Idempotent —
+    skips tags that already exist.
+    """
+    from src.automation.memory_gate import GTMClassifier
+    import asyncpg as apg
+
+    async def run_seed():
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            return
+
+        pool = await apg.create_pool(db_url, min_size=1, max_size=3, command_timeout=60)
+        async with pool.acquire() as conn:
+            gc = GTMClassifier()
+            await gc.seed_taxonomy(conn, region)
+            console.print(f"[green]GTM taxonomy seeded for region={region}[/green]")
+        await pool.close()
+
+    asyncio.run(run_seed())
+
+
 if __name__ == "__main__":
     app()

@@ -400,6 +400,13 @@ class StoryCluster:
     members: List[NormalizedNewsItem]
     # Memory gate fields (populated by MemoryGate.process_cluster)
     memory_result: Optional[Any] = None  # MemoryResult from memory_gate.py
+    # Gating fields (populated by _run_scoring_and_gating)
+    gating_decision: Optional[str] = None  # publish/borderline/watchlist/accumulate/drop
+    gating_scores: Optional[Dict[str, Any]] = None
+    gating_patterns: Optional[List[Tuple[str, float]]] = None
+    gating_gtm_tags: Optional[List[str]] = None
+    gating_delivery_model: Optional[str] = None
+    gating_reason: Optional[str] = None
 
 
 @dataclass
@@ -3553,6 +3560,251 @@ class DailyNewsIngestor:
 
         return facts_written
 
+    async def _run_scoring_and_gating(
+        self,
+        conn: "asyncpg.Connection",
+        clusters: Sequence[StoryCluster],
+        region: str = "global",
+    ) -> Dict[str, Any]:
+        """Score and gate clusters using heuristic rubric. No LLM calls.
+
+        Populates cluster.gating_decision, gating_scores, gating_patterns,
+        gating_gtm_tags, gating_delivery_model, gating_reason for each cluster.
+
+        Returns stats dict with decision distribution.
+        """
+        from .memory_gate import (
+            PatternMatcher,
+            GTMClassifier,
+            HeuristicScorer,
+            GatingRouter,
+            detect_narrative_dup,
+        )
+
+        pattern_matcher = PatternMatcher()
+        gtm_classifier = GTMClassifier()
+        scorer = HeuristicScorer()
+        router = GatingRouter()
+
+        try:
+            await pattern_matcher.load(conn, region)
+            await gtm_classifier.load(conn, region)
+        except Exception as exc:
+            print(f"[gating:{region}] Load failed (tables may not exist yet): {exc}")
+            return {"skipped": True, "error": str(exc)}
+
+        # Index clusters for narrative-dup detection (entity -> [(cluster, published_at)])
+        entity_cluster_index: Dict[str, List[Tuple[StoryCluster, datetime]]] = {}
+        for cluster in clusters:
+            for entity in cluster.entities:
+                key = entity.lower().strip()
+                if key:
+                    entity_cluster_index.setdefault(key, []).append(
+                        (cluster, cluster.published_at)
+                    )
+
+        decision_counts: Dict[str, int] = {
+            "publish": 0, "borderline": 0, "watchlist": 0,
+            "accumulate": 0, "drop": 0,
+        }
+
+        for cluster in clusters:
+            try:
+                # 1. Pattern matching
+                patterns = pattern_matcher.match(
+                    cluster.title,
+                    cluster.summary or "",
+                    cluster.topic_tags,
+                )
+
+                # 2. GTM classification
+                gtm_tags, delivery_model = gtm_classifier.classify(
+                    cluster.title, cluster.summary or ""
+                )
+
+                # 3. Narrative-dup detection
+                dup_of = None
+                for entity in cluster.entities:
+                    key = entity.lower().strip()
+                    candidates = entity_cluster_index.get(key, [])
+                    existing_decisions = [
+                        {
+                            "primary_entity": entity,
+                            "story_type": other.story_type,
+                            "published_at": pub_at,
+                            "cluster_id": other.cluster_key,
+                        }
+                        for other, pub_at in candidates
+                        if other is not cluster  # don't match self
+                    ]
+                    dup_of = detect_narrative_dup(
+                        entity_name=entity,
+                        story_type=cluster.story_type,
+                        published_at=cluster.published_at,
+                        existing_decisions=existing_decisions,
+                    )
+                    if dup_of:
+                        break
+
+                # 4. Heuristic scoring
+                source_count = len(cluster.members)
+                source_credibility = max(
+                    (m.source_weight for m in cluster.members), default=0.65
+                )
+                scores = scorer.score(
+                    story_type=cluster.story_type,
+                    topic_tags=cluster.topic_tags,
+                    source_count=source_count,
+                    trust_score=cluster.trust_score,
+                    source_credibility=source_credibility,
+                    memory_result=cluster.memory_result,
+                    patterns=patterns,
+                    gtm_tags=gtm_tags,
+                    pattern_matcher=pattern_matcher,
+                    gtm_classifier=gtm_classifier,
+                )
+
+                # 5. Override: narrative dup → accumulate
+                if dup_of:
+                    decision = "accumulate"
+                    reason = f"Narrative dup of cluster {dup_of}"
+                else:
+                    decision, reason = router.decide_with_reason(scores)
+
+                # Populate cluster fields
+                cluster.gating_decision = decision
+                cluster.gating_scores = scores.to_dict()
+                cluster.gating_patterns = patterns
+                cluster.gating_gtm_tags = gtm_tags
+                cluster.gating_delivery_model = delivery_model
+                cluster.gating_reason = reason
+
+                decision_counts[decision] = decision_counts.get(decision, 0) + 1
+
+            except Exception as exc:
+                print(f"[gating:{region}] Failed for cluster {cluster.cluster_key}: {exc}")
+                # Default: let it through to LLM (publish)
+                cluster.gating_decision = "publish"
+                cluster.gating_reason = f"Gating error: {exc}"
+                decision_counts["publish"] = decision_counts.get("publish", 0) + 1
+
+        # Update pattern/GTM counts for accumulate+ tiers
+        for cluster in clusters:
+            if cluster.gating_decision in ("accumulate", "watchlist", "borderline", "publish"):
+                try:
+                    if cluster.gating_patterns:
+                        await pattern_matcher.update_counts(
+                            conn, cluster.gating_patterns,
+                            cluster.cluster_key, region,
+                        )
+                    if cluster.gating_gtm_tags:
+                        await gtm_classifier.update_counts(
+                            conn, cluster.gating_gtm_tags, region,
+                        )
+                except Exception:
+                    pass  # Non-critical
+
+        total = len(clusters)
+        print(
+            f"[gating:{region}] {total} clusters scored — "
+            f"publish={decision_counts['publish']} borderline={decision_counts['borderline']} "
+            f"watchlist={decision_counts['watchlist']} accumulate={decision_counts['accumulate']} "
+            f"drop={decision_counts['drop']}"
+        )
+
+        return {
+            "total": total,
+            "decisions": dict(decision_counts),
+            "llm_candidates": decision_counts.get("publish", 0) + decision_counts.get("borderline", 0),
+        }
+
+    async def _persist_gating_decisions(
+        self,
+        conn: "asyncpg.Connection",
+        clusters: Sequence[StoryCluster],
+        cluster_ids: Dict[str, str],
+        region: str = "global",
+    ) -> int:
+        """Persist gating decisions to news_item_decisions table."""
+        persisted = 0
+        for cluster in clusters:
+            if not cluster.gating_decision or not cluster.gating_scores:
+                continue
+            cid = cluster_ids.get(cluster.cluster_key)
+            if not cid:
+                continue
+            scores = cluster.gating_scores
+            try:
+                await conn.execute(
+                    """
+                    INSERT INTO news_item_decisions (
+                        cluster_id, region,
+                        score_builder_insight, score_pattern_novelty,
+                        score_gtm_uniqueness, score_evidence_quality,
+                        score_composite, decision, decision_reason,
+                        has_contradiction, contradictions_json,
+                        scoring_method
+                    ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
+                    ON CONFLICT (cluster_id) DO UPDATE SET
+                        region = EXCLUDED.region,
+                        score_builder_insight = EXCLUDED.score_builder_insight,
+                        score_pattern_novelty = EXCLUDED.score_pattern_novelty,
+                        score_gtm_uniqueness = EXCLUDED.score_gtm_uniqueness,
+                        score_evidence_quality = EXCLUDED.score_evidence_quality,
+                        score_composite = EXCLUDED.score_composite,
+                        decision = EXCLUDED.decision,
+                        decision_reason = EXCLUDED.decision_reason,
+                        has_contradiction = EXCLUDED.has_contradiction,
+                        contradictions_json = EXCLUDED.contradictions_json,
+                        scoring_method = EXCLUDED.scoring_method
+                    """,
+                    cid,
+                    region,
+                    scores.get("builder_insight", 0),
+                    scores.get("pattern_novelty", 0),
+                    scores.get("gtm_uniqueness", 0),
+                    scores.get("evidence_quality", 0),
+                    scores.get("composite", 0.0),
+                    cluster.gating_decision,
+                    cluster.gating_reason or "",
+                    bool(
+                        cluster.memory_result
+                        and cluster.memory_result.has_contradictions
+                    ),
+                    json.dumps(
+                        [
+                            {
+                                "fact_key": fc.claim.fact_key,
+                                "new_value": fc.claim.fact_value,
+                                "old_value": fc.existing_value,
+                            }
+                            for fc in (
+                                cluster.memory_result.fact_comparisons
+                                if cluster.memory_result
+                                else []
+                            )
+                            if fc.status == "contradiction"
+                        ]
+                    ),
+                    "heuristic",
+                )
+                # Also update heuristic_scores_json on news_item_extractions
+                await conn.execute(
+                    """
+                    UPDATE news_item_extractions
+                    SET heuristic_scores_json = $2::jsonb,
+                        updated_at = NOW()
+                    WHERE cluster_id = $1::uuid
+                    """,
+                    cid,
+                    json.dumps(scores),
+                )
+                persisted += 1
+            except Exception as exc:
+                print(f"[gating:{region}] Decision persist failed for {cluster.cluster_key}: {exc}")
+
+        return persisted
+
     async def _persist_clusters(self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster]) -> Dict[str, str]:
         # Build map from raw item external keys to IDs for linking.
         raw_rows = await conn.fetch("SELECT id::text, source_id::text, external_id FROM news_items_raw")
@@ -3808,7 +4060,20 @@ class DailyNewsIngestor:
                     "turkey": memory_stats_turkey,
                 }
 
-                await self._enrich_clusters_with_llm(clusters)
+                # --- Scoring + gating: heuristic filter (no LLM) ---
+                gating_stats_global = await self._run_scoring_and_gating(conn, clusters, region="global")
+                gating_stats_turkey = await self._run_scoring_and_gating(conn, turkey_clusters, region="turkey")
+                gating_stats = {
+                    "global": gating_stats_global,
+                    "turkey": gating_stats_turkey,
+                }
+
+                # Only enrich publish + borderline clusters with LLM
+                llm_candidates = [
+                    c for c in clusters
+                    if c.gating_decision in ("publish", "borderline", None)
+                ]
+                await self._enrich_clusters_with_llm(llm_candidates)
                 images_enriched = await self._enrich_missing_images(conn, clusters)
                 cluster_ids = await self._persist_clusters(conn, clusters)
 
@@ -3816,6 +4081,11 @@ class DailyNewsIngestor:
                 mem_facts_global = await self._persist_memory_results(conn, clusters, cluster_ids, region="global")
                 mem_facts_turkey = await self._persist_memory_results(conn, turkey_clusters, cluster_ids, region="turkey")
                 memory_stats["facts_written"] = mem_facts_global + mem_facts_turkey
+
+                # Persist gating decisions per-region
+                gating_persisted_global = await self._persist_gating_decisions(conn, clusters, cluster_ids, region="global")
+                gating_persisted_turkey = await self._persist_gating_decisions(conn, turkey_clusters, cluster_ids, region="turkey")
+                gating_stats["decisions_persisted"] = gating_persisted_global + gating_persisted_turkey
 
                 global_stats = await self._persist_edition(
                     conn,
@@ -3840,6 +4110,7 @@ class DailyNewsIngestor:
                     },
                     "llm": dict(self._llm_metrics),
                     "memory": memory_stats,
+                    "gating": gating_stats,
                 }
 
                 result = {

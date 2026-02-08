@@ -1,6 +1,8 @@
 """Memory-gated editorial intelligence for the news pipeline.
 
 Phase 1: Entity linking, heuristic fact extraction, and memory store.
+Phase 2: Pattern matching, GTM classification, heuristic scoring, and gating.
+
 Inserted between _cluster_items() and _enrich_clusters_with_llm() in news_ingest.py.
 
 Region-aware: Turkey memory reads global + turkey facts (one-way merge),
@@ -288,6 +290,33 @@ class EntityIndex:
         if best_hit and best_score >= threshold:
             return best_name, best_score, best_hit
         return None
+
+    async def get_entity_profile(
+        self, conn: "asyncpg.Connection", entity_name: str, region: str = "global"
+    ) -> Dict[str, Any]:
+        """Return structured profile of known facts for an entity.
+
+        Used to feed entity context into LLM prompts.
+        """
+        if region == "turkey":
+            region_filter = "AND region IN ('global', 'turkey')"
+        else:
+            region_filter = "AND region = 'global'"
+
+        rows = await conn.fetch(
+            f"""SELECT fact_key, fact_value, fact_confidence, confirmation_count,
+                       first_seen_at, last_confirmed_at
+                FROM news_entity_facts
+                WHERE LOWER(entity_name) = LOWER($1) AND is_current = TRUE {region_filter}
+                ORDER BY last_confirmed_at DESC""",
+            entity_name,
+        )
+        return {
+            "entity_name": entity_name,
+            "facts": {row["fact_key"]: row["fact_value"] for row in rows},
+            "confidence": {row["fact_key"]: float(row["fact_confidence"]) for row in rows},
+            "confirmations": {row["fact_key"]: int(row["confirmation_count"]) for row in rows},
+        }
 
     @staticmethod
     def _extract_domain(url: str) -> str:
@@ -979,3 +1008,756 @@ class MemoryGate:
     @property
     def stats(self) -> Dict[str, Any]:
         return dict(self._stats)
+
+
+# ---------------------------------------------------------------------------
+# PatternMatcher — keyword-based build-pattern matching (zero LLM)
+# ---------------------------------------------------------------------------
+
+# Keyword anchors for each canonical pattern.
+# Match is computed as keyword overlap score (0-1).
+_PATTERN_KEYWORDS: Dict[str, Tuple[str, ...]] = {
+    "Agentic Architectures": (
+        "agent", "agentic", "autonomous", "multi-agent", "tool-use",
+        "function calling", "tool calling", "agent framework",
+    ),
+    "Vertical Data Moats": (
+        "proprietary data", "data moat", "vertical data", "domain-specific data",
+        "exclusive dataset", "data advantage",
+    ),
+    "Micro-model Meshes": (
+        "micro-model", "small model", "specialized model", "distill",
+        "model ensemble", "mixture of experts", "moe",
+    ),
+    "Continuous-learning Flywheels": (
+        "continuous learning", "online learning", "reinforcement",
+        "feedback loop", "self-improving",
+    ),
+    "RAG (Retrieval-Augmented Generation)": (
+        "rag", "retrieval augmented", "retrieval-augmented", "vector search",
+        "vector database", "embedding search", "knowledge retrieval",
+    ),
+    "Knowledge Graphs": (
+        "knowledge graph", "ontology", "graph database", "neo4j",
+        "graph-based", "entity graph",
+    ),
+    "Natural-Language-to-Code": (
+        "code generation", "nl-to-code", "copilot", "code assistant",
+        "code completion", "code editor", "ai ide", "pair programmer",
+    ),
+    "Guardrail-as-LLM": (
+        "guardrail", "safety filter", "content filter", "moderation",
+        "output filter", "hallucination detection",
+    ),
+    "Fine-tuned Models": (
+        "fine-tune", "fine-tuning", "finetune", "lora", "qlora",
+        "adapter", "peft", "custom model",
+    ),
+    "Compound AI Systems": (
+        "compound ai", "multi-model", "pipeline", "orchestrat",
+        "chain", "multi-step", "workflow",
+    ),
+    "EvalOps": (
+        "evaluation", "eval", "benchmark", "testing llm",
+        "eval framework", "quality assurance",
+    ),
+    "LLMOps": (
+        "llmops", "model monitoring", "prompt management", "model serving",
+        "model deployment", "inference serving",
+    ),
+    "LLM Security": (
+        "llm security", "prompt injection", "jailbreak", "red team",
+        "adversarial", "ai safety", "alignment",
+    ),
+    "Inference Optimization": (
+        "inference", "quantiz", "pruning", "onnx", "tensorrt",
+        "vllm", "speculative decoding", "kv cache",
+    ),
+    "Data Flywheels": (
+        "data flywheel", "user data", "feedback data",
+        "data network effect",
+    ),
+    "Model Routing": (
+        "model routing", "model gateway", "load balancing",
+        "fallback", "model selection", "router",
+    ),
+    "Prompt Engineering": (
+        "prompt engineer", "prompt template", "chain of thought",
+        "few-shot", "prompt optimization",
+    ),
+    "Hybrid Search": (
+        "hybrid search", "semantic search", "keyword search",
+        "bm25", "full-text search",
+    ),
+    "Active Learning": (
+        "active learning", "human-in-the-loop", "hitl",
+        "annotation", "labeling",
+    ),
+    "Synthetic Data Generation": (
+        "synthetic data", "data generation", "data augment",
+        "artificial data",
+    ),
+}
+
+# Category mapping for canonical patterns.
+_PATTERN_CATEGORIES: Dict[str, str] = {
+    "Agentic Architectures": "Model Architecture",
+    "Vertical Data Moats": "Data Strategy",
+    "Micro-model Meshes": "Model Architecture",
+    "Continuous-learning Flywheels": "Learning & Improvement",
+    "RAG (Retrieval-Augmented Generation)": "Retrieval & Knowledge",
+    "Knowledge Graphs": "Retrieval & Knowledge",
+    "Natural-Language-to-Code": "Compound AI Systems",
+    "Guardrail-as-LLM": "Safety & Trust",
+    "Fine-tuned Models": "Model Architecture",
+    "Compound AI Systems": "Compound AI Systems",
+    "EvalOps": "Evaluation & Quality",
+    "LLMOps": "Operations & Infrastructure",
+    "LLM Security": "Safety & Trust",
+    "Inference Optimization": "Operations & Infrastructure",
+    "Data Flywheels": "Data Strategy",
+    "Model Routing": "Operations & Infrastructure",
+    "Prompt Engineering": "Operations & Infrastructure",
+    "Hybrid Search": "Retrieval & Knowledge",
+    "Active Learning": "Learning & Improvement",
+    "Synthetic Data Generation": "Data Strategy",
+}
+
+
+def _text_contains(text: str, needle: str) -> bool:
+    """Check if text contains a keyword, with word-boundary awareness for short needles."""
+    if len(needle) <= 3:
+        return bool(re.search(r"\b" + re.escape(needle) + r"\b", text, re.IGNORECASE))
+    return needle.lower() in text
+
+
+class PatternMatcher:
+    """Matches cluster text against known build patterns (zero LLM cost).
+
+    Loads from `news_pattern_library` table and uses keyword overlap scoring.
+    Can seed the library with canonical patterns from PatternRegistry.
+    """
+
+    def __init__(self) -> None:
+        # pattern_name_lower -> {id, pattern_name, category, mention_count, canonical}
+        self._db_patterns: Dict[str, Dict[str, Any]] = {}
+        self._loaded = False
+
+    async def load(self, conn: "asyncpg.Connection", region: str = "global") -> None:
+        """Load pattern library from DB."""
+        if region == "turkey":
+            region_filter = "region IN ('global', 'turkey')"
+        else:
+            region_filter = "region = 'global'"
+
+        rows = await conn.fetch(
+            f"""SELECT id::text, pattern_name, pattern_category, canonical,
+                       mention_count, last_seen_at
+                FROM news_pattern_library
+                WHERE {region_filter}"""
+        )
+        self._db_patterns.clear()
+        for row in rows:
+            self._db_patterns[row["pattern_name"].lower()] = {
+                "id": row["id"],
+                "pattern_name": row["pattern_name"],
+                "category": row["pattern_category"],
+                "mention_count": row["mention_count"] or 0,
+                "canonical": row["canonical"],
+            }
+        self._loaded = True
+        logger.info("PatternMatcher loaded (%s): %d patterns", region, len(self._db_patterns))
+
+    def match(
+        self, title: str, summary: str, topic_tags: Sequence[str]
+    ) -> List[Tuple[str, float]]:
+        """Return (pattern_name, match_score) for patterns matching the text.
+
+        Uses keyword overlap scoring: score = matched_keywords / total_keywords.
+        Returns patterns with score >= 0.25 (at least 2 keywords for most patterns).
+        """
+        text = f"{title} {summary}".lower()
+        tag_set = {t.lower() for t in topic_tags}
+        matches: List[Tuple[str, float]] = []
+
+        for pattern_name, keywords in _PATTERN_KEYWORDS.items():
+            matched = sum(1 for kw in keywords if _text_contains(text, kw))
+            # Bonus for topic_tag matches
+            pattern_tokens = {t.lower() for t in pattern_name.split() if len(t) > 2}
+            tag_overlap = len(tag_set & pattern_tokens)
+            total = len(keywords)
+            score = (matched + tag_overlap * 0.5) / total if total else 0
+
+            if score >= 0.25:
+                matches.append((pattern_name, round(score, 3)))
+
+        matches.sort(key=lambda x: x[1], reverse=True)
+        return matches
+
+    def get_novelty_score(self, pattern_name: str) -> int:
+        """Return novelty score (0-5) based on mention_count in the library."""
+        db_entry = self._db_patterns.get(pattern_name.lower())
+        if not db_entry:
+            return 5  # Never seen in library
+        count = db_entry["mention_count"]
+        if count < 3:
+            return 4  # Emerging
+        if count <= 10:
+            return 3  # Growing
+        if count <= 30:
+            return 2  # Established
+        return 1  # Well-known
+
+    async def update_counts(
+        self,
+        conn: "asyncpg.Connection",
+        matches: Sequence[Tuple[str, float]],
+        cluster_id: str,
+        region: str = "global",
+    ) -> None:
+        """Increment mention_count and append cluster_id to example_cluster_ids."""
+        for pattern_name, _score in matches:
+            db_entry = self._db_patterns.get(pattern_name.lower())
+            if db_entry:
+                await conn.execute(
+                    """
+                    UPDATE news_pattern_library
+                    SET mention_count = mention_count + 1,
+                        last_seen_at = NOW(),
+                        example_cluster_ids = (
+                            SELECT ARRAY(SELECT UNNEST(example_cluster_ids) UNION SELECT $2::uuid)
+                        )[:10],
+                        updated_at = NOW()
+                    WHERE id = $1::uuid
+                    """,
+                    db_entry["id"],
+                    cluster_id,
+                )
+            else:
+                # New pattern discovered — insert it
+                await conn.execute(
+                    """
+                    INSERT INTO news_pattern_library (
+                        pattern_name, pattern_category, canonical,
+                        mention_count, example_cluster_ids, region, last_seen_at
+                    ) VALUES ($1, $2, FALSE, 1, ARRAY[$3::uuid], $4, NOW())
+                    ON CONFLICT (pattern_name, region) DO UPDATE
+                    SET mention_count = news_pattern_library.mention_count + 1,
+                        last_seen_at = NOW(),
+                        example_cluster_ids = (
+                            SELECT ARRAY(SELECT UNNEST(news_pattern_library.example_cluster_ids) UNION SELECT $3::uuid)
+                        )[:10],
+                        updated_at = NOW()
+                    """,
+                    pattern_name,
+                    _PATTERN_CATEGORIES.get(pattern_name),
+                    cluster_id,
+                    region,
+                )
+
+    async def seed_canonical_patterns(self, conn: "asyncpg.Connection", region: str = "global") -> int:
+        """Seed news_pattern_library with the 20 canonical patterns. Returns count inserted."""
+        count = 0
+        for name in _PATTERN_KEYWORDS:
+            category = _PATTERN_CATEGORIES.get(name)
+            result = await conn.execute(
+                """
+                INSERT INTO news_pattern_library (
+                    pattern_name, pattern_category, canonical, mention_count, region
+                ) VALUES ($1, $2, TRUE, 0, $3)
+                ON CONFLICT (pattern_name, region) DO NOTHING
+                """,
+                name, category, region,
+            )
+            if result and "INSERT" in result:
+                count += 1
+        logger.info("Seeded %d canonical patterns for region=%s", count, region)
+        return count
+
+
+# ---------------------------------------------------------------------------
+# GTMClassifier — keyword-based go-to-market classification (zero LLM)
+# ---------------------------------------------------------------------------
+
+# Keyword anchors for GTM tags. Each tag maps to identifying keywords.
+_GTM_KEYWORDS: Dict[str, Tuple[str, ...]] = {
+    # developer-platform
+    "api-first": ("api", "endpoint", "rest api", "graphql", "webhook"),
+    "sdk": ("sdk", "client library", "developer kit"),
+    "cli-tool": ("cli", "command line", "terminal"),
+    "open-source-core": ("open source", "open-source", "github", "apache license", "mit license", "oss"),
+    "developer-marketplace": ("plugin", "extension", "app store", "marketplace"),
+    # enterprise-saas
+    "vertical-saas": ("vertical", "industry-specific", "healthcare ai", "legal ai", "fintech ai"),
+    "horizontal-platform": ("platform", "all-in-one", "suite"),
+    "usage-based": ("usage-based", "pay-per-use", "metered", "credits", "per token"),
+    "seat-based": ("per seat", "per user", "team plan", "enterprise plan"),
+    # infrastructure
+    "managed-service": ("managed", "fully-managed", "serverless", "hosted"),
+    "self-hosted": ("self-hosted", "on-premise", "on-prem", "docker", "helm"),
+    "edge-deployment": ("edge", "on-device", "mobile inference", "local model"),
+    "cloud-native": ("cloud-native", "kubernetes", "k8s", "aws", "gcp", "azure"),
+    # marketplace
+    "two-sided-marketplace": ("marketplace", "buyer", "seller", "listing"),
+    "data-marketplace": ("data marketplace", "dataset", "data exchange"),
+    "model-marketplace": ("model hub", "model marketplace", "hugging face"),
+    # embedded-ai
+    "copilot": ("copilot", "assistant", "co-pilot", "pair programming"),
+    "workflow-automation": ("workflow", "automation", "no-code", "low-code", "automate"),
+    "decision-support": ("decision support", "recommendation", "advisory"),
+    # consumer
+    "freemium": ("free tier", "freemium", "free plan", "starter"),
+    "subscription": ("subscription", "monthly plan", "annual plan"),
+}
+
+# Parent category mapping.
+_GTM_PARENT: Dict[str, str] = {
+    "api-first": "developer-platform",
+    "sdk": "developer-platform",
+    "cli-tool": "developer-platform",
+    "open-source-core": "developer-platform",
+    "developer-marketplace": "developer-platform",
+    "vertical-saas": "enterprise-saas",
+    "horizontal-platform": "enterprise-saas",
+    "usage-based": "enterprise-saas",
+    "seat-based": "enterprise-saas",
+    "managed-service": "infrastructure",
+    "self-hosted": "infrastructure",
+    "edge-deployment": "infrastructure",
+    "cloud-native": "infrastructure",
+    "two-sided-marketplace": "marketplace",
+    "data-marketplace": "marketplace",
+    "model-marketplace": "marketplace",
+    "copilot": "embedded-ai",
+    "workflow-automation": "embedded-ai",
+    "decision-support": "embedded-ai",
+    "freemium": "consumer",
+    "subscription": "consumer",
+}
+
+# Delivery model keywords.
+_DELIVERY_KEYWORDS: Dict[str, Tuple[str, ...]] = {
+    "api": ("api", "endpoint", "rest", "graphql"),
+    "saas": ("saas", "cloud", "web app", "dashboard"),
+    "marketplace": ("marketplace", "app store"),
+    "open-source": ("open source", "open-source", "github"),
+    "embedded": ("embedded", "sdk", "library", "widget"),
+    "managed": ("managed service", "fully managed", "serverless"),
+}
+
+
+class GTMClassifier:
+    """Classify cluster GTM model and delivery approach from text signals (zero LLM cost)."""
+
+    def __init__(self) -> None:
+        # tag -> {id, mention_count}
+        self._db_taxonomy: Dict[str, Dict[str, Any]] = {}
+        self._loaded = False
+
+    async def load(self, conn: "asyncpg.Connection", region: str = "global") -> None:
+        """Load GTM taxonomy from DB."""
+        if region == "turkey":
+            region_filter = "region IN ('global', 'turkey')"
+        else:
+            region_filter = "region = 'global'"
+
+        rows = await conn.fetch(
+            f"""SELECT id::text, tag, parent_tag, mention_count
+                FROM news_gtm_taxonomy WHERE {region_filter}"""
+        )
+        self._db_taxonomy.clear()
+        for row in rows:
+            self._db_taxonomy[row["tag"]] = {
+                "id": row["id"],
+                "parent_tag": row["parent_tag"],
+                "mention_count": row["mention_count"] or 0,
+            }
+        self._loaded = True
+        logger.info("GTMClassifier loaded (%s): %d tags", region, len(self._db_taxonomy))
+
+    def classify(self, title: str, summary: str) -> Tuple[List[str], Optional[str]]:
+        """Classify cluster into GTM tags and delivery model.
+
+        Returns: (list of matching GTM tags, delivery_model or None).
+        """
+        text = f"{title} {summary}".lower()
+        tags: List[str] = []
+
+        for tag, keywords in _GTM_KEYWORDS.items():
+            if any(_text_contains(text, kw) for kw in keywords):
+                tags.append(tag)
+
+        # Delivery model
+        delivery_model: Optional[str] = None
+        best_delivery_score = 0
+        for model, keywords in _DELIVERY_KEYWORDS.items():
+            score = sum(1 for kw in keywords if _text_contains(text, kw))
+            if score > best_delivery_score:
+                best_delivery_score = score
+                delivery_model = model
+
+        return tags, delivery_model
+
+    def get_uniqueness_score(self, tags: Sequence[str]) -> int:
+        """Return GTM uniqueness score (0-5) based on tag novelty."""
+        if not tags:
+            return 0
+
+        best = 1  # At least some GTM signal
+        for tag in tags:
+            db_entry = self._db_taxonomy.get(tag)
+            if not db_entry:
+                best = max(best, 4)  # Novel tag
+            elif db_entry["mention_count"] < 5:
+                best = max(best, 3)
+            elif db_entry["mention_count"] < 20:
+                best = max(best, 2)
+
+        # Multi-model GTM bonus
+        if len(tags) >= 3:
+            best = min(5, best + 1)
+
+        return min(5, best)
+
+    async def update_counts(
+        self,
+        conn: "asyncpg.Connection",
+        tags: Sequence[str],
+        region: str = "global",
+    ) -> None:
+        """Increment mention_count for matched tags."""
+        for tag in tags:
+            db_entry = self._db_taxonomy.get(tag)
+            if db_entry:
+                await conn.execute(
+                    "UPDATE news_gtm_taxonomy SET mention_count = mention_count + 1, updated_at = NOW() WHERE id = $1::uuid",
+                    db_entry["id"],
+                )
+            else:
+                parent = _GTM_PARENT.get(tag)
+                await conn.execute(
+                    """
+                    INSERT INTO news_gtm_taxonomy (tag, parent_tag, mention_count, region)
+                    VALUES ($1, $2, 1, $3)
+                    ON CONFLICT (tag, region) DO UPDATE
+                    SET mention_count = news_gtm_taxonomy.mention_count + 1, updated_at = NOW()
+                    """,
+                    tag, parent, region,
+                )
+
+    async def seed_taxonomy(self, conn: "asyncpg.Connection", region: str = "global") -> int:
+        """Seed news_gtm_taxonomy with the initial taxonomy. Returns count inserted."""
+        count = 0
+        for tag, parent in _GTM_PARENT.items():
+            result = await conn.execute(
+                """
+                INSERT INTO news_gtm_taxonomy (tag, parent_tag, mention_count, region)
+                VALUES ($1, $2, 0, $3)
+                ON CONFLICT (tag, region) DO NOTHING
+                """,
+                tag, parent, region,
+            )
+            if result and "INSERT" in result:
+                count += 1
+        # Also insert parent categories
+        parents = set(_GTM_PARENT.values())
+        for parent in parents:
+            result = await conn.execute(
+                """
+                INSERT INTO news_gtm_taxonomy (tag, parent_tag, mention_count, region)
+                VALUES ($1, NULL, 0, $2)
+                ON CONFLICT (tag, region) DO NOTHING
+                """,
+                parent, region,
+            )
+            if result and "INSERT" in result:
+                count += 1
+        logger.info("Seeded %d GTM taxonomy tags for region=%s", count, region)
+        return count
+
+
+# ---------------------------------------------------------------------------
+# HeuristicScorer — 4-dimension scoring rubric (zero LLM cost)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class GatingScores:
+    """Scores from the heuristic scorer."""
+    builder_insight: int = 0
+    pattern_novelty: int = 0
+    gtm_uniqueness: int = 0
+    evidence_quality: int = 0
+    composite: float = 0.0
+    boosts: Dict[str, float] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "builder_insight": self.builder_insight,
+            "pattern_novelty": self.pattern_novelty,
+            "gtm_uniqueness": self.gtm_uniqueness,
+            "evidence_quality": self.evidence_quality,
+            "composite": round(self.composite, 3),
+            "boosts": self.boosts,
+        }
+
+
+class HeuristicScorer:
+    """Compute 4-dimension scores for a cluster using heuristics only.
+
+    Scores:
+    - Builder Insight (BIS): 0-5
+    - Pattern Novelty (PNS): 0-5
+    - GTM Uniqueness (GUS): 0-5
+    - Evidence Quality (EQS): 0-5
+    - Composite: weighted blend + thesis boosts
+    """
+
+    # Composite weights
+    W_BIS = 0.35
+    W_PNS = 0.25
+    W_EQS = 0.25
+    W_GUS = 0.15
+
+    def score(
+        self,
+        *,
+        story_type: str,
+        topic_tags: Sequence[str],
+        source_count: int,
+        trust_score: float,
+        source_credibility: float,
+        memory_result: Optional[MemoryResult],
+        patterns: Sequence[Tuple[str, float]],
+        gtm_tags: Sequence[str],
+        pattern_matcher: PatternMatcher,
+        gtm_classifier: GTMClassifier,
+    ) -> GatingScores:
+        """Compute all scores for a cluster."""
+        bis = self._score_builder_insight(
+            story_type=story_type,
+            topic_tags=topic_tags,
+            memory_result=memory_result,
+            patterns=patterns,
+        )
+        pns = self._score_pattern_novelty(patterns, pattern_matcher)
+        gus = gtm_classifier.get_uniqueness_score(gtm_tags)
+        eqs = self._score_evidence_quality(
+            source_count=source_count,
+            trust_score=trust_score,
+            memory_result=memory_result,
+        )
+
+        # Composite + thesis boosts
+        base = bis * self.W_BIS + pns * self.W_PNS + eqs * self.W_EQS + gus * self.W_GUS
+        boosts: Dict[str, float] = {}
+
+        if memory_result and memory_result.has_contradictions:
+            boosts["contradiction"] = 1.0
+
+        if memory_result:
+            new_on_known = any(
+                fc.status == "new_fact" and fc.claim.entity_name
+                and any(
+                    le.startup_id
+                    for le in memory_result.linked_entities
+                    if le.entity_name.lower() == (fc.claim.entity_name or "").lower()
+                )
+                for fc in memory_result.fact_comparisons
+            )
+            if new_on_known:
+                boosts["new_fact_known_entity"] = 0.5
+
+        if source_credibility >= 0.85:
+            boosts["high_credibility"] = 0.3
+
+        total_boost = min(2.0, sum(boosts.values()))
+        composite = min(5.0, base + total_boost)
+
+        return GatingScores(
+            builder_insight=bis,
+            pattern_novelty=pns,
+            gtm_uniqueness=gus,
+            evidence_quality=eqs,
+            composite=composite,
+            boosts=boosts,
+        )
+
+    def _score_builder_insight(
+        self,
+        *,
+        story_type: str,
+        topic_tags: Sequence[str],
+        memory_result: Optional[MemoryResult],
+        patterns: Sequence[Tuple[str, float]],
+    ) -> int:
+        score = 1  # Baseline: tangential
+        tag_set = {t.lower() for t in topic_tags}
+
+        # Story type signals
+        if story_type == "launch":
+            score += 1
+        if story_type == "funding" and memory_result and any(
+            c.fact_key == "funding_amount" for c in memory_result.extracted_claims
+        ):
+            score += 1
+
+        # Pattern match = actionable insight
+        if patterns:
+            score += 1
+
+        # Concrete claims extracted (not just PR)
+        if memory_result and len(memory_result.extracted_claims) >= 2:
+            score += 1
+
+        # AI tag
+        if "ai" in tag_set or "machine learning" in tag_set:
+            score = max(score, 2)
+
+        return min(5, score)
+
+    def _score_pattern_novelty(
+        self,
+        patterns: Sequence[Tuple[str, float]],
+        pattern_matcher: PatternMatcher,
+    ) -> int:
+        if not patterns:
+            return 0
+        return max(pattern_matcher.get_novelty_score(name) for name, _ in patterns)
+
+    def _score_evidence_quality(
+        self,
+        *,
+        source_count: int,
+        trust_score: float,
+        memory_result: Optional[MemoryResult],
+    ) -> int:
+        score = 0
+
+        # Source diversity
+        if source_count >= 1:
+            score += 1
+        if source_count >= 3:
+            score += 1
+
+        # Concrete claims
+        if memory_result:
+            claims = memory_result.extracted_claims
+            if any(c.fact_key == "funding_amount" for c in claims):
+                score += 1
+            if any(c.fact_key == "valuation" for c in claims):
+                score += 1
+
+            # Memory confirmation
+            confirmations = sum(
+                1 for fc in memory_result.fact_comparisons if fc.status == "confirmation"
+            )
+            if confirmations >= 1:
+                score += 1
+
+        # Trust score
+        if trust_score >= 0.75:
+            score += 1
+
+        return min(5, score)
+
+
+# ---------------------------------------------------------------------------
+# GatingRouter — threshold-based bucket routing
+# ---------------------------------------------------------------------------
+
+# Default gating thresholds (tunable via calibration).
+DEFAULT_GATING_THRESHOLDS = {
+    "publish": 3.2,
+    "borderline_low": 2.8,   # borderline band: 2.8 to publish
+    "watchlist": 2.0,
+    "accumulate": 1.0,
+}
+
+
+class GatingRouter:
+    """Route clusters to decision buckets based on composite score.
+
+    Buckets: publish, borderline, watchlist, accumulate, drop.
+    """
+
+    def __init__(self, thresholds: Optional[Dict[str, float]] = None) -> None:
+        self._t = thresholds or dict(DEFAULT_GATING_THRESHOLDS)
+
+    def decide(self, composite: float) -> str:
+        """Return gating decision based on composite score."""
+        if composite >= self._t["publish"]:
+            return "publish"
+        if composite >= self._t["borderline_low"]:
+            return "borderline"
+        if composite >= self._t["watchlist"]:
+            return "watchlist"
+        if composite >= self._t["accumulate"]:
+            return "accumulate"
+        return "drop"
+
+    def decide_with_reason(self, scores: GatingScores) -> Tuple[str, str]:
+        """Return (decision, reason) with a human-readable explanation."""
+        decision = self.decide(scores.composite)
+        parts: List[str] = []
+
+        if scores.builder_insight >= 4:
+            parts.append("high builder insight")
+        if scores.evidence_quality >= 4:
+            parts.append("strong evidence")
+        if scores.pattern_novelty >= 4:
+            parts.append("novel pattern")
+        if scores.boosts.get("contradiction"):
+            parts.append("contradiction detected")
+        if scores.boosts.get("new_fact_known_entity"):
+            parts.append("new fact on known entity")
+
+        if not parts:
+            if decision == "drop":
+                parts.append("low signal across all dimensions")
+            elif decision == "accumulate":
+                parts.append("pattern-only signal")
+            else:
+                parts.append("moderate signal")
+
+        reason = f"{decision}: {', '.join(parts)} (composite={scores.composite:.2f})"
+        return decision, reason
+
+
+# ---------------------------------------------------------------------------
+# Narrative-dup detection
+# ---------------------------------------------------------------------------
+
+def detect_narrative_dup(
+    *,
+    entity_name: Optional[str],
+    story_type: str,
+    published_at: Any,  # datetime
+    existing_decisions: Sequence[Dict[str, Any]],
+) -> Optional[str]:
+    """Check if this cluster is a narrative duplicate of an existing one.
+
+    A narrative dup is: same primary entity + same story_type + within 48h.
+    Returns the cluster_id of the original, or None.
+    """
+    if not entity_name:
+        return None
+
+    entity_lower = entity_name.lower()
+    for existing in existing_decisions:
+        if not existing.get("primary_entity"):
+            continue
+        if existing["primary_entity"].lower() != entity_lower:
+            continue
+        if existing.get("story_type") != story_type:
+            continue
+        existing_time = existing.get("published_at")
+        if existing_time and published_at:
+            try:
+                delta_h = abs((published_at - existing_time).total_seconds()) / 3600
+                if delta_h > 48:
+                    continue
+            except (TypeError, AttributeError):
+                continue
+        return existing.get("cluster_id")
+
+    return None
