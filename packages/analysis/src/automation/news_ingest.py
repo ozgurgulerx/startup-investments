@@ -2699,7 +2699,98 @@ class DailyNewsIngestor:
         clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
         return clusters
 
-    async def _llm_generate_daily_brief(self, *, edition_date: date, clusters: Sequence[StoryCluster]) -> Optional[Dict[str, Any]]:
+    async def _fetch_editorial_memory(
+        self,
+        conn: "asyncpg.Connection",
+        *,
+        edition_date: date,
+        region: str,
+        entity_names: Sequence[str],
+        lookback_days: int = 5,
+    ) -> Dict[str, Any]:
+        """Fetch recent brief themes + entity fact trends for editorial continuity."""
+        memory: Dict[str, Any] = {}
+
+        # --- Recent brief themes (last N days) ---
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT edition_date,
+                       stats_json->'daily_brief'->>'headline' AS headline,
+                       stats_json->'daily_brief'->'themes' AS themes_json
+                FROM news_daily_editions
+                WHERE edition_date < $1
+                  AND region = $2
+                  AND stats_json->'daily_brief'->>'headline' IS NOT NULL
+                ORDER BY edition_date DESC
+                LIMIT $3
+                """,
+                edition_date,
+                region,
+                lookback_days,
+            )
+            if rows:
+                recent_briefs = []
+                for row in rows:
+                    themes: List[str] = []
+                    raw = row["themes_json"]
+                    if raw:
+                        try:
+                            parsed = json.loads(raw) if isinstance(raw, str) else raw
+                            if isinstance(parsed, list):
+                                themes = [str(t) for t in parsed[:4]]
+                        except Exception:
+                            pass
+                    recent_briefs.append({
+                        "date": row["edition_date"].isoformat(),
+                        "headline": _shorten_text(row["headline"] or "", 60),
+                        "themes": themes,
+                    })
+                if recent_briefs:
+                    memory["recent_briefs"] = recent_briefs
+        except Exception as exc:
+            print(f"[news-ingest] editorial memory: recent briefs query failed: {exc}")
+
+        # --- Entity fact trends (for entities in today's clusters) ---
+        if entity_names:
+            try:
+                names_lower = list(dict.fromkeys(
+                    n.strip().lower() for n in entity_names if n.strip()
+                ))[:20]
+                if names_lower:
+                    rows = await conn.fetch(
+                        """
+                        SELECT entity_name, fact_key, fact_value,
+                               confirmation_count,
+                               first_seen_at::date AS first_seen,
+                               last_confirmed_at::date AS last_confirmed
+                        FROM news_entity_facts
+                        WHERE LOWER(entity_name) = ANY($1)
+                          AND is_current = TRUE
+                          AND confirmation_count >= 2
+                        ORDER BY last_confirmed_at DESC
+                        LIMIT 15
+                        """,
+                        names_lower,
+                    )
+                    if rows:
+                        entity_trends = []
+                        for row in rows:
+                            entry = f"{row['entity_name']}: {row['fact_key']}={row['fact_value']}"
+                            if row["confirmation_count"] >= 3:
+                                entry += f" (confirmed {row['confirmation_count']}x)"
+                            days_tracked = (edition_date - row["first_seen"]).days
+                            if days_tracked >= 2:
+                                entry += f" [tracked {days_tracked}d]"
+                            entity_trends.append(_shorten_text(entry, 120))
+                        if entity_trends:
+                            memory["entity_trends"] = entity_trends
+            except Exception as exc:
+                print(f"[news-ingest] editorial memory: entity facts query failed: {exc}")
+
+        return memory
+
+    async def _llm_generate_daily_brief(self, *, conn: Optional["asyncpg.Connection"] = None, edition_date: date, region: str = "global", clusters: Sequence[StoryCluster]) -> Optional[Dict[str, Any]]:
         if not clusters:
             print("[news-ingest] daily brief skipped: no clusters")
             return None
@@ -2727,6 +2818,17 @@ class DailyNewsIngestor:
             "Where available, use key_facts (funding amounts, investors, valuations) "
             "and key_entities to add concrete specifics. "
             "If a story has_conflicting_reports, note the tension. "
+            "\n\n"
+            "EDITORIAL CONTINUITY: If 'editorial_memory' is provided, use it to: "
+            "(1) Note when today's themes continue or break from recent days "
+            "(e.g. 'funding continues in healthcare AI for the third day' "
+            "or 'a shift from yesterday's enterprise focus'). "
+            "(2) Reference entity developments when relevant "
+            "(e.g. 'Company X, first tracked raising $10M, now confirmed at $15M'). "
+            "(3) Highlight emerging multi-day patterns or trend reversals. "
+            "Weave continuity naturally into your summary — do NOT list prior headlines. "
+            "If no editorial_memory is provided, write the brief as a standalone edition. "
+            "\n\n"
             "Return strict JSON with keys: "
             "headline (<=80 chars, thematic — no company names), "
             "summary (<=550 chars, editorial synthesis paragraph), "
@@ -2734,6 +2836,29 @@ class DailyNewsIngestor:
             "themes (array of up to 6 lowercase hyphenated tags). "
             "Be concrete, cite specifics. No prose outside JSON."
         )
+
+        # Collect entity names from today's clusters for memory lookup
+        all_entity_names: List[str] = []
+        for c in top_clusters:
+            all_entity_names.extend(c.entities)
+            mr = getattr(c, "memory_result", None)
+            if mr:
+                for le in (getattr(mr, "linked_entities", None) or []):
+                    if getattr(le, "entity_name", None):
+                        all_entity_names.append(le.entity_name)
+
+        # Fetch editorial memory (recent briefs + entity trends)
+        editorial_memory: Dict[str, Any] = {}
+        if conn is not None:
+            try:
+                editorial_memory = await self._fetch_editorial_memory(
+                    conn,
+                    edition_date=edition_date,
+                    region=region,
+                    entity_names=all_entity_names,
+                )
+            except Exception as exc:
+                print(f"[news-ingest] editorial memory fetch failed (will proceed without): {exc}")
 
         def pick_summary(c: StoryCluster) -> str:
             return normalize_text(c.llm_summary or c.summary or c.rank_reason or "")
@@ -2781,6 +2906,8 @@ class DailyNewsIngestor:
                 for c in top_clusters
             ],
         }
+        if editorial_memory:
+            user_payload["editorial_memory"] = editorial_memory
 
         def parse_daily_brief(parsed: Dict[str, Any], model_label: Optional[str]) -> Optional[Dict[str, Any]]:
             headline = _shorten_text(str(parsed.get("headline") or ""), 80)
@@ -3487,7 +3614,7 @@ class DailyNewsIngestor:
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        daily_brief = await self._llm_generate_daily_brief(edition_date=edition_date, clusters=clusters)
+        daily_brief = await self._llm_generate_daily_brief(conn=conn, edition_date=edition_date, region=region, clusters=clusters)
         if daily_brief:
             stats["daily_brief"] = daily_brief
 
