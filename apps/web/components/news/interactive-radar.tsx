@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Activity, RefreshCcw, Sparkles, ArrowUpRight } from 'lucide-react';
 import type { NewsEdition } from '@startup-intelligence/shared';
 import { CommandBar, type SortMode, type TimeWindow } from './command-bar';
+import { DailyBriefCard } from './daily-brief-card';
 import { KpiStrip } from './kpi-strip';
 import { StoryRow, PinnedStoryCard } from './story-row';
 import { ContextPanel } from './context-panel';
@@ -429,11 +430,18 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         </div>
       </div>
 
-      {/* Master-detail grid */}
+      {/* LLM daily brief */}
+      {edition.brief && activeTopic === 'all' && !searchQuery.trim() && (
+        <div className="border-b border-border/20">
+          <div className="mx-auto max-w-[1680px] px-6">
+            <DailyBriefCard brief={edition.brief} />
+          </div>
+        </div>
+      )}
+
+      {/* Feed (single column) */}
       <div className="flex-1 min-h-0">
-        <div className="mx-auto grid h-full grid-cols-1 lg:grid-cols-12 min-h-0 max-w-[1680px]">
-          {/* Feed (left) */}
-          <div className="lg:col-span-8 overflow-y-auto border-r border-border/20">
+        <div className="mx-auto h-full min-h-0 max-w-[1680px] overflow-y-auto">
           {/* Pinned top impact */}
           {pinnedItem && (
             <div className="px-6 py-4 border-b border-border/20">
@@ -468,31 +476,17 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
           <div className="px-6 py-4 border-t border-border/20 bg-background/40">
             <NewsSubscriptionCard region={region} />
           </div>
-          </div>
-
-          {/* Context panel (right) */}
-          <aside className="lg:col-span-4 overflow-hidden hidden lg:block bg-card/30">
-            <ContextPanel
-              selectedItem={selectedItem}
-              allItems={filteredItems}
-              onClose={() => handleSelectStory(null)}
-              onSelectStory={(id) => handleSelectStory(id)}
-              trendingEntities={trendingEntities}
-              fundingSignal={fundingSignal}
-              corroboratedStories={corroboratedStories}
-            />
-          </aside>
         </div>
       </div>
 
-      {/* Mobile: Story context as sheet overlay */}
+      {/* Story context drawer (overlay) */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50">
           <div
             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
             onClick={() => handleSelectStory(null)}
           />
-          <div className="absolute inset-x-0 bottom-0 top-16 bg-card border-t border-border/30 rounded-t-2xl overflow-hidden animate-slide-in-right">
+          <div className="absolute inset-x-0 bottom-0 top-16 bg-card border-t border-border/30 rounded-t-2xl overflow-hidden animate-slide-in-right lg:inset-y-0 lg:left-auto lg:right-0 lg:top-0 lg:bottom-0 lg:w-[460px] lg:rounded-none lg:border-l lg:border-t-0">
             <ContextPanel
               selectedItem={selectedItem}
               allItems={filteredItems}
