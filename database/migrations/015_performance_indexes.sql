@@ -5,13 +5,24 @@
 -- =============================================================================
 -- 1. Trigram indexes for ILIKE search
 -- =============================================================================
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+DO $$
+BEGIN
+  -- Azure Database for PostgreSQL may not allow-list pg_trgm on all SKUs/configs.
+  -- Keep the migration non-fatal: try, then skip trigram indexes if unavailable.
+  BEGIN
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'pg_trgm extension is not available; skipping trigram indexes';
+  END;
 
-CREATE INDEX IF NOT EXISTS idx_startups_name_trgm
-  ON startups USING GIN (name gin_trgm_ops);
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') THEN
+    CREATE INDEX IF NOT EXISTS idx_startups_name_trgm
+      ON startups USING GIN (name gin_trgm_ops);
 
-CREATE INDEX IF NOT EXISTS idx_startups_description_trgm
-  ON startups USING GIN (description gin_trgm_ops);
+    CREATE INDEX IF NOT EXISTS idx_startups_description_trgm
+      ON startups USING GIN (description gin_trgm_ops);
+  END IF;
+END $$;
 
 -- =============================================================================
 -- 2. Composite indexes for multi-filter dealbook queries

@@ -254,7 +254,7 @@ app.get('/api/v1/startups', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const { page, limit } = parsed.data;
+    const { page, limit, region } = parsed.data;
     const offset = (page - 1) * limit;
 
     const results = await db.select({
@@ -286,11 +286,14 @@ app.get('/api/v1/startups', async (req, res) => {
       updatedAt: startups.updatedAt,
     })
       .from(startups)
+      .where(eq(startups.datasetRegion, region))
       .orderBy(desc(startups.createdAt))
       .limit(limit)
       .offset(offset);
 
-    const [{ total }] = await db.select({ total: count() }).from(startups);
+    const [{ total }] = await db.select({ total: count() })
+      .from(startups)
+      .where(eq(startups.datasetRegion, region));
 
     res.json({
       data: results,
@@ -1622,6 +1625,13 @@ app.post('/api/admin/sync-startups', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
 
+  // Dataset region (global|turkey). Defaults to global for backward compatibility.
+  const rawRegion = String((req.query as any)?.region || '').toLowerCase().trim();
+  if (rawRegion && rawRegion !== 'global' && rawRegion !== 'turkey' && rawRegion !== 'tr') {
+    return res.status(400).json({ error: 'Invalid region (expected global|turkey)' });
+  }
+  const datasetRegion = rawRegion === 'turkey' || rawRegion === 'tr' ? 'turkey' : 'global';
+
   const parseResult = syncRequestSchema.safeParse(req.body);
   if (!parseResult.success) {
     return res.status(400).json({
@@ -1631,7 +1641,7 @@ app.post('/api/admin/sync-startups', async (req, res) => {
   }
   const startupData = parseResult.data.startups;
 
-  console.log(`Syncing ${startupData.length} startups...`);
+  console.log(`Syncing ${startupData.length} startups (region=${datasetRegion})...`);
 
   const results = {
     total: startupData.length,
@@ -1662,7 +1672,10 @@ app.post('/api/admin/sync-startups', async (req, res) => {
   const allSlugs = parsed.map((p: { slug: string }) => p.slug);
   const existingRows = await db.select({ id: startups.id, slug: startups.slug })
     .from(startups)
-    .where(sql`${startups.slug} = ANY(${allSlugs})`);
+    .where(and(
+      eq(startups.datasetRegion, datasetRegion),
+      sql`${startups.slug} = ANY(${allSlugs})`
+    ) as any);
   const existingMap = new Map(existingRows.map(r => [r.slug, r.id]));
 
   // Split into inserts and updates
@@ -1684,13 +1697,13 @@ app.post('/api/admin/sync-startups', async (req, res) => {
         let idx = 1;
         for (const s of chunk) {
           placeholders.push(
-            `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`
+            `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`
           );
-          params.push(s.name, s.slug, s.description, s.website, s.city, s.country, s.continent, s.industry, s.stage);
+          params.push(datasetRegion, s.name, s.slug, s.description, s.website, s.city, s.country, s.continent, s.industry, s.stage);
         }
 
         const insertResult = await pgClient.query(
-          `INSERT INTO startups (name, slug, description, website, headquarters_city, headquarters_country, continent, industry, stage)
+          `INSERT INTO startups (dataset_region, name, slug, description, website, headquarters_city, headquarters_country, continent, industry, stage)
            VALUES ${placeholders.join(', ')}
            RETURNING id, slug`,
           params
@@ -1727,6 +1740,7 @@ app.post('/api/admin/sync-startups', async (req, res) => {
         for (const s of chunk) {
           try {
             const [newStartup] = await db.insert(startups).values({
+              datasetRegion,
               name: s.name, slug: s.slug, description: s.description, website: s.website,
               headquartersCity: s.city, headquartersCountry: s.country, continent: s.continent, industry: s.industry, stage: s.stage,
             }).returning({ id: startups.id });
