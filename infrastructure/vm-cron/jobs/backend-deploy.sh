@@ -132,6 +132,9 @@ if [ -n "$PREVIOUS_IMAGE" ]; then
     echo "  Previous image: $PREVIOUS_IMAGE"
 fi
 kubectl apply -f "$REPO_DIR/infrastructure/kubernetes/api-deployment.yaml"
+# Force pods to pull the new image (kubectl apply alone won't restart when the
+# tag is "latest" and the deployment spec is unchanged).
+kubectl rollout restart deployment/startup-investments-api
 kubectl rollout status deployment/startup-investments-api --timeout=300s
 
 # --- Step 6: Health check ---
