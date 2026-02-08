@@ -38,6 +38,8 @@ export function StoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps)
   const tags = item.topic_tags.slice(0, 2);
   const imageUrl = item.image_url && /^https?:\/\//i.test(item.image_url) ? item.image_url : null;
   const [imageFailed, setImageFailed] = useState(false);
+  const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
+  const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
 
   return (
     <button
@@ -99,7 +101,13 @@ export function StoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps)
 
       {item.builder_takeaway && (
         <p className="mt-2 text-[10px] text-accent-info/80 line-clamp-2 leading-relaxed">
-          Builder: {item.builder_takeaway}
+          Builder
+          {hasBuilderOrigin ? (
+            <span className="ml-1 inline-flex items-center rounded-full border border-accent-info/25 bg-accent-info/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
+              {builderOriginLabel}
+            </span>
+          ) : null}
+          : {item.builder_takeaway}
         </p>
       )}
 
@@ -122,6 +130,8 @@ export function StoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps)
 export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadge(item.story_type);
+  const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
+  const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
 
   return (
     <button
@@ -167,10 +177,15 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryCard
 
       {item.builder_takeaway && (
         <p className="mt-2 text-[10px] text-accent-info/80 line-clamp-1">
-          Builder: {item.builder_takeaway}
+          Builder
+          {hasBuilderOrigin ? (
+            <span className="ml-1 inline-flex items-center rounded-full border border-accent-info/25 bg-accent-info/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
+              {builderOriginLabel}
+            </span>
+          ) : null}
+          : {item.builder_takeaway}
         </p>
       )}
     </button>
   );
 }
-

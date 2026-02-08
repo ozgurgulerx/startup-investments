@@ -20,6 +20,7 @@ export interface NewsItemCard {
   primary_source: string;
   sources: string[];
   builder_takeaway?: string;
+  builder_takeaway_is_llm?: boolean;
   llm_summary?: string;
   llm_model?: string;
   llm_signal_score?: number;
@@ -101,6 +102,7 @@ function isMissingNewsSchemaError(error: unknown): boolean {
 }
 
 function rowToCard(row: Record<string, unknown>): NewsItemCard {
+  const builderTakeawayIsLlm = Boolean(row.llm_model);
   return {
     id: String(row.id || ''),
     title: String(row.title || ''),
@@ -118,7 +120,10 @@ function rowToCard(row: Record<string, unknown>): NewsItemCard {
     source_count: toNumber(row.source_count),
     primary_source: String(row.primary_source || 'Unknown'),
     sources: Array.isArray(row.sources) ? (row.sources as string[]) : [],
-    builder_takeaway: row.builder_takeaway ? String(row.builder_takeaway) : undefined,
+    // Builder view should be LLM-only. If the pipeline didn't produce an LLM output,
+    // don't fall back to heuristic/default text (it becomes repetitive and misleading).
+    builder_takeaway: builderTakeawayIsLlm && row.builder_takeaway ? String(row.builder_takeaway) : undefined,
+    builder_takeaway_is_llm: builderTakeawayIsLlm,
     llm_summary: row.llm_summary ? String(row.llm_summary) : undefined,
     // Don't expose model identifiers in the UI/API response; it's not user-value and
     // it can create confusion when deployments/labels change.

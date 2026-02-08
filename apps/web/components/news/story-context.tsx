@@ -25,6 +25,8 @@ interface StoryContextProps {
 
 export function StoryContext({ item, onClose, relatedStories }: StoryContextProps) {
   const summary = item.llm_summary || item.summary;
+  const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
+  const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
 
   return (
     <div className="h-full flex flex-col">
@@ -82,7 +84,14 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
         {/* Builder takeaway */}
         {item.builder_takeaway && (
           <div className="rounded-lg border border-accent-info/25 bg-accent-info/10 p-3">
-            <p className="text-[10px] uppercase tracking-wider text-accent-info mb-1.5">Builder View</p>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-accent-info">Builder View</p>
+              {hasBuilderOrigin ? (
+                <span className="inline-flex items-center rounded-full border border-accent-info/25 bg-accent-info/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
+                  {builderOriginLabel}
+                </span>
+              ) : null}
+            </div>
             <p className="text-xs text-foreground/90 leading-relaxed">{item.builder_takeaway}</p>
           </div>
         )}

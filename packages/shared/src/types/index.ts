@@ -629,6 +629,7 @@ export interface NewsItemCard {
   primary_source: string;
   sources: string[];
   builder_takeaway?: string;
+  builder_takeaway_is_llm?: boolean;
   llm_summary?: string;
   llm_model?: string;
   llm_signal_score?: number;

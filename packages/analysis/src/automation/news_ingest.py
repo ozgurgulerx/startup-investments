@@ -2681,13 +2681,9 @@ class DailyNewsIngestor:
                         rank_score=rank_score,
                         rank_reason=reason,
                         trust_score=trust_score,
-                        builder_takeaway=build_builder_takeaway(
-                            story_type=classify_story_type(tags),
-                            tags=tags,
-                            title=primary.title,
-                            summary=primary.summary,
-                            entities=entities,
-                        ),
+                        # Builder view is LLM-only. Heuristic generation creates repetitive,
+                        # low-value outputs and should not be persisted.
+                        builder_takeaway=None,
                         llm_summary=cluster.llm_summary,
                         llm_model=cluster.llm_model,
                         llm_signal_score=cluster.llm_signal_score,
@@ -2723,13 +2719,9 @@ class DailyNewsIngestor:
                     rank_score=rank_score,
                     rank_reason=reason,
                     trust_score=trust_score,
-                    builder_takeaway=build_builder_takeaway(
-                        story_type=classify_story_type(tags),
-                        tags=tags,
-                        title=item.title,
-                        summary=item.summary,
-                        entities=extract_entities(item.title),
-                    ),
+                    # Builder view is LLM-only. Heuristic generation creates repetitive,
+                    # low-value outputs and should not be persisted.
+                    builder_takeaway=None,
                     llm_summary=None,
                     llm_model=None,
                     llm_signal_score=None,
@@ -3596,13 +3588,25 @@ class DailyNewsIngestor:
                     rank_score = EXCLUDED.rank_score,
                     rank_reason = EXCLUDED.rank_reason,
                     trust_score = EXCLUDED.trust_score,
-                    builder_takeaway = EXCLUDED.builder_takeaway,
-                    llm_summary = EXCLUDED.llm_summary,
-                    llm_model = EXCLUDED.llm_model,
-                    llm_signal_score = EXCLUDED.llm_signal_score,
-                    llm_confidence_score = EXCLUDED.llm_confidence_score,
-                    llm_topic_tags = EXCLUDED.llm_topic_tags,
-                    llm_story_type = EXCLUDED.llm_story_type
+                    builder_takeaway = CASE
+                        WHEN EXCLUDED.llm_model IS NOT NULL
+                          AND EXCLUDED.builder_takeaway IS NOT NULL
+                          AND LENGTH(BTRIM(EXCLUDED.builder_takeaway)) > 0
+                            THEN EXCLUDED.builder_takeaway
+                        WHEN news_clusters.llm_model IS NOT NULL
+                            THEN news_clusters.builder_takeaway
+                        ELSE NULL
+                    END,
+                    llm_summary = COALESCE(EXCLUDED.llm_summary, news_clusters.llm_summary),
+                    llm_model = COALESCE(EXCLUDED.llm_model, news_clusters.llm_model),
+                    llm_signal_score = COALESCE(EXCLUDED.llm_signal_score, news_clusters.llm_signal_score),
+                    llm_confidence_score = COALESCE(EXCLUDED.llm_confidence_score, news_clusters.llm_confidence_score),
+                    llm_topic_tags = CASE
+                        WHEN array_length(EXCLUDED.llm_topic_tags, 1) IS NULL OR array_length(EXCLUDED.llm_topic_tags, 1) = 0
+                            THEN news_clusters.llm_topic_tags
+                        ELSE EXCLUDED.llm_topic_tags
+                    END,
+                    llm_story_type = COALESCE(EXCLUDED.llm_story_type, news_clusters.llm_story_type)
                 RETURNING id::text
                 """,
                 cluster.cluster_key,
