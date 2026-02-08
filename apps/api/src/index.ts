@@ -1409,7 +1409,7 @@ app.get('/api/v1/news', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const edition = await newsService.getNewsEdition({ region, date: resolvedDate, topic, limit });
     if (!edition) {
@@ -1487,7 +1487,7 @@ app.get('/api/v1/news/topics', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const topics = await newsService.getNewsTopics({ region, date: resolvedDate, limit });
     if (redis) {
@@ -1527,7 +1527,7 @@ app.get('/api/v1/news/archive', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const archive = await newsService.getNewsArchive({ region, limit, offset });
     if (redis) {
@@ -1567,7 +1567,7 @@ app.get('/api/v1/news/sources', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const sources = await newsService.getActiveNewsSources({ region });
     if (redis) {
