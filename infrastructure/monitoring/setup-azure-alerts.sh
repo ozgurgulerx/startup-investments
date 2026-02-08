@@ -85,9 +85,9 @@ WARNINGS=()
 log()  { echo "[$(date -u '+%H:%M:%S')] $*"; }
 info() { log "INFO: $*"; }
 warn() { log "WARN: $*"; WARNINGS+=("$*"); }
-ok()   { log "  OK: $*"; }
-skip() { log "  SKIP: $*"; ((SKIPPED++)); }
-fail() { log "  FAIL: $*"; ((FAILED++)); }
+ok()   { log "  OK: $*"; CREATED=$((CREATED + 1)); }
+skip() { log "  SKIP: $*"; SKIPPED=$((SKIPPED + 1)); }
+fail() { log "  FAIL: $*"; FAILED=$((FAILED + 1)); }
 
 run_az() {
     if $DRY_RUN; then
@@ -128,7 +128,7 @@ else
         --sku PerGB2018 \
         --output none
     ok "Workspace created"
-    ((CREATED++))
+    CREATED=$((CREATED + 1))
 fi
 
 WORKSPACE_ID=$(az monitor log-analytics workspace show \
@@ -170,7 +170,7 @@ else
             --output none
     fi
     ok "App Insights created"
-    ((CREATED++))
+    CREATED=$((CREATED + 1))
 
     if ! $DRY_RUN; then
         APPINSIGHTS_CONN_STR=$(az monitor app-insights component show \
@@ -197,7 +197,7 @@ else
         --action webhook slack-alerts "$SLACK_WEBHOOK" \
         --output none
     ok "Action group created"
-    ((CREATED++))
+    CREATED=$((CREATED + 1))
 fi
 
 ACTION_GROUP_ID=$(az monitor action-group show \
@@ -240,7 +240,7 @@ create_alert() {
         --window-size "$window" \
         --output none 2>/dev/null; then
         ok "$name"
-        ((CREATED++))
+        CREATED=$((CREATED + 1))
     else
         fail "$name"
     fi
