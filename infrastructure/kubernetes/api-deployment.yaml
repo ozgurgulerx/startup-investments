@@ -52,6 +52,12 @@ spec:
                   optional: true
             - name: FRONTEND_URL
               value: "https://buildatlas.net"
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: applicationinsights-connection-string
+                  optional: true
           resources:
             requests:
               memory: "128Mi"

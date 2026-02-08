@@ -103,6 +103,7 @@ kubectl create secret generic startup-investments-secrets \
     --from-literal=admin-key="$ADMIN_KEY" \
     --from-literal=front-door-id="$FRONT_DOOR_ID" \
     --from-literal=redis-url="${REDIS_URL:-}" \
+    --from-literal=applicationinsights-connection-string="${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
 # --- Step 5: Deploy to AKS ---

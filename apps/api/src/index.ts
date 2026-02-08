@@ -1,3 +1,4 @@
+import './telemetry';
 import express, { Express } from 'express';
 import compression from 'compression';
 import cors from 'cors';
