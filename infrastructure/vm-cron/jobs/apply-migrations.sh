@@ -26,6 +26,8 @@ SETS = {
         "012_daily_news.sql",
         "013_news_digest_and_llm_enrichment.sql",
         "014_news_llm_scoring_and_classification.sql",
+        # Regional editions (number may vary across branches; apply whichever exists)
+        "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
     ],
     "crawl": [
@@ -36,9 +38,15 @@ SETS = {
         "012_daily_news.sql",
         "013_news_digest_and_llm_enrichment.sql",
         "014_news_llm_scoring_and_classification.sql",
+        "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
+    ],
+    "performance": [
+        "015_performance_indexes.sql",
+        "019_startup_vertical_taxonomy_indexes.sql",
+        "021_build_patterns_and_funding_indexes.sql",
     ],
 }
 

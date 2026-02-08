@@ -18,6 +18,7 @@ API_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}"
 
 COMMIT_SHA=$(git -C "$REPO_DIR" rev-parse --short HEAD)
 FULL_IMAGE="$ACR_NAME.azurecr.io/$IMAGE_NAME"
+PREVIOUS_IMAGE=""
 
 echo "=== Backend Deploy ==="
 echo "  Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -95,24 +96,35 @@ kubectl create secret generic startup-investments-secrets \
 # --- Step 5: Deploy to AKS ---
 echo ""
 echo "[5/6] Deploying to AKS..."
+# Save previous image for rollback
+PREVIOUS_IMAGE=$(kubectl get deployment startup-investments-api -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+if [ -n "$PREVIOUS_IMAGE" ]; then
+    echo "  Previous image: $PREVIOUS_IMAGE"
+fi
 kubectl apply -f "$REPO_DIR/infrastructure/kubernetes/api-deployment.yaml"
 kubectl rollout status deployment/startup-investments-api --timeout=300s
 
 # --- Step 6: Health check ---
 echo ""
 echo "[6/6] Waiting for API health..."
-for i in $(seq 1 30); do
+for i in $(seq 1 20); do
     STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")
     if [ "$STATUS" = "200" ]; then
         echo "  API is healthy!"
         break
     fi
     echo "  Attempt $i: status=$STATUS, waiting..."
-    sleep 10
+    sleep 5
 done
 
 if [ "$STATUS" != "200" ]; then
     echo "WARNING: API health check did not return 200 (last status: $STATUS)"
+    if [ -n "$PREVIOUS_IMAGE" ]; then
+        echo "  Attempting rollback to: $PREVIOUS_IMAGE"
+        kubectl set image deployment/startup-investments-api api="$PREVIOUS_IMAGE"
+        kubectl rollout status deployment/startup-investments-api --timeout=120s || true
+        echo "  Rollback initiated. Check health manually."
+    fi
 fi
 
 echo ""

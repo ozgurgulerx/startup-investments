@@ -14,12 +14,20 @@ cd "$REPO_DIR"
 # Stash any local changes (shouldn't exist, but safety)
 git stash --include-untracked 2>/dev/null || true
 
+# Record current HEAD so we can diff the full pulled range (not just the last commit).
+OLD_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
+
 # Pull latest
 echo "Pulling latest code..."
 git pull --ff-only origin main
 
-# Check what changed in the last pull
-CHANGED_FILES=$(git diff HEAD~1 --name-only 2>/dev/null || echo "")
+# Check what changed in the pull range (handles multiple commits).
+NEW_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
+if [ -n "$OLD_HEAD" ] && [ -n "$NEW_HEAD" ] && [ "$OLD_HEAD" != "$NEW_HEAD" ]; then
+    CHANGED_FILES=$(git diff --name-only "$OLD_HEAD..$NEW_HEAD" 2>/dev/null || echo "")
+else
+    CHANGED_FILES=""
+fi
 
 # Update Python deps if requirements changed
 if echo "$CHANGED_FILES" | grep -q 'packages/analysis/requirements.txt'; then
@@ -54,16 +62,55 @@ chmod +x "$REPO_DIR/infrastructure/vm-cron/monitoring/"*.sh 2>/dev/null || true
 RUNNER="$REPO_DIR/infrastructure/vm-cron/lib/runner.sh"
 JOBS_DIR="$REPO_DIR/infrastructure/vm-cron/jobs"
 
-# Auto-trigger backend deploy if API code changed
-if echo "$CHANGED_FILES" | grep -qE '^(apps/api/|packages/shared/|infrastructure/kubernetes/)'; then
-    echo "Backend code changed. Triggering backend deploy..."
-    "$RUNNER" backend-deploy 15 "$JOBS_DIR/backend-deploy.sh" || echo "Backend deploy failed (exit $?)"
+# Apply database migrations if new migration files were added
+if echo "$CHANGED_FILES" | grep -qE '^database/migrations/'; then
+    echo "New migrations detected. Applying performance indexes..."
+    bash "$JOBS_DIR/apply-migrations.sh" performance || echo "Migration apply failed (exit $?)"
 fi
 
-# Auto-trigger frontend deploy if web code changed
+# Auto-trigger deploys in parallel if both changed
+DEPLOY_BACKEND=false
+DEPLOY_FRONTEND=false
+
+if echo "$CHANGED_FILES" | grep -qE '^(apps/api/|packages/shared/|infrastructure/kubernetes/)'; then
+    DEPLOY_BACKEND=true
+fi
 if echo "$CHANGED_FILES" | grep -qE '^(apps/web/|packages/shared/)'; then
+    DEPLOY_FRONTEND=true
+fi
+
+BACKEND_PID=""
+FRONTEND_PID=""
+
+if [ "$DEPLOY_BACKEND" = "true" ]; then
+    echo "Backend code changed. Triggering backend deploy..."
+    "$RUNNER" backend-deploy 20 "$JOBS_DIR/backend-deploy.sh" &
+    BACKEND_PID=$!
+fi
+
+if [ "$DEPLOY_FRONTEND" = "true" ]; then
     echo "Frontend code changed. Triggering frontend deploy..."
-    "$RUNNER" frontend-deploy 20 "$JOBS_DIR/frontend-deploy.sh" || echo "Frontend deploy failed (exit $?)"
+    SKIP_PULL=1 "$RUNNER" frontend-deploy 25 "$JOBS_DIR/frontend-deploy.sh" &
+    FRONTEND_PID=$!
+fi
+
+# Wait for background deploys to finish
+DEPLOY_FAILED=false
+if [ -n "$BACKEND_PID" ]; then
+    if ! wait "$BACKEND_PID"; then
+        echo "Backend deploy failed (pid $BACKEND_PID)"
+        DEPLOY_FAILED=true
+    fi
+fi
+if [ -n "$FRONTEND_PID" ]; then
+    if ! wait "$FRONTEND_PID"; then
+        echo "Frontend deploy failed (pid $FRONTEND_PID)"
+        DEPLOY_FAILED=true
+    fi
+fi
+
+if [ "$DEPLOY_FAILED" = "true" ]; then
+    echo "WARNING: One or more deploys failed. Check logs."
 fi
 
 echo "Deploy complete at $(date -u '+%Y-%m-%d %H:%M UTC')"

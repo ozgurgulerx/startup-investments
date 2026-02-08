@@ -12,6 +12,13 @@ REPO_DIR="/opt/buildatlas/startup-analysis"
 WEB_DIR="$REPO_DIR/apps/web"
 WEBAPP_NAME="buildatlas-web"
 
+# Cleanup temp files on exit (success or failure)
+cleanup() {
+    cd "$WEB_DIR" 2>/dev/null || true
+    rm -rf deploy deploy.zip
+}
+trap cleanup EXIT
+
 echo "=== Frontend Deploy ==="
 echo "  Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo ""
@@ -22,15 +29,18 @@ az login --identity --output none 2>/dev/null || true
 echo "  Commit: $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 echo ""
 
-# --- Step 1: Pull latest code ---
-echo "[1/7] Pulling latest code..."
-cd "$REPO_DIR"
-git pull --ff-only origin main
-
-# --- Step 2: Install dependencies ---
-echo ""
-echo "[2/7] Installing dependencies..."
-pnpm install --frozen-lockfile
+# --- Step 1: Pull latest code (skip if deploy.sh already did it) ---
+if [ "${SKIP_PULL:-}" != "1" ]; then
+    echo "[1/7] Pulling latest code..."
+    cd "$REPO_DIR"
+    git pull --ff-only origin main
+    echo ""
+    echo "[2/7] Installing dependencies..."
+    pnpm install --frozen-lockfile
+else
+    echo "[1/7] Skipping pull (already done by deploy.sh)"
+    echo "[2/7] Skipping install (already done by deploy.sh)"
+fi
 
 # --- Step 3: Build Next.js ---
 echo ""
@@ -75,28 +85,44 @@ rm -f deploy/.oryx-manifest.toml
 echo ""
 echo "[5/7] Fixing pnpm symlinks..."
 
+# Build lookup map once (instead of running find per package)
+echo "  Building package lookup map..."
+declare -A PKG_MAP
+while IFS= read -r dir; do
+    # Extract package name from path: .../node_modules/PACKAGE
+    pkg="${dir##*/node_modules/}"
+    if [ -n "$pkg" ] && [ -z "${PKG_MAP[$pkg]:-}" ]; then
+        PKG_MAP["$pkg"]="$dir"
+    fi
+done < <(find deploy/node_modules/.pnpm -type d -path "*/node_modules/*" \
+    ! -path "*/node_modules/.pnpm/*" 2>/dev/null | grep -v '/node_modules/.*node_modules/.*/node_modules/')
+
+# Fallback map from repo root
+declare -A ROOT_PKG_MAP
+while IFS= read -r dir; do
+    pkg="${dir##*/node_modules/}"
+    if [ -n "$pkg" ] && [ -z "${ROOT_PKG_MAP[$pkg]:-}" ]; then
+        ROOT_PKG_MAP["$pkg"]="$dir"
+    fi
+done < <(find "$REPO_DIR/node_modules/.pnpm" -maxdepth 5 -type d -path "*/node_modules/*" \
+    ! -path "*/node_modules/.pnpm/*" 2>/dev/null | grep -v '/node_modules/.*node_modules/.*/node_modules/')
+echo "  Lookup map: ${#PKG_MAP[@]} deploy + ${#ROOT_PKG_MAP[@]} root packages"
+
 fix_package() {
     local PKG=$1
     local PKG_PATH="deploy/node_modules/$PKG"
-    local FORCE=${2:-false}
 
-    if [ ! -e "$PKG_PATH" ] || [ -L "$PKG_PATH" ] || [ "$FORCE" = "true" ]; then
-        rm -rf "$PKG_PATH"
+    rm -rf "$PKG_PATH"
 
-        # Search in standalone .pnpm store
-        local PKG_SRC
-        PKG_SRC=$(find deploy/node_modules/.pnpm -type d -path "*node_modules/$PKG" 2>/dev/null | head -1)
+    local PKG_SRC="${PKG_MAP[$PKG]:-}"
+    if [ -z "$PKG_SRC" ]; then
+        PKG_SRC="${ROOT_PKG_MAP[$PKG]:-}"
+    fi
 
-        # Fallback to project root node_modules
-        if [ -z "$PKG_SRC" ]; then
-            PKG_SRC=$(find "$REPO_DIR/node_modules/.pnpm" -type d -path "*node_modules/$PKG" 2>/dev/null | head -1)
-        fi
-
-        if [ -n "$PKG_SRC" ]; then
-            mkdir -p "$(dirname "$PKG_PATH")"
-            cp -rL "$PKG_SRC" "$PKG_PATH"
-            echo "  Fixed: $PKG"
-        fi
+    if [ -n "$PKG_SRC" ]; then
+        mkdir -p "$(dirname "$PKG_PATH")"
+        cp -rL "$PKG_SRC" "$PKG_PATH"
+        echo "  Fixed: $PKG"
     fi
 }
 
@@ -139,13 +165,12 @@ CRITICAL_PACKAGES=(
 )
 
 for PKG in "${CRITICAL_PACKAGES[@]}"; do
-    fix_package "$PKG" true
+    fix_package "$PKG"
 done
 
-# Recursively fix broken symlinks (up to 5 passes)
+# Fix broken symlinks (up to 3 passes — fewer needed with pre-built map)
 echo "Scanning for broken symlinks..."
-MAX_ITERATIONS=5
-for i in $(seq 1 $MAX_ITERATIONS); do
+for i in 1 2 3; do
     FOUND_BROKEN=0
     while IFS= read -r LINK; do
         if [ -n "$LINK" ] && [ ! -e "$LINK" ]; then
@@ -153,9 +178,9 @@ for i in $(seq 1 $MAX_ITERATIONS); do
             PKG_NAME=$(basename "$LINK")
             rm -f "$LINK"
 
-            PKG_SRC=$(find deploy/node_modules/.pnpm -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+            PKG_SRC="${PKG_MAP[$PKG_NAME]:-}"
             if [ -z "$PKG_SRC" ]; then
-                PKG_SRC=$(find "$REPO_DIR/node_modules/.pnpm" -type d -name "$PKG_NAME" -path "*node_modules/$PKG_NAME" 2>/dev/null | head -1)
+                PKG_SRC="${ROOT_PKG_MAP[$PKG_NAME]:-}"
             fi
 
             if [ -n "$PKG_SRC" ]; then
@@ -224,9 +249,6 @@ az webapp deploy \
     --src-path deploy.zip \
     --type zip \
     --clean true
-
-# Cleanup
-rm -rf deploy deploy.zip
 
 echo ""
 echo "=== Frontend deploy complete ==="
