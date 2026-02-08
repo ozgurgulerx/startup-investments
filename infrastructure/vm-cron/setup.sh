@@ -19,7 +19,7 @@ sudo apt-get install -y -qq \
     software-properties-common curl git jq unzip logrotate \
     build-essential libffi-dev libssl-dev \
     apt-transport-https ca-certificates gnupg lsb-release \
-    flock
+    util-linux zip rsync
 
 # --- Python 3.11 ---
 echo ""

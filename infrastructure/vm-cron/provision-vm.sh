@@ -66,6 +66,14 @@ echo "  Subscription: $SUBSCRIPTION_ID"
 echo ""
 echo "[3/4] Assigning RBAC roles..."
 
+# Resource Group: Reader (needed to discover resources like ACR)
+echo "  - Reader on aistartuptr resource group..."
+az role assignment create \
+    --assignee "$PRINCIPAL_ID" \
+    --role "Reader" \
+    --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP" \
+    --output none 2>/dev/null || echo "    (already assigned)"
+
 # AKS: Cluster User + Contributor (to check state and start cluster)
 echo "  - Azure Kubernetes Service Cluster User Role..."
 az role assignment create \
@@ -112,11 +120,11 @@ az role assignment create \
     --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/rg-startup-analysis/providers/Microsoft.Web/sites/buildatlas-web" \
     --output none 2>/dev/null || echo "    (already assigned)"
 
-# ACR: AcrPush (to build and push Docker images for backend)
-echo "  - AcrPush on ACR (aistartuptr)..."
+# ACR: Contributor (to build images with az acr build and push)
+echo "  - Contributor on ACR (aistartuptr)..."
 az role assignment create \
     --assignee "$PRINCIPAL_ID" \
-    --role "AcrPush" \
+    --role "Contributor" \
     --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/aistartuptr" \
     --output none 2>/dev/null || echo "    (already assigned)"
 
