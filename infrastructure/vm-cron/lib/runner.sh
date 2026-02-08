@@ -141,7 +141,8 @@ slack_url_for_job() {
 if [ $EXIT_CODE -eq 0 ]; then
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] SUCCESS: $JOB_NAME" >> "$LOG_FILE"
 
-    if should_notify_success; then
+    # Deploys are high-signal operational events; always notify on success.
+    if should_notify_success || [ "$JOB_NAME" = "frontend-deploy" ] || [ "$JOB_NAME" = "backend-deploy" ]; then
         SHA_SHORT="$(git_sha_short)"
         SLACK_URL="$(slack_url_for_job)" \
         SLACK_TITLE="Cron success: $JOB_NAME" \
