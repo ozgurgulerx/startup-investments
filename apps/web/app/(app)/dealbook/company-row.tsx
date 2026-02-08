@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { WatchlistButton } from '@/components/ui/watchlist-button';
@@ -24,14 +25,15 @@ interface CompanyRowProps {
   };
 }
 
-export function CompanyRow({ startup }: CompanyRowProps) {
+export const CompanyRow = React.memo(function CompanyRow({ startup }: CompanyRowProps) {
   const searchParams = useSearchParams();
   const region = searchParams.get('region');
 
-  // Get top pattern (max 1)
-  const topPattern = startup.build_patterns
-    ?.slice()
-    .sort((a, b) => b.confidence - a.confidence)[0];
+  // Get pattern with highest confidence
+  const topPattern = startup.build_patterns?.reduce<{ name: string; confidence: number } | undefined>(
+    (best, p) => (!best || p.confidence > best.confidence ? p : best),
+    undefined,
+  );
 
   const verticalLabel = [startup.vertical, startup.sub_vertical, startup.sub_sub_vertical]
     .filter(Boolean)
@@ -107,4 +109,4 @@ export function CompanyRow({ startup }: CompanyRowProps) {
       </div>
     </div>
   );
-}
+});

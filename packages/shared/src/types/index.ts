@@ -421,7 +421,7 @@ export interface StartupAnalysis {
   analyzed_at?: string;
   confidence_score?: number;
   raw_content_analyzed?: number;
-  sources_crawled?: any[];
+  sources_crawled?: number;
 }
 
 // -----------------------------------------------------------------------------

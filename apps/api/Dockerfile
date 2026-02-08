@@ -3,12 +3,13 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files first — layer cached when only source changes
 COPY package*.json ./
 RUN npm install
 
-# Copy source code
-COPY . .
+# Copy source code and build
+COPY tsconfig.json ./
+COPY src/ ./src/
 RUN npm run build
 
 # Production stage

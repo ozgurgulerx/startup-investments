@@ -279,7 +279,7 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
           contentBytes={startup.raw_content_analyzed}
           quoteCount={startup.evidence_quotes?.length}
           analyzedAt={startup.analyzed_at}
-          sources={startup.sources_crawled?.map((s: any) => typeof s === 'string' ? s : s.url)}
+          sources={undefined}
           className="mt-6"
         />
       )}
