@@ -8,13 +8,56 @@
 # Usage:
 #   ./infrastructure/vm-cron/ssh-update-ip.sh            # Update and SSH
 #   ./infrastructure/vm-cron/ssh-update-ip.sh --no-ssh   # Update only
+#   ./infrastructure/vm-cron/ssh-update-ip.sh --ip <x.x.x.x> [--no-ssh]
 set -euo pipefail
 
 RG="aistartuptr"
 VM_NAME="vm-buildatlas-cron"
 RULE_NAME="AllowSSH"
 
-MY_IP="$(curl -s ifconfig.me)"
+NO_SSH=0
+OVERRIDE_IP=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-ssh) NO_SSH=1; shift ;;
+    --ip)
+      OVERRIDE_IP="${2:-}"
+      shift 2
+      ;;
+    *)
+      echo "Unknown arg: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+is_ipv4() {
+  local ip="$1"
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  # Validate 0-255 per octet.
+  IFS='.' read -r a b c d <<<"$ip"
+  for o in "$a" "$b" "$c" "$d"; do
+    [ "$o" -ge 0 ] 2>/dev/null && [ "$o" -le 255 ] 2>/dev/null || return 1
+  done
+  return 0
+}
+
+MY_IP=""
+if [ -n "$OVERRIDE_IP" ]; then
+  if ! is_ipv4 "$OVERRIDE_IP"; then
+    echo "ERROR: invalid --ip value: $OVERRIDE_IP" >&2
+    exit 1
+  fi
+  MY_IP="$OVERRIDE_IP"
+else
+  # Prefer Cloudflare trace (does not rely on external DNS resolvers as heavily).
+  MY_IP="$(curl -fsS --max-time 8 https://1.1.1.1/cdn-cgi/trace 2>/dev/null | awk -F= '$1==\"ip\"{print $2; exit}' || true)"
+  if ! is_ipv4 "$MY_IP"; then
+    MY_IP="$(curl -fsS --max-time 8 https://ifconfig.me/ip 2>/dev/null || true)"
+  fi
+fi
+
 if [ -z "$MY_IP" ]; then
   echo "ERROR: Could not determine public IP"
   exit 1
@@ -106,8 +149,7 @@ echo "Subnet NSG: ${SUBNET_NSG:-none}"
 ensure_rule "$NIC_NSG"
 ensure_rule "$SUBNET_NSG"
 
-if [ "${1:-}" != "--no-ssh" ]; then
+if [ "$NO_SSH" -ne 1 ]; then
   echo "Connecting..."
   ssh buildatlas@"$VM_IP"
 fi
-
