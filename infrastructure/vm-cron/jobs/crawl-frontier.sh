@@ -9,10 +9,9 @@ REPO_DIR="/opt/buildatlas/startup-analysis"
 echo "=== Crawl Frontier ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
-# Browserless is optional for scheduled runs
+# Browserless is optional — worker falls back to HTTP-only crawling
 if [ -z "${BROWSERLESS_ENDPOINT:-}" ] || [ -z "${BROWSERLESS_TOKEN:-}" ]; then
-    echo "SKIP: Missing BROWSERLESS_ENDPOINT or BROWSERLESS_TOKEN"
-    exit 0
+    echo "NOTE: BROWSERLESS_ENDPOINT/TOKEN not set — browser rendering disabled, using HTTP-only"
 fi
 
 # Apply migrations
