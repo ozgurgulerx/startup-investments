@@ -54,6 +54,11 @@ def main() -> int:
     parser.add_argument("--region", default="global", help="Dataset region: global|tr (default: global)")
     parser.add_argument("--limit", type=int, default=0, help="Process only N files (0 = all)")
     parser.add_argument("--only-missing", action="store_true", help="Only process files missing vertical_taxonomy")
+    parser.add_argument(
+        "--only-incomplete",
+        action="store_true",
+        help="Only process files where vertical_taxonomy is missing/empty or lacks primary.vertical_id/vertical_label",
+    )
     parser.add_argument("--max-failures", type=int, default=10, help="Abort after this many classification failures")
     parser.add_argument("--dry-run", action="store_true", help="Compute but do not write files")
     args = parser.parse_args()
@@ -103,8 +108,22 @@ def main() -> int:
             processed += 1
             obj: Dict[str, Any] = json.loads(fp.read_text(encoding="utf-8"))
 
-            has_tax = isinstance(obj.get("vertical_taxonomy"), dict) and bool(obj.get("vertical_taxonomy"))
+            vt = obj.get("vertical_taxonomy")
+            has_tax = isinstance(vt, dict) and bool(vt)
+            primary = vt.get("primary") if isinstance(vt, dict) else {}
+            complete_tax = (
+                isinstance(vt, dict)
+                and bool(vt)
+                and isinstance(primary, dict)
+                and bool(primary)
+                and bool(primary.get("vertical_id"))
+                and bool(primary.get("vertical_label"))
+            )
+
             if args.only_missing and has_tax:
+                skipped += 1
+                continue
+            if args.only_incomplete and complete_tax:
                 skipped += 1
                 continue
 

@@ -151,6 +151,7 @@ Materialization step (required for DB-driven filters):
 - Primary automation:
   - VM cron `sync-data` runs `apply-migrations.sh startups` and then `populate-analysis-data.py` after syncing blob data.
   - GitHub fallback: `.github/workflows/sync-to-database.yml` applies required migrations and runs `populate-analysis-data.py`.
+  - Guardrail: `scripts/check-vertical-taxonomy.py` validates `vertical_taxonomy.primary.vertical_id/label` is present; VM `sync-data` will attempt `scripts/backfill-vertical-taxonomy.py --only-incomplete` and re-check before pushing.
 
 Quick verification (run on the DB):
 - Count rows with taxonomy:

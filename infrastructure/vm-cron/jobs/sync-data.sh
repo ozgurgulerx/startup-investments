@@ -50,6 +50,39 @@ echo "Found $TOTAL changes ($ADDED added, $MODIFIED modified). Syncing..."
 # Step 2: Sync data from blob storage
 "$VENV_DIR/bin/python" -m src.sync.blob_sync --target "$REPO_DIR/apps/web/data" --manifest
 
+# Step 2.25: Validate that the synced analysis_store has vertical_taxonomy populated.
+# If missing/incomplete, attempt an LLM-only backfill (no crawling) and re-check.
+check_taxonomy() {
+    local region="$1"
+    local period_dir="$2"
+    local period="$3"
+
+    if [ -z "$period" ]; then
+        return 0
+    fi
+
+    echo "Checking vertical_taxonomy completeness (region=$region period=$period)..."
+    if "$VENV_DIR/bin/python" "$REPO_DIR/scripts/check-vertical-taxonomy.py" --period "$period" --region "$region"; then
+        return 0
+    fi
+
+    echo "vertical_taxonomy incomplete; attempting backfill (region=$region period=$period)..."
+    "$VENV_DIR/bin/python" "$REPO_DIR/scripts/backfill-vertical-taxonomy.py" --period "$period" --region "$region" --only-incomplete --max-failures 20
+
+    echo "Re-checking vertical_taxonomy (region=$region period=$period)..."
+    "$VENV_DIR/bin/python" "$REPO_DIR/scripts/check-vertical-taxonomy.py" --period "$period" --region "$region"
+}
+
+# Latest global period
+GLOBAL_PERIOD="$(ls -1 "$REPO_DIR/apps/web/data" 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}$' | sort -r | head -n 1 || true)"
+check_taxonomy "global" "$REPO_DIR/apps/web/data" "$GLOBAL_PERIOD"
+
+# Latest Turkey period (optional)
+TR_PERIOD="$(ls -1 "$REPO_DIR/apps/web/data/tr" 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}$' | sort -r | head -n 1 || true)"
+if [ -n "$TR_PERIOD" ]; then
+    check_taxonomy "tr" "$REPO_DIR/apps/web/data/tr" "$TR_PERIOD"
+fi
+
 # Step 2.5: Materialize analysis_store into Postgres for DB-driven Dealbook filters.
 # This makes vertical_taxonomy (and other analysis_data fields) queryable via the backend API.
 if [ -n "${DATABASE_URL:-}" ]; then

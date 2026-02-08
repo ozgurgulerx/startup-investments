@@ -87,6 +87,16 @@ jobs:
           echo "period=$PERIOD" >> $GITHUB_OUTPUT
           echo "Using period: $PERIOD"
 
+      - name: Validate vertical_taxonomy present in analysis_store (global + tr if present)
+        if: github.event.inputs.regenerate_only != 'true'
+        run: |
+          PERIOD="${{ steps.period.outputs.period }}"
+          python3 scripts/check-vertical-taxonomy.py --period "$PERIOD" --region global
+          # Turkey dataset is optional; only validate when folder exists for that period.
+          if [ -d "apps/web/data/tr/$PERIOD/output/analysis_store/base_analyses" ]; then
+            python3 scripts/check-vertical-taxonomy.py --period "$PERIOD" --region tr
+          fi
+
       - name: Check if CSV exists
         id: check_csv
         run: |
