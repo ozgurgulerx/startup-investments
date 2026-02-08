@@ -57,6 +57,16 @@ BEGIN
 END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS news_gtm_taxonomy_tag_region ON news_gtm_taxonomy(tag, region);
 
--- 5. Indexes for decision queries
+-- 5. Widen decision CHECK to include 'borderline'
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'news_item_decisions_decision_check') THEN
+        ALTER TABLE news_item_decisions DROP CONSTRAINT news_item_decisions_decision_check;
+    END IF;
+    ALTER TABLE news_item_decisions ADD CONSTRAINT news_item_decisions_decision_check
+        CHECK (decision IN ('publish', 'borderline', 'watchlist', 'accumulate', 'drop'));
+END $$;
+
+-- 6. Indexes for decision queries
 CREATE INDEX IF NOT EXISTS idx_item_decisions_region_decision
     ON news_item_decisions(region, decision, created_at DESC);
