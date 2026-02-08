@@ -633,6 +633,16 @@ class DailyNewsIngestor:
             or os.getenv("AZURE_OPENAI_DEPLOYMENT")
             or "gpt-4o"
         )
+        # Daily briefs benefit from higher-quality synthesis. Prefer the "reasoning" deployment
+        # (often gpt-5-mini) with low effort, but always fall back to the primary deployment.
+        self.azure_openai_daily_brief_deployment = (
+            os.getenv("AZURE_OPENAI_DAILY_BRIEF_DEPLOYMENT_NAME")
+            or os.getenv("AZURE_OPENAI_REASONING_DEPLOYMENT_NAME")
+            or self.azure_openai_deployment
+        )
+        self.azure_openai_daily_brief_effort = (
+            os.getenv("AZURE_OPENAI_DAILY_BRIEF_EFFORT", "low").strip().lower() or "low"
+        )
         self.llm_enrichment_enabled = os.getenv("NEWS_LLM_ENRICHMENT", "false").lower() in {"1", "true", "yes", "on"}
         self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
         self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "12")))
@@ -1679,33 +1689,70 @@ class DailyNewsIngestor:
         print(f"[news-ingest] generating daily brief for {edition_date} ({len(top_clusters)} clusters)")
 
         if self.azure_client is not None:
-            for with_response_format in (True, False):
-                azure_payload: Dict[str, Any] = {
-                    "model": self.azure_openai_deployment,
-                    "messages": [
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": json.dumps(user_payload)},
-                    ],
-                    "temperature": 0.25,
-                    "max_tokens": 340,
-                }
-                if with_response_format:
-                    azure_payload["response_format"] = {"type": "json_object"}
+            # Prefer responses API when available so we can set reasoning effort.
+            # Fall back to chat.completions for older deployments.
+            preferred_models = []
+            for m in [self.azure_openai_daily_brief_deployment, self.azure_openai_deployment]:
+                if m and m not in preferred_models:
+                    preferred_models.append(m)
 
-                try:
-                    response = await self.azure_client.chat.completions.create(**azure_payload)
-                    content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
-                    parsed = json.loads(content) if isinstance(content, str) else {}
-                    brief = parse_daily_brief(parsed, f"azure:{self.azure_openai_deployment}")
-                    if brief is not None:
-                        print(f"[news-ingest] daily brief generated via Azure: \"{brief.get('headline', '')}\"")
-                        return brief
-                    else:
+            if hasattr(self.azure_client, "responses"):
+                for model_name in preferred_models:
+                    try:
+                        response = await self.azure_client.responses.create(
+                            model=model_name,
+                            input=[
+                                {"role": "system", "content": prompt},
+                                {"role": "user", "content": json.dumps(user_payload)},
+                            ],
+                            reasoning={"effort": self.azure_openai_daily_brief_effort},
+                            temperature=0.25,
+                            max_output_tokens=380,
+                            text={"format": {"type": "json_object"}},
+                        )
+                        # openai-python returns helpers in newer versions; be defensive.
+                        content = getattr(response, "output_text", None)
+                        if callable(content):
+                            content = content()
+                        if not content:
+                            # Fallback: attempt to read common dict-like shapes.
+                            content = getattr(response, "text", None) or "{}"
+                        parsed = json.loads(content) if isinstance(content, str) else {}
+                        brief = parse_daily_brief(parsed, f"azure:{model_name}")
+                        if brief is not None:
+                            print(f"[news-ingest] daily brief generated via Azure (responses): \"{brief.get('headline', '')}\"")
+                            return brief
+                    except Exception as exc:
+                        print(f"[news-ingest] Azure daily brief failed (responses model={model_name}): {exc}")
+
+            for model_name in preferred_models:
+                for with_response_format in (True, False):
+                    azure_payload: Dict[str, Any] = {
+                        "model": model_name,
+                        "messages": [
+                            {"role": "system", "content": prompt},
+                            {"role": "user", "content": json.dumps(user_payload)},
+                        ],
+                        "temperature": 0.25,
+                        "max_tokens": 340,
+                    }
+                    if with_response_format:
+                        azure_payload["response_format"] = {"type": "json_object"}
+
+                    try:
+                        response = await self.azure_client.chat.completions.create(**azure_payload)
+                        content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
+                        parsed = json.loads(content) if isinstance(content, str) else {}
+                        brief = parse_daily_brief(parsed, f"azure:{model_name}")
+                        if brief is not None:
+                            print(f"[news-ingest] daily brief generated via Azure: \"{brief.get('headline', '')}\"")
+                            return brief
+                        else:
+                            mode = "json_object" if with_response_format else "no_response_format"
+                            print(f"[news-ingest] Azure daily brief parse returned None ({mode} model={model_name}), content: {content[:200]}")
+                    except Exception as exc:
                         mode = "json_object" if with_response_format else "no_response_format"
-                        print(f"[news-ingest] Azure daily brief parse returned None ({mode}), content: {content[:200]}")
-                except Exception as exc:
-                    mode = "json_object" if with_response_format else "no_response_format"
-                    print(f"[news-ingest] Azure daily brief failed ({mode}): {exc}")
+                        print(f"[news-ingest] Azure daily brief failed ({mode} model={model_name}): {exc}")
 
         if self.openai_api_key:
             try:

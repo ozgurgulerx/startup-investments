@@ -11,11 +11,6 @@ export function DailyBriefCard({ brief }: { brief: DailyNewsBrief }) {
           <p className="label-xs text-accent-info">Daily Brief</p>
           <h2 className="mt-2 text-2xl font-light tracking-tight text-foreground">{brief.headline}</h2>
         </div>
-        {brief.model ? (
-          <span className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-            LLM {brief.model}
-          </span>
-        ) : null}
       </div>
 
       {brief.summary ? (
@@ -51,4 +46,3 @@ export function DailyBriefCard({ brief }: { brief: DailyNewsBrief }) {
     </section>
   );
 }
-
