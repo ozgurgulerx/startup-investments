@@ -10,7 +10,11 @@ import { normalizeDatasetRegion } from '@/lib/region';
 
 export const dynamic = 'force-dynamic';
 
-const FALLBACK_PERIOD = '2026-01';
+function getCurrentPeriod(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 const DEFAULT_LIMIT = 25;
 
 interface UserPreferencesRow {
@@ -43,7 +47,7 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
 
   // Get available periods and determine selected month
   const availablePeriods = await getAvailablePeriods(region);
-  const latestPeriod = availablePeriods[0]?.period || FALLBACK_PERIOD;
+  const latestPeriod = availablePeriods[0]?.period || getCurrentPeriod();
 
   // If the user applies filters without explicitly choosing a month,
   // default the scope to all-time (otherwise the latest month can look "broken" with tiny counts).

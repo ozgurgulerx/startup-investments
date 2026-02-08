@@ -9,6 +9,7 @@ import { CompanyRow } from './company-row';
 import { Sheet, SheetHeader, SheetContent } from '@/components/ui';
 import { MonthSelector, DealbookToolbar, StatsStrip } from '@/components/dealbook';
 import { normalizeStageKey } from '@/lib/utils';
+import { useRegion, type Region } from '@/lib/region-context';
 import { X } from 'lucide-react';
 import Link from 'next/link';
 
@@ -86,6 +87,13 @@ export function InteractiveDealbook({
   region = 'global',
 }: InteractiveDealbookProps) {
   const router = useRouter();
+  const { setRegion } = useRegion();
+
+  // Sync the region context (localStorage-backed) with the server-provided region prop.
+  // This ensures the RegionSwitch in both the toolbar and header reflects the actual data.
+  useEffect(() => {
+    setRegion(region as Region);
+  }, [region, setRegion]);
 
   const [activeQuery, setActiveQuery] = useState<FilterQuery>({});
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>(initialFilters);

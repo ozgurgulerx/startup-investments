@@ -773,12 +773,9 @@ app.get('/api/v1/dealbook', async (req, res) => {
     const effectiveStageExpr = sql<string | null>`COALESCE(${latestRoundTypeExpr}, ${startups.fundingStage})`;
 
     // Build WHERE conditions
-	    const conditions: ReturnType<typeof eq>[] = [];
-	
-	    // Dataset filter (global vs regional datasets)
-	    conditions.push(eq(startups.datasetRegion, region));
+    const conditions: ReturnType<typeof eq>[] = [];
 
-    // Always scope by dataset region
+    // Dataset filter (global vs regional datasets)
     conditions.push(eq(startups.datasetRegion, region));
 
     // Period filter (omitted when 'all')
