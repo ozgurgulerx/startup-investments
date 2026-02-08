@@ -66,6 +66,14 @@ VM cron runner:
 - One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
+- VM access (for manual deploy/debug):
+  - Preferred: `./infrastructure/vm-cron/ssh-update-ip.sh`
+    - Updates SSH NSG allowlist to your current public IP, then SSHs into the VM.
+  - Manual SSH:
+    - Get IP: `AZURE_CLI_DISABLE_LOGFILE=1 az vm show -g aistartuptr -n vm-buildatlas-cron --show-details --query publicIps -o tsv`
+    - Connect: `ssh buildatlas@<vm_ip>`
+  - No-SSH option (run a command remotely):
+    - `AZURE_CLI_DISABLE_LOGFILE=1 az vm run-command invoke -g aistartuptr -n vm-buildatlas-cron --command-id RunShellScript --scripts "<cmd>" --query "value[0].message" -o tsv`
 - Slack notifications:
   - Set `SLACK_WEBHOOK_URL` (or legacy `SLACK_WEBHOOK`) in `/etc/buildatlas/.env`.
   - Optional success notifications for selected jobs via `SLACK_NOTIFY_SUCCESS_JOBS` (see `infrastructure/vm-cron/.env.example`).
