@@ -24,6 +24,9 @@ echo "=== Frontend Deploy ==="
 echo "  Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo ""
 
+# Commit SHA used for build marker + smoke checks.
+COMMIT_SHA="$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "")"
+
 # Azure CLI login (managed identity, needed for az webapp deploy)
 az_login() {
     for i in 1 2 3; do
@@ -43,7 +46,7 @@ if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
     az account set --subscription "${AZURE_SUBSCRIPTION_ID}" --output none || true
 fi
 
-echo "  Commit: $(git -C "$REPO_DIR" rev-parse --short HEAD)"
+echo "  Commit: ${COMMIT_SHA:-unknown}"
 echo ""
 
 # runner.sh sources /etc/buildatlas/.env (or repo .env fallback). For convenience, also
@@ -100,6 +103,7 @@ rm -rf "$WEB_DIR/.next"
 export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}"
 export NEXT_PUBLIC_POSTHOG_HOST="https://us.i.posthog.com"
 export NEXT_PUBLIC_POSTHOG_KEY="${POSTHOG_KEY:-}"
+export NEXT_PUBLIC_BUILD_SHA="${COMMIT_SHA:-unknown}"
 
 pnpm --filter web build
 
@@ -273,6 +277,7 @@ SETTINGS=(
     "NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com"
     "NEXTAUTH_URL=${NEXTAUTH_URL:-https://buildatlas.net}"
     "PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://buildatlas.net}"
+    "NEXT_PUBLIC_BUILD_SHA=${COMMIT_SHA:-unknown}"
 )
 
 # Only set secrets when provided, to avoid wiping existing App Service settings.
@@ -305,6 +310,30 @@ az webapp deploy \
     --src-path deploy.zip \
     --type zip \
     --clean true
+
+echo ""
+echo "[8/8] Smoke check (verify build is live)..."
+BASE_URL="${PUBLIC_BASE_URL:-https://buildatlas.net}"
+if [ -z "${COMMIT_SHA:-}" ]; then
+    echo "  WARN: Missing COMMIT_SHA; skipping smoke check."
+else
+    OK=0
+    for i in $(seq 1 30); do
+        # Bust any intermediate caches with a dummy query string.
+        HTML="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "${BASE_URL}/?v=${COMMIT_SHA}" 2>/dev/null || true)"
+        if echo "$HTML" | grep -q "ba-build-sha\" content=\"${COMMIT_SHA}\""; then
+            OK=1
+            echo "  OK: build marker ba-build-sha=${COMMIT_SHA}"
+            break
+        fi
+        echo "  Waiting for new build to become visible... (attempt $i/30)"
+        sleep 6
+    done
+    if [ "$OK" -ne 1 ]; then
+        echo "ERROR: Deployed, but new build marker was not observed on ${BASE_URL} after 3 minutes."
+        exit 1
+    fi
+fi
 
 echo ""
 echo "=== Frontend deploy complete ==="

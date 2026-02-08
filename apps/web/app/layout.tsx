@@ -32,6 +32,11 @@ export const metadata: Metadata = {
     description: 'Build Atlas decodes how AI startups are really built. Monthly dossiers, architecture signals, and reusable build blueprints.',
     type: 'website',
   },
+  // Deployer-written build marker used for smoke-checks and cache/debug.
+  // Safe to expose (commit SHA only).
+  other: {
+    'ba-build-sha': process.env.NEXT_PUBLIC_BUILD_SHA || 'unknown',
+  },
 };
 
 export default function RootLayout({
