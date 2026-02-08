@@ -28,13 +28,13 @@ interface StoryRowProps {
   item: NewsItemCard;
   isSelected: boolean;
   onSelect: (id: string) => void;
-  isPinned?: boolean;
   isNew?: boolean;
 }
 
-export function StoryRow({ item, isSelected, onSelect, isPinned, isNew }: StoryRowProps) {
+export function StoryCard({ item, isSelected, onSelect, isNew }: StoryRowProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadge(item.story_type);
+  const tags = item.topic_tags.slice(0, 2);
 
   return (
     <button
@@ -42,55 +42,63 @@ export function StoryRow({ item, isSelected, onSelect, isPinned, isNew }: StoryR
       onClick={() => onSelect(item.id)}
       data-story-id={item.id}
       aria-pressed={isSelected}
-      className={`group w-full text-left px-6 py-3 border-b border-border/20 transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60 focus-visible:ring-inset
+      className={`group w-full text-left rounded-xl border p-3 transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60
         ${isSelected
-          ? 'bg-accent-info/10 border-l-2 border-l-accent-info'
-          : 'hover:bg-muted/20 border-l-2 border-l-transparent'
+          ? 'border-accent-info/45 bg-accent-info/10'
+          : 'border-border/40 bg-card/30 hover:border-accent-info/30 hover:bg-muted/15'
         }
-        ${isPinned ? 'bg-accent-info/5' : ''}
       `}
     >
-      <div className="flex items-start justify-between gap-3">
-        {/* Left: title + summary */}
-        <div className="flex-1 min-w-0">
-          <h3 className={`text-sm font-medium leading-snug tracking-tight truncate
-            ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}
-          `}>
-            {isPinned && (
-              <span className="inline-block mr-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-info/15 text-accent-info border border-accent-info/25">
-                Top
-              </span>
-            )}
-            {isNew && (
-              <span className="inline-block mr-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/25">
-                New
-              </span>
-            )}
-            {item.title}
-          </h3>
-          {summary && (
-            <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
-              {summary}
-            </p>
-          )}
-        </div>
-
-        {/* Right: badges + time */}
-        <div className="flex items-center gap-2 shrink-0">
-          <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
-          <span className={`hidden sm:inline-flex rounded-full border px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${typeBadge}`}>
-            {item.story_type || 'news'}
+      <div className="flex flex-wrap items-center gap-2">
+        {isNew && (
+          <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-success">
+            New
           </span>
-          {typeof item.llm_signal_score === 'number' && (
-            <span className="hidden md:inline-flex rounded-full border border-accent-info/35 bg-accent-info/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
-              AI {Math.round(item.llm_signal_score * 100)}%
-            </span>
-          )}
-          <span className="text-[10px] text-muted-foreground/70 tabular-nums whitespace-nowrap">
-            {timeAgo(item.published_at)}
+        )}
+        <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
+        <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${typeBadge}`}>
+          {item.story_type || 'news'}
+        </span>
+        {typeof item.llm_signal_score === 'number' && (
+          <span className="inline-flex rounded-full border border-accent-info/35 bg-accent-info/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
+            AI {Math.round(item.llm_signal_score * 100)}%
           </span>
-        </div>
+        )}
+        <span className="ml-auto text-[10px] text-muted-foreground/70 tabular-nums whitespace-nowrap">
+          {timeAgo(item.published_at)}
+        </span>
       </div>
+
+      <h3 className={`mt-2 text-sm font-medium leading-snug tracking-tight
+        ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}
+      `}>
+        {item.title}
+      </h3>
+
+      {summary && (
+        <p className="mt-2 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+          {summary}
+        </p>
+      )}
+
+      {item.builder_takeaway && (
+        <p className="mt-2 text-[10px] text-accent-info/80 line-clamp-2 leading-relaxed">
+          Builder: {item.builder_takeaway}
+        </p>
+      )}
+
+      {tags.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
     </button>
   );
 }

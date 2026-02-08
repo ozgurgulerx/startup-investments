@@ -417,22 +417,23 @@ Use the existing typographic classes from `globals.css`. Do not invent new ones.
 
 ### News Page Architecture (Master-Detail Radar)
 
-The `/news` page uses a master-detail "radar" layout:
+The `/news` page uses a feed-first "radar" layout with an on-demand detail drawer:
 
 ```
 [Sticky CommandBar] — search | sort (impact/latest) | time window (6h/24h/7d/all) | topics
 [KpiStrip] — stories | cross-source | clusters | entities (collapsible)
-┌─────────────────────────────────┬───────────────────┐
-│ Feed (lg:col-span-8)            │ Context (lg:4)    │
-│  [PinnedStoryCard]              │ Default: SignalRail│
-│  [StoryRow] × N                 │ Selected: Detail   │
-└─────────────────────────────────┴───────────────────┘
+[Feed]
+  [PinnedStoryCard]
+  [StoryCard] × N (lg: 3-col grid)
+
+[Context Drawer] (only when ?story=id)
+  [StoryContext]
 ```
 
 - Client component: `components/news/interactive-radar.tsx`
 - Story selection: URL param `?story=id` (shareable, supports back/forward)
 - Live polling: 5-minute interval, disabled on archive pages (`isArchive` prop)
-- Mobile: context panel renders as a fixed overlay sheet
+- Mobile: context drawer renders as a fixed overlay sheet
 
 ## Change Discipline (Avoid Breaking Prod)
 

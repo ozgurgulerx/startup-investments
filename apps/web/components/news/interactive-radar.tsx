@@ -7,14 +7,9 @@ import type { NewsEdition } from '@startup-intelligence/shared';
 import { CommandBar, type SortMode, type TimeWindow } from './command-bar';
 import { DailyBriefCard } from './daily-brief-card';
 import { KpiStrip } from './kpi-strip';
-import { StoryRow, PinnedStoryCard } from './story-row';
+import { StoryCard, PinnedStoryCard } from './story-row';
 import { ContextPanel } from './context-panel';
 import { NewsSubscriptionCard } from './news-subscription-card';
-
-function extractFundingSignal(text: string): string | null {
-  const match = text.match(/([$€£]\s?\d+(?:\.\d+)?\s?(?:[mb]|million|billion)?)/i);
-  return match?.[1] || null;
-}
 
 function formatTimestamp(value: string): string {
   const parsed = new Date(value);
@@ -188,40 +183,6 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
     return items;
   }, [edition.items, timeWindow, activeTopic, searchQuery, sortMode]);
-
-  // Derived data for context panel
-  const trendingEntities = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of filteredItems.slice(0, 20)) {
-      for (const entity of item.entities || []) {
-        const normalized = entity.trim();
-        if (normalized.length < 3) continue;
-        counts.set(normalized, (counts.get(normalized) || 0) + 1);
-      }
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  }, [filteredItems]);
-
-  const fundingSignal = useMemo(() => {
-    const item = filteredItems.find((entry) =>
-      entry.topic_tags.some((tag) => tag.toLowerCase() === 'funding')
-    );
-    if (!item) return null;
-    return {
-      title: item.title,
-      amount: extractFundingSignal(`${item.title} ${item.summary}`),
-      url: item.url,
-    };
-  }, [filteredItems]);
-
-  const corroboratedStories = useMemo(
-    () =>
-      filteredItems
-        .filter((item) => item.source_count >= 3)
-        .slice(0, 3)
-        .map((item) => ({ id: item.id, title: item.title, sources: item.source_count })),
-    [filteredItems]
-  );
 
   const totalEntities = useMemo(() => {
     const set = new Set<string>();
@@ -439,7 +400,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         </div>
       )}
 
-      {/* Feed (single column) */}
+      {/* Feed (grid) */}
       <div className="flex-1 min-h-0">
         <div className="mx-auto h-full min-h-0 max-w-[1680px] overflow-y-auto">
           {/* Pinned top impact */}
@@ -449,27 +410,32 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                 item={pinnedItem}
                 isSelected={selectedId === pinnedItem.id}
                 onSelect={(id) => handleSelectStory(id)}
-                isPinned
                 isNew={newStoryIds.has(pinnedItem.id)}
               />
             </div>
           )}
 
-          {/* Story rows */}
+          {/* Story cards */}
           {feedItems.length > 0 ? (
-            feedItems.map((item) => (
-              <StoryRow
-                key={item.id}
-                item={item}
-                isSelected={selectedId === item.id}
-                onSelect={(id) => handleSelectStory(id)}
-                isNew={newStoryIds.has(item.id)}
-              />
-            ))
-          ) : (
-            <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-              No stories match your filters.
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {feedItems.map((item) => (
+                  <StoryCard
+                    key={item.id}
+                    item={item}
+                    isSelected={selectedId === item.id}
+                    onSelect={(id) => handleSelectStory(id)}
+                    isNew={newStoryIds.has(item.id)}
+                  />
+                ))}
+              </div>
             </div>
+          ) : (
+            !pinnedItem && (
+              <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                No stories match your filters.
+              </div>
+            )
           )}
 
           {/* Subscribe CTA */}
@@ -491,10 +457,6 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
               selectedItem={selectedItem}
               allItems={filteredItems}
               onClose={() => handleSelectStory(null)}
-              onSelectStory={(id) => handleSelectStory(id)}
-              trendingEntities={trendingEntities}
-              fundingSignal={fundingSignal}
-              corroboratedStories={corroboratedStories}
             />
           </div>
         </div>
