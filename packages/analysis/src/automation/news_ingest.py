@@ -787,7 +787,11 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     """
     if item.source_key == "startup_owned_feeds":
         country = str((item.payload or {}).get("startup_country") or "").strip().lower()
-        return country == "turkey"
+        if country != "turkey":
+            return False
+        # Treat startup-owned pages as signals only when they are clearly AI-related.
+        text = f"{item.title} {item.summary or ''}".strip().casefold()
+        return _contains_any(text, TR_AI_KEYWORDS)
 
     text = f"{item.title} {item.summary or ''}".strip().casefold()
 
