@@ -67,6 +67,12 @@ export default async function NewsArchivePage({ params }: NewsArchivePageProps) 
               </Link>
             </div>
             <Link
+              href="/news/archive"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Archive
+            </Link>
+            <Link
               href="/news"
               className="rounded border border-border/50 px-3 py-1.5 text-foreground hover:bg-muted/30 transition-colors"
             >

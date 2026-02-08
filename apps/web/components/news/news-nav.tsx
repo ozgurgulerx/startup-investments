@@ -38,6 +38,13 @@ export function NewsNav({ activeRegion, activePeriod }: NavProps) {
             <Link href={regionPath(activeRegion, 'weekly')} className={activePeriod === 'weekly' ? activePill : inactivePill}>Weekly</Link>
             <Link href={regionPath(activeRegion, 'monthly')} className={activePeriod === 'monthly' ? activePill : inactivePill}>Monthly</Link>
           </div>
+
+          <Link
+            href={activeRegion === 'turkey' ? '/news/turkey/archive' : '/news/archive'}
+            className="hidden sm:inline text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
+          >
+            Archive
+          </Link>
         </div>
       </div>
     </nav>

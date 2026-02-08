@@ -1093,8 +1093,15 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     # "Ecosystem relevance" needs to be about companies/deals, not generic purchases (e.g. domain names).
     has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
     has_strong_ecosystem = has_ecosystem and (has_startup_context or ("yatırım" in text) or ("yatirim" in text))
-    if not (has_policy or has_strong_ecosystem or (has_mna and has_startup_context)):
-        return False
+    # Trusted Turkey RSS sources (Webrazzi, Egirisim) get a lighter gate — ecosystem alone is enough.
+    # API aggregators keep the strict filter to avoid translated global chatter.
+    is_trusted_rss = item.source_key in {"webrazzi", "egirisim"}
+    if is_trusted_rss:
+        if not (has_policy or has_ecosystem or has_mna):
+            return False
+    else:
+        if not (has_policy or has_strong_ecosystem or (has_mna and has_startup_context)):
+            return False
 
     # For broad Turkish aggregators, require explicit Turkey context so we don't pull translated global chatter.
     if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
@@ -1134,8 +1141,26 @@ def build_builder_takeaway(*, story_type: str, tags: Sequence[str], title: str, 
     if story_type == "regulation":
         return _shorten_text(f"{focus} highlights compliance pressure. Factor governance and auditability into roadmap decisions this quarter.")
 
-    if "ai" in tags:
-        return _shorten_text(f"{focus} is part of the AI build race. Prioritize defensible data and eval quality over model-chasing.")
+    if "ai" in tags or "machine learning" in tags or "llm" in tags:
+        if _contains_any(text, ["infrastructure", "cloud", "compute", "gpu", "data center", "chip", "semiconductor"]):
+            return _shorten_text(f"{focus} is building at the infrastructure layer. Builders should watch pricing signals and capacity constraints that affect downstream costs.")
+        if _contains_any(text, ["developer", "api", "sdk", "platform", "devtool", "open source", "open-source", "framework"]):
+            return _shorten_text(f"{focus} targets the developer layer. Evaluate lock-in risk, migration cost, and whether the abstraction ages well before adopting.")
+        if _contains_any(text, ["agent", "agentic", "autonomous", "orchestrat", "workflow", "automat"]):
+            return _shorten_text(f"{focus} is in the agentic space. Builders should watch for reliability benchmarks and real-world failure modes before integrating.")
+        if _contains_any(text, ["data", "analytics", "observab", "monitoring", "eval", "benchmark"]):
+            return _shorten_text(f"{focus} is tackling the data/eval layer. Prioritize integration depth and whether the product compounds with your existing data stack.")
+        if _contains_any(text, ["security", "compliance", "governance", "privacy", "trust", "safety"]):
+            return _shorten_text(f"{focus} addresses AI governance. Factor regulatory tailwinds and whether their approach becomes a de facto standard in your vertical.")
+        if _contains_any(text, ["enterprise", "b2b", "saas", "vertical", "industry"]):
+            return _shorten_text(f"{focus} is going vertical. Builders in the same space should assess whether this narrows or expands the addressable integration surface.")
+        return _shorten_text(f"{focus} signals momentum in the AI landscape. Builders should assess whether this shifts build-vs-buy math for their current roadmap.")
+
+    if _contains_any(text, ["hiring", "hire", "team", "talent", "layoff", "headcount"]):
+        return _shorten_text(f"{focus} is reshaping its team. Watch whether talent moves signal a strategic pivot or just operational scaling.")
+
+    if _contains_any(text, ["partner", "integrat", "ecosystem", "alliance", "collaborat"]):
+        return _shorten_text(f"{focus} is expanding its ecosystem. Builders should evaluate whether this opens new integration paths or creates dependency risk.")
 
     return _shorten_text(f"{focus} is a useful market signal. Validate demand with customer pull, not just headline momentum.")
 
@@ -1196,7 +1221,7 @@ class DailyNewsIngestor:
         )
         self.llm_enrichment_enabled = os.getenv("NEWS_LLM_ENRICHMENT", "false").lower() in {"1", "true", "yes", "on"}
         self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
-        self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "12")))
+        self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "40")))
         self.llm_concurrency = max(1, min(16, int(os.getenv("NEWS_LLM_CONCURRENCY", "4"))))
         daily_brief_env = os.getenv("NEWS_LLM_DAILY_BRIEF", "").strip().lower()
         if daily_brief_env:
@@ -2122,6 +2147,7 @@ class DailyNewsIngestor:
 
     async def _fetch_newsapi_turkey(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         if not self.newsapi_key:
+            print("[news-ingest] newsapi_turkey: skipped (no NEWS_API_KEY)")
             return []
 
         now = datetime.now(timezone.utc)
@@ -2136,6 +2162,7 @@ class DailyNewsIngestor:
         }
         resp = await client.get(source.base_url, params=params)
         if resp.status_code >= 400:
+            print(f"[news-ingest] newsapi_turkey: API error {resp.status_code}")
             return []
 
         body = resp.json() or {}
@@ -2182,6 +2209,7 @@ class DailyNewsIngestor:
 
     async def _fetch_gnews_turkey(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         if not self.gnews_key:
+            print("[news-ingest] gnews_turkey: skipped (no GNEWS_API_KEY)")
             return []
 
         now = datetime.now(timezone.utc)
@@ -2196,6 +2224,7 @@ class DailyNewsIngestor:
         }
         resp = await client.get(source.base_url, params=params)
         if resp.status_code >= 400:
+            print(f"[news-ingest] gnews_turkey: API error {resp.status_code}")
             return []
 
         body = resp.json() or {}
@@ -2487,7 +2516,10 @@ class DailyNewsIngestor:
 
                     # Turkey pipeline should stay tightly scoped to AI startup / AI systems signals.
                     if (source.region or "global") == "turkey":
+                        pre_filter = len(items)
                         items = [i for i in items if _is_relevant_turkey_news_item(i)]
+                        if pre_filter > 0 or source.source_key in {"gnews_turkey", "newsapi_turkey", "webrazzi", "egirisim"}:
+                            print(f"[news-ingest] {source.source_key}: {pre_filter} fetched → {len(items)} passed turkey filter")
 
                     collected.extend(items)
                 except Exception as exc:
@@ -3129,13 +3161,20 @@ class DailyNewsIngestor:
             return LLMEnrichmentResult(None, None, None, None, None, None, None, error_code="no_provider")
 
         prompt = (
-            "You are ranking startup news for builders. "
+            "You are an analyst writing 1-sentence builder takeaways for startup news. "
+            "A builder takeaway is a practical, specific insight for technical founders and engineers. "
+            "It must reference the specific company or technology by name, not use generic advice. "
+            "BAD: 'Prioritize defensible data and eval quality over model-chasing.' (too generic) "
+            "GOOD: 'Cursor\\'s $100M raise validates AI-native IDEs — builders should watch whether "
+            "they lock in proprietary UX or stay model-agnostic, as that determines switching cost.' "
+            "GOOD: 'Stripe\\'s acquisition signals payment infra consolidation — if you depend on "
+            "competing APIs, evaluate migration paths now before integration points disappear.' "
             "Return strict JSON with keys: "
-            "summary (<=160 chars), builder_takeaway (<=140 chars), "
+            "summary (<=160 chars), builder_takeaway (<=140 chars, specific and actionable), "
             "story_type (funding|launch|mna|regulation|hiring|news), "
             "topic_tags (array of up to 6 lowercase tags), "
             "signal_score (0-1), confidence_score (0-1). "
-            "Be specific and practical. No prose outside JSON."
+            "No prose outside JSON."
         )
         user_payload = {
             "title": cluster.title,

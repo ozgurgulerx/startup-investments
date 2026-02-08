@@ -62,6 +62,9 @@ export interface NewsArchiveDay {
   generated_at: string;
   total_clusters: number;
   top_story_count: number;
+  brief_headline?: string;
+  top_topics?: string[];
+  story_type_counts?: Record<string, number>;
 }
 
 export interface NewsSource {
@@ -510,10 +513,31 @@ export function makeNewsService(pool: Pool) {
   }): Promise<NewsEdition | null> {
     const region = normalizeRegion(params?.region);
     try {
-      const editionDate = params?.date || (await getLatestEditionDate({ region }));
+      let editionDate = params?.date || (await getLatestEditionDate({ region }));
       if (!editionDate) return null;
 
-      const meta = await getEditionMeta(editionDate, region);
+      let meta = await getEditionMeta(editionDate, region);
+
+      // Fallback: if latest edition has 0 clusters and no specific date was requested,
+      // find the most recent non-empty edition for this region.
+      if (!params?.date && meta && toNumber(meta.stats_json?.total_clusters) === 0) {
+        const fallback = await pool.query(
+          `
+          SELECT edition_date::text AS edition_date
+          FROM news_daily_editions
+          WHERE region = $1 AND status = 'ready'
+            AND (stats_json->>'total_clusters')::int > 0
+          ORDER BY edition_date DESC
+          LIMIT 1
+          `,
+          [region]
+        );
+        if (fallback.rows[0]?.edition_date) {
+          editionDate = fallback.rows[0].edition_date;
+          meta = await getEditionMeta(editionDate, region);
+        }
+      }
+
       if (!meta) return null;
 
       const limit = Math.max(1, Math.min(100, Number(params?.limit || 40)));
@@ -606,6 +630,22 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  function mapArchiveRow(row: Record<string, unknown>): NewsArchiveDay {
+    const stats = (row.stats_json || {}) as Record<string, unknown>;
+    const topicCounts = (stats.topic_counts || {}) as Record<string, number>;
+    const brief = (stats.daily_brief || {}) as Record<string, unknown>;
+    const stc = (stats.story_type_counts || {}) as Record<string, number>;
+    return {
+      edition_date: String(row.edition_date || ''),
+      generated_at: String(row.generated_at || ''),
+      total_clusters: toNumber(stats.total_clusters),
+      top_story_count: toNumber(stats.top_story_count),
+      brief_headline: brief.headline ? String(brief.headline) : undefined,
+      top_topics: Object.keys(topicCounts).slice(0, 5),
+      story_type_counts: Object.keys(stc).length ? stc : undefined,
+    };
+  }
+
   async function getNewsArchive(params?: {
     limit?: number;
     offset?: number;
@@ -628,12 +668,7 @@ export function makeNewsService(pool: Pool) {
         `,
         [region, limit, offset]
       );
-      return result.rows.map((row) => ({
-        edition_date: String(row.edition_date || ''),
-        generated_at: String(row.generated_at || ''),
-        total_clusters: toNumber(row.stats_json?.total_clusters),
-        top_story_count: toNumber(row.stats_json?.top_story_count),
-      }));
+      return result.rows.map(mapArchiveRow);
     } catch (error) {
       if (isMissingColumnError(error, 'region')) {
         if (region !== 'global') return [];
@@ -652,12 +687,7 @@ export function makeNewsService(pool: Pool) {
           `,
           [limit, offset]
         );
-        return result.rows.map((row) => ({
-          edition_date: String(row.edition_date || ''),
-          generated_at: String(row.generated_at || ''),
-          total_clusters: toNumber(row.stats_json?.total_clusters),
-          top_story_count: toNumber(row.stats_json?.top_story_count),
-        }));
+        return result.rows.map(mapArchiveRow);
       }
       if (isMissingNewsSchemaError(error)) return [];
       throw error;

@@ -64,6 +64,12 @@ export default async function TurkeyNewsArchivePage({ params }: TurkeyNewsArchiv
               </Link>
             </div>
             <Link
+              href="/news/turkey/archive"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Archive
+            </Link>
+            <Link
               href="/news/turkey"
               className="rounded border border-border/50 px-3 py-1.5 text-foreground hover:bg-muted/30 transition-colors"
             >

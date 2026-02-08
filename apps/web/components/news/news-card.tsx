@@ -56,9 +56,9 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
 
   return (
     <article
-      className={`group flex flex-col rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-info/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] md:h-[340px] overflow-hidden ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
+      className={`group flex flex-col rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-info/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] md:min-h-[340px] ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
     >
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1">
         {showImage ? (
           <div className="mb-3 overflow-hidden rounded-lg border border-border/35 bg-background/70">
             <img
@@ -109,7 +109,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
         {item.builder_takeaway ? (
           <div className="mt-3 rounded-md border border-accent-info/25 bg-accent-info/10 px-2.5 py-2">
             <p className="text-[10px] uppercase tracking-wider text-accent-info">Builder View</p>
-            <p className="mt-1 text-xs leading-relaxed text-foreground/90 line-clamp-2">{item.builder_takeaway}</p>
+            <p className="mt-1 text-xs leading-relaxed text-foreground/90 line-clamp-3">{item.builder_takeaway}</p>
           </div>
         ) : null}
 

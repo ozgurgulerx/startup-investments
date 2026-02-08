@@ -473,7 +473,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               Browse every generated daily edition to see how startup narratives shifted over time.
             </p>
             <Link
-              href="/news"
+              href="/news/archive"
               className="mt-4 inline-flex items-center gap-1 text-sm text-accent-info hover:text-accent-info/80"
             >
               Open archive timeline

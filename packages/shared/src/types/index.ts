@@ -671,6 +671,9 @@ export interface NewsArchiveDay {
   generated_at: string;
   total_clusters: number;
   top_story_count: number;
+  brief_headline?: string;
+  top_topics?: string[];
+  story_type_counts?: Record<string, number>;
 }
 
 // Periodic Briefs (Weekly / Monthly)
