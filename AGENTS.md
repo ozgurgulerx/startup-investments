@@ -63,6 +63,8 @@ VM cron runner:
 - Config: `infrastructure/vm-cron/crontab`
 - Wrapper (locks, timeouts, logs, Slack alerts): `infrastructure/vm-cron/lib/runner.sh`
 - Code updater (git pull + triggers deploys): `infrastructure/vm-cron/deploy.sh`
+- One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
+- VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
 - Slack notifications:
   - Set `SLACK_WEBHOOK_URL` (or legacy `SLACK_WEBHOOK`) in `/etc/buildatlas/.env`.
