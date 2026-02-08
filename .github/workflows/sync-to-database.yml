@@ -481,7 +481,7 @@ jobs:
       # ============================================
       # Step 7: Sync to Database
       # ============================================
-      - name: Apply migration 010_add_constraints.sql
+      - name: Apply DB migrations (analysis_data + indexes)
         if: steps.check_csv.outputs.csv_exists == 'true' && github.event.inputs.regenerate_only != 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -495,17 +495,26 @@ jobs:
           if not db_url:
               raise SystemExit('Missing DATABASE_URL')
 
-          migration_path = Path('database/migrations/010_add_constraints.sql')
-          if not migration_path.exists():
-              raise SystemExit(f'Migration file not found: {migration_path}')
+          # Keep this list idempotent (IF NOT EXISTS), so repeated runs are safe.
+          # These are required for DB-driven Dealbook filters (including vertical_taxonomy).
+          migrations = [
+              '008_startup_analysis_data.sql',
+              '010_add_constraints.sql',
+              '019_startup_vertical_taxonomy_indexes.sql',
+              '021_build_patterns_and_funding_indexes.sql',
+          ]
 
-          sql = migration_path.read_text(encoding='utf-8')
           with psycopg2.connect(db_url) as conn:
               with conn.cursor() as cur:
-                  cur.execute(sql)
+                  for name in migrations:
+                      path = Path('database/migrations') / name
+                      if not path.exists():
+                          print(f'Skipped (not found): {path}')
+                          continue
+                      sql = path.read_text(encoding='utf-8')
+                      cur.execute(sql)
+                      print(f'Applied: {path}')
               conn.commit()
-
-          print(f'Applied migration: {migration_path}')
           EOF
 
       - name: Sync to database via API
@@ -582,6 +591,13 @@ jobs:
               print(f"URL Error: {e.reason}")
               raise SystemExit(1)
           EOF
+
+      - name: Populate startups.analysis_data from analysis store (includes vertical_taxonomy)
+        if: steps.check_csv.outputs.csv_exists == 'true' && github.event.inputs.regenerate_only != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python3 scripts/populate-analysis-data.py --period "${{ steps.period.outputs.period }}"
 
       - name: Summary
         if: always()

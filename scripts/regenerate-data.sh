@@ -447,6 +447,14 @@ except ImportError:
 except Exception as e:
     print(f"  Database sync error: {e}")
 EOF
+
+    echo "  Populating startups.analysis_data from analysis_store (includes vertical_taxonomy)..."
+    DB_URL_RAW="$(rg -n '^DATABASE_URL=' "$PROJECT_ROOT/.env" | head -n 1 | sed 's/^DATABASE_URL=//' | sed 's/^"//' | sed 's/"$//' | sed "s/^'//" | sed "s/'$//")"
+    if [ -n "$DB_URL_RAW" ]; then
+        DATABASE_URL="$DB_URL_RAW" $PYTHON "$PROJECT_ROOT/scripts/populate-analysis-data.py" --period "$PERIOD" || echo "  WARN: populate-analysis-data.py failed"
+    else
+        echo "  WARN: DATABASE_URL could not be parsed; skipping analysis_data population"
+    fi
 else
     echo "  DATABASE_URL not found, skipping database sync"
 fi

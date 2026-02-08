@@ -114,6 +114,15 @@ export function dealBookKey(period: string, page: number, filtersHash: string): 
 }
 
 /**
+ * Generate cache key for company profile queries (by slug + period).
+ */
+export function companyBySlugKey(period: string, slug: string): string {
+  const safePeriod = (period || 'all').toLowerCase();
+  const safeSlug = (slug || '').toLowerCase().trim();
+  return `company:v1:${safePeriod}:${safeSlug}`;
+}
+
+/**
  * Generate cache key for monthly stats
  */
 export function statsKey(period: string): string {
@@ -186,8 +195,22 @@ export function newsSourcesKey(region: string): string {
  * Hash an object to create a stable cache key component
  */
 export function hashObject(obj: object): string {
-  const sorted = JSON.stringify(obj, Object.keys(obj).sort());
-  return crypto.createHash('md5').update(sorted).digest('hex').slice(0, 8);
+  // Sort keys recursively so logically equivalent objects hash consistently.
+  // Note: we preserve array ordering (arrays are not sorted).
+  const sortDeep = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(sortDeep);
+    if (!value || typeof value !== 'object') return value;
+    const record = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(record).sort()) {
+      out[key] = sortDeep(record[key]);
+    }
+    return out;
+  };
+
+  const sorted = JSON.stringify(sortDeep(obj));
+  // 64-bit truncation: keeps keys short while making collisions vanishingly unlikely in practice.
+  return crypto.createHash('md5').update(sorted).digest('hex').slice(0, 16);
 }
 
 /**
@@ -308,7 +331,9 @@ export async function invalidatePattern(pattern: string): Promise<number> {
  */
 export async function invalidateAll(): Promise<void> {
   await invalidatePattern('dealbook:v1:*');
+  await invalidatePattern('company:v1:*');
   await invalidatePattern('stats:v1:*');
+  await invalidatePattern('periods:v1');
   await invalidatePattern('filters:v1:*');
   await invalidatePattern('news:v1:*');
 }

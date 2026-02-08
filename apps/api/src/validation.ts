@@ -7,9 +7,27 @@ import { z } from 'zod';
 const paginationPage = z.coerce.number().int().min(1).max(1000).default(1);
 const paginationLimit = z.coerce.number().int().min(1).max(100).default(25);
 const periodParam = z.string().max(10).regex(/^(all|\d{4}-\d{2})$/).default('all');
-const optionalString = z.string().max(500).optional();
+function optionalTrimmedString(max: number) {
+  return z.preprocess((value) => {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed.length === 0 ? undefined : trimmed;
+  }, z.string().max(max).optional());
+}
+
+// Querystring params frequently arrive as `""` or `"   "`. Treat blanks as "not provided"
+// so filtering + caching semantics stay aligned.
+const optionalString = optionalTrimmedString(500);
+const optionalSearchString = optionalTrimmedString(200);
+const optionalTopicString = optionalTrimmedString(100);
 const newsRegionParam = z.enum(['global', 'turkey']).default('global');
-const newsDateParam = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
+const newsDateParam = z.preprocess((value) => {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional());
 
 // =============================================================================
 // GET endpoint schemas
@@ -48,7 +66,7 @@ export const dealBookQuerySchema = z.object({
   usesGenai: z.enum(['true', 'false']).optional(),
   sortBy: z.enum(['funding', 'name', 'date']).default('funding'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
-  search: z.string().max(200).optional(),
+  search: optionalSearchString,
 });
 
 export const dealBookFiltersQuerySchema = z.object({
@@ -70,7 +88,7 @@ export const newsLatestQuerySchema = z.object({
 export const newsEditionQuerySchema = z.object({
   region: newsRegionParam,
   date: newsDateParam,
-  topic: z.string().max(100).optional(),
+  topic: optionalTopicString,
   limit: z.coerce.number().int().min(1).max(100).default(40),
 });
 

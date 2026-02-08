@@ -31,6 +31,7 @@ import {
   invalidateAll,
   getCacheStats,
   dealBookKey,
+  companyBySlugKey,
   periodsKey,
   statsKey,
   filterOptionsKey,
@@ -373,6 +374,27 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
     const { period } = parsed.data;
+    const cacheKey = companyBySlugKey(period, slug);
+
+    // Check cache first
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse<{ data: unknown }>(cachedData, cacheKey, redis);
+          if (data) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
     const pf = periodFilter(period);
     const slugExpr = computedSlugExpr();
 
@@ -458,6 +480,15 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
       period: row.period,
     };
 
+    // Cache the response
+    if (redis) {
+      try {
+        await redis.setEx(cacheKey, CACHE_TTL.STARTUP, JSON.stringify({ data }));
+      } catch (cacheErr) {
+        console.error('Redis cache write error:', cacheErr);
+      }
+    }
+
     res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     return res.json({ data });
   } catch (error) {
@@ -521,7 +552,7 @@ app.get('/api/v1/stats', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const pf = periodFilter(period);
 
@@ -619,7 +650,7 @@ app.get('/api/v1/periods', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const rows = await db.execute<{
       period: string;
@@ -712,7 +743,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const latestRoundTypeExpr = sql<string | null>`(
       SELECT fr.round_type
@@ -1001,7 +1032,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     // Get distinct stages (prefer latest funding round type, fallback to startup funding_stage)
     const pf = periodFilter(period);
@@ -1241,7 +1272,7 @@ app.get('/api/v1/news/latest-date', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const edition_date = await newsService.getLatestEditionDate({ region });
     const responseData = { edition_date };
@@ -1292,7 +1323,7 @@ app.get('/api/v1/news/latest', async (req, res) => {
         console.error('Redis cache read error:', cacheErr);
       }
     }
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const edition = await newsService.getNewsEdition({ region, limit });
     if (!edition) {

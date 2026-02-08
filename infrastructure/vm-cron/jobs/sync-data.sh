@@ -8,6 +8,7 @@ set -euo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=== Sync Data ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -49,6 +50,22 @@ echo "Found $TOTAL changes ($ADDED added, $MODIFIED modified). Syncing..."
 # Step 2: Sync data from blob storage
 "$VENV_DIR/bin/python" -m src.sync.blob_sync --target "$REPO_DIR/apps/web/data" --manifest
 
+# Step 2.5: Materialize analysis_store into Postgres for DB-driven Dealbook filters.
+# This makes vertical_taxonomy (and other analysis_data fields) queryable via the backend API.
+if [ -n "${DATABASE_URL:-}" ]; then
+    PERIOD="$(ls -1 "$REPO_DIR/apps/web/data" 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}$' | sort -r | head -n 1 || true)"
+    if [ -n "$PERIOD" ]; then
+        echo "Applying startup migrations + populating analysis_data for period: $PERIOD"
+        bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" startups
+        "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$PERIOD"
+        echo "DB analysis_data population complete."
+    else
+        echo "WARN: Could not determine latest period under apps/web/data; skipping DB populate."
+    fi
+else
+    echo "WARN: DATABASE_URL not set; skipping DB populate."
+fi
+
 # Step 3: Pull latest to avoid conflicts, then commit and push
 cd "$REPO_DIR"
 git pull --rebase origin main 2>/dev/null || git pull origin main
@@ -73,7 +90,6 @@ git push origin main
 echo "Pushed $TOTAL changes. Triggering frontend deploy..."
 
 # Deploy frontend directly on VM (no longer relies on GitHub Actions)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "$SCRIPT_DIR/../lib/runner.sh" frontend-deploy 20 "$SCRIPT_DIR/frontend-deploy.sh"
 
 echo "=== Sync Data complete ==="

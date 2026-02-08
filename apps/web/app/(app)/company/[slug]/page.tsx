@@ -177,8 +177,29 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
   const dealbookHref = region && region !== 'global'
     ? `/dealbook/?region=${encodeURIComponent(region)}`
     : '/dealbook/';
-  // Keep this as a single expression to avoid any TSX parser edge-cases with leading-dot chaining.
-  const verticalChain = [startup.vertical, startup.sub_vertical, startup.sub_sub_vertical].filter(Boolean).map((v: any) => String(v).replace(/_/g, ' ')).join(' / ');
+
+  const taxonomyPathLabels = startup.vertical_taxonomy?.path
+    ?.map((p: any) => p?.label)
+    .filter(Boolean)
+    .map((v: any) => String(v).replace(/_/g, ' ')) || [];
+
+  const taxonomyPrimaryLabels = [
+    startup.vertical_taxonomy?.primary?.vertical_label,
+    startup.vertical_taxonomy?.primary?.sub_vertical_label,
+    startup.vertical_taxonomy?.primary?.leaf_label,
+  ]
+    .filter(Boolean)
+    .map((v: any) => String(v).replace(/_/g, ' '));
+
+  const taxonomyChain = (taxonomyPathLabels.length > 0 ? taxonomyPathLabels : taxonomyPrimaryLabels).join(' / ');
+
+  // Legacy fallback (older analyses + CSV-driven datasets)
+  const legacyChain = [startup.vertical, startup.sub_vertical, startup.sub_sub_vertical]
+    .filter(Boolean)
+    .map((v: any) => String(v).replace(/_/g, ' '))
+    .join(' / ');
+
+  const verticalChain = taxonomyChain || legacyChain;
 
   return (
     <>

@@ -124,6 +124,40 @@ News:
   - `infrastructure/vm-cron/jobs/news-ingest.sh`
   - `infrastructure/vm-cron/jobs/news-digest.sh`
 
+## Startups: Vertical Taxonomy + Dealbook Filters
+
+We store startup "vertical/subvertical" in two forms:
+- Legacy (flat strings): `vertical`, `sub_vertical`, `sub_sub_vertical`
+- Versioned taxonomy (preferred): `analysis_data.vertical_taxonomy` (IDs + labels + full path)
+
+Where taxonomy is produced:
+- Classifier: `packages/analysis/src/analysis/genai_detector.py`
+- Ontology: `packages/analysis/src/ontology/startup_vertical_ontology_v1.json`
+- Output: written into each analysis JSON as `vertical_taxonomy` (see `packages/shared/src/types/index.ts` -> `StartupAnalysis.vertical_taxonomy`)
+
+Where taxonomy is stored for queryability:
+- Postgres column: `startups.analysis_data` (JSONB)
+- Indexes for fast filtering: `database/migrations/019_startup_vertical_taxonomy_indexes.sql`
+
+Backend API support:
+- Dealbook list endpoint supports both:
+  - `vertical` (legacy exact-match, normalized)
+  - `verticalId`, `subVerticalId`, `leafId` (taxonomy IDs; pulled from `analysis_data.vertical_taxonomy.primary.*`)
+
+Materialization step (required for DB-driven filters):
+- The analysis pipeline writes JSON files under `apps/web/data/<period>/output/analysis_store/base_analyses/*.json`.
+- To make taxonomy filterable via the backend, we must copy those JSON blobs into Postgres:
+  - Command: `python scripts/populate-analysis-data.py --period YYYY-MM`
+- Primary automation:
+  - VM cron `sync-data` runs `apply-migrations.sh startups` and then `populate-analysis-data.py` after syncing blob data.
+  - GitHub fallback: `.github/workflows/sync-to-database.yml` applies required migrations and runs `populate-analysis-data.py`.
+
+Quick verification (run on the DB):
+- Count rows with taxonomy:
+  - `SELECT COUNT(*) FROM startups WHERE analysis_data->'vertical_taxonomy' IS NOT NULL;`
+- Spot-check a company:
+  - `SELECT slug, analysis_data->'vertical_taxonomy' FROM startups WHERE slug = '<slug>';`
+
 ### News Regions (Global vs Turkey)
 
 Daily news editions are **partitioned by region**:
