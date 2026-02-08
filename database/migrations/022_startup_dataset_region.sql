@@ -31,3 +31,5 @@ CREATE INDEX IF NOT EXISTS idx_startups_dataset_region
 
 CREATE INDEX IF NOT EXISTS idx_startups_dataset_region_period
   ON startups(dataset_region, period);
+
+-- Note: this migration is intentionally idempotent (safe to re-run).

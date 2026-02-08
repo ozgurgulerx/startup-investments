@@ -110,8 +110,10 @@ JOBS_DIR="$REPO_DIR/infrastructure/vm-cron/jobs"
 
 # Apply database migrations if new migration files were added
 if echo "$CHANGED_FILES" | grep -qE '^database/migrations/'; then
-    echo "New migrations detected. Applying performance indexes..."
-    bash "$JOBS_DIR/apply-migrations.sh" performance
+    echo "New migrations detected. Applying database migrations..."
+    # Prefer "all" because the VM doesn't maintain a migrations ledger; individual migrations
+    # are written to be idempotent via IF NOT EXISTS / defensive DDL.
+    bash "$JOBS_DIR/apply-migrations.sh" all
 fi
 
 # Auto-trigger deploys in parallel if both changed
