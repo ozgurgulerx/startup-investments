@@ -1371,7 +1371,7 @@ class DailyNewsIngestor:
             os.getenv("AZURE_OPENAI_DAILY_BRIEF_EFFORT", "low").strip().lower() or "low"
         )
         self.llm_enrichment_enabled = os.getenv("NEWS_LLM_ENRICHMENT", "false").lower() in {"1", "true", "yes", "on"}
-        self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
+        self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-5-nano")
         self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "200")))
         self.llm_concurrency = max(1, min(16, int(os.getenv("NEWS_LLM_CONCURRENCY", "8"))))
         daily_brief_env = os.getenv("NEWS_LLM_DAILY_BRIEF", "").strip().lower()
