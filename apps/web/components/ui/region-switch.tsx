@@ -43,7 +43,6 @@ export function RegionSwitch({
 
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
-    router.refresh();
   };
 
   if (!isLoaded) {

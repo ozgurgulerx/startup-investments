@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { normalizeDatasetRegion, type DatasetRegion } from '@/lib/region';
 
 export type Region = DatasetRegion;
@@ -26,11 +26,11 @@ export function RegionProvider({ children }: { children: ReactNode }) {
     setIsLoaded(true);
   }, []);
 
-  // Persist to localStorage on change
-  const setRegion = (newRegion: Region) => {
+  // Persist to localStorage on change — memoized so dependents don't re-fire on every render
+  const setRegion = useCallback((newRegion: Region) => {
     setRegionState(newRegion);
     localStorage.setItem(STORAGE_KEY, newRegion);
-  };
+  }, []);
 
   return (
     <RegionContext.Provider value={{ region, setRegion, isLoaded }}>
