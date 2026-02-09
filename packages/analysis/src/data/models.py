@@ -117,8 +117,8 @@ class TechStack(BaseModel):
     frameworks: List[str] = Field(default_factory=list)     # LangChain, LlamaIndex, etc.
     hosting: List[str] = Field(default_factory=list)        # Azure, AWS, self-hosted
     approach: str = "unknown"  # rag, fine_tuning, hybrid, prompt_engineering
-    uses_open_source_models: bool = False
-    has_custom_models: bool = False
+    uses_open_source_models: Optional[bool] = False
+    has_custom_models: Optional[bool] = False
 
 
 class EngineeringQuality(BaseModel):
