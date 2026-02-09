@@ -260,6 +260,12 @@ TR_BIGTECH_KEYWORDS: Tuple[str, ...] = (
     "apple",
     "samsung",
     "huawei",
+    "anthropic",
+    "nvidia",
+    "tesla",
+    "crypto.com",
+    "coinbase",
+    "binance",
 )
 
 
@@ -1007,9 +1013,22 @@ def _azure_token_param_name(model_name: str) -> str:
     `max_completion_tokens` instead (e.g. GPT-5 family).
     """
     m = (model_name or "").strip().lower()
-    if m.startswith("gpt-5"):
+    if m.startswith("gpt-5") or m.startswith("o1") or m.startswith("o3") or m.startswith("o4"):
         return "max_completion_tokens"
     return "max_tokens"
+
+
+def _azure_token_budget(model_name: str, desired_output_tokens: int) -> int:
+    """Scale token budget for reasoning models that consume tokens for internal reasoning.
+
+    GPT-5 and o-series models use reasoning tokens (~512+) before producing output.
+    ``max_completion_tokens`` covers both reasoning + output, so we scale up 3x
+    to leave room for the actual output after reasoning.
+    """
+    m = (model_name or "").strip().lower()
+    if m.startswith("gpt-5") or m.startswith("o1") or m.startswith("o3") or m.startswith("o4"):
+        return desired_output_tokens * 3
+    return desired_output_tokens
 
 def _azure_supports_temperature(model_name: str) -> bool:
     """
@@ -1177,6 +1196,59 @@ def _turkey_prefilter(item: "NormalizedNewsItem") -> bool:
     return True
 
 
+def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optional["StoryCluster"]:
+    """Create a Turkey-specific version of a cluster, or None if not Turkey-relevant.
+
+    Filters to only Turkey-sourced members that pass the strict relevance check,
+    then re-selects the representative article from Turkey sources. This prevents
+    global articles (e.g. Anthropic, crypto.com) from leaking into the Turkey edition
+    when they happen to be in the same cluster as a Turkey-sourced article.
+    """
+    turkey_members = [
+        m for m in c.members
+        if m.source_key in turkey_source_keys or m.source_key == "startup_owned_feeds"
+    ]
+    if not turkey_members:
+        return None
+
+    # Apply strict relevance filter — must be about Turkish ecosystem,
+    # not just from a Turkey source reporting on global news.
+    relevant_members = [m for m in turkey_members if _is_relevant_turkey_news_item(m)]
+    if not relevant_members:
+        return None
+
+    # Pick best Turkey member as representative
+    primary = sorted(relevant_members, key=lambda m: (m.source_weight, m.published_at), reverse=True)[0]
+    tags = classify_topic_tags(primary.title, primary.summary)
+    rank_score, trust_score, reason = compute_cluster_scores(
+        published_at=max(m.published_at for m in relevant_members),
+        topic_tags=tags,
+        members=relevant_members,
+    )
+
+    return StoryCluster(
+        cluster_key=c.cluster_key,
+        canonical_url=primary.canonical_url,
+        title=primary.title,
+        summary=primary.summary,
+        published_at=max(m.published_at for m in relevant_members),
+        topic_tags=tags,
+        entities=extract_entities(primary.title),
+        story_type=classify_story_type(tags),
+        rank_score=rank_score,
+        rank_reason=reason,
+        trust_score=trust_score,
+        builder_takeaway=c.builder_takeaway,
+        llm_summary=c.llm_summary,
+        llm_model=c.llm_model,
+        llm_signal_score=c.llm_signal_score,
+        llm_confidence_score=c.llm_confidence_score,
+        llm_topic_tags=list(c.llm_topic_tags),
+        llm_story_type=c.llm_story_type,
+        members=relevant_members,
+    )
+
+
 _TURKEY_RELEVANCE_PROMPT = """\
 You are a relevance classifier for a Turkish AI startup intelligence feed.
 
@@ -1281,7 +1353,7 @@ class DailyNewsIngestor:
         self.azure_openai_deployment = (
             os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
             or os.getenv("AZURE_OPENAI_DEPLOYMENT")
-            or "gpt-4o"
+            or "gpt-5-nano"
         )
         # Safety net: if the configured deployment doesn't exist (404) or has
         # incompatible parameters, we try this fallback.
@@ -3177,7 +3249,7 @@ class DailyNewsIngestor:
                     }
                     if _azure_supports_temperature(model_name):
                         azure_payload["temperature"] = 0.25
-                    azure_payload[token_param] = 1024
+                    azure_payload[token_param] = _azure_token_budget(model_name, 1024)
                     if with_response_format:
                         azure_payload["response_format"] = {"type": "json_object"}
 
@@ -3308,7 +3380,7 @@ class DailyNewsIngestor:
                     payload: Dict[str, Any] = {
                         "model": model_name,
                         "messages": messages,
-                        token_param: max(10, expected_count * 8),
+                        token_param: _azure_token_budget(model_name, max(10, expected_count * 8)),
                         "response_format": {"type": "json_object"},
                     }
                     if _azure_supports_temperature(model_name):
@@ -3442,7 +3514,7 @@ class DailyNewsIngestor:
                     }
                     if _azure_supports_temperature(model_name):
                         azure_payload["temperature"] = 0.2
-                    azure_payload[token_param] = 220
+                    azure_payload[token_param] = _azure_token_budget(model_name, 220)
                     if with_response_format:
                         azure_payload["response_format"] = {"type": "json_object"}
 
@@ -4256,19 +4328,15 @@ class DailyNewsIngestor:
                 clusters = self._cluster_items(items_for_clustering)
 
                 # --- Split into global / turkey clusters FIRST ---
-                # Items were already LLM-classified at collection time; use the fast
-                # prefilter here just to confirm cluster membership.
+                # Build Turkey-specific cluster copies: only Turkey-relevant members,
+                # with a Turkey-sourced representative. This prevents global articles
+                # (Anthropic, crypto.com, etc.) from leaking into the Turkey edition.
                 turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
                 turkey_clusters: List[StoryCluster] = []
                 for c in clusters:
-                    turkey_members = [
-                        m for m in c.members
-                        if m.source_key in turkey_source_keys or m.source_key == "startup_owned_feeds"
-                    ]
-                    if not turkey_members:
-                        continue
-                    if any(_turkey_prefilter(m) for m in turkey_members):
-                        turkey_clusters.append(c)
+                    tc = _build_turkey_cluster(c, turkey_source_keys)
+                    if tc:
+                        turkey_clusters.append(tc)
 
                 # --- Memory gate: run per-region (global then turkey) ---
                 memory_stats_global = await self._run_memory_gate(conn, clusters, region="global")
