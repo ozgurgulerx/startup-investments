@@ -1441,7 +1441,8 @@ app.get('/api/v1/news', async (req, res) => {
     }
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
-    const edition = await newsService.getNewsEdition({ region, date: resolvedDate, topic, limit });
+    // Pass user-explicit date only — when auto-resolved, let service handle fallback for empty editions
+    const edition = await newsService.getNewsEdition({ region, date: date || undefined, topic, limit });
     if (!edition) {
       if (redis) {
         try { await redis.setEx(cacheKey, 60, JSON.stringify(null)); } catch { /* best effort */ }
