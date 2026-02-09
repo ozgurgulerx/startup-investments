@@ -266,14 +266,22 @@ export async function getLatestMetrics(): Promise<{
       }
     }
 
+    // Format period label for descriptions (e.g. "February 2026")
+    const [year, month] = latestPeriod.split('-');
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    const periodLabel = `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+
     const metrics: import('@/lib/copy').MetricsData = {
       companies: {
         ...METRICS.companies,
         value: String(latestStats.deal_summary.total_deals),
+        description: `Funded AI startups tracked in ${periodLabel}`,
       },
       capital: {
         ...METRICS.capital,
         value: capitalValue,
+        description: `Total funding raised in ${periodLabel}`,
       },
       genai: {
         ...METRICS.genai,

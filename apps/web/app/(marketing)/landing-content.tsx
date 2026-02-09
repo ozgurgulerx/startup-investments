@@ -175,6 +175,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       {/* Stats Bar */}
       <section className="py-12 border-y border-accent/20 bg-gradient-to-r from-muted/10 via-emerald-500/5 to-amber-400/5">
         <div className="max-w-6xl mx-auto px-6">
+          <p className="label-xs text-accent-info mb-6 text-center">{periodLabel} Snapshot</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div className="relative group">
               <p className="text-3xl font-light text-foreground tabular-nums">{metrics.companies.value}</p>
@@ -203,7 +204,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       {/* Credibility strip */}
       <div className="py-3 text-center">
         <p className="text-xs text-muted-foreground/60 tracking-wide">
-          Updated continuously &middot; {metrics.companies.value} companies tracked &middot; 50+ sources monitored
+          {formatPeriodLabel(latestPeriod)} data &middot; {metrics.companies.value} companies tracked &middot; 50+ sources &middot; Updated daily
         </p>
       </div>
 
@@ -281,7 +282,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
               on generative AI infrastructure and multi-model orchestration.
             </h3>
             <p className="text-sm text-muted-foreground mb-6">
-              {metrics.companies.value} funded AI startups tracked this period, with {metrics.capital.value} in total capital mapped. <span className="text-foreground/90">Implication:</span> the middleware layer is heating up.
+              This month, {metrics.companies.value} funded AI startups raised {metrics.capital.value} across seed to Series D+. <span className="text-foreground/90">Implication:</span> the middleware layer is heating up.
             </p>
             <div className="flex gap-8 pt-4 border-t border-accent/30">
               <div>
