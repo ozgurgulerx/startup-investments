@@ -39,10 +39,18 @@ export const COPY = {
 export const SUPPORTING_LINE =
   "Decision-grade dossiers across: Wedge, Moat, Execution, and Momentum—grounded in architecture, data advantage, and GTM.";
 
-// Standardized metrics labels
-// NOTE: Values are updated automatically by the sync-to-database workflow
-// from monthly_stats.json. Do not edit manually.
-export const METRICS = {
+// Type for metrics data (used by landing page server/client component split)
+export type MetricsData = {
+  companies: { value: string; label: string; shortLabel: string; description: string };
+  capital: { value: string; label: string; shortLabel: string; description: string };
+  genai: { value: string; label: string; shortLabel: string; description: string };
+  patterns: { value: string; label: string; shortLabel: string; description: string };
+};
+
+// Standardized metrics labels (fallback defaults)
+// NOTE: Values are now loaded dynamically at request time from monthly_stats.json.
+// These serve as fallbacks if dynamic loading fails.
+export const METRICS: MetricsData = {
   companies: {
     value: "301",
     label: "Funded companies tracked",
@@ -67,7 +75,7 @@ export const METRICS = {
     shortLabel: "Patterns detected",
     description: "Distinct architecture patterns identified",
   },
-} as const;
+};
 
 // Canonical terminology for site-wide consistency
 export const TERMINOLOGY = {

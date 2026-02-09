@@ -217,6 +217,82 @@ async function getAggregatedStats(region?: string): Promise<MonthlyStats> {
 }
 
 /**
+ * Get the latest period's metrics formatted for the landing page.
+ * Falls back to older periods for GenAI/patterns when the latest period
+ * hasn't had analysis run yet (total_analyzed === 0).
+ */
+export async function getLatestMetrics(): Promise<{
+  metrics: import('@/lib/copy').MetricsData;
+  latestPeriod: string;
+}> {
+  const { METRICS } = await import('@/lib/copy');
+
+  try {
+    const periods = await getAvailablePeriods();
+    if (periods.length === 0) {
+      return { metrics: METRICS, latestPeriod: '2026-01' };
+    }
+
+    const latestPeriod = periods[0].period;
+    const latestStats = await getMonthlyStatsInternal(latestPeriod);
+
+    // Format capital value
+    const totalFunding = latestStats.deal_summary.total_funding_usd;
+    let capitalValue: string;
+    if (totalFunding >= 1e9) {
+      capitalValue = `$${(totalFunding / 1e9).toFixed(1)}B`;
+    } else if (totalFunding >= 1e6) {
+      capitalValue = `$${(totalFunding / 1e6).toFixed(0)}M`;
+    } else {
+      capitalValue = `$${totalFunding.toLocaleString()}`;
+    }
+
+    // GenAI and patterns: fall back to older period if latest has no analysis
+    let genaiRate = latestStats.genai_analysis.genai_adoption_rate;
+    let patternCount = Object.keys(latestStats.genai_analysis.pattern_distribution || {}).length;
+
+    if (latestStats.genai_analysis.total_analyzed === 0 && periods.length > 1) {
+      for (let i = 1; i < periods.length; i++) {
+        try {
+          const olderStats = await getMonthlyStatsInternal(periods[i].period);
+          if (olderStats.genai_analysis.total_analyzed > 0) {
+            genaiRate = olderStats.genai_analysis.genai_adoption_rate;
+            patternCount = Object.keys(olderStats.genai_analysis.pattern_distribution || {}).length;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    const metrics: import('@/lib/copy').MetricsData = {
+      companies: {
+        ...METRICS.companies,
+        value: String(latestStats.deal_summary.total_deals),
+      },
+      capital: {
+        ...METRICS.capital,
+        value: capitalValue,
+      },
+      genai: {
+        ...METRICS.genai,
+        value: genaiRate > 0 ? `${Math.round(genaiRate * 100)}%` : METRICS.genai.value,
+      },
+      patterns: {
+        ...METRICS.patterns,
+        value: patternCount > 0 ? String(patternCount) : METRICS.patterns.value,
+      },
+    };
+
+    return { metrics, latestPeriod };
+  } catch (error) {
+    console.error('Error loading latest metrics, using defaults:', error);
+    return { metrics: METRICS, latestPeriod: '2026-01' };
+  }
+}
+
+/**
  * Get newsletter data for a period
  */
 export async function getNewsletterData(period: string): Promise<NewsletterData> {

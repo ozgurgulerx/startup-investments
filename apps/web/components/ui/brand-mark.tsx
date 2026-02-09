@@ -57,13 +57,10 @@ export function BrandMark({
         aria-hidden
       >
         <svg viewBox="0 0 24 24" className="h-[70%] w-[70%]">
-          <path
-            d="M6 6h5v5H6V6Zm7 0h5v5h-5V6Zm-7 7h5v5H6v-5Zm7 0h5v5h-5v-5Z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.3"
-          />
-          <circle className={variantClasses[variant].dot} cx="9" cy="9" r="1.25" />
+          <rect x="5.5" y="5.5" width="5.5" height="5.5" rx="0.8" fill="currentColor" opacity="0.55" />
+          <rect x="13" y="5.5" width="5.5" height="5.5" rx="0.8" fill="currentColor" opacity="0.35" />
+          <rect x="5.5" y="13" width="5.5" height="5.5" rx="0.8" fill="currentColor" opacity="0.35" />
+          <rect x="13" y="13" width="5.5" height="5.5" rx="0.8" className={variantClasses[variant].dot} opacity="0.9" />
         </svg>
       </span>
       {showWordmark && (
