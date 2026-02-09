@@ -273,6 +273,7 @@ class SourceDefinition:
     fetch_mode: str = "rss"  # rss|api|crawler
     credibility_weight: float = 0.65
     legal_mode: str = "headline_snippet"
+    language: str = ""  # override auto-detection (e.g. "en" for English Turkey sources)
 
 
 BOOL_TRUE = {"1", "true", "yes", "on"}
@@ -318,6 +319,12 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     # Turkey: API sources (Turkish language queries via existing API keys)
     SourceDefinition("gnews_turkey", "GNews Turkey", "api", "https://gnews.io/api/v4/search", region="turkey", fetch_mode="api", credibility_weight=0.66),
     SourceDefinition("newsapi_turkey", "NewsAPI Turkey", "api", "https://newsapi.org/v2/everything", region="turkey", fetch_mode="api", credibility_weight=0.67),
+    # Turkey: Additional RSS sources (Turkish ecosystem-focused)
+    SourceDefinition("foundern", "FounderN", "rss", "https://foundern.com/feed/", region="turkey", credibility_weight=0.72),
+    SourceDefinition("swipeline", "Swipeline", "rss", "https://swipeline.co/feed/", region="turkey", credibility_weight=0.70),
+    SourceDefinition("n24_business", "N24 Business", "rss", "https://n24.com.tr/feed", region="turkey", credibility_weight=0.60),
+    SourceDefinition("daily_sabah_tech", "Daily Sabah Tech", "rss", "https://www.dailysabah.com/rss/business/tech", region="turkey", credibility_weight=0.58, language="en"),
+    SourceDefinition("startups_watch", "Startups.watch", "rss", "https://medium.com/feed/startups-watch", region="turkey", credibility_weight=0.75),
     # NOTE: Consumer-tech feeds (e.g. phone/app updates) are intentionally excluded from the Turkey edition.
     SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
@@ -1130,6 +1137,71 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     return True
 
 
+def _turkey_prefilter(item: "NormalizedNewsItem") -> bool:
+    """Fast heuristic pre-filter: removes obvious noise before LLM classification.
+
+    Catches consumer-tech, domain-flipping, and irrelevant startup-owned pages.
+    Does NOT check AI keywords — that's the LLM's job.
+    """
+    # Startup-owned feeds: must be from Turkey and be a content URL
+    if item.source_key == "startup_owned_feeds":
+        country = str((item.payload or {}).get("startup_country") or "").strip().lower()
+        if country != "turkey":
+            return False
+        if not is_likely_content_url(item.url or item.canonical_url or ""):
+            return False
+        return True
+
+    text = f"{item.title} {item.summary or ''}".strip().casefold()
+
+    # For broad API aggregators, require explicit Turkey context to avoid translated global chatter.
+    if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
+        has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
+        if not _contains_any(text, TR_CONTEXT_KEYWORDS) and not has_ecosystem:
+            return False
+
+    # Domain/SEO chatter is never useful
+    has_policy = _contains_any(text, TR_POLICY_KEYWORDS)
+    has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
+    if _contains_any(text, TR_DOMAIN_EXCLUDE_KEYWORDS) and not (has_policy or has_ecosystem):
+        return False
+
+    # Consumer product noise (phone reviews, streaming, social media)
+    if _contains_any(text, TR_CONSUMER_EXCLUDE_KEYWORDS) and not (has_ecosystem or has_policy):
+        return False
+
+    # Big-tech product updates that aren't ecosystem-relevant
+    if _contains_any(text, TR_BIGTECH_KEYWORDS) and not (has_ecosystem or has_policy):
+        return False
+
+    return True
+
+
+_TURKEY_RELEVANCE_PROMPT = """\
+You are a relevance classifier for a Turkish AI startup intelligence feed.
+
+For each article, respond YES or NO.
+
+YES = Article is about AI/ML/tech startups in the Turkish ecosystem:
+- Turkish startups building or using AI/ML (funding, launch, M&A, hiring)
+- AI technology being applied by Turkish companies
+- Turkish tech policy or regulation related to AI
+- Turkish VC/investment activity in AI/tech startups
+- AI infrastructure, research, or tooling with clear Turkish ecosystem relevance
+
+NO = Not relevant:
+- Consumer tech (phone reviews, app updates, streaming services)
+- Big-tech global product news without Turkish ecosystem impact
+- General business/economy not involving tech startups or AI
+- Non-Turkish startup news that happens to be in Turkish language
+- Generic tech tutorials, listicles, or opinion pieces without startup/AI substance
+
+Articles:
+{articles}
+
+Respond ONLY with a JSON array of booleans, one per article. Example: [true, false, true]"""
+
+
 def build_builder_takeaway(*, story_type: str, tags: Sequence[str], title: str, summary: str, entities: Sequence[str]) -> str:
     focus = entities[0] if entities else "the company"
     text = f"{title} {summary}".lower()
@@ -1433,6 +1505,18 @@ class DailyNewsIngestor:
         except Exception:
             return 0
 
+    @staticmethod
+    def _detect_rss_language(source: SourceDefinition, parsed: Any) -> str:
+        """Infer language for RSS items: explicit override > feed declaration > region fallback."""
+        if source.language:
+            return source.language
+        feed_lang = str(getattr(parsed.feed, "language", "") or "").strip().lower()[:2]
+        if feed_lang and len(feed_lang) == 2:
+            return feed_lang
+        if (source.region or "global") == "turkey":
+            return "tr"
+        return "en"
+
     async def _fetch_rss_source(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         if feedparser is None:
             return []
@@ -1471,7 +1555,7 @@ class DailyNewsIngestor:
                 canonical_url=canonical,
                 summary=summary,
                 published_at=published,
-                language="en",
+                language=self._detect_rss_language(source, parsed),
                 author=normalize_text(entry.get("author", "")) or None,
                 payload={
                     "feed_title": parsed.feed.get("title", ""),
@@ -2521,12 +2605,14 @@ class DailyNewsIngestor:
                     else:
                         items = []
 
-                    # Turkey pipeline should stay tightly scoped to AI startup / AI systems signals.
+                    # Turkey pipeline: two-stage filter (fast heuristic + LLM classification).
                     if (source.region or "global") == "turkey":
                         pre_filter = len(items)
-                        items = [i for i in items if _is_relevant_turkey_news_item(i)]
-                        if pre_filter > 0 or source.source_key in {"gnews_turkey", "newsapi_turkey", "webrazzi", "egirisim"}:
-                            print(f"[news-ingest] {source.source_key}: {pre_filter} fetched → {len(items)} passed turkey filter")
+                        items = [i for i in items if _turkey_prefilter(i)]
+                        pre_llm = len(items)
+                        items = await self._llm_classify_turkey_relevance(items, source.source_key)
+                        if pre_filter > 0 or (source.region or "global") == "turkey":
+                            print(f"[news-ingest] {source.source_key}: {pre_filter} fetched → {pre_llm} prefilter → {len(items)} LLM-passed")
 
                     collected.extend(items)
                 except Exception as exc:
@@ -3154,6 +3240,132 @@ class DailyNewsIngestor:
 
         print("[news-ingest] daily brief: no provider available")
         return None
+
+    async def _llm_classify_turkey_relevance(
+        self, items: List["NormalizedNewsItem"], source_key: str = ""
+    ) -> List["NormalizedNewsItem"]:
+        """Classify Turkey news items for AI/startup relevance using LLM.
+
+        Sends items in batches of 20 to gpt-4o-mini. On failure, falls back to
+        the keyword-based heuristic ``_is_relevant_turkey_news_item()``.
+        """
+        if not items:
+            return []
+
+        # No LLM provider → fall back to keyword heuristic
+        if not self.azure_client and not self.openai_api_key:
+            print(f"[news-ingest] {source_key}: LLM unavailable, falling back to keyword filter")
+            return [i for i in items if _is_relevant_turkey_news_item(i)]
+
+        BATCH_SIZE = 20
+        kept: List["NormalizedNewsItem"] = []
+
+        for batch_start in range(0, len(items), BATCH_SIZE):
+            batch = items[batch_start : batch_start + BATCH_SIZE]
+            article_lines = []
+            for idx, item in enumerate(batch, 1):
+                title = (item.title or "").strip()[:200]
+                summary = (item.summary or "").strip()[:150]
+                article_lines.append(f"{idx}. {title} | {summary}")
+            articles_text = "\n".join(article_lines)
+            prompt_text = _TURKEY_RELEVANCE_PROMPT.format(articles=articles_text)
+
+            classifications: Optional[List[bool]] = None
+            try:
+                classifications = await self._call_turkey_classifier_llm(prompt_text, len(batch))
+            except Exception as exc:
+                print(f"[news-ingest] {source_key}: LLM turkey classification failed: {exc}")
+
+            if classifications is not None and len(classifications) == len(batch):
+                for item, is_relevant in zip(batch, classifications):
+                    if is_relevant:
+                        kept.append(item)
+            else:
+                # Fallback: use keyword heuristic for this batch
+                for item in batch:
+                    if _is_relevant_turkey_news_item(item):
+                        kept.append(item)
+
+        return kept
+
+    async def _call_turkey_classifier_llm(self, prompt: str, expected_count: int) -> Optional[List[bool]]:
+        """Call Azure OpenAI (or OpenAI fallback) with the turkey relevance prompt."""
+        messages = [{"role": "user", "content": prompt}]
+
+        # Try Azure first
+        if self.azure_client is not None:
+            for model_name in [self.azure_openai_deployment, self.azure_openai_fallback_deployment]:
+                if not model_name:
+                    continue
+                try:
+                    token_param = _azure_token_param_name(model_name)
+                    payload: Dict[str, Any] = {
+                        "model": model_name,
+                        "messages": messages,
+                        token_param: max(10, expected_count * 8),
+                        "response_format": {"type": "json_object"},
+                    }
+                    if _azure_supports_temperature(model_name):
+                        payload["temperature"] = 0.0
+                    try:
+                        response = await self.azure_client.chat.completions.create(**payload)
+                    except Exception as exc:
+                        if _is_unsupported_temperature_exception(exc):
+                            payload.pop("temperature", None)
+                            response = await self.azure_client.chat.completions.create(**payload)
+                        else:
+                            raise
+                    content = ((response.choices or [None])[0].message.content if response.choices else "[]") or "[]"
+                    return self._parse_classification_response(content, expected_count)
+                except Exception:
+                    continue
+
+        # Fallback: OpenAI API
+        if self.openai_api_key:
+            try:
+                timeout = httpx.Timeout(30.0)
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {self.openai_api_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": self.llm_model,
+                            "temperature": 0.0,
+                            "max_tokens": max(10, expected_count * 8),
+                            "response_format": {"type": "json_object"},
+                            "messages": messages,
+                        },
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "[]")
+                    return self._parse_classification_response(content, expected_count)
+            except Exception:
+                pass
+
+        return None
+
+    @staticmethod
+    def _parse_classification_response(content: str, expected_count: int) -> Optional[List[bool]]:
+        """Parse LLM JSON response into a list of booleans."""
+        try:
+            parsed = json.loads(content)
+            # Handle both bare array and wrapped object (e.g. {"results": [...]})
+            if isinstance(parsed, list):
+                arr = parsed
+            elif isinstance(parsed, dict):
+                # Find the first list value in the dict
+                arr = next((v for v in parsed.values() if isinstance(v, list)), None)
+                if arr is None:
+                    return None
+            else:
+                return None
+            result = [bool(v) for v in arr]
+            if len(result) != expected_count:
+                return None
+            return result
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return None
 
     async def _llm_enrich_cluster(self, cluster: StoryCluster) -> LLMEnrichmentResult:
         if not self.openai_api_key and not self.azure_client:
@@ -4038,18 +4250,18 @@ class DailyNewsIngestor:
                 clusters = self._cluster_items(items_for_clustering)
 
                 # --- Split into global / turkey clusters FIRST ---
+                # Items were already LLM-classified at collection time; use the fast
+                # prefilter here just to confirm cluster membership.
                 turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
                 turkey_clusters: List[StoryCluster] = []
                 for c in clusters:
-                    # Only include clusters that have at least one Turkey-partitioned member
-                    # (or Turkey startup-owned member), and that pass the Turkey relevance gate.
                     turkey_members = [
                         m for m in c.members
                         if m.source_key in turkey_source_keys or m.source_key == "startup_owned_feeds"
                     ]
                     if not turkey_members:
                         continue
-                    if any(_is_relevant_turkey_news_item(m) for m in turkey_members):
+                    if any(_turkey_prefilter(m) for m in turkey_members):
                         turkey_clusters.append(c)
 
                 # --- Memory gate: run per-region (global then turkey) ---
