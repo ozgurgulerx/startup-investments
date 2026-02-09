@@ -4,7 +4,29 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from enum import Enum
 import re
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+class LLMModel(BaseModel):
+    """Base model for LLM-generated outputs that may contain null values.
+
+    Reasoning models (gpt-5-nano, o-series) return null for unknown fields
+    instead of the expected type. This validator replaces None with field
+    defaults before validation.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_nulls(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+        for name, field_info in cls.model_fields.items():
+            if name in values and values[name] is None:
+                if field_info.default is not None:
+                    values[name] = field_info.default
+                elif field_info.default_factory is not None:
+                    values[name] = field_info.default_factory()
+        return values
 
 
 class FundingStage(str, Enum):
@@ -77,14 +99,14 @@ class BuildPattern(BaseModel):
     description: Optional[str] = None
 
 
-class Competitor(BaseModel):
+class Competitor(LLMModel):
     """A competitor identified for a startup."""
     name: str
     similarity: str = ""  # What they have in common
     how_different: str = ""  # How the startup differs
 
 
-class Differentiation(BaseModel):
+class Differentiation(LLMModel):
     """How a startup differentiates from competitors."""
     primary: str = ""  # Main differentiator
     technical: str = ""  # Technical differentiators
@@ -92,14 +114,14 @@ class Differentiation(BaseModel):
     positioning: str = ""  # Market positioning
 
 
-class SecretSauce(BaseModel):
+class SecretSauce(LLMModel):
     """The startup's unique competitive advantage."""
     core_advantage: str = ""
     defensibility: str = ""
     evidence: List[str] = Field(default_factory=list)
 
 
-class CompetitiveAnalysis(BaseModel):
+class CompetitiveAnalysis(LLMModel):
     """Complete competitive analysis for a startup."""
     competitors: List[Competitor] = Field(default_factory=list)
     differentiation: Differentiation = Field(default_factory=Differentiation)
@@ -109,7 +131,7 @@ class CompetitiveAnalysis(BaseModel):
     moat_types: List[MoatType] = Field(default_factory=list)  # Specific moat categories
 
 
-class TechStack(BaseModel):
+class TechStack(LLMModel):
     """Detected technology stack components."""
     llm_providers: List[str] = Field(default_factory=list)  # OpenAI, Anthropic, etc.
     llm_models: List[str] = Field(default_factory=list)     # GPT-4, Claude, Llama, etc.
@@ -117,11 +139,11 @@ class TechStack(BaseModel):
     frameworks: List[str] = Field(default_factory=list)     # LangChain, LlamaIndex, etc.
     hosting: List[str] = Field(default_factory=list)        # Azure, AWS, self-hosted
     approach: str = "unknown"  # rag, fine_tuning, hybrid, prompt_engineering
-    uses_open_source_models: Optional[bool] = False
-    has_custom_models: Optional[bool] = False
+    uses_open_source_models: bool = False
+    has_custom_models: bool = False
 
 
-class EngineeringQuality(BaseModel):
+class EngineeringQuality(LLMModel):
     """Engineering quality and maturity signals."""
     score: int = Field(default=0, ge=0, le=10)  # Overall engineering maturity score
     has_public_api: bool = False
@@ -135,7 +157,7 @@ class EngineeringQuality(BaseModel):
     signals: List[str] = Field(default_factory=list)  # Specific quality indicators
 
 
-class StoryAngle(BaseModel):
+class StoryAngle(LLMModel):
     """A potential newsletter story angle."""
     angle_type: str  # architecture, data, vertical_expert, contrarian, efficiency
     headline: str    # Compelling one-liner hook
@@ -144,7 +166,7 @@ class StoryAngle(BaseModel):
     uniqueness_score: int = Field(default=5, ge=1, le=10)  # How unique/newsworthy
 
 
-class AntiPattern(BaseModel):
+class AntiPattern(LLMModel):
     """Warning signs detected in a startup."""
     pattern_type: str  # wrapper, feature_not_product, no_moat, overclaiming
     description: str
@@ -156,7 +178,7 @@ class AntiPattern(BaseModel):
 # Enhanced Analysis Models (NEW - for richer briefs)
 # =============================================================================
 
-class DiscoveredPattern(BaseModel):
+class DiscoveredPattern(LLMModel):
     """A dynamically discovered build pattern with novelty scoring."""
     category: str  # Model Architecture, Compound AI Systems, etc.
     pattern_name: str  # Specific descriptive name
@@ -167,33 +189,33 @@ class DiscoveredPattern(BaseModel):
     why_notable: str = ""
 
 
-class NovelApproach(BaseModel):
+class NovelApproach(LLMModel):
     """A unique technical approach not fitting standard patterns."""
     approach: str
     why_novel: str
     potential_impact: str = ""
 
 
-class FineTuningDetails(BaseModel):
+class FineTuningDetails(LLMModel):
     """Details about model fine-tuning."""
     uses_fine_tuning: bool = False
     fine_tuning_approach: str = ""  # LoRA, full fine-tune, etc.
     training_data_source: str = ""
 
 
-class ModelRouting(BaseModel):
+class ModelRouting(LLMModel):
     """Model routing/orchestration details."""
     uses_routing: bool = False
     routing_strategy: str = ""
 
 
-class CompoundAIDetails(BaseModel):
+class CompoundAIDetails(LLMModel):
     """Compound AI system details."""
     is_compound_system: bool = False
     orchestration_pattern: str = ""
 
 
-class ModelDetails(BaseModel):
+class ModelDetails(LLMModel):
     """Detailed model/LLM usage information."""
     primary_models: List[str] = Field(default_factory=list)
     fine_tuning: FineTuningDetails = Field(default_factory=FineTuningDetails)
@@ -202,7 +224,7 @@ class ModelDetails(BaseModel):
     compound_ai: CompoundAIDetails = Field(default_factory=CompoundAIDetails)
 
 
-class FounderInfo(BaseModel):
+class FounderInfo(LLMModel):
     """Information about a founder."""
     name: str = ""
     role: str = ""
@@ -212,7 +234,7 @@ class FounderInfo(BaseModel):
     domain_expertise: str = ""
 
 
-class TeamSignals(BaseModel):
+class TeamSignals(LLMModel):
     """Team composition signals."""
     engineering_heavy: bool = False
     has_ml_expertise: bool = False
@@ -222,7 +244,7 @@ class TeamSignals(BaseModel):
     remote_distributed: bool = False
 
 
-class TeamAnalysis(BaseModel):
+class TeamAnalysis(LLMModel):
     """Team and leadership analysis."""
     founders: List[FounderInfo] = Field(default_factory=list)
     team_signals: TeamSignals = Field(default_factory=TeamSignals)
@@ -232,7 +254,7 @@ class TeamAnalysis(BaseModel):
     team_confidence: float = 0.0
 
 
-class PricingModel(BaseModel):
+class PricingModel(LLMModel):
     """Pricing model details."""
     type: str = "unknown"  # freemium, enterprise_only, usage_based, subscription, etc.
     pricing_evidence: List[str] = Field(default_factory=list)
@@ -241,7 +263,7 @@ class PricingModel(BaseModel):
     price_points: List[str] = Field(default_factory=list)
 
 
-class GTMStrategy(BaseModel):
+class GTMStrategy(LLMModel):
     """Go-to-market strategy details."""
     primary_channel: str = "unknown"  # product_led, sales_led, developer_first, etc.
     evidence: List[str] = Field(default_factory=list)
@@ -249,20 +271,20 @@ class GTMStrategy(BaseModel):
     sales_motion: str = "unknown"  # self_serve, inside_sales, field_sales, hybrid
 
 
-class RevenueModel(BaseModel):
+class RevenueModel(LLMModel):
     """Revenue model details."""
     monetization_approach: str = ""
     unit_economics_signals: List[str] = Field(default_factory=list)
     recurring_revenue: bool = False
 
 
-class CustomerAcquisition(BaseModel):
+class CustomerAcquisition(LLMModel):
     """Customer acquisition signals."""
     acquisition_channels: List[str] = Field(default_factory=list)
     customer_proof_points: List[str] = Field(default_factory=list)
 
 
-class BusinessModel(BaseModel):
+class BusinessModel(LLMModel):
     """Complete business model analysis."""
     pricing_model: PricingModel = Field(default_factory=PricingModel)
     gtm_strategy: GTMStrategy = Field(default_factory=GTMStrategy)
@@ -273,7 +295,7 @@ class BusinessModel(BaseModel):
     business_model_confidence: float = 0.0
 
 
-class FeatureDepth(BaseModel):
+class FeatureDepth(LLMModel):
     """Product feature depth."""
     core_features: List[str] = Field(default_factory=list)
     differentiating_features: List[str] = Field(default_factory=list)
@@ -281,7 +303,7 @@ class FeatureDepth(BaseModel):
     feature_completeness: str = "unknown"  # mvp, growing, comprehensive
 
 
-class IntegrationEcosystem(BaseModel):
+class IntegrationEcosystem(LLMModel):
     """Integration ecosystem details."""
     integrations_mentioned: List[str] = Field(default_factory=list)
     api_maturity: str = "none"  # none, basic, comprehensive, platform
@@ -290,7 +312,7 @@ class IntegrationEcosystem(BaseModel):
     marketplace_presence: List[str] = Field(default_factory=list)
 
 
-class UseCases(BaseModel):
+class UseCases(LLMModel):
     """Product use cases."""
     primary_use_case: str = ""
     secondary_use_cases: List[str] = Field(default_factory=list)
@@ -298,7 +320,7 @@ class UseCases(BaseModel):
     industry_focus: List[str] = Field(default_factory=list)
 
 
-class ProductAnalysis(BaseModel):
+class ProductAnalysis(LLMModel):
     """Complete product analysis."""
     product_stage: str = "unknown"  # pre_launch, beta, general_availability, mature
     stage_evidence: List[str] = Field(default_factory=list)
