@@ -42,6 +42,15 @@ All scheduled jobs and deployments run on `vm-buildatlas-cron` (B2s, UK South, `
 
 **SSH:** `ssh buildatlas@20.90.104.162`
 
+**SSH unreachable? Fix NSG rules immediately — do NOT waste time troubleshooting.**
+Azure periodically clears the NSG SSH rules (JIT expiry). Run these two commands to restore access (update the IP with `curl -s https://ifconfig.me`):
+```bash
+MY_IP=$(curl -s https://ifconfig.me)
+az network nsg rule create --nsg-name vm-buildatlas-cronNSG --resource-group aistartuptr --name AllowSSH --priority 100 --access Allow --direction Inbound --protocol Tcp --destination-port-ranges 22 --source-address-prefixes $MY_IP -o none
+az network nsg rule create --nsg-name "vm-buildatlas-cronVNET-vm-buildatlas-cronSubnet-nsg-uksouth" --resource-group aistartuptr --name AllowSSH --priority 100 --access Allow --direction Inbound --protocol Tcp --destination-port-ranges 22 --source-address-prefixes $MY_IP -o none
+```
+Both the NIC-level and subnet-level NSGs need the rule — one alone is not enough.
+
 **How it works:**
 - `runner.sh` wrapper: sources `/etc/buildatlas/.env`, flock locking, timeout, logging to `/var/log/buildatlas/`, Slack on failure
 - Code updates every 6 hours (`deploy.sh`): pulls latest, auto-triggers backend/frontend deploys if `apps/api/**` or `apps/web/**` changed
@@ -103,7 +112,7 @@ All API requests must go through Front Door with `X-API-Key` header. Direct AKS 
 
 ### News Pipeline & Memory Gate
 
-The news pipeline (`packages/analysis/src/automation/news_ingest.py`) runs hourly via VM cron, ingesting from 40+ sources, deduplicating into story clusters, and producing daily editions with LLM enrichment.
+The news pipeline (`packages/analysis/src/automation/news_ingest.py`) runs hourly via VM cron, ingesting from 45+ sources, deduplicating into story clusters, and producing daily editions with LLM enrichment.
 
 **The memory gate** (`packages/analysis/src/automation/memory_gate.py`) sits between clustering and LLM enrichment. It adds persistent editorial intelligence by comparing each incoming cluster against what the system already knows:
 
@@ -127,6 +136,8 @@ Sources → collect → cluster → MEMORY GATE → LLM enrich → persist → e
 - Pattern novelty scoring prioritizes emerging build patterns over well-covered ones
 
 **Region-aware:** Turkey memory reads global+turkey facts (one-way merge); global reads only global. Turkish-language regex patterns (milyon dolar, seri A, liderliğinde, satın al) applied for `region="turkey"`. Memory gate runs per-region AFTER turkey cluster filtering in the pipeline.
+
+**Turkey sources (9 total):** Webrazzi, Egirisim (trusted RSS), GNews Turkey, NewsAPI Turkey (API aggregators), FounderN, Swipeline, N24 Business, Daily Sabah Tech (English), Startups.watch (Medium). Turkey items go through a two-stage filter: (1) fast heuristic pre-filter for noise exclusion, (2) `gpt-4o-mini` batch classification for AI/startup relevance (~$2-3/month). Falls back to keyword heuristic if LLM unavailable.
 
 **Periodic briefs:** `packages/analysis/src/automation/periodic_briefs.py` — `WeeklyBriefGenerator` and `MonthlyBriefGenerator`. Hybrid format: template stats (story counts, funding, top entities) + LLM narrative (executive summary, trends, builder lessons). Stored in `news_periodic_briefs` table.
 
