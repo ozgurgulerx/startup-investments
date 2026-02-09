@@ -1150,8 +1150,13 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
         return False
 
     # Big-tech exclusion: Turkey feed shouldn't be dominated by product updates from incumbents.
-    if _contains_any(text, TR_BIGTECH_KEYWORDS) and not (has_ecosystem or has_policy):
-        return False
+    # Require explicit Turkey context (not just generic ecosystem keywords) to override.
+    # E.g. "Anthropic'in değerlemesi" has ecosystem keywords but no Turkey context → excluded.
+    # But "Türk startup X, Anthropic'ten yatırım aldı" has Turkey context → allowed.
+    if _contains_any(text, TR_BIGTECH_KEYWORDS):
+        has_turkey_context = _contains_any(text, TR_CONTEXT_KEYWORDS)
+        if not (has_policy or (has_strong_ecosystem and has_turkey_context)):
+            return False
 
     return True
 
