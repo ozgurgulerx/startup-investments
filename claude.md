@@ -65,7 +65,7 @@ Both the NIC-level and subnet-level NSGs need the rule — one alone is not enou
 | `crawl-frontier` | Every 30 min | Crawl frontier URLs |
 | `news-digest` | Hourly :45 | Send email digests (timezone-aware, 08:45 local) |
 | `slack-summary` | Daily 14:00 | Ops summary to Slack |
-| `sync-data` | 30 min weekdays 8-20 | Blob sync → git push → frontend deploy |
+| `sync-data` | 30 min weekdays 8-20 | Blob sync → DB sync → logo extraction → git push → frontend deploy |
 | `code-update` | Every 6 hours | git pull → conditional backend/frontend deploy |
 | `heartbeat` | Every 5 min | VM health (disk, memory, cron, stale locks) |
 

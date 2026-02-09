@@ -82,6 +82,11 @@ if [ "$TOTAL" -eq 0 ]; then
                 "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$TR_PERIOD" --region turkey
             fi
 
+            # Extract logos for any startups missing them
+            echo "Extracting logos for startups missing them..."
+            cd "$REPO_DIR/packages/analysis"
+            "$VENV_DIR/bin/python" main.py extract-logos --concurrent 10 || echo "WARN: Logo extraction had errors (non-fatal)"
+
             touch "$DB_SYNC_SENTINEL"
             echo "DB sync-only pass complete. Done."
             exit 0
@@ -169,6 +174,12 @@ if [ -n "${DATABASE_URL:-}" ]; then
         echo "Populating analysis_data (region=turkey period=$TR_PERIOD)..."
         "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$TR_PERIOD" --region turkey
     fi
+
+    # 3) Extract logos for any startups that don't have one yet.
+    # Non-blocking: logo failures should not prevent sync from completing.
+    echo "Extracting logos for startups missing them..."
+    cd "$REPO_DIR/packages/analysis"
+    "$VENV_DIR/bin/python" main.py extract-logos --concurrent 10 || echo "WARN: Logo extraction had errors (non-fatal)"
 
     echo "DB sync complete."
 else
