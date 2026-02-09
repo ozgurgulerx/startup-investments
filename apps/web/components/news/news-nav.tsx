@@ -65,14 +65,14 @@ export function NewsNav({ activeRegion, activePeriod, archiveDate }: NavProps) {
 
           <Link
             href={activeRegion === 'turkey' ? '/news/turkey/search' : '/news/search'}
-            className="text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
+            className={inactivePill}
           >
             Search
           </Link>
 
           <Link
             href={activeRegion === 'turkey' ? '/news/turkey/archive' : '/news/archive'}
-            className="text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
+            className={inactivePill}
           >
             Archive
           </Link>
