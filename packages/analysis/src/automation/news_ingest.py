@@ -4405,12 +4405,8 @@ class DailyNewsIngestor:
                     "turkey": gating_stats_turkey,
                 }
 
-                # Only enrich publish + borderline clusters with LLM
-                llm_candidates = [
-                    c for c in clusters
-                    if c.gating_decision in ("publish", "borderline", None)
-                ]
-                await self._enrich_clusters_with_llm(llm_candidates)
+                # Enrich all clusters with LLM (gated by NEWS_LLM_MAX_CLUSTERS)
+                await self._enrich_clusters_with_llm(clusters)
                 images_enriched = await self._enrich_missing_images(conn, clusters)
                 cluster_ids = await self._persist_clusters(conn, clusters)
 
