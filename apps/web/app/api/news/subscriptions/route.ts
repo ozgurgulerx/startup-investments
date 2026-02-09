@@ -105,8 +105,7 @@ async function sendConfirmationEmail(
 ): Promise<void> {
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
-    console.warn('RESEND_API_KEY not set — skipping confirmation email');
-    return;
+    throw new Error('RESEND_API_KEY not configured — cannot send confirmation email');
   }
 
   const confirmUrl = `${baseUrl}/api/news/subscriptions/confirm?token=${confirmationToken}`;
@@ -241,6 +240,7 @@ export async function POST(req: NextRequest) {
       builderFocus?: boolean;
       source?: string;
       region?: string;
+      timezone?: string;
     };
     const emailRaw = body.email || '';
     const email = normalizeEmail(emailRaw);
@@ -252,6 +252,10 @@ export async function POST(req: NextRequest) {
     const region: Region = VALID_REGIONS.includes(body.region as Region)
       ? (body.region as Region)
       : 'global';
+
+    // Validate IANA timezone; fall back to Istanbul if invalid or missing
+    const rawTz = (body.timezone || '').trim().slice(0, 80);
+    const subscriberTimezone = rawTz && /^[A-Za-z_/+-]+$/.test(rawTz) ? rawTz : 'Europe/Istanbul';
 
     const ip = clientIpFromRequest(req);
     const rate = await enforceRateLimit(ip, { emailNormalized: email, region });
@@ -275,16 +279,18 @@ export async function POST(req: NextRequest) {
         status,
         source,
         region,
+        timezone,
         preferences_json,
         confirmation_token,
         confirmation_sent_at,
         updated_at
       )
-      VALUES ($1, $2, 'pending_confirmation', $3, $4, $5::jsonb, gen_random_uuid(), NOW(), NOW())
+      VALUES ($1, $2, 'pending_confirmation', $3, $4, $6, $5::jsonb, gen_random_uuid(), NOW(), NOW())
       ON CONFLICT (email_normalized, region) DO UPDATE
       SET email = EXCLUDED.email,
           source = EXCLUDED.source,
           preferences_json = EXCLUDED.preferences_json,
+          timezone = EXCLUDED.timezone,
           confirmation_token = CASE
             WHEN news_email_subscriptions.status = 'active'
             THEN news_email_subscriptions.confirmation_token
@@ -303,7 +309,7 @@ export async function POST(req: NextRequest) {
           updated_at = NOW()
       RETURNING confirmation_token::text, status
       `,
-      [emailRaw.trim(), email, source, region, JSON.stringify(preferences)]
+      [emailRaw.trim(), email, source, region, JSON.stringify(preferences), subscriberTimezone]
     );
 
     const row = result.rows[0];

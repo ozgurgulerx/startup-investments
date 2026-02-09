@@ -8,6 +8,7 @@ import os
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -31,6 +32,7 @@ class Subscriber:
     id: str
     email: str
     unsubscribe_token: str
+    timezone: str = "Europe/Istanbul"
 
 
 class DailyNewsDigestSender:
@@ -125,7 +127,8 @@ class DailyNewsDigestSender:
     async def _load_subscribers(self, conn: asyncpg.Connection, *, region: str = "global") -> List[Subscriber]:
         rows = await conn.fetch(
             """
-            SELECT id::text AS id, email, unsubscribe_token::text AS unsubscribe_token
+            SELECT id::text AS id, email, unsubscribe_token::text AS unsubscribe_token,
+                   COALESCE(timezone, 'Europe/Istanbul') AS timezone
             FROM news_email_subscriptions
             WHERE status = 'active' AND region = $1
             ORDER BY created_at ASC
@@ -137,9 +140,35 @@ class DailyNewsDigestSender:
                 id=str(row["id"]),
                 email=str(row["email"]),
                 unsubscribe_token=str(row["unsubscribe_token"]),
+                timezone=str(row["timezone"] or "Europe/Istanbul"),
             )
             for row in rows
         ]
+
+    @staticmethod
+    def _filter_by_local_hour(
+        subscribers: List[Subscriber],
+        *,
+        target_hour: int,
+        target_minute: int,
+        now_utc: datetime,
+    ) -> List[Subscriber]:
+        """Keep only subscribers whose local time is in the target hour.
+
+        Uses a window: if target is 08:45, we accept local times from 08:00
+        to 08:59 so that hourly cron runs at :45 always catch every timezone.
+        """
+        result = []
+        for sub in subscribers:
+            try:
+                tz = ZoneInfo(sub.timezone)
+            except (KeyError, Exception):
+                # Unknown timezone — fall back to Istanbul
+                tz = ZoneInfo("Europe/Istanbul")
+            local_now = now_utc.astimezone(tz)
+            if local_now.hour == target_hour:
+                result.append(sub)
+        return result
 
     def _build_email_html(self, *, edition_date: str, stories: List[DigestStory], unsubscribe_url: str) -> str:
         story_blocks = []
@@ -256,15 +285,32 @@ class DailyNewsDigestSender:
             error_text,
         )
 
-    async def run(self, *, edition_date: Optional[str] = None, region: str = "global") -> Dict[str, Any]:
+    async def run(
+        self,
+        *,
+        edition_date: Optional[str] = None,
+        region: str = "global",
+        target_hour: int = 8,
+        target_minute: int = 45,
+    ) -> Dict[str, Any]:
         await self.connect()
         assert self.pool is not None
+
+        now_utc = datetime.now(timezone.utc)
 
         async with self.pool.acquire() as conn:
             resolved_date = await self._resolve_edition_date(conn, edition_date, region=region)
             resolved_date_str = resolved_date.isoformat()
             stories = await self._load_stories(conn, resolved_date, region=region)
             all_subscribers = await self._load_subscribers(conn, region=region)
+
+            # Filter to subscribers whose local time is currently the target hour.
+            tz_eligible = self._filter_by_local_hour(
+                all_subscribers,
+                target_hour=target_hour,
+                target_minute=target_minute,
+                now_utc=now_utc,
+            )
 
             # Avoid duplicate sends when workflows are re-run for the same edition date.
             sent_rows = await conn.fetch(
@@ -277,14 +323,16 @@ class DailyNewsDigestSender:
                 resolved_date,
             )
             sent_ids = {str(r["subscription_id"]) for r in (sent_rows or [])}
-            subscribers = [s for s in all_subscribers if s.id not in sent_ids]
+            subscribers = [s for s in tz_eligible if s.id not in sent_ids]
 
             result: Dict[str, Any] = {
                 "edition_date": resolved_date_str,
                 "region": region,
+                "target_local_time": f"{target_hour:02d}:{target_minute:02d}",
                 "stories": len(stories),
                 "subscribers": len(all_subscribers),
-                "already_sent": max(0, len(all_subscribers) - len(subscribers)),
+                "tz_eligible": len(tz_eligible),
+                "already_sent": max(0, len(tz_eligible) - len(subscribers)),
                 "to_send": len(subscribers),
                 "sent": 0,
                 "failed": 0,
@@ -405,12 +453,19 @@ async def run_news_digest_sender(
     edition_date: Optional[str] = None,
     region: str = "global",
     dry_run: bool = False,
+    target_hour: int = 8,
+    target_minute: int = 45,
 ) -> Dict[str, Any]:
     sender = DailyNewsDigestSender()
     if dry_run:
         sender.dry_run = True
     try:
-        return await sender.run(edition_date=edition_date, region=region)
+        return await sender.run(
+            edition_date=edition_date,
+            region=region,
+            target_hour=target_hour,
+            target_minute=target_minute,
+        )
     finally:
         await sender.close()
 

@@ -54,7 +54,7 @@ All scheduled jobs and deployments run on `vm-buildatlas-cron` (B2s, UK South, `
 | `keep-alive` | Every 15 min | PostgreSQL + AKS + API + Frontend health checks |
 | `news-ingest` | Hourly :15 | Fetch + LLM-enrich news articles |
 | `crawl-frontier` | Every 30 min | Crawl frontier URLs |
-| `news-digest` | Daily 13:10 | Send email digests (global + turkey) |
+| `news-digest` | Hourly :45 | Send email digests (timezone-aware, 08:45 local) |
 | `slack-summary` | Daily 14:00 | Ops summary to Slack |
 | `sync-data` | 30 min weekdays 8-20 | Blob sync → git push → frontend deploy |
 | `code-update` | Every 6 hours | git pull → conditional backend/frontend deploy |

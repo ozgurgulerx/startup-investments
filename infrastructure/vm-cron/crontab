@@ -18,8 +18,10 @@ MAILTO=""
 # === Crawl Frontier Worker (every 30 min) ===
 0,30 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh crawl-frontier 25 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/crawl-frontier.sh
 
-# === News Digest (daily 13:10 UTC) ===
-10 13 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-digest 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-digest.sh
+# === News Digest (hourly at :45, timezone-aware) ===
+# Sends to subscribers whose local time is 08:xx. Each run only delivers to
+# the timezone batch that matches; duplicates are prevented by delivery table.
+45 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-digest 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-digest.sh
 
 # === Weekly Brief (Monday 06:00 UTC) ===
 0 6 * * 1 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh weekly-brief 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/weekly-brief.sh
