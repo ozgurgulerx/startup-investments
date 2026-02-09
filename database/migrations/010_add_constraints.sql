@@ -12,14 +12,10 @@ WHERE id NOT IN (
 );
 
 -- Now add the constraint
+-- Non-partial unique index so ON CONFLICT (startup_id, round_type, announced_date) works.
+-- NULL announced_date rows won't conflict with each other (SQL NULL != NULL).
 CREATE UNIQUE INDEX IF NOT EXISTS idx_funding_rounds_unique
-  ON funding_rounds (startup_id, round_type, announced_date)
-  WHERE announced_date IS NOT NULL;
-
--- Also handle cases where announced_date is NULL (separate partial index)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_funding_rounds_unique_no_date
-  ON funding_rounds (startup_id, round_type)
-  WHERE announced_date IS NULL;
+  ON funding_rounds (startup_id, round_type, announced_date);
 
 -- 2. Make slug unique on startups table
 -- First, deduplicate any slug collisions (keep the most recently updated)

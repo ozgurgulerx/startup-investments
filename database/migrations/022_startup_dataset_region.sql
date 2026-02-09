@@ -16,8 +16,7 @@ WHERE dataset_region IS NULL OR dataset_region = '';
 -- Replace old slug uniqueness with per-region uniqueness
 DROP INDEX IF EXISTS idx_startups_slug;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_startups_slug
-  ON startups(dataset_region, slug)
-  WHERE slug IS NOT NULL;
+  ON startups(dataset_region, slug);
 
 -- Preserve fast lookups by slug when callers don't yet pass dataset_region.
 -- (Non-unique because the same slug can exist across datasets.)
