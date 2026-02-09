@@ -9,18 +9,41 @@
 Tables (ALL EXIST - DO NOT DROP OR TRUNCATE):
 ├── startups              # Core startup data with funding info
 ├── startup_snapshots     # Monthly point-in-time snapshots
+├── startup_briefs        # Versioned brief content
 ├── funding_rounds        # Individual funding round details
 ├── investors             # Investor profiles (VCs, angels, corporates)
 ├── investments           # Junction: investors <-> funding rounds
+├── investor_startup_links # Investor-startup relationship tracking
+├── competitor_links      # Competitive relationships
+├── pattern_correlations  # Pattern co-occurrence statistics
+├── newsletters           # Generated newsletter content
+├── users                 # Authenticated users
+├── user_watchlists       # User's saved startups
+├── user_preferences      # User settings
+├── news_sources          # RSS/API/crawler source registry
+├── news_items_raw        # Raw normalized news items
+├── news_clusters         # Deduplicated story clusters (with embeddings)
+├── news_cluster_items    # Junction: clusters <-> raw items
+├── news_daily_editions   # Daily edition snapshots per region
+├── news_topic_index      # Topic-cluster lookup by edition/region
+├── news_ingestion_runs   # Ingestion telemetry
+├── news_entity_facts     # Persistent entity claims (memory gate)
+├── news_item_extractions # Per-cluster extraction results
+├── news_item_decisions   # Routing decisions (publish/watchlist/drop)
+├── news_pattern_library  # Build patterns from news
+├── news_gtm_taxonomy     # GTM classification tags
+├── news_calibration_labels # Human feedback labels
+├── news_periodic_briefs  # Weekly/monthly intelligence briefs
+├── news_email_subscriptions  # Email newsletter subscriptions
+├── news_digest_deliveries # Per-subscriber delivery tracking
+├── crawl_logs            # Website crawl history
+├── crawl_frontier_urls   # Crawl frontier URL registry
+├── crawl_frontier_queue  # Lease-based crawl queue
+├── domain_stats          # Per-domain throttling stats
+├── domain_policies       # Per-domain crawl policies
 ├── startup_events        # Events triggering re-analysis
 ├── deep_research_queue   # LLM analysis queue
-├── pattern_correlations  # Pattern co-occurrence statistics
-├── crawl_logs            # Website crawl history
-├── users                 # Authenticated users
-├── watchlist_items       # User's saved startups
-├── newsletters           # Generated newsletter content
-├── startup_briefs        # Versioned brief content
-├── news_email_subscriptions  # Email newsletter subscriptions
+NOTE: See docs/claude/database-and-search.md for full schema details
 ```
 
 ## Correct Database Update Process

@@ -221,6 +221,7 @@ Read these files on-demand when the task requires it:
 | [`docs/claude/data-regeneration.md`](docs/claude/data-regeneration.md) | Regenerating stats, briefs, enriched CSVs, or data consistency questions |
 | [`docs/claude/monthly-update.md`](docs/claude/monthly-update.md) | Processing new monthly CSV data |
 | [`docs/claude/database-sync.md`](docs/claude/database-sync.md) | Syncing data to PostgreSQL, schema questions |
+| [`docs/claude/database-and-search.md`](docs/claude/database-and-search.md) | Full database schema, vector search (pgvector), news tables, memory system |
 | [`docs/claude/infrastructure-health.md`](docs/claude/infrastructure-health.md) | Debugging production issues (504s, CrashLoopBackOff, Redis down) |
 | [`docs/claude/email-infrastructure.md`](docs/claude/email-infrastructure.md) | Working on email/newsletter features (Resend API) |
 | [`docs/claude/frontend-patterns.md`](docs/claude/frontend-patterns.md) | Working on frontend copy, UI, dual-audience messaging |

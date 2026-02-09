@@ -183,6 +183,25 @@ export function newsTopicsKey(params: { region: string; date: string; limit: num
 }
 
 /**
+ * Generate cache key for news search queries
+ */
+export function newsSearchKey(params: {
+  query: string; region: string; limit: number;
+  story_type?: string; topic?: string; date_from?: string; date_to?: string;
+}): string {
+  const hash = hashObject({
+    q: params.query.toLowerCase().trim(),
+    r: params.region,
+    l: params.limit,
+    st: params.story_type || '',
+    t: params.topic || '',
+    df: params.date_from || '',
+    dt: params.date_to || '',
+  });
+  return `news:v1:search:${hash}`;
+}
+
+/**
  * Generate cache key for news archive
  */
 export function newsArchiveKey(params: { region: string; limit: number; offset: number }): string {
@@ -407,4 +426,5 @@ export const CACHE_TTL = {
   NEWS_SOURCES: 1800,    // 30 minutes - very stable
   NEWS_BRIEF: 900,       // 15 minutes - generated periodically, read often
   NEWS_BRIEF_ARCHIVE: 1800, // 30 minutes - listing changes infrequently
+  NEWS_SEARCH: 300,         // 5 minutes - search queries may overlap
 } as const;

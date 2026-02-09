@@ -1314,6 +1314,138 @@ def memory_backfill(
         console.print("[yellow]Dry run — nothing was persisted[/yellow]")
 
 
+@app.command("embed-backfill")
+def embed_backfill(
+    days: int = typer.Option(0, "--days", help="Limit to clusters from last N days (0 = all)"),
+    batch_size: int = typer.Option(100, "--batch-size", help="Embedding batch size"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Count unembedded clusters without processing"),
+):
+    """Backfill embeddings for existing news clusters.
+
+    Generates text-embedding-3-small vectors for all clusters where
+    embedded_at IS NULL.  Idempotent — skips already-embedded clusters.
+    Also populates related_cluster_ids for newly embedded clusters.
+
+    Requires AZURE_OPENAI_ENDPOINT and managed identity (or AZURE_OPENAI_API_KEY).
+    """
+    from src.automation.embedding import EmbeddingService
+    import asyncpg as apg
+
+    async def run():
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            return None
+
+        # Initialise Azure OpenAI client (same pattern as NewsIngestionPipeline)
+        azure_client = None
+        try:
+            from openai import AsyncAzureOpenAI as _AsyncAzureOpenAI
+            endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+            if endpoint:
+                try:
+                    from azure.identity import DefaultAzureCredential as _DAC
+                    from azure.identity import get_bearer_token_provider as _gbtp
+                    _cred = _DAC()
+                    _tp = _gbtp(_cred, "https://cognitiveservices.azure.com/.default")
+                    azure_client = _AsyncAzureOpenAI(
+                        azure_ad_token_provider=_tp,
+                        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+                        azure_endpoint=endpoint,
+                    )
+                except ImportError:
+                    api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+                    if api_key:
+                        azure_client = _AsyncAzureOpenAI(
+                            api_key=api_key,
+                            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+                            azure_endpoint=endpoint,
+                        )
+        except ImportError:
+            console.print("[yellow]openai package not installed[/yellow]")
+
+        if azure_client is None and not dry_run:
+            console.print("[red]No Azure OpenAI client available. Set AZURE_OPENAI_ENDPOINT.[/red]")
+            return None
+
+        deployment = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
+        service = EmbeddingService(azure_client=azure_client, deployment_name=deployment)
+
+        pool = await apg.create_pool(db_url, min_size=2, max_size=5, command_timeout=120)
+        async with pool.acquire() as conn:
+            where = "WHERE embedding IS NULL"
+            params: list = []
+            if days > 0:
+                where += " AND published_at >= NOW() - ($1 || ' days')::interval"
+                params.append(str(days))
+
+            count = await conn.fetchval(
+                f"SELECT COUNT(*) FROM news_clusters {where}", *params
+            )
+            console.print(f"[bold]Found {count} unembedded clusters[/bold]")
+
+            if dry_run or count == 0:
+                await pool.close()
+                return {"total": count, "embedded": 0, "related": 0, "dry_run": dry_run}
+
+            rows = await conn.fetch(
+                f"""SELECT id::text, title, summary, entities
+                    FROM news_clusters {where}
+                    ORDER BY published_at DESC""",
+                *params,
+            )
+
+            embedded = 0
+            for b_start in range(0, len(rows), batch_size):
+                batch = rows[b_start : b_start + batch_size]
+                texts = [
+                    service.prepare_text(
+                        row["title"],
+                        row["summary"],
+                        list(row["entities"] or []),
+                    )
+                    for row in batch
+                ]
+                embeddings = await service.embed_texts(texts)
+
+                for row, emb in zip(batch, embeddings):
+                    if emb is not None:
+                        await conn.execute(
+                            """UPDATE news_clusters
+                               SET embedding = $1::vector, embedded_at = NOW()
+                               WHERE id = $2::uuid""",
+                            str(emb), row["id"],
+                        )
+                        embedded += 1
+                console.print(f"  Embedded {min(b_start + batch_size, len(rows))}/{len(rows)}")
+
+            # Populate related clusters for newly embedded items
+            all_ids = [row["id"] for row in rows]
+            related = await service.populate_related_clusters(conn, all_ids)
+
+        await pool.close()
+        return {"total": len(rows), "embedded": embedded, "related": related}
+
+    try:
+        result = asyncio.run(run())
+    except Exception as exc:
+        console.print(f"[red]Embed backfill failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    if not result:
+        return
+
+    console.print(Panel.fit(
+        f"[bold blue]Embedding Backfill Results[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"[bold]Total unembedded:[/bold] {result.get('total', 0)}")
+    console.print(f"[bold]Embedded:[/bold] {result.get('embedded', 0)}")
+    console.print(f"[bold]Related populated:[/bold] {result.get('related', 0)}")
+    if result.get("dry_run"):
+        console.print("[yellow]Dry run — nothing was persisted[/yellow]")
+
+
 @app.command("generate-weekly-brief")
 def generate_weekly_brief(
     region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),

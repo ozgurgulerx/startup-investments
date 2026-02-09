@@ -677,6 +677,23 @@ export interface NewsArchiveDay {
   story_type_counts?: Record<string, number>;
 }
 
+// Search Results
+// -----------------------------------------------------------------------------
+
+export interface NewsSearchResult {
+  id: string;
+  title: string;
+  summary: string;
+  story_type: string;
+  topic_tags: string[];
+  entities: string[];
+  published_at: string;
+  similarity: number;
+  primary_url?: string;
+  primary_source?: string;
+  image_url?: string;
+}
+
 // Periodic Briefs (Weekly / Monthly)
 // -----------------------------------------------------------------------------
 

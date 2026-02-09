@@ -1365,6 +1365,10 @@ class DailyNewsIngestor:
         self.azure_openai_fallback_deployment = (
             os.getenv("AZURE_OPENAI_FALLBACK_DEPLOYMENT_NAME") or "gpt-4o"
         )
+        # Embedding deployment for semantic search (text-embedding-3-small)
+        self.azure_openai_embedding_deployment = (
+            os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
+        )
         # Daily briefs benefit from higher-quality synthesis. Prefer the "reasoning" deployment
         # (often gpt-5-mini) with low effort, but always fall back to the primary deployment.
         self.azure_openai_daily_brief_deployment = (
@@ -4293,6 +4297,48 @@ class DailyNewsIngestor:
 
         return stats
 
+    # ------------------------------------------------------------------
+    # Embedding (semantic search + editorial memory)
+    # ------------------------------------------------------------------
+
+    async def _embed_clusters(
+        self,
+        conn: Any,
+        clusters: Sequence,
+        cluster_ids: Dict[str, str],
+    ) -> Dict[str, Any]:
+        """Generate embeddings for newly persisted clusters. Non-blocking."""
+        from .embedding import EmbeddingService
+
+        service = EmbeddingService(
+            azure_client=self.azure_client,
+            deployment_name=self.azure_openai_embedding_deployment,
+        )
+        try:
+            return await service.embed_clusters(conn, clusters, cluster_ids)
+        except Exception as exc:
+            print(f"[embedding] Non-fatal failure: {exc}")
+            return {"skipped": True, "error": str(exc)}
+
+    async def _populate_related_clusters(
+        self,
+        conn: Any,
+        cluster_ids: Dict[str, str],
+    ) -> int:
+        """Populate related_cluster_ids for newly embedded clusters."""
+        from .embedding import EmbeddingService
+
+        service = EmbeddingService(
+            azure_client=self.azure_client,
+            deployment_name=self.azure_openai_embedding_deployment,
+        )
+        try:
+            new_ids = list(cluster_ids.values())
+            return await service.populate_related_clusters(conn, new_ids)
+        except Exception as exc:
+            print(f"[related-clusters] Non-fatal failure: {exc}")
+            return 0
+
     async def run(
         self,
         *,
@@ -4378,6 +4424,10 @@ class DailyNewsIngestor:
                 gating_persisted_turkey = await self._persist_gating_decisions(conn, turkey_clusters, cluster_ids, region="turkey")
                 gating_stats["decisions_persisted"] = gating_persisted_global + gating_persisted_turkey
 
+                # --- Embed clusters (non-blocking) ---
+                embed_stats = await self._embed_clusters(conn, clusters, cluster_ids)
+                related_count = await self._populate_related_clusters(conn, cluster_ids)
+
                 global_stats = await self._persist_edition(
                     conn,
                     edition_date=e_date,
@@ -4402,6 +4452,8 @@ class DailyNewsIngestor:
                     "llm": dict(self._llm_metrics),
                     "memory": memory_stats,
                     "gating": gating_stats,
+                    "embedding": embed_stats,
+                    "related_clusters_populated": related_count,
                 }
 
                 result = {

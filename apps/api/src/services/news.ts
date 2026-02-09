@@ -68,6 +68,20 @@ export interface NewsArchiveDay {
   story_type_counts?: Record<string, number>;
 }
 
+export interface NewsSearchResult {
+  id: string;
+  title: string;
+  summary: string;
+  story_type: string;
+  topic_tags: string[];
+  entities: string[];
+  published_at: string;
+  similarity: number;
+  primary_url?: string;
+  primary_source?: string;
+  image_url?: string;
+}
+
 export interface NewsSource {
   key: string;
   name: string;
@@ -869,6 +883,115 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  async function searchNewsClusters(params: {
+    query: string;
+    region?: string;
+    limit?: number;
+    story_type?: string;
+    topic?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<NewsSearchResult[]> {
+    const region = normalizeRegion(params.region);
+    const limit = Math.max(1, Math.min(50, Number(params.limit || 20)));
+    const q = `%${params.query.replace(/[%_\\]/g, '\\$&')}%`;
+
+    const conditions: string[] = [];
+    const queryParams: unknown[] = [];
+    let idx = 1;
+
+    // Text search on title + summary
+    conditions.push(`(c.title ILIKE $${idx} OR c.summary ILIKE $${idx})`);
+    queryParams.push(q);
+    idx++;
+
+    if (params.story_type) {
+      conditions.push(`c.story_type = $${idx}`);
+      queryParams.push(params.story_type);
+      idx++;
+    }
+
+    if (params.topic) {
+      conditions.push(`$${idx} = ANY(c.topic_tags)`);
+      queryParams.push(params.topic);
+      idx++;
+    }
+
+    if (params.date_from) {
+      conditions.push(`c.published_at >= $${idx}::date`);
+      queryParams.push(params.date_from);
+      idx++;
+    }
+
+    if (params.date_to) {
+      conditions.push(`c.published_at <= $${idx}::date`);
+      queryParams.push(params.date_to);
+      idx++;
+    }
+
+    // Region filter via topic_index
+    if (region !== 'global') {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM news_topic_index nti
+        WHERE nti.cluster_id = c.id AND nti.region = $${idx}
+      )`);
+      queryParams.push(region);
+      idx++;
+    }
+
+    queryParams.push(limit);
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    try {
+      const result = await pool.query(
+        `
+        SELECT
+          c.id::text AS id,
+          c.title,
+          COALESCE(c.llm_summary, c.summary) AS summary,
+          c.story_type,
+          c.topic_tags,
+          c.entities,
+          c.published_at::text AS published_at,
+          c.rank_score,
+          c.canonical_url AS primary_url,
+          (SELECT ns.display_name FROM news_cluster_items nci
+           JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+           JOIN news_sources ns ON ns.id = nir.source_id
+           WHERE nci.cluster_id = c.id AND nci.is_primary
+           LIMIT 1) AS primary_source,
+          (SELECT nir.payload_json->>'image_url' FROM news_cluster_items nci
+           JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+           WHERE nci.cluster_id = c.id AND nci.is_primary
+             AND nir.payload_json->>'image_url' IS NOT NULL
+           LIMIT 1) AS image_url
+        FROM news_clusters c
+        ${where}
+        ORDER BY c.rank_score DESC, c.published_at DESC
+        LIMIT $${idx}
+        `,
+        queryParams,
+      );
+
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        title: String(row.title || ''),
+        summary: String(row.summary || ''),
+        story_type: String(row.story_type || 'news'),
+        topic_tags: Array.isArray(row.topic_tags) ? row.topic_tags : [],
+        entities: Array.isArray(row.entities) ? row.entities : [],
+        published_at: String(row.published_at || ''),
+        similarity: toNumber(row.rank_score),
+        primary_url: row.primary_url ? String(row.primary_url) : undefined,
+        primary_source: row.primary_source ? String(row.primary_source) : undefined,
+        image_url: row.image_url ? String(row.image_url) : undefined,
+      }));
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return [];
+      throw error;
+    }
+  }
+
   return {
     normalizeRegion,
     getLatestEditionDate,
@@ -878,5 +1001,6 @@ export function makeNewsService(pool: Pool) {
     getActiveNewsSources,
     getPeriodicBrief,
     getPeriodicBriefArchive,
+    searchNewsClusters,
   };
 }

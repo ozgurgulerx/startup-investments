@@ -21,6 +21,7 @@ import {
   newsEditionQuerySchema,
   newsTopicsQuerySchema,
   newsArchiveQuerySchema,
+  newsSearchQuerySchema,
   newsSourcesQuerySchema,
   newsBriefQuerySchema,
   newsBriefArchiveQuerySchema,
@@ -42,6 +43,7 @@ import {
   newsLatestKey,
   newsTopicsKey,
   newsArchiveKey,
+  newsSearchKey,
   newsSourcesKey,
   newsBriefKey,
   newsBriefArchiveKey,
@@ -1570,6 +1572,47 @@ app.get('/api/v1/news/archive', async (req, res) => {
   } catch (error) {
     console.error('Error fetching news archive:', error);
     return res.status(500).json({ error: 'Failed to fetch news archive' });
+  }
+});
+
+app.get('/api/v1/news/search', async (req, res) => {
+  try {
+    const parsed = newsSearchQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { q, region, limit, story_type, topic, date_from, date_to } = parsed.data;
+
+    const cacheKey = newsSearchKey({ query: q, region, limit, story_type, topic, date_from, date_to });
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const results = await newsService.searchNewsClusters({
+      query: q, region, limit, story_type, topic, date_from, date_to,
+    });
+
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_SEARCH, JSON.stringify(results)); } catch { /* best effort */ }
+    }
+
+    return res.json(results);
+  } catch (error) {
+    console.error('Error searching news:', error);
+    return res.status(500).json({ error: 'Search failed' });
   }
 });
 

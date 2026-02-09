@@ -118,6 +118,16 @@ export const newsBriefQuerySchema = z.object({
   region: newsRegionParam,
 });
 
+export const newsSearchQuerySchema = z.object({
+  q: z.string().min(1).max(500),
+  region: newsRegionParam,
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  story_type: optionalTrimmedString(50),
+  topic: optionalTopicString,
+  date_from: newsDateParam,
+  date_to: newsDateParam,
+});
+
 export const newsBriefArchiveQuerySchema = z.object({
   region: newsRegionParam,
   type: z.enum(['weekly', 'monthly']).default('weekly'),
