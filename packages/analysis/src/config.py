@@ -222,13 +222,16 @@ def llm_kwargs(model_name: str, max_tokens: int, temperature: float = 0.3) -> di
 
     Newer model families (GPT-5, o-series) reject ``max_tokens`` and require
     ``max_completion_tokens``, and don't accept non-default ``temperature``.
+    Reasoning models also consume tokens for internal reasoning, so we scale
+    up the budget (3x) to leave room for output after reasoning.
     """
     m = (model_name or "").strip().lower()
-    needs_new_param = m.startswith("gpt-5") or m.startswith("o1") or m.startswith("o3") or m.startswith("o4")
+    is_reasoning = m.startswith("gpt-5") or m.startswith("o1") or m.startswith("o3") or m.startswith("o4")
 
     kwargs: dict = {}
-    if needs_new_param:
-        kwargs["max_completion_tokens"] = max_tokens
+    if is_reasoning:
+        # Reasoning models use tokens for thinking; scale up to leave room for output
+        kwargs["max_completion_tokens"] = max_tokens * 3
     else:
         kwargs["max_tokens"] = max_tokens
         kwargs["temperature"] = temperature
