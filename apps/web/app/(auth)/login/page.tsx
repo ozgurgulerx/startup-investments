@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { LoginForm } from '@/components/auth/login-form';
 import { useAudience } from '@/lib/audience-context';
 import { AudienceToggle } from '@/components/ui/audience-toggle';
+import { BrandMark } from '@/components/ui/brand-mark';
 import { COPY, SUPPORTING_LINE, METRICS, SIGN_IN_COPY } from '@/lib/copy';
 
 function LoginPageContent() {
@@ -18,12 +19,9 @@ function LoginPageContent() {
         {/* Subtle gradient accent */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-accent/80 via-accent to-accent/40" />
 
-        {/* Logo with accent dot */}
-        <Link href="/" className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-accent" />
-          <span className="text-base font-medium text-foreground tracking-tight">
-            Build Atlas
-          </span>
+        {/* Logo */}
+        <Link href="/" className="inline-flex">
+          <BrandMark size="md" variant="accent" />
         </Link>
 
         {/* Value proposition */}
@@ -70,11 +68,8 @@ function LoginPageContent() {
       <div className="flex-1 flex items-center justify-center p-8 lg:p-12">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
-          <Link href="/" className="flex items-center gap-2 mb-10 lg:hidden">
-            <span className="w-2 h-2 rounded-full bg-accent" />
-            <span className="text-base font-medium text-foreground tracking-tight">
-              Build Atlas
-            </span>
+          <Link href="/" className="inline-flex mb-10 lg:hidden">
+            <BrandMark size="sm" variant="accent" />
           </Link>
 
           <div className="space-y-8">

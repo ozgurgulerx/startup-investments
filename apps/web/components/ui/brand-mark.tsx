@@ -25,19 +25,10 @@ const wordSizes = {
   lg: 'text-lg',
 } as const;
 
-const variantClasses = {
-  default: {
-    frame: 'border-border/50 bg-card/70 text-foreground',
-    dot: 'fill-accent',
-  },
-  accent: {
-    frame: 'border-accent/45 bg-accent/10 text-foreground',
-    dot: 'fill-accent',
-  },
-  muted: {
-    frame: 'border-border/35 bg-muted/40 text-muted-foreground',
-    dot: 'fill-muted-foreground/80',
-  },
+const logoSrc = {
+  sm: '/buildatlas-navbar-mark.svg',
+  md: '/buildatlas-site-mark.svg',
+  lg: '/buildatlas-site-mark.svg',
 } as const;
 
 export function BrandMark({
@@ -49,19 +40,14 @@ export function BrandMark({
   return (
     <span className={cn('inline-flex items-center', containerSizes[size], className)}>
       <span
-        className={cn(
-          'relative inline-flex items-center justify-center rounded-md border shadow-[0_0_0_1px_rgba(255,255,255,0.02)]',
-          symbolSizes[size],
-          variantClasses[variant].frame
-        )}
+        className={cn('relative inline-flex items-center justify-center', symbolSizes[size])}
         aria-hidden
       >
-        <svg viewBox="0 0 24 24" className="h-[70%] w-[70%]">
-          <rect x="5.5" y="5.5" width="5.5" height="5.5" rx="0.8" fill="currentColor" opacity="0.55" />
-          <rect x="13" y="5.5" width="5.5" height="5.5" rx="0.8" fill="currentColor" opacity="0.35" />
-          <rect x="5.5" y="13" width="5.5" height="5.5" rx="0.8" fill="currentColor" opacity="0.35" />
-          <rect x="13" y="13" width="5.5" height="5.5" rx="0.8" className={variantClasses[variant].dot} opacity="0.9" />
-        </svg>
+        <img
+          src={logoSrc[size]}
+          alt=""
+          className="h-full w-full"
+        />
       </span>
       {showWordmark && (
         <span

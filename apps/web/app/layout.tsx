@@ -27,6 +27,10 @@ export const metadata: Metadata = {
     'Build Atlas decodes how AI startups are really built. Monthly dossiers, architecture signals, and reusable build blueprints.',
   keywords: ['AI', 'startups', 'architecture', 'build patterns', 'GenAI', 'dossiers'],
   authors: [{ name: 'Build Atlas' }],
+  icons: {
+    icon: '/buildatlas-navbar-mark.svg',
+    apple: '/buildatlas-site-mark.svg',
+  },
   openGraph: {
     title: 'Build Atlas — How AI startups are really built',
     description: 'Build Atlas decodes how AI startups are really built. Monthly dossiers, architecture signals, and reusable build blueprints.',
