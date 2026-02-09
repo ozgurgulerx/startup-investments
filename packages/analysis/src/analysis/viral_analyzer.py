@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from openai import AzureOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from src.config import settings
+from src.config import settings, llm_kwargs
 from src.data.models import StartupInput, StartupAnalysis
 from src.crawler.enrichment import (
     JobPostingClient,
@@ -359,8 +359,7 @@ class ViralContentAnalyzer:
                 {"role": "system", "content": "You're a sharp, witty tech analyst writing for AI builders. Write in markdown."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,  # Higher temperature for more creative voice
-            max_tokens=3000,
+            **llm_kwargs(self.model, max_tokens=3000, temperature=0.7),
         )
 
         return response.choices[0].message.content or ""
@@ -374,8 +373,7 @@ class ViralContentAnalyzer:
                     {"role": "system", "content": "You are a sharp tech analyst. Always respond with valid JSON only."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.4,
-                max_tokens=2500,
+                **llm_kwargs(self.model, max_tokens=2500, temperature=0.4),
             )
 
             content = response.choices[0].message.content

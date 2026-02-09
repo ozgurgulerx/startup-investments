@@ -217,6 +217,24 @@ class Settings(BaseModel):
         return None
 
 
+def llm_kwargs(model_name: str, max_tokens: int, temperature: float = 0.3) -> dict:
+    """Build model-compatible kwargs for Azure OpenAI chat completions.
+
+    Newer model families (GPT-5, o-series) reject ``max_tokens`` and require
+    ``max_completion_tokens``, and don't accept non-default ``temperature``.
+    """
+    m = (model_name or "").strip().lower()
+    needs_new_param = m.startswith("gpt-5") or m.startswith("o1") or m.startswith("o3") or m.startswith("o4")
+
+    kwargs: dict = {}
+    if needs_new_param:
+        kwargs["max_completion_tokens"] = max_tokens
+    else:
+        kwargs["max_tokens"] = max_tokens
+        kwargs["temperature"] = temperature
+    return kwargs
+
+
 # Global settings instance
 settings = Settings()
 settings.ensure_dirs()

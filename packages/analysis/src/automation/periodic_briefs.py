@@ -16,6 +16,8 @@ import os
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
+from src.config import llm_kwargs
+
 if TYPE_CHECKING:
     import asyncpg
 
@@ -285,8 +287,7 @@ async def _generate_narrative(
         response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-            max_tokens=800 if period_type == "weekly" else 1200,
+            **llm_kwargs(model, max_tokens=800 if period_type == "weekly" else 1200, temperature=0.4),
             response_format={"type": "json_object"},
         )
         text = response.choices[0].message.content or "{}"

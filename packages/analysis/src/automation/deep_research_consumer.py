@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from openai import AsyncAzureOpenAI
 import os
 
+from src.config import llm_kwargs
+
 from .db import DatabaseConnection
 
 logger = logging.getLogger(__name__)
@@ -227,8 +229,7 @@ class DeepResearchConsumer:
                         {"role": "system", "content": self._get_system_prompt()},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.3,
-                    max_tokens=4000 if depth == "deep" else 2000
+                    **llm_kwargs(self.model, max_tokens=4000 if depth == "deep" else 2000, temperature=0.3),
                 ),
                 timeout=180.0  # 3 minutes max per LLM call
             )

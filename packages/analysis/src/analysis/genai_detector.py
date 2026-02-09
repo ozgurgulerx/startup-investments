@@ -8,7 +8,7 @@ from openai import AzureOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
-from src.config import settings
+from src.config import settings, llm_kwargs
 from src.data.models import (
     StartupInput,
     StartupAnalysis,
@@ -509,8 +509,7 @@ OUTPUT (JSON only):
                         {"role": "system", "content": "You are a technical analyst. Always respond with valid JSON only."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.3,
-                    max_tokens=2000,
+                    **llm_kwargs(model, max_tokens=2000, temperature=0.3),
                 )
                 content = r.choices[0].message.content
                 if content:
