@@ -2933,6 +2933,11 @@ class DailyNewsIngestor:
         top_n = min(len(clusters), max(3, int(self.llm_daily_brief_max_clusters)))
         top_clusters = list(clusters)[:top_n]
 
+        lang_instruction = (
+            "\n\nIMPORTANT: Write ALL output values (headline, summary, bullets) in Turkish (Türkçe). "
+            "Use native Turkish phrasing, not machine-translated English. JSON keys stay in English."
+        ) if region == "turkey" else ""
+
         prompt = (
             "You are a senior technology correspondent writing a daily briefing "
             "for startup builders and investors. "
@@ -2964,6 +2969,7 @@ class DailyNewsIngestor:
             "bullets (array of 4-6 strings, each <=120 chars, each a different story), "
             "themes (array of up to 6 lowercase hyphenated tags). "
             "Be concrete, cite specifics. No prose outside JSON."
+            + lang_instruction
         )
 
         # Collect entity names from today's clusters for memory lookup

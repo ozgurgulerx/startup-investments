@@ -261,9 +261,15 @@ async def _generate_narrative(
 
     stories_text = "\n".join(cluster_summaries)
 
-    region_label = "Turkey AI/startup ecosystem" if region == "turkey" else "global AI/startup landscape"
+    region_label = "Türkiye yapay zeka ve girişim ekosistemi" if region == "turkey" else "global AI/startup landscape"
     period_label = "week" if period_type == "weekly" else "month"
     date_range = f"{period_start.isoformat()} to {period_end.isoformat()}"
+
+    lang_instruction = (
+        "\n\nIMPORTANT: Write ALL output values (executive_summary, trend_analysis, "
+        "builder_lessons, outlook) in Turkish (Türkçe). "
+        "Use native Turkish phrasing, not machine-translated English. JSON keys stay in English."
+    ) if region == "turkey" else ""
 
     prompt = (
         f"You are a senior technology correspondent writing a {period_label}ly intelligence brief "
@@ -279,6 +285,7 @@ async def _generate_narrative(
         '- "builder_lessons": array of 3-5 actionable takeaways for builders (each <=120 chars)\n'
         f'- "outlook": what to watch next {period_label} (<=200 chars)\n'
         "Be concrete, cite specifics. No prose outside JSON."
+        + lang_instruction
     )
 
     model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
