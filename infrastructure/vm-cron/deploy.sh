@@ -52,9 +52,11 @@ ensure_crontab_installed() {
     fi
 }
 
-# Stash any local changes (shouldn't exist, but safety). Avoid creating empty stashes.
-if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then
-    git stash --include-untracked 2>/dev/null || true
+# Stash any local changes to tracked files only (never stash untracked files — pipeline
+# output like briefs, analysis CSVs, etc. are untracked until committed and would be lost).
+STASHED=false
+if [ -n "$(git diff --name-only 2>/dev/null || true)$(git diff --cached --name-only 2>/dev/null || true)" ]; then
+    git stash 2>/dev/null && STASHED=true || true
 fi
 
 # Record current HEAD so we can diff the full pulled range (not just the last commit).
@@ -63,6 +65,11 @@ OLD_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
 # Pull latest
 echo "Pulling latest code..."
 git pull --ff-only origin main
+
+# Restore stashed tracked-file changes (if any)
+if [ "$STASHED" = "true" ]; then
+    git stash pop 2>/dev/null || echo "Warning: git stash pop failed (conflict?). Stash preserved."
+fi
 
 # Keep cron current even if the crontab file itself didn't change in this pull.
 ensure_crontab_installed
