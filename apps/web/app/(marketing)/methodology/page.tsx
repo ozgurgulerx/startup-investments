@@ -36,151 +36,260 @@ export default function MethodologyPage() {
           </Link>
 
           <h1 className="text-4xl font-light text-foreground mb-6">
-            How We Decode Startups
+            Methodology
           </h1>
 
           <p className="text-lg text-muted-foreground mb-12 leading-relaxed">
-            Build Atlas combines automated data collection, architecture detection,
-            and editorial review to deliver actionable startup intelligence for builders and investors.
+            BuildAtlas is a next-gen news site with an AI editor — designed to separate signal from noise.
+            Our goal is simple: when the internet produces 1,000 &ldquo;updates,&rdquo; we want to surface the <em>few</em> that
+            actually change what a builder, investor, or operator should believe or do.
           </p>
 
           <div className="space-y-12">
+            {/* What we mean by "signal" */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Data Collection</h2>
+              <h2 className="text-xl font-medium text-foreground mb-4">What we mean by &ldquo;signal&rdquo;</h2>
               <p className="text-muted-foreground mb-4 leading-relaxed">
-                We monitor 50+ sources including funding announcements,
-                company websites, technical docs, job postings, and press releases.
-                Our crawlers extract structured and unstructured data that feeds
-                into the analysis pipeline.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Architecture Detection</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
-                Each company goes through a multi-stage analysis using large language models.
-                We extract stack signals, identify build patterns, assess GenAI depth,
-                and surface implementation tradeoffs.
-              </p>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="p-4 border border-border/30 rounded-lg">
-                  <h3 className="text-sm font-medium text-foreground mb-2">Pattern Detection</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Identifies architectural patterns like Agentic Architectures, RAG,
-                    Vertical Data Moats with confidence scores.
-                  </p>
-                </div>
-                <div className="p-4 border border-border/30 rounded-lg">
-                  <h3 className="text-sm font-medium text-foreground mb-2">Stack Analysis</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Classifies companies by GenAI integration depth: core, significant,
-                    supplementary, or none.
-                  </p>
-                </div>
-                <div className="p-4 border border-border/30 rounded-lg">
-                  <h3 className="text-sm font-medium text-foreground mb-2">Positioning</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Identifies product wedge, competitive landscape, and defensibility factors.
-                  </p>
-                </div>
-                <div className="p-4 border border-border/30 rounded-lg">
-                  <h3 className="text-sm font-medium text-foreground mb-2">Evidence Extraction</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Captures source quotes and citations to back every signal
-                    with verifiable evidence.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Pattern Taxonomy</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
-                Our pattern taxonomy represents recurring architectural decisions that signal
-                how companies are building with AI. Each pattern includes:
+                A story is <strong className="text-foreground">signal</strong> if it meaningfully shifts at least one of these:
               </p>
               <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
-                  <strong className="text-foreground">Definition:</strong> What the pattern means
+                  <span><strong className="text-foreground">Reality:</strong> a capability exists or changed (e.g., a real launch, benchmark, release, acquisition, outage).</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
-                  <strong className="text-foreground">Implications:</strong> Considerations for builders and investors
+                  <span><strong className="text-foreground">Constraints:</strong> cost, latency, regulation, or safety posture materially changes.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
-                  <strong className="text-foreground">Time horizon:</strong> Expected maturity timeline
+                  <span><strong className="text-foreground">Incentives:</strong> capital flows, pricing, platform policy, or distribution shifts.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
-                  <strong className="text-foreground">Failure modes:</strong> What could derail the approach
+                  <span><strong className="text-foreground">Roadmaps:</strong> credible indicators that the near future has changed.</span>
                 </li>
               </ul>
               <p className="text-muted-foreground leading-relaxed">
-                Current patterns: Agentic Architectures, Vertical Data Moats,
-                RAG, Micro-model Meshes, Continuous-learning Flywheels, Guardrail-as-LLM.
+                Everything else is <strong className="text-foreground">noise</strong>: reposts, vague claims, SEO &ldquo;explainer&rdquo; fluff, unverified rumors,
+                derivative takes, and content that doesn&apos;t change decisions.
               </p>
             </section>
 
+            {/* The AI Editor pipeline */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Atlas Brief Process</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
-                Each month, we synthesize individual company dossiers into an Atlas Brief:
-              </p>
-              <ol className="space-y-3 text-sm text-muted-foreground">
+              <h2 className="text-xl font-medium text-foreground mb-4">The AI Editor pipeline</h2>
+              <ol className="space-y-6 text-sm text-muted-foreground">
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">1</span>
-                  <span>Aggregate funding data and compute summary statistics</span>
+                  <div>
+                    <strong className="text-foreground">Ingest</strong>
+                    <p className="mt-1">We collect updates from a broad set of sources — primary docs, technical blogs, press releases, major media, and relevant community channels.</p>
+                  </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">2</span>
-                  <span>Identify pattern distribution and month-over-month changes</span>
+                  <div>
+                    <strong className="text-foreground">Normalize &amp; understand</strong>
+                    <p className="mt-1">Each item is parsed into structured fields: entities (companies, models, people), events, claims, dates, and referenced evidence.</p>
+                  </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">3</span>
-                  <span>Generate thesis and implications for builders and investors using LLM synthesis</span>
+                  <div>
+                    <strong className="text-foreground">Deduplicate &amp; cluster</strong>
+                    <p className="mt-1">We collapse near-identical stories into a single &ldquo;event cluster&rdquo; so you don&apos;t see the same news 12 times. Within a cluster we track how the story evolves — new facts, corrections, confirmation, contradictions.</p>
+                  </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">4</span>
-                  <span>Editorial review for accuracy and signal quality</span>
+                  <div>
+                    <strong className="text-foreground">Score for signal</strong>
+                    <p className="mt-1">We assign a Signal Score using a weighted mix of:</p>
+                    <ul className="mt-2 space-y-1.5">
+                      <li className="flex items-start gap-2">
+                        <span className="text-accent-info">•</span>
+                        <span><strong className="text-foreground">Novelty:</strong> is this genuinely new information vs repetition?</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-accent-info">•</span>
+                        <span><strong className="text-foreground">Impact:</strong> does it change what matters (capability, economics, regulation, distribution)?</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-accent-info">•</span>
+                        <span><strong className="text-foreground">Credibility:</strong> evidence strength + source reliability + cross-source agreement.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-accent-info">•</span>
+                        <span><strong className="text-foreground">Specificity:</strong> concrete claims (&ldquo;what changed, where, when&rdquo;) beat vague narratives.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-accent-info">•</span>
+                        <span><strong className="text-foreground">Relevance:</strong> mapped to topics and watchlists (inference, agents, GPU supply, etc.).</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-accent-info">•</span>
+                        <span><strong className="text-foreground">Actionability:</strong> does it imply a decision or next step?</span>
+                      </li>
+                    </ul>
+                  </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">5</span>
-                  <span>Publish by the 5th of each month</span>
+                  <div>
+                    <strong className="text-foreground">Summarize with evidence</strong>
+                    <p className="mt-1">The AI editor writes summaries that are claim-centered rather than article-centered: what happened (facts), why it matters (implications), what&apos;s uncertain (unknowns), and what to watch next (follow-up signals). Every summary is designed to be skimmable, but traceable to sources.</p>
+                  </div>
                 </li>
               </ol>
             </section>
 
+            {/* Noise filters */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Evidence & Confidence</h2>
+              <h2 className="text-xl font-medium text-foreground mb-4">Noise filters</h2>
               <p className="text-muted-foreground mb-4 leading-relaxed">
-                Every company dossier includes:
+                We aggressively down-rank or exclude items with common &ldquo;noise signatures,&rdquo; such as:
               </p>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
-                  Evidence count showing how many source documents were analyzed
+                  <span><strong className="text-foreground">Reposts without delta</strong> — no new facts compared to earlier coverage</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
-                  Freshness timestamp indicating when data was last updated
+                  <span><strong className="text-foreground">Second-hand reporting</strong> with no primary links</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
-                  Source evidence quotes with citations
+                  <span><strong className="text-foreground">Speculation presented as certainty</strong></span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
-                  Confidence scores for pattern assignments
+                  <span><strong className="text-foreground">Benchmark theater</strong> — unreproducible claims, missing settings, cherry-picked baselines</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">PR language</strong> that avoids measurable details</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Engagement bait</strong> (&ldquo;X will change everything&rdquo;) without verifiable substance</span>
                 </li>
               </ul>
+            </section>
+
+            {/* Credibility & uncertainty */}
+            <section>
+              <h2 className="text-xl font-medium text-foreground mb-4">Credibility &amp; uncertainty</h2>
+              <p className="text-muted-foreground mb-4 leading-relaxed">
+                We treat &ldquo;truth&rdquo; as an engineering problem:
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Evidence-first:</strong> primary sources outrank commentary.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Agreement-aware:</strong> multiple independent confirmations raise confidence.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Contradiction-aware:</strong> conflicting reports are flagged explicitly.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Time-aware:</strong> we prefer the latest corrections over the earliest claims.</span>
+                </li>
+              </ul>
+              <p className="text-muted-foreground leading-relaxed">
+                We label confidence in plain language (e.g., High / Medium / Low) based on evidence quality and cross-source consistency.
+              </p>
+            </section>
+
+            {/* Transparency */}
+            <section>
+              <h2 className="text-xl font-medium text-foreground mb-4">Transparency: show your work</h2>
+              <p className="text-muted-foreground mb-4 leading-relaxed">
+                Where possible, we expose:
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Source trail</strong> — what we read</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Why it ranked</strong> — the features that drove the score</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">What changed</strong> — edits, corrections, evolving clusters</span>
+                </li>
+              </ul>
+              <p className="text-muted-foreground leading-relaxed">
+                We also maintain a visible Changelog for major taxonomy, model, and scoring updates so the definition of &ldquo;signal&rdquo; doesn&apos;t shift silently.
+              </p>
+            </section>
+
+            {/* Limitations */}
+            <section>
+              <h2 className="text-xl font-medium text-foreground mb-4">Limitations</h2>
+              <p className="text-muted-foreground mb-4 leading-relaxed">
+                No automated editor is perfect. Typical failure modes include:
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Early reports</strong> that later get corrected</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Niche community signals</strong> that are real but hard to verify quickly</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Subtle technical deltas</strong> that require domain expertise to interpret</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span><strong className="text-foreground">Coverage gaps</strong> when primary sources are inaccessible or ambiguous</span>
+                </li>
+              </ul>
+              <p className="text-muted-foreground leading-relaxed">
+                When uncertainty is high, we&apos;d rather say &ldquo;unclear&rdquo; than invent precision.
+              </p>
+            </section>
+
+            {/* Our north star */}
+            <section>
+              <h2 className="text-xl font-medium text-foreground mb-4">Our north star</h2>
+              <p className="text-muted-foreground mb-4 leading-relaxed">
+                If you only read BuildAtlas for a few minutes a day, you should feel:
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span>less overwhelmed,</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span>more confident about what actually changed,</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent-info">•</span>
+                  <span>and faster at turning news into decisions.</span>
+                </li>
+              </ul>
+              <p className="text-muted-foreground mt-4 leading-relaxed">
+                That&apos;s the bar.
+              </p>
             </section>
           </div>
 
           <div className="mt-16 p-6 bg-muted/10 border border-border/30 rounded-lg text-center">
             <p className="text-muted-foreground mb-4">
-              Ready to explore company dossiers?
+              Ready to see it in action?
             </p>
             <Link
               href="/dealbook"
