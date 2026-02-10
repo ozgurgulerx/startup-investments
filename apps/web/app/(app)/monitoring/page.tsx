@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Card } from '@/components/ui';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +61,70 @@ interface FrontierData {
   domains: DomainRow[];
 }
 
+interface ReviewCluster {
+  id: string;
+  cluster_key: string;
+  title: string;
+  summary: string | null;
+  story_type: string | null;
+  topic_tags: string[];
+  entities: string[];
+  rank_score: number;
+  trust_score: number;
+  published_at: string;
+  region: string;
+  gating_decision: string | null;
+  composite_score: number | null;
+  decision_reason: string | null;
+  upvote_count: number | null;
+  save_count: number | null;
+  not_useful_count: number | null;
+  editorial_action: string | null;
+  reason_category: string | null;
+  action_at: string | null;
+  source_key: string | null;
+  source_name: string | null;
+}
+
+interface EditorialRule {
+  id: string;
+  rule_type: string;
+  region: string;
+  rule_value: string;
+  rule_weight: number;
+  is_active: boolean;
+  is_auto_generated: boolean;
+  supporting_action_count: number;
+  confidence: number | null;
+  approved_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  notes: string | null;
+}
+
+interface EditorialStats {
+  period_days: number;
+  total_reviewed: number;
+  actions: Record<string, number>;
+  rejection_rate: number;
+  total_clusters: number;
+  pending_rules: number;
+  active_rules: number;
+  by_reason: { reason_category: string; cnt: number }[];
+  by_source: { source_key: string; cnt: number }[];
+}
+
+const REASON_CATEGORIES = [
+  'irrelevant_topic', 'not_startup', 'consumer_noise', 'duplicate',
+  'low_quality_source', 'spam', 'off_region', 'big_tech_noise',
+  'domain_chatter', 'other',
+] as const;
+
+const RULE_TYPES = [
+  'keyword_exclude', 'domain_exclude', 'source_downweight',
+  'topic_exclude', 'entity_exclude', 'title_pattern_exclude',
+] as const;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -95,6 +159,30 @@ function statusLabel(failures: number): string {
   return 'Down';
 }
 
+function gatingBadge(decision: string | null) {
+  if (!decision) return null;
+  const colors: Record<string, string> = {
+    publish: 'bg-success/15 text-success',
+    borderline: 'bg-warning/15 text-warning',
+    watchlist: 'bg-accent-info/15 text-accent-info',
+    accumulate: 'bg-muted/50 text-muted-foreground',
+    drop: 'bg-destructive/15 text-destructive',
+  };
+  return (
+    <span className={`px-1.5 py-0.5 text-xs rounded ${colors[decision] || 'bg-muted/50 text-muted-foreground'}`}>
+      {decision}
+    </span>
+  );
+}
+
+function extractKeywordsFromTitle(title: string): string[] {
+  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'it', 'its', 'as', 'not', 'no', 'new', 'how', 'why', 'what', 'who', 'when', 'where']);
+  return title.toLowerCase().split(/\s+/)
+    .map(w => w.replace(/[^a-z0-9-]/g, ''))
+    .filter(w => w.length > 2 && !stopWords.has(w))
+    .slice(0, 10);
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -102,7 +190,7 @@ function statusLabel(failures: number): string {
 type SortField = 'status' | 'name' | 'type' | 'region' | 'lastFetch' | 'items' | 'duration' | 'failures';
 
 export default function MonitoringPage() {
-  const [tab, setTab] = useState<'sources' | 'frontier'>('sources');
+  const [tab, setTab] = useState<'sources' | 'frontier' | 'editorial'>('sources');
   const [sourcesData, setSourcesData] = useState<SourcesData | null>(null);
   const [frontierData, setFrontierData] = useState<FrontierData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,6 +199,28 @@ export default function MonitoringPage() {
   const [sortField, setSortField] = useState<SortField>('failures');
   const [sortAsc, setSortAsc] = useState(false);
 
+  // Editorial state
+  const [reviewClusters, setReviewClusters] = useState<ReviewCluster[]>([]);
+  const [editorialRules, setEditorialRules] = useState<EditorialRule[]>([]);
+  const [editorialStats, setEditorialStats] = useState<EditorialStats | null>(null);
+  const [editorialLoading, setEditorialLoading] = useState(false);
+  const [editorialRegion, setEditorialRegion] = useState<'global' | 'turkey'>('global');
+  const [showRules, setShowRules] = useState(false);
+
+  // Reject modal state
+  const [rejectTarget, setRejectTarget] = useState<ReviewCluster | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('irrelevant_topic');
+  const [rejectText, setRejectText] = useState('');
+  const [rejectKeywords, setRejectKeywords] = useState<string[]>([]);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Add rule modal state
+  const [showAddRule, setShowAddRule] = useState(false);
+  const [newRuleType, setNewRuleType] = useState<string>('keyword_exclude');
+  const [newRuleValue, setNewRuleValue] = useState('');
+  const [newRuleWeight, setNewRuleWeight] = useState('1.0');
+  const [newRuleNotes, setNewRuleNotes] = useState('');
+
   const fetchData = useCallback(async (type: 'sources' | 'frontier') => {
     try {
       const res = await fetch(`/api/monitoring?type=${type}`);
@@ -118,6 +228,32 @@ export default function MonitoringPage() {
       return await res.json();
     } catch (e: any) {
       throw new Error(e.message || 'Network error');
+    }
+  }, []);
+
+  const fetchEditorial = useCallback(async (region: string) => {
+    setEditorialLoading(true);
+    try {
+      const [reviewRes, rulesRes, statsRes] = await Promise.all([
+        fetch(`/api/editorial?path=review&region=${region}`),
+        fetch(`/api/editorial?path=rules&region=${region}&include_pending=true`),
+        fetch(`/api/editorial?path=stats&region=${region}&days=7`),
+      ]);
+      if (reviewRes.ok) {
+        const data = await reviewRes.json();
+        setReviewClusters(data.clusters || []);
+      }
+      if (rulesRes.ok) {
+        const data = await rulesRes.json();
+        setEditorialRules(data.rules || []);
+      }
+      if (statsRes.ok) {
+        setEditorialStats(await statsRes.json());
+      }
+    } catch (e: any) {
+      console.error('Editorial fetch error:', e);
+    } finally {
+      setEditorialLoading(false);
     }
   }, []);
 
@@ -141,6 +277,12 @@ export default function MonitoringPage() {
     const interval = setInterval(refresh, 60000);
     return () => clearInterval(interval);
   }, [refresh]);
+
+  useEffect(() => {
+    if (tab === 'editorial') {
+      fetchEditorial(editorialRegion);
+    }
+  }, [tab, editorialRegion, fetchEditorial]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -166,6 +308,104 @@ export default function MonitoringPage() {
     }
   });
 
+  // --- Editorial actions ---
+
+  const openRejectModal = (cluster: ReviewCluster) => {
+    setRejectTarget(cluster);
+    setRejectReason('irrelevant_topic');
+    setRejectText('');
+    setRejectKeywords(extractKeywordsFromTitle(cluster.title || ''));
+  };
+
+  const submitAction = async (clusterId: string, action: string, extra?: {
+    reason_category?: string;
+    reason_text?: string;
+    title_keywords?: string[];
+  }) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/editorial?path=actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cluster_id: clusterId, action, ...extra }),
+      });
+      if (res.ok) {
+        // Update local state
+        setReviewClusters(prev => prev.map(c =>
+          c.id === clusterId ? { ...c, editorial_action: action, reason_category: extra?.reason_category || null } : c
+        ));
+        setRejectTarget(null);
+      }
+    } catch (e) {
+      console.error('Action error:', e);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const approveRule = async (ruleId: string) => {
+    try {
+      const res = await fetch('/api/editorial?path=rules/' + ruleId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved_at: 'now' }),
+      });
+      if (res.ok) {
+        setEditorialRules(prev => prev.map(r =>
+          r.id === ruleId ? { ...r, approved_at: new Date().toISOString() } : r
+        ));
+      }
+    } catch (e) {
+      console.error('Approve rule error:', e);
+    }
+  };
+
+  const deactivateRule = async (ruleId: string) => {
+    try {
+      const res = await fetch('/api/editorial?path=rules/' + ruleId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: false }),
+      });
+      if (res.ok) {
+        setEditorialRules(prev => prev.filter(r => r.id !== ruleId));
+      }
+    } catch (e) {
+      console.error('Deactivate rule error:', e);
+    }
+  };
+
+  const submitNewRule = async () => {
+    try {
+      const res = await fetch('/api/editorial?path=rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rule_type: newRuleType,
+          region: editorialRegion,
+          rule_value: newRuleValue,
+          rule_weight: parseFloat(newRuleWeight),
+          notes: newRuleNotes || undefined,
+        }),
+      });
+      if (res.ok) {
+        setShowAddRule(false);
+        setNewRuleValue('');
+        setNewRuleNotes('');
+        fetchEditorial(editorialRegion);
+      }
+    } catch (e) {
+      console.error('Add rule error:', e);
+    }
+  };
+
+  const removeKeyword = (kw: string) => setRejectKeywords(prev => prev.filter(k => k !== kw));
+  const addKeyword = (kw: string) => {
+    if (kw && !rejectKeywords.includes(kw)) setRejectKeywords(prev => [...prev, kw]);
+  };
+
+  const pendingRulesCount = editorialRules.filter(r => r.is_auto_generated && !r.approved_at).length;
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -179,7 +419,7 @@ export default function MonitoringPage() {
             Updated {relativeTime(lastRefresh.toISOString())}
           </span>
           <button
-            onClick={refresh}
+            onClick={() => { refresh(); if (tab === 'editorial') fetchEditorial(editorialRegion); }}
             disabled={loading}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
                        bg-card border border-border/40 text-muted-foreground
@@ -200,7 +440,7 @@ export default function MonitoringPage() {
       )}
 
       {/* Summary Cards */}
-      {sourcesData && (
+      {sourcesData && tab !== 'editorial' && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="p-4 bg-card border-border/40">
             <div className="label-xs">Healthy</div>
@@ -252,6 +492,21 @@ export default function MonitoringPage() {
           }`}
         >
           Frontier Domains{frontierData ? ` (${frontierData.summary.totalDomains})` : ''}
+        </button>
+        <button
+          onClick={() => setTab('editorial')}
+          className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors relative ${
+            tab === 'editorial'
+              ? 'text-accent-info bg-accent-info/10 border border-accent-info/25'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/25 border border-transparent'
+          }`}
+        >
+          Editorial
+          {pendingRulesCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 text-[10px] flex items-center justify-center rounded-full bg-warning text-warning-foreground">
+              {pendingRulesCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -415,12 +670,397 @@ export default function MonitoringPage() {
         </>
       )}
 
+      {/* Editorial Tab */}
+      {tab === 'editorial' && (
+        <>
+          {/* Region toggle */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 rounded-full border border-border/40 bg-muted/15 p-0.5">
+              {(['global', 'turkey'] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setEditorialRegion(r)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    editorialRegion === r
+                      ? 'text-accent-info bg-accent-info/10 border border-accent-info/25'
+                      : 'text-muted-foreground hover:text-foreground border border-transparent'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            {editorialLoading && <span className="text-xs text-muted-foreground/60">Loading...</span>}
+          </div>
+
+          {/* Stats strip */}
+          {editorialStats && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="p-4 bg-card border-border/40">
+                <div className="label-xs">Reviewed (7d)</div>
+                <div className="text-2xl font-light text-foreground mt-1">{editorialStats.total_reviewed}</div>
+              </Card>
+              <Card className="p-4 bg-card border-border/40">
+                <div className="label-xs">Rejection Rate</div>
+                <div className="text-2xl font-light text-warning mt-1">{editorialStats.rejection_rate}%</div>
+              </Card>
+              <Card className="p-4 bg-card border-border/40">
+                <div className="label-xs">Pending Rules</div>
+                <div className="text-2xl font-light text-accent-info mt-1">{editorialStats.pending_rules}</div>
+              </Card>
+              <Card className="p-4 bg-card border-border/40">
+                <div className="label-xs">Active Rules</div>
+                <div className="text-2xl font-light text-foreground mt-1">{editorialStats.active_rules}</div>
+              </Card>
+            </div>
+          )}
+
+          {/* Review queue */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="text-left py-2 px-2 w-8"></th>
+                  <th className="text-left py-2 px-2">Title</th>
+                  <th className="text-left py-2 px-2">Source</th>
+                  <th className="text-left py-2 px-2">Gating</th>
+                  <th className="text-right py-2 px-2">Score</th>
+                  <th className="text-right py-2 px-2">Signals</th>
+                  <th className="text-left py-2 px-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviewClusters.map((c) => (
+                  <tr key={c.id} className={`border-b border-border/20 hover:bg-card/50 ${
+                    c.editorial_action === 'reject' ? 'opacity-50' : ''
+                  }`}>
+                    <td className="py-2 px-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        c.editorial_action === 'reject' ? 'bg-destructive' :
+                        c.editorial_action === 'approve' ? 'bg-success' :
+                        c.editorial_action === 'flag' ? 'bg-warning' :
+                        'bg-muted'
+                      }`} />
+                    </td>
+                    <td className="py-2 px-2 max-w-[300px]">
+                      <div className="font-medium text-foreground line-clamp-1" title={c.title}>
+                        {c.title}
+                      </div>
+                      <div className="text-xs text-muted-foreground/60">{relativeTime(c.published_at)}</div>
+                    </td>
+                    <td className="py-2 px-2">
+                      <span className="text-xs text-muted-foreground">{c.source_name || c.source_key || '—'}</span>
+                    </td>
+                    <td className="py-2 px-2">
+                      {gatingBadge(c.gating_decision)}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">
+                      {c.rank_score?.toFixed(2)}
+                    </td>
+                    <td className="py-2 px-2 text-right">
+                      <span className="text-xs tabular-nums">
+                        {c.upvote_count ? <span className="text-success">{c.upvote_count}+</span> : null}
+                        {c.not_useful_count ? <span className="text-destructive ml-1">{c.not_useful_count}-</span> : null}
+                        {!c.upvote_count && !c.not_useful_count && <span className="text-muted-foreground/40">—</span>}
+                      </span>
+                    </td>
+                    <td className="py-2 px-2">
+                      {c.editorial_action ? (
+                        <span className={`px-1.5 py-0.5 text-xs rounded ${
+                          c.editorial_action === 'reject' ? 'bg-destructive/15 text-destructive' :
+                          c.editorial_action === 'approve' ? 'bg-success/15 text-success' :
+                          'bg-warning/15 text-warning'
+                        }`}>{c.editorial_action}</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openRejectModal(c)}
+                            className="px-2 py-0.5 text-xs rounded bg-destructive/10 text-destructive
+                                       hover:bg-destructive/20 transition-colors"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => submitAction(c.id, 'approve')}
+                            disabled={actionLoading}
+                            className="px-2 py-0.5 text-xs rounded bg-success/10 text-success
+                                       hover:bg-success/20 transition-colors disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => submitAction(c.id, 'flag')}
+                            disabled={actionLoading}
+                            className="px-2 py-0.5 text-xs rounded bg-warning/10 text-warning
+                                       hover:bg-warning/20 transition-colors disabled:opacity-50"
+                          >
+                            Flag
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {reviewClusters.length === 0 && !editorialLoading && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground/60 text-sm">
+                      No clusters in the last 48 hours
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Active rules section (collapsible) */}
+          <div className="border border-border/30 rounded-lg">
+            <button
+              onClick={() => setShowRules(!showRules)}
+              className="w-full flex items-center justify-between p-4 text-sm font-medium text-foreground
+                         hover:bg-card/50 transition-colors"
+            >
+              <span>
+                Active Rules ({editorialRules.length})
+                {pendingRulesCount > 0 && (
+                  <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-warning/15 text-warning">
+                    {pendingRulesCount} pending
+                  </span>
+                )}
+              </span>
+              <span className="text-muted-foreground">{showRules ? '−' : '+'}</span>
+            </button>
+
+            {showRules && (
+              <div className="border-t border-border/30 p-4 space-y-4">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowAddRule(!showAddRule)}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md bg-card border border-border/40
+                               text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showAddRule ? 'Cancel' : 'Add manual rule'}
+                  </button>
+                </div>
+
+                {/* Add rule form */}
+                {showAddRule && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-muted/10 rounded-md border border-border/20">
+                    <select
+                      value={newRuleType}
+                      onChange={e => setNewRuleType(e.target.value)}
+                      className="bg-background border border-border/40 rounded px-2 py-1.5 text-xs"
+                    >
+                      {RULE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <input
+                      type="text"
+                      value={newRuleValue}
+                      onChange={e => setNewRuleValue(e.target.value)}
+                      placeholder="Rule value (keyword, domain, etc.)"
+                      className="bg-background border border-border/40 rounded px-2 py-1.5 text-xs"
+                    />
+                    {newRuleType === 'source_downweight' && (
+                      <input
+                        type="number"
+                        value={newRuleWeight}
+                        onChange={e => setNewRuleWeight(e.target.value)}
+                        step="0.1" min="0" max="1"
+                        placeholder="Weight (0-1)"
+                        className="bg-background border border-border/40 rounded px-2 py-1.5 text-xs"
+                      />
+                    )}
+                    <button
+                      onClick={submitNewRule}
+                      disabled={!newRuleValue.trim()}
+                      className="px-3 py-1.5 text-xs font-medium rounded bg-accent-info/10 text-accent-info
+                                 border border-accent-info/25 hover:bg-accent-info/20 transition-colors
+                                 disabled:opacity-50"
+                    >
+                      Create
+                    </button>
+                  </div>
+                )}
+
+                {/* Rules table */}
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
+                      <th className="text-left py-2 px-2">Type</th>
+                      <th className="text-left py-2 px-2">Value</th>
+                      <th className="text-left py-2 px-2">Region</th>
+                      <th className="text-right py-2 px-2">Support</th>
+                      <th className="text-left py-2 px-2">Status</th>
+                      <th className="text-left py-2 px-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {editorialRules.map((r) => (
+                      <tr key={r.id} className="border-b border-border/20 hover:bg-card/50">
+                        <td className="py-2 px-2">
+                          <span className="px-1.5 py-0.5 text-xs rounded bg-muted/50 text-muted-foreground">
+                            {r.rule_type}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 font-medium text-foreground">
+                          {r.rule_value}
+                          {r.rule_type === 'source_downweight' && (
+                            <span className="ml-1 text-xs text-muted-foreground/60">({r.rule_weight}x)</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-muted-foreground text-xs">{r.region}</td>
+                        <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">
+                          {r.supporting_action_count}
+                        </td>
+                        <td className="py-2 px-2">
+                          {r.approved_at ? (
+                            <span className="px-1.5 py-0.5 text-xs rounded bg-success/15 text-success">active</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 text-xs rounded bg-warning/15 text-warning">pending</span>
+                          )}
+                          {r.is_auto_generated && (
+                            <span className="ml-1 text-xs text-muted-foreground/50">auto</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2">
+                          <div className="flex items-center gap-1">
+                            {!r.approved_at && (
+                              <button
+                                onClick={() => approveRule(r.id)}
+                                className="px-2 py-0.5 text-xs rounded bg-success/10 text-success
+                                           hover:bg-success/20 transition-colors"
+                              >
+                                Approve
+                              </button>
+                            )}
+                            <button
+                              onClick={() => deactivateRule(r.id)}
+                              className="px-2 py-0.5 text-xs rounded bg-destructive/10 text-destructive
+                                         hover:bg-destructive/20 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {editorialRules.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-muted-foreground/60 text-sm">
+                          No rules configured
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       {/* Loading state for initial load */}
       {loading && !sourcesData && !error && (
         <div className="animate-pulse space-y-4">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="h-12 bg-muted rounded" />
           ))}
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="bg-card border border-border/40 rounded-lg shadow-xl w-full max-w-md mx-4 p-5 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-foreground">Reject Story</h3>
+                <p className="text-xs text-muted-foreground/60 mt-1 line-clamp-2">{rejectTarget.title}</p>
+              </div>
+              <button onClick={() => setRejectTarget(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Reason category */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Reason</label>
+              <select
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                className="w-full bg-background border border-border/40 rounded px-2 py-1.5 text-sm"
+              >
+                {REASON_CATEGORIES.map(r => (
+                  <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Reason text */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Notes (optional)</label>
+              <textarea
+                value={rejectText}
+                onChange={e => setRejectText(e.target.value)}
+                rows={2}
+                placeholder="Why is this irrelevant?"
+                className="w-full bg-background border border-border/40 rounded px-2 py-1.5 text-sm resize-none"
+              />
+            </div>
+
+            {/* Keyword tags */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Keywords</label>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {rejectKeywords.map(kw => (
+                  <span
+                    key={kw}
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs rounded
+                               bg-muted/50 text-muted-foreground"
+                  >
+                    {kw}
+                    <button onClick={() => removeKeyword(kw)} className="hover:text-foreground">
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder="Add keyword and press Enter"
+                className="w-full bg-background border border-border/40 rounded px-2 py-1.5 text-xs"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (val) { addKeyword(val); (e.target as HTMLInputElement).value = ''; }
+                  }
+                }}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setRejectTarget(null)}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-border/40
+                           text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => submitAction(rejectTarget.id, 'reject', {
+                  reason_category: rejectReason,
+                  reason_text: rejectText || undefined,
+                  title_keywords: rejectKeywords.length > 0 ? rejectKeywords : undefined,
+                })}
+                disabled={actionLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded-md bg-destructive/15 text-destructive
+                           border border-destructive/25 hover:bg-destructive/25 transition-colors
+                           disabled:opacity-50"
+              >
+                {actionLoading ? 'Rejecting...' : 'Reject'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

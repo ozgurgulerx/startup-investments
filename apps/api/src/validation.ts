@@ -164,6 +164,68 @@ export const newsSignalBatchSchema = z.object({
 // Admin / POST schemas
 // =============================================================================
 
+// =============================================================================
+// Editorial Feedback schemas
+// =============================================================================
+
+const editorialAction = z.enum(['reject', 'approve', 'flag', 'pin']);
+const editorialReasonCategory = z.enum([
+  'irrelevant_topic', 'not_startup', 'consumer_noise', 'duplicate',
+  'low_quality_source', 'spam', 'off_region', 'big_tech_noise',
+  'domain_chatter', 'other',
+]);
+const editorialRuleType = z.enum([
+  'keyword_exclude', 'domain_exclude', 'source_downweight',
+  'topic_exclude', 'entity_exclude', 'title_pattern_exclude',
+]);
+
+export const editorialActionSchema = z.object({
+  cluster_id: z.string().uuid(),
+  action: editorialAction,
+  reason_category: editorialReasonCategory.optional(),
+  reason_text: z.string().max(2000).optional(),
+  title_keywords: z.array(z.string().max(100)).max(20).optional(),
+});
+
+export const editorialRuleCreateSchema = z.object({
+  rule_type: editorialRuleType,
+  region: newsRegionParam,
+  rule_value: z.string().min(1).max(500),
+  rule_weight: z.coerce.number().min(0).max(1).optional().default(1.0),
+  notes: z.string().max(2000).optional(),
+});
+
+export const editorialRuleUpdateSchema = z.object({
+  is_active: z.boolean().optional(),
+  approved_at: z.enum(['now']).optional(),   // set to 'now' to approve
+  notes: z.string().max(2000).optional(),
+});
+
+export const editorialReviewQuerySchema = z.object({
+  region: newsRegionParam,
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+export const editorialActionsQuerySchema = z.object({
+  region: newsRegionParam,
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const editorialRulesQuerySchema = z.object({
+  region: newsRegionParam,
+  include_pending: z.enum(['true', 'false']).default('true'),
+});
+
+export const editorialStatsQuerySchema = z.object({
+  region: newsRegionParam,
+  days: z.coerce.number().int().min(1).max(90).default(7),
+});
+
+// =============================================================================
+// Admin / POST schemas
+// =============================================================================
+
 export const syncStartupSchema = z.object({
   name: z.string().min(1).max(500),
   description: z.string().max(5000).optional().default(''),

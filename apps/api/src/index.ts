@@ -27,6 +27,13 @@ import {
   newsBriefArchiveQuerySchema,
   newsSignalToggleSchema,
   newsSignalBatchSchema,
+  editorialActionSchema,
+  editorialRuleCreateSchema,
+  editorialRuleUpdateSchema,
+  editorialReviewQuerySchema,
+  editorialActionsQuerySchema,
+  editorialRulesQuerySchema,
+  editorialStatsQuerySchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -2372,6 +2379,398 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
   } catch (error) {
     console.error('Error fetching frontier monitoring:', error);
     res.status(500).json({ error: 'Failed to fetch frontier monitoring data' });
+  }
+});
+
+// =============================================================================
+// Admin API - Editorial Feedback
+// =============================================================================
+
+// GET /api/admin/editorial/review — recent clusters with gating decisions (review queue)
+app.get('/api/admin/editorial/review', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = editorialReviewQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid query', details: parsed.error.issues });
+  const { region, limit } = parsed.data;
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      const clusters = await pgClient.query(`
+        SELECT c.id::text, c.cluster_key, c.title, c.summary, c.story_type, c.topic_tags, c.entities,
+               c.rank_score, c.trust_score, c.published_at, c.region,
+               d.gating_decision, d.composite_score, d.decision_reason,
+               s.upvote_count, s.save_count, s.not_useful_count,
+               ea.action AS editorial_action, ea.reason_category, ea.created_at AS action_at,
+               (SELECT ns.source_key FROM news_cluster_items nci
+                JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+                JOIN news_sources ns ON ns.id = nir.source_id
+                WHERE nci.cluster_id = c.id AND nci.is_primary LIMIT 1) AS source_key,
+               (SELECT ns.display_name FROM news_cluster_items nci
+                JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+                JOIN news_sources ns ON ns.id = nir.source_id
+                WHERE nci.cluster_id = c.id AND nci.is_primary LIMIT 1) AS source_name
+        FROM news_clusters c
+        LEFT JOIN news_item_decisions d ON d.cluster_id = c.id AND d.region = c.region
+        LEFT JOIN news_item_stats s ON s.cluster_id = c.id
+        LEFT JOIN news_editorial_actions ea ON ea.cluster_id = c.id
+        WHERE c.published_at > now() - interval '48 hours'
+          AND c.region = $1
+        ORDER BY c.rank_score DESC, c.published_at DESC
+        LIMIT $2
+      `, [region, limit]);
+
+      res.json({ clusters: clusters.rows });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error fetching editorial review queue:', error);
+    res.status(500).json({ error: 'Failed to fetch review queue' });
+  }
+});
+
+// POST /api/admin/editorial/actions — create editorial action (reject/approve/flag/pin)
+app.post('/api/admin/editorial/actions', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = editorialActionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+  const { cluster_id, action, reason_category, reason_text, title_keywords } = parsed.data;
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      // Fetch cluster metadata for snapshot
+      const cluster = await pgClient.query(`
+        SELECT c.region, c.topic_tags, c.entities,
+               d.gating_decision, d.composite_score,
+               (SELECT ns.source_key FROM news_cluster_items nci
+                JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+                JOIN news_sources ns ON ns.id = nir.source_id
+                WHERE nci.cluster_id = c.id AND nci.is_primary LIMIT 1) AS source_key
+        FROM news_clusters c
+        LEFT JOIN news_item_decisions d ON d.cluster_id = c.id AND d.region = c.region
+        WHERE c.id = $1::uuid
+      `, [cluster_id]);
+
+      if (cluster.rows.length === 0) {
+        return res.status(404).json({ error: 'Cluster not found' });
+      }
+      const meta = cluster.rows[0];
+
+      // Insert editorial action
+      const result = await pgClient.query(`
+        INSERT INTO news_editorial_actions
+          (cluster_id, action, reason_category, reason_text, region, source_key,
+           topic_tags, entities, title_keywords, system_decision, system_composite_score)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ON CONFLICT (cluster_id, admin_id, action) DO UPDATE
+        SET reason_category = EXCLUDED.reason_category,
+            reason_text = EXCLUDED.reason_text,
+            title_keywords = EXCLUDED.title_keywords,
+            created_at = now()
+        RETURNING id::text, created_at
+      `, [
+        cluster_id, action, reason_category || null, reason_text || null,
+        meta.region || 'global', meta.source_key || null,
+        meta.topic_tags || [], meta.entities || [],
+        title_keywords || [], meta.gating_decision || null,
+        meta.composite_score || null,
+      ]);
+
+      // If reject: remove from current edition
+      if (action === 'reject') {
+        await pgClient.query(`
+          UPDATE news_daily_editions
+          SET top_cluster_ids = array_remove(top_cluster_ids, $1::uuid)
+          WHERE edition_date = CURRENT_DATE
+            AND region = $2
+        `, [cluster_id, meta.region || 'global']);
+      }
+
+      res.json({
+        action: result.rows[0],
+        cluster_id,
+        action_type: action,
+      });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error creating editorial action:', error);
+    res.status(500).json({ error: 'Failed to create editorial action' });
+  }
+});
+
+// GET /api/admin/editorial/actions — list recent actions
+app.get('/api/admin/editorial/actions', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = editorialActionsQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid query', details: parsed.error.issues });
+  const { region, limit, offset } = parsed.data;
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      const result = await pgClient.query(`
+        SELECT a.id::text, a.cluster_id::text, a.action, a.reason_category, a.reason_text,
+               a.region, a.source_key, a.topic_tags, a.entities, a.title_keywords,
+               a.system_decision, a.system_composite_score, a.admin_id, a.created_at,
+               c.title AS cluster_title
+        FROM news_editorial_actions a
+        LEFT JOIN news_clusters c ON c.id = a.cluster_id
+        WHERE a.region = $1 OR a.region = 'global'
+        ORDER BY a.created_at DESC
+        LIMIT $2 OFFSET $3
+      `, [region, limit, offset]);
+
+      const countResult = await pgClient.query(`
+        SELECT count(*)::int AS total FROM news_editorial_actions
+        WHERE region = $1 OR region = 'global'
+      `, [region]);
+
+      res.json({
+        actions: result.rows,
+        total: countResult.rows[0]?.total || 0,
+      });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error fetching editorial actions:', error);
+    res.status(500).json({ error: 'Failed to fetch editorial actions' });
+  }
+});
+
+// GET /api/admin/editorial/rules — list active + pending rules
+app.get('/api/admin/editorial/rules', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = editorialRulesQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid query', details: parsed.error.issues });
+  const { region, include_pending } = parsed.data;
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      const whereClause = include_pending === 'true'
+        ? 'WHERE r.is_active = true AND (r.region = $1 OR r.region = \'global\')'
+        : 'WHERE r.is_active = true AND r.approved_at IS NOT NULL AND (r.region = $1 OR r.region = \'global\')';
+
+      const result = await pgClient.query(`
+        SELECT r.id::text, r.rule_type, r.region, r.rule_value, r.rule_weight,
+               r.is_active, r.is_auto_generated, r.supporting_action_count,
+               r.confidence, r.approved_at, r.expires_at, r.created_at, r.notes
+        FROM news_editorial_rules r
+        ${whereClause}
+        ORDER BY r.is_auto_generated DESC, r.approved_at NULLS FIRST, r.created_at DESC
+      `, [region]);
+
+      res.json({ rules: result.rows });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error fetching editorial rules:', error);
+    res.status(500).json({ error: 'Failed to fetch editorial rules' });
+  }
+});
+
+// POST /api/admin/editorial/rules — create a manual rule
+app.post('/api/admin/editorial/rules', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = editorialRuleCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+  const { rule_type, region, rule_value, rule_weight, notes } = parsed.data;
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      const result = await pgClient.query(`
+        INSERT INTO news_editorial_rules
+          (rule_type, region, rule_value, rule_weight, is_active, is_auto_generated, approved_at, notes)
+        VALUES ($1, $2, $3, $4, true, false, now(), $5)
+        ON CONFLICT (rule_type, region, rule_value) WHERE is_active = true
+        DO UPDATE SET rule_weight = EXCLUDED.rule_weight, notes = EXCLUDED.notes, approved_at = now()
+        RETURNING id::text, created_at
+      `, [rule_type, region, rule_value, rule_weight, notes || null]);
+
+      res.json({ rule: result.rows[0], rule_type, rule_value });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error creating editorial rule:', error);
+    res.status(500).json({ error: 'Failed to create editorial rule' });
+  }
+});
+
+// PUT /api/admin/editorial/rules/:id — approve or deactivate a rule
+app.put('/api/admin/editorial/rules/:id', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const ruleId = req.params.id;
+  if (!/^[0-9a-f-]{36}$/.test(ruleId)) return res.status(400).json({ error: 'Invalid rule ID' });
+
+  const parsed = editorialRuleUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+  const { is_active, approved_at, notes } = parsed.data;
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      const sets: string[] = [];
+      const values: any[] = [ruleId];
+      let paramIdx = 2;
+
+      if (is_active !== undefined) {
+        sets.push(`is_active = $${paramIdx++}`);
+        values.push(is_active);
+      }
+      if (approved_at === 'now') {
+        sets.push(`approved_at = now()`);
+      }
+      if (notes !== undefined) {
+        sets.push(`notes = $${paramIdx++}`);
+        values.push(notes);
+      }
+
+      if (sets.length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+      }
+
+      const result = await pgClient.query(`
+        UPDATE news_editorial_rules
+        SET ${sets.join(', ')}
+        WHERE id = $1::uuid
+        RETURNING id::text, rule_type, rule_value, is_active, approved_at
+      `, values);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Rule not found' });
+      }
+
+      res.json({ rule: result.rows[0] });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error updating editorial rule:', error);
+    res.status(500).json({ error: 'Failed to update editorial rule' });
+  }
+});
+
+// GET /api/admin/editorial/stats — dashboard summary
+app.get('/api/admin/editorial/stats', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = editorialStatsQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid query', details: parsed.error.issues });
+  const { region, days } = parsed.data;
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      // Action counts
+      const actionStats = await pgClient.query(`
+        SELECT action, count(*)::int AS cnt
+        FROM news_editorial_actions
+        WHERE created_at > now() - make_interval(days => $1)
+          AND (region = $2 OR region = 'global')
+        GROUP BY action
+      `, [days, region]);
+
+      // Rejection by reason category
+      const reasonStats = await pgClient.query(`
+        SELECT reason_category, count(*)::int AS cnt
+        FROM news_editorial_actions
+        WHERE action = 'reject'
+          AND created_at > now() - make_interval(days => $1)
+          AND (region = $2 OR region = 'global')
+        GROUP BY reason_category
+        ORDER BY cnt DESC
+      `, [days, region]);
+
+      // Rejection by source
+      const sourceStats = await pgClient.query(`
+        SELECT source_key, count(*)::int AS cnt
+        FROM news_editorial_actions
+        WHERE action = 'reject'
+          AND source_key IS NOT NULL
+          AND created_at > now() - make_interval(days => $1)
+          AND (region = $2 OR region = 'global')
+        GROUP BY source_key
+        ORDER BY cnt DESC
+        LIMIT 10
+      `, [days, region]);
+
+      // Pending rules count
+      const pendingRules = await pgClient.query(`
+        SELECT count(*)::int AS cnt
+        FROM news_editorial_rules
+        WHERE is_active = true AND is_auto_generated = true AND approved_at IS NULL
+          AND (region = $1 OR region = 'global')
+      `, [region]);
+
+      // Total active rules
+      const activeRules = await pgClient.query(`
+        SELECT count(*)::int AS cnt
+        FROM news_editorial_rules
+        WHERE is_active = true AND approved_at IS NOT NULL
+          AND (region = $1 OR region = 'global')
+      `, [region]);
+
+      // Total clusters in period for rate calculation
+      const totalClusters = await pgClient.query(`
+        SELECT count(*)::int AS cnt
+        FROM news_clusters
+        WHERE published_at > now() - make_interval(days => $1)
+          AND region = $2
+      `, [days, region]);
+
+      const actions: Record<string, number> = {};
+      for (const row of actionStats.rows) {
+        actions[row.action] = row.cnt;
+      }
+
+      const totalReviewed = Object.values(actions).reduce((a, b) => a + b, 0);
+      const rejectionRate = totalReviewed > 0 ? ((actions['reject'] || 0) / totalReviewed) : 0;
+
+      res.json({
+        period_days: days,
+        total_reviewed: totalReviewed,
+        actions,
+        rejection_rate: Math.round(rejectionRate * 100),
+        total_clusters: totalClusters.rows[0]?.cnt || 0,
+        pending_rules: pendingRules.rows[0]?.cnt || 0,
+        active_rules: activeRules.rows[0]?.cnt || 0,
+        by_reason: reasonStats.rows,
+        by_source: sourceStats.rows,
+      });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error fetching editorial stats:', error);
+    res.status(500).json({ error: 'Failed to fetch editorial stats' });
   }
 });
 

@@ -375,7 +375,7 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("frontier_news", "Frontier News URLs", "crawler", "frontier://news", fetch_mode="crawler", credibility_weight=0.62),
     SourceDefinition("startup_owned_feeds", "Startup-Owned Sources", "crawler", "startup://owned", fetch_mode="crawler", credibility_weight=0.79),
     # Newsletter digests (parsed into individual items)
-    SourceDefinition("ainews_digest", "AINews by swyx", "newsletter", "https://news.smol.ai/rss.xml", fetch_mode="digest_rss", credibility_weight=0.88, language="en"),
+    SourceDefinition("ainews_digest", "AINews by swyx", "rss", "https://news.smol.ai/rss.xml", fetch_mode="digest_rss", credibility_weight=0.88, language="en"),
 ]
 
 
@@ -3804,13 +3804,146 @@ class DailyNewsIngestor:
             }
         debug_llm = os.getenv("NEWS_LLM_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
 
+        def _norm_key(value: Any) -> str:
+            try:
+                s = str(value or "")
+            except Exception:
+                return ""
+            return re.sub(r"[^a-z0-9]+", "", s.lower())
+
+        def _pick(obj: Dict[str, Any], candidates: Sequence[str]) -> Any:
+            if not isinstance(obj, dict) or not obj:
+                return None
+            # Case-insensitive, punctuation-insensitive key lookup.
+            norm_to_actual: Dict[str, str] = {}
+            for k in obj.keys():
+                if not isinstance(k, str):
+                    continue
+                nk = _norm_key(k)
+                if nk and nk not in norm_to_actual:
+                    norm_to_actual[nk] = k
+            for cand in candidates:
+                ak = norm_to_actual.get(_norm_key(cand))
+                if ak is not None:
+                    return obj.get(ak)
+            return None
+
+        def _unwrap_obj(value: Any) -> Dict[str, Any]:
+            if not isinstance(value, dict):
+                return {}
+            # If the object already looks like the expected shape, keep it.
+            if _pick(value, ["builder_takeaway", "builderTakeaway", "builder_takeaways", "summary", "topic_tags", "story_type"]) is not None:
+                return value
+            # Common wrapper keys (some models nest the payload).
+            for wrapper in ("result", "output", "data", "response", "payload"):
+                nested = value.get(wrapper)
+                if isinstance(nested, dict):
+                    return nested
+            # If there's exactly one dict value, assume that's the payload.
+            dict_values = [v for v in value.values() if isinstance(v, dict)]
+            if len(dict_values) == 1:
+                return dict_values[0]
+            return value
+
+        def _coerce_text(value: Any) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, str):
+                return value
+            if isinstance(value, (int, float, bool)):
+                return str(value)
+            # Some SDKs return content parts (list of dicts/objects).
+            if isinstance(value, list):
+                parts: List[str] = []
+                for part in value:
+                    if part is None:
+                        continue
+                    if isinstance(part, str):
+                        parts.append(part)
+                        continue
+                    if isinstance(part, dict):
+                        for k in ("text", "content", "value"):
+                            if isinstance(part.get(k), str) and part.get(k).strip():
+                                parts.append(str(part.get(k)))
+                                break
+                        else:
+                            # Shallow stringify fallback
+                            try:
+                                parts.append(json.dumps(part))
+                            except Exception:
+                                parts.append(str(part))
+                        continue
+                    # object with `.text`
+                    if hasattr(part, "text"):
+                        try:
+                            t = getattr(part, "text")
+                            if isinstance(t, str):
+                                parts.append(t)
+                                continue
+                        except Exception:
+                            pass
+                    parts.append(str(part))
+                return "\n".join([p for p in (normalize_text(p) for p in parts) if p])
+            if isinstance(value, dict):
+                for k in ("text", "content", "value"):
+                    if isinstance(value.get(k), str) and value.get(k).strip():
+                        return str(value.get(k))
+                try:
+                    return json.dumps(value)
+                except Exception:
+                    return str(value)
+            if hasattr(value, "text"):
+                try:
+                    t = getattr(value, "text")
+                    if isinstance(t, str):
+                        return t
+                except Exception:
+                    pass
+            return str(value)
+
+        def _parse_json_payload(content: Any) -> Dict[str, Any]:
+            if content is None:
+                return {}
+            if isinstance(content, dict):
+                return content
+            if isinstance(content, str):
+                text = content.strip() or "{}"
+                try:
+                    parsed = json.loads(text)
+                    return parsed if isinstance(parsed, dict) else {}
+                except Exception:
+                    return {}
+            if isinstance(content, list):
+                joined = _coerce_text(content)
+                if not joined:
+                    return {}
+                try:
+                    parsed = json.loads(joined)
+                    return parsed if isinstance(parsed, dict) else {}
+                except Exception:
+                    return {}
+            return {}
+
         def parse_llm_payload(parsed: Dict[str, Any], model_label: Optional[str]) -> LLMEnrichmentResult:
-            llm_summary = _shorten_text(str(parsed.get("summary") or ""), 180) or None
-            builder_takeaway = _shorten_text(str(parsed.get("builder_takeaway") or ""), 500) or None
-            signal_score = clamp01(parsed.get("signal_score"), default=None)
-            confidence_score = clamp01(parsed.get("confidence_score"), default=None)
-            llm_topic_tags = normalize_llm_topic_tags(parsed.get("topic_tags"), cluster.topic_tags)
-            llm_story_type = normalize_llm_story_type(parsed.get("story_type"), cluster.story_type)
+            root = _unwrap_obj(parsed)
+            # Support a few common key variants to avoid silent empty outputs.
+            summary_raw = _pick(root, ["summary", "short_summary", "brief", "tldr", "tl;dr"])
+            takeaway_raw = _pick(root, ["builder_takeaway", "builderTakeaway", "builder_takeaways", "why_it_matters", "whyItMatters", "builder_view", "takeaway"])
+            topic_raw = _pick(root, ["topic_tags", "topicTags"])
+            story_raw = _pick(root, ["story_type", "storyType"])
+            signal_raw = _pick(root, ["signal_score", "signalScore"])
+            confidence_raw = _pick(root, ["confidence_score", "confidenceScore"])
+
+            llm_summary = _shorten_text(_coerce_text(summary_raw), 180) or None
+            builder_takeaway = _shorten_text(_coerce_text(takeaway_raw), 500) or None
+            signal_score = clamp01(signal_raw, default=None)
+            confidence_score = clamp01(confidence_raw, default=None)
+
+            # Accept comma-separated topic tags (models sometimes return a single string).
+            if isinstance(topic_raw, str):
+                topic_raw = [t.strip() for t in re.split(r"[,;|]+", topic_raw) if t.strip()]
+            llm_topic_tags = normalize_llm_topic_tags(topic_raw, cluster.topic_tags)
+            llm_story_type = normalize_llm_story_type(story_raw, cluster.story_type)
             return LLMEnrichmentResult(
                 llm_summary,
                 builder_takeaway,
@@ -3827,6 +3960,72 @@ class DailyNewsIngestor:
             for m in [self.azure_openai_deployment, self.azure_openai_fallback_deployment]:
                 if m and m not in candidate_models:
                     candidate_models.append(m)
+
+            # Prefer Responses API when available (more reliable for GPT-5 family and enables strict JSON schema).
+            if hasattr(self.azure_client, "responses"):
+                json_schema = {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "builder_takeaway": {"type": "string", "minLength": 1, "maxLength": 800},
+                        "summary": {"type": "string", "maxLength": 200},
+                        "story_type": {"type": "string", "enum": list(ALLOWED_STORY_TYPES)},
+                        "topic_tags": {"type": "array", "maxItems": 6, "items": {"type": "string", "maxLength": 32}},
+                        "signal_score": {"type": "number", "minimum": 0, "maximum": 1},
+                        "confidence_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    },
+                    "required": ["builder_takeaway", "summary", "story_type", "topic_tags", "signal_score", "confidence_score"],
+                }
+                for model_name in candidate_models:
+                    try:
+                        payload: Dict[str, Any] = {
+                            "model": model_name,
+                            "input": [
+                                {"role": "system", "content": prompt},
+                                {"role": "user", "content": json.dumps(user_payload)},
+                            ],
+                            # Keep ample budget for GPT-5 reasoning tokens while capping runaway costs.
+                            "max_output_tokens": min(2048, _azure_token_budget(model_name, 500)),
+                            "text": {
+                                "format": {
+                                    "type": "json_schema",
+                                    "name": "cluster_enrichment",
+                                    "schema": json_schema,
+                                    "strict": True,
+                                }
+                            },
+                        }
+                        if _azure_supports_reasoning_effort(model_name):
+                            payload["reasoning"] = {"effort": self.azure_openai_daily_brief_effort}
+                        if _azure_supports_temperature(model_name):
+                            payload["temperature"] = 0.2
+
+                        try:
+                            response = await self.azure_client.responses.create(**payload)
+                        except Exception as exc:
+                            if _is_unsupported_temperature_exception(exc):
+                                payload.pop("temperature", None)
+                                response = await self.azure_client.responses.create(**payload)
+                            else:
+                                raise
+
+                        content = getattr(response, "output_text", None)
+                        if callable(content):
+                            content = content()
+                        if not content:
+                            content = getattr(response, "text", None) or "{}"
+                        parsed = _parse_json_payload(content)
+                        result = parse_llm_payload(parsed, f"azure:{model_name}")
+                        if not result.builder_takeaway:
+                            last_error_code = "azure_empty_builder_takeaway"
+                            if debug_llm:
+                                print(f"[news-ingest] Azure responses enrichment missing builder_takeaway (model={model_name}) content: {str(content)[:200]}")
+                            continue
+                        return result
+                    except Exception as exc:
+                        if debug_llm:
+                            print(f"[news-ingest] Azure responses enrichment failed (model={model_name}): {exc}")
+                        last_error_code = "azure_timeout" if _is_timeout_exception(exc) else "azure_error"
 
             for model_name in candidate_models:
                 for with_response_format in (True, False):
@@ -3855,8 +4054,8 @@ class DailyNewsIngestor:
                                 raise
 
                         choice = (response.choices or [None])[0] if response.choices else None
-                        content = (choice.message.content if choice else "{}") or "{}"
-                        parsed = json.loads(content) if isinstance(content, str) else {}
+                        raw_content = (choice.message.content if choice else "{}") or "{}"
+                        parsed = _parse_json_payload(raw_content)
                         result = parse_llm_payload(parsed, f"azure:{model_name}")
                         # Detect reasoning-token exhaustion: model set but no useful output
                         finish = choice.finish_reason if choice else None
@@ -3865,6 +4064,12 @@ class DailyNewsIngestor:
                                 print(f"[news-ingest] Azure LLM empty output (finish_reason=length, model={model_name}) — token budget exhausted")
                             last_error_code = "azure_token_exhausted"
                             continue  # try next model/format
+                        if not result.builder_takeaway:
+                            last_error_code = "azure_empty_builder_takeaway"
+                            if debug_llm:
+                                mode = "json_object" if with_response_format else "no_response_format"
+                                print(f"[news-ingest] Azure LLM missing builder_takeaway ({mode} model={model_name}) content: {str(raw_content)[:200]}")
+                            continue
                         return result
                     except Exception as exc:
                         if debug_llm:
@@ -3912,8 +4117,21 @@ class DailyNewsIngestor:
                         ((payload.get("choices") or [{}])[0].get("message") or {}).get("content")
                         or "{}"
                     )
-                    parsed = json.loads(content) if isinstance(content, str) else {}
-                    return parse_llm_payload(parsed, self.llm_model)
+                    parsed = _parse_json_payload(content)
+                    result = parse_llm_payload(parsed, self.llm_model)
+                    if not result.builder_takeaway:
+                        return LLMEnrichmentResult(
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            timed_out=False,
+                            error_code="openai_empty_builder_takeaway",
+                        )
+                    return result
             except Exception as exc:
                 if debug_llm:
                     print(f"[news-ingest] OpenAI LLM enrichment exception: {exc}")
@@ -3962,11 +4180,10 @@ class DailyNewsIngestor:
         if not self.openai_api_key and self.azure_client is None:
             return
 
-        # Filter: skip clusters gated as "drop" or "accumulate"
-        enrichment_candidates = [
-            c for c in clusters
-            if c.gating_decision in (None, "publish", "borderline")
-        ]
+        # All clusters are enrichment candidates — gating is advisory, not a
+        # hard filter. LLM enrichment should run on the top-N by rank regardless
+        # of gating decision so that edition items always have builder_takeaway.
+        enrichment_candidates = list(clusters)
 
         # Further filter: skip if strong negative signal history
         sig_agg = getattr(self, "_signal_aggregator", None)
@@ -4720,6 +4937,7 @@ class DailyNewsIngestor:
         region: str,
         clusters: Sequence[StoryCluster],
         cluster_ids: Dict[str, str],
+        excluded_cluster_ids: set = frozenset(),
     ) -> Dict[str, Any]:
         # Merge community signal boost into rank_score before sorting
         sig_agg = getattr(self, "_signal_aggregator", None)
@@ -4732,7 +4950,10 @@ class DailyNewsIngestor:
                         c.rank_score = min(1.0, c.rank_score + sig * 0.08)
         ranked = sorted(clusters, key=lambda c: (c.rank_score, c.trust_score, c.published_at), reverse=True)
         top = ranked[:40]
-        top_ids = [cluster_ids[c.cluster_key] for c in top if c.cluster_key in cluster_ids]
+        top_ids = [
+            cluster_ids[c.cluster_key] for c in top
+            if c.cluster_key in cluster_ids and cluster_ids[c.cluster_key] not in excluded_cluster_ids
+        ]
 
         story_type_counts: Dict[str, int] = {}
         topic_counts: Dict[str, int] = {}
@@ -4913,13 +5134,44 @@ class DailyNewsIngestor:
                     "turkey": memory_stats_turkey,
                 }
 
+                # --- Editorial rules: load admin-curated & auto-generated filters ---
+                from .editorial_rules import EditorialRuleEngine, generate_rule_suggestions, load_rejected_cluster_ids
+                _ed_engine_global = EditorialRuleEngine()
+                await _ed_engine_global.load(conn, region="global")
+                _ed_engine_turkey = EditorialRuleEngine()
+                await _ed_engine_turkey.load(conn, region="turkey")
+
+                # Pre-clustering filter: exclude items matching editorial rules
+                editorial_stats: Dict[str, Any] = {}
+                if _ed_engine_global.loaded:
+                    pre_filter_count = len(items_for_clustering)
+                    items_for_clustering = [
+                        item for item in items_for_clustering
+                        if not _ed_engine_global.should_exclude_item(item)
+                    ]
+                    excluded = pre_filter_count - len(items_for_clustering)
+                    if excluded:
+                        editorial_stats["items_excluded_pre_clustering"] = excluded
+                        print(f"[editorial] excluded {excluded} items pre-clustering (global rules)")
+                    # Re-cluster after filtering
+                    if excluded:
+                        clusters = self._cluster_items(items_for_clustering)
+                        # Rebuild turkey clusters
+                        turkey_clusters = []
+                        for c in clusters:
+                            tc = _build_turkey_cluster(c, turkey_source_keys)
+                            if tc:
+                                turkey_clusters.append(tc)
+
                 # --- Signal feedback: load community signals for ranking/gating ---
                 from .signal_feedback import SignalAggregator
                 _sig_agg_global = SignalAggregator()
                 await _sig_agg_global.load(conn, lookback_days=14, region="global")
+                await _sig_agg_global.load_editorial_signals(conn, lookback_days=14, region="global")
                 self._signal_aggregator = _sig_agg_global
                 _sig_agg_turkey = SignalAggregator()
                 await _sig_agg_turkey.load(conn, lookback_days=14, region="turkey")
+                await _sig_agg_turkey.load_editorial_signals(conn, lookback_days=14, region="turkey")
 
                 # Apply source credibility adjustments from signals
                 signal_stats: Dict[str, Any] = {}
@@ -4939,6 +5191,19 @@ class DailyNewsIngestor:
                     if source_adj_applied:
                         signal_stats["source_signal_adjustments"] = source_adj_applied
                         print(f"[signals] applied source adjustments: {len(source_adj_applied)} sources")
+
+                # Apply editorial source downweight rules
+                if _ed_engine_global.loaded:
+                    ed_src_adjusted = 0
+                    for c in clusters:
+                        for m in c.members:
+                            mult = _ed_engine_global.adjust_source_weight(m.source_key)
+                            if mult < 1.0:
+                                m.source_weight = max(0.1, m.source_weight * mult)
+                                ed_src_adjusted += 1
+                    if ed_src_adjusted:
+                        editorial_stats["source_weights_adjusted"] = ed_src_adjusted
+                        print(f"[editorial] adjusted {ed_src_adjusted} source weights via rules")
 
                 # Resolve schema capabilities early so pre-load queries can be region-aware.
                 self._regional_clusters_supported = await self._supports_regional_clusters(conn)
@@ -5022,6 +5287,33 @@ class DailyNewsIngestor:
                 embed_stats = await self._embed_clusters(conn, clusters, cluster_ids_global)
                 related_count = await self._populate_related_clusters(conn, cluster_ids_global)
 
+                # --- Editorial post-gating: force-drop clusters matching editorial rules ---
+                if _ed_engine_global.loaded:
+                    ed_post_excluded = 0
+                    for c in clusters:
+                        reason = _ed_engine_global.should_exclude_cluster(c)
+                        if reason:
+                            c.gating_decision = "drop"
+                            c.gating_reason = f"editorial: {reason}"
+                            ed_post_excluded += 1
+                    if ed_post_excluded:
+                        editorial_stats["clusters_excluded_post_gating"] = ed_post_excluded
+                        print(f"[editorial] force-dropped {ed_post_excluded} clusters via post-gating rules")
+
+                if _ed_engine_turkey.loaded:
+                    for c in turkey_clusters:
+                        reason = _ed_engine_turkey.should_exclude_cluster(c)
+                        if reason:
+                            c.gating_decision = "drop"
+                            c.gating_reason = f"editorial: {reason}"
+
+                # Load admin-rejected cluster IDs to exclude from editions
+                rejected_global = await load_rejected_cluster_ids(conn, "global")
+                rejected_turkey = await load_rejected_cluster_ids(conn, "turkey")
+                if rejected_global or rejected_turkey:
+                    editorial_stats["rejected_cluster_ids"] = len(rejected_global | rejected_turkey)
+                    print(f"[editorial] excluding {len(rejected_global)} global + {len(rejected_turkey)} turkey rejected clusters from editions")
+
                 # Minimal editorial reduction for Turkey feed: hide "drop" clusters.
                 turkey_clusters_for_edition = [c for c in turkey_clusters if c.gating_decision != "drop"]
 
@@ -5031,6 +5323,7 @@ class DailyNewsIngestor:
                     region="global",
                     clusters=clusters,
                     cluster_ids=cluster_ids_global,
+                    excluded_cluster_ids=rejected_global,
                 )
                 turkey_stats = await self._persist_edition(
                     conn,
@@ -5038,7 +5331,15 @@ class DailyNewsIngestor:
                     region="turkey",
                     clusters=turkey_clusters_for_edition,
                     cluster_ids=cluster_ids_turkey,
+                    excluded_cluster_ids=rejected_turkey,
                 )
+
+                # --- Generate editorial rule suggestions from accumulated rejections ---
+                try:
+                    await generate_rule_suggestions(conn, region="global")
+                    await generate_rule_suggestions(conn, region="turkey")
+                except Exception as exc:
+                    print(f"[editorial] rule generation failed (non-fatal): {exc}")
 
                 stats = {
                     **global_stats,
@@ -5050,6 +5351,7 @@ class DailyNewsIngestor:
                     "memory": memory_stats,
                     "gating": gating_stats,
                     "signals": signal_stats,
+                    "editorial": editorial_stats,
                     "embedding": embed_stats,
                     "related_clusters_populated": related_count,
                     "research_enqueued": research_enqueued + research_enqueued_tr,

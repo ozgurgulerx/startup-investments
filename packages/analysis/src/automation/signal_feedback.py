@@ -241,3 +241,82 @@ class SignalAggregator:
             adjustment = (quality - 0.5) * 0.10  # maps to [-0.05, +0.05]
             result[sk] = {"quality": round(quality, 4), "adjustment": round(adjustment, 4)}
         return result
+
+    async def load_editorial_signals(
+        self,
+        conn: "asyncpg.Connection",
+        *,
+        lookback_days: int = 14,
+        region: str = "global",
+    ) -> int:
+        """Inject admin editorial actions as amplified signals.
+
+        Reject → 10 not_useful votes, Approve → 5 upvotes.
+        Returns number of editorial actions loaded.
+        """
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT cluster_id::text, action, source_key,
+                       (SELECT array_agg(t) FROM unnest(topic_tags) t) AS topic_tags
+                FROM news_editorial_actions
+                WHERE created_at > now() - make_interval(days => $1)
+                  AND action IN ('reject', 'approve')
+                  AND (region = $2 OR region = 'global')
+                """,
+                lookback_days,
+                region,
+            )
+            count = 0
+            for row in rows:
+                cid = str(row["cluster_id"])
+                action = row["action"]
+                source_key = row["source_key"]
+                tags = list(row["topic_tags"] or [])
+
+                # Amplified cluster signal
+                cs = self._cluster_signals.get(cid)
+                if not cs:
+                    cs = _ClusterSignal(cluster_id=cid, topic_tags=tags)
+                    self._cluster_signals[cid] = cs
+
+                if action == "reject":
+                    cs.not_useful_count += 10
+                elif action == "approve":
+                    cs.upvote_count += 5
+
+                # Amplified source signal
+                if source_key:
+                    ss = self._source_signals.get(source_key)
+                    if not ss:
+                        ss = _SourceSignal(source_key=source_key)
+                        self._source_signals[source_key] = ss
+                    if action == "reject":
+                        ss.total_not_useful += 10
+                    elif action == "approve":
+                        ss.total_upvotes += 5
+                    ss.cluster_count += 1
+
+                # Amplified topic signals
+                for tag in tags:
+                    t = tag.lower().strip()
+                    if not t:
+                        continue
+                    ts = self._topic_signals.get(t)
+                    if not ts:
+                        ts = _TopicSignal(topic=t)
+                        self._topic_signals[t] = ts
+                    if action == "reject":
+                        ts.total_not_useful += 10
+                    elif action == "approve":
+                        ts.total_upvotes += 5
+                    ts.cluster_count += 1
+
+                count += 1
+
+            if count:
+                logger.info("[signals] injected %d editorial actions as amplified signals (region=%s)", count, region)
+            return count
+        except Exception as exc:
+            logger.warning("[signals] failed to load editorial signals (table may not exist): %s", exc)
+            return 0
