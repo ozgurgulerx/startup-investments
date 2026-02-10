@@ -98,6 +98,13 @@ az webapp config container set \
     --container-registry-password "$ACR_PASS" \
     --output none
 
+# Override Oryx startup — run our CMD directly, not the auto-detected one
+az webapp config set \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$WEBAPP_NAME" \
+    --startup-file "node apps/web/server.js" \
+    --output none
+
 # --- Step 4: Configure App Service settings ---
 echo ""
 echo "[4/5] Configuring App Service settings..."
@@ -122,6 +129,7 @@ fi
 SETTINGS=(
     "NODE_ENV=production"
     "WEBSITES_PORT=8080"
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false"
     "NEXTAUTH_URL=${NEXTAUTH_URL:-https://buildatlas.net}"
     "PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://buildatlas.net}"
     "NEXT_PUBLIC_BUILD_SHA=$COMMIT_SHA"
