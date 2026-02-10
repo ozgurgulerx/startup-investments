@@ -285,7 +285,7 @@ export async function getLatestMetrics(): Promise<{
       },
       genai: {
         ...METRICS.genai,
-        value: genaiRate > 0 ? `${Math.round(genaiRate * 100)}%` : METRICS.genai.value,
+        value: genaiRate > 0 ? `${Math.round((genaiRate > 1 ? genaiRate : genaiRate * 100))}%` : METRICS.genai.value,
       },
       patterns: {
         ...METRICS.patterns,
