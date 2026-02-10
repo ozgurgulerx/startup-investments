@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { getNewsEdition, getNewsTopics, getPeriodicBrief } from '@/lib/data/news';
 import { InteractiveRadar } from '@/components/news/interactive-radar';
 import { NewsNav } from '@/components/news/news-nav';
+import { withTimeout } from '@/lib/with-timeout';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,8 +23,8 @@ export default async function DailyNewsPage() {
   const edition = await getNewsEdition({ limit: 40 });
   const [topics, weeklyBrief, monthlyBrief] = await Promise.all([
     edition ? getNewsTopics({ date: edition.edition_date, limit: 24 }) : Promise.resolve([]),
-    getPeriodicBrief({ periodType: 'weekly', region: 'global' }).catch(() => null),
-    getPeriodicBrief({ periodType: 'monthly', region: 'global' }).catch(() => null),
+    withTimeout(getPeriodicBrief({ periodType: 'weekly', region: 'global' }), 2000).catch(() => null),
+    withTimeout(getPeriodicBrief({ periodType: 'monthly', region: 'global' }), 2000).catch(() => null),
   ]);
 
   return (

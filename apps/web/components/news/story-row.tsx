@@ -1,31 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
+import { timeAgo, storyTypeBadgeClass, aiSignalLabel } from '@/lib/news-utils';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
-
-function timeAgo(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  if (!Number.isFinite(then)) return 'just now';
-  const diff = Math.max(0, now - then);
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function storyTypeBadge(type: string): string {
-  const t = (type || '').toLowerCase();
-  if (t === 'funding') return 'border-success/30 bg-success/10 text-success';
-  if (t === 'mna') return 'border-delta/30 bg-delta/10 text-delta';
-  if (t === 'regulation') return 'border-warning/30 bg-warning/10 text-warning';
-  if (t === 'launch') return 'border-accent-info/30 bg-accent-info/10 text-accent-info';
-  return 'border-border/40 bg-muted/10 text-muted-foreground';
-}
 
 interface StoryCardProps {
   item: NewsItemCard;
@@ -37,7 +18,7 @@ interface StoryCardProps {
 
 export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
-  const typeBadge = storyTypeBadge(item.story_type);
+  const typeBadge = storyTypeBadgeClass(item.story_type);
   const tags = item.topic_tags.slice(0, 2);
   const imageUrl = item.image_url && /^https?:\/\//i.test(item.image_url) ? item.image_url : null;
   const [imageFailed, setImageFailed] = useState(false);
@@ -64,7 +45,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
             alt=""
             loading="lazy"
             decoding="async"
-            className="h-28 w-full object-cover"
+            className="h-28 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
             onError={() => setImageFailed(true)}
           />
         </div>
@@ -72,17 +53,17 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
 
       <div className="flex flex-wrap items-center gap-2">
         {isNew && (
-          <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-success">
+          <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-success">
             New
           </span>
         )}
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
-        <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${typeBadge}`}>
+        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${typeBadge}`}>
           {item.story_type || 'news'}
         </span>
         {typeof item.llm_signal_score === 'number' && (
-          <span className="inline-flex rounded-full border border-accent-info/35 bg-accent-info/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
-            AI {Math.round(item.llm_signal_score * 100)}%
+          <span className="inline-flex rounded-full border border-accent-info/35 bg-accent-info/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent-info">
+            {aiSignalLabel(item.llm_signal_score)}
           </span>
         )}
         <span className="ml-auto text-[10px] text-muted-foreground/70 tabular-nums whitespace-nowrap">
@@ -128,12 +109,14 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
       {tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {tags.map((tag) => (
-            <span
+            <Link
               key={tag}
-              className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+              href={`/topics/${encodeURIComponent(tag)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground hover:border-accent-info/40 hover:text-accent-info transition-colors"
             >
               {tag}
-            </span>
+            </Link>
           ))}
         </div>
       )}
@@ -147,7 +130,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
 
 export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
-  const typeBadge = storyTypeBadge(item.story_type);
+  const typeBadge = storyTypeBadgeClass(item.story_type);
   return (
     <div
       role="button"
@@ -163,16 +146,16 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: S
       `}
     >
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-info/15 text-accent-info border border-accent-info/25">
+        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-info/15 text-accent-info border border-accent-info/25">
           Top Impact
         </span>
         {isNew && (
-          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/25">
+          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-success/10 text-success border border-success/25">
             New
           </span>
         )}
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
-        <span className={`hidden sm:inline-flex rounded-full border px-1.5 py-0.5 text-[9px] uppercase tracking-wider ${typeBadge}`}>
+        <span className={`hidden sm:inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${typeBadge}`}>
           {item.story_type || 'news'}
         </span>
         <span className="text-[10px] text-muted-foreground/70 tabular-nums">

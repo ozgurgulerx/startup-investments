@@ -1,4 +1,5 @@
 import type { NewsItemCard } from '@startup-intelligence/shared';
+import { safeDate } from '@/lib/safe-date';
 
 export interface NewsSections {
   topStories: NewsItemCard[];
@@ -65,20 +66,20 @@ export function sectionNewsItems(
   const pool = items.filter((item) => !assigned.has(item.id));
 
   // 2. Breaking — published within the window
-  const editionTime = new Date(generatedAt).getTime();
-  const cutoff = Number.isFinite(editionTime)
+  const editionTime = safeDate(generatedAt).getTime();
+  const cutoff = editionTime > 0
     ? editionTime - opts.breakingWindowMs
     : Date.now() - opts.breakingWindowMs;
 
   const breaking = pool
     .filter((item) => {
-      const t = new Date(item.published_at).getTime();
-      return Number.isFinite(t) && t > cutoff;
+      const t = safeDate(item.published_at).getTime();
+      return t > 0 && t > cutoff;
     })
     .sort(
       (a, b) =>
-        new Date(b.published_at).getTime() -
-        new Date(a.published_at).getTime(),
+        safeDate(b.published_at).getTime() -
+        safeDate(a.published_at).getTime(),
     )
     .slice(0, opts.maxBreaking);
   for (const item of breaking) assigned.add(item.id);

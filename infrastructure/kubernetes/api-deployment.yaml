@@ -58,6 +58,30 @@ spec:
                   name: startup-investments-secrets
                   key: applicationinsights-connection-string
                   optional: true
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: azure-openai-endpoint
+                  optional: true
+            - name: AZURE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: azure-openai-api-key
+                  optional: true
+            - name: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: azure-openai-embedding-deployment
+                  optional: true
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: openai-api-key
+                  optional: true
           resources:
             requests:
               memory: "128Mi"

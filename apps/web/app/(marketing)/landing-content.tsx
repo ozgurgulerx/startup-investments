@@ -8,6 +8,7 @@ import { useAudience } from '@/lib/audience-context';
 import { AudienceToggle } from '@/components/ui/audience-toggle';
 import { UserMenu } from '@/components/auth/user-menu';
 import { DailyNewsModule } from '@/components/news/daily-news-module';
+import { NewsNav } from '@/components/news/news-nav';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { Search } from 'lucide-react';
 import { COPY, SUPPORTING_LINE, FAQ_ITEMS, SIGN_IN_COPY, type MetricsData } from '@/lib/copy';
@@ -43,43 +44,28 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/92 backdrop-blur-md border-b border-border/35">
-        {/* Accent top line */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent/60 via-accent to-accent/60" />
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_12%_0%,rgba(245,158,11,0.12),transparent_38%)]" />
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="inline-flex">
-            <BrandMark size="md" variant="accent" />
-          </Link>
-          <div className="flex items-center gap-6">
-            <Link href="/methodology" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Methodology
+      <NewsNav rightSlot={
+        <>
+          <Link href="/methodology" className="hidden sm:inline hover:text-foreground transition-colors">Methodology</Link>
+          <Link href="/news" className="hidden sm:inline hover:text-foreground transition-colors">Newsroom</Link>
+          {status === 'loading' ? (
+            <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
+          ) : session?.user ? (
+            <UserMenu />
+          ) : (
+            <Link
+              href="/login"
+              className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
+            >
+              Sign In
             </Link>
-            <Link href="/news" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Newsroom
-            </Link>
-            {status === 'loading' ? (
-              <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
-            ) : session?.user ? (
-              <UserMenu />
-            ) : (
-              <Link
-                href="/login"
-                className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
-              >
-                Sign In
-              </Link>
-            )}
-          </div>
-        </div>
-      </nav>
+          )}
+        </>
+      } />
 
       {/* Hero */}
-      <section className="landing-atmosphere relative overflow-hidden pt-28 pb-12 px-6">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_10%,rgba(245,158,11,0.24),transparent_40%),radial-gradient(circle_at_92%_4%,rgba(16,185,129,0.18),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0)_45%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.17] [background-image:linear-gradient(to_right,rgba(255,255,255,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.10)_1px,transparent_1px)] [background-size:24px_24px]" />
-
-        <div className="relative max-w-6xl mx-auto">
+      <section className="relative overflow-hidden pt-8 pb-10 px-6">
+        <div className="max-w-6xl mx-auto">
           <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-8">
               <div className="flex items-center gap-3 mb-5">
@@ -111,7 +97,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
                     value={heroSearch}
                     onChange={(e) => setHeroSearch(e.target.value)}
                     placeholder={copy.heroSearchPlaceholder}
-                    className="w-full pl-12 pr-4 py-3.5 text-base rounded-lg bg-muted/25 border border-border/50 placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent/70 focus:border-accent/70 transition-colors"
+                    className="w-full pl-12 pr-4 py-3.5 text-base rounded-lg bg-card/40 border border-border/30 placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent/70 focus:border-accent/70 transition-colors"
                   />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -153,7 +139,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
             </div>
 
             <div className="lg:col-span-4">
-              <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-card via-card to-success/10 p-5 shadow-[0_14px_40px_rgba(0,0,0,0.22)]">
+              <div className="rounded-xl border border-border/40 bg-card/60 p-4">
                 <p className="label-xs text-accent-info mb-3">What You Track</p>
                 <ul className="space-y-3">
                   {copy.heroBullets.slice(0, 3).map((bullet, index) => (
@@ -173,7 +159,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       <DailyNewsModule className="pt-0 pb-8" />
 
       {/* Stats Bar */}
-      <section className="py-12 border-y border-accent/20 bg-gradient-to-r from-muted/10 via-success/5 to-warning/5">
+      <section className="py-10 border-y border-border/30 bg-card/40">
         <div className="max-w-6xl mx-auto px-6">
           <p className="label-xs text-accent-info mb-6 text-center">{periodLabel} Snapshot</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
@@ -209,10 +195,10 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       </div>
 
       {/* What You Get */}
-      <section className="py-20 px-6">
+      <section className="py-16 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-light text-foreground mb-4">
+          <div className="text-center mb-10">
+            <h2 className="headline-lg text-foreground mb-4">
               What You Get
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
@@ -221,37 +207,37 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="p-6 border border-border/30 rounded-lg">
+            <div className="p-4 border border-border/40 rounded-xl">
               <div className="w-10 h-10 mb-4 rounded bg-accent-info/10 flex items-center justify-center">
                 <svg className="w-5 h-5 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">Brief</h3>
+              <h3 className="headline-sm text-foreground mb-2">Brief</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 A concise monthly thesis on what changed, why it matters, and implications for builders and investors.
               </p>
             </div>
 
-            <div className="p-6 border border-border/30 rounded-lg">
+            <div className="p-4 border border-border/40 rounded-xl">
               <div className="w-10 h-10 mb-4 rounded bg-accent-info/10 flex items-center justify-center">
                 <svg className="w-5 h-5 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">Dossiers</h3>
+              <h3 className="headline-sm text-foreground mb-2">Dossiers</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Searchable company-level breakdowns with architecture, stack, positioning, and confidence-scored signals.
               </p>
             </div>
 
-            <div className="p-6 border border-border/30 rounded-lg">
+            <div className="p-4 border border-border/40 rounded-xl">
               <div className="w-10 h-10 mb-4 rounded bg-accent-info/10 flex items-center justify-center">
                 <svg className="w-5 h-5 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">Signals</h3>
+              <h3 className="headline-sm text-foreground mb-2">Signals</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Emerging build patterns detected across startups, with confidence levels and failure modes.
               </p>
@@ -261,10 +247,10 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       </section>
 
       {/* Sample Preview */}
-      <section className="py-20 px-6 bg-muted/10 border-y border-border/30">
+      <section className="py-16 px-6 border-y border-border/30">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-light text-foreground mb-4">
+            <h2 className="headline-lg text-foreground mb-4">
               Analysis, Not Noise
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
@@ -273,7 +259,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
           </div>
 
           {/* Mock Brief Preview */}
-          <div className="max-w-3xl mx-auto p-8 bg-card border border-border/30 rounded-lg relative overflow-hidden">
+          <div className="max-w-3xl mx-auto p-6 bg-card/60 border border-border/40 rounded-xl relative overflow-hidden">
             {/* Accent left border */}
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-accent via-accent/60 to-accent/20" />
             <div className="label-xs text-accent-info mb-4">{periodLabel} BRIEF</div>
@@ -304,14 +290,14 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
 
       {/* Sign In to Personalize - only show when not logged in */}
       {!session?.user && (
-        <section id="personalize" className="py-20 px-6">
+        <section id="personalize" className="py-16 px-6">
           <div className="max-w-2xl mx-auto text-center">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent-info/10 flex items-center justify-center">
-              <svg className="w-8 h-8 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-lg bg-accent-info/10 flex items-center justify-center">
+              <svg className="w-6 h-6 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-3xl font-light text-foreground mb-4">
+            <h2 className="headline-lg text-foreground mb-4">
               {SIGN_IN_COPY.title}
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
@@ -337,14 +323,14 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
 
       {/* Welcome back for logged in users */}
       {session?.user && (
-        <section id="personalize" className="py-20 px-6">
+        <section id="personalize" className="py-16 px-6">
           <div className="max-w-2xl mx-auto text-center">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent-info/10 flex items-center justify-center">
-              <svg className="w-8 h-8 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-lg bg-accent-info/10 flex items-center justify-center">
+              <svg className="w-6 h-6 text-accent-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-3xl font-light text-foreground mb-4">
+            <h2 className="headline-lg text-foreground mb-4">
               Welcome back, {session.user.name?.split(' ')[0] || 'there'}
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
@@ -369,9 +355,9 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       )}
 
       {/* Methodology Teaser */}
-      <section className="py-20 px-6 bg-muted/10 border-y border-border/30">
+      <section className="py-16 px-6 border-y border-border/30">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-light text-foreground mb-4">
+          <h2 className="headline-lg text-foreground mb-4">
             How We Decode Startups
           </h2>
           <p className="text-muted-foreground mb-8 leading-relaxed">
@@ -392,16 +378,16 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       </section>
 
       {/* FAQ */}
-      <section className="py-20 px-6">
+      <section className="py-16 px-6">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl font-light text-foreground mb-12 text-center">
+          <h2 className="headline-lg text-foreground mb-10 text-center">
             Frequently Asked Questions
           </h2>
 
-          <div className="space-y-6">
+          <div className="space-y-5">
             {FAQ_ITEMS.map((item, index) => (
-              <div key={index} className="pb-6 border-b border-border/30">
-                <h3 className="text-base font-medium text-foreground mb-2">{item.question}</h3>
+              <div key={index} className="pb-5 border-b border-border/30">
+                <h3 className="text-sm font-medium text-foreground mb-2">{item.question}</h3>
                 <p className="text-sm text-muted-foreground">{item.answer}</p>
               </div>
             ))}
@@ -410,7 +396,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-border/30">
+      <footer className="py-10 px-6 border-t border-border/30">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <BrandMark size="sm" variant="muted" />
           <div className="flex items-center gap-6 text-sm text-muted-foreground">

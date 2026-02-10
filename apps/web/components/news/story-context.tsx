@@ -3,20 +3,9 @@
 import Link from 'next/link';
 import { ExternalLink, X } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
+import { timeAgo, aiSignalLabel } from '@/lib/news-utils';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
-
-function timeAgo(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  if (!Number.isFinite(then)) return 'just now';
-  const diff = Math.max(0, now - then);
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 interface StoryContextProps {
   item: NewsItemCard;
@@ -89,7 +78,7 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
             <p className="text-xs text-foreground/90 leading-relaxed">{item.rank_reason}</p>
             {typeof item.llm_signal_score === 'number' && (
               <p className="mt-2 text-[10px] text-accent-info">
-                AI Signal: {Math.round(item.llm_signal_score * 100)}%
+                {aiSignalLabel(item.llm_signal_score)}
               </p>
             )}
           </div>
@@ -157,9 +146,13 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Topics</p>
             <div className="flex flex-wrap gap-1.5">
               {item.topic_tags.map((tag) => (
-                <span key={tag} className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <Link
+                  key={tag}
+                  href={`/topics/${encodeURIComponent(tag)}`}
+                  className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground hover:border-accent-info/40 hover:text-accent-info transition-colors"
+                >
                   {tag}
-                </span>
+                </Link>
               ))}
             </div>
           </div>

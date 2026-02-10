@@ -128,6 +128,8 @@ News:
   - `infrastructure/vm-cron/jobs/news-digest.sh`
 - Daily brief + LLM enrichment (news):
   - Controlled by `NEWS_LLM_ENRICHMENT=true` (and optional `NEWS_LLM_DAILY_BRIEF=true`) in `/etc/buildatlas/.env`.
+  - "Why It Matters" under each news story card comes from `news_clusters.builder_takeaway` (server-fetched via backend `/api/v1/news`). If `builder_takeaway` is empty/NULL, the UI will not render that block.
+  - Implementation: `packages/analysis/src/automation/news_ingest.py` enriches clusters via Azure OpenAI; for GPT-5 deployments it prefers the Responses API (`responses.create` + strict JSON schema) and falls back to Chat Completions.
   - Production Azure OpenAI may have **key auth disabled**. Prefer AAD via managed identity (requires `azure-identity` in the venv and RBAC on the Azure OpenAI resource).
   - Azure model selection uses **deployment names** (not raw model IDs):
     - Preferred: `AZURE_OPENAI_DEPLOYMENT_NAME` (e.g. `gpt-5-nano`)

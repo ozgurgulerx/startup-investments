@@ -118,7 +118,7 @@ function isMissingNewsSchemaError(error: unknown): boolean {
   return code === '42P01' || code === '42703';
 }
 
-function rowToCard(row: Record<string, unknown>): NewsItemCard {
+export function rowToCard(row: Record<string, unknown>): NewsItemCard {
   const builderTakeawayIsLlm = Boolean(row.llm_model);
   return {
     id: String(row.id || ''),
@@ -159,26 +159,67 @@ function rowToCard(row: Record<string, unknown>): NewsItemCard {
   };
 }
 
+export function extractBrief(statsJson: Record<string, any>): DailyNewsBrief | undefined {
+  const daily = statsJson?.daily_brief;
+  if (!daily?.headline) return undefined;
+  return {
+    headline: String(daily.headline || ''),
+    summary: String(daily.summary || ''),
+    bullets: Array.isArray(daily.bullets) ? daily.bullets : [],
+    themes: Array.isArray(daily.themes) ? daily.themes : undefined,
+    generated_at: daily.generated_at ? String(daily.generated_at) : undefined,
+    cluster_count: typeof daily.cluster_count === 'number' ? daily.cluster_count : undefined,
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Azure OpenAI Embedding helper (for hybrid search)
+// Embedding helper for hybrid search
+// Supports Azure OpenAI (api-key header) and standard OpenAI (Bearer token).
 // ---------------------------------------------------------------------------
 
-const EMBEDDING_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
-const EMBEDDING_DEPLOYMENT = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-3-small';
-const EMBEDDING_API_KEY = process.env.AZURE_OPENAI_API_KEY;
-const EMBEDDING_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-06-01';
+const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
+const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY;
+const AZURE_EMBEDDING_DEPLOYMENT = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-3-small';
+const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-06-01';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 async function embedQuery(query: string): Promise<number[] | null> {
-  if (!EMBEDDING_ENDPOINT || !EMBEDDING_API_KEY) return null;
+  // Try Azure OpenAI first, then standard OpenAI
+  if (AZURE_OPENAI_ENDPOINT && AZURE_OPENAI_API_KEY) {
+    return embedViaAzure(query);
+  }
+  if (OPENAI_API_KEY) {
+    return embedViaOpenAI(query);
+  }
+  return null;
+}
+
+async function embedViaAzure(query: string): Promise<number[] | null> {
   try {
-    const url = `${EMBEDDING_ENDPOINT.replace(/\/$/, '')}/openai/deployments/${EMBEDDING_DEPLOYMENT}/embeddings?api-version=${EMBEDDING_API_VERSION}`;
+    const url = `${AZURE_OPENAI_ENDPOINT!.replace(/\/$/, '')}/openai/deployments/${AZURE_EMBEDDING_DEPLOYMENT}/embeddings?api-version=${AZURE_API_VERSION}`;
     const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'api-key': AZURE_OPENAI_API_KEY! },
+      body: JSON.stringify({ input: query }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) return null;
+    const json = (await resp.json()) as { data?: Array<{ embedding?: number[] }> };
+    return json.data?.[0]?.embedding ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function embedViaOpenAI(query: string): Promise<number[] | null> {
+  try {
+    const resp = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'api-key': EMBEDDING_API_KEY,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({ input: query }),
+      body: JSON.stringify({ input: query, model: 'text-embedding-3-small' }),
       signal: AbortSignal.timeout(5000),
     });
     if (!resp.ok) return null;
@@ -230,7 +271,7 @@ export function makeNewsService(pool: Pool) {
         `
         SELECT
           edition_date::text AS edition_date,
-          generated_at::text AS generated_at,
+          to_char(generated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS generated_at,
           stats_json
         FROM news_daily_editions
         WHERE edition_date = $1::date
@@ -248,7 +289,7 @@ export function makeNewsService(pool: Pool) {
           `
           SELECT
             edition_date::text AS edition_date,
-            generated_at::text AS generated_at,
+            to_char(generated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS generated_at,
             stats_json
           FROM news_daily_editions
           WHERE edition_date = $1::date
@@ -285,7 +326,7 @@ export function makeNewsService(pool: Pool) {
           c.llm_confidence_score,
           c.llm_topic_tags,
           c.llm_story_type,
-          c.published_at::text AS published_at,
+          to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
           c.story_type,
           c.topic_tags,
           c.entities,
@@ -334,7 +375,7 @@ export function makeNewsService(pool: Pool) {
             c.llm_confidence_score,
             c.llm_topic_tags,
             c.llm_story_type,
-            c.published_at::text AS published_at,
+            to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
             c.story_type,
             c.topic_tags,
             c.entities,
@@ -387,7 +428,7 @@ export function makeNewsService(pool: Pool) {
           NULL::numeric AS llm_confidence_score,
           '{}'::text[] AS llm_topic_tags,
           NULL::text AS llm_story_type,
-          c.published_at::text AS published_at,
+          to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
           c.story_type,
           c.topic_tags,
           c.entities,
@@ -433,7 +474,7 @@ export function makeNewsService(pool: Pool) {
           c.llm_confidence_score,
           c.llm_topic_tags,
           c.llm_story_type,
-          c.published_at::text AS published_at,
+          to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
           c.story_type,
           c.topic_tags,
           c.entities,
@@ -479,7 +520,7 @@ export function makeNewsService(pool: Pool) {
             c.llm_confidence_score,
             c.llm_topic_tags,
             c.llm_story_type,
-            c.published_at::text AS published_at,
+            to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
             c.story_type,
             c.topic_tags,
             c.entities,
@@ -527,7 +568,7 @@ export function makeNewsService(pool: Pool) {
           NULL::numeric AS llm_confidence_score,
           '{}'::text[] AS llm_topic_tags,
           NULL::text AS llm_story_type,
-          c.published_at::text AS published_at,
+          to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
           c.story_type,
           c.topic_tags,
           c.entities,
@@ -602,16 +643,7 @@ export function makeNewsService(pool: Pool) {
       const items = await mergeUpvoteCounts(rawItems);
 
       const statsJson = meta.stats_json || {};
-      const brief = statsJson?.daily_brief?.headline
-        ? {
-            headline: String(statsJson.daily_brief.headline || ''),
-            summary: String(statsJson.daily_brief.summary || ''),
-            bullets: Array.isArray(statsJson.daily_brief.bullets) ? statsJson.daily_brief.bullets : [],
-            themes: Array.isArray(statsJson.daily_brief.themes) ? statsJson.daily_brief.themes : undefined,
-            generated_at: statsJson.daily_brief.generated_at ? String(statsJson.daily_brief.generated_at) : undefined,
-            cluster_count: typeof statsJson.daily_brief.cluster_count === 'number' ? statsJson.daily_brief.cluster_count : undefined,
-          }
-        : undefined;
+      const brief = extractBrief(statsJson);
 
       return {
         edition_date: String(meta.edition_date),
@@ -715,7 +747,7 @@ export function makeNewsService(pool: Pool) {
         `
         SELECT
           edition_date::text AS edition_date,
-          generated_at::text AS generated_at,
+          to_char(generated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS generated_at,
           stats_json
         FROM news_daily_editions
         WHERE status = 'ready' AND region = $1
@@ -734,7 +766,7 @@ export function makeNewsService(pool: Pool) {
           `
           SELECT
             edition_date::text AS edition_date,
-            generated_at::text AS generated_at,
+            to_char(generated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS generated_at,
             stats_json
           FROM news_daily_editions
           WHERE status = 'ready'
@@ -853,7 +885,7 @@ export function makeNewsService(pool: Pool) {
                   period_start::text, period_end::text,
                   title, stats_json, narrative_json,
                   top_entity_names, story_count, status,
-                  generated_at::text
+                  to_char(generated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS generated_at
            FROM news_periodic_briefs
            WHERE region = $1 AND period_type = $2 AND period_start = $3::date
              AND status IN ('ready', 'sent')
@@ -866,7 +898,7 @@ export function makeNewsService(pool: Pool) {
                   period_start::text, period_end::text,
                   title, stats_json, narrative_json,
                   top_entity_names, story_count, status,
-                  generated_at::text
+                  to_char(generated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS generated_at
            FROM news_periodic_briefs
            WHERE region = $1 AND period_type = $2
              AND status IN ('ready', 'sent')
@@ -897,7 +929,7 @@ export function makeNewsService(pool: Pool) {
         `SELECT id::text, period_type,
                 period_start::text, period_end::text,
                 title, story_count,
-                generated_at::text
+                to_char(generated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS generated_at
          FROM news_periodic_briefs
          WHERE region = $1 AND period_type = $2
            AND status IN ('ready', 'sent')
@@ -928,7 +960,7 @@ export function makeNewsService(pool: Pool) {
     c.story_type,
     c.topic_tags,
     c.entities,
-    c.published_at::text AS published_at,
+    to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
     c.rank_score,
     c.canonical_url AS primary_url,
     (SELECT ns.display_name FROM news_cluster_items nci

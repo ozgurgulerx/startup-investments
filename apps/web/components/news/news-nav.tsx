@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 type NavProps = {
-  activeRegion: 'global' | 'turkey';
-  activePeriod: 'daily' | 'weekly' | 'monthly';
+  activeRegion?: 'global' | 'turkey';
+  activePeriod?: 'daily' | 'weekly' | 'monthly';
   archiveDate?: string; // e.g. "2026-02-08" — enables archive mode with date display + "Latest" button
+  rightSlot?: ReactNode; // custom right-side content (replaces default controls)
 };
 
 const activePill = 'rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info bg-accent-info/10 border border-accent-info/25';
@@ -27,7 +29,7 @@ function formatEditionDate(value: string): string {
   });
 }
 
-export function NewsNav({ activeRegion, activePeriod, archiveDate }: NavProps) {
+export function NewsNav({ activeRegion = 'global', activePeriod = 'daily', archiveDate, rightSlot }: NavProps) {
   const latestHref = activeRegion === 'turkey' ? '/news/turkey' : '/news';
   const latestLabel = activeRegion === 'turkey' ? 'Latest Turkey Edition' : 'Latest Edition';
 
@@ -39,6 +41,11 @@ export function NewsNav({ activeRegion, activePeriod, archiveDate }: NavProps) {
           <span className="h-2 w-2 rounded-full bg-accent" />
           <span className="text-base font-medium tracking-tight text-foreground">Build Atlas</span>
         </Link>
+        {rightSlot ? (
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            {rightSlot}
+          </div>
+        ) : (
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           {archiveDate && (
             <span className="hidden sm:inline text-muted-foreground">{formatEditionDate(archiveDate)}</span>
@@ -86,6 +93,7 @@ export function NewsNav({ activeRegion, activePeriod, archiveDate }: NavProps) {
             </Link>
           )}
         </div>
+        )}
       </div>
     </nav>
   );

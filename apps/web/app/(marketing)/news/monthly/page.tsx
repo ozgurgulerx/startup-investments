@@ -2,12 +2,13 @@ import { notFound } from 'next/navigation';
 import { getPeriodicBrief, getPeriodicBriefArchive } from '@/lib/data/news';
 import { PeriodicBriefView } from '@/components/news/periodic-brief-view';
 import { NewsNav } from '@/components/news/news-nav';
+import { withTimeout } from '@/lib/with-timeout';
 
 export const dynamic = 'force-dynamic';
 
 export default async function GlobalMonthlyBriefPage() {
   const [brief, archive] = await Promise.all([
-    getPeriodicBrief({ periodType: 'monthly', region: 'global' }),
+    withTimeout(getPeriodicBrief({ periodType: 'monthly', region: 'global' }), 5000).catch(() => null),
     getPeriodicBriefArchive({ periodType: 'monthly', region: 'global', limit: 20 }),
   ]);
 

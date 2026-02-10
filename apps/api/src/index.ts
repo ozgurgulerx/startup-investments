@@ -34,6 +34,7 @@ import {
   editorialActionsQuerySchema,
   editorialRulesQuerySchema,
   editorialStatsQuerySchema,
+  newsEditionOutputSchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -1454,6 +1455,14 @@ app.get('/api/v1/news', async (req, res) => {
 
     // Pass user-explicit date only — when auto-resolved, let service handle fallback for empty editions
     const edition = await newsService.getNewsEdition({ region, date: date || undefined, topic, limit });
+
+    if (process.env.NODE_ENV !== 'production' && edition) {
+      const contractResult = newsEditionOutputSchema.safeParse(edition);
+      if (!contractResult.success) {
+        console.warn('[news-contract] Edition output failed validation:', contractResult.error.issues);
+      }
+    }
+
     if (!edition) {
       if (redis) {
         try { await redis.setEx(cacheKey, 60, JSON.stringify(null)); } catch { /* best effort */ }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Activity, RefreshCcw, Sparkles, ArrowUpRight, Newspaper } from 'lucide-react';
 import type { NewsEdition } from '@startup-intelligence/shared';
+import { safeDate } from '@/lib/safe-date';
 import { CommandBar, type SortMode, type TimeWindow } from './command-bar';
 import { DailyBriefCard } from './daily-brief-card';
 import { KpiStrip } from './kpi-strip';
@@ -14,8 +15,8 @@ import { PeriodicBriefPreview, type PeriodicBriefPreviewProps } from './periodic
 import { SignalsProvider } from './signals-provider';
 
 function formatTimestamp(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
+  const parsed = safeDate(value);
+  if (parsed.getTime() === 0) return value;
   return parsed.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -204,8 +205,8 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         : timeWindow === '24h' ? 24 * 60 * 60 * 1000
         : 7 * 24 * 60 * 60 * 1000;
       items = items.filter((item) => {
-        const t = new Date(item.published_at).getTime();
-        return Number.isFinite(t) && now - t <= windowMs;
+        const t = safeDate(item.published_at).getTime();
+        return t > 0 && now - t <= windowMs;
       });
     }
 
@@ -229,7 +230,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
     // Sort
     if (sortMode === 'latest') {
       items.sort((a, b) =>
-        new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+        safeDate(b.published_at).getTime() - safeDate(a.published_at).getTime()
       );
     } else {
       items.sort((a, b) => {

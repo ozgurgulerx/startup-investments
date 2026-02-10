@@ -223,6 +223,61 @@ export const editorialStatsQuerySchema = z.object({
 });
 
 // =============================================================================
+// News output contract schemas (API response validation)
+// =============================================================================
+
+export const newsItemCardOutputSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  summary: z.string(),
+  image_url: z.string().optional(),
+  url: z.string(),
+  canonical_url: z.string().optional(),
+  published_at: z.string(),
+  story_type: z.string(),
+  topic_tags: z.array(z.string()),
+  entities: z.array(z.string()),
+  rank_score: z.number(),
+  rank_reason: z.string(),
+  trust_score: z.number(),
+  source_count: z.number(),
+  primary_source: z.string(),
+  sources: z.array(z.string()),
+  builder_takeaway: z.string().optional(),
+  builder_takeaway_is_llm: z.boolean().optional(),
+  llm_summary: z.string().optional(),
+  llm_model: z.string().optional(),
+  llm_signal_score: z.number().min(0).max(1).optional(),
+  llm_confidence_score: z.number().min(0).max(1).optional(),
+  llm_topic_tags: z.array(z.string()).optional(),
+  llm_story_type: z.string().optional(),
+  upvote_count: z.number().int().min(0).optional(),
+});
+
+export const dailyBriefOutputSchema = z.object({
+  headline: z.string().min(1),
+  summary: z.string().min(1),
+  bullets: z.array(z.string()).min(1),
+  themes: z.array(z.string()).optional(),
+  generated_at: z.string().optional(),
+  cluster_count: z.number().int().min(0).optional(),
+});
+
+export const newsEditionOutputSchema = z.object({
+  edition_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  generated_at: z.string().min(1),
+  items: z.array(newsItemCardOutputSchema),
+  brief: dailyBriefOutputSchema.optional(),
+  stats: z.object({
+    total_clusters: z.number(),
+    top_story_count: z.number(),
+    story_type_counts: z.record(z.string(), z.number()),
+    topic_counts: z.record(z.string(), z.number()),
+    updated_at: z.string(),
+  }),
+});
+
+// =============================================================================
 // Admin / POST schemas
 // =============================================================================
 

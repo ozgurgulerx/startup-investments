@@ -121,6 +121,10 @@ kubectl create secret generic startup-investments-secrets \
     --from-literal=front-door-id="$FRONT_DOOR_ID" \
     --from-literal=redis-url="${REDIS_URL:-}" \
     --from-literal=applicationinsights-connection-string="${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" \
+    --from-literal=azure-openai-endpoint="${AZURE_OPENAI_ENDPOINT:-}" \
+    --from-literal=azure-openai-api-key="${AZURE_OPENAI_API_KEY:-}" \
+    --from-literal=azure-openai-embedding-deployment="${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-text-embedding-3-small}" \
+    --from-literal=openai-api-key="${OPENAI_API_KEY:-}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
 # --- Step 5: Deploy to AKS ---

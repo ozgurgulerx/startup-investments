@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Activity, ArrowUpRight, Newspaper, RefreshCcw, Sparkles } from 'lucide-react';
 import type { NewsEdition } from '@startup-intelligence/shared';
+import { safeDate } from '@/lib/safe-date';
 import { sectionNewsItems } from '@/lib/news/section-items';
 import { SectionHeader } from './section-header';
 import { NewsCard } from './news-card';
@@ -36,8 +37,8 @@ function countNewStories(current: NewsEdition | null, incoming: NewsEdition): nu
 }
 
 function formatTimestamp(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
+  const parsed = safeDate(value);
+  if (parsed.getTime() === 0) return value;
   return parsed.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -183,7 +184,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
     if (sortMode === 'latest') {
       list.sort(
         (a, b) =>
-          new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+          safeDate(b.published_at).getTime() - safeDate(a.published_at).getTime()
       );
       return list;
     }

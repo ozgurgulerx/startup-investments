@@ -4,49 +4,22 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
+import { timeAgo, storyTypeToneClass, aiSignalLabel } from '@/lib/news-utils';
 import { TrustBadge } from './trust-badge';
 import { CoverageDrawer } from './coverage-drawer';
-
-function timeAgo(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  if (!Number.isFinite(then)) return 'just now';
-  const diff = Math.max(0, now - then);
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 interface NewsCardProps {
   item: NewsItemCard;
   featured?: boolean;
+  className?: string;
 }
 
-function toneForStoryType(storyType: string): string {
-  const normalized = (storyType || '').toLowerCase();
-  if (normalized === 'funding') {
-    return 'border-success/30 bg-gradient-to-br from-success/10 via-card/70 to-card/60';
-  }
-  if (normalized === 'mna') {
-    return 'border-delta/30 bg-gradient-to-br from-delta/10 via-card/70 to-card/60';
-  }
-  if (normalized === 'regulation') {
-    return 'border-warning/30 bg-gradient-to-br from-warning/10 via-card/70 to-card/60';
-  }
-  if (normalized === 'launch') {
-    return 'border-accent-info/30 bg-gradient-to-br from-accent-info/10 via-card/70 to-card/60';
-  }
-  return 'border-border/40 bg-card/65';
-}
-
-export function NewsCard({ item, featured = false }: NewsCardProps) {
+export function NewsCard({ item, featured = false, className }: NewsCardProps) {
   const tags = item.topic_tags.slice(0, 3);
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const hasSourceUrl = Boolean(item.url);
   const sourceHref = item.url || '#';
-  const toneClass = toneForStoryType(item.story_type);
+  const toneClass = storyTypeToneClass(item.story_type);
   const initialHasImage = Boolean(item.image_url && item.image_url.startsWith('http'));
   const [showImage, setShowImage] = useState(initialHasImage);
   useEffect(() => {
@@ -55,7 +28,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
 
   return (
     <article
-      className={`group flex flex-col rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-info/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] md:min-h-[340px] ${toneClass} ${featured ? 'p-6' : 'p-4'}`}
+      className={`group flex flex-col rounded-xl border backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent-info/35 hover:shadow-[0_8px_30px_rgba(0,0,0,0.24)] md:min-h-[340px] ${toneClass} ${featured ? 'p-6' : 'p-4'} ${className || ''}`}
     >
       <div className="flex-1">
         {showImage ? (
@@ -77,7 +50,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
           <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
           {typeof item.llm_signal_score === 'number' ? (
             <span className="rounded-full border border-accent-info/35 bg-accent-info/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent-info">
-              AI Signal {Math.round(item.llm_signal_score * 100)}%
+              {aiSignalLabel(item.llm_signal_score)}
             </span>
           ) : null}
           <span className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
