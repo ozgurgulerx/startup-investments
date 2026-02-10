@@ -74,12 +74,12 @@ export function NewsCard({ item, featured = false, className }: NewsCardProps) {
         )}
 
         {summary ? (
-          <p className={`mt-3 text-muted-foreground line-clamp-3 ${featured ? 'text-sm leading-relaxed' : 'text-xs leading-relaxed'}`}>
+          <p className={`mt-3 text-muted-foreground line-clamp-2 ${featured ? 'text-sm leading-relaxed' : 'text-xs leading-relaxed'}`}>
             {summary}
           </p>
         ) : null}
 
-        <ImpactBox item={item} />
+        <ImpactBox item={item} compact />
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           {tags.map((tag) => (
