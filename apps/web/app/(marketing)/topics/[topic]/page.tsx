@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { getLatestNewsEditionDate, getNewsEdition, getNewsTopics } from '@/lib/data/news';
+import { PageContainer } from '@/components/layout/page-container';
 import { NewsHeroCard } from '@/components/news/news-hero-card';
 import { NewsCard } from '@/components/news/news-card';
 import { TopicChipBar } from '@/components/news/topic-chip-bar';
 import { NewsSubscriptionCard } from '@/components/news/news-subscription-card';
+import { NewsNav } from '@/components/news/news-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +34,10 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
   const topics = await getNewsTopics({ date: fallbackDate, limit: 24 });
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="mx-auto max-w-6xl px-6 pb-16 pt-12">
+    <div className="min-h-screen bg-background flex flex-col">
+      <NewsNav activeRegion="global" activePeriod="daily" />
+      <main className="flex-1 pb-16 pt-12">
+        <PageContainer>
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="label-xs text-accent-info">Topic Lens</p>
@@ -87,6 +91,7 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
             </section>
           </>
         )}
+        </PageContainer>
       </main>
     </div>
   );

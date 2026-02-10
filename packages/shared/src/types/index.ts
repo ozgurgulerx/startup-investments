@@ -611,6 +611,21 @@ export interface NewsSourceRef {
   key: string;
 }
 
+export type ImpactFrame =
+  | 'UNDERWRITING_TAKE' | 'ADOPTION_PLAY' | 'COST_CURVE' | 'LATENCY_LEVER'
+  | 'BENCHMARK_TRAP' | 'DATA_MOAT' | 'PROCUREMENT_WEDGE' | 'REGULATORY_CONSTRAINT'
+  | 'ATTACK_SURFACE' | 'CONSOLIDATION_SIGNAL' | 'HIRING_SIGNAL'
+  | 'PLATFORM_SHIFT' | 'GO_TO_MARKET_EDGE' | 'EARLY_SIGNAL';
+
+export interface ImpactObject {
+  frame: ImpactFrame;
+  kicker: string;
+  builder_move: string;
+  investor_angle: string;
+  watchout?: string;
+  validation?: string;
+}
+
 export interface NewsItemCard {
   id: string;
   title: string;
@@ -630,6 +645,7 @@ export interface NewsItemCard {
   sources: string[];
   builder_takeaway?: string;
   builder_takeaway_is_llm?: boolean;
+  impact?: ImpactObject;
   llm_summary?: string;
   llm_model?: string;
   llm_signal_score?: number;

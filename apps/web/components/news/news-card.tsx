@@ -7,6 +7,7 @@ import type { NewsItemCard } from '@startup-intelligence/shared';
 import { timeAgo, storyTypeToneClass, aiSignalLabel } from '@/lib/news-utils';
 import { TrustBadge } from './trust-badge';
 import { CoverageDrawer } from './coverage-drawer';
+import { ImpactBox } from './impact-box';
 
 interface NewsCardProps {
   item: NewsItemCard;
@@ -78,12 +79,7 @@ export function NewsCard({ item, featured = false, className }: NewsCardProps) {
           </p>
         ) : null}
 
-        {item.builder_takeaway ? (
-          <div className="group/brief mt-3 rounded-md border border-accent-info/25 bg-accent-info/10 px-2.5 py-2 transition-all duration-200">
-            <p className="text-[10px] uppercase tracking-wider text-accent-info">Why It Matters</p>
-            <p className="mt-1 text-xs leading-relaxed text-foreground/90 line-clamp-3 group-hover/brief:line-clamp-none">{item.builder_takeaway}</p>
-          </div>
-        ) : null}
+        <ImpactBox item={item} />
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           {tags.map((tag) => (

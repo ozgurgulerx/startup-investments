@@ -7,6 +7,7 @@ import { Activity, ArrowUpRight, Newspaper, RefreshCcw, Sparkles } from 'lucide-
 import type { NewsEdition } from '@startup-intelligence/shared';
 import { safeDate } from '@/lib/safe-date';
 import { sectionNewsItems } from '@/lib/news/section-items';
+import { PageContainer } from '@/components/layout/page-container';
 import { SectionHeader } from './section-header';
 import { NewsCard } from './news-card';
 import { DailyBriefCard } from './daily-brief-card';
@@ -214,7 +215,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
   if (loading) {
     return (
       <section className={`py-16 ${className || ''}`}>
-        <div className="max-w-6xl mx-auto px-6">
+        <PageContainer>
           <div className="animate-pulse space-y-5">
             <div className="h-4 w-44 rounded bg-muted" />
             <div className="h-12 w-96 rounded bg-muted" />
@@ -227,7 +228,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               </div>
             </div>
           </div>
-        </div>
+        </PageContainer>
       </section>
     );
   }
@@ -235,7 +236,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
   if (!edition || !sections || !sections.topStories.length) {
     return (
       <section className={`relative py-16 ${className || ''}`}>
-        <div className="max-w-6xl mx-auto px-6">
+        <PageContainer>
           <div className="rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/80 to-card/40 p-8 text-center">
             <p className="label-xs text-accent-info">Signal Feed</p>
             <h2 className="mt-3 text-2xl font-light tracking-tight text-foreground">
@@ -251,19 +252,19 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             >
               Open Signal Feed
               <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
+	            </Link>
+	          </div>
+	        </PageContainer>
+	      </section>
+	    );
+	  }
 
   return (
     <section className={`relative overflow-hidden py-16 ${className || ''}`}>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_18%,rgba(245,158,11,0.20),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(16,185,129,0.18),transparent_36%),linear-gradient(180deg,rgba(250,204,21,0.06),rgba(15,23,42,0)_45%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:22px_22px]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_18%,hsl(var(--accent)_/_0.20),transparent_34%),radial-gradient(circle_at_88%_8%,hsl(var(--success)_/_0.18),transparent_36%),linear-gradient(180deg,hsl(var(--accent)_/_0.06),transparent_45%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(to_right,hsl(var(--foreground)_/_0.08)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--foreground)_/_0.08)_1px,transparent_1px)] [background-size:22px_22px]" />
 
-      <div className="relative max-w-6xl mx-auto px-6">
+      <PageContainer className="relative">
         {pendingEdition ? (
           <div className="mb-4 rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-3 text-sm text-foreground">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -507,7 +508,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             </Link>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
+      </PageContainer>
+      </section>
+    );
+  }

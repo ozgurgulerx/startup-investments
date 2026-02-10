@@ -103,6 +103,30 @@ TOPIC_KEYWORDS: Dict[str, Tuple[str, ...]] = {
 
 ALLOWED_STORY_TYPES = {"funding", "launch", "mna", "regulation", "hiring", "news"}
 
+IMPACT_FRAMES = {
+    "UNDERWRITING_TAKE", "ADOPTION_PLAY", "COST_CURVE", "LATENCY_LEVER",
+    "BENCHMARK_TRAP", "DATA_MOAT", "PROCUREMENT_WEDGE", "REGULATORY_CONSTRAINT",
+    "ATTACK_SURFACE", "CONSOLIDATION_SIGNAL", "HIRING_SIGNAL",
+    "PLATFORM_SHIFT", "GO_TO_MARKET_EDGE", "EARLY_SIGNAL",
+}
+
+FRAME_LABELS = {
+    "UNDERWRITING_TAKE": "Underwriting Take",
+    "ADOPTION_PLAY": "Adoption Play",
+    "COST_CURVE": "Cost Curve",
+    "LATENCY_LEVER": "Latency Lever",
+    "BENCHMARK_TRAP": "Benchmark Trap",
+    "DATA_MOAT": "Data Moat",
+    "PROCUREMENT_WEDGE": "Procurement Wedge",
+    "REGULATORY_CONSTRAINT": "Regulatory Constraint",
+    "ATTACK_SURFACE": "Attack Surface",
+    "CONSOLIDATION_SIGNAL": "Consolidation Signal",
+    "HIRING_SIGNAL": "Hiring Signal",
+    "PLATFORM_SHIFT": "Platform Shift",
+    "GO_TO_MARKET_EDGE": "Go-to-Market Edge",
+    "EARLY_SIGNAL": "Early Signal",
+}
+
 TR_AI_KEYWORDS: Tuple[str, ...] = (
     "yapay zeka",
     "yapay-zeka",
@@ -438,6 +462,8 @@ class StoryCluster:
     gating_reason: Optional[str] = None
     # Research context (populated from news_clusters.research_context by prior research runs)
     research_context: Optional[Dict[str, Any]] = None
+    # Structured impact object (populated by LLM enrichment)
+    impact: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -449,6 +475,7 @@ class LLMEnrichmentResult:
     llm_confidence_score: Optional[float]
     llm_topic_tags: Optional[List[str]]
     llm_story_type: Optional[str]
+    impact: Optional[Dict[str, Any]] = None
     timed_out: bool = False
     error_code: Optional[str] = None
 
@@ -1373,6 +1400,33 @@ def build_builder_takeaway(*, story_type: str, tags: Sequence[str], title: str, 
         return _shorten_text(f"{focus} is expanding its ecosystem. Builders should evaluate whether this opens new integration paths or creates dependency risk.")
 
     return _shorten_text(f"{focus} is a useful market signal. Validate demand with customer pull, not just headline momentum.")
+
+
+def determine_frame_override(
+    *,
+    story_type: str,
+    topic_tags: Sequence[str],
+    confidence_score: Optional[float] = None,
+    has_conflicting_reports: bool = False,
+) -> Optional[str]:
+    """Deterministic frame override — first match wins.
+
+    Returns an IMPACT_FRAMES key or None (let LLM decide).
+    """
+    # Low confidence or conflicting reports → EARLY_SIGNAL
+    if has_conflicting_reports or (confidence_score is not None and confidence_score < 0.45):
+        return "EARLY_SIGNAL"
+    # ML-eval benchmarks → BENCHMARK_TRAP
+    tags_lower = {t.lower() for t in topic_tags}
+    if "ml-eval" in tags_lower:
+        return "BENCHMARK_TRAP"
+    # Funding → UNDERWRITING_TAKE
+    if story_type == "funding":
+        return "UNDERWRITING_TAKE"
+    # Regulation → REGULATORY_CONSTRAINT
+    if story_type == "regulation":
+        return "REGULATORY_CONSTRAINT"
+    return None
 
 
 class DailyNewsIngestor:
@@ -3773,15 +3827,21 @@ class DailyNewsIngestor:
             "GOOD: 'Cursor\\'s $100M raise at $2.5B validates AI-native IDEs as a category — "
             "builders should watch lock-in risk; investors should note the 10x ARR multiple "
             "setting valuation benchmarks.' "
-            "GOOD: 'Stripe\\'s acquisition of Lemon Squeezy signals payment infra consolidation — "
-            "builders on competing APIs should evaluate migration paths; investors should track "
-            "margin compression in the middleware layer.' "
             "Return strict JSON with ALL of these keys (every key is REQUIRED): "
-            "builder_takeaway (2-3 sentences, specific — THIS IS THE MOST IMPORTANT FIELD), "
+            "builder_takeaway (2-3 sentences, specific), "
             "summary (<=160 chars), "
             "story_type (funding|launch|mna|regulation|hiring|news), "
             "topic_tags (array of up to 6 lowercase tags), "
-            "signal_score (0-1), confidence_score (0-1). "
+            "signal_score (0-1), confidence_score (0-1), "
+            "impact (object with: "
+            "frame — pick ONE from: UNDERWRITING_TAKE, ADOPTION_PLAY, COST_CURVE, LATENCY_LEVER, "
+            "BENCHMARK_TRAP, DATA_MOAT, PROCUREMENT_WEDGE, REGULATORY_CONSTRAINT, ATTACK_SURFACE, "
+            "CONSOLIDATION_SIGNAL, HIRING_SIGNAL, PLATFORM_SHIFT, GO_TO_MARKET_EDGE, EARLY_SIGNAL; "
+            "kicker — <=48 char punchy headline for the impact box; "
+            "builder_move — <=120 char concrete next step for a technical founder; "
+            "investor_angle — <=120 char thesis-level insight for VCs; "
+            "watchout — OPTIONAL <=120 char risk or gotcha; "
+            "validation — OPTIONAL <=120 char how to verify the claim). "
             "No prose outside JSON."
         )
         user_payload = {
@@ -3944,6 +4004,39 @@ class DailyNewsIngestor:
                 topic_raw = [t.strip() for t in re.split(r"[,;|]+", topic_raw) if t.strip()]
             llm_topic_tags = normalize_llm_topic_tags(topic_raw, cluster.topic_tags)
             llm_story_type = normalize_llm_story_type(story_raw, cluster.story_type)
+
+            # --- Impact object extraction ---
+            impact_raw = _pick(root, ["impact", "impact_object", "structured_impact"])
+            impact_obj: Optional[Dict[str, Any]] = None
+            if isinstance(impact_raw, dict):
+                frame = str(impact_raw.get("frame") or "").upper().replace("-", "_").replace(" ", "_")
+                if frame not in IMPACT_FRAMES:
+                    frame = "EARLY_SIGNAL"
+                kicker = _shorten_text(str(impact_raw.get("kicker") or ""), 48)
+                if frame and kicker:
+                    impact_obj = {
+                        "frame": frame,
+                        "kicker": kicker,
+                        "builder_move": _shorten_text(str(impact_raw.get("builder_move") or ""), 120),
+                        "investor_angle": _shorten_text(str(impact_raw.get("investor_angle") or ""), 120),
+                    }
+                    watchout = _shorten_text(str(impact_raw.get("watchout") or ""), 120)
+                    validation = _shorten_text(str(impact_raw.get("validation") or ""), 120)
+                    if watchout:
+                        impact_obj["watchout"] = watchout
+                    if validation:
+                        impact_obj["validation"] = validation
+
+                    # Apply deterministic frame override when applicable
+                    override = determine_frame_override(
+                        story_type=llm_story_type or cluster.story_type,
+                        topic_tags=llm_topic_tags or cluster.topic_tags,
+                        confidence_score=confidence_score,
+                        has_conflicting_reports=False,
+                    )
+                    if override:
+                        impact_obj["frame"] = override
+
             return LLMEnrichmentResult(
                 llm_summary,
                 builder_takeaway,
@@ -3952,6 +4045,7 @@ class DailyNewsIngestor:
                 confidence_score,
                 llm_topic_tags,
                 llm_story_type,
+                impact=impact_obj,
             )
 
         last_error_code: Optional[str] = None
@@ -3973,8 +4067,21 @@ class DailyNewsIngestor:
                         "topic_tags": {"type": "array", "maxItems": 6, "items": {"type": "string", "maxLength": 32}},
                         "signal_score": {"type": "number", "minimum": 0, "maximum": 1},
                         "confidence_score": {"type": "number", "minimum": 0, "maximum": 1},
+                        "impact": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "frame": {"type": "string", "enum": sorted(IMPACT_FRAMES)},
+                                "kicker": {"type": "string", "maxLength": 60},
+                                "builder_move": {"type": "string", "maxLength": 150},
+                                "investor_angle": {"type": "string", "maxLength": 150},
+                                "watchout": {"type": "string", "maxLength": 150},
+                                "validation": {"type": "string", "maxLength": 150},
+                            },
+                            "required": ["frame", "kicker", "builder_move", "investor_angle", "watchout", "validation"],
+                        },
                     },
-                    "required": ["builder_takeaway", "summary", "story_type", "topic_tags", "signal_score", "confidence_score"],
+                    "required": ["builder_takeaway", "summary", "story_type", "topic_tags", "signal_score", "confidence_score", "impact"],
                 }
                 for model_name in candidate_models:
                     try:
@@ -4241,6 +4348,8 @@ class DailyNewsIngestor:
                 cluster.llm_summary = llm_summary
             if builder_takeaway:
                 cluster.builder_takeaway = builder_takeaway
+            if llm_result.impact:
+                cluster.impact = llm_result.impact
             if llm_topic_tags:
                 cluster.llm_topic_tags = list(llm_topic_tags)
                 cluster.topic_tags = list(llm_topic_tags)
@@ -4721,9 +4830,9 @@ class DailyNewsIngestor:
                         canonical_url, title, summary, published_at, updated_at,
                         topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score,
                         builder_takeaway, llm_summary, llm_model, llm_signal_score, llm_confidence_score,
-                        llm_topic_tags, llm_story_type
+                        llm_topic_tags, llm_story_type, impact
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7::text[], $8::text[], $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::text[], $20)
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7::text[], $8::text[], $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::text[], $20, $21::jsonb)
                     ON CONFLICT (cluster_key, region) DO UPDATE
                     SET canonical_url = EXCLUDED.canonical_url,
                         title = EXCLUDED.title,
@@ -4744,6 +4853,13 @@ class DailyNewsIngestor:
                                 THEN EXCLUDED.builder_takeaway
                             WHEN news_clusters.llm_model IS NOT NULL
                                 THEN news_clusters.builder_takeaway
+                            ELSE NULL
+                        END,
+                        impact = CASE
+                            WHEN EXCLUDED.llm_model IS NOT NULL AND EXCLUDED.impact IS NOT NULL
+                                THEN EXCLUDED.impact
+                            WHEN news_clusters.llm_model IS NOT NULL
+                                THEN news_clusters.impact
                             ELSE NULL
                         END,
                         llm_summary = COALESCE(EXCLUDED.llm_summary, news_clusters.llm_summary),
@@ -4778,6 +4894,7 @@ class DailyNewsIngestor:
                     cluster.llm_confidence_score,
                     cluster.llm_topic_tags,
                     cluster.llm_story_type,
+                    json.dumps(cluster.impact) if cluster.impact else None,
                 )
             else:
                 cluster_id = await conn.fetchval(
@@ -4786,9 +4903,9 @@ class DailyNewsIngestor:
                         cluster_key, canonical_url, title, summary, published_at, updated_at,
                         topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score,
                         builder_takeaway, llm_summary, llm_model, llm_signal_score, llm_confidence_score,
-                        llm_topic_tags, llm_story_type
+                        llm_topic_tags, llm_story_type, impact
                     )
-                    VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::text[], $19)
+                    VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::text[], $19, $20::jsonb)
                     ON CONFLICT (cluster_key) DO UPDATE
                     SET canonical_url = EXCLUDED.canonical_url,
                         title = EXCLUDED.title,
@@ -4809,6 +4926,13 @@ class DailyNewsIngestor:
                                 THEN EXCLUDED.builder_takeaway
                             WHEN news_clusters.llm_model IS NOT NULL
                                 THEN news_clusters.builder_takeaway
+                            ELSE NULL
+                        END,
+                        impact = CASE
+                            WHEN EXCLUDED.llm_model IS NOT NULL AND EXCLUDED.impact IS NOT NULL
+                                THEN EXCLUDED.impact
+                            WHEN news_clusters.llm_model IS NOT NULL
+                                THEN news_clusters.impact
                             ELSE NULL
                         END,
                         llm_summary = COALESCE(EXCLUDED.llm_summary, news_clusters.llm_summary),
@@ -4842,6 +4966,7 @@ class DailyNewsIngestor:
                     cluster.llm_confidence_score,
                     cluster.llm_topic_tags,
                     cluster.llm_story_type,
+                    json.dumps(cluster.impact) if cluster.impact else None,
                 )
             if not cluster_id:
                 continue

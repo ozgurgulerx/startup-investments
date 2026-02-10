@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useAudience } from '@/lib/audience-context';
 import { AudienceToggle } from '@/components/ui/audience-toggle';
-import { UserMenu } from '@/components/auth/user-menu';
 import { DailyNewsModule } from '@/components/news/daily-news-module';
 import { NewsNav } from '@/components/news/news-nav';
 import { BrandMark } from '@/components/ui/brand-mark';
@@ -34,7 +33,7 @@ interface LandingContentProps {
 
 export default function LandingContent({ metrics, latestPeriod }: LandingContentProps) {
   const { audience } = useAudience();
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const router = useRouter();
   const copy = COPY[audience];
   const [heroSearch, setHeroSearch] = useState('');
@@ -44,24 +43,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <NewsNav rightSlot={
-        <>
-          <Link href="/methodology" className="hidden sm:inline hover:text-foreground transition-colors">Methodology</Link>
-          <Link href="/news" className="hidden sm:inline hover:text-foreground transition-colors">Newsroom</Link>
-          {status === 'loading' ? (
-            <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-          ) : session?.user ? (
-            <UserMenu />
-          ) : (
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
-            >
-              Sign In
-            </Link>
-          )}
-        </>
-      } />
+      <NewsNav activeRegion="global" activePeriod="daily" />
 
       {/* Hero */}
       <section className="relative overflow-hidden pt-8 pb-10 px-6">

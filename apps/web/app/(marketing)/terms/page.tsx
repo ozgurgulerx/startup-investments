@@ -1,33 +1,15 @@
 import Link from 'next/link';
+import { NewsNav } from '@/components/news/news-nav';
+import { PageContainer } from '@/components/layout/page-container';
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/30">
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent/60 via-accent to-accent/60" />
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-accent" />
-            <span className="text-base font-medium text-foreground tracking-tight">Build Atlas</span>
-          </Link>
-          <div className="flex items-center gap-6">
-            <Link href="/methodology" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Methodology
-            </Link>
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded hover:bg-accent/90 transition-colors"
-            >
-              Sign In
-            </Link>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-background flex flex-col">
+      <NewsNav activeRegion="global" activePeriod="daily" />
 
       {/* Content */}
-      <main className="pt-32 pb-20 px-6">
-        <div className="max-w-3xl mx-auto">
+      <main className="flex-1 py-12">
+        <PageContainer size="prose">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-8"
@@ -172,12 +154,12 @@ export default function TermsPage() {
               Browse Dossiers
             </Link>
           </div>
-        </div>
+        </PageContainer>
       </main>
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-border/30">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+      <footer className="py-12 border-t border-border/30">
+        <PageContainer className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-accent" />
             <span className="text-sm font-medium text-foreground">Build Atlas</span>
@@ -192,7 +174,7 @@ export default function TermsPage() {
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas
           </p>
-        </div>
+        </PageContainer>
       </footer>
     </div>
   );

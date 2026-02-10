@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import type { PeriodicBrief, PeriodicBriefSummary } from '@startup-intelligence/shared';
+import { PageContainer } from '@/components/layout/page-container';
 import { NewsSubscriptionCard } from './news-subscription-card';
 import { SignalsProvider } from './signals-provider';
 import { ReactionBar } from './reaction-bar';
@@ -65,7 +66,7 @@ export function PeriodicBriefView({
 
   return (
     <SignalsProvider clusterIds={clusterIds}>
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <PageContainer className="py-8">
       {/* Header */}
       <header className="mb-8">
         <p className="label-xs text-accent-info">{regionLabel} {periodLabel} Brief</p>
@@ -240,7 +241,7 @@ export function PeriodicBriefView({
           </ul>
         </section>
       ) : null}
-    </div>
+    </PageContainer>
     </SignalsProvider>
   );
 }

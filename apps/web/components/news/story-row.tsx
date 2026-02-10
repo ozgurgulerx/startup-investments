@@ -7,6 +7,7 @@ import type { NewsItemCard } from '@startup-intelligence/shared';
 import { timeAgo, storyTypeBadgeClass, aiSignalLabel } from '@/lib/news-utils';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
+import { ImpactBox } from './impact-box';
 
 interface StoryCardProps {
   item: NewsItemCard;
@@ -99,12 +100,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
         </p>
       )}
 
-      {item.builder_takeaway && (
-        <div className="group/brief mt-2 rounded-md border border-accent-info/20 bg-accent-info/5 px-2.5 py-1.5 transition-all duration-200">
-          <p className="text-[10px] uppercase tracking-wider text-accent-info mb-0.5">Why It Matters</p>
-          <p className="text-[11px] leading-relaxed text-foreground/85 line-clamp-3 group-hover/brief:line-clamp-none">{item.builder_takeaway}</p>
-        </div>
-      )}
+      <ImpactBox item={item} compact />
 
       {tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -191,12 +187,7 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: S
         </p>
       )}
 
-      {item.builder_takeaway && (
-        <div className="group/brief mt-2 rounded-md border border-accent-info/20 bg-accent-info/5 px-2.5 py-1.5 transition-all duration-200">
-          <p className="text-[10px] uppercase tracking-wider text-accent-info mb-0.5">Why It Matters</p>
-          <p className="text-[11px] leading-relaxed text-foreground/85 line-clamp-2 group-hover/brief:line-clamp-none">{item.builder_takeaway}</p>
-        </div>
-      )}
+      <ImpactBox item={item} compact />
 
       <div className="mt-3 pt-2 border-t border-border/20">
         <ReactionBar clusterId={item.id} compact onHide={onHide} />

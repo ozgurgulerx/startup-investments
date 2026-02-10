@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { PageContainer } from '@/components/layout/page-container';
 
 type NavProps = {
   activeRegion?: 'global' | 'turkey';
@@ -34,9 +35,9 @@ export function NewsNav({ activeRegion = 'global', activePeriod = 'daily', archi
   const latestLabel = activeRegion === 'turkey' ? 'Latest Turkey Edition' : 'Latest Edition';
 
   return (
-    <nav className="shrink-0 border-b border-border/30 bg-background/95 backdrop-blur-sm">
+    <nav className="sticky top-0 z-30 shrink-0 border-b border-border/30 bg-background/95 backdrop-blur-sm">
       <div className="absolute left-0 right-0 top-0 h-[2px] bg-gradient-to-r from-accent/60 via-accent to-accent/60" />
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+      <PageContainer className="flex h-14 items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-accent" />
           <span className="text-base font-medium tracking-tight text-foreground">Build Atlas</span>
@@ -94,7 +95,7 @@ export function NewsNav({ activeRegion = 'global', activePeriod = 'daily', archi
           )}
         </div>
         )}
-      </div>
+      </PageContainer>
     </nav>
   );
 }

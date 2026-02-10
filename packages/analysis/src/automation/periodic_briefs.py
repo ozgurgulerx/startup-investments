@@ -78,7 +78,8 @@ async def _load_period_clusters(
         SELECT c.id::text, c.cluster_key, c.title, c.summary, c.story_type,
                c.entities, c.topic_tags, c.rank_score, c.trust_score,
                c.source_count, c.published_at,
-               c.llm_summary, c.builder_takeaway, c.llm_signal_score
+               c.llm_summary, c.builder_takeaway, c.llm_signal_score,
+               c.impact
         FROM news_clusters c
         INNER JOIN news_topic_index t ON t.cluster_id = c.id
         WHERE t.edition_date >= $1 AND t.edition_date <= $2
@@ -221,7 +222,23 @@ def _build_stats(
         st = c.get("story_type", "news")
         type_counts[st] = type_counts.get(st, 0) + 1
 
-    return {
+    # Impact frame distribution
+    frame_counts: Dict[str, int] = {}
+    for c in clusters:
+        impact = c.get("impact")
+        if isinstance(impact, dict) and impact.get("frame"):
+            frame = str(impact["frame"])
+            frame_counts[frame] = frame_counts.get(frame, 0) + 1
+        elif isinstance(impact, str):
+            try:
+                parsed = json.loads(impact)
+                if isinstance(parsed, dict) and parsed.get("frame"):
+                    frame = str(parsed["frame"])
+                    frame_counts[frame] = frame_counts.get(frame, 0) + 1
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    result: Dict[str, Any] = {
         "total_stories": len(clusters),
         "top_stories": top_stories,
         "top_topics": top_topics,
@@ -230,6 +247,9 @@ def _build_stats(
         "funding_deal_count": entity_facts.get("funding_deal_count", 0),
         "new_entities_count": entity_facts.get("new_entities_count", 0),
     }
+    if frame_counts:
+        result["frame_distribution"] = frame_counts
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +302,15 @@ async def _generate_narrative(
         f"Funding tracked: ${stats.get('funding_total_usd', 0):,.0f} across "
         f"{stats.get('funding_deal_count', 0)} deals.\n\n"
         f"TOP STORIES THIS {period_label.upper()}:\n{stories_text}\n\n"
-        "Return strict JSON with keys:\n"
+        + (
+            f"TOP IMPACT FRAMES: {json.dumps(stats['frame_distribution'])}\n"
+            if stats.get("frame_distribution") else ""
+        )
+        + (
+            f"RISING FRAMES (vs prior {period_label}): {json.dumps(stats['rising_frames'])}\n\n"
+            if stats.get("rising_frames") else ""
+        )
+        + "Return strict JSON with keys:\n"
         '- "executive_summary": 2-3 sentence overview of the most significant developments (<=300 chars)\n'
         '- "trend_analysis": paragraph identifying patterns, shifts, or emerging themes (<=500 chars)\n'
         '- "builder_lessons": array of 3-5 actionable takeaways for builders (each <=120 chars)\n'
@@ -345,6 +373,32 @@ class WeeklyBriefGenerator:
 
         # Build stats
         stats = _build_stats(clusters, topics, entity_facts, "weekly", region)
+
+        # Rising frames: compare to prior week
+        prior_week_start = week_start - timedelta(days=7)
+        try:
+            prior_stats_row = await conn.fetchval(
+                """
+                SELECT stats_json->>'frame_distribution'
+                FROM news_periodic_briefs
+                WHERE region = $1 AND period_type = 'weekly' AND period_start = $2
+                  AND status = 'ready'
+                """,
+                region,
+                prior_week_start,
+            )
+            if prior_stats_row:
+                prior_frames = json.loads(prior_stats_row) if isinstance(prior_stats_row, str) else {}
+                current_frames = stats.get("frame_distribution", {})
+                if current_frames:
+                    deltas = {
+                        f: current_frames.get(f, 0) - prior_frames.get(f, 0)
+                        for f in set(list(current_frames.keys()) + list(prior_frames.keys()))
+                    }
+                    rising = sorted(deltas.items(), key=lambda x: x[1], reverse=True)[:5]
+                    stats["rising_frames"] = [{"frame": f, "delta": d} for f, d in rising if d != 0]
+        except Exception:
+            pass  # Non-critical; skip rising frames on error
 
         # Generate LLM narrative
         client = await _get_llm_client()
@@ -478,6 +532,35 @@ class MonthlyBriefGenerator:
                 }
                 for row in weekly_rows
             ]
+
+        # Rising frames: compare to prior month
+        if mon == 1:
+            prior_month_start = date(year - 1, 12, 1)
+        else:
+            prior_month_start = date(year, mon - 1, 1)
+        try:
+            prior_stats_row = await conn.fetchval(
+                """
+                SELECT stats_json->>'frame_distribution'
+                FROM news_periodic_briefs
+                WHERE region = $1 AND period_type = 'monthly' AND period_start = $2
+                  AND status = 'ready'
+                """,
+                region,
+                prior_month_start,
+            )
+            if prior_stats_row:
+                prior_frames = json.loads(prior_stats_row) if isinstance(prior_stats_row, str) else {}
+                current_frames = stats.get("frame_distribution", {})
+                if current_frames:
+                    deltas = {
+                        f: current_frames.get(f, 0) - prior_frames.get(f, 0)
+                        for f in set(list(current_frames.keys()) + list(prior_frames.keys()))
+                    }
+                    rising = sorted(deltas.items(), key=lambda x: x[1], reverse=True)[:5]
+                    stats["rising_frames"] = [{"frame": f, "delta": d} for f, d in rising if d != 0]
+        except Exception:
+            pass  # Non-critical
 
         # Generate LLM narrative
         client = await _get_llm_client()

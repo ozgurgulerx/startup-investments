@@ -5,3 +5,4 @@ export { DashboardLayout } from './dashboard-layout';
 export { AppSidebar } from './app-sidebar';
 export { AppHeader } from './app-header';
 export { AppLayout } from './app-layout';
+export { PageContainer } from './page-container';

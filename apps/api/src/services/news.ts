@@ -21,6 +21,14 @@ export interface NewsItemCard {
   sources: string[];
   builder_takeaway?: string;
   builder_takeaway_is_llm?: boolean;
+  impact?: {
+    frame: string;
+    kicker: string;
+    builder_move: string;
+    investor_angle: string;
+    watchout?: string;
+    validation?: string;
+  };
   llm_summary?: string;
   llm_model?: string;
   llm_signal_score?: number;
@@ -141,6 +149,19 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard {
     // don't fall back to heuristic/default text (it becomes repetitive and misleading).
     builder_takeaway: builderTakeawayIsLlm && row.builder_takeaway ? String(row.builder_takeaway) : undefined,
     builder_takeaway_is_llm: builderTakeawayIsLlm,
+    impact: (() => {
+      if (!builderTakeawayIsLlm || !row.impact) return undefined;
+      const raw = typeof row.impact === 'string' ? JSON.parse(row.impact) : row.impact;
+      if (!raw?.frame || !raw?.kicker) return undefined;
+      return {
+        frame: String(raw.frame),
+        kicker: String(raw.kicker),
+        builder_move: String(raw.builder_move || ''),
+        investor_angle: String(raw.investor_angle || ''),
+        watchout: raw.watchout ? String(raw.watchout) : undefined,
+        validation: raw.validation ? String(raw.validation) : undefined,
+      };
+    })(),
     llm_summary: row.llm_summary ? String(row.llm_summary) : undefined,
     // Don't expose model identifiers in the UI/API response; it's not user-value and
     // it can create confusion when deployments/labels change.
@@ -320,6 +341,7 @@ export function makeNewsService(pool: Pool) {
           c.title,
           c.summary,
           c.builder_takeaway,
+          c.impact,
           c.llm_summary,
           c.llm_model,
           c.llm_signal_score,
@@ -369,6 +391,7 @@ export function makeNewsService(pool: Pool) {
             c.title,
             c.summary,
             c.builder_takeaway,
+            c.impact,
             c.llm_summary,
             c.llm_model,
             c.llm_signal_score,
@@ -422,6 +445,7 @@ export function makeNewsService(pool: Pool) {
           c.title,
           c.summary,
           NULL::text AS builder_takeaway,
+          NULL::jsonb AS impact,
           NULL::text AS llm_summary,
           NULL::text AS llm_model,
           NULL::numeric AS llm_signal_score,
@@ -468,6 +492,7 @@ export function makeNewsService(pool: Pool) {
           c.title,
           c.summary,
           c.builder_takeaway,
+          c.impact,
           c.llm_summary,
           c.llm_model,
           c.llm_signal_score,
@@ -514,6 +539,7 @@ export function makeNewsService(pool: Pool) {
             c.title,
             c.summary,
             c.builder_takeaway,
+            c.impact,
             c.llm_summary,
             c.llm_model,
             c.llm_signal_score,
@@ -562,6 +588,7 @@ export function makeNewsService(pool: Pool) {
           c.title,
           c.summary,
           NULL::text AS builder_takeaway,
+          NULL::jsonb AS impact,
           NULL::text AS llm_summary,
           NULL::text AS llm_model,
           NULL::numeric AS llm_signal_score,

@@ -42,3 +42,36 @@ export function storyTypeToneClass(storyType: string): string {
 export function aiSignalLabel(score: number): string {
   return `AI ${Math.round(score * 100)}%`;
 }
+
+const FRAME_LABELS: Record<string, string> = {
+  UNDERWRITING_TAKE: 'Underwriting Take',
+  ADOPTION_PLAY: 'Adoption Play',
+  COST_CURVE: 'Cost Curve',
+  LATENCY_LEVER: 'Latency Lever',
+  BENCHMARK_TRAP: 'Benchmark Trap',
+  DATA_MOAT: 'Data Moat',
+  PROCUREMENT_WEDGE: 'Procurement Wedge',
+  REGULATORY_CONSTRAINT: 'Regulatory Constraint',
+  ATTACK_SURFACE: 'Attack Surface',
+  CONSOLIDATION_SIGNAL: 'Consolidation Signal',
+  HIRING_SIGNAL: 'Hiring Signal',
+  PLATFORM_SHIFT: 'Platform Shift',
+  GO_TO_MARKET_EDGE: 'Go-to-Market Edge',
+  EARLY_SIGNAL: 'Early Signal',
+};
+
+export function frameLabel(frame: string): string {
+  return FRAME_LABELS[frame] || 'Why It Matters';
+}
+
+export type ImpactDisplayMode = 'full' | 'compact' | 'early_signal';
+
+export function impactDisplayMode(
+  impact: { frame: string; builder_move: string },
+  confidenceScore?: number,
+): ImpactDisplayMode {
+  if (impact.frame === 'EARLY_SIGNAL' || (confidenceScore != null && confidenceScore < 0.45))
+    return 'early_signal';
+  if (impact.builder_move?.length > 0) return 'full';
+  return 'compact';
+}

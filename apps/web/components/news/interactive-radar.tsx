@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Activity, RefreshCcw, Sparkles, ArrowUpRight, Newspaper } from 'lucide-react';
 import type { NewsEdition } from '@startup-intelligence/shared';
 import { safeDate } from '@/lib/safe-date';
+import { PageContainer } from '@/components/layout/page-container';
 import { CommandBar, type SortMode, type TimeWindow } from './command-bar';
 import { DailyBriefCard } from './daily-brief-card';
 import { KpiStrip } from './kpi-strip';
@@ -361,17 +362,17 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
     router.replace(params.toString() ? `?${params.toString()}` : '?', { scroll: false });
   }, [router, searchParams]);
 
-  return (
-    <SignalsProvider clusterIds={allClusterIds} initialUpvoteCounts={initialUpvoteCounts}>
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* Confirmation/unsubscribe banner */}
-      {statusBanner && (
-        <div className="mx-auto w-full max-w-6xl px-6 pt-2">
-          <div className={`rounded-xl border px-4 py-2.5 text-sm text-foreground ${
-            statusBanner.tone === 'success'
-              ? 'border-success/35 bg-success/10'
-              : 'border-warning/35 bg-warning/10'
-          }`}>
+	  return (
+	    <SignalsProvider clusterIds={allClusterIds} initialUpvoteCounts={initialUpvoteCounts}>
+	    <div className="flex flex-col flex-1 min-h-0">
+	      {/* Confirmation/unsubscribe banner */}
+	      {statusBanner && (
+	        <PageContainer className="pt-2">
+	          <div className={`rounded-xl border px-4 py-2.5 text-sm text-foreground ${
+	            statusBanner.tone === 'success'
+	              ? 'border-success/35 bg-success/10'
+	              : 'border-warning/35 bg-warning/10'
+	          }`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span>{statusBanner.text}</span>
               <button
@@ -382,17 +383,17 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                 Dismiss
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pending update banner */}
-      {pendingEdition && (
-        <div className="mx-auto w-full max-w-6xl px-6 pt-2">
-          <div className="rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-2.5 text-sm text-foreground">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent-info" />
+	          </div>
+	        </PageContainer>
+	      )}
+	
+	      {/* Pending update banner */}
+	      {pendingEdition && (
+	        <PageContainer className="pt-2">
+	          <div className="rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-2.5 text-sm text-foreground">
+	            <div className="flex flex-wrap items-center justify-between gap-3">
+	              <div className="flex items-center gap-2">
+	                <Sparkles className="h-4 w-4 text-accent-info" />
                 {newStoryCount > 0 ? (
                   <span><strong>{newStoryCount}</strong> new {newStoryCount === 1 ? 'story' : 'stories'} ready.</span>
                 ) : (
@@ -426,11 +427,11 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
               >
                 Refresh feed
                 <ArrowUpRight className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+	              </button>
+	            </div>
+	          </div>
+	        </PageContainer>
+	      )}
 
       {/* Command Bar */}
       <CommandBar
@@ -446,13 +447,13 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         searchInputRef={searchInputRef}
       />
 
-      {/* KPI Strip + status */}
-      <div className="border-b border-border/20">
-        <div className="mx-auto flex items-center justify-between max-w-6xl px-6 py-2">
-          <KpiStrip
-            totalStories={filteredItems.length}
-            crossSourceCount={crossSourceCount}
-            totalEntities={totalEntities}
+	      {/* KPI Strip + status */}
+	      <div className="border-b border-border/20">
+	        <PageContainer className="flex items-center justify-between py-2">
+	          <KpiStrip
+	            totalStories={filteredItems.length}
+	            crossSourceCount={crossSourceCount}
+	            totalEntities={totalEntities}
             totalClusters={edition.stats.total_clusters}
           />
           <div className="flex items-center gap-2">
@@ -473,41 +474,41 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
               <RefreshCcw className={`h-3 w-3 ${isPolling ? 'animate-spin text-accent-info' : ''}`} />
               Updated {formatTimestamp(edition.generated_at)}
               {pendingEdition ? <span className="text-accent-info/70">· update ready</span> : null}
-            </span>
-          </div>
-        </div>
-      </div>
+	            </span>
+	          </div>
+	        </PageContainer>
+	      </div>
 
       {/* LLM daily brief */}
-      {edition.brief && activeTopic === 'all' && !searchQuery.trim() && !briefDismissed && (
-        <div className="border-b border-border/20">
-          <div className="mx-auto max-w-6xl px-6">
-            <DailyBriefCard brief={edition.brief} onDismiss={handleDismissBrief} />
-          </div>
-        </div>
-      )}
+	      {edition.brief && activeTopic === 'all' && !searchQuery.trim() && !briefDismissed && (
+	        <div className="border-b border-border/20">
+	          <PageContainer>
+	            <DailyBriefCard brief={edition.brief} onDismiss={handleDismissBrief} />
+	          </PageContainer>
+	        </div>
+	      )}
 
       {/* Periodic brief previews (weekly / monthly) */}
-      {activeTopic === 'all' && !searchQuery.trim() && periodicBriefs && (periodicBriefs.weeklyBrief || periodicBriefs.monthlyBrief) && (
-        <div className="border-b border-border/20">
-          <div className="mx-auto max-w-6xl px-6 py-3">
-            <PeriodicBriefPreview
-              region={region}
-              weeklyBrief={periodicBriefs.weeklyBrief}
-              monthlyBrief={periodicBriefs.monthlyBrief}
-            />
-          </div>
-        </div>
-      )}
+	      {activeTopic === 'all' && !searchQuery.trim() && periodicBriefs && (periodicBriefs.weeklyBrief || periodicBriefs.monthlyBrief) && (
+	        <div className="border-b border-border/20">
+	          <PageContainer className="py-3">
+	            <PeriodicBriefPreview
+	              region={region}
+	              weeklyBrief={periodicBriefs.weeklyBrief}
+	              monthlyBrief={periodicBriefs.monthlyBrief}
+	            />
+	          </PageContainer>
+	        </div>
+	      )}
 
-      {/* Feed + context */}
-      <div className="flex-1 min-h-0">
-        <div className="mx-auto h-full min-h-0 max-w-6xl">
-          {/* Feed */}
-          <div className="h-full min-h-0 overflow-y-auto">
-            {/* Story cards */}
-            {filteredItems.length > 0 ? (
-              <div className="px-6 py-4">
+	      {/* Feed + context */}
+	      <div className="flex-1 min-h-0">
+	        <PageContainer className="h-full min-h-0 px-0">
+	          {/* Feed */}
+	          <div className="h-full min-h-0 overflow-y-auto">
+	            {/* Story cards */}
+	            {filteredItems.length > 0 ? (
+	              <div className="px-6 py-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredItems.map((item) => (
                     <StoryCard
@@ -528,12 +529,12 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
             )}
 
             {/* Subscribe CTA */}
-            <div className="px-6 py-4 border-t border-border/20 bg-background/40">
-              <NewsSubscriptionCard region={region} />
-            </div>
-          </div>
-        </div>
-      </div>
+	            <div className="px-6 py-4 border-t border-border/20 bg-background/40">
+	              <NewsSubscriptionCard region={region} />
+	            </div>
+	          </div>
+	        </PageContainer>
+	      </div>
 
       {/* Story context drawer (overlay) */}
       {selectedItem && (
