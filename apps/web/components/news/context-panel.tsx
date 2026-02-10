@@ -35,6 +35,10 @@ function ContextEmptyState() {
             </span>
           </div>
           <div className="flex items-center justify-between gap-3">
+            <span>Open article</span>
+            <kbd className="rounded border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-foreground">o</kbd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
             <span>Close</span>
             <kbd className="rounded border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-foreground">Esc</kbd>
           </div>

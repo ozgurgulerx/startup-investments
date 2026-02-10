@@ -9,10 +9,9 @@ REPO_DIR="/opt/buildatlas/startup-analysis"
 echo "=== Crawl Frontier ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
-# Browserless is optional — worker falls back to HTTP-only crawling
-if [ -z "${BROWSERLESS_ENDPOINT:-}" ] || [ -z "${BROWSERLESS_TOKEN:-}" ]; then
-    echo "NOTE: BROWSERLESS_ENDPOINT/TOKEN not set — browser rendering disabled, using HTTP-only"
-fi
+# Log active unblock provider
+PROVIDER="${CRAWLER_UNBLOCK_PROVIDER:-stealth}"
+echo "Unblock provider: $PROVIDER"
 
 # Apply migrations
 bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" crawl

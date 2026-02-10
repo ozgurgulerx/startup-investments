@@ -291,7 +291,7 @@ async def _generate_narrative(
         + lang_instruction
     )
 
-    model = os.getenv("NEWS_LLM_MODEL", "gpt-4o-mini")
+    model = os.getenv("NEWS_LLM_MODEL", "gpt-5-nano")
 
     try:
         response = await client.chat.completions.create(

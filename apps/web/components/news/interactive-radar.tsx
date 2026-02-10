@@ -299,6 +299,15 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         return;
       }
 
+      if (e.key === 'o' && !typing && selectedId) {
+        const item = filteredItems.find((i) => i.id === selectedId);
+        if (item?.url) {
+          e.preventDefault();
+          window.open(item.url, '_blank', 'noopener,noreferrer');
+          return;
+        }
+      }
+
       const isNext = e.key === 'j' || e.key === 'ArrowDown';
       const isPrev = e.key === 'k' || e.key === 'ArrowUp';
       if ((!isNext && !isPrev) || typing) return;
@@ -320,7 +329,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleSelectStory, orderedIds, selectedId]);
+  }, [filteredItems, handleSelectStory, orderedIds, selectedId]);
 
   const statusBanner = (() => {
     if (unsubscribed === '1') {

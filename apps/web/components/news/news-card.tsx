@@ -49,9 +49,6 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
   const toneClass = toneForStoryType(item.story_type);
   const initialHasImage = Boolean(item.image_url && item.image_url.startsWith('http'));
   const [showImage, setShowImage] = useState(initialHasImage);
-  const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
-  const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
-
   useEffect(() => {
     setShowImage(initialHasImage);
   }, [initialHasImage, item.image_url]);
@@ -110,14 +107,7 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
 
         {item.builder_takeaway ? (
           <div className="mt-3 rounded-md border border-accent-info/25 bg-accent-info/10 px-2.5 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] uppercase tracking-wider text-accent-info">Builder View</p>
-              {hasBuilderOrigin ? (
-                <span className="inline-flex items-center rounded-full border border-accent-info/25 bg-accent-info/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
-                  {builderOriginLabel}
-                </span>
-              ) : null}
-            </div>
+            <p className="text-[10px] uppercase tracking-wider text-accent-info">Why It Matters</p>
             <p className="mt-1 text-xs leading-relaxed text-foreground/90 line-clamp-3">{item.builder_takeaway}</p>
           </div>
         ) : null}

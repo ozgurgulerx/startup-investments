@@ -3772,7 +3772,7 @@ class DailyNewsIngestor:
             "builders on competing APIs should evaluate migration paths; investors should track "
             "margin compression in the middleware layer.' "
             "Return strict JSON with ALL of these keys (every key is REQUIRED): "
-            "builder_takeaway (<=200 chars, specific — THIS IS THE MOST IMPORTANT FIELD), "
+            "builder_takeaway (2-3 sentences, specific — THIS IS THE MOST IMPORTANT FIELD), "
             "summary (<=160 chars), "
             "story_type (funding|launch|mna|regulation|hiring|news), "
             "topic_tags (array of up to 6 lowercase tags), "
@@ -3801,7 +3801,7 @@ class DailyNewsIngestor:
 
         def parse_llm_payload(parsed: Dict[str, Any], model_label: Optional[str]) -> LLMEnrichmentResult:
             llm_summary = _shorten_text(str(parsed.get("summary") or ""), 180) or None
-            builder_takeaway = _shorten_text(str(parsed.get("builder_takeaway") or ""), 220) or None
+            builder_takeaway = _shorten_text(str(parsed.get("builder_takeaway") or ""), 500) or None
             signal_score = clamp01(parsed.get("signal_score"), default=None)
             confidence_score = clamp01(parsed.get("confidence_score"), default=None)
             llm_topic_tags = normalize_llm_topic_tags(parsed.get("topic_tags"), cluster.topic_tags)
@@ -3835,7 +3835,7 @@ class DailyNewsIngestor:
                     }
                     if _azure_supports_temperature(model_name):
                         azure_payload["temperature"] = 0.2
-                    azure_payload[token_param] = _azure_token_budget(model_name, 350)
+                    azure_payload[token_param] = _azure_token_budget(model_name, 500)
                     if with_response_format:
                         azure_payload["response_format"] = {"type": "json_object"}
 
@@ -3871,7 +3871,7 @@ class DailyNewsIngestor:
                         json={
                             "model": self.llm_model,
                             "temperature": 0.2,
-                            "max_tokens": 350,
+                            "max_tokens": 500,
                             "response_format": {"type": "json_object"},
                             "messages": [
                                 {"role": "system", "content": prompt},

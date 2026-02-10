@@ -504,6 +504,71 @@ def ingest_news(
             console.print(f"  [dim]- {err}[/dim]")
 
 
+@app.command("test-ainews")
+def test_ainews(
+    limit: int = typer.Option(5, "--limit", "-l", help="Max RSS entries to parse"),
+):
+    """Fetch latest AINews RSS and test the digest parser.
+
+    Useful for debugging when the newsletter format changes.
+    """
+    import httpx
+    import feedparser
+    from src.automation.ainews_parser import AINewsDigestParser
+    from src.automation.news_ingest import parse_entry_datetime
+
+    console.print("[bold]Fetching AINews RSS feed...[/bold]")
+    resp = httpx.get("https://news.smol.ai/rss.xml", follow_redirects=True, timeout=20)
+    resp.raise_for_status()
+    parsed = feedparser.parse(resp.text)
+    console.print(f"Found {len(parsed.entries)} RSS entries\n")
+
+    parser = AINewsDigestParser()
+    total = 0
+
+    for entry in parsed.entries[:limit]:
+        title = entry.get("title", "Untitled")
+        link = entry.get("link", "")
+        published = parse_entry_datetime(entry)
+        pub_str = published.strftime("%Y-%m-%d %H:%M") if published else "unknown"
+
+        console.print(f"[bold blue]--- {title} ({pub_str}) ---[/bold blue]")
+
+        html = ""
+        content_list = entry.get("content", [])
+        if content_list and isinstance(content_list, list):
+            html = content_list[0].get("value", "")
+        if not html:
+            html = entry.get("summary", entry.get("description", ""))
+
+        if not html:
+            console.print("[yellow]  No HTML content found[/yellow]")
+            continue
+
+        from datetime import datetime, timezone
+        items = parser.parse_digest(html, published or datetime.now(timezone.utc), link)
+        total += len(items)
+
+        table = Table(title=f"Extracted {len(items)} items")
+        table.add_column("#", style="dim", width=4)
+        table.add_column("Section", width=10)
+        table.add_column("Title", width=50)
+        table.add_column("Author", width=16)
+        table.add_column("URL", width=40)
+
+        for i, item in enumerate(items, 1):
+            section = item.payload.get("section_category", "?")
+            table.add_row(
+                str(i), section,
+                item.title[:50], item.author or "",
+                item.url[:40] + ("..." if len(item.url) > 40 else ""),
+            )
+        console.print(table)
+        console.print()
+
+    console.print(f"[bold green]Total items extracted: {total}[/bold green]")
+
+
 @app.command("send-news-digest")
 def send_news_digest(
     edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD (defaults to latest ready edition)"),
@@ -1696,6 +1761,69 @@ def seed_gtm_taxonomy(
         await pool.close()
 
     asyncio.run(run_seed())
+
+
+@app.command("research-topics")
+def research_topics(
+    max_items: int = typer.Option(5, "--max-items", help="Max queue items to process per run"),
+):
+    """Process hot topic research queue — web search + LLM synthesis."""
+    from src.automation.topic_researcher import run_topic_research
+
+    try:
+        stats = asyncio.run(run_topic_research(max_items=max_items))
+    except Exception as exc:
+        console.print(f"[red]Topic research failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Topic Research Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Processed:[/bold] {stats.get('processed', 0)}")
+    console.print(f"[bold]Succeeded:[/bold] {stats.get('succeeded', 0)}")
+    console.print(f"[bold]Failed:[/bold] {stats.get('failed', 0)}")
+    console.print(f"[bold]Searches:[/bold] {stats.get('searches', 0)}")
+    console.print(f"[bold]Articles fetched:[/bold] {stats.get('articles_fetched', 0)}")
+    console.print(f"[bold]LLM calls:[/bold] {stats.get('llm_calls', 0)}")
+
+
+@app.command("test-research")
+def test_research(
+    query: str = typer.Argument(..., help="Topic or headline to research"),
+):
+    """Test web search + LLM synthesis for a topic string (no DB required)."""
+    from src.automation.topic_researcher import run_test_research
+
+    try:
+        result = asyncio.run(run_test_research(query))
+    except Exception as exc:
+        console.print(f"[red]Test research failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Test Research Results[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Queries:[/bold] {result.get('queries', [])}")
+    console.print(f"[bold]Search results:[/bold] {len(result.get('search_results', []))}")
+    console.print(f"[bold]Articles fetched:[/bold] {result.get('articles_fetched', 0)}")
+
+    output = result.get("research_output")
+    if output:
+        console.print("\n[bold green]Research Output:[/bold green]")
+        console.print(f"[bold]Summary:[/bold] {output.get('enhanced_summary', '')}")
+        findings = output.get("key_findings", [])
+        if findings:
+            console.print("[bold]Key findings:[/bold]")
+            for f in findings:
+                console.print(f"  • {f}")
+        console.print(f"[bold]Builder implications:[/bold] {output.get('builder_implications', '')}")
+        sources = output.get("sources_used", [])
+        if sources:
+            console.print(f"[bold]Sources:[/bold] {len(sources)}")
+    else:
+        console.print("[yellow]No LLM synthesis output (Azure client may not be configured)[/yellow]")
 
 
 if __name__ == "__main__":

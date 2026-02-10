@@ -133,8 +133,95 @@ class BrowserlessUnblockProvider(UnblockProvider):
         )
 
 
-def build_unblock_provider(provider_name: str, endpoint: str, token: str = "") -> Optional[UnblockProvider]:
+class StealthPlaywrightUnblockProvider(UnblockProvider):
+    """Local Playwright + stealth patches for anti-bot evasion.
+
+    Launches headless Chromium per-request with stealth evasion applied.
+    Suitable for low-volume unblocking (~5-10 pages per batch) where
+    Browserless is unavailable or unneeded.
+    """
+
+    def __init__(self, headless: bool = True, timeout_ms: int = 45000):
+        self.headless = headless
+        self.default_timeout_ms = timeout_ms
+
+    @property
+    def is_configured(self) -> bool:
+        try:
+            import playwright  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    async def fetch(self, request: UnblockRequest) -> UnblockResult:
+        import time
+        from playwright.async_api import async_playwright
+
+        try:
+            from playwright_stealth import Stealth
+        except ImportError:
+            Stealth = None  # type: ignore[assignment,misc]
+
+        start = time.monotonic()
+        timeout_ms = max(5000, request.timeout_ms or self.default_timeout_ms)
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=self.headless)
+            context = await browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                ),
+                viewport={"width": 1920, "height": 1080},
+                locale="en-US",
+                timezone_id="America/New_York",
+            )
+
+            if Stealth is not None:
+                stealth = Stealth(init_scripts_only=True)
+                await stealth.apply_stealth_async(context)
+
+            page = await context.new_page()
+
+            if request.headers:
+                await page.set_extra_http_headers(request.headers)
+
+            status_code = 0
+            try:
+                response = await page.goto(
+                    request.url,
+                    wait_until=request.wait_until or "domcontentloaded",
+                    timeout=timeout_ms,
+                )
+                status_code = response.status if response else 0
+                await page.wait_for_timeout(1500)
+            except Exception:
+                pass
+
+            html = await page.content()
+            final_url = page.url
+
+            await context.close()
+            await browser.close()
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return UnblockResult(
+            status_code=status_code,
+            final_url=final_url,
+            headers={},
+            html=html,
+            latency_ms=latency_ms,
+            provider="stealth",
+            blocked_detected=is_probably_blocked(status_code, html),
+        )
+
+
+def build_unblock_provider(provider_name: str, endpoint: str = "", token: str = "") -> Optional[UnblockProvider]:
     name = (provider_name or "").strip().lower()
+    if name == "stealth":
+        provider = StealthPlaywrightUnblockProvider()
+        return provider if provider.is_configured else None
     if name == "browserless":
         provider = BrowserlessUnblockProvider(endpoint=endpoint, token=token)
         return provider if provider.is_configured else None

@@ -25,13 +25,13 @@ class AzureOpenAIConfig(BaseModel):
         os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
         or os.getenv("AZURE_OPENAI_FAST_DEPLOYMENT_NAME")
         or os.getenv("AZURE_OPENAI_VISION_DEPLOYMENT_NAME")
-        or "gpt-4.1"
+        or "gpt-5-nano"
     ))
     reasoning_model: str = Field(default_factory=lambda: (
         os.getenv("AZURE_OPENAI_REASONING_DEPLOYMENT_NAME")
         or os.getenv("AZURE_OPENAI_REASONING_MODEL")
         or os.getenv("AZURE_OPENAI_VISION_DEPLOYMENT_NAME")
-        or "gpt-4.1"
+        or "gpt-5-nano"
     ))
     embedding_model: str = Field(default_factory=lambda: os.getenv("AZURE_TEXT_EMBEDDING_DEPLOYMENT_NAME", "text-embedding-3-small"))
 
@@ -56,7 +56,7 @@ class CrawlerConfig(BaseModel):
 
     # Managed unblock lane (provider-based render/unblock)
     unblock_mode: str = Field(default_factory=lambda: os.getenv("CRAWLER_UNBLOCK_MODE", "auto"))  # off|auto|provider_only
-    unblock_provider: str = Field(default_factory=lambda: os.getenv("CRAWLER_UNBLOCK_PROVIDER", "browserless"))
+    unblock_provider: str = Field(default_factory=lambda: os.getenv("CRAWLER_UNBLOCK_PROVIDER", "stealth"))
     browserless_endpoint: str = Field(default_factory=lambda: os.getenv("BROWSERLESS_ENDPOINT", ""))
     browserless_token: str = Field(default_factory=lambda: os.getenv("BROWSERLESS_TOKEN", ""))
     ai_blocking_assumed: bool = Field(default_factory=lambda: os.getenv("CRAWLER_AI_BLOCKING_ASSUMED", "true").lower() == "true")

@@ -104,6 +104,7 @@ FRESHNESS_JOBS=(
     "news-digest:3000:always"
     "sync-data:90:always"
     "code-update:800:always"
+    "health-report:600:always"
 )
 
 LOG_DIR="/var/log/buildatlas"

@@ -34,13 +34,26 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-border/30">
         <span className="text-[10px] uppercase tracking-wider text-accent-info">Story Detail</span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 rounded hover:bg-muted/30 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {item.url && (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md border border-accent-info/30 bg-accent-info/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info hover:bg-accent-info/20 transition-colors"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Read
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-muted/30 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Scrollable content */}
@@ -82,11 +95,11 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
           </div>
         )}
 
-        {/* Builder takeaway */}
+        {/* Why it matters */}
         {item.builder_takeaway && (
           <div className="rounded-lg border border-accent-info/25 bg-accent-info/10 p-3">
             <div className="flex items-center justify-between gap-2 mb-1.5">
-              <p className="text-[10px] uppercase tracking-wider text-accent-info">Builder View</p>
+              <p className="text-[10px] uppercase tracking-wider text-accent-info">Why It Matters</p>
               {hasBuilderOrigin ? (
                 <span className="inline-flex items-center rounded-full border border-accent-info/25 bg-accent-info/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
                   {builderOriginLabel}
@@ -170,17 +183,6 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
 
       {/* Actions footer */}
       <div className="border-t border-border/30 px-6 py-3 flex items-center gap-3">
-        {item.url && (
-          <Link
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-foreground hover:bg-muted/40 transition-colors"
-          >
-            <ExternalLink className="h-3 w-3" />
-            Read source
-          </Link>
-        )}
         <ReactionBar clusterId={item.id} />
       </div>
     </div>

@@ -9,7 +9,7 @@
 #
 # Environment (sourced by runner.sh from /etc/buildatlas/.env):
 #   AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT_NAME
-#   BROWSERLESS_ENDPOINT, BROWSERLESS_TOKEN (optional — falls back to HTTP-only)
+#   CRAWLER_UNBLOCK_PROVIDER (stealth or browserless; optional — falls back to HTTP-only)
 #   OPENAI_API_KEY (fallback for LLM if Azure identity unavailable)
 #
 set -euo pipefail

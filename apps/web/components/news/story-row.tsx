@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ExternalLink } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
@@ -40,8 +41,6 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
   const tags = item.topic_tags.slice(0, 2);
   const imageUrl = item.image_url && /^https?:\/\//i.test(item.image_url) ? item.image_url : null;
   const [imageFailed, setImageFailed] = useState(false);
-  const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
-  const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
 
   return (
     <div
@@ -91,11 +90,27 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
         </span>
       </div>
 
-      <h3 className={`mt-2 text-sm font-medium leading-snug tracking-tight
-        ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}
-      `}>
-        {item.title}
+      <h3 className="mt-2 text-sm font-medium leading-snug tracking-tight">
+        {item.url ? (
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={`hover:underline ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}`}
+          >
+            {item.title}
+            <ExternalLink className="inline h-3 w-3 ml-1 opacity-50 -translate-y-px" />
+          </a>
+        ) : (
+          <span className={isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}>
+            {item.title}
+          </span>
+        )}
       </h3>
+      {item.primary_source && (
+        <p className="mt-1 text-[10px] text-muted-foreground/60">{item.primary_source}</p>
+      )}
 
       {summary && (
         <p className="mt-2 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
@@ -104,15 +119,10 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
       )}
 
       {item.builder_takeaway && (
-        <p className="mt-2 text-[10px] text-accent-info/80 line-clamp-2 leading-relaxed">
-          Builder
-          {hasBuilderOrigin ? (
-            <span className="ml-1 inline-flex items-center rounded-full border border-accent-info/25 bg-accent-info/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
-              {builderOriginLabel}
-            </span>
-          ) : null}
-          : {item.builder_takeaway}
-        </p>
+        <div className="group/brief mt-2 rounded-md border border-accent-info/20 bg-accent-info/5 px-2.5 py-1.5 transition-all duration-200">
+          <p className="text-[10px] uppercase tracking-wider text-accent-info mb-0.5">Why It Matters</p>
+          <p className="text-[11px] leading-relaxed text-foreground/85 line-clamp-3 group-hover/brief:line-clamp-none">{item.builder_takeaway}</p>
+        </div>
       )}
 
       {tags.length > 0 && (
@@ -138,9 +148,6 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
 export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadge(item.story_type);
-  const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
-  const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
-
   return (
     <div
       role="button"
@@ -173,11 +180,27 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: S
         </span>
       </div>
 
-      <h3 className={`text-base font-medium leading-snug tracking-tight
-        ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}
-      `}>
-        {item.title}
+      <h3 className="text-base font-medium leading-snug tracking-tight">
+        {item.url ? (
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={`hover:underline ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}`}
+          >
+            {item.title}
+            <ExternalLink className="inline h-3 w-3 ml-1 opacity-50 -translate-y-px" />
+          </a>
+        ) : (
+          <span className={isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}>
+            {item.title}
+          </span>
+        )}
       </h3>
+      {item.primary_source && (
+        <p className="mt-1 text-[10px] text-muted-foreground/60">{item.primary_source}</p>
+      )}
 
       {summary && (
         <p className="mt-2 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
@@ -186,15 +209,10 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: S
       )}
 
       {item.builder_takeaway && (
-        <p className="mt-2 text-[10px] text-accent-info/80 line-clamp-1">
-          Builder
-          {hasBuilderOrigin ? (
-            <span className="ml-1 inline-flex items-center rounded-full border border-accent-info/25 bg-accent-info/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
-              {builderOriginLabel}
-            </span>
-          ) : null}
-          : {item.builder_takeaway}
-        </p>
+        <div className="group/brief mt-2 rounded-md border border-accent-info/20 bg-accent-info/5 px-2.5 py-1.5 transition-all duration-200">
+          <p className="text-[10px] uppercase tracking-wider text-accent-info mb-0.5">Why It Matters</p>
+          <p className="text-[11px] leading-relaxed text-foreground/85 line-clamp-2 group-hover/brief:line-clamp-none">{item.builder_takeaway}</p>
+        </div>
       )}
 
       <div className="mt-3 pt-2 border-t border-border/20">

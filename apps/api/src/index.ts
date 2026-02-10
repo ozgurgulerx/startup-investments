@@ -2266,6 +2266,116 @@ app.get('/api/admin/logo-status', async (req, res) => {
 });
 
 // =============================================================================
+// Source Health Monitoring (Admin)
+// =============================================================================
+
+app.get('/api/admin/monitoring/sources', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      const sourcesResult = await pgClient.query(`
+        SELECT source_key, display_name, source_type, base_url, region, is_active,
+               credibility_weight, last_fetch_at, last_success_at, last_error_at,
+               last_error, consecutive_failures, total_fetches, total_successes,
+               last_items_fetched, last_fetch_duration_ms, last_alerted_at,
+               created_at, updated_at
+        FROM news_sources
+        ORDER BY consecutive_failures DESC, display_name
+      `);
+
+      const lastRunResult = await pgClient.query(`
+        SELECT id, started_at, completed_at, status, sources_attempted,
+               items_fetched, items_kept, clusters_built, errors_json
+        FROM news_ingestion_runs
+        ORDER BY started_at DESC
+        LIMIT 1
+      `);
+
+      const sources = sourcesResult.rows;
+      const active = sources.filter((s: any) => s.is_active);
+      const healthy = active.filter((s: any) => s.consecutive_failures === 0);
+      const degraded = active.filter((s: any) => s.consecutive_failures > 0 && s.consecutive_failures < 5);
+      const down = active.filter((s: any) => s.consecutive_failures >= 5);
+
+      res.json({
+        summary: {
+          total: active.length,
+          healthy: healthy.length,
+          degraded: degraded.length,
+          down: down.length,
+        },
+        sources,
+        lastRun: lastRunResult.rows[0] || null,
+      });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error fetching source monitoring:', error);
+    res.status(500).json({ error: 'Failed to fetch source monitoring data' });
+  }
+});
+
+app.get('/api/admin/monitoring/frontier', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  try {
+    const pgClient = await pool.connect();
+    try {
+      const domainsResult = await pgClient.query(`
+        SELECT dp.domain, dp.blocked, dp.crawl_delay_ms, dp.max_concurrent,
+               dp.proxy_tier, dp.render_required, dp.block_rate, dp.consecutive_blocks,
+               dp.last_blocked_at, dp.last_provider_success_at,
+               ds.error_rate, ds.consecutive_errors, ds.avg_response_ms,
+               ds.total_requests, ds.successful_requests, ds.requires_js,
+               ds.last_error_at AS stats_last_error_at, ds.updated_at AS stats_updated_at
+        FROM domain_policies dp
+        LEFT JOIN domain_stats ds ON dp.domain = ds.domain
+        ORDER BY dp.blocked DESC, dp.block_rate DESC
+        LIMIT 200
+      `);
+
+      const urlCountResult = await pgClient.query(`
+        SELECT COUNT(*) AS total FROM crawl_frontier_urls
+      `);
+
+      const domains = domainsResult.rows;
+      const blocked = domains.filter((d: any) => d.blocked);
+      const highBlockRate = domains.filter((d: any) => !d.blocked && d.block_rate > 0.5);
+
+      res.json({
+        summary: {
+          totalDomains: domains.length,
+          blocked: blocked.length,
+          highBlockRate: highBlockRate.length,
+          totalUrls: parseInt(urlCountResult.rows[0]?.total || '0', 10),
+        },
+        domains,
+      });
+    } finally {
+      pgClient.release();
+    }
+  } catch (error) {
+    console.error('Error fetching frontier monitoring:', error);
+    res.status(500).json({ error: 'Failed to fetch frontier monitoring data' });
+  }
+});
+
+// =============================================================================
 // Start Server
 // =============================================================================
 
