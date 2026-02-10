@@ -389,6 +389,10 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("devto_ai", "Dev.to AI", "community", "https://dev.to/feed/tag/ai", credibility_weight=0.62),
     SourceDefinition("prnewswire_tech", "PR Newswire Tech", "rss", "https://www.prnewswire.com/rss/technology-latest-news/technology-latest-news-list.rss", credibility_weight=0.68),
     SourceDefinition("businesswire_tech", "BusinessWire Tech", "rss", "https://feed.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFtWWQ==", credibility_weight=0.66),
+    # Big-tech startup program blogs
+    SourceDefinition("ms_startups", "Microsoft for Startups", "rss", "https://www.microsoft.com/en-us/startups/blog/feed/", credibility_weight=0.68),
+    SourceDefinition("aws_ml_blog", "AWS ML Blog", "rss", "https://aws.amazon.com/blogs/machine-learning/feed/", credibility_weight=0.65),
+    SourceDefinition("google_startups", "Google for Startups", "rss", "https://blog.google/outreach-initiatives/entrepreneurs/rss/", credibility_weight=0.62),
     SourceDefinition("producthunt_api", "Product Hunt API", "api", "https://api.producthunt.com/v2/api/graphql", fetch_mode="api", credibility_weight=0.86),
     SourceDefinition("hackernews_api", "Hacker News API", "api", "https://hacker-news.firebaseio.com/v0", fetch_mode="api", credibility_weight=0.88),
     SourceDefinition("newsapi", "NewsAPI", "api", "https://newsapi.org/v2/everything", fetch_mode="api", credibility_weight=0.67),
@@ -400,6 +404,8 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("startup_owned_feeds", "Startup-Owned Sources", "crawler", "startup://owned", fetch_mode="crawler", credibility_weight=0.79),
     # Newsletter digests (parsed into individual items)
     SourceDefinition("ainews_digest", "AINews by swyx", "rss", "https://news.smol.ai/rss.xml", fetch_mode="digest_rss", credibility_weight=0.88, language="en"),
+    # Research papers (community-curated trending arXiv papers)
+    SourceDefinition("huggingface_papers", "HF Daily Papers", "api", "https://huggingface.co/api/daily_papers", fetch_mode="api", credibility_weight=0.72),
 ]
 
 
@@ -1143,15 +1149,16 @@ def _contains_any(haystack: str, needles: Sequence[str]) -> bool:
     return False
 
 
-def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
+def _is_relevant_turkey_news_item_strict(item: "NormalizedNewsItem") -> bool:
     """
-    Turkey feed should be "AI startup / AI systems" intelligence, not general consumer tech.
+    Strict AI-required filter for Turkey news. Used for startup_owned_feeds
+    and as the inner logic when AI keywords are a hard gate.
 
     Rules (heuristic, intentionally conservative):
     - Must mention AI (broad).
-    - Must indicate startup/ecosystem relevance (funding, startup terms, hiring, policy) OR be a Turkey startup-owned item.
-    - Exclude consumer product / retail chatter unless it is clearly ecosystem-relevant.
-    - Exclude global big-tech product updates in the Turkey feed unless they are framed as ecosystem events.
+    - Must indicate startup/ecosystem relevance (funding, startup terms, hiring, policy).
+    - Exclude consumer product / retail chatter unless clearly ecosystem-relevant.
+    - Exclude global big-tech product updates unless framed as ecosystem events.
     """
     if item.source_key == "startup_owned_feeds":
         country = str((item.payload or {}).get("startup_country") or "").strip().lower()
@@ -1173,11 +1180,8 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     has_policy = _contains_any(text, TR_POLICY_KEYWORDS)
     has_startup_context = _contains_any(text, TR_STARTUP_CONTEXT_KEYWORDS)
     has_mna = _contains_any(text, TR_MNA_KEYWORDS)
-    # "Ecosystem relevance" needs to be about companies/deals, not generic purchases (e.g. domain names).
     has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
     has_strong_ecosystem = has_ecosystem and (has_startup_context or ("yatırım" in text) or ("yatirim" in text))
-    # Trusted Turkey RSS sources get a lighter gate — ecosystem alone is enough.
-    # API aggregators (gnews, newsapi) and Daily Sabah keep the strict filter.
     is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch"}
     if is_trusted_rss:
         if not (has_policy or has_ecosystem or has_mna):
@@ -1186,23 +1190,68 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
         if not (has_policy or has_strong_ecosystem or (has_mna and has_startup_context)):
             return False
 
-    # For broad Turkish aggregators, require explicit Turkey context so we don't pull translated global chatter.
     if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
         if not _contains_any(text, TR_CONTEXT_KEYWORDS) and not has_ecosystem:
             return False
 
-    # Domain/SEO chatter often matches "ai" and "satın alındı" but is not startup intelligence.
     if _contains_any(text, TR_DOMAIN_EXCLUDE_KEYWORDS) and not (has_policy or has_strong_ecosystem):
         return False
 
-    # Consumer exclusion: allow only if it's clearly an ecosystem signal (e.g. funding/acquisition)
     if _contains_any(text, TR_CONSUMER_EXCLUDE_KEYWORDS) and not (has_ecosystem or has_policy):
         return False
 
-    # Big-tech exclusion: Turkey feed shouldn't be dominated by product updates from incumbents.
-    # Require explicit Turkey context (not just generic ecosystem keywords) to override.
-    # E.g. "Anthropic'in değerlemesi" has ecosystem keywords but no Turkey context → excluded.
-    # But "Türk startup X, Anthropic'ten yatırım aldı" has Turkey context → allowed.
+    if _contains_any(text, TR_BIGTECH_KEYWORDS):
+        has_turkey_context = _contains_any(text, TR_CONTEXT_KEYWORDS)
+        if not (has_policy or (has_strong_ecosystem and has_turkey_context)):
+            return False
+
+    return True
+
+
+def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
+    """
+    Broad Turkey news relevance filter — startup-first, not AI-first.
+
+    Accepts Turkish startup/ecosystem news (funding, M&A, launches, policy)
+    even without AI keywords. AI articles still pass if they have startup context.
+    startup_owned_feeds delegates to the strict (AI-required) version.
+
+    This matches the LLM prompt intent: score 1 = relevant Turkish startup news.
+    """
+    # startup_owned_feeds: delegate to strict AI-required filter
+    if item.source_key == "startup_owned_feeds":
+        return _is_relevant_turkey_news_item_strict(item)
+
+    text = f"{item.title} {item.summary or ''}".strip().casefold()
+
+    has_ai = _contains_any(text, TR_AI_KEYWORDS)
+    has_policy = _contains_any(text, TR_POLICY_KEYWORDS)
+    has_startup_context = _contains_any(text, TR_STARTUP_CONTEXT_KEYWORDS)
+    has_mna = _contains_any(text, TR_MNA_KEYWORDS)
+    has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
+    has_strong_ecosystem = has_ecosystem and (has_startup_context or ("yatırım" in text) or ("yatirim" in text))
+
+    # Core signal: must have startup/ecosystem OR policy OR (AI + startup context).
+    # This removes the hard AI gate — a fintech funding round without "AI" now passes.
+    has_startup_signal = has_ecosystem or has_mna or has_policy
+    has_ai_with_context = has_ai and (has_startup_context or has_ecosystem)
+    if not (has_startup_signal or has_ai_with_context):
+        return False
+
+    is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch"}
+
+    # For broad API aggregators, require explicit Turkey context to avoid global chatter.
+    if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
+        if not _contains_any(text, TR_CONTEXT_KEYWORDS) and not has_ecosystem:
+            return False
+
+    # Noise exclusions (same as strict version)
+    if _contains_any(text, TR_DOMAIN_EXCLUDE_KEYWORDS) and not (has_policy or has_strong_ecosystem):
+        return False
+
+    if _contains_any(text, TR_CONSUMER_EXCLUDE_KEYWORDS) and not (has_ecosystem or has_policy):
+        return False
+
     if _contains_any(text, TR_BIGTECH_KEYWORDS):
         has_turkey_context = _contains_any(text, TR_CONTEXT_KEYWORDS)
         if not (has_policy or (has_strong_ecosystem and has_turkey_context)):
@@ -1277,9 +1326,17 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
     if not candidate_members:
         return None
 
-    # Apply strict relevance filter — must be about Turkish ecosystem,
+    # Apply relevance filter — must be about Turkish ecosystem,
     # not just from a Turkey source reporting on global news.
-    relevant_members = [m for m in candidate_members if _is_relevant_turkey_news_item(m)]
+    # Items the LLM already classified (turkey_priority >= 1) are kept directly;
+    # only unclassified items go through the keyword heuristic.
+    relevant_members = []
+    for m in candidate_members:
+        llm_score = (m.payload or {}).get("turkey_priority")
+        if llm_score is not None and llm_score >= 1:
+            relevant_members.append(m)        # LLM already approved
+        elif _is_relevant_turkey_news_item(m):
+            relevant_members.append(m)        # No LLM score — apply heuristic
     if not relevant_members:
         return None
 
@@ -1334,25 +1391,31 @@ You are a relevance classifier for a Turkish tech startup intelligence feed.
 
 For each article, respond with a relevance score (0, 1, or 2):
 
-2 = HIGH PRIORITY: AI/ML startup activity in the Turkish ecosystem
+2 = HIGH PRIORITY: A specific Turkish startup/company building or deploying AI/ML
+    (must name the company, fund, or deal)
   - Turkish startups building or using AI/ML (funding, launch, M&A, product, hiring)
-  - AI technology applied by Turkish companies
-  - Turkish tech policy or regulation related to AI
-  - Turkish VC/investment in AI/tech startups
+  - AI technology applied by a named Turkish company
+  - Turkish VC/fund investing in AI/tech startups (must name the fund or startup)
 
-1 = RELEVANT: Turkish tech/startup ecosystem news (not necessarily AI)
+1 = RELEVANT: A specific Turkish startup, fund, or deal (not necessarily AI)
+    (must name the company, fund, or deal)
   - Turkish startups: funding rounds, launches, M&A, expansion, hiring
   - Turkish VC and investment activity in tech
   - Fintech, SaaS, e-commerce, deep-tech, biotech startups from Turkey
-  - Turkish tech policy, regulation, or ecosystem developments
-  - Accelerator/incubator programs in Turkey
+  - Turkish tech policy or regulation with named companies affected
+  - Accelerator/incubator programs in Turkey (must name programs or cohort companies)
 
-0 = IRRELEVANT: Not about the Turkish tech/startup ecosystem
+0 = IRRELEVANT: No named Turkish company/startup/fund/deal
+  - General AI articles, tutorials, trends — even if in Turkish
+  - "How students use AI", "AI tools for X" without a named company
+  - Big-tech global product news without a Turkish company angle
   - Consumer tech (phone reviews, app updates, streaming services)
-  - Big-tech global product news without Turkish ecosystem impact
-  - General business/economy not involving tech startups
+  - General business/economy not involving a specific tech startup
   - Non-Turkish startup news that happens to be in Turkish language
-  - Generic tech tutorials, listicles, or opinion pieces
+  - Listicles, opinion pieces, or commentary without a named entity
+
+KEY RULE: Score 1 or 2 ONLY if the article names a specific Turkish company,
+startup, fund, or deal. Generic "AI in Turkey" or "tech trends" = 0.
 
 Articles:
 {articles}
@@ -1954,6 +2017,94 @@ class DailyNewsIngestor:
                 language="en",
                 engagement={"votes": int(node.get("votesCount") or 0)},
                 payload={"producthunt_id": node.get("id")},
+                source_weight=source.credibility_weight,
+            ).with_external_id()
+            items.append(item)
+
+        return items[: self.max_per_source]
+
+    async def _fetch_huggingface_papers(
+        self,
+        client: httpx.AsyncClient,
+        source: SourceDefinition,
+        lookback_hours: int,
+    ) -> List[NormalizedNewsItem]:
+        """Fetch trending AI/ML papers from Hugging Face Daily Papers API."""
+        try:
+            resp = await client.get(source.base_url, params={"limit": "100"})
+            if resp.status_code >= 400:
+                return []
+            papers = resp.json() or []
+        except Exception:
+            return []
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        items: List[NormalizedNewsItem] = []
+
+        for paper in papers:
+            paper_data = paper.get("paper") or paper
+            arxiv_id = str(paper_data.get("id") or "").strip()
+            title = normalize_text(str(paper_data.get("title") or ""))
+            if not arxiv_id or not title:
+                continue
+
+            # Prefer the Daily Papers submission date (outer) over arXiv date (paper_data)
+            pub_raw = paper.get("publishedAt") or paper_data.get("publishedAt") or ""
+            try:
+                published = datetime.fromisoformat(str(pub_raw).replace("Z", "+00:00"))
+                if published.tzinfo is None:
+                    published = published.replace(tzinfo=timezone.utc)
+                else:
+                    published = published.astimezone(timezone.utc)
+            except Exception:
+                published = datetime.now(timezone.utc)
+
+            if published < cutoff:
+                continue
+
+            url = f"https://arxiv.org/abs/{arxiv_id}"
+
+            summary_text = normalize_text(
+                str(paper_data.get("summary") or "")
+            )[:300]
+
+            authors = []
+            for a in paper_data.get("authors") or []:
+                name = ""
+                if isinstance(a, dict):
+                    name = a.get("name") or a.get("user", {}).get("fullname", "")
+                elif isinstance(a, str):
+                    name = a
+                if name:
+                    authors.append(name.strip())
+
+            upvotes = int(paper.get("upvotes") or paper_data.get("upvotes") or 0)
+            num_comments = int(paper.get("numComments") or 0)
+
+            item = NormalizedNewsItem(
+                source_key=source.source_key,
+                source_name=source.display_name,
+                source_type=source.source_type,
+                title=title[:300],
+                url=url,
+                canonical_url=canonicalize_url(url),
+                summary=summary_text,
+                published_at=published,
+                language="en",
+                author=", ".join(authors[:5]) if authors else None,
+                engagement={"upvotes": upvotes, "comments": num_comments},
+                payload={
+                    "provider": "huggingface",
+                    "kind": "research_paper",
+                    "arxiv_id": arxiv_id,
+                    "authors": authors[:10],
+                    "upvotes": upvotes,
+                    "num_comments": num_comments,
+                    "ai_keywords": paper_data.get("ai_keywords") or [],
+                    "github_repo": paper.get("githubRepo") or None,
+                    "github_stars": int(paper.get("githubStars") or 0) or None,
+                    "hf_url": f"https://huggingface.co/papers/{arxiv_id}",
+                },
                 source_weight=source.credibility_weight,
             ).with_external_id()
             items.append(item)
@@ -2866,6 +3017,8 @@ class DailyNewsIngestor:
                         items = await self._fetch_gnews_turkey(client, source, lookback_hours)
                     elif source.source_key == "startup_owned_feeds":
                         items = await self._fetch_startup_owned_sources(conn, client, source, lookback_hours)
+                    elif source.source_key == "huggingface_papers":
+                        items = await self._fetch_huggingface_papers(client, source, lookback_hours)
                     elif source.fetch_mode == "digest_rss":
                         items = await self._fetch_ainews_digest(client, source, lookback_hours)
                     elif source.fetch_mode == "crawler":
@@ -3687,6 +3840,7 @@ class DailyNewsIngestor:
                     if i.payload is None:
                         i.payload = {}
                     i.payload["turkey_priority"] = 1
+                    i.payload["turkey_classified_by"] = "heuristic"
                     result.append(i)
             return result
 
@@ -3715,6 +3869,7 @@ class DailyNewsIngestor:
                         if item.payload is None:
                             item.payload = {}
                         item.payload["turkey_priority"] = score
+                        item.payload["turkey_classified_by"] = "llm"
                         kept.append(item)
             else:
                 # Fallback: use keyword heuristic for this batch
@@ -3723,6 +3878,7 @@ class DailyNewsIngestor:
                         if item.payload is None:
                             item.payload = {}
                         item.payload["turkey_priority"] = 1
+                        item.payload["turkey_classified_by"] = "heuristic"
                         kept.append(item)
 
         return kept
@@ -5251,6 +5407,24 @@ class DailyNewsIngestor:
                     if tc:
                         turkey_clusters.append(tc)
 
+                # Funnel diagnostics: turkey cluster composition
+                _tr_llm_members = sum(
+                    1 for tc in turkey_clusters for m in tc.members
+                    if (m.payload or {}).get("turkey_classified_by") == "llm"
+                )
+                _tr_heur_members = sum(
+                    1 for tc in turkey_clusters for m in tc.members
+                    if (m.payload or {}).get("turkey_classified_by") == "heuristic"
+                )
+                _tr_uncl_members = sum(
+                    1 for tc in turkey_clusters for m in tc.members
+                    if not (m.payload or {}).get("turkey_classified_by")
+                )
+                print(
+                    f"[turkey-funnel] {len(turkey_clusters)} turkey clusters, "
+                    f"members: llm={_tr_llm_members} heuristic={_tr_heur_members} unclassified={_tr_uncl_members}"
+                )
+
                 # --- Memory gate: run per-region (global then turkey) ---
                 memory_stats_global = await self._run_memory_gate(conn, clusters, region="global")
                 memory_stats_turkey = await self._run_memory_gate(conn, turkey_clusters, region="turkey")
@@ -5380,6 +5554,32 @@ class DailyNewsIngestor:
                 await self._enrich_clusters_with_llm(clusters)
                 images_enriched = await self._enrich_missing_images(conn, clusters)
 
+                # Enrich turkey clusters with LLM too
+                if turkey_clusters:
+                    llm_metrics_global = dict(self._llm_metrics)
+                    self._signal_aggregator = _sig_agg_turkey
+                    await self._enrich_clusters_with_llm(turkey_clusters)
+                    images_enriched_tr = await self._enrich_missing_images(conn, turkey_clusters)
+                    images_enriched += images_enriched_tr
+                    self._signal_aggregator = _sig_agg_global
+                    # Merge LLM metrics from both regions
+                    llm_metrics_turkey = dict(self._llm_metrics)
+                    self._llm_metrics = {
+                        "enabled": llm_metrics_global.get("enabled", False),
+                        "model": llm_metrics_global.get("model", ""),
+                        "max_clusters": int(llm_metrics_global.get("max_clusters", 0)),
+                        "concurrency": int(llm_metrics_global.get("concurrency", 0)),
+                        "attempted": int(llm_metrics_global.get("attempted", 0)) + int(llm_metrics_turkey.get("attempted", 0)),
+                        "succeeded": int(llm_metrics_global.get("succeeded", 0)) + int(llm_metrics_turkey.get("succeeded", 0)),
+                        "failed": int(llm_metrics_global.get("failed", 0)) + int(llm_metrics_turkey.get("failed", 0)),
+                        "timeouts": int(llm_metrics_global.get("timeouts", 0)) + int(llm_metrics_turkey.get("timeouts", 0)),
+                        "skipped_by_gating": int(llm_metrics_global.get("skipped_by_gating", 0)) + int(llm_metrics_turkey.get("skipped_by_gating", 0)),
+                        "skipped_by_signal": int(llm_metrics_global.get("skipped_by_signal", 0)) + int(llm_metrics_turkey.get("skipped_by_signal", 0)),
+                        "latency_ms_p50": llm_metrics_global.get("latency_ms_p50", 0.0),
+                        "latency_ms_p95": max(llm_metrics_global.get("latency_ms_p95", 0.0), llm_metrics_turkey.get("latency_ms_p95", 0.0)),
+                        "latency_ms_avg": llm_metrics_global.get("latency_ms_avg", 0.0),
+                    }
+
                 raw_lookup = await self._build_raw_item_lookup(conn)
 
                 # Persist clusters per-region when supported. Otherwise fall back
@@ -5441,6 +5641,11 @@ class DailyNewsIngestor:
 
                 # Minimal editorial reduction for Turkey feed: hide "drop" clusters.
                 turkey_clusters_for_edition = [c for c in turkey_clusters if c.gating_decision != "drop"]
+                if len(turkey_clusters_for_edition) < 5:
+                    print(
+                        f"[turkey-funnel] WARNING: only {len(turkey_clusters_for_edition)} turkey clusters "
+                        f"for edition (from {len(turkey_clusters)} total) — thin edition"
+                    )
 
                 global_stats = await self._persist_edition(
                     conn,

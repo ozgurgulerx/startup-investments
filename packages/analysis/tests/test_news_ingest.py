@@ -9,7 +9,10 @@ from src.automation.news_ingest import (
     DailyNewsIngestor,
     NormalizedNewsItem,
     SourceDefinition,
+    StoryCluster,
+    _build_turkey_cluster,
     _is_relevant_turkey_news_item,
+    _is_relevant_turkey_news_item_strict,
     _parse_amazon_new_releases_html,
     _stable_external_id,
     _utc_midnight,
@@ -302,3 +305,132 @@ def test_parse_amazon_new_releases_html_ignores_bot_pages():
         max_items=10,
     )
     assert items == []
+
+
+# --- Turkey news quality tests ---
+
+
+def test_turkey_broad_heuristic_accepts_non_ai_fintech_funding():
+    """Non-AI Turkish fintech funding should pass the broad heuristic."""
+    item = NormalizedNewsItem(
+        source_key="webrazzi",
+        source_name="Webrazzi",
+        source_type="rss",
+        title="Türk fintech girişimi Papara 50 milyon dolar yatırım aldı",
+        url="https://webrazzi.com/papara-funding",
+        canonical_url="https://webrazzi.com/papara-funding",
+        summary="Papara seed turunda 50 milyon dolar yatırım aldı. Yatırımcılar arasında Sequoia var.",
+        published_at=datetime.now(timezone.utc),
+        language="tr",
+        payload={},
+        source_weight=0.74,
+    ).with_external_id()
+
+    assert _is_relevant_turkey_news_item(item) is True
+
+
+def test_turkey_broad_heuristic_rejects_generic_ai_article():
+    """Generic AI article without a named company should fail the broad heuristic."""
+    item = NormalizedNewsItem(
+        source_key="gnews_turkey",
+        source_name="GNews Turkey",
+        source_type="api",
+        title="How Students Are Using AI to Raise GPA Faster Than Ever",
+        url="https://turinq.com/ai-students-gpa",
+        canonical_url="https://turinq.com/ai-students-gpa",
+        summary="Students across Turkey are leveraging AI tools to study more efficiently and boost academic performance.",
+        published_at=datetime.now(timezone.utc),
+        language="en",
+        payload={},
+        source_weight=0.60,
+    ).with_external_id()
+
+    assert _is_relevant_turkey_news_item(item) is False
+
+
+def test_turkey_strict_heuristic_rejects_non_ai_content():
+    """The strict (AI-required) filter should reject non-AI startup content."""
+    item = NormalizedNewsItem(
+        source_key="webrazzi",
+        source_name="Webrazzi",
+        source_type="rss",
+        title="Türk fintech girişimi Papara 50 milyon dolar yatırım aldı",
+        url="https://webrazzi.com/papara-funding",
+        canonical_url="https://webrazzi.com/papara-funding",
+        summary="Papara seed turunda 50 milyon dolar yatırım aldı.",
+        published_at=datetime.now(timezone.utc),
+        language="tr",
+        payload={},
+        source_weight=0.74,
+    ).with_external_id()
+
+    assert _is_relevant_turkey_news_item_strict(item) is False
+
+
+def test_turkey_startup_owned_feeds_still_requires_ai():
+    """startup_owned_feeds should still require AI keywords (strict filter)."""
+    item = NormalizedNewsItem(
+        source_key="startup_owned_feeds",
+        source_name="Startup-Owned Sources",
+        source_type="crawler",
+        title="Papara launches new payment feature",
+        url="https://papara.com/blog/new-payment",
+        canonical_url="https://papara.com/blog/new-payment",
+        summary="A new payment solution for Turkish merchants.",
+        published_at=datetime.now(timezone.utc),
+        language="en",
+        payload={"startup_country": "Turkey"},
+        source_weight=0.79,
+    ).with_external_id()
+
+    # Broad heuristic delegates to strict for startup_owned_feeds
+    assert _is_relevant_turkey_news_item(item) is False
+
+
+def test_build_turkey_cluster_keeps_llm_classified_non_ai_item():
+    """Items with turkey_priority >= 1 from LLM should survive _build_turkey_cluster()
+    even if they lack AI keywords (e.g. a fintech funding round)."""
+    now = datetime.now(timezone.utc)
+    member = NormalizedNewsItem(
+        source_key="webrazzi",
+        source_name="Webrazzi",
+        source_type="rss",
+        title="Fintech girişimi Papara 50 milyon dolar yatırım aldı",
+        url="https://webrazzi.com/papara",
+        canonical_url="https://webrazzi.com/papara",
+        summary="Papara seed turunda yatırım aldı.",
+        published_at=now,
+        language="tr",
+        payload={"turkey_priority": 1, "turkey_classified_by": "llm"},
+        source_weight=0.74,
+    ).with_external_id()
+
+    cluster = StoryCluster(
+        cluster_key="test-cluster-1",
+        primary_source_key="webrazzi",
+        primary_external_id=member.external_id,
+        canonical_url=member.canonical_url,
+        title=member.title,
+        summary=member.summary,
+        published_at=now,
+        topic_tags=["funding"],
+        entities=["Papara"],
+        story_type="funding",
+        rank_score=0.5,
+        rank_reason="test",
+        trust_score=0.7,
+        builder_takeaway=None,
+        llm_summary=None,
+        llm_model=None,
+        llm_signal_score=None,
+        llm_confidence_score=None,
+        llm_topic_tags=[],
+        llm_story_type=None,
+        members=[member],
+    )
+
+    turkey_source_keys = {"webrazzi", "egirisim", "gnews_turkey", "newsapi_turkey"}
+    result = _build_turkey_cluster(cluster, turkey_source_keys)
+    assert result is not None
+    assert len(result.members) == 1
+    assert result.members[0].title == member.title
