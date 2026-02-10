@@ -53,7 +53,7 @@ Both the NIC-level and subnet-level NSGs need the rule — one alone is not enou
 
 **How it works:**
 - `runner.sh` wrapper: sources `/etc/buildatlas/.env`, flock locking, timeout, logging to `/var/log/buildatlas/`, Slack on failure
-- Code updates every 6 hours (`deploy.sh`): pulls latest, auto-triggers backend/frontend deploys if `apps/api/**` or `apps/web/**` changed
+- Code updates every 15 min (`deploy.sh`, staggered at :07/:22/:37/:52): pulls latest, auto-triggers backend/frontend deploys if `apps/api/**` or `apps/web/**` changed
 - `sync-data.sh` triggers `frontend-deploy.sh` after pushing data changes
 
 **Scheduled cron jobs (all UTC):**
@@ -64,9 +64,10 @@ Both the NIC-level and subnet-level NSGs need the rule — one alone is not enou
 | `news-ingest` | Hourly :15 | Fetch + LLM-enrich news articles |
 | `crawl-frontier` | Every 30 min | Crawl frontier URLs |
 | `news-digest` | Hourly :45 | Send email digests (timezone-aware, 08:45 local) |
+| `health-report` | Every 4 hours :45 | Infrastructure health summary to Slack (8 checks) |
 | `slack-summary` | Daily 14:00 | Ops summary to Slack |
-| `sync-data` | 30 min weekdays 8-20 | Blob sync → DB sync → logo extraction → git push → frontend deploy |
-| `code-update` | Every 6 hours | git pull → conditional backend/frontend deploy |
+| `sync-data` | 30 min all days | Blob sync → DB sync → logo extraction → git push → frontend deploy |
+| `code-update` | Every 15 min (staggered) | git pull → conditional backend/frontend deploy |
 | `heartbeat` | Every 5 min | VM health (disk, memory, cron, stale locks) |
 
 **Deploy jobs (triggered, not scheduled):**
@@ -86,6 +87,10 @@ runner.sh backend-deploy 15 /opt/buildatlas/startup-analysis/infrastructure/vm-c
 ```
 
 **Key files:** `infrastructure/vm-cron/` — `setup.sh`, `deploy.sh`, `lib/runner.sh`, `jobs/*.sh`, `monitoring/heartbeat.sh`, `.env.example`
+
+### LLM Model Policy
+
+All LLM calls MUST use `gpt-5-nano` via the `AZURE_OPENAI_DEPLOYMENT_NAME` env var. Never hardcode other model names as defaults. When adding new LLM-calling code, read from `AZURE_OPENAI_DEPLOYMENT_NAME` (or the centralized `AzureOpenAIConfig` in `packages/analysis/src/config.py`).
 
 ### Key URLs
 
@@ -198,7 +203,7 @@ database/migrations/ — SQL migration files
 
 ## Git Workflow
 
-Push after every change. Commit messages: concise and descriptive. The VM pulls code every 6 hours and auto-deploys if `apps/api/**` or `apps/web/**` changed. Functions and DB sync still deploy via GitHub Actions on push.
+Push after every change. Commit messages: concise and descriptive. The VM pulls code every 15 min and auto-deploys if `apps/api/**` or `apps/web/**` changed. Functions and DB sync still deploy via GitHub Actions on push.
 
 ## Frontend Styling (Do NOT)
 

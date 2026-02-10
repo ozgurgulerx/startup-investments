@@ -37,6 +37,8 @@ SETS = {
         "025_periodic_briefs.sql",
         # Phase 2: Refinery enhancements (scoring, gating, pattern/GTM tables)
         "026_refinery_enhancements.sql",
+        # Vector embeddings for semantic search (requires pgvector extension)
+        "028_pgvector_embeddings.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
@@ -53,6 +55,7 @@ SETS = {
         "024_regional_memory.sql",
         "025_periodic_briefs.sql",
         "026_refinery_enhancements.sql",
+        "028_pgvector_embeddings.sql",
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
     ],

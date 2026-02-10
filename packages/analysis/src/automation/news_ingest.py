@@ -15,6 +15,7 @@ import math
 import os
 import re
 import time
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -283,6 +284,16 @@ class SourceDefinition:
     language: str = ""  # override auto-detection (e.g. "en" for English Turkey sources)
 
 
+@dataclass
+class SourceFetchResult:
+    """Outcome of a single source fetch attempt for health tracking."""
+    source_key: str
+    success: bool
+    items_count: int = 0
+    duration_ms: int = 0
+    error: str = ""
+
+
 BOOL_TRUE = {"1", "true", "yes", "on"}
 
 
@@ -363,6 +374,8 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("amazon_new_releases_ai", "Amazon New Releases (AI Books)", "community", "amazon://new-releases", fetch_mode="api", credibility_weight=0.55),
     SourceDefinition("frontier_news", "Frontier News URLs", "crawler", "frontier://news", fetch_mode="crawler", credibility_weight=0.62),
     SourceDefinition("startup_owned_feeds", "Startup-Owned Sources", "crawler", "startup://owned", fetch_mode="crawler", credibility_weight=0.79),
+    # Newsletter digests (parsed into individual items)
+    SourceDefinition("ainews_digest", "AINews by swyx", "newsletter", "https://news.smol.ai/rss.xml", fetch_mode="digest_rss", credibility_weight=0.88, language="en"),
 ]
 
 
@@ -423,6 +436,8 @@ class StoryCluster:
     gating_gtm_tags: Optional[List[str]] = None
     gating_delivery_model: Optional[str] = None
     gating_reason: Optional[str] = None
+    # Research context (populated from news_clusters.research_context by prior research runs)
+    research_context: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -1249,6 +1264,14 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
         members=relevant_members,
     )
 
+    # Boost AI/ML-priority items (turkey_priority == 2) in Turkey edition ranking
+    has_ai_priority = any(
+        (m.payload or {}).get("turkey_priority", 0) >= 2
+        for m in relevant_members
+    )
+    if has_ai_priority:
+        rank_score = min(1.0, rank_score + 0.10)
+
     return StoryCluster(
         cluster_key=c.cluster_key,
         primary_source_key=primary.source_key,
@@ -1275,28 +1298,34 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
 
 
 _TURKEY_RELEVANCE_PROMPT = """\
-You are a relevance classifier for a Turkish AI startup intelligence feed.
+You are a relevance classifier for a Turkish tech startup intelligence feed.
 
-For each article, respond YES or NO.
+For each article, respond with a relevance score (0, 1, or 2):
 
-YES = Article is about AI/ML/tech startups in the Turkish ecosystem:
-- Turkish startups building or using AI/ML (funding, launch, M&A, hiring)
-- AI technology being applied by Turkish companies
-- Turkish tech policy or regulation related to AI
-- Turkish VC/investment activity in AI/tech startups
-- AI infrastructure, research, or tooling with clear Turkish ecosystem relevance
+2 = HIGH PRIORITY: AI/ML startup activity in the Turkish ecosystem
+  - Turkish startups building or using AI/ML (funding, launch, M&A, product, hiring)
+  - AI technology applied by Turkish companies
+  - Turkish tech policy or regulation related to AI
+  - Turkish VC/investment in AI/tech startups
 
-NO = Not relevant:
-- Consumer tech (phone reviews, app updates, streaming services)
-- Big-tech global product news without Turkish ecosystem impact
-- General business/economy not involving tech startups or AI
-- Non-Turkish startup news that happens to be in Turkish language
-- Generic tech tutorials, listicles, or opinion pieces without startup/AI substance
+1 = RELEVANT: Turkish tech/startup ecosystem news (not necessarily AI)
+  - Turkish startups: funding rounds, launches, M&A, expansion, hiring
+  - Turkish VC and investment activity in tech
+  - Fintech, SaaS, e-commerce, deep-tech, biotech startups from Turkey
+  - Turkish tech policy, regulation, or ecosystem developments
+  - Accelerator/incubator programs in Turkey
+
+0 = IRRELEVANT: Not about the Turkish tech/startup ecosystem
+  - Consumer tech (phone reviews, app updates, streaming services)
+  - Big-tech global product news without Turkish ecosystem impact
+  - General business/economy not involving tech startups
+  - Non-Turkish startup news that happens to be in Turkish language
+  - Generic tech tutorials, listicles, or opinion pieces
 
 Articles:
 {articles}
 
-Respond ONLY with a JSON array of booleans, one per article. Example: [true, false, true]"""
+Respond ONLY with a JSON array of integers (0, 1, or 2), one per article. Example: [2, 0, 1]"""
 
 
 def build_builder_takeaway(*, story_type: str, tags: Sequence[str], title: str, summary: str, entities: Sequence[str]) -> str:
@@ -1383,7 +1412,7 @@ class DailyNewsIngestor:
         # Safety net: if the configured deployment doesn't exist (404) or has
         # incompatible parameters, we try this fallback.
         self.azure_openai_fallback_deployment = (
-            os.getenv("AZURE_OPENAI_FALLBACK_DEPLOYMENT_NAME") or "gpt-4o"
+            os.getenv("AZURE_OPENAI_FALLBACK_DEPLOYMENT_NAME") or "gpt-5-nano"
         )
         # Embedding deployment for semantic search (text-embedding-3-small)
         self.azure_openai_embedding_deployment = (
@@ -1704,6 +1733,47 @@ class DailyNewsIngestor:
                 break
 
         return items
+
+    async def _fetch_ainews_digest(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        """Fetch AINews newsletter via RSS and parse each digest into individual items."""
+        if feedparser is None:
+            return []
+
+        from .ainews_parser import AINewsDigestParser
+
+        resp = await client.get(source.base_url)
+        resp.raise_for_status()
+        parsed = feedparser.parse(resp.text)
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        parser = AINewsDigestParser()
+        all_items: List[NormalizedNewsItem] = []
+
+        for entry in parsed.entries[:5]:
+            published = parse_entry_datetime(entry) or datetime.now(timezone.utc)
+            if published < cutoff:
+                continue
+
+            # Get full HTML content from content:encoded
+            html = ""
+            content_list = entry.get("content", [])
+            if content_list and isinstance(content_list, list):
+                html = content_list[0].get("value", "")
+            if not html:
+                html = entry.get("summary", entry.get("description", ""))
+            if not html:
+                continue
+
+            link = entry.get("link", source.base_url)
+            try:
+                items = parser.parse_digest(html, published, link)
+                all_items.extend(items)
+            except Exception as exc:
+                print(f"[news-ingest] ainews_digest: failed to parse entry {link}: {exc}")
+                continue
+
+        print(f"[news-ingest] ainews_digest: extracted {len(all_items)} items from {len(parsed.entries)} RSS entries")
+        return all_items
 
     async def _fetch_hackernews_api(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         # Lightweight enrichment from official HN API.
@@ -2705,15 +2775,17 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
-    async def _collect_items(self, conn: asyncpg.Connection, lookback_hours: int) -> Tuple[List[NormalizedNewsItem], List[str], int]:
+    async def _collect_items(self, conn: asyncpg.Connection, lookback_hours: int) -> Tuple[List[NormalizedNewsItem], List[str], int, List[SourceFetchResult]]:
         errors: List[str] = []
         attempted = 0
         collected: List[NormalizedNewsItem] = []
+        fetch_results: List[SourceFetchResult] = []
 
         timeout = httpx.Timeout(self.http_timeout)
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers={"User-Agent": "BuildAtlasNewsBot/2026 (+https://buildatlas.net)"}) as client:
             for source in DEFAULT_SOURCES:
                 attempted += 1
+                t0 = time.monotonic()
                 try:
                     if source.fetch_mode == "rss":
                         items = await self._fetch_rss_source(client, source, lookback_hours)
@@ -2735,6 +2807,8 @@ class DailyNewsIngestor:
                         items = await self._fetch_gnews_turkey(client, source, lookback_hours)
                     elif source.source_key == "startup_owned_feeds":
                         items = await self._fetch_startup_owned_sources(conn, client, source, lookback_hours)
+                    elif source.fetch_mode == "digest_rss":
+                        items = await self._fetch_ainews_digest(client, source, lookback_hours)
                     elif source.fetch_mode == "crawler":
                         items = await self._fetch_frontier_candidates(conn, client, source, lookback_hours)
                     else:
@@ -2747,10 +2821,22 @@ class DailyNewsIngestor:
                         pre_llm = len(items)
                         items = await self._llm_classify_turkey_relevance(items, source.source_key)
                         if pre_filter > 0 or (source.region or "global") == "turkey":
-                            print(f"[news-ingest] {source.source_key}: {pre_filter} fetched → {pre_llm} prefilter → {len(items)} LLM-passed")
+                            hi = sum(1 for i in items if (i.payload or {}).get("turkey_priority", 0) >= 2)
+                            lo = len(items) - hi
+                            print(f"[news-ingest] {source.source_key}: {pre_filter} fetched → {pre_llm} prefilter → {len(items)} LLM-passed (ai={hi} other={lo})")
 
+                    elapsed_ms = int((time.monotonic() - t0) * 1000)
+                    fetch_results.append(SourceFetchResult(
+                        source_key=source.source_key, success=True,
+                        items_count=len(items), duration_ms=elapsed_ms,
+                    ))
                     collected.extend(items)
                 except Exception as exc:
+                    elapsed_ms = int((time.monotonic() - t0) * 1000)
+                    fetch_results.append(SourceFetchResult(
+                        source_key=source.source_key, success=False,
+                        duration_ms=elapsed_ms, error=str(exc)[:500],
+                    ))
                     errors.append(f"{source.source_key}: {exc}")
 
         # Canonical dedupe pass by source_key + canonical + title fingerprint
@@ -2763,7 +2849,7 @@ class DailyNewsIngestor:
             seen.add(key)
             deduped.append(item)
 
-        return deduped, errors, attempted
+        return deduped, errors, attempted, fetch_results
 
     async def _insert_raw_items(self, conn: asyncpg.Connection, items: Sequence[NormalizedNewsItem]) -> int:
         source_ids = await self._get_source_id_map(conn)
@@ -2810,6 +2896,113 @@ class DailyNewsIngestor:
                 inserted += 1
 
         return inserted
+
+    # ------------------------------------------------------------------
+    # Source health tracking
+    # ------------------------------------------------------------------
+
+    async def _update_source_health(
+        self, conn: asyncpg.Connection, results: List[SourceFetchResult]
+    ) -> None:
+        """Persist per-source fetch outcomes to news_sources for monitoring."""
+        if not results:
+            return
+        try:
+            for r in results:
+                if r.success:
+                    await conn.execute(
+                        """
+                        UPDATE news_sources SET
+                            last_fetch_at = NOW(),
+                            last_success_at = NOW(),
+                            consecutive_failures = 0,
+                            total_fetches = total_fetches + 1,
+                            total_successes = total_successes + 1,
+                            last_items_fetched = $2,
+                            last_fetch_duration_ms = $3
+                        WHERE source_key = $1
+                        """,
+                        r.source_key, r.items_count, r.duration_ms,
+                    )
+                else:
+                    await conn.execute(
+                        """
+                        UPDATE news_sources SET
+                            last_fetch_at = NOW(),
+                            last_error_at = NOW(),
+                            last_error = $2,
+                            consecutive_failures = consecutive_failures + 1,
+                            total_fetches = total_fetches + 1,
+                            last_fetch_duration_ms = $3
+                        WHERE source_key = $1
+                        """,
+                        r.source_key, r.error, r.duration_ms,
+                    )
+        except Exception as exc:
+            # Backward compat: migration may not be applied yet
+            print(f"[news-ingest] source health update skipped (migration pending?): {exc}")
+
+    async def _check_source_alerts(self, conn: asyncpg.Connection) -> None:
+        """Send Slack alert when sources hit 5+ consecutive failures (24h dedup)."""
+        webhook = os.getenv("SLACK_WEBHOOK_URL", "")
+        if not webhook:
+            return
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT source_key, display_name, consecutive_failures, last_error,
+                       last_success_at, last_error_at
+                FROM news_sources
+                WHERE is_active = true
+                  AND consecutive_failures >= 5
+                  AND (last_alerted_at IS NULL
+                       OR last_alerted_at < NOW() - INTERVAL '24 hours')
+                ORDER BY consecutive_failures DESC
+                """
+            )
+            if not rows:
+                return
+
+            blocks = [
+                {"type": "header", "text": {"type": "plain_text", "text": "🚨 News Source Alert"}},
+                {"type": "section", "text": {"type": "mrkdwn", "text": (
+                    f"*{len(rows)} source(s)* with 5+ consecutive failures:"
+                )}},
+            ]
+            for row in rows[:10]:  # cap at 10 to avoid Slack block limits
+                last_ok = row["last_success_at"]
+                ok_str = last_ok.strftime("%Y-%m-%d %H:%M UTC") if last_ok else "never"
+                err_preview = (row["last_error"] or "")[:120]
+                blocks.append({
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": (
+                        f"*{row['display_name']}* (`{row['source_key']}`)\n"
+                        f"Failures: {row['consecutive_failures']} | Last OK: {ok_str}\n"
+                        f"Error: _{err_preview}_"
+                    )},
+                })
+
+            payload = json.dumps({"blocks": blocks})
+            req = urllib.request.Request(
+                webhook,
+                data=payload.encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=10)
+            print(f"[news-ingest] Slack alert sent for {len(rows)} down source(s)")
+
+            # Dedup: mark alerted
+            keys = [row["source_key"] for row in rows]
+            await conn.execute(
+                """
+                UPDATE news_sources SET last_alerted_at = NOW()
+                WHERE source_key = ANY($1::text[])
+                """,
+                keys,
+            )
+        except Exception as exc:
+            print(f"[news-ingest] source alert check failed: {exc}")
 
     async def _load_recent_items(self, conn: asyncpg.Connection, lookback_hours: int) -> List[NormalizedNewsItem]:
         since = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
@@ -3164,6 +3357,16 @@ class DailyNewsIngestor:
                 enrichment["has_conflicting_reports"] = True
             return enrichment
 
+        def _research_enrichment(c: StoryCluster) -> Dict[str, Any]:
+            """Include web research findings when available."""
+            rc = getattr(c, "research_context", None)
+            if not rc or not isinstance(rc, dict):
+                return {}
+            findings = rc.get("key_findings")
+            if findings:
+                return {"web_research": findings[:3]}
+            return {}
+
         user_payload = {
             "edition_date": edition_date.isoformat(),
             "top_clusters": [
@@ -3176,6 +3379,7 @@ class DailyNewsIngestor:
                     "trust_score": float(round(c.trust_score, 4)),
                     "source_count": int(len(c.members)),
                     **_memory_enrichment(c),
+                    **_research_enrichment(c),
                 }
                 for c in top_clusters
             ],
@@ -3212,7 +3416,7 @@ class DailyNewsIngestor:
             if not headline:
                 return None
 
-            return {
+            brief_result: Dict[str, Any] = {
                 "headline": headline,
                 "summary": summary,
                 "bullets": bullets,
@@ -3220,6 +3424,23 @@ class DailyNewsIngestor:
                 "cluster_count": top_n,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
+
+            # Add deep dives from researched clusters (max 2)
+            deep_dives: List[Dict[str, Any]] = []
+            for c in top_clusters:
+                rc = getattr(c, "research_context", None)
+                if rc and isinstance(rc, dict) and rc.get("deep_dive_markdown"):
+                    deep_dives.append({
+                        "title": c.title,
+                        "body": rc["deep_dive_markdown"],
+                        "sources": rc.get("sources_used", []),
+                    })
+                    if len(deep_dives) >= 2:
+                        break
+            if deep_dives:
+                brief_result["deep_dives"] = deep_dives
+
+            return brief_result
 
         print(f"[news-ingest] generating daily brief for {edition_date} ({len(top_clusters)} clusters)")
 
@@ -3389,10 +3610,11 @@ class DailyNewsIngestor:
     async def _llm_classify_turkey_relevance(
         self, items: List["NormalizedNewsItem"], source_key: str = ""
     ) -> List["NormalizedNewsItem"]:
-        """Classify Turkey news items for AI/startup relevance using LLM.
+        """Classify Turkey news items for tech/startup relevance using LLM.
 
-        Sends items in batches of 20 to gpt-4o-mini. On failure, falls back to
-        the keyword-based heuristic ``_is_relevant_turkey_news_item()``.
+        Returns items with score >= 1 (broader tech/startup ecosystem).
+        Score 2 (AI/ML) items get a turkey_priority payload flag for ranking boost.
+        Sends items in batches of 20. On failure, falls back to keyword heuristic.
         """
         if not items:
             return []
@@ -3400,7 +3622,14 @@ class DailyNewsIngestor:
         # No LLM provider → fall back to keyword heuristic
         if not self.azure_client and not self.openai_api_key:
             print(f"[news-ingest] {source_key}: LLM unavailable, falling back to keyword filter")
-            return [i for i in items if _is_relevant_turkey_news_item(i)]
+            result = []
+            for i in items:
+                if _is_relevant_turkey_news_item(i):
+                    if i.payload is None:
+                        i.payload = {}
+                    i.payload["turkey_priority"] = 1
+                    result.append(i)
+            return result
 
         BATCH_SIZE = 20
         kept: List["NormalizedNewsItem"] = []
@@ -3415,25 +3644,31 @@ class DailyNewsIngestor:
             articles_text = "\n".join(article_lines)
             prompt_text = _TURKEY_RELEVANCE_PROMPT.format(articles=articles_text)
 
-            classifications: Optional[List[bool]] = None
+            classifications: Optional[List[int]] = None
             try:
                 classifications = await self._call_turkey_classifier_llm(prompt_text, len(batch))
             except Exception as exc:
                 print(f"[news-ingest] {source_key}: LLM turkey classification failed: {exc}")
 
             if classifications is not None and len(classifications) == len(batch):
-                for item, is_relevant in zip(batch, classifications):
-                    if is_relevant:
+                for item, score in zip(batch, classifications):
+                    if score >= 1:
+                        if item.payload is None:
+                            item.payload = {}
+                        item.payload["turkey_priority"] = score
                         kept.append(item)
             else:
                 # Fallback: use keyword heuristic for this batch
                 for item in batch:
                     if _is_relevant_turkey_news_item(item):
+                        if item.payload is None:
+                            item.payload = {}
+                        item.payload["turkey_priority"] = 1
                         kept.append(item)
 
         return kept
 
-    async def _call_turkey_classifier_llm(self, prompt: str, expected_count: int) -> Optional[List[bool]]:
+    async def _call_turkey_classifier_llm(self, prompt: str, expected_count: int) -> Optional[List[int]]:
         """Call Azure OpenAI (or OpenAI fallback) with the turkey relevance prompt."""
         messages = [{"role": "user", "content": prompt}]
 
@@ -3491,8 +3726,11 @@ class DailyNewsIngestor:
         return None
 
     @staticmethod
-    def _parse_classification_response(content: str, expected_count: int) -> Optional[List[bool]]:
-        """Parse LLM JSON response into a list of booleans."""
+    def _parse_classification_response(content: str, expected_count: int) -> Optional[List[int]]:
+        """Parse LLM JSON response into a list of relevance scores (0/1/2).
+
+        Backwards-compatible: boolean true→1, false→0.
+        """
         try:
             parsed = json.loads(content)
             # Handle both bare array and wrapped object (e.g. {"results": [...]})
@@ -3505,7 +3743,12 @@ class DailyNewsIngestor:
                     return None
             else:
                 return None
-            result = [bool(v) for v in arr]
+            result: List[int] = []
+            for v in arr:
+                if isinstance(v, bool):
+                    result.append(1 if v else 0)
+                else:
+                    result.append(max(0, min(2, int(v))))
             if len(result) != expected_count:
                 return None
             return result
@@ -3517,16 +3760,19 @@ class DailyNewsIngestor:
             return LLMEnrichmentResult(None, None, None, None, None, None, None, error_code="no_provider")
 
         prompt = (
-            "You are an analyst writing 1-sentence builder takeaways for startup news. "
-            "A builder takeaway is a practical, specific insight for technical founders and engineers. "
-            "It must reference the specific company or technology by name, not use generic advice. "
-            "BAD: 'Prioritize defensible data and eval quality over model-chasing.' (too generic) "
-            "GOOD: 'Cursor\\'s $100M raise validates AI-native IDEs — builders should watch whether "
-            "they lock in proprietary UX or stay model-agnostic, as that determines switching cost.' "
-            "GOOD: 'Stripe\\'s acquisition signals payment infra consolidation — if you depend on "
-            "competing APIs, evaluate migration paths now before integration points disappear.' "
+            "You are a startup intelligence analyst writing 1-sentence briefs that explain "
+            "why a news story matters — for both builders (technical founders, engineers) "
+            "and investors (VCs, angels). "
+            "The brief must reference the specific company or technology by name. "
+            "BAD: 'This funding round shows strong market interest.' (too generic) "
+            "GOOD: 'Cursor\\'s $100M raise at $2.5B validates AI-native IDEs as a category — "
+            "builders should watch lock-in risk; investors should note the 10x ARR multiple "
+            "setting valuation benchmarks.' "
+            "GOOD: 'Stripe\\'s acquisition of Lemon Squeezy signals payment infra consolidation — "
+            "builders on competing APIs should evaluate migration paths; investors should track "
+            "margin compression in the middleware layer.' "
             "Return strict JSON with ALL of these keys (every key is REQUIRED): "
-            "builder_takeaway (<=140 chars, specific and actionable — THIS IS THE MOST IMPORTANT FIELD), "
+            "builder_takeaway (<=200 chars, specific — THIS IS THE MOST IMPORTANT FIELD), "
             "summary (<=160 chars), "
             "story_type (funding|launch|mna|regulation|hiring|news), "
             "topic_tags (array of up to 6 lowercase tags), "
@@ -3544,11 +3790,18 @@ class DailyNewsIngestor:
             "current_rank_score": cluster.rank_score,
             "current_trust_score": cluster.trust_score,
         }
+        # Inject web research context when available (from prior research run)
+        if cluster.research_context:
+            rc = cluster.research_context
+            user_payload["web_research_findings"] = {
+                "key_findings": rc.get("key_findings", []),
+                "builder_implications": rc.get("builder_implications", ""),
+            }
         debug_llm = os.getenv("NEWS_LLM_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
 
         def parse_llm_payload(parsed: Dict[str, Any], model_label: Optional[str]) -> LLMEnrichmentResult:
             llm_summary = _shorten_text(str(parsed.get("summary") or ""), 180) or None
-            builder_takeaway = _shorten_text(str(parsed.get("builder_takeaway") or ""), 150) or None
+            builder_takeaway = _shorten_text(str(parsed.get("builder_takeaway") or ""), 220) or None
             signal_score = clamp01(parsed.get("signal_score"), default=None)
             confidence_score = clamp01(parsed.get("confidence_score"), default=None)
             llm_topic_tags = normalize_llm_topic_tags(parsed.get("topic_tags"), cluster.topic_tags)
@@ -4163,6 +4416,33 @@ class DailyNewsIngestor:
 
         return persisted
 
+    async def _enqueue_hot_topic_research(
+        self,
+        conn: "asyncpg.Connection",
+        clusters: Sequence[StoryCluster],
+        cluster_ids: Dict[str, str],
+        region: str = "global",
+    ) -> int:
+        """Detect hot topics and enqueue them for async web research."""
+        try:
+            from .topic_researcher import TopicResearcher, detect_hot_topics
+        except ImportError:
+            return 0
+
+        try:
+            topics = detect_hot_topics(clusters, cluster_ids, max_topics=5)
+            if not topics:
+                return 0
+
+            researcher = TopicResearcher.__new__(TopicResearcher)
+            enqueued = await researcher.enqueue(conn, topics, region=region)
+            if enqueued:
+                print(f"[topic-research:{region}] enqueued {enqueued} hot topics for research")
+            return enqueued
+        except Exception as exc:
+            print(f"[topic-research:{region}] enqueue failed (table may not exist yet): {exc}")
+            return 0
+
     async def _persist_clusters(
         self,
         conn: asyncpg.Connection,
@@ -4336,6 +4616,59 @@ class DailyNewsIngestor:
 
         return cluster_ids
 
+    async def _load_research_context(
+        self,
+        conn: "asyncpg.Connection",
+        clusters: Sequence[StoryCluster],
+        region: str = "global",
+    ) -> int:
+        """Load research_context from DB and attach to cluster objects.
+
+        Queries by cluster_key so it can run before cluster persistence.
+        This picks up research output written by the research worker between
+        pipeline runs, so LLM enrichment and daily briefs can use it.
+        """
+        key_to_cluster: Dict[str, StoryCluster] = {}
+        keys: List[str] = []
+        for c in clusters:
+            if c.cluster_key:
+                key_to_cluster[c.cluster_key] = c
+                keys.append(c.cluster_key)
+        if not keys:
+            return 0
+
+        loaded = 0
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT cluster_key, research_context
+                FROM news_clusters
+                WHERE cluster_key = ANY($1::text[])
+                  AND region = $2
+                  AND research_context IS NOT NULL
+                """,
+                keys,
+                region,
+            )
+            for row in rows:
+                ck = row["cluster_key"]
+                rc = row["research_context"]
+                cluster = key_to_cluster.get(ck)
+                if cluster and rc:
+                    if isinstance(rc, str):
+                        try:
+                            cluster.research_context = json.loads(rc)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                    elif isinstance(rc, dict):
+                        cluster.research_context = rc
+                    if cluster.research_context:
+                        loaded = loaded + 1
+        except Exception as exc:
+            print(f"[topic-research] load research_context failed: {exc}")
+
+        return loaded
+
     async def _persist_edition(
         self,
         conn: asyncpg.Connection,
@@ -4499,10 +4832,12 @@ class DailyNewsIngestor:
                 await self._sync_source_activity(conn, DEFAULT_SOURCES)
 
                 if not rebuild_only:
-                    collected, collect_errors, sources_attempted = await self._collect_items(conn, lookback_hours)
+                    collected, collect_errors, sources_attempted, fetch_results = await self._collect_items(conn, lookback_hours)
                     errors.extend(collect_errors)
                     items_fetched = len(collected)
                     items_kept = await self._insert_raw_items(conn, collected)
+                    await self._update_source_health(conn, fetch_results)
+                    await self._check_source_alerts(conn)
 
                 items_for_clustering = await self._load_recent_items(conn, lookback_hours)
                 clusters = self._cluster_items(items_for_clustering)
@@ -4534,6 +4869,12 @@ class DailyNewsIngestor:
                     "turkey": gating_stats_turkey,
                 }
 
+                # --- Load research context from prior research runs ---
+                research_loaded_global = await self._load_research_context(conn, clusters, region="global")
+                research_loaded_turkey = await self._load_research_context(conn, turkey_clusters, region="turkey")
+                if research_loaded_global or research_loaded_turkey:
+                    print(f"[topic-research] loaded research context: global={research_loaded_global} turkey={research_loaded_turkey}")
+
                 # Enrich all clusters with LLM (gated by NEWS_LLM_MAX_CLUSTERS)
                 await self._enrich_clusters_with_llm(clusters)
                 images_enriched = await self._enrich_missing_images(conn, clusters)
@@ -4560,6 +4901,14 @@ class DailyNewsIngestor:
                 gating_persisted_global = await self._persist_gating_decisions(conn, clusters, cluster_ids_global, region="global")
                 gating_persisted_turkey = await self._persist_gating_decisions(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
                 gating_stats["decisions_persisted"] = gating_persisted_global + gating_persisted_turkey
+
+                # --- Enqueue hot topics for async research ---
+                research_enqueued = await self._enqueue_hot_topic_research(
+                    conn, clusters, cluster_ids_global, region="global"
+                )
+                research_enqueued_tr = await self._enqueue_hot_topic_research(
+                    conn, turkey_clusters, cluster_ids_turkey, region="turkey"
+                )
 
                 # --- Embed clusters (non-blocking) ---
                 embed_stats = await self._embed_clusters(conn, clusters, cluster_ids_global)
@@ -4594,6 +4943,7 @@ class DailyNewsIngestor:
                     "gating": gating_stats,
                     "embedding": embed_stats,
                     "related_clusters_populated": related_count,
+                    "research_enqueued": research_enqueued + research_enqueued_tr,
                 }
 
                 result = {

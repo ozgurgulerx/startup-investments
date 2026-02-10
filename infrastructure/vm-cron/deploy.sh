@@ -68,7 +68,11 @@ git pull --ff-only origin main
 
 # Restore stashed tracked-file changes (if any)
 if [ "$STASHED" = "true" ]; then
-    git stash pop 2>/dev/null || echo "Warning: git stash pop failed (conflict?). Stash preserved."
+    if ! git stash pop 2>/dev/null; then
+        echo "ERROR: git stash pop failed (merge conflict). Aborting deploy."
+        git stash drop 2>/dev/null || true
+        exit 1
+    fi
 fi
 
 # Keep cron current even if the crontab file itself didn't change in this pull.
@@ -114,6 +118,11 @@ chmod +x "$REPO_DIR/infrastructure/vm-cron/monitoring/"*.sh 2>/dev/null || true
 
 RUNNER="$REPO_DIR/infrastructure/vm-cron/lib/runner.sh"
 JOBS_DIR="$REPO_DIR/infrastructure/vm-cron/jobs"
+
+# Release git lock before potentially long-running deploys.
+# All git operations (pull, stash pop) are done; holding the lock through
+# backend/frontend deploys (5-20 min) would block sync-data.sh unnecessarily.
+exec 201>&-
 
 # Apply database migrations if new migration files were added
 if echo "$CHANGED_FILES" | grep -qE '^database/migrations/'; then
