@@ -78,15 +78,15 @@ function relativeTime(iso: string | null): string {
 }
 
 function statusColor(failures: number): string {
-  if (failures === 0) return 'text-emerald-400';
-  if (failures < 5) return 'text-amber-400';
-  return 'text-red-400';
+  if (failures === 0) return 'text-success';
+  if (failures < 5) return 'text-warning';
+  return 'text-destructive';
 }
 
 function statusDot(failures: number): string {
-  if (failures === 0) return 'bg-emerald-400';
-  if (failures < 5) return 'bg-amber-400';
-  return 'bg-red-400';
+  if (failures === 0) return 'bg-success';
+  if (failures < 5) return 'bg-warning';
+  return 'bg-destructive';
 }
 
 function statusLabel(failures: number): string {
@@ -171,10 +171,8 @@ export default function MonitoringPage() {
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b border-border/30">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Crawl Monitoring</h1>
-          <p className="text-sm text-muted-foreground">
-            Per-source health and frontier domain status
-          </p>
+          <p className="label-xs text-accent-info">Crawl Monitoring</p>
+          <h1 className="headline-lg">Per-source health and frontier domain status</h1>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground/60">
@@ -196,7 +194,7 @@ export default function MonitoringPage() {
 
       {/* Error */}
       {error && (
-        <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+        <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm">
           Failed to load monitoring data: {error}
         </div>
       )}
@@ -205,23 +203,23 @@ export default function MonitoringPage() {
       {sourcesData && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="p-4 bg-card border-border/40">
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Healthy</div>
-            <div className="text-2xl font-bold text-emerald-400 mt-1">{sourcesData.summary.healthy}</div>
+            <div className="label-xs">Healthy</div>
+            <div className="text-2xl font-light text-success mt-1">{sourcesData.summary.healthy}</div>
             <div className="text-xs text-muted-foreground/60 mt-0.5">0 failures</div>
           </Card>
           <Card className="p-4 bg-card border-border/40">
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Degraded</div>
-            <div className="text-2xl font-bold text-amber-400 mt-1">{sourcesData.summary.degraded}</div>
+            <div className="label-xs">Degraded</div>
+            <div className="text-2xl font-light text-warning mt-1">{sourcesData.summary.degraded}</div>
             <div className="text-xs text-muted-foreground/60 mt-0.5">1–4 failures</div>
           </Card>
           <Card className="p-4 bg-card border-border/40">
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Down</div>
-            <div className="text-2xl font-bold text-red-400 mt-1">{sourcesData.summary.down}</div>
+            <div className="label-xs">Down</div>
+            <div className="text-2xl font-light text-destructive mt-1">{sourcesData.summary.down}</div>
             <div className="text-xs text-muted-foreground/60 mt-0.5">5+ failures</div>
           </Card>
           <Card className="p-4 bg-card border-border/40">
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Last Ingestion</div>
-            <div className="text-lg font-bold text-foreground mt-1">
+            <div className="label-xs">Last Ingestion</div>
+            <div className="text-lg font-light text-foreground mt-1">
               {sourcesData.lastRun ? relativeTime(sourcesData.lastRun.started_at) : '—'}
             </div>
             {sourcesData.lastRun && (
@@ -234,23 +232,23 @@ export default function MonitoringPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border/30">
+      <div className="flex items-center gap-1.5 rounded-full border border-border/40 bg-muted/15 p-0.5 w-fit">
         <button
           onClick={() => setTab('sources')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
             tab === 'sources'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'text-accent-info bg-accent-info/10 border border-accent-info/25'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/25 border border-transparent'
           }`}
         >
           News Sources{sourcesData ? ` (${sourcesData.summary.total})` : ''}
         </button>
         <button
           onClick={() => setTab('frontier')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
             tab === 'frontier'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'text-accent-info bg-accent-info/10 border border-accent-info/25'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/25 border border-transparent'
           }`}
         >
           Frontier Domains{frontierData ? ` (${frontierData.summary.totalDomains})` : ''}
@@ -329,21 +327,21 @@ export default function MonitoringPage() {
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="p-4 bg-card border-border/40">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">Domains</div>
-              <div className="text-2xl font-bold text-foreground mt-1">{frontierData.summary.totalDomains}</div>
+              <div className="label-xs">Domains</div>
+              <div className="text-2xl font-light text-foreground mt-1">{frontierData.summary.totalDomains}</div>
             </Card>
             <Card className="p-4 bg-card border-border/40">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">Blocked</div>
-              <div className="text-2xl font-bold text-red-400 mt-1">{frontierData.summary.blocked}</div>
+              <div className="label-xs">Blocked</div>
+              <div className="text-2xl font-light text-destructive mt-1">{frontierData.summary.blocked}</div>
             </Card>
             <Card className="p-4 bg-card border-border/40">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">High Block Rate</div>
-              <div className="text-2xl font-bold text-amber-400 mt-1">{frontierData.summary.highBlockRate}</div>
+              <div className="label-xs">High Block Rate</div>
+              <div className="text-2xl font-light text-warning mt-1">{frontierData.summary.highBlockRate}</div>
               <div className="text-xs text-muted-foreground/60 mt-0.5">&gt;50% blocked</div>
             </Card>
             <Card className="p-4 bg-card border-border/40">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">Total URLs</div>
-              <div className="text-2xl font-bold text-foreground mt-1">
+              <div className="label-xs">Total URLs</div>
+              <div className="text-2xl font-light text-foreground mt-1">
                 {frontierData.summary.totalUrls.toLocaleString()}
               </div>
             </Card>
@@ -373,11 +371,11 @@ export default function MonitoringPage() {
                     </td>
                     <td className="py-2 px-2">
                       {d.blocked ? (
-                        <span className="px-1.5 py-0.5 text-xs rounded bg-red-500/15 text-red-400">blocked</span>
+                        <span className="px-1.5 py-0.5 text-xs rounded bg-destructive/15 text-destructive">blocked</span>
                       ) : d.block_rate > 0.5 ? (
-                        <span className="px-1.5 py-0.5 text-xs rounded bg-amber-500/15 text-amber-400">degraded</span>
+                        <span className="px-1.5 py-0.5 text-xs rounded bg-warning/15 text-warning">degraded</span>
                       ) : (
-                        <span className="px-1.5 py-0.5 text-xs rounded bg-emerald-500/15 text-emerald-400">ok</span>
+                        <span className="px-1.5 py-0.5 text-xs rounded bg-success/15 text-success">ok</span>
                       )}
                     </td>
                     <td className="py-2 px-2">
@@ -385,7 +383,7 @@ export default function MonitoringPage() {
                         <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
-                              d.block_rate > 0.5 ? 'bg-red-400' : d.block_rate > 0.2 ? 'bg-amber-400' : 'bg-emerald-400'
+                              d.block_rate > 0.5 ? 'bg-destructive' : d.block_rate > 0.2 ? 'bg-warning' : 'bg-success'
                             }`}
                             style={{ width: `${Math.min(d.block_rate * 100, 100)}%` }}
                           />

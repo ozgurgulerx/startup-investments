@@ -38,16 +38,16 @@ const SEVERITY_CONFIG: Record<Severity, {
   iconClass: string;
 }> = {
   high: {
-    bgClass: 'bg-red-500/10',
-    textClass: 'text-red-400',
-    borderClass: 'border-red-500/20',
-    iconClass: 'text-red-400',
+    bgClass: 'bg-destructive/10',
+    textClass: 'text-destructive',
+    borderClass: 'border-destructive/20',
+    iconClass: 'text-destructive',
   },
   medium: {
-    bgClass: 'bg-amber-500/10',
-    textClass: 'text-amber-400',
-    borderClass: 'border-amber-500/20',
-    iconClass: 'text-amber-400',
+    bgClass: 'bg-warning/10',
+    textClass: 'text-warning',
+    borderClass: 'border-warning/20',
+    iconClass: 'text-warning',
   },
   low: {
     bgClass: 'bg-muted/30',

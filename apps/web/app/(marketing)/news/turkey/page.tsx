@@ -1,16 +1,30 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { getNewsEdition, getNewsTopics } from '@/lib/data/news';
+import { getNewsEdition, getNewsTopics, getPeriodicBrief } from '@/lib/data/news';
 import { InteractiveRadar } from '@/components/news/interactive-radar';
 import { NewsNav } from '@/components/news/news-nav';
 
 export const dynamic = 'force-dynamic';
 
+function briefToPreview(brief: Awaited<ReturnType<typeof getPeriodicBrief>>) {
+  if (!brief) return null;
+  return {
+    period_type: brief.period_type,
+    period_start: brief.period_start,
+    period_end: brief.period_end,
+    title: brief.title,
+    story_count: brief.story_count,
+    executive_summary: brief.narrative?.executive_summary ?? undefined,
+  };
+}
+
 export default async function TurkeySignalFeedPage() {
   const edition = await getNewsEdition({ limit: 40, region: 'turkey' });
-  const topics = edition
-    ? await getNewsTopics({ date: edition.edition_date, limit: 24, region: 'turkey' })
-    : [];
+  const [topics, weeklyBrief, monthlyBrief] = await Promise.all([
+    edition ? getNewsTopics({ date: edition.edition_date, limit: 24, region: 'turkey' }) : Promise.resolve([]),
+    getPeriodicBrief({ periodType: 'weekly', region: 'turkey' }).catch(() => null),
+    getPeriodicBrief({ periodType: 'monthly', region: 'turkey' }).catch(() => null),
+  ]);
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -43,7 +57,12 @@ export default async function TurkeySignalFeedPage() {
             </div>
           </div>
           <Suspense fallback={null}>
-            <InteractiveRadar initialEdition={edition} initialTopics={topics} region="turkey" />
+            <InteractiveRadar
+              initialEdition={edition}
+              initialTopics={topics}
+              region="turkey"
+              periodicBriefs={{ weeklyBrief: briefToPreview(weeklyBrief), monthlyBrief: briefToPreview(monthlyBrief) }}
+            />
           </Suspense>
         </>
       )}

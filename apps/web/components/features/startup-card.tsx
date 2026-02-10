@@ -29,7 +29,7 @@ export function StartupCard({ startup, className, index = 0 }: StartupCardProps)
       >
         <Card
           className={cn(
-            'cursor-pointer p-5 h-full transition-all duration-300 hover:shadow-xl hover:border-primary/20',
+            'cursor-pointer p-5 h-full transition-all duration-200 hover:border-accent-info/35 hover:-translate-y-0.5',
             className
           )}
         >
@@ -58,7 +58,7 @@ export function StartupCard({ startup, className, index = 0 }: StartupCardProps)
               </div>
             </div>
             <div className="text-right">
-              <p className="text-lg font-bold tabular-nums bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+              <p className="text-lg font-light tabular-nums bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                 {formatCurrency(startup.funding_amount || 0, true)}
               </p>
             </div>

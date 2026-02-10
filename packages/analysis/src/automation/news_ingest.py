@@ -664,6 +664,7 @@ def compute_cluster_scores(
     topic_tags: Sequence[str],
     members: Sequence[NormalizedNewsItem],
     now: Optional[datetime] = None,
+    signal_score: float = 0.0,
 ) -> Tuple[float, float, str]:
     now_ts = now or datetime.now(timezone.utc)
     age_hours = max(0.0, (now_ts - published_at).total_seconds() / 3600.0)
@@ -678,12 +679,14 @@ def compute_cluster_scores(
 
     ai_boost = 0.12 if "ai" in topic_tags else 0.0
     funding_boost = 0.08 if "funding" in topic_tags else 0.0
+    signal_boost = signal_score * 0.08  # 8% weight from community signals
 
     rank_score = (
-        recency * 0.45
-        + source_weight * 0.25
-        + diversity * 0.15
+        recency * 0.42
+        + source_weight * 0.24
+        + diversity * 0.14
         + engagement_raw * 0.10
+        + signal_boost
         + ai_boost
         + funding_boost
     )
@@ -702,6 +705,8 @@ def compute_cluster_scores(
         reasons.append("ai-priority")
     if engagement_raw >= 0.4:
         reasons.append("high community engagement")
+    if signal_score > 0.6:
+        reasons.append("community-endorsed")
     if not reasons:
         reasons.append("editorial rank blend")
 
@@ -1039,13 +1044,13 @@ def _azure_token_param_name(model_name: str) -> str:
 def _azure_token_budget(model_name: str, desired_output_tokens: int) -> int:
     """Scale token budget for reasoning models that consume tokens for internal reasoning.
 
-    GPT-5 and o-series models use reasoning tokens (~512+) before producing output.
-    ``max_completion_tokens`` covers both reasoning + output, so we scale up 3x
+    GPT-5 and o-series models use reasoning tokens (~1000+) before producing output.
+    ``max_completion_tokens`` covers both reasoning + output, so we scale up 8x
     to leave room for the actual output after reasoning.
     """
     m = (model_name or "").strip().lower()
     if m.startswith("gpt-5") or m.startswith("o1") or m.startswith("o3") or m.startswith("o4"):
-        return desired_output_tokens * 3
+        return desired_output_tokens * 8
     return desired_output_tokens
 
 def _azure_supports_temperature(model_name: str) -> bool:
@@ -3849,9 +3854,18 @@ class DailyNewsIngestor:
                             else:
                                 raise
 
-                        content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
+                        choice = (response.choices or [None])[0] if response.choices else None
+                        content = (choice.message.content if choice else "{}") or "{}"
                         parsed = json.loads(content) if isinstance(content, str) else {}
-                        return parse_llm_payload(parsed, f"azure:{model_name}")
+                        result = parse_llm_payload(parsed, f"azure:{model_name}")
+                        # Detect reasoning-token exhaustion: model set but no useful output
+                        finish = choice.finish_reason if choice else None
+                        if result.llm_model and not result.builder_takeaway and finish == "length":
+                            if debug_llm:
+                                print(f"[news-ingest] Azure LLM empty output (finish_reason=length, model={model_name}) — token budget exhausted")
+                            last_error_code = "azure_token_exhausted"
+                            continue  # try next model/format
+                        return result
                     except Exception as exc:
                         if debug_llm:
                             mode = "json_object" if with_response_format else "no_response_format"
@@ -3948,10 +3962,33 @@ class DailyNewsIngestor:
         if not self.openai_api_key and self.azure_client is None:
             return
 
-        top_n = min(len(clusters), self.llm_max_clusters)
-        top_clusters = list(clusters)[:top_n]
+        # Filter: skip clusters gated as "drop" or "accumulate"
+        enrichment_candidates = [
+            c for c in clusters
+            if c.gating_decision in (None, "publish", "borderline")
+        ]
+
+        # Further filter: skip if strong negative signal history
+        sig_agg = getattr(self, "_signal_aggregator", None)
+        skipped_by_gating = len(clusters) - len(enrichment_candidates)
+        skipped_by_signal = 0
+        if sig_agg and sig_agg.loaded:
+            before = len(enrichment_candidates)
+            enrichment_candidates = [
+                c for c in enrichment_candidates
+                if not sig_agg.has_negative_signal_pattern(
+                    primary_source_key=c.primary_source_key,
+                    topic_tags=c.topic_tags,
+                )
+            ]
+            skipped_by_signal = before - len(enrichment_candidates)
+
+        top_n = min(len(enrichment_candidates), self.llm_max_clusters)
+        top_clusters = enrichment_candidates[:top_n]
         semaphore = asyncio.Semaphore(self.llm_concurrency)
         self._llm_metrics["attempted"] = int(top_n)
+        self._llm_metrics["skipped_by_gating"] = int(skipped_by_gating)
+        self._llm_metrics["skipped_by_signal"] = int(skipped_by_signal)
 
         async def enrich_one(
             cluster: StoryCluster,
@@ -4176,6 +4213,7 @@ class DailyNewsIngestor:
         conn: "asyncpg.Connection",
         clusters: Sequence[StoryCluster],
         region: str = "global",
+        cluster_ids: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """Score and gate clusters using heuristic rubric. No LLM calls.
 
@@ -4262,6 +4300,8 @@ class DailyNewsIngestor:
                 source_credibility = max(
                     (m.source_weight for m in cluster.members), default=0.65
                 )
+                sig_agg = getattr(self, "_signal_aggregator", None)
+                cid = (cluster_ids or {}).get(cluster.cluster_key)
                 scores = scorer.score(
                     story_type=cluster.story_type,
                     topic_tags=cluster.topic_tags,
@@ -4273,6 +4313,9 @@ class DailyNewsIngestor:
                     gtm_tags=gtm_tags,
                     pattern_matcher=pattern_matcher,
                     gtm_classifier=gtm_classifier,
+                    signal_aggregator=sig_agg,
+                    cluster_id=cid,
+                    source_key=cluster.primary_source_key,
                 )
 
                 # 5. Override: narrative dup → accumulate
@@ -4678,6 +4721,15 @@ class DailyNewsIngestor:
         clusters: Sequence[StoryCluster],
         cluster_ids: Dict[str, str],
     ) -> Dict[str, Any]:
+        # Merge community signal boost into rank_score before sorting
+        sig_agg = getattr(self, "_signal_aggregator", None)
+        if sig_agg and sig_agg.loaded:
+            for c in clusters:
+                cid = cluster_ids.get(c.cluster_key)
+                if cid:
+                    sig = sig_agg.cluster_signal_score(cid)
+                    if sig > 0:
+                        c.rank_score = min(1.0, c.rank_score + sig * 0.08)
         ranked = sorted(clusters, key=lambda c: (c.rank_score, c.trust_score, c.published_at), reverse=True)
         top = ranked[:40]
         top_ids = [cluster_ids[c.cluster_key] for c in top if c.cluster_key in cluster_ids]
@@ -4861,9 +4913,58 @@ class DailyNewsIngestor:
                     "turkey": memory_stats_turkey,
                 }
 
+                # --- Signal feedback: load community signals for ranking/gating ---
+                from .signal_feedback import SignalAggregator
+                _sig_agg_global = SignalAggregator()
+                await _sig_agg_global.load(conn, lookback_days=14, region="global")
+                self._signal_aggregator = _sig_agg_global
+                _sig_agg_turkey = SignalAggregator()
+                await _sig_agg_turkey.load(conn, lookback_days=14, region="turkey")
+
+                # Apply source credibility adjustments from signals
+                signal_stats: Dict[str, Any] = {}
+                if self._signal_aggregator.loaded:
+                    adjustments = self._signal_aggregator.get_source_adjustments()
+                    source_adj_applied: List[Dict[str, Any]] = []
+                    for c in clusters:
+                        for m in c.members:
+                            adj_info = adjustments.get(m.source_key)
+                            if adj_info:
+                                delta = adj_info["adjustment"]
+                                new_weight = max(0.3, min(0.98, m.source_weight + delta))
+                                m.source_weight = new_weight
+                    for sk, info in adjustments.items():
+                        if abs(info["adjustment"]) > 0.001:
+                            source_adj_applied.append({"source": sk, **info})
+                    if source_adj_applied:
+                        signal_stats["source_signal_adjustments"] = source_adj_applied
+                        print(f"[signals] applied source adjustments: {len(source_adj_applied)} sources")
+
+                # Pre-load existing cluster_key → cluster_id mappings for signal scoring
+                existing_cids_global: Dict[str, str] = {}
+                existing_cids_turkey: Dict[str, str] = {}
+                try:
+                    _cid_rows = await conn.fetch(
+                        "SELECT cluster_key, id::text FROM news_clusters WHERE region = 'global' AND published_at > now() - interval '14 days'"
+                    )
+                    existing_cids_global = {r["cluster_key"]: r["id"] for r in _cid_rows}
+                    _cid_rows_tr = await conn.fetch(
+                        "SELECT cluster_key, id::text FROM news_clusters WHERE region = 'turkey' AND published_at > now() - interval '14 days'"
+                    )
+                    existing_cids_turkey = {r["cluster_key"]: r["id"] for r in _cid_rows_tr}
+                except Exception as exc:
+                    print(f"[signals] failed to pre-load cluster IDs: {exc}")
+
                 # --- Scoring + gating: heuristic filter (no LLM) ---
-                gating_stats_global = await self._run_scoring_and_gating(conn, clusters, region="global")
-                gating_stats_turkey = await self._run_scoring_and_gating(conn, turkey_clusters, region="turkey")
+                gating_stats_global = await self._run_scoring_and_gating(
+                    conn, clusters, region="global", cluster_ids=existing_cids_global,
+                )
+                # Swap signal aggregator for turkey scoring, then restore
+                self._signal_aggregator = _sig_agg_turkey
+                gating_stats_turkey = await self._run_scoring_and_gating(
+                    conn, turkey_clusters, region="turkey", cluster_ids=existing_cids_turkey,
+                )
+                self._signal_aggregator = _sig_agg_global
                 gating_stats = {
                     "global": gating_stats_global,
                     "turkey": gating_stats_turkey,
@@ -4941,6 +5042,7 @@ class DailyNewsIngestor:
                     "llm": dict(self._llm_metrics),
                     "memory": memory_stats,
                     "gating": gating_stats,
+                    "signals": signal_stats,
                     "embedding": embed_stats,
                     "related_clusters_populated": related_count,
                     "research_enqueued": research_enqueued + research_enqueued_tr,

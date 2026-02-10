@@ -1,9 +1,10 @@
 import { Suspense } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui';
+import { KpiCard } from '@/components/ui/kpi-card';
 import { TrendLineChart, PatternBarChart } from '@/components/charts';
 import { getMonthlyStats, getAvailablePeriods, getStartups } from '@/lib/data';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
-import { TrendingUp, TrendingDown, Minus, ArrowRight, AlertTriangle, BarChart3 } from 'lucide-react';
+import { Minus, ArrowRight, AlertTriangle, BarChart3 } from 'lucide-react';
 import {
   detectOutlierRounds,
   computeConcentrationMetrics,
@@ -90,81 +91,39 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
       {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Capital Flows</h1>
-          <p className="text-muted-foreground">
-            {dealSummary.total_deals} deals tracked · {formatCurrency(dealSummary.total_funding_usd, true)} total funding
-          </p>
+          <p className="label-xs text-accent-info">Capital Flows</p>
+          <h1 className="headline-lg">{dealSummary.total_deals} deals · {formatCurrency(dealSummary.total_funding_usd, true)} total funding</h1>
         </div>
         <PeriodNav availableMonths={availableMonths} currentMonth={period} />
       </div>
 
       {/* Key Trend Metrics */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Funding</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">
-                {formatCurrency(currentData.funding, true)}
-              </p>
-            </div>
-            <div className={`flex items-center gap-1 ${fundingChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {fundingChange >= 0 ? (
-                <TrendingUp className="h-5 w-5" />
-              ) : (
-                <TrendingDown className="h-5 w-5" />
-              )}
-              <span className="font-medium">{fundingChange >= 0 ? '+' : ''}{fundingChange.toFixed(1)}%</span>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">vs {previousLabel}</p>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Deals</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">
-                {currentData.deals}
-              </p>
-            </div>
-            <div className={`flex items-center gap-1 ${dealsChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {dealsChange >= 0 ? (
-                <TrendingUp className="h-5 w-5" />
-              ) : (
-                <TrendingDown className="h-5 w-5" />
-              )}
-              <span className="font-medium">{dealsChange >= 0 ? '+' : ''}{dealsChange.toFixed(1)}%</span>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">vs {previousLabel}</p>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">GenAI Adoption</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">
-                {formatPercentage(currentData.genaiRate)}
-              </p>
-            </div>
-            <div className={`flex items-center gap-1 ${genaiChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {genaiChange >= 0 ? (
-                <TrendingUp className="h-5 w-5" />
-              ) : (
-                <TrendingDown className="h-5 w-5" />
-              )}
-              <span className="font-medium">{genaiChange >= 0 ? '+' : ''}{genaiChange.toFixed(1)}%</span>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">vs {previousLabel}</p>
-        </Card>
+        <KpiCard
+          label="Total Funding"
+          value={formatCurrency(currentData.funding, true)}
+          trend={{ value: parseFloat(fundingChange.toFixed(1)), isPositive: fundingChange >= 0 }}
+          subtext={`vs ${previousLabel}`}
+        />
+        <KpiCard
+          label="Total Deals"
+          value={String(currentData.deals)}
+          trend={{ value: parseFloat(dealsChange.toFixed(1)), isPositive: dealsChange >= 0 }}
+          subtext={`vs ${previousLabel}`}
+        />
+        <KpiCard
+          label="GenAI Adoption"
+          value={formatPercentage(currentData.genaiRate)}
+          trend={{ value: parseFloat(genaiChange.toFixed(1)), isPositive: genaiChange >= 0 }}
+          subtext={`vs ${previousLabel}`}
+        />
       </div>
 
       {/* Funding & Deals Trend Chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Funding & Deals Over Time</CardTitle>
+          <p className="label-xs text-muted-foreground">Trend</p>
+          <CardTitle className="headline-sm">Funding & Deals Over Time</CardTitle>
         </CardHeader>
         <CardContent>
           <TrendLineChart data={trendData} height={350} showDeals={true} />
@@ -175,7 +134,8 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Pattern Distribution (Current)</CardTitle>
+            <p className="label-xs text-muted-foreground">Patterns</p>
+            <CardTitle className="headline-sm">Pattern Distribution (Current)</CardTitle>
           </CardHeader>
           <CardContent>
             <PatternBarChart data={patternData} height={250} />
@@ -184,14 +144,15 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Key Observations</CardTitle>
+            <p className="label-xs text-muted-foreground">Insights</p>
+            <CardTitle className="headline-sm">Key Observations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Link
               href={withRegion(`/dealbook?pattern=${encodeURIComponent('Agentic Architectures')}`)}
-              className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+              className="flex items-start gap-3 p-3 rounded-xl border border-border/30 bg-card/50 hover:border-accent-info/35 hover:bg-card/80 transition-all duration-200"
             >
-              <TrendingUp className="h-5 w-5 text-success mt-0.5" />
+              <ArrowRight className="h-5 w-5 text-success mt-0.5" />
               <div className="flex-1">
                 <p className="font-medium text-sm">Agentic Architectures Growing</p>
                 <p className="text-sm text-muted-foreground">
@@ -203,9 +164,9 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
 
             <Link
               href={withRegion('/dealbook')}
-              className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+              className="flex items-start gap-3 p-3 rounded-xl border border-border/30 bg-card/50 hover:border-accent-info/35 hover:bg-card/80 transition-all duration-200"
             >
-              <TrendingUp className="h-5 w-5 text-success mt-0.5" />
+              <ArrowRight className="h-5 w-5 text-success mt-0.5" />
               <div className="flex-1">
                 <p className="font-medium text-sm">Record Funding Month</p>
                 <p className="text-sm text-muted-foreground">
@@ -217,9 +178,9 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
 
             <Link
               href={withRegion(`/dealbook?pattern=${encodeURIComponent('Vertical Data Moats')}`)}
-              className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+              className="flex items-start gap-3 p-3 rounded-xl border border-border/30 bg-card/50 hover:border-accent-info/35 hover:bg-card/80 transition-all duration-200"
             >
-              <ArrowRight className="h-5 w-5 text-primary mt-0.5" />
+              <ArrowRight className="h-5 w-5 text-accent-info mt-0.5" />
               <div className="flex-1">
                 <p className="font-medium text-sm">Vertical Data Moats Emerging</p>
                 <p className="text-sm text-muted-foreground">
@@ -229,7 +190,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
               <ArrowRight className="h-4 w-4 text-muted-foreground mt-0.5" />
             </Link>
 
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <div className="flex items-start gap-3 p-3 rounded-xl border border-border/30 bg-card/50">
               <Minus className="h-5 w-5 text-warning mt-0.5" />
               <div>
                 <p className="font-medium text-sm">Average Deal Size</p>
@@ -245,18 +206,19 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
       {/* Period Comparison */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Month-over-Month Comparison</CardTitle>
+          <p className="label-xs text-muted-foreground">Comparison</p>
+          <CardTitle className="headline-sm">Month-over-Month</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="table-editorial w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Period</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Total Funding</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Deals</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">GenAI %</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Avg Deal</th>
+                <tr>
+                  <th className="text-left">Period</th>
+                  <th className="text-right">Total Funding</th>
+                  <th className="text-right">Deals</th>
+                  <th className="text-right">GenAI %</th>
+                  <th className="text-right">Avg Deal</th>
                 </tr>
               </thead>
               <tbody>
@@ -299,36 +261,36 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
-            <div className="p-4 rounded-lg bg-muted/30 border border-border/30">
-              <p className="text-sm text-muted-foreground">Top 1 Share</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">
+            <div className="p-4 rounded-xl bg-card border border-border/40">
+              <p className="label-xs">Top 1 Share</p>
+              <p className="text-2xl font-light tabular-nums mt-1">
                 {concentrationMetrics.top1Share.toFixed(1)}%
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Single largest deal
               </p>
             </div>
-            <div className="p-4 rounded-lg bg-muted/30 border border-border/30">
-              <p className="text-sm text-muted-foreground">Top 5 Share</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">
+            <div className="p-4 rounded-xl bg-card border border-border/40">
+              <p className="label-xs">Top 5 Share</p>
+              <p className="text-2xl font-light tabular-nums mt-1">
                 {concentrationMetrics.top5Share.toFixed(1)}%
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Five largest deals
               </p>
             </div>
-            <div className="p-4 rounded-lg bg-muted/30 border border-border/30">
-              <p className="text-sm text-muted-foreground">Gini Coefficient</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">
+            <div className="p-4 rounded-xl bg-card border border-border/40">
+              <p className="label-xs">Gini Coefficient</p>
+              <p className="text-2xl font-light tabular-nums mt-1">
                 {concentrationMetrics.giniCoefficient.toFixed(2)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Inequality measure (0-1)
               </p>
             </div>
-            <div className="p-4 rounded-lg bg-muted/30 border border-border/30">
-              <p className="text-sm text-muted-foreground">HHI Index</p>
-              <p className="text-2xl font-bold tabular-nums mt-1">
+            <div className="p-4 rounded-xl bg-card border border-border/40">
+              <p className="label-xs">HHI Index</p>
+              <p className="text-2xl font-light tabular-nums mt-1">
                 {(concentrationMetrics.herfindahlIndex * 100).toFixed(1)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
@@ -353,7 +315,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  <AlertTriangle className="h-4 w-4 text-warning" />
                   Statistical Outliers
                 </CardTitle>
               </CardHeader>
@@ -362,7 +324,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
                   <Link
                     key={index}
                     href={withRegion(`/company/${outlier.slug}`)}
-                    className="block p-3 rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 transition-colors"
+                    className="block p-3 bg-card rounded-xl border border-border/40 hover:border-accent-info/35 transition-all duration-200"
                   >
                     <div className="flex items-start justify-between">
                       <div>
@@ -400,7 +362,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <ArrowRight className="h-4 w-4 text-success" />
                   Stage-Relative Outliers
                 </CardTitle>
               </CardHeader>
@@ -409,7 +371,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
                   <Link
                     key={index}
                     href={withRegion(`/company/${anomaly.slug}`)}
-                    className="block p-3 rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 transition-colors"
+                    className="block p-3 bg-card rounded-xl border border-border/40 hover:border-accent-info/35 transition-all duration-200"
                   >
                     <div className="flex items-start justify-between">
                       <div>

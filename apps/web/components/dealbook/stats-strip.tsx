@@ -142,7 +142,7 @@ function DeltaIndicator({ value, percent }: DeltaIndicatorProps) {
 
   const isPositive = value > 0;
   const Icon = isPositive ? TrendingUp : TrendingDown;
-  const colorClass = isPositive ? 'text-green-500' : 'text-red-500';
+  const colorClass = isPositive ? 'text-success' : 'text-destructive';
 
   return (
     <span className={cn('flex items-center gap-0.5 text-xs', colorClass)}>

@@ -1487,6 +1487,7 @@ class GatingScores:
     pattern_novelty: int = 0
     gtm_uniqueness: int = 0
     evidence_quality: int = 0
+    community_signal: float = 0.0
     composite: float = 0.0
     boosts: Dict[str, float] = field(default_factory=dict)
 
@@ -1496,27 +1497,30 @@ class GatingScores:
             "pattern_novelty": self.pattern_novelty,
             "gtm_uniqueness": self.gtm_uniqueness,
             "evidence_quality": self.evidence_quality,
+            "community_signal": round(self.community_signal, 2),
             "composite": round(self.composite, 3),
             "boosts": self.boosts,
         }
 
 
 class HeuristicScorer:
-    """Compute 4-dimension scores for a cluster using heuristics only.
+    """Compute 5-dimension scores for a cluster using heuristics only.
 
     Scores:
     - Builder Insight (BIS): 0-5
     - Pattern Novelty (PNS): 0-5
     - GTM Uniqueness (GUS): 0-5
     - Evidence Quality (EQS): 0-5
+    - Community Signal (CSS): 0-5
     - Composite: weighted blend + thesis boosts
     """
 
-    # Composite weights
-    W_BIS = 0.35
-    W_PNS = 0.25
-    W_EQS = 0.25
-    W_GUS = 0.15
+    # Composite weights (sum to 1.0)
+    W_BIS = 0.30
+    W_PNS = 0.22
+    W_EQS = 0.22
+    W_GUS = 0.13
+    W_CSS = 0.13
 
     def score(
         self,
@@ -1531,6 +1535,9 @@ class HeuristicScorer:
         gtm_tags: Sequence[str],
         pattern_matcher: PatternMatcher,
         gtm_classifier: GTMClassifier,
+        signal_aggregator: Optional[Any] = None,
+        cluster_id: Optional[str] = None,
+        source_key: Optional[str] = None,
     ) -> GatingScores:
         """Compute all scores for a cluster."""
         bis = self._score_builder_insight(
@@ -1546,9 +1553,21 @@ class HeuristicScorer:
             trust_score=trust_score,
             memory_result=memory_result,
         )
+        css = self._score_community_signal(
+            cluster_id=cluster_id,
+            topic_tags=topic_tags,
+            source_key=source_key,
+            signal_aggregator=signal_aggregator,
+        )
 
         # Composite + thesis boosts
-        base = bis * self.W_BIS + pns * self.W_PNS + eqs * self.W_EQS + gus * self.W_GUS
+        base = (
+            bis * self.W_BIS
+            + pns * self.W_PNS
+            + eqs * self.W_EQS
+            + gus * self.W_GUS
+            + css * self.W_CSS
+        )
         boosts: Dict[str, float] = {}
 
         if memory_result and memory_result.has_contradictions:
@@ -1578,9 +1597,47 @@ class HeuristicScorer:
             pattern_novelty=pns,
             gtm_uniqueness=gus,
             evidence_quality=eqs,
+            community_signal=css,
             composite=composite,
             boosts=boosts,
         )
+
+    def _score_community_signal(
+        self,
+        *,
+        cluster_id: Optional[str],
+        topic_tags: Sequence[str],
+        source_key: Optional[str],
+        signal_aggregator: Optional[Any],
+    ) -> float:
+        """Community Signal Score (0-5). Uses historical signal data."""
+        if not signal_aggregator or not getattr(signal_aggregator, "loaded", False):
+            return 2.5  # Neutral default when no signal data
+
+        score = 2.5  # Start neutral
+
+        # Direct cluster signal (strongest signal)
+        if cluster_id:
+            css = signal_aggregator.cluster_signal_score(cluster_id)
+            if css > 0.7:
+                score += 1.5
+            elif css > 0.5:
+                score += 0.5
+            elif css > 0 and css < 0.3:
+                score -= 1.0
+
+        # Topic signal (weaker, aggregate)
+        topic_scores = [signal_aggregator.topic_signal_strength(t) for t in topic_tags]
+        if topic_scores:
+            avg_topic = sum(topic_scores) / len(topic_scores)
+            score += (avg_topic - 0.5) * 1.0  # ±0.5 max
+
+        # Source signal (moderate)
+        if source_key:
+            src = signal_aggregator.source_signal_quality(source_key)
+            score += (src - 0.5) * 0.5  # ±0.25 max
+
+        return max(0.0, min(5.0, score))
 
     def _score_builder_insight(
         self,
@@ -1706,6 +1763,10 @@ class GatingRouter:
             parts.append("strong evidence")
         if scores.pattern_novelty >= 4:
             parts.append("novel pattern")
+        if scores.community_signal >= 4.0:
+            parts.append("community-endorsed")
+        elif scores.community_signal <= 1.0:
+            parts.append("community-rejected")
         if scores.boosts.get("contradiction"):
             parts.append("contradiction detected")
         if scores.boosts.get("new_fact_known_entity"):

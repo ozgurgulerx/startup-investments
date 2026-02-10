@@ -22,28 +22,28 @@ interface TrendingStartupsProps {
 }
 
 const verticalStyles: Record<string, string> = {
-  fintech: 'bg-emerald-500/10 text-emerald-400',
-  financial_services: 'bg-emerald-500/10 text-emerald-400',
-  healthcare: 'bg-rose-500/10 text-rose-400',
-  'ai/ml': 'bg-violet-500/10 text-violet-400',
-  horizontal: 'bg-violet-500/10 text-violet-400',
-  edtech: 'bg-blue-500/10 text-blue-400',
-  education: 'bg-blue-500/10 text-blue-400',
-  saas: 'bg-cyan-500/10 text-cyan-400',
-  enterprise_saas: 'bg-cyan-500/10 text-cyan-400',
-  ecommerce: 'bg-amber-500/10 text-amber-400',
-  logistics: 'bg-orange-500/10 text-orange-400',
-  industrial: 'bg-orange-500/10 text-orange-400',
-  gaming: 'bg-pink-500/10 text-pink-400',
-  media_content: 'bg-pink-500/10 text-pink-400',
-  proptech: 'bg-teal-500/10 text-teal-400',
-  hrtech: 'bg-indigo-500/10 text-indigo-400',
-  hr_recruiting: 'bg-indigo-500/10 text-indigo-400',
-  developer_tools: 'bg-sky-500/10 text-sky-400',
-  cybersecurity: 'bg-red-500/10 text-red-400',
-  legal: 'bg-slate-500/10 text-slate-400',
-  consumer: 'bg-fuchsia-500/10 text-fuchsia-400',
-  marketing: 'bg-lime-500/10 text-lime-400',
+  fintech: 'bg-success/10 text-success',
+  financial_services: 'bg-success/10 text-success',
+  healthcare: 'bg-destructive/10 text-destructive',
+  'ai/ml': 'bg-delta/10 text-delta',
+  horizontal: 'bg-delta/10 text-delta',
+  edtech: 'bg-accent-info/10 text-accent-info',
+  education: 'bg-accent-info/10 text-accent-info',
+  saas: 'bg-accent-info/10 text-accent-info',
+  enterprise_saas: 'bg-accent-info/10 text-accent-info',
+  ecommerce: 'bg-warning/10 text-warning',
+  logistics: 'bg-warning/10 text-warning',
+  industrial: 'bg-warning/10 text-warning',
+  gaming: 'bg-delta/10 text-delta',
+  media_content: 'bg-delta/10 text-delta',
+  proptech: 'bg-success/10 text-success',
+  hrtech: 'bg-accent-info/10 text-accent-info',
+  hr_recruiting: 'bg-accent-info/10 text-accent-info',
+  developer_tools: 'bg-accent-info/10 text-accent-info',
+  cybersecurity: 'bg-destructive/10 text-destructive',
+  legal: 'bg-muted/50 text-muted-foreground',
+  consumer: 'bg-delta/10 text-delta',
+  marketing: 'bg-success/10 text-success',
 };
 
 function formatVertical(vertical: string): string {
@@ -68,7 +68,7 @@ export function TrendingStartups({ data, maxItems = 8, className }: TrendingStar
     <Card className={cn(
       'h-full rounded-xl',
       'bg-card/50 backdrop-blur-sm',
-      'border border-white/[0.04]',
+      'border border-border/40',
       className
     )}>
       <div className="p-5">

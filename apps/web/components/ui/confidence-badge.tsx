@@ -23,24 +23,24 @@ function getGradeConfig(score: number): GradeConfig {
     return {
       grade: 'A',
       label: 'High confidence',
-      bgClass: 'bg-green-500/15',
-      textClass: 'text-green-400',
+      bgClass: 'bg-success/15',
+      textClass: 'text-success',
     };
   }
   if (score >= 0.75) {
     return {
       grade: 'B',
       label: 'Good confidence',
-      bgClass: 'bg-blue-500/15',
-      textClass: 'text-blue-400',
+      bgClass: 'bg-accent-info/15',
+      textClass: 'text-accent-info',
     };
   }
   if (score >= 0.6) {
     return {
       grade: 'C',
       label: 'Moderate confidence',
-      bgClass: 'bg-amber-500/15',
-      textClass: 'text-amber-400',
+      bgClass: 'bg-warning/15',
+      textClass: 'text-warning',
     };
   }
   return {

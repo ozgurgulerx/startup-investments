@@ -10,6 +10,7 @@ import { KpiStrip } from './kpi-strip';
 import { StoryCard } from './story-row';
 import { ContextPanel } from './context-panel';
 import { NewsSubscriptionCard } from './news-subscription-card';
+import { PeriodicBriefPreview, type PeriodicBriefPreviewProps } from './periodic-brief-preview';
 import { SignalsProvider } from './signals-provider';
 
 function formatTimestamp(value: string): string {
@@ -40,9 +41,11 @@ interface InteractiveRadarProps {
   isArchive?: boolean;
   /** Region partition for the edition (global|turkey). */
   region?: 'global' | 'turkey';
+  /** Latest weekly/monthly brief previews (server-fetched). */
+  periodicBriefs?: Pick<PeriodicBriefPreviewProps, 'weeklyBrief' | 'monthlyBrief'>;
 }
 
-export function InteractiveRadar({ initialEdition, initialTopics, isArchive, region = 'global' }: InteractiveRadarProps) {
+export function InteractiveRadar({ initialEdition, initialTopics, isArchive, region = 'global', periodicBriefs }: InteractiveRadarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get('story') || null;
@@ -479,6 +482,19 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         <div className="border-b border-border/20">
           <div className="mx-auto max-w-6xl px-6">
             <DailyBriefCard brief={edition.brief} onDismiss={handleDismissBrief} />
+          </div>
+        </div>
+      )}
+
+      {/* Periodic brief previews (weekly / monthly) */}
+      {activeTopic === 'all' && !searchQuery.trim() && periodicBriefs && (periodicBriefs.weeklyBrief || periodicBriefs.monthlyBrief) && (
+        <div className="border-b border-border/20">
+          <div className="mx-auto max-w-6xl px-6 py-3">
+            <PeriodicBriefPreview
+              region={region}
+              weeklyBrief={periodicBriefs.weeklyBrief}
+              monthlyBrief={periodicBriefs.monthlyBrief}
+            />
           </div>
         </div>
       )}

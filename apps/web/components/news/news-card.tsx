@@ -106,9 +106,9 @@ export function NewsCard({ item, featured = false }: NewsCardProps) {
         ) : null}
 
         {item.builder_takeaway ? (
-          <div className="mt-3 rounded-md border border-accent-info/25 bg-accent-info/10 px-2.5 py-2">
+          <div className="group/brief mt-3 rounded-md border border-accent-info/25 bg-accent-info/10 px-2.5 py-2 transition-all duration-200">
             <p className="text-[10px] uppercase tracking-wider text-accent-info">Why It Matters</p>
-            <p className="mt-1 text-xs leading-relaxed text-foreground/90 line-clamp-3">{item.builder_takeaway}</p>
+            <p className="mt-1 text-xs leading-relaxed text-foreground/90 line-clamp-3 group-hover/brief:line-clamp-none">{item.builder_takeaway}</p>
           </div>
         ) : null}
 

@@ -23,13 +23,13 @@ interface TopDealsListProps {
 }
 
 const stageStyles: Record<string, string> = {
-  seed: 'bg-emerald-500/10 text-emerald-400',
-  series_a: 'bg-blue-500/10 text-blue-400',
-  series_b: 'bg-violet-500/10 text-violet-400',
-  series_c: 'bg-amber-500/10 text-amber-400',
-  series_d_plus: 'bg-cyan-500/10 text-cyan-400',
-  growth: 'bg-teal-500/10 text-teal-400',
-  unknown: 'bg-white/5 text-muted-foreground',
+  seed: 'bg-success/10 text-success',
+  series_a: 'bg-accent-info/10 text-accent-info',
+  series_b: 'bg-delta/10 text-delta',
+  series_c: 'bg-warning/10 text-warning',
+  series_d_plus: 'bg-destructive/10 text-destructive',
+  growth: 'bg-accent-info/10 text-accent-info',
+  unknown: 'bg-muted/20 text-muted-foreground',
 };
 
 function formatStage(stage: string): string {
@@ -52,7 +52,7 @@ export function TopDealsList({ data, maxItems = 10, className }: TopDealsListPro
     <Card className={cn(
       'h-full rounded-xl',
       'bg-card/50 backdrop-blur-sm',
-      'border border-white/[0.04]',
+      'border border-border/40',
       className
     )}>
       <div className="p-5">
@@ -95,7 +95,7 @@ export function TopDealsList({ data, maxItems = 10, className }: TopDealsListPro
                     {deal.name}
                   </p>
                 </div>
-                <span className="text-[13px] font-semibold tabular-nums text-foreground/80">
+                <span className="text-[13px] font-light tabular-nums text-foreground/80">
                   {formatCurrency(deal.funding, true)}
                 </span>
                 <span className={cn(

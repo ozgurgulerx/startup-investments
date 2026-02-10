@@ -591,7 +591,7 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
           {/* Team Red Flags */}
           {startup.team_analysis.team_red_flags?.length > 0 && (
             <div className="mt-4 pt-4 border-t border-border/30">
-              <span className="label-xs text-amber-500/80">Considerations</span>
+              <span className="label-xs text-warning/80">Considerations</span>
               <ul className="mt-2 space-y-1">
                 {startup.team_analysis.team_red_flags.map((flag: string, i: number) => (
                   <li key={i} className="text-xs text-muted-foreground">• {flag}</li>

@@ -19,8 +19,8 @@ export function SectionHeader({
     >
       {indicator === 'pulse' && (
         <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-400" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-warning opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-warning" />
         </span>
       )}
       {indicator === 'signal' && (

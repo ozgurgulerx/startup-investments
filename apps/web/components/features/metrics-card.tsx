@@ -94,7 +94,7 @@ export function MetricsCard({
       <Card className={cn(
         'relative p-5 h-full',
         'bg-card/50 backdrop-blur-sm',
-        'border border-white/[0.04]',
+        'border border-border/40',
         'rounded-xl',
         className
       )}>
@@ -116,7 +116,7 @@ export function MetricsCard({
 
         {/* Value */}
         <div className="mb-4">
-          <span className="text-[32px] font-semibold tracking-tight text-foreground">
+          <span className="text-[32px] font-light tracking-tight text-foreground">
             {value}
           </span>
         </div>
@@ -133,8 +133,8 @@ export function MetricsCard({
           <div className="flex items-center justify-between">
             <div className={cn(
               'inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium',
-              change.direction === 'up' && 'bg-emerald-500/10 text-emerald-400',
-              change.direction === 'down' && 'bg-rose-500/10 text-rose-400',
+              change.direction === 'up' && 'bg-success/10 text-success',
+              change.direction === 'down' && 'bg-destructive/10 text-destructive',
               change.direction === 'neutral' && 'bg-muted text-muted-foreground'
             )}>
               {change.direction === 'up' && <ArrowUpRight className="h-3.5 w-3.5" />}

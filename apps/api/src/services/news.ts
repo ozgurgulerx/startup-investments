@@ -159,6 +159,36 @@ function rowToCard(row: Record<string, unknown>): NewsItemCard {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Azure OpenAI Embedding helper (for hybrid search)
+// ---------------------------------------------------------------------------
+
+const EMBEDDING_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
+const EMBEDDING_DEPLOYMENT = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-3-small';
+const EMBEDDING_API_KEY = process.env.AZURE_OPENAI_API_KEY;
+const EMBEDDING_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-06-01';
+
+async function embedQuery(query: string): Promise<number[] | null> {
+  if (!EMBEDDING_ENDPOINT || !EMBEDDING_API_KEY) return null;
+  try {
+    const url = `${EMBEDDING_ENDPOINT.replace(/\/$/, '')}/openai/deployments/${EMBEDDING_DEPLOYMENT}/embeddings?api-version=${EMBEDDING_API_VERSION}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': EMBEDDING_API_KEY,
+      },
+      body: JSON.stringify({ input: query }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) return null;
+    const json = (await resp.json()) as { data?: Array<{ embedding?: number[] }> };
+    return json.data?.[0]?.embedding ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function makeNewsService(pool: Pool) {
   async function getLatestEditionDate(params?: { region?: unknown }): Promise<string | null> {
     const region = normalizeRegion(params?.region);
@@ -890,6 +920,81 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  // Column-select fragment shared by text and vector search queries
+  const SEARCH_COLUMNS = `
+    c.id::text AS id,
+    c.title,
+    COALESCE(c.llm_summary, c.summary) AS summary,
+    c.story_type,
+    c.topic_tags,
+    c.entities,
+    c.published_at::text AS published_at,
+    c.rank_score,
+    c.canonical_url AS primary_url,
+    (SELECT ns.display_name FROM news_cluster_items nci
+     JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+     JOIN news_sources ns ON ns.id = nir.source_id
+     WHERE nci.cluster_id = c.id AND nci.is_primary
+     LIMIT 1) AS primary_source,
+    (SELECT nir.payload_json->>'image_url' FROM news_cluster_items nci
+     JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+     WHERE nci.cluster_id = c.id AND nci.is_primary
+       AND nir.payload_json->>'image_url' IS NOT NULL
+     LIMIT 1) AS image_url`;
+
+  function rowToSearchResult(row: Record<string, unknown>): NewsSearchResult {
+    return {
+      id: String(row.id),
+      title: String(row.title || ''),
+      summary: String(row.summary || ''),
+      story_type: String(row.story_type || 'news'),
+      topic_tags: Array.isArray(row.topic_tags) ? row.topic_tags : [],
+      entities: Array.isArray(row.entities) ? row.entities : [],
+      published_at: String(row.published_at || ''),
+      similarity: toNumber(row.similarity ?? row.rank_score),
+      primary_url: row.primary_url ? String(row.primary_url) : undefined,
+      primary_source: row.primary_source ? String(row.primary_source) : undefined,
+      image_url: row.image_url ? String(row.image_url) : undefined,
+    };
+  }
+
+  /** Build shared WHERE conditions for optional filters (story_type, topic, dates, region). */
+  function buildFilterConditions(
+    params: { story_type?: string; topic?: string; date_from?: string; date_to?: string },
+    region: NewsRegion,
+    startIdx: number,
+  ): { conditions: string[]; queryParams: unknown[]; nextIdx: number } {
+    const conditions: string[] = [];
+    const queryParams: unknown[] = [];
+    let idx = startIdx;
+
+    if (params.story_type) {
+      conditions.push(`c.story_type = $${idx}`);
+      queryParams.push(params.story_type);
+      idx++;
+    }
+    if (params.topic) {
+      conditions.push(`$${idx} = ANY(c.topic_tags)`);
+      queryParams.push(params.topic);
+      idx++;
+    }
+    if (params.date_from) {
+      conditions.push(`c.published_at >= $${idx}::date`);
+      queryParams.push(params.date_from);
+      idx++;
+    }
+    if (params.date_to) {
+      conditions.push(`c.published_at <= $${idx}::date`);
+      queryParams.push(params.date_to);
+      idx++;
+    }
+    conditions.push(`c.region = $${idx}`);
+    queryParams.push(region);
+    idx++;
+
+    return { conditions, queryParams, nextIdx: idx };
+  }
+
   async function searchNewsClusters(params: {
     query: string;
     region?: string;
@@ -901,189 +1006,164 @@ export function makeNewsService(pool: Pool) {
   }): Promise<NewsSearchResult[]> {
     const region = normalizeRegion(params.region);
     const limit = Math.max(1, Math.min(50, Number(params.limit || 20)));
-    const q = `%${params.query.replace(/[%_\\]/g, '\\$&')}%`;
 
+    // Run text search and vector embedding in parallel
+    const [textResults, queryEmbedding] = await Promise.all([
+      textSearch(params.query, region, limit, params),
+      embedQuery(params.query),
+    ]);
+
+    if (!queryEmbedding) return textResults;
+
+    // Run vector search with the embedding
+    const vectorResults = await vectorSearch(queryEmbedding, region, limit, params);
+    if (vectorResults.length === 0) return textResults;
+
+    return mergeResults(textResults, vectorResults, limit);
+  }
+
+  async function textSearch(
+    query: string,
+    region: NewsRegion,
+    limit: number,
+    filters: { story_type?: string; topic?: string; date_from?: string; date_to?: string },
+  ): Promise<NewsSearchResult[]> {
+    const q = `%${query.replace(/[%_\\]/g, '\\$&')}%`;
     const conditions: string[] = [];
     const queryParams: unknown[] = [];
     let idx = 1;
 
-    // Text search on title + summary
     conditions.push(`(c.title ILIKE $${idx} OR c.summary ILIKE $${idx})`);
     queryParams.push(q);
     idx++;
 
-    if (params.story_type) {
-      conditions.push(`c.story_type = $${idx}`);
-      queryParams.push(params.story_type);
-      idx++;
-    }
-
-    if (params.topic) {
-      conditions.push(`$${idx} = ANY(c.topic_tags)`);
-      queryParams.push(params.topic);
-      idx++;
-    }
-
-    if (params.date_from) {
-      conditions.push(`c.published_at >= $${idx}::date`);
-      queryParams.push(params.date_from);
-      idx++;
-    }
-
-    if (params.date_to) {
-      conditions.push(`c.published_at <= $${idx}::date`);
-      queryParams.push(params.date_to);
-      idx++;
-    }
-
-    // Region-aware clusters: filter directly by cluster region.
-    // Fallback for older DBs (no c.region) is handled in the catch block.
-    conditions.push(`c.region = $${idx}`);
-    queryParams.push(region);
-    idx++;
+    const shared = buildFilterConditions(filters, region, idx);
+    conditions.push(...shared.conditions);
+    queryParams.push(...shared.queryParams);
+    idx = shared.nextIdx;
 
     queryParams.push(limit);
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     try {
       const result = await pool.query(
-        `
-        SELECT
-          c.id::text AS id,
-          c.title,
-          COALESCE(c.llm_summary, c.summary) AS summary,
-          c.story_type,
-          c.topic_tags,
-          c.entities,
-          c.published_at::text AS published_at,
-          c.rank_score,
-          c.canonical_url AS primary_url,
-          (SELECT ns.display_name FROM news_cluster_items nci
-           JOIN news_items_raw nir ON nir.id = nci.raw_item_id
-           JOIN news_sources ns ON ns.id = nir.source_id
-           WHERE nci.cluster_id = c.id AND nci.is_primary
-           LIMIT 1) AS primary_source,
-          (SELECT nir.payload_json->>'image_url' FROM news_cluster_items nci
-           JOIN news_items_raw nir ON nir.id = nci.raw_item_id
-           WHERE nci.cluster_id = c.id AND nci.is_primary
-             AND nir.payload_json->>'image_url' IS NOT NULL
-           LIMIT 1) AS image_url
-        FROM news_clusters c
-        ${where}
-        ORDER BY c.rank_score DESC, c.published_at DESC
-        LIMIT $${idx}
-        `,
+        `SELECT ${SEARCH_COLUMNS}, c.rank_score AS similarity
+         FROM news_clusters c
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY c.rank_score DESC, c.published_at DESC
+         LIMIT $${idx}`,
         queryParams,
       );
-
-      return result.rows.map((row) => ({
-        id: String(row.id),
-        title: String(row.title || ''),
-        summary: String(row.summary || ''),
-        story_type: String(row.story_type || 'news'),
-        topic_tags: Array.isArray(row.topic_tags) ? row.topic_tags : [],
-        entities: Array.isArray(row.entities) ? row.entities : [],
-        published_at: String(row.published_at || ''),
-        similarity: toNumber(row.rank_score),
-        primary_url: row.primary_url ? String(row.primary_url) : undefined,
-        primary_source: row.primary_source ? String(row.primary_source) : undefined,
-        image_url: row.image_url ? String(row.image_url) : undefined,
-      }));
+      return result.rows.map(rowToSearchResult);
     } catch (error) {
-      // Back-compat: older DBs didn't have per-region clusters.
       if (isMissingColumnError(error, 'region')) {
+        // Legacy fallback — drop region filter, use topic_index
         const legacyConditions: string[] = [];
         const legacyParams: unknown[] = [];
-        let legacyIdx = 1;
+        let li = 1;
 
-        legacyConditions.push(`(c.title ILIKE $${legacyIdx} OR c.summary ILIKE $${legacyIdx})`);
+        legacyConditions.push(`(c.title ILIKE $${li} OR c.summary ILIKE $${li})`);
         legacyParams.push(q);
-        legacyIdx++;
+        li++;
 
-        if (params.story_type) {
-          legacyConditions.push(`c.story_type = $${legacyIdx}`);
-          legacyParams.push(params.story_type);
-          legacyIdx++;
-        }
-
-        if (params.topic) {
-          legacyConditions.push(`$${legacyIdx} = ANY(c.topic_tags)`);
-          legacyParams.push(params.topic);
-          legacyIdx++;
-        }
-
-        if (params.date_from) {
-          legacyConditions.push(`c.published_at >= $${legacyIdx}::date`);
-          legacyParams.push(params.date_from);
-          legacyIdx++;
-        }
-
-        if (params.date_to) {
-          legacyConditions.push(`c.published_at <= $${legacyIdx}::date`);
-          legacyParams.push(params.date_to);
-          legacyIdx++;
-        }
-
-        // Legacy region filtering via topic_index.
+        if (filters.story_type) { legacyConditions.push(`c.story_type = $${li}`); legacyParams.push(filters.story_type); li++; }
+        if (filters.topic) { legacyConditions.push(`$${li} = ANY(c.topic_tags)`); legacyParams.push(filters.topic); li++; }
+        if (filters.date_from) { legacyConditions.push(`c.published_at >= $${li}::date`); legacyParams.push(filters.date_from); li++; }
+        if (filters.date_to) { legacyConditions.push(`c.published_at <= $${li}::date`); legacyParams.push(filters.date_to); li++; }
         if (region !== 'global') {
-          legacyConditions.push(`EXISTS (
-            SELECT 1 FROM news_topic_index nti
-            WHERE nti.cluster_id = c.id AND nti.region = $${legacyIdx}
-          )`);
+          legacyConditions.push(`EXISTS (SELECT 1 FROM news_topic_index nti WHERE nti.cluster_id = c.id AND nti.region = $${li})`);
           legacyParams.push(region);
-          legacyIdx++;
+          li++;
         }
-
         legacyParams.push(limit);
-        const legacyWhere = legacyConditions.length > 0 ? `WHERE ${legacyConditions.join(' AND ')}` : '';
 
         const result = await pool.query(
-          `
-          SELECT
-            c.id::text AS id,
-            c.title,
-            COALESCE(c.llm_summary, c.summary) AS summary,
-            c.story_type,
-            c.topic_tags,
-            c.entities,
-            c.published_at::text AS published_at,
-            c.rank_score,
-            c.canonical_url AS primary_url,
-            (SELECT ns.display_name FROM news_cluster_items nci
-             JOIN news_items_raw nir ON nir.id = nci.raw_item_id
-             JOIN news_sources ns ON ns.id = nir.source_id
-             WHERE nci.cluster_id = c.id AND nci.is_primary
-             LIMIT 1) AS primary_source,
-            (SELECT nir.payload_json->>'image_url' FROM news_cluster_items nci
-             JOIN news_items_raw nir ON nir.id = nci.raw_item_id
-             WHERE nci.cluster_id = c.id AND nci.is_primary
-               AND nir.payload_json->>'image_url' IS NOT NULL
-             LIMIT 1) AS image_url
-          FROM news_clusters c
-          ${legacyWhere}
-          ORDER BY c.rank_score DESC, c.published_at DESC
-          LIMIT $${legacyIdx}
-          `,
+          `SELECT ${SEARCH_COLUMNS}, c.rank_score AS similarity
+           FROM news_clusters c
+           WHERE ${legacyConditions.join(' AND ')}
+           ORDER BY c.rank_score DESC, c.published_at DESC
+           LIMIT $${li}`,
           legacyParams,
         );
-
-        return result.rows.map((row) => ({
-          id: String(row.id),
-          title: String(row.title || ''),
-          summary: String(row.summary || ''),
-          story_type: String(row.story_type || 'news'),
-          topic_tags: Array.isArray(row.topic_tags) ? row.topic_tags : [],
-          entities: Array.isArray(row.entities) ? row.entities : [],
-          published_at: String(row.published_at || ''),
-          similarity: toNumber(row.rank_score),
-          primary_url: row.primary_url ? String(row.primary_url) : undefined,
-          primary_source: row.primary_source ? String(row.primary_source) : undefined,
-          image_url: row.image_url ? String(row.image_url) : undefined,
-        }));
+        return result.rows.map(rowToSearchResult);
       }
       if (isMissingNewsSchemaError(error)) return [];
       throw error;
     }
+  }
+
+  async function vectorSearch(
+    embedding: number[],
+    region: NewsRegion,
+    limit: number,
+    filters: { story_type?: string; topic?: string; date_from?: string; date_to?: string },
+  ): Promise<NewsSearchResult[]> {
+    try {
+      const conditions: string[] = ['c.embedding IS NOT NULL'];
+      const queryParams: unknown[] = [];
+      let idx = 1;
+
+      // Pass embedding as a string representation for pgvector
+      conditions.push(`true`); // placeholder — embedding param used in ORDER BY + SELECT
+      queryParams.push(`[${embedding.join(',')}]`);
+      idx++;
+
+      const shared = buildFilterConditions(filters, region, idx);
+      conditions.push(...shared.conditions);
+      queryParams.push(...shared.queryParams);
+      idx = shared.nextIdx;
+
+      queryParams.push(limit);
+
+      const result = await pool.query(
+        `SELECT ${SEARCH_COLUMNS},
+                1 - (c.embedding <=> $1::vector) AS similarity
+         FROM news_clusters c
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY c.embedding <=> $1::vector
+         LIMIT $${idx}`,
+        queryParams,
+      );
+      return result.rows.map(rowToSearchResult);
+    } catch {
+      // pgvector not available or embedding column missing — graceful fallback
+      return [];
+    }
+  }
+
+  function mergeResults(
+    textResults: NewsSearchResult[],
+    vectorResults: NewsSearchResult[],
+    limit: number,
+  ): NewsSearchResult[] {
+    const seen = new Map<string, NewsSearchResult & { score: number }>();
+
+    // Text results get a small bonus (exact keyword matches are valuable)
+    for (let i = 0; i < textResults.length; i++) {
+      const r = textResults[i];
+      const positionScore = 1 - i / Math.max(textResults.length, 1);
+      seen.set(r.id, { ...r, score: 0.6 + 0.4 * positionScore });
+    }
+
+    // Vector results scored by cosine similarity
+    for (const r of vectorResults) {
+      const existing = seen.get(r.id);
+      const vectorScore = r.similarity; // already 0-1 from cosine
+      if (existing) {
+        // Boost items found by both methods
+        existing.score = Math.min(1, existing.score + 0.3 * vectorScore);
+        // Prefer the higher similarity value
+        if (vectorScore > existing.similarity) {
+          existing.similarity = vectorScore;
+        }
+      } else {
+        seen.set(r.id, { ...r, score: vectorScore });
+      }
+    }
+
+    return Array.from(seen.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(({ score: _score, ...rest }) => rest);
   }
 
   // ---------------------------------------------------------------------------

@@ -260,8 +260,8 @@ export default function WatchlistPage() {
         </>
       ) : (
         <div className="text-center py-16 border border-border/30 rounded-lg">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-muted/30 flex items-center justify-center">
-            <Bookmark className="w-6 h-6 text-muted-foreground" />
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-accent-info/10 flex items-center justify-center">
+            <Bookmark className="w-6 h-6 text-accent-info" />
           </div>
           <h3 className="text-lg font-medium text-foreground mb-2">
             No companies tracked
@@ -280,7 +280,7 @@ export default function WatchlistPage() {
       )}
 
       {/* Feature info */}
-      <div className="mt-8 p-5 bg-muted/5 border border-border/20 rounded-lg">
+      <div className="mt-8 p-5 bg-card border border-border/40 rounded-xl">
         <h3 className="text-sm font-medium text-foreground mb-2">
           Watchlist Features
         </h3>
@@ -317,7 +317,7 @@ function WatchlistItem({
   onRemove: () => void;
 }) {
   return (
-    <div className="p-4 border border-border/30 rounded-lg hover:border-border/50 transition-colors">
+    <div className="p-4 border border-border/40 rounded-xl hover:-translate-y-0.5 hover:border-accent-info/35 transition-all duration-200">
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">

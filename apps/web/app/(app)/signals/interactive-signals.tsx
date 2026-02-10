@@ -122,8 +122,8 @@ export function InteractiveSignals({
               onClick={() => setSelectedCategory(null)}
               className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
                 selectedCategory === null
-                  ? 'bg-foreground text-background'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                  ? 'bg-accent-info/10 text-accent-info border border-accent-info/25'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/25 border border-transparent'
               }`}
             >
               All Patterns
@@ -134,8 +134,8 @@ export function InteractiveSignals({
                 onClick={() => setSelectedCategory(cat.name)}
                 className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
                   selectedCategory === cat.name
-                    ? 'bg-foreground text-background'
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                    ? 'bg-accent-info/10 text-accent-info border border-accent-info/25'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/25 border border-transparent'
                 }`}
               >
                 {cat.name}
