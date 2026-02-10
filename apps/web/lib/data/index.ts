@@ -45,6 +45,71 @@ const PERIODS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 const statsCache = new Map<string, { data: MonthlyStats; timestamp: number }>();
 const STATS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+/** Sensible empty stats returned when both API and file reads fail */
+export const DEFAULT_STATS: MonthlyStats = {
+  period: 'unknown',
+  generated_at: new Date().toISOString(),
+  deal_summary: {
+    total_deals: 0,
+    deals_with_funding: 0,
+    total_funding_usd: 0,
+    average_deal_size: 0,
+    median_deal_size: 0,
+    min_deal_size: 0,
+    max_deal_size: 0,
+  },
+  funding_by_stage: {} as MonthlyStats['funding_by_stage'],
+  funding_by_type: {},
+  funding_by_vertical: {},
+  funding_by_continent: {},
+  funding_by_country: {},
+  funding_by_city: {},
+  top_deals: [],
+  top_investors: [],
+  genai_analysis: {
+    total_analyzed: 0,
+    uses_genai_count: 0,
+    genai_adoption_rate: 0,
+    intensity_distribution: {} as MonthlyStats['genai_analysis']['intensity_distribution'],
+    pattern_distribution: {},
+    newsletter_potential: {} as MonthlyStats['genai_analysis']['newsletter_potential'],
+    vertical_distribution: {} as MonthlyStats['genai_analysis']['vertical_distribution'],
+    market_type_distribution: {} as MonthlyStats['genai_analysis']['market_type_distribution'],
+    target_market_distribution: {} as MonthlyStats['genai_analysis']['target_market_distribution'],
+    technical_depth_distribution: {} as MonthlyStats['genai_analysis']['technical_depth_distribution'],
+    high_potential_startups: [],
+  },
+};
+
+/** Map API StatsResponse to the MonthlyStats shape used by frontend components */
+function apiStatsToMonthlyStats(apiStats: import('@/lib/api/client').StatsResponse, period: string): MonthlyStats {
+  return {
+    ...DEFAULT_STATS,
+    period,
+    generated_at: new Date().toISOString(),
+    deal_summary: {
+      ...DEFAULT_STATS.deal_summary,
+      total_deals: apiStats.totalDeals,
+      deals_with_funding: apiStats.totalDeals,
+      total_funding_usd: apiStats.totalFunding,
+      average_deal_size: apiStats.totalDeals > 0 ? apiStats.totalFunding / apiStats.totalDeals : 0,
+    },
+    funding_by_stage: Object.fromEntries(
+      Object.entries(apiStats.stageDistribution || {}).map(([stage, count]) => [
+        stage,
+        { count, total_usd: 0, avg_usd: 0 },
+      ])
+    ) as unknown as MonthlyStats['funding_by_stage'],
+    genai_analysis: {
+      ...DEFAULT_STATS.genai_analysis,
+      total_analyzed: apiStats.totalStartups,
+      uses_genai_count: apiStats.genaiNativeCount,
+      genai_adoption_rate: parseFloat(apiStats.genaiAdoptionRate) || 0,
+      pattern_distribution: apiStats.patternDistribution || {},
+    },
+  };
+}
+
 /**
  * Get all available periods (with caching)
  */
@@ -126,14 +191,31 @@ async function getMonthlyStatsInternal(period: string, region?: string): Promise
     return cached.data;
   }
 
-  const filePath = path.join(getDataPath(region), period, 'output', 'monthly_stats.json');
-  const content = await fs.readFile(filePath, 'utf-8');
-  const stats = JSON.parse(content) as MonthlyStats;
+  const regionKey = normalizeDatasetRegion(region);
 
-  // Cache the result
-  statsCache.set(key, { data: stats, timestamp: Date.now() });
+  // Try API first when configured
+  if (isAPIConfigured()) {
+    try {
+      const apiStats = await api.getStats({ period, region: regionKey });
+      const stats = apiStatsToMonthlyStats(apiStats, period);
+      statsCache.set(key, { data: stats, timestamp: Date.now() });
+      return stats;
+    } catch (error) {
+      console.error('API request failed for getMonthlyStats, falling back to file:', error);
+    }
+  }
 
-  return stats;
+  // Fall back to file
+  try {
+    const filePath = path.join(getDataPath(region), period, 'output', 'monthly_stats.json');
+    const content = await fs.readFile(filePath, 'utf-8');
+    const stats = JSON.parse(content) as MonthlyStats;
+    statsCache.set(key, { data: stats, timestamp: Date.now() });
+    return stats;
+  } catch (error) {
+    console.error('File read failed for getMonthlyStats, returning defaults:', error);
+    return { ...DEFAULT_STATS, period };
+  }
 }
 
 /**
@@ -180,7 +262,7 @@ async function getAggregatedStats(region?: string): Promise<MonthlyStats> {
   const validStats = allStats.filter((s): s is MonthlyStats => s !== null);
 
   if (validStats.length === 0) {
-    throw new Error('No stats available');
+    return { ...DEFAULT_STATS, period: 'all' };
   }
 
   // Aggregate deal summary

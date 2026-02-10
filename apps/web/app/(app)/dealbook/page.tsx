@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { getStartupsPaginated, getFilterOptions, getMonthlyStats, getAvailablePeriods } from '@/lib/data';
+import { getStartupsPaginated, getFilterOptions, getMonthlyStats, getAvailablePeriods, DEFAULT_STATS } from '@/lib/data';
 import { auth } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { InteractiveDealbook } from './interactive-dealbook';
@@ -128,7 +128,7 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
       ...filters,
     }),
     getFilterOptions(selectedMonth, region, { verticalId: params.verticalId, subVerticalId: params.subVerticalId }),
-    getMonthlyStats(statsPeriod, region),
+    getMonthlyStats(statsPeriod, region).catch(() => ({ ...DEFAULT_STATS, period: statsPeriod })),
     auth(),
   ]);
 
