@@ -64,10 +64,26 @@ export function Sidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="px-6 py-6 border-t border-border/30">
-          <Link href="/methodology" className="text-[10px] text-muted-foreground/60 hover:text-accent-info transition-colors">
+        <div className="px-6 py-6 border-t border-border/30 space-y-2">
+          <Link
+            href="/methodology"
+            className="block text-[10px] text-muted-foreground/60 hover:text-accent-info transition-colors"
+          >
             Methodology
           </Link>
+          <Link
+            href="/support"
+            className="block text-[10px] text-muted-foreground/60 hover:text-accent-info transition-colors"
+          >
+            Support
+          </Link>
+          <a
+            href="mailto:support@graph-atlas.com"
+            className="block text-[10px] text-muted-foreground/60 hover:text-accent-info transition-colors truncate"
+            title="support@graph-atlas.com"
+          >
+            support@graph-atlas.com
+          </a>
         </div>
       </div>
     </aside>

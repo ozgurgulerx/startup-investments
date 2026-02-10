@@ -87,15 +87,32 @@ export function MobileNavTrigger() {
               );
             })}
           </div>
-        </nav>
-
-        {/* Footer */}
-        <div className="px-6 py-6 border-t border-border/50 shrink-0">
-          <p className="text-xs text-muted-foreground">
-            January 2026
-          </p>
-        </div>
-      </Sheet>
-    </>
-  );
-}
+	        </nav>
+	
+	        {/* Footer */}
+	        <div className="px-6 py-6 border-t border-border/50 shrink-0">
+	          <div className="flex flex-col gap-2">
+	            <Link
+	              href="/support"
+	              onClick={() => setOpen(false)}
+	              className="text-sm text-muted-foreground/80 hover:text-accent-info transition-colors"
+	            >
+	              Support
+	            </Link>
+	            <a
+	              href="mailto:support@graph-atlas.com"
+	              onClick={() => setOpen(false)}
+	              className="text-sm text-muted-foreground/80 hover:text-accent-info transition-colors truncate"
+	              title="support@graph-atlas.com"
+	            >
+	              support@graph-atlas.com
+	            </a>
+	            <p className="pt-2 text-xs text-muted-foreground/70">
+	              January 2026
+	            </p>
+	          </div>
+	        </div>
+	      </Sheet>
+	    </>
+	  );
+	}

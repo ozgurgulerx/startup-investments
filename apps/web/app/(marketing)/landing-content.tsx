@@ -392,22 +392,23 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
 
       {/* Footer */}
       <footer className="py-10 px-6 border-t border-border/30">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <BrandMark size="sm" variant="muted" />
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <Link href="/methodology" className="hover:text-accent-info transition-colors">Methodology</Link>
-            <Link href="/news" className="hover:text-accent-info transition-colors">Newsroom</Link>
-            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
-            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
-            <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
-            <Link href="/support" className="hover:text-accent-info transition-colors">Support</Link>
-          </div>
-          <p className="text-xs text-muted-foreground/60">
-            © 2026 Build Atlas
-          </p>
-        </div>
-      </footer>
+	        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+	          <BrandMark size="sm" variant="muted" />
+	          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+	            <Link href="/methodology" className="hover:text-accent-info transition-colors">Methodology</Link>
+	            <Link href="/news" className="hover:text-accent-info transition-colors">Newsroom</Link>
+	            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
+	            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
+	            <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
+	            <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
+	            <Link href="/support" className="hover:text-accent-info transition-colors">Support</Link>
+	            <a href="mailto:support@graph-atlas.com" className="hover:text-accent-info transition-colors">support@graph-atlas.com</a>
+	          </div>
+	          <p className="text-xs text-muted-foreground/60">
+	            © 2026 Build Atlas
+	          </p>
+	        </div>
+	      </footer>
     </div>
   );
 }

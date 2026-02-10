@@ -76,13 +76,14 @@ export default function SupportPage() {
             <span className="w-2 h-2 rounded-full bg-accent" />
             <span className="text-sm font-medium text-foreground">Build Atlas</span>
           </div>
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <Link href="/methodology" className="hover:text-accent-info transition-colors">Methodology</Link>
             <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
             <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
             <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
             <Link href="/support" className="text-foreground">Support</Link>
+            <a href="mailto:support@graph-atlas.com" className="hover:text-accent-info transition-colors">support@graph-atlas.com</a>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas

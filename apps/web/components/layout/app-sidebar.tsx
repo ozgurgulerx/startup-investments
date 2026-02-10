@@ -67,6 +67,10 @@ const secondaryItems: NavItem[] = [
     label: 'Methodology',
     href: '/methodology',
   },
+  {
+    label: 'Support',
+    href: '/support',
+  },
 ];
 
 export function AppSidebar() {
@@ -140,6 +144,13 @@ export function AppSidebar() {
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border/30">
+          <a
+            href="mailto:support@graph-atlas.com"
+            className="block text-[10px] text-muted-foreground/50 hover:text-accent-info transition-colors truncate"
+            title="support@graph-atlas.com"
+          >
+            support@graph-atlas.com
+          </a>
           <p className="text-[10px] text-muted-foreground/50">
             © 2026 Build Atlas
           </p>
