@@ -529,8 +529,10 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
             )}
 
             {/* Subscribe CTA */}
-	            <div className="px-6 py-4 border-t border-border/20 bg-background/40">
-	              <NewsSubscriptionCard region={region} />
+	            <div className="px-6 py-8 border-t border-border/20 bg-background/40">
+	              <div className="mx-auto max-w-2xl">
+	                <NewsSubscriptionCard region={region} />
+	              </div>
 	            </div>
 	          </div>
 	        </PageContainer>
