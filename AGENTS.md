@@ -193,13 +193,20 @@ Quick verification (run on the DB):
 
 Daily news editions are **partitioned by region**:
 - Canonical regions: `global`, `turkey`
-- DB schema (see `database/migrations/020_news_editions_by_region.sql`):
+- DB schema:
+  - Editions/topic index: `database/migrations/020_news_editions_by_region.sql`
+  - Region-aware clusters: `database/migrations/030_news_clusters_by_region.sql`
   - `news_sources.region` tags sources so Turkey editions can be built from Turkey-focused sources.
   - `news_daily_editions.region` partitions editions (`PRIMARY KEY (edition_date, region)`).
   - `news_topic_index.region` partitions topic browsing (`PRIMARY KEY (topic, cluster_id, edition_date, region)`).
+  - `news_clusters.region` partitions cluster *representations* (`UNIQUE (cluster_key, region)`) so Turkey editions
+    don't inherit global primary URL/title/source when clusters overlap.
 - Ingest behavior (`packages/analysis/src/automation/news_ingest.py`):
   - Writes **both** `global` and `turkey` editions per run.
-  - Turkey edition includes clusters that contain at least one member from a Turkey-tagged source (e.g. Webrazzi, Egirisim).
+  - Turkey edition clusters are built from:
+    - Turkey-tagged sources (e.g. Webrazzi, Egirisim) + Turkey startup-owned sources
+    - Global sources only when the item has explicit Turkey context (to avoid translated/global chatter)
+  - Minimal editorial reduction: clusters with gating decision `drop` are excluded from the Turkey edition.
 
 Web/UI surfaces:
 - Global feed: `/news` and `/news/[date]`

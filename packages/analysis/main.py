@@ -1251,16 +1251,31 @@ def memory_backfill(
             gate = MemoryGate()
             await gate.load(conn, region=region)
 
-            rows = await conn.fetch(
-                """
-                SELECT id::text, cluster_key, canonical_url, title, summary,
-                       story_type, entities, trust_score
-                FROM news_clusters
-                WHERE published_at >= NOW() - ($1 || ' days')::interval
-                ORDER BY published_at DESC
-                """,
-                str(days),
-            )
+            try:
+                rows = await conn.fetch(
+                    """
+                    SELECT id::text, cluster_key, canonical_url, title, summary,
+                           story_type, entities, trust_score
+                    FROM news_clusters
+                    WHERE published_at >= NOW() - ($1 || ' days')::interval
+                      AND region = $2
+                    ORDER BY published_at DESC
+                    """,
+                    str(days),
+                    region,
+                )
+            except Exception:
+                # Back-compat: older DBs didn't have per-region clusters.
+                rows = await conn.fetch(
+                    """
+                    SELECT id::text, cluster_key, canonical_url, title, summary,
+                           story_type, entities, trust_score
+                    FROM news_clusters
+                    WHERE published_at >= NOW() - ($1 || ' days')::interval
+                    ORDER BY published_at DESC
+                    """,
+                    str(days),
+                )
             console.print(f"[bold]Found {len(rows)} clusters from last {days} days (region={region})[/bold]")
 
             processed = 0

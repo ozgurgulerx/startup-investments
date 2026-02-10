@@ -63,6 +63,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
   const [turkeyStoryCount, setTurkeyStoryCount] = useState<number | null>(null);
   const editionRef = useRef<NewsEdition | null>(null);
   const isPollingRef = useRef(false);
+  const lastFocusRefreshAtRef = useRef(0);
 
   // Brief dismiss state (shared with interactive-radar via same localStorage key)
   const [briefDismissed, setBriefDismissed] = useState(() => {
@@ -127,23 +128,47 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
     load();
   }, [load]);
 
+  const refresh = useCallback(async () => {
+    if (isPollingRef.current) return;
+
+    isPollingRef.current = true;
+    setIsPolling(true);
+    try {
+      await load({ silent: true });
+    } finally {
+      isPollingRef.current = false;
+      setIsPolling(false);
+    }
+  }, [load]);
+
   useEffect(() => {
-    const poll = window.setInterval(async () => {
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
-      setIsPolling(true);
-      try {
-        await load({ silent: true });
-      } finally {
-        isPollingRef.current = false;
-        setIsPolling(false);
-      }
+    const poll = window.setInterval(() => {
+      void refresh();
     }, 5 * 60 * 1000);
 
     return () => {
       window.clearInterval(poll);
     };
-  }, [load]);
+  }, [refresh]);
+
+  useEffect(() => {
+    const maybeRefresh = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const now = Date.now();
+      if (now - lastFocusRefreshAtRef.current < 15_000) return;
+      lastFocusRefreshAtRef.current = now;
+
+      void refresh();
+    };
+
+    window.addEventListener('focus', maybeRefresh);
+    document.addEventListener('visibilitychange', maybeRefresh);
+    return () => {
+      window.removeEventListener('focus', maybeRefresh);
+      document.removeEventListener('visibilitychange', maybeRefresh);
+    };
+  }, [refresh]);
 
   const sortedItems = useMemo(() => {
     const source = edition?.items || [];

@@ -29,6 +29,8 @@ SETS = {
         # Regional editions (number may vary across branches; apply whichever exists)
         "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
+        # Region-aware clusters (prevents global representative leakage into TR editions)
+        "030_news_clusters_by_region.sql",
         # Memory-gated editorial intelligence system (Phase 1)
         "023_memory_system.sql",
         "024_regional_memory.sql",
@@ -46,6 +48,7 @@ SETS = {
         "014_news_llm_scoring_and_classification.sql",
         "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
+        "030_news_clusters_by_region.sql",
         "023_memory_system.sql",
         "024_regional_memory.sql",
         "025_periodic_briefs.sql",

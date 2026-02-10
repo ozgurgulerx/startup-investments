@@ -215,6 +215,7 @@ TR_POLICY_KEYWORDS: Tuple[str, ...] = (
 TR_CONTEXT_KEYWORDS: Tuple[str, ...] = (
     "türkiye",
     "turkiye",
+    "turkey",
     "istanbul",
     "ankara",
     "izmir",
@@ -326,11 +327,11 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("gnews_turkey", "GNews Turkey", "api", "https://gnews.io/api/v4/search", region="turkey", fetch_mode="api", credibility_weight=0.66),
     SourceDefinition("newsapi_turkey", "NewsAPI Turkey", "api", "https://newsapi.org/v2/everything", region="turkey", fetch_mode="api", credibility_weight=0.67),
     # Turkey: Additional RSS sources (Turkish ecosystem-focused)
-    SourceDefinition("foundern", "FounderN", "rss", "https://foundern.com/feed/", region="turkey", credibility_weight=0.72),
-    SourceDefinition("swipeline", "Swipeline", "rss", "https://swipeline.co/feed/", region="turkey", credibility_weight=0.70),
+    SourceDefinition("foundern", "FounderN", "rss", "https://foundern.com/feed/", region="turkey", credibility_weight=0.72, language="en"),
+    SourceDefinition("swipeline", "Swipeline", "rss", "https://swipeline.co/feed/", region="turkey", credibility_weight=0.70, language="en"),
     SourceDefinition("n24_business", "N24 Business", "rss", "https://n24.com.tr/feed", region="turkey", credibility_weight=0.60),
     SourceDefinition("daily_sabah_tech", "Daily Sabah Tech", "rss", "https://www.dailysabah.com/rss/business/tech", region="turkey", credibility_weight=0.58, language="en"),
-    SourceDefinition("startups_watch", "Startups.watch", "rss", "https://medium.com/feed/startups-watch", region="turkey", credibility_weight=0.75),
+    SourceDefinition("startups_watch", "Startups.watch", "rss", "https://medium.com/feed/startups-watch", region="turkey", credibility_weight=0.75, language="en"),
     # NOTE: Consumer-tech feeds (e.g. phone/app updates) are intentionally excluded from the Turkey edition.
     SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
@@ -393,6 +394,8 @@ class NormalizedNewsItem:
 @dataclass
 class StoryCluster:
     cluster_key: str
+    primary_source_key: str
+    primary_external_id: str
     canonical_url: str
     title: str
     summary: str
@@ -1126,9 +1129,9 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     # "Ecosystem relevance" needs to be about companies/deals, not generic purchases (e.g. domain names).
     has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
     has_strong_ecosystem = has_ecosystem and (has_startup_context or ("yatırım" in text) or ("yatirim" in text))
-    # Trusted Turkey RSS sources (Webrazzi, Egirisim) get a lighter gate — ecosystem alone is enough.
-    # API aggregators keep the strict filter to avoid translated global chatter.
-    is_trusted_rss = item.source_key in {"webrazzi", "egirisim"}
+    # Trusted Turkey RSS sources get a lighter gate — ecosystem alone is enough.
+    # API aggregators (gnews, newsapi) and Daily Sabah keep the strict filter.
+    is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch"}
     if is_trusted_rss:
         if not (has_policy or has_ecosystem or has_mna):
             return False
@@ -1204,26 +1207,41 @@ def _turkey_prefilter(item: "NormalizedNewsItem") -> bool:
 def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optional["StoryCluster"]:
     """Create a Turkey-specific version of a cluster, or None if not Turkey-relevant.
 
-    Filters to only Turkey-sourced members that pass the strict relevance check,
-    then re-selects the representative article from Turkey sources. This prevents
-    global articles (e.g. Anthropic, crypto.com) from leaking into the Turkey edition
-    when they happen to be in the same cluster as a Turkey-sourced article.
+    Includes:
+    - Turkey-tagged sources (and Turkey startup-owned sources)
+    - Global sources only when the item has explicit Turkey context (e.g. global press
+      covering a Turkish startup), to avoid translated/global chatter dominating TR.
+
+    Then:
+    - Applies strict TR relevance checks (AI + ecosystem/policy context)
+    - Selects a representative article (prefer Turkish-language when available)
     """
-    turkey_members = [
-        m for m in c.members
-        if m.source_key in turkey_source_keys or m.source_key == "startup_owned_feeds"
-    ]
-    if not turkey_members:
+    candidate_members: List[NormalizedNewsItem] = []
+    for m in c.members:
+        if m.source_key in turkey_source_keys or m.source_key == "startup_owned_feeds":
+            candidate_members.append(m)
+            continue
+
+        # Global sources: require explicit Turkey context.
+        text = f"{m.title} {m.summary or ''}".strip().casefold()
+        if _contains_any(text, TR_CONTEXT_KEYWORDS):
+            candidate_members.append(m)
+
+    if not candidate_members:
         return None
 
     # Apply strict relevance filter — must be about Turkish ecosystem,
     # not just from a Turkey source reporting on global news.
-    relevant_members = [m for m in turkey_members if _is_relevant_turkey_news_item(m)]
+    relevant_members = [m for m in candidate_members if _is_relevant_turkey_news_item(m)]
     if not relevant_members:
         return None
 
-    # Pick best Turkey member as representative
-    primary = sorted(relevant_members, key=lambda m: (m.source_weight, m.published_at), reverse=True)[0]
+    # Prefer Turkish-language members for the Turkey edition.
+    # Representative selection prefers Turkish, but we keep all relevant members
+    # so cross-source counts remain meaningful (e.g. TR RSS + global coverage).
+    primary_candidates = [m for m in relevant_members if m.language == "tr"] or relevant_members
+
+    primary = sorted(primary_candidates, key=lambda m: (m.source_weight, m.published_at), reverse=True)[0]
     tags = classify_topic_tags(primary.title, primary.summary)
     rank_score, trust_score, reason = compute_cluster_scores(
         published_at=max(m.published_at for m in relevant_members),
@@ -1233,6 +1251,8 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
 
     return StoryCluster(
         cluster_key=c.cluster_key,
+        primary_source_key=primary.source_key,
+        primary_external_id=primary.external_id,
         canonical_url=primary.canonical_url,
         title=primary.title,
         summary=primary.summary,
@@ -1423,6 +1443,9 @@ class DailyNewsIngestor:
                     azure_endpoint=self.azure_openai_endpoint,
                 )
 
+        # Schema feature flags (resolved at runtime in `run()`).
+        self._regional_clusters_supported = False
+
         # Diagnostic: log daily brief prerequisites on startup
         _bp = []
         if self.azure_client is not None:
@@ -1447,6 +1470,37 @@ class DailyNewsIngestor:
     async def _get_source_id_map(self, conn: asyncpg.Connection) -> Dict[str, str]:
         rows = await conn.fetch("SELECT id::text, source_key FROM news_sources")
         return {r["source_key"]: r["id"] for r in rows}
+
+    async def _supports_regional_clusters(self, conn: asyncpg.Connection) -> bool:
+        """Whether `news_clusters` is region-aware (cluster_key, region uniqueness)."""
+        try:
+            val = await conn.fetchval(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'news_clusters' AND column_name = 'region'
+                LIMIT 1
+                """
+            )
+            return bool(val)
+        except Exception:
+            return False
+
+    async def _build_raw_item_lookup(self, conn: asyncpg.Connection) -> Dict[Tuple[str, str], str]:
+        """Map (source_key, external_id) -> raw_item_id for linking clusters to raw items.
+
+        Note: This currently scans all `news_items_raw` rows. It's intentionally
+        simple/robust, but can be optimized later if the table grows large.
+        """
+        raw_rows = await conn.fetch("SELECT id::text, source_id::text, external_id FROM news_items_raw")
+        source_id_map = await self._get_source_id_map(conn)
+        source_lookup: Dict[str, str] = {v: k for k, v in source_id_map.items()}
+        raw_lookup: Dict[Tuple[str, str], str] = {}
+        for row in raw_rows:
+            source_key = source_lookup.get(row["source_id"], "")
+            if source_key:
+                raw_lookup[(source_key, row["external_id"])] = row["id"]
+        return raw_lookup
 
     async def _upsert_sources(self, conn: asyncpg.Connection, sources: Sequence[SourceDefinition]) -> None:
         for src in sources:
@@ -2845,6 +2899,8 @@ class DailyNewsIngestor:
 
                     clusters[idx] = StoryCluster(
                         cluster_key=cluster.cluster_key,
+                        primary_source_key=primary.source_key,
+                        primary_external_id=primary.external_id,
                         canonical_url=primary.canonical_url,
                         title=primary.title,
                         summary=primary.summary,
@@ -2883,6 +2939,8 @@ class DailyNewsIngestor:
             clusters.append(
                 StoryCluster(
                     cluster_key=cluster_key,
+                    primary_source_key=item.source_key,
+                    primary_external_id=item.external_id,
                     canonical_url=item.canonical_url,
                     title=item.title,
                     summary=item.summary,
@@ -4105,82 +4163,146 @@ class DailyNewsIngestor:
 
         return persisted
 
-    async def _persist_clusters(self, conn: asyncpg.Connection, clusters: Sequence[StoryCluster]) -> Dict[str, str]:
-        # Build map from raw item external keys to IDs for linking.
-        raw_rows = await conn.fetch("SELECT id::text, source_id::text, external_id FROM news_items_raw")
-        source_id_map = await self._get_source_id_map(conn)
-        raw_lookup: Dict[Tuple[str, str], str] = {}
-        source_lookup: Dict[str, str] = {v: k for k, v in source_id_map.items()}
-        for row in raw_rows:
-            source_key = source_lookup.get(row["source_id"], "")
-            if source_key:
-                raw_lookup[(source_key, row["external_id"])] = row["id"]
-
+    async def _persist_clusters(
+        self,
+        conn: asyncpg.Connection,
+        clusters: Sequence[StoryCluster],
+        *,
+        region: str,
+        raw_lookup: Dict[Tuple[str, str], str],
+    ) -> Dict[str, str]:
         cluster_ids: Dict[str, str] = {}
         for cluster in clusters:
-            cluster_id = await conn.fetchval(
-                """
-                INSERT INTO news_clusters (
-                    cluster_key, canonical_url, title, summary, published_at, updated_at,
-                    topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score,
-                    builder_takeaway, llm_summary, llm_model, llm_signal_score, llm_confidence_score,
-                    llm_topic_tags, llm_story_type
+            if self._regional_clusters_supported:
+                cluster_id = await conn.fetchval(
+                    """
+                    INSERT INTO news_clusters (
+                        cluster_key, region,
+                        canonical_url, title, summary, published_at, updated_at,
+                        topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score,
+                        builder_takeaway, llm_summary, llm_model, llm_signal_score, llm_confidence_score,
+                        llm_topic_tags, llm_story_type
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7::text[], $8::text[], $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::text[], $20)
+                    ON CONFLICT (cluster_key, region) DO UPDATE
+                    SET canonical_url = EXCLUDED.canonical_url,
+                        title = EXCLUDED.title,
+                        summary = EXCLUDED.summary,
+                        published_at = EXCLUDED.published_at,
+                        updated_at = NOW(),
+                        topic_tags = EXCLUDED.topic_tags,
+                        entities = EXCLUDED.entities,
+                        story_type = EXCLUDED.story_type,
+                        source_count = EXCLUDED.source_count,
+                        rank_score = EXCLUDED.rank_score,
+                        rank_reason = EXCLUDED.rank_reason,
+                        trust_score = EXCLUDED.trust_score,
+                        builder_takeaway = CASE
+                            WHEN EXCLUDED.llm_model IS NOT NULL
+                              AND EXCLUDED.builder_takeaway IS NOT NULL
+                              AND LENGTH(BTRIM(EXCLUDED.builder_takeaway)) > 0
+                                THEN EXCLUDED.builder_takeaway
+                            WHEN news_clusters.llm_model IS NOT NULL
+                                THEN news_clusters.builder_takeaway
+                            ELSE NULL
+                        END,
+                        llm_summary = COALESCE(EXCLUDED.llm_summary, news_clusters.llm_summary),
+                        llm_model = COALESCE(EXCLUDED.llm_model, news_clusters.llm_model),
+                        llm_signal_score = COALESCE(EXCLUDED.llm_signal_score, news_clusters.llm_signal_score),
+                        llm_confidence_score = COALESCE(EXCLUDED.llm_confidence_score, news_clusters.llm_confidence_score),
+                        llm_topic_tags = CASE
+                            WHEN array_length(EXCLUDED.llm_topic_tags, 1) IS NULL OR array_length(EXCLUDED.llm_topic_tags, 1) = 0
+                                THEN news_clusters.llm_topic_tags
+                            ELSE EXCLUDED.llm_topic_tags
+                        END,
+                        llm_story_type = COALESCE(EXCLUDED.llm_story_type, news_clusters.llm_story_type)
+                    RETURNING id::text
+                    """,
+                    cluster.cluster_key,
+                    region,
+                    cluster.canonical_url,
+                    cluster.title,
+                    cluster.summary,
+                    cluster.published_at,
+                    cluster.topic_tags,
+                    cluster.entities,
+                    cluster.story_type,
+                    len(cluster.members),
+                    cluster.rank_score,
+                    cluster.rank_reason,
+                    cluster.trust_score,
+                    cluster.builder_takeaway,
+                    cluster.llm_summary,
+                    cluster.llm_model,
+                    cluster.llm_signal_score,
+                    cluster.llm_confidence_score,
+                    cluster.llm_topic_tags,
+                    cluster.llm_story_type,
                 )
-                VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::text[], $19)
-                ON CONFLICT (cluster_key) DO UPDATE
-                SET canonical_url = EXCLUDED.canonical_url,
-                    title = EXCLUDED.title,
-                    summary = EXCLUDED.summary,
-                    published_at = EXCLUDED.published_at,
-                    updated_at = NOW(),
-                    topic_tags = EXCLUDED.topic_tags,
-                    entities = EXCLUDED.entities,
-                    story_type = EXCLUDED.story_type,
-                    source_count = EXCLUDED.source_count,
-                    rank_score = EXCLUDED.rank_score,
-                    rank_reason = EXCLUDED.rank_reason,
-                    trust_score = EXCLUDED.trust_score,
-                    builder_takeaway = CASE
-                        WHEN EXCLUDED.llm_model IS NOT NULL
-                          AND EXCLUDED.builder_takeaway IS NOT NULL
-                          AND LENGTH(BTRIM(EXCLUDED.builder_takeaway)) > 0
-                            THEN EXCLUDED.builder_takeaway
-                        WHEN news_clusters.llm_model IS NOT NULL
-                            THEN news_clusters.builder_takeaway
-                        ELSE NULL
-                    END,
-                    llm_summary = COALESCE(EXCLUDED.llm_summary, news_clusters.llm_summary),
-                    llm_model = COALESCE(EXCLUDED.llm_model, news_clusters.llm_model),
-                    llm_signal_score = COALESCE(EXCLUDED.llm_signal_score, news_clusters.llm_signal_score),
-                    llm_confidence_score = COALESCE(EXCLUDED.llm_confidence_score, news_clusters.llm_confidence_score),
-                    llm_topic_tags = CASE
-                        WHEN array_length(EXCLUDED.llm_topic_tags, 1) IS NULL OR array_length(EXCLUDED.llm_topic_tags, 1) = 0
-                            THEN news_clusters.llm_topic_tags
-                        ELSE EXCLUDED.llm_topic_tags
-                    END,
-                    llm_story_type = COALESCE(EXCLUDED.llm_story_type, news_clusters.llm_story_type)
-                RETURNING id::text
-                """,
-                cluster.cluster_key,
-                cluster.canonical_url,
-                cluster.title,
-                cluster.summary,
-                cluster.published_at,
-                cluster.topic_tags,
-                cluster.entities,
-                cluster.story_type,
-                len(cluster.members),
-                cluster.rank_score,
-                cluster.rank_reason,
-                cluster.trust_score,
-                cluster.builder_takeaway,
-                cluster.llm_summary,
-                cluster.llm_model,
-                cluster.llm_signal_score,
-                cluster.llm_confidence_score,
-                cluster.llm_topic_tags,
-                cluster.llm_story_type,
-            )
+            else:
+                cluster_id = await conn.fetchval(
+                    """
+                    INSERT INTO news_clusters (
+                        cluster_key, canonical_url, title, summary, published_at, updated_at,
+                        topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score,
+                        builder_takeaway, llm_summary, llm_model, llm_signal_score, llm_confidence_score,
+                        llm_topic_tags, llm_story_type
+                    )
+                    VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::text[], $19)
+                    ON CONFLICT (cluster_key) DO UPDATE
+                    SET canonical_url = EXCLUDED.canonical_url,
+                        title = EXCLUDED.title,
+                        summary = EXCLUDED.summary,
+                        published_at = EXCLUDED.published_at,
+                        updated_at = NOW(),
+                        topic_tags = EXCLUDED.topic_tags,
+                        entities = EXCLUDED.entities,
+                        story_type = EXCLUDED.story_type,
+                        source_count = EXCLUDED.source_count,
+                        rank_score = EXCLUDED.rank_score,
+                        rank_reason = EXCLUDED.rank_reason,
+                        trust_score = EXCLUDED.trust_score,
+                        builder_takeaway = CASE
+                            WHEN EXCLUDED.llm_model IS NOT NULL
+                              AND EXCLUDED.builder_takeaway IS NOT NULL
+                              AND LENGTH(BTRIM(EXCLUDED.builder_takeaway)) > 0
+                                THEN EXCLUDED.builder_takeaway
+                            WHEN news_clusters.llm_model IS NOT NULL
+                                THEN news_clusters.builder_takeaway
+                            ELSE NULL
+                        END,
+                        llm_summary = COALESCE(EXCLUDED.llm_summary, news_clusters.llm_summary),
+                        llm_model = COALESCE(EXCLUDED.llm_model, news_clusters.llm_model),
+                        llm_signal_score = COALESCE(EXCLUDED.llm_signal_score, news_clusters.llm_signal_score),
+                        llm_confidence_score = COALESCE(EXCLUDED.llm_confidence_score, news_clusters.llm_confidence_score),
+                        llm_topic_tags = CASE
+                            WHEN array_length(EXCLUDED.llm_topic_tags, 1) IS NULL OR array_length(EXCLUDED.llm_topic_tags, 1) = 0
+                                THEN news_clusters.llm_topic_tags
+                            ELSE EXCLUDED.llm_topic_tags
+                        END,
+                        llm_story_type = COALESCE(EXCLUDED.llm_story_type, news_clusters.llm_story_type)
+                    RETURNING id::text
+                    """,
+                    cluster.cluster_key,
+                    cluster.canonical_url,
+                    cluster.title,
+                    cluster.summary,
+                    cluster.published_at,
+                    cluster.topic_tags,
+                    cluster.entities,
+                    cluster.story_type,
+                    len(cluster.members),
+                    cluster.rank_score,
+                    cluster.rank_reason,
+                    cluster.trust_score,
+                    cluster.builder_takeaway,
+                    cluster.llm_summary,
+                    cluster.llm_model,
+                    cluster.llm_signal_score,
+                    cluster.llm_confidence_score,
+                    cluster.llm_topic_tags,
+                    cluster.llm_story_type,
+                )
             if not cluster_id:
                 continue
 
@@ -4188,6 +4310,12 @@ class DailyNewsIngestor:
             await conn.execute("DELETE FROM news_cluster_items WHERE cluster_id = $1::uuid", str(cluster_id))
 
             ranked_members = sorted(cluster.members, key=lambda m: (m.source_weight, m.published_at), reverse=True)
+            primary_idx = 0
+            if cluster.primary_source_key and cluster.primary_external_id:
+                for i, m in enumerate(ranked_members):
+                    if m.source_key == cluster.primary_source_key and m.external_id == cluster.primary_external_id:
+                        primary_idx = i
+                        break
             for i, member in enumerate(ranked_members):
                 raw_id = raw_lookup.get((member.source_key, member.external_id))
                 if not raw_id:
@@ -4202,7 +4330,7 @@ class DailyNewsIngestor:
                     """,
                     str(cluster_id),
                     str(raw_id),
-                    i == 0,
+                    i == primary_idx,
                     member.source_weight,
                 )
 
@@ -4380,9 +4508,9 @@ class DailyNewsIngestor:
                 clusters = self._cluster_items(items_for_clustering)
 
                 # --- Split into global / turkey clusters FIRST ---
-                # Build Turkey-specific cluster copies: only Turkey-relevant members,
-                # with a Turkey-sourced representative. This prevents global articles
-                # (Anthropic, crypto.com, etc.) from leaking into the Turkey edition.
+                # Build Turkey-specific cluster copies: Turkey-relevant members
+                # (Turkey sources + Turkey-context global coverage) with a TR-safe
+                # representative selection to prevent global leakage.
                 turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
                 turkey_clusters: List[StoryCluster] = []
                 for c in clusters:
@@ -4409,35 +4537,50 @@ class DailyNewsIngestor:
                 # Enrich all clusters with LLM (gated by NEWS_LLM_MAX_CLUSTERS)
                 await self._enrich_clusters_with_llm(clusters)
                 images_enriched = await self._enrich_missing_images(conn, clusters)
-                cluster_ids = await self._persist_clusters(conn, clusters)
+
+                # Resolve schema capabilities once per run.
+                self._regional_clusters_supported = await self._supports_regional_clusters(conn)
+
+                raw_lookup = await self._build_raw_item_lookup(conn)
+
+                # Persist clusters per-region when supported. Otherwise fall back
+                # to legacy shared clusters (global-only persistence).
+                cluster_ids_global = await self._persist_clusters(conn, clusters, region="global", raw_lookup=raw_lookup)
+                if self._regional_clusters_supported:
+                    cluster_ids_turkey = await self._persist_clusters(conn, turkey_clusters, region="turkey", raw_lookup=raw_lookup)
+                else:
+                    cluster_ids_turkey = cluster_ids_global
 
                 # Persist memory gate results per-region
-                mem_facts_global = await self._persist_memory_results(conn, clusters, cluster_ids, region="global")
-                mem_facts_turkey = await self._persist_memory_results(conn, turkey_clusters, cluster_ids, region="turkey")
+                mem_facts_global = await self._persist_memory_results(conn, clusters, cluster_ids_global, region="global")
+                mem_facts_turkey = await self._persist_memory_results(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
                 memory_stats["facts_written"] = mem_facts_global + mem_facts_turkey
 
                 # Persist gating decisions per-region
-                gating_persisted_global = await self._persist_gating_decisions(conn, clusters, cluster_ids, region="global")
-                gating_persisted_turkey = await self._persist_gating_decisions(conn, turkey_clusters, cluster_ids, region="turkey")
+                gating_persisted_global = await self._persist_gating_decisions(conn, clusters, cluster_ids_global, region="global")
+                gating_persisted_turkey = await self._persist_gating_decisions(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
                 gating_stats["decisions_persisted"] = gating_persisted_global + gating_persisted_turkey
 
                 # --- Embed clusters (non-blocking) ---
-                embed_stats = await self._embed_clusters(conn, clusters, cluster_ids)
-                related_count = await self._populate_related_clusters(conn, cluster_ids)
+                embed_stats = await self._embed_clusters(conn, clusters, cluster_ids_global)
+                related_count = await self._populate_related_clusters(conn, cluster_ids_global)
+
+                # Minimal editorial reduction for Turkey feed: hide "drop" clusters.
+                turkey_clusters_for_edition = [c for c in turkey_clusters if c.gating_decision != "drop"]
 
                 global_stats = await self._persist_edition(
                     conn,
                     edition_date=e_date,
                     region="global",
                     clusters=clusters,
-                    cluster_ids=cluster_ids,
+                    cluster_ids=cluster_ids_global,
                 )
                 turkey_stats = await self._persist_edition(
                     conn,
                     edition_date=e_date,
                     region="turkey",
-                    clusters=turkey_clusters,
-                    cluster_ids=cluster_ids,
+                    clusters=turkey_clusters_for_edition,
+                    cluster_ids=cluster_ids_turkey,
                 )
 
                 stats = {

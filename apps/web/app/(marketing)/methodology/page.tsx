@@ -1,51 +1,35 @@
 import Link from 'next/link';
+import { NewsNav } from '@/components/news/news-nav';
 
 export default function MethodologyPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Navigation — matches NewsNav styling */}
-      <nav className="shrink-0 border-b border-border/30 bg-background/95 backdrop-blur-sm">
-        <div className="absolute left-0 right-0 top-0 h-[2px] bg-gradient-to-r from-accent/60 via-accent to-accent/60" />
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-accent" />
-            <span className="text-base font-medium tracking-tight text-foreground">Build Atlas</span>
-          </Link>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <Link href="/news" className="hover:text-foreground transition-colors">News</Link>
-            <span className="text-foreground">Methodology</span>
-            <Link
-              href="/login"
-              className="rounded-full border border-border/40 bg-muted/15 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/30 transition-colors"
-            >
-              Sign In
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <NewsNav activeRegion="global" activePeriod="daily" />
 
       {/* Content */}
-      <main className="flex-1 py-16 px-6">
+      <main className="flex-1 px-6 py-8">
         <div className="max-w-3xl mx-auto">
 
-          <h1 className="text-4xl font-light text-foreground mb-6">
-            Methodology
-          </h1>
-
-          <p className="text-lg text-muted-foreground mb-12 leading-relaxed">
-            BuildAtlas is a next-gen news site with an AI editor — designed to separate signal from noise.
-            Our goal is simple: when the internet produces 1,000 &ldquo;updates,&rdquo; we want to surface the <em>few</em> that
-            actually change what a builder, investor, or operator should believe or do.
-          </p>
+          <div className="mb-8">
+            <p className="label-xs text-accent-info">Editorial Standards</p>
+            <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">
+              Methodology
+            </h1>
+            <p className="body-lg mt-4 max-w-xl">
+              BuildAtlas is a next-gen news site with an AI editor — designed to separate signal from noise.
+              Our goal is simple: when the internet produces 1,000 &ldquo;updates,&rdquo; we want to surface the <em>few</em> that
+              actually change what a builder, investor, or operator should believe or do.
+            </p>
+          </div>
 
           <div className="space-y-12">
             {/* What we mean by "signal" */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">What we mean by &ldquo;signal&rdquo;</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
+              <h2 className="headline-md mb-4">What we mean by &ldquo;signal&rdquo;</h2>
+              <p className="body-md mb-4">
                 A story is <strong className="text-foreground">signal</strong> if it meaningfully shifts at least one of these:
               </p>
-              <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+              <ul className="space-y-2 body-sm mb-6">
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
                   <span><strong className="text-foreground">Reality:</strong> a capability exists or changed (e.g., a real launch, benchmark, release, acquisition, outage).</span>
@@ -63,7 +47,7 @@ export default function MethodologyPage() {
                   <span><strong className="text-foreground">Roadmaps:</strong> credible indicators that the near future has changed.</span>
                 </li>
               </ul>
-              <p className="text-muted-foreground leading-relaxed">
+              <p className="body-md">
                 Everything else is <strong className="text-foreground">noise</strong>: reposts, vague claims, SEO &ldquo;explainer&rdquo; fluff, unverified rumors,
                 derivative takes, and content that doesn&apos;t change decisions.
               </p>
@@ -71,8 +55,8 @@ export default function MethodologyPage() {
 
             {/* The AI Editor pipeline */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">The AI Editor pipeline</h2>
-              <ol className="space-y-6 text-sm text-muted-foreground">
+              <h2 className="headline-md mb-4">The AI Editor pipeline</h2>
+              <ol className="space-y-6 body-sm">
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center rounded-full bg-muted/50 text-foreground text-xs flex-shrink-0">1</span>
                   <div>
@@ -139,11 +123,11 @@ export default function MethodologyPage() {
 
             {/* Noise filters */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Noise filters</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
+              <h2 className="headline-md mb-4">Noise filters</h2>
+              <p className="body-md mb-4">
                 We aggressively down-rank or exclude items with common &ldquo;noise signatures,&rdquo; such as:
               </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <ul className="space-y-2 body-sm">
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
                   <span><strong className="text-foreground">Reposts without delta</strong> — no new facts compared to earlier coverage</span>
@@ -173,11 +157,11 @@ export default function MethodologyPage() {
 
             {/* Credibility & uncertainty */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Credibility &amp; uncertainty</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
+              <h2 className="headline-md mb-4">Credibility &amp; uncertainty</h2>
+              <p className="body-md mb-4">
                 We treat &ldquo;truth&rdquo; as an engineering problem:
               </p>
-              <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+              <ul className="space-y-2 body-sm mb-6">
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
                   <span><strong className="text-foreground">Evidence-first:</strong> primary sources outrank commentary.</span>
@@ -195,18 +179,18 @@ export default function MethodologyPage() {
                   <span><strong className="text-foreground">Time-aware:</strong> we prefer the latest corrections over the earliest claims.</span>
                 </li>
               </ul>
-              <p className="text-muted-foreground leading-relaxed">
+              <p className="body-md">
                 We label confidence in plain language (e.g., High / Medium / Low) based on evidence quality and cross-source consistency.
               </p>
             </section>
 
             {/* Transparency */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Transparency: show your work</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
+              <h2 className="headline-md mb-4">Transparency: show your work</h2>
+              <p className="body-md mb-4">
                 Where possible, we expose:
               </p>
-              <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+              <ul className="space-y-2 body-sm mb-6">
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
                   <span><strong className="text-foreground">Source trail</strong> — what we read</span>
@@ -220,18 +204,18 @@ export default function MethodologyPage() {
                   <span><strong className="text-foreground">What changed</strong> — edits, corrections, evolving clusters</span>
                 </li>
               </ul>
-              <p className="text-muted-foreground leading-relaxed">
+              <p className="body-md">
                 We also maintain a visible Changelog for major taxonomy, model, and scoring updates so the definition of &ldquo;signal&rdquo; doesn&apos;t shift silently.
               </p>
             </section>
 
             {/* Limitations */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Limitations</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
+              <h2 className="headline-md mb-4">Limitations</h2>
+              <p className="body-md mb-4">
                 No automated editor is perfect. Typical failure modes include:
               </p>
-              <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+              <ul className="space-y-2 body-sm mb-6">
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
                   <span><strong className="text-foreground">Early reports</strong> that later get corrected</span>
@@ -249,18 +233,18 @@ export default function MethodologyPage() {
                   <span><strong className="text-foreground">Coverage gaps</strong> when primary sources are inaccessible or ambiguous</span>
                 </li>
               </ul>
-              <p className="text-muted-foreground leading-relaxed">
+              <p className="body-md">
                 When uncertainty is high, we&apos;d rather say &ldquo;unclear&rdquo; than invent precision.
               </p>
             </section>
 
             {/* Our north star */}
             <section>
-              <h2 className="text-xl font-medium text-foreground mb-4">Our north star</h2>
-              <p className="text-muted-foreground mb-4 leading-relaxed">
+              <h2 className="headline-md mb-4">Our north star</h2>
+              <p className="body-md mb-4">
                 If you only read BuildAtlas for a few minutes a day, you should feel:
               </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <ul className="space-y-2 body-sm">
                 <li className="flex items-start gap-2">
                   <span className="text-accent-info">•</span>
                   <span>less overwhelmed,</span>
@@ -274,14 +258,14 @@ export default function MethodologyPage() {
                   <span>and faster at turning news into decisions.</span>
                 </li>
               </ul>
-              <p className="text-muted-foreground mt-4 leading-relaxed">
+              <p className="body-md mt-4">
                 That&apos;s the bar.
               </p>
             </section>
           </div>
 
-          <div className="mt-16 p-6 bg-muted/10 border border-border/30 rounded-lg text-center">
-            <p className="text-muted-foreground mb-4">
+          <div className="mt-16 p-6 rounded-2xl border border-border/40 bg-card/60 text-center">
+            <p className="body-md mb-4">
               Ready to see it in action?
             </p>
             <Link
@@ -293,26 +277,6 @@ export default function MethodologyPage() {
           </div>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="py-12 px-6 border-t border-border/30">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-accent" />
-            <span className="text-sm font-medium text-foreground">Build Atlas</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <Link href="/methodology" className="text-foreground">Methodology</Link>
-            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
-            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
-            <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
-          </div>
-          <p className="text-xs text-muted-foreground/60">
-            © 2026 Build Atlas
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }
