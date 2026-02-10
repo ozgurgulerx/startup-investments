@@ -125,6 +125,7 @@ kubectl create secret generic startup-investments-secrets \
     --from-literal=azure-openai-api-key="${AZURE_OPENAI_API_KEY:-}" \
     --from-literal=azure-openai-embedding-deployment="${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-text-embedding-3-small}" \
     --from-literal=openai-api-key="${OPENAI_API_KEY:-}" \
+    --from-literal=azure-storage-connection-string="${AZURE_STORAGE_CONNECTION_STRING:-}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
 # --- Step 5: Deploy to AKS ---

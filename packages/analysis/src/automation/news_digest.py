@@ -213,8 +213,13 @@ class DailyNewsDigestSender:
                       </td>
                     </tr>
                     <tr>
-                      <td style="padding-top:12px;font-size:12px;color:#94a3b8;">
-                        You’re receiving this because you subscribed on Build Atlas.
+                      <td style="padding-top:8px;font-size:11px;color:#94a3b8;">
+                        Feedback / support: <a href="mailto:support@graph-atlas.com" style="color:#94a3b8;">support@graph-atlas.com</a> &middot; <a href="{self.public_base_url}/support" style="color:#94a3b8;">{self.public_base_url}/support</a>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding-top:6px;font-size:12px;color:#94a3b8;">
+                        You're receiving this because you subscribed on Build Atlas.
                         <a href="{unsubscribe_url}">Unsubscribe</a>
                       </td>
                     </tr>
@@ -250,6 +255,8 @@ class DailyNewsDigestSender:
         lines.extend(
             [
                 f"Full newsroom: {self.public_base_url}/news/{edition_date}",
+                "",
+                f"Feedback / support: support@graph-atlas.com · {self.public_base_url}/support",
                 "",
                 f"Unsubscribe: {unsubscribe_url}",
             ]

@@ -503,6 +503,9 @@ class StartupAnalysis(BaseModel):
     sources_crawled: List[CrawledSource] = Field(default_factory=list)
     evidence_quotes: List[str] = Field(default_factory=list)
 
+    # Crawl diagnostics (populated during analysis pipeline)
+    crawl_diagnostics: Optional[Dict[str, Any]] = None
+
     # Metadata
     analyzed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     confidence_score: float = 0.0

@@ -327,16 +327,22 @@ class StartupCrawler:
         crawler = StartupCrawler(throttler=throttler)
     """
 
-    def __init__(self, throttler=None, use_hybrid_fetch: bool = True):
+    def __init__(self, throttler=None, use_hybrid_fetch: bool = True,
+                 raw_content_dir: Optional[Path] = None, disable_frontier: bool = False):
         """Initialize the startup crawler.
 
         Args:
             throttler: Optional DomainThrottler for per-domain rate limiting
             use_hybrid_fetch: If True, use HTTP-first strategy with browser fallback.
                              If False, always use browser rendering.
+            raw_content_dir: Override directory for saving raw content. Defaults to
+                            settings.data_output_dir / "raw_content".
+            disable_frontier: If True, skip frontier persistence in scrapy runtime.
+                            Useful for analysis runs that don't need frontier queue.
         """
         self.throttler = throttler
         self.use_hybrid_fetch = use_hybrid_fetch
+        self.disable_frontier = disable_frontier
         self.runtime = (settings.crawler.runtime or "legacy").lower().strip()
         self.modern_runtime = None
 
@@ -348,7 +354,7 @@ class StartupCrawler:
             )
         self.cache_dir = Path(settings.crawler.cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.raw_content_dir = settings.data_output_dir / "raw_content"
+        self.raw_content_dir = raw_content_dir or (settings.data_output_dir / "raw_content")
         self.raw_content_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize hybrid fetcher
@@ -368,7 +374,7 @@ class StartupCrawler:
         self.logo_extractor = LogoExtractor()
 
         if self.runtime == "scrapy" and ScrapyPlaywrightRuntime is not None:
-            self.modern_runtime = ScrapyPlaywrightRuntime()
+            self.modern_runtime = ScrapyPlaywrightRuntime(disable_frontier=disable_frontier)
         elif self.runtime == "scrapy":
             logger.warning("CRAWLER_RUNTIME=scrapy requested, but Scrapy runtime is unavailable. Falling back to legacy runtime.")
             self.runtime = "legacy"
@@ -1056,6 +1062,49 @@ class StartupCrawler:
             }, f, indent=2)
 
         return company_dir
+
+    def clear_cache_for_startup(self, company_name: str):
+        """Delete all cache files for a startup to force a fresh crawl."""
+        slug = get_company_slug(company_name)
+        alt_slug = company_name.lower().replace(" ", "-")
+        deleted = 0
+        for pattern in [f"{slug}_*.json", f"{alt_slug}_*.json"]:
+            for cache_file in self.cache_dir.glob(pattern):
+                try:
+                    cache_file.unlink()
+                    deleted += 1
+                except Exception:
+                    pass
+        logger.info("Cleared %d cache files for %s", deleted, company_name)
+        return deleted
+
+    async def deep_crawl_startup(self, startup: StartupInput) -> List[CrawledSource]:
+        """Re-crawl a startup with aggressive settings for deeper content.
+
+        Clears existing cache, increases depth and page limits, and forces
+        rendering on all pages. Used as a fallback when initial crawl yields
+        insufficient content.
+        """
+        self.clear_cache_for_startup(startup.name)
+
+        # Save original settings
+        orig_depth = settings.crawler.depth_limit
+        orig_max_pages = settings.crawler.max_pages_per_startup
+
+        try:
+            # Override with aggressive settings
+            settings.crawler.depth_limit = max(3, orig_depth)
+            settings.crawler.max_pages_per_startup = max(120, orig_max_pages)
+
+            sources = await self.crawl_startup(startup)
+            content_dir = self.save_raw_content(startup.name)
+            logger.info("Deep crawl for %s: %d sources, saved to %s",
+                        startup.name, len(sources), content_dir)
+            return sources
+        finally:
+            # Restore original settings
+            settings.crawler.depth_limit = orig_depth
+            settings.crawler.max_pages_per_startup = orig_max_pages
 
     async def close(self):
         """Close all HTTP clients."""

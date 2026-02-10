@@ -54,6 +54,11 @@ export function NewsCard({ item, featured = false, className }: NewsCardProps) {
               {aiSignalLabel(item.llm_signal_score)}
             </span>
           ) : null}
+          {item.primary_source === 'HF Daily Papers' ? (
+            <span className="rounded-full border border-purple-500/35 bg-purple-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-purple-400">
+              Research
+            </span>
+          ) : null}
           <span className="rounded-full border border-border/40 bg-muted/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
             {item.story_type || 'news'}
           </span>

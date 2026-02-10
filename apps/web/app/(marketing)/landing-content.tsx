@@ -373,6 +373,19 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
                 <p className="text-sm text-muted-foreground">{item.answer}</p>
               </div>
             ))}
+            <div className="pb-5 border-b border-border/30">
+              <h3 className="text-sm font-medium text-foreground mb-2">How do I report a bug or request a feature?</h3>
+              <p className="text-sm text-muted-foreground">
+                Email{' '}
+                <a href="mailto:support@graph-atlas.com" className="text-accent-info hover:text-foreground transition-colors">
+                  support@graph-atlas.com
+                </a>
+                {' '}or visit our{' '}
+                <Link href="/support" className="text-accent-info hover:text-foreground transition-colors">
+                  support page
+                </Link>.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -388,6 +401,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
             <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
             <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
+            <Link href="/support" className="hover:text-accent-info transition-colors">Support</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas

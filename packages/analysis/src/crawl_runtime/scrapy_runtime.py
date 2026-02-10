@@ -32,9 +32,13 @@ from src.data.models import StartupInput
 class ScrapyPlaywrightRuntime:
     """Modern crawler runtime with optional frontier persistence."""
 
-    def __init__(self, frontier: Optional[UrlFrontierStore] = None):
+    def __init__(self, frontier: Optional[UrlFrontierStore] = None, disable_frontier: bool = False):
         self.project_root = Path(__file__).resolve().parents[2]
-        self.frontier = frontier or UrlFrontierStore(os.getenv("DATABASE_URL"))
+        self.disable_frontier = disable_frontier
+        if disable_frontier:
+            self.frontier = UrlFrontierStore(None)  # disabled store
+        else:
+            self.frontier = frontier or UrlFrontierStore(os.getenv("DATABASE_URL"))
         self.capture_recorder = RawCaptureRecorder(self.frontier)
         self.unblock_provider = build_unblock_provider(
             provider_name=settings.crawler.unblock_provider,
@@ -388,7 +392,13 @@ class ScrapyPlaywrightRuntime:
 
         startup_slug = self._slugify(startup.name)
         if self.frontier.enabled:
-            await self.frontier.enqueue_urls(startup_slug, [t["url"] for t in seed_targets])
+            try:
+                await self.frontier.enqueue_urls(startup_slug, [t["url"] for t in seed_targets])
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Frontier enqueue failed for %s (non-fatal): %s", startup_slug, exc
+                )
 
         allowed_domain = extract_domain(startup.website)
         if not allowed_domain:
@@ -418,31 +428,37 @@ class ScrapyPlaywrightRuntime:
         results = [self._doc_to_result(doc) for doc in docs]
 
         if self.frontier.enabled:
-            # Treat as first-seen startup crawl; update all emitted URLs.
-            now = datetime.now(timezone.utc)
-            synthetic_leased = {
-                canonicalize_url(r.get("canonical_url") or r.get("url") or ""): FrontierUrl(
+            try:
+                # Treat as first-seen startup crawl; update all emitted URLs.
+                now = datetime.now(timezone.utc)
+                synthetic_leased = {
+                    canonicalize_url(r.get("canonical_url") or r.get("url") or ""): FrontierUrl(
+                        startup_slug=startup_slug,
+                        url=r.get("url") or "",
+                        canonical_url=canonicalize_url(r.get("canonical_url") or r.get("url") or ""),
+                        domain=extract_domain(r.get("url") or startup.website),
+                        page_type=r.get("page_type") or "generic",
+                        priority_score=40,
+                        next_crawl_at=now,
+                        content_hash=None,
+                        etag=None,
+                        last_modified=None,
+                    )
+                    for r in results
+                    if canonicalize_url(r.get("canonical_url") or r.get("url") or "")
+                }
+                # Update queue and metadata without needing prior lease.
+                await self._mark_frontier_results(
+                    leased_by_canonical=synthetic_leased,
+                    docs=docs,
                     startup_slug=startup_slug,
-                    url=r.get("url") or "",
-                    canonical_url=canonicalize_url(r.get("canonical_url") or r.get("url") or ""),
-                    domain=extract_domain(r.get("url") or startup.website),
-                    page_type=r.get("page_type") or "generic",
-                    priority_score=40,
-                    next_crawl_at=now,
-                    content_hash=None,
-                    etag=None,
-                    last_modified=None,
+                    policy=policy,
                 )
-                for r in results
-                if canonicalize_url(r.get("canonical_url") or r.get("url") or "")
-            }
-            # Update queue and metadata without needing prior lease.
-            await self._mark_frontier_results(
-                leased_by_canonical=synthetic_leased,
-                docs=docs,
-                startup_slug=startup_slug,
-                policy=policy,
-            )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Frontier mark_results failed for %s (non-fatal): %s", startup_slug, exc
+                )
 
         return results
 

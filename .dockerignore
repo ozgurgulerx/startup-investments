@@ -18,6 +18,9 @@
 # Shared workspace package
 !packages/shared/
 
+# Analysis package (for analysis Dockerfile)
+!packages/analysis/
+
 # Re-exclude build artifacts and large/sensitive files
 apps/web/.next/
 apps/web/node_modules/
@@ -28,3 +31,10 @@ packages/shared/node_modules/
 
 # Exclude raw_content (crawled HTML, ~58MB) — not needed at runtime
 apps/web/data/**/raw_content/
+
+# Analysis package exclusions
+packages/analysis/venv/
+packages/analysis/data/crawl_cache/
+packages/analysis/__pycache__/
+packages/analysis/**/__pycache__/
+packages/analysis/.pytest_cache/

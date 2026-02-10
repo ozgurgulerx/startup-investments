@@ -223,9 +223,16 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
               size="lg"
               variant="elevated"
             />
-            <h1 className="text-2xl font-light tracking-tight text-foreground">
-              {startup.company_name}
-            </h1>
+            <div>
+              <h1 className="text-2xl font-light tracking-tight text-foreground">
+                {startup.company_name}
+              </h1>
+              {(startup.market_type === 'horizontal') ? (
+                <span className="text-xs text-muted-foreground tracking-wide">Horizontal AI</span>
+              ) : verticalChain ? (
+                <span className="text-xs text-muted-foreground tracking-wide">{verticalChain}</span>
+              ) : null}
+            </div>
             {startup.confidence_score !== undefined && (
               <ConfidenceBadge
                 score={startup.confidence_score}
@@ -269,11 +276,6 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
           {startup.funding_stage && (
             <span>{startup.funding_stage.replace(/_/g, ' ')}</span>
           )}
-          {startup.market_type === 'horizontal' ? (
-            <span>Horizontal AI</span>
-          ) : verticalChain ? (
-            <span>{verticalChain}</span>
-          ) : null}
           {startup.uses_genai && startup.genai_intensity && (
             <span>GenAI: {startup.genai_intensity}</span>
           )}

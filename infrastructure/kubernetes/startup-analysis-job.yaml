@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: startup-analysis-2026-02
+  namespace: default
+  labels:
+    app: startup-analysis
+    period: "2026-02"
+spec:
+  ttlSecondsAfterFinished: 86400   # Clean up after 24h
+  activeDeadlineSeconds: 14400     # 4h max (77 startups × ~2min = ~2.5h + buffer)
+  template:
+    metadata:
+      labels:
+        app: startup-analysis
+    spec:
+      containers:
+      - name: analysis
+        image: aistartuptr.azurecr.io/startup-analysis:latest
+        # CMD from Dockerfile runs Feb 2026 analysis by default.
+        # Override with: command: ["python", "main.py", "analyze", ...]
+        env:
+        # --- Azure OpenAI ---
+        - name: AZURE_OPENAI_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: startup-investments-secrets
+              key: azure-openai-endpoint
+        - name: AZURE_OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: startup-investments-secrets
+              key: azure-openai-api-key
+              optional: true
+        - name: AZURE_OPENAI_DEPLOYMENT_NAME
+          value: "gpt-5-nano"
+        # --- Crawler settings ---
+        - name: CRAWLER_RUNTIME
+          value: "scrapy"
+        - name: CRAWLER_UNBLOCK_PROVIDER
+          value: "stealth"
+        - name: CRAWLER_UNBLOCK_MODE
+          value: "auto"
+        - name: CRAWLER_DEPTH_LIMIT
+          value: "2"
+        - name: CRAWLER_MAX_PAGES_PER_STARTUP
+          value: "80"
+        # --- Azure Blob Storage ---
+        - name: AZURE_STORAGE_ACCOUNT_NAME
+          value: "buildatlasstorage"
+        - name: AZURE_STORAGE_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: startup-investments-secrets
+              key: azure-storage-connection-string
+              optional: true
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+      restartPolicy: Never
+  backoffLimit: 2

@@ -79,10 +79,16 @@ Both the NIC-level and subnet-level NSGs need the rule — one alone is not enou
 
 **Manual deploy commands:**
 ```bash
-# Frontend
+# Frontend (local — no SSH needed, just `az login`)
+./scripts/deploy-frontend.sh              # Build + deploy + smoke check (~7 min)
+./scripts/deploy-frontend.sh --no-smoke   # Skip smoke check
+./scripts/deploy-frontend.sh --restart    # Just restart App Service (no build)
+./scripts/deploy-frontend.sh --via-vm     # Trigger on VM via az run-command (no SSH)
+
+# Frontend (on VM via SSH)
 runner.sh frontend-deploy 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/frontend-deploy.sh
 
-# Backend
+# Backend (on VM via SSH)
 runner.sh backend-deploy 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/backend-deploy.sh
 ```
 

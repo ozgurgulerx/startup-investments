@@ -138,7 +138,10 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-medium text-foreground mb-4">9. Contact</h2>
               <p className="leading-relaxed">
-                For questions about these Terms of Service, please contact us through our website.
+                For questions about these Terms of Service, please contact us at{' '}
+                <a href="mailto:support@graph-atlas.com" className="text-accent-info hover:text-foreground transition-colors">support@graph-atlas.com</a>
+                {' '}or visit our{' '}
+                <Link href="/support" className="text-accent-info hover:text-foreground transition-colors">support page</Link>.
               </p>
             </section>
           </div>
@@ -170,6 +173,7 @@ export default function TermsPage() {
             <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
             <Link href="/terms" className="text-foreground">Terms</Link>
             <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
+            <Link href="/support" className="hover:text-accent-info transition-colors">Support</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas

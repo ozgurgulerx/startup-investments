@@ -75,6 +75,26 @@ def analyze(
         "--skip-crawl",
         help="Skip crawling, use existing cached data only"
     ),
+    force_crawl: bool = typer.Option(
+        False,
+        "--force-crawl",
+        help="Ignore cached content, always re-crawl every startup"
+    ),
+    min_content_chars: int = typer.Option(
+        0,
+        "--min-content-chars",
+        help="Min content chars threshold; retry with deep crawl if below this"
+    ),
+    upload_to_blob: bool = typer.Option(
+        False,
+        "--upload-to-blob",
+        help="Upload analysis JSONs and briefs to Azure Blob Storage"
+    ),
+    blob_output_prefix: str = typer.Option(
+        "",
+        "--blob-output-prefix",
+        help="Blob path prefix (e.g., periods/2026-02/)"
+    ),
 ):
     """Analyze startups for GenAI usage and build patterns.
 
@@ -144,7 +164,11 @@ def analyze(
 
     # Run analysis
     console.print("\n[bold blue]Starting analysis pipeline...[/bold blue]")
-    results, startup_map = asyncio.run(_run_full_analysis(startups, output_path, csv_path, enrich_csv, skip_crawl))
+    results, startup_map = asyncio.run(_run_full_analysis(
+        startups, output_path, csv_path, enrich_csv, skip_crawl,
+        force_crawl=force_crawl, min_content_chars=min_content_chars,
+        upload_to_blob=upload_to_blob, blob_output_prefix=blob_output_prefix,
+    ))
 
     # Generate outputs
     console.print("\n[bold green]Analysis complete![/bold green]")
@@ -178,12 +202,30 @@ async def _run_full_analysis(
     original_csv_path: Path,
     enrich_csv: bool,
     skip_crawl: bool = False,
+    force_crawl: bool = False,
+    min_content_chars: int = 0,
+    upload_to_blob: bool = False,
+    blob_output_prefix: str = "",
 ) -> tuple[List[StartupAnalysis], dict]:
     """Run the complete analysis pipeline."""
     analyzer = GenAIAnalyzer()
-    crawler = StartupCrawler()
+    crawler = StartupCrawler(
+        raw_content_dir=output_path / "raw_content",
+        disable_frontier=True,
+    )
     results = []
     startup_map = {s.name: s for s in startups}
+    crawl_diagnostics_map: dict[str, dict] = {}
+
+    # Initialize blob client if uploading
+    blob_client = None
+    if upload_to_blob:
+        try:
+            from src.storage.blob_client import BlobStorageClient, ContainerName
+            blob_client = BlobStorageClient()
+            console.print("[green]Blob upload enabled[/green]")
+        except Exception as e:
+            console.print(f"[yellow]Blob upload disabled: {e}[/yellow]")
 
     with Progress(
         SpinnerColumn(),
@@ -198,27 +240,65 @@ async def _run_full_analysis(
             crawl_task = progress.add_task("[cyan]Crawling & enriching...", total=len(startups))
 
             for startup in startups:
-                # Check if we have existing cached content
-                existing_content = crawler.get_all_cached_content(startup.name)
-                if existing_content and len(existing_content) > 1000:
-                    console.print(f"  [dim]Using cached data for {startup.name} ({len(existing_content):,} chars)[/dim]")
+                diag: dict = {
+                    "initial_content_chars": 0,
+                    "retry_content_chars": None,
+                    "deep_crawl_triggered": False,
+                    "failure_reason": None,
+                    "crawl_runtime": "scrapy",
+                }
+
+                if not startup.website:
+                    diag["failure_reason"] = "no_website"
+                    crawl_diagnostics_map[startup.name] = diag
                     progress.advance(crawl_task)
                     continue
+
+                # Check if we have existing cached content
+                if not force_crawl:
+                    existing_content = crawler.get_all_cached_content(startup.name)
+                    if existing_content and len(existing_content) > 1000:
+                        diag["initial_content_chars"] = len(existing_content)
+                        if min_content_chars <= 0 or len(existing_content) >= min_content_chars:
+                            console.print(f"  [dim]Using cached data for {startup.name} ({len(existing_content):,} chars)[/dim]")
+                            crawl_diagnostics_map[startup.name] = diag
+                            progress.advance(crawl_task)
+                            continue
 
                 progress.update(crawl_task, description=f"[cyan]Crawling {startup.name}...")
                 try:
                     sources = await crawler.crawl_startup(startup)
                     # Save raw content locally
                     content_dir = crawler.save_raw_content(startup.name)
+                    initial_content = crawler.get_all_cached_content(startup.name)
+                    initial_chars = len(initial_content) if initial_content else 0
+                    diag["initial_content_chars"] = initial_chars
+
+                    # Deep crawl retry if content is below threshold
+                    if min_content_chars > 0 and initial_chars < min_content_chars and initial_chars > 0:
+                        console.print(f"  [yellow]Content below threshold ({initial_chars:,} < {min_content_chars:,}), retrying with deep crawl...[/yellow]")
+                        diag["deep_crawl_triggered"] = True
+                        try:
+                            sources = await crawler.deep_crawl_startup(startup)
+                            retry_content = crawler.get_all_cached_content(startup.name)
+                            diag["retry_content_chars"] = len(retry_content) if retry_content else 0
+                        except Exception as e2:
+                            console.print(f"  [red]Deep crawl failed for {startup.name}: {e2}[/red]")
+                            diag["failure_reason"] = "deep_crawl_failed"
+
                     # Count source types
                     source_types = {}
                     for s in sources:
                         st = s.source_type or "unknown"
                         source_types[st] = source_types.get(st, 0) + 1
                     source_summary = ", ".join(f"{k}:{v}" for k, v in source_types.items())
-                    console.print(f"  [dim]Saved to {content_dir} [{source_summary}][/dim]")
+                    final_chars = diag.get("retry_content_chars") or diag["initial_content_chars"]
+                    console.print(f"  [dim]Saved to {content_dir} [{source_summary}] ({final_chars:,} chars)[/dim]")
                 except Exception as e:
                     console.print(f"  [red]Crawl error for {startup.name}: {e}[/red]")
+                    diag["failure_reason"] = "crawl_error"
+
+                crawl_diagnostics_map[startup.name] = diag
                 progress.advance(crawl_task)
 
             # Close crawler clients
@@ -231,6 +311,11 @@ async def _run_full_analysis(
             progress.update(analyze_task, description=f"[yellow]Analyzing {startup.name}...")
             try:
                 analysis = await analyzer.analyze_startup(startup)
+
+                # Attach crawl diagnostics if available
+                if startup.name in crawl_diagnostics_map:
+                    analysis.crawl_diagnostics = crawl_diagnostics_map[startup.name]
+
                 results.append(analysis)
 
                 # Get logo path if available
@@ -239,6 +324,19 @@ async def _run_full_analysis(
                 # Save individual brief with logo
                 brief_path = save_startup_brief(analysis, startup, output_path, logo_path)
                 console.print(f"  [dim]Generated brief: {brief_path.name}[/dim]")
+
+                # Upload brief to blob if enabled
+                if blob_client and blob_output_prefix:
+                    try:
+                        from src.storage.blob_client import ContainerName
+                        brief_bytes = brief_path.read_bytes()
+                        blob_client.upload_blob(
+                            ContainerName.BRIEFS,
+                            f"{blob_output_prefix}{analysis.company_slug}/latest.md",
+                            brief_bytes,
+                        )
+                    except Exception as be:
+                        console.print(f"  [dim yellow]Blob brief upload failed: {be}[/dim yellow]")
 
                 # Print summary
                 genai_status = "[green]Yes[/green]" if analysis.uses_genai else "[red]No[/red]"
@@ -256,8 +354,28 @@ async def _run_full_analysis(
     # Save individual JSON results
     for analysis in results:
         filepath = output_path / f"{analysis.company_slug}.json"
+        json_str = json.dumps(analysis.model_dump(mode="json"), indent=2, default=str)
         with open(filepath, "w") as f:
-            json.dump(analysis.model_dump(mode="json"), f, indent=2, default=str)
+            f.write(json_str)
+
+        # Upload JSON to blob if enabled
+        if blob_client and blob_output_prefix:
+            try:
+                from src.storage.blob_client import ContainerName
+                from datetime import date
+                json_bytes = json_str.encode("utf-8")
+                blob_client.upload_blob(
+                    ContainerName.ANALYSIS_SNAPSHOTS,
+                    f"{blob_output_prefix}{analysis.company_slug}/latest.json",
+                    json_bytes,
+                )
+                blob_client.upload_blob(
+                    ContainerName.ANALYSIS_SNAPSHOTS,
+                    f"{blob_output_prefix}{analysis.company_slug}/{date.today().isoformat()}.json",
+                    json_bytes,
+                )
+            except Exception as be:
+                console.print(f"  [dim yellow]Blob JSON upload failed for {analysis.company_slug}: {be}[/dim yellow]")
 
     # Create analysis-only CSV
     analysis_csv = create_analysis_only_csv(results, output_path)
@@ -301,6 +419,31 @@ async def _run_full_analysis(
 
     with open(output_path / "analysis_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
+
+    # Upload manifest to blob if enabled
+    if blob_client and blob_output_prefix:
+        try:
+            from src.storage.blob_client import ContainerName
+            manifest = {
+                r.company_slug: {
+                    "raw_content_analyzed": r.raw_content_analyzed,
+                    "vertical": r.vertical.value if hasattr(r.vertical, "value") else str(r.vertical),
+                    "has_brief": True,
+                    "analyzed_at": r.analyzed_at.isoformat() if r.analyzed_at else None,
+                    "uses_genai": r.uses_genai,
+                    "crawl_diagnostics": r.crawl_diagnostics,
+                }
+                for r in results
+            }
+            manifest_bytes = json.dumps(manifest, indent=2, default=str).encode("utf-8")
+            blob_client.upload_blob(
+                ContainerName.PERIODS,
+                f"{blob_output_prefix}manifest.json",
+                manifest_bytes,
+            )
+            console.print(f"  [green]Uploaded manifest to blob ({len(results)} entries)[/green]")
+        except Exception as be:
+            console.print(f"  [yellow]Blob manifest upload failed: {be}[/yellow]")
 
     return results, startup_map
 

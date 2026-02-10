@@ -367,6 +367,13 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("n24_business", "N24 Business", "rss", "https://n24.com.tr/feed", region="turkey", credibility_weight=0.60),
     SourceDefinition("daily_sabah_tech", "Daily Sabah Tech", "rss", "https://www.dailysabah.com/rss/business/tech", region="turkey", credibility_weight=0.58, language="en"),
     SourceDefinition("startups_watch", "Startups.watch", "rss", "https://medium.com/feed/startups-watch", region="turkey", credibility_weight=0.75, language="en"),
+    # Turkey: VC & ecosystem RSS feeds
+    SourceDefinition("vc_212", "212 VC", "rss", "https://212.vc/feed", region="turkey", credibility_weight=0.70, language="en"),
+    SourceDefinition("finberg", "Finberg", "rss", "https://finberg.com.tr/feed", region="turkey", credibility_weight=0.68),
+    SourceDefinition("endeavor_turkey", "Endeavor Türkiye", "rss", "https://turkiye.endeavor.org/feed", region="turkey", credibility_weight=0.68),
+    SourceDefinition("startupcentrum_tr", "StartupCentrum TR", "rss", "https://media.startupcentrum.com/tr/feed", region="turkey", credibility_weight=0.65),
+    # Turkey: VC blog crawler (non-RSS VC sites — tries RSS discovery, falls back to HTML)
+    SourceDefinition("vc_turkey_blogs", "Turkey VC Blogs", "crawler", "vc://turkey-blogs", region="turkey", fetch_mode="crawler", credibility_weight=0.65),
     # NOTE: Consumer-tech feeds (e.g. phone/app updates) are intentionally excluded from the Turkey edition.
     SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
@@ -407,6 +414,44 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     # Research papers (community-curated trending arXiv papers)
     SourceDefinition("huggingface_papers", "HF Daily Papers", "api", "https://huggingface.co/api/daily_papers", fetch_mode="api", credibility_weight=0.72),
 ]
+
+
+# Turkish VC & ecosystem blog URLs (no usable RSS feed).
+# Each tuple is (VC name, homepage or blog URL).
+_TURKEY_VC_BLOG_URLS: Tuple[Tuple[str, str], ...] = (
+    ("500 Istanbul", "https://istanbul.500.co"),
+    ("ACT Venture Partners", "https://actvp.vc"),
+    ("APY Ventures", "https://www.apyventures.com"),
+    ("Aksoy Internet Ventures", "https://aksoyinternetventures.com"),
+    ("Alarko Ventures", "https://alarkoventures.com"),
+    ("Aslanoba Capital", "https://aslanobacapital.com"),
+    ("Atanova Venture", "https://atanova.vc"),
+    ("AeroBased", "https://aerobased.com"),
+    ("BIST Private Market", "https://bistprivatemarket.com"),
+    ("Boğaziçi Ventures", "https://bogaziciventures.com"),
+    ("DCP", "https://dcp.com.tr"),
+    ("Driventure", "https://driventure.com"),
+    ("Eczacıbaşı Momentum", "https://momentum.eczacibasi.com.tr"),
+    ("e2vc", "https://e2.vc"),
+    ("Esas Ventures", "https://esasventures.com"),
+    ("Founder One", "https://founderone.vc"),
+    ("Idacapital", "https://idacapital.com"),
+    ("Inventram", "https://inventram.com"),
+    ("Lima Ventures", "https://limaventures.com"),
+    ("Logo Ventures", "https://logoventures.com.tr"),
+    ("MMV Capital Partners", "https://mmvcapital.com"),
+    ("Omurga Capital", "https://omurga.vc"),
+    ("QNBEYOND Ventures", "https://qnbeyond.com"),
+    ("RePie", "https://repie.com.tr"),
+    ("ScaleX Ventures", "https://scalexventures.com"),
+    ("StartupFon", "https://startupfon.com"),
+    ("Teknoloji Yatırım", "https://teknolojiyatirim.com.tr"),
+    ("TT Ventures", "https://ttventures.com.tr"),
+    ("Türk Telekom Ventures", "https://turktelekom.com.tr/en/ventures"),
+    ("Turkey Development Fund", "https://tvkf.com.tr"),
+    ("Turkcell GSYF", "https://turkcellgsyf.com.tr"),
+    ("Yapay Zeka Fabrikası", "https://yapayzekafabrikasi.com"),
+)
 
 
 @dataclass
@@ -1182,7 +1227,7 @@ def _is_relevant_turkey_news_item_strict(item: "NormalizedNewsItem") -> bool:
     has_mna = _contains_any(text, TR_MNA_KEYWORDS)
     has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
     has_strong_ecosystem = has_ecosystem and (has_startup_context or ("yatırım" in text) or ("yatirim" in text))
-    is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch"}
+    is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch", "vc_212", "finberg", "endeavor_turkey", "startupcentrum_tr"}
     if is_trusted_rss:
         if not (has_policy or has_ecosystem or has_mna):
             return False
@@ -1238,7 +1283,7 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     if not (has_startup_signal or has_ai_with_context):
         return False
 
-    is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch"}
+    is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch", "vc_212", "finberg", "endeavor_turkey", "startupcentrum_tr"}
 
     # For broad API aggregators, require explicit Turkey context to avoid global chatter.
     if item.source_key in {"gnews_turkey", "newsapi_turkey"}:

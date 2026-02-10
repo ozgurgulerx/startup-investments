@@ -153,8 +153,10 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-medium text-foreground mb-4">Contact</h2>
               <p className="leading-relaxed">
-                For questions about this Privacy Policy or your personal data, please contact us
-                through our website.
+                For questions about this Privacy Policy or your personal data, please contact us at{' '}
+                <a href="mailto:support@graph-atlas.com" className="text-accent-info hover:text-foreground transition-colors">support@graph-atlas.com</a>
+                {' '}or visit our{' '}
+                <Link href="/support" className="text-accent-info hover:text-foreground transition-colors">support page</Link>.
               </p>
             </section>
           </div>
@@ -186,6 +188,7 @@ export default function PrivacyPage() {
             <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
             <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
             <Link href="/privacy" className="text-foreground">Privacy</Link>
+            <Link href="/support" className="hover:text-accent-info transition-colors">Support</Link>
           </div>
           <p className="text-xs text-muted-foreground/60">
             © 2026 Build Atlas
