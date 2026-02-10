@@ -3101,6 +3101,10 @@ class DailyNewsIngestor:
                     continue
 
             # 2. Fallback: scrape the homepage/blog page for a recent post.
+            #    Skip root-domain homepages — they produce "Anasayfa | Company" noise.
+            fallback_path = urlparse(base_url).path.strip("/")
+            if not fallback_path or fallback_path in ("index.html", "index.php"):
+                return []
             try:
                 async with sem:
                     resp = await client.get(base_url)
@@ -5800,8 +5804,14 @@ class DailyNewsIngestor:
                     editorial_stats["rejected_cluster_ids"] = len(rejected_global | rejected_turkey)
                     print(f"[editorial] excluding {len(rejected_global)} global + {len(rejected_turkey)} turkey rejected clusters from editions")
 
-                # Minimal editorial reduction for Turkey feed: hide "drop" clusters.
-                turkey_clusters_for_edition = [c for c in turkey_clusters if c.gating_decision != "drop"]
+                # Turkey edition: only exclude admin-rejected clusters (via editorial rules),
+                # not heuristic gating drops. The gating scorer is uncalibrated and drops
+                # ~80% of TR clusters, starving the edition. Global already passes all
+                # clusters through — match that behaviour for Turkey.
+                turkey_clusters_for_edition = [
+                    c for c in turkey_clusters
+                    if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                ]
                 if len(turkey_clusters_for_edition) < 5:
                     print(
                         f"[turkey-funnel] WARNING: only {len(turkey_clusters_for_edition)} turkey clusters "
