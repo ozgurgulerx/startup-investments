@@ -261,9 +261,6 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
 
   return (
     <section className={`relative overflow-hidden py-16 ${className || ''}`}>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_18%,hsl(var(--accent)_/_0.20),transparent_34%),radial-gradient(circle_at_88%_8%,hsl(var(--success)_/_0.18),transparent_36%),linear-gradient(180deg,hsl(var(--accent)_/_0.06),transparent_45%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(to_right,hsl(var(--foreground)_/_0.08)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--foreground)_/_0.08)_1px,transparent_1px)] [background-size:22px_22px]" />
-
       <PageContainer className="relative">
         {pendingEdition ? (
           <div className="mb-4 rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-3 text-sm text-foreground">
