@@ -32,7 +32,7 @@ export function Highlights({
     >
       <Card className={cn('glow-card border-border/50 overflow-hidden relative', className)}>
         {/* Accent bar at top */}
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary/60 to-sky-500/60" />
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary/60 to-accent-info/60" />
 
         <div className="p-4">
           <div className="flex items-center gap-2 mb-3">

@@ -1,0 +1,30 @@
+# .dockerignore — Used by apps/web/Dockerfile (build context = repo root).
+# Backend (apps/api/) uses its own .dockerignore in apps/api/.
+#
+# Whitelist approach: deny everything, then allow what the web build needs.
+
+# Deny all
+*
+
+# Root config files needed by pnpm workspace
+!package.json
+!pnpm-workspace.yaml
+!pnpm-lock.yaml
+!turbo.json
+
+# Web app source + data
+!apps/web/
+
+# Shared workspace package
+!packages/shared/
+
+# Re-exclude build artifacts and large/sensitive files
+apps/web/.next/
+apps/web/node_modules/
+apps/web/.env*
+apps/web/deploy/
+apps/web/deploy.zip
+packages/shared/node_modules/
+
+# Exclude raw_content (crawled HTML, ~58MB) — not needed at runtime
+apps/web/data/**/raw_content/

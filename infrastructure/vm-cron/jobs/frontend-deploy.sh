@@ -1,36 +1,35 @@
 #!/bin/bash
-# frontend-deploy.sh — Build Next.js app and deploy to Azure App Service.
+# frontend-deploy.sh — Build Next.js Docker image on ACR and deploy to App Service.
 #
-# Called by sync-data.sh after a successful push, or manually via:
-#   runner.sh frontend-deploy 20 /opt/buildatlas/infrastructure/vm-cron/jobs/frontend-deploy.sh
+# Called by sync-data.sh after a successful push, or by deploy.sh when apps/web/** changes.
+# Manual:
+#   runner.sh frontend-deploy 15 /opt/buildatlas/infrastructure/vm-cron/jobs/frontend-deploy.sh
 #
-# Requires: Node.js 20, pnpm 8, Azure CLI (logged in with managed identity)
-# Env vars sourced from /etc/buildatlas/.env by runner.sh
+# Env vars sourced from /etc/buildatlas/.env by runner.sh.
+# Optional: SKIP_PULL=1 (skip git pull), CLEAN_BUILD=1 (unused, kept for compat)
 set -euo pipefail
 
 REPO_DIR="/opt/buildatlas/startup-analysis"
-WEB_DIR="$REPO_DIR/apps/web"
 WEBAPP_NAME="buildatlas-web"
 RESOURCE_GROUP="rg-startup-analysis"
+ACR_NAME="aistartuptr"
+IMAGE_NAME="buildatlas-web"
 
-# Cleanup temp files on exit (success or failure)
-cleanup() {
-    cd "$WEB_DIR" 2>/dev/null || true
-    rm -rf deploy deploy.zip
-}
-trap cleanup EXIT
-
-echo "=== Frontend Deploy ==="
+echo "=== Frontend Deploy (Docker) ==="
 echo "  Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo ""
 
-# Commit SHA used for build marker + smoke checks.
-COMMIT_SHA="$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "")"
+# Commit SHA for build marker + smoke checks
+COMMIT_SHA="$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+FULL_IMAGE="$ACR_NAME.azurecr.io/$IMAGE_NAME"
 
-# Azure CLI login (managed identity, needed for az webapp deploy)
+echo "  Commit: $COMMIT_SHA"
+echo ""
+
+# --- Azure CLI login (managed identity) ---
 az_login() {
     for i in 1 2 3; do
-        if az login --identity --output none; then
+        if az login --identity --output none 2>/dev/null; then
             return 0
         fi
         sleep 2
@@ -46,20 +45,65 @@ if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
     az account set --subscription "${AZURE_SUBSCRIPTION_ID}" --output none || true
 fi
 
-echo "  Commit: ${COMMIT_SHA:-unknown}"
-echo ""
-
-# runner.sh sources /etc/buildatlas/.env (or repo .env fallback). For convenience, also
-# allow web-scoped overrides from apps/web/.env.local (not committed).
-if [ -f "$WEB_DIR/.env.local" ]; then
+# Source optional local overrides
+if [ -f "$REPO_DIR/apps/web/.env.local" ]; then
     set -a
     # shellcheck disable=SC1090
-    source "$WEB_DIR/.env.local"
+    source "$REPO_DIR/apps/web/.env.local"
     set +a
 fi
 
-# If API_KEY is missing, attempt to reuse the existing App Service setting to avoid
-# breaking deploys when /etc/buildatlas/.env isn't present on the VM.
+# --- Step 1: Pull latest code ---
+if [ "${SKIP_PULL:-}" != "1" ]; then
+    echo "[1/5] Pulling latest code..."
+    cd "$REPO_DIR"
+    git pull --ff-only origin main
+else
+    echo "[1/5] Skipping pull (already done by caller)"
+fi
+
+# --- Step 2: Build Docker image on ACR (remote build) ---
+echo ""
+echo "[2/5] Building Docker image on ACR..."
+cd "$REPO_DIR"
+
+az acr build \
+    --registry "$ACR_NAME" \
+    --image "$IMAGE_NAME:$COMMIT_SHA" \
+    --image "$IMAGE_NAME:latest" \
+    --file apps/web/Dockerfile \
+    --build-arg "NEXT_PUBLIC_BUILD_SHA=$COMMIT_SHA" \
+    --build-arg "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}" \
+    --build-arg "NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com" \
+    --build-arg "NEXT_PUBLIC_POSTHOG_KEY=${POSTHOG_KEY:-}" \
+    .
+
+echo "  Pushed: $FULL_IMAGE:$COMMIT_SHA"
+echo "  Pushed: $FULL_IMAGE:latest"
+
+# --- Step 3: Point App Service at new container image ---
+echo ""
+echo "[3/5] Updating App Service container configuration..."
+
+# Get ACR admin credentials for App Service image pulls
+ACR_USER=$(az acr credential show --name "$ACR_NAME" --query "username" -o tsv)
+ACR_PASS=$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv)
+
+az webapp config container set \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$WEBAPP_NAME" \
+    --container-image-name "$FULL_IMAGE:$COMMIT_SHA" \
+    --container-registry-url "https://$ACR_NAME.azurecr.io" \
+    --container-registry-user "$ACR_USER" \
+    --container-registry-password "$ACR_PASS" \
+    --output none
+
+# --- Step 4: Configure App Service settings ---
+echo ""
+echo "[4/5] Configuring App Service settings..."
+
+# Resolve API_KEY: try env, then fall back to existing App Service setting
+SKIP_API_KEY_UPDATE=0
 if [ -z "${API_KEY:-}" ]; then
     EXISTING_API_KEY="$(az webapp config appsettings list \
         --resource-group "$RESOURCE_GROUP" \
@@ -69,218 +113,21 @@ if [ -z "${API_KEY:-}" ]; then
     if [ -n "${EXISTING_API_KEY:-}" ] && [ "${EXISTING_API_KEY:-}" != "null" ]; then
         export API_KEY="$EXISTING_API_KEY"
         echo "  Loaded API_KEY from existing App Service settings."
+    else
+        echo "  WARNING: API_KEY not available. Preserving existing setting."
+        SKIP_API_KEY_UPDATE=1
     fi
 fi
-
-SKIP_API_KEY_UPDATE=0
-if [ -z "${API_KEY:-}" ]; then
-    # Don't block deploy: preserve existing App Service setting by not updating API_KEY at all.
-    # This avoids a hard failure when the VM identity can't read app settings due to RBAC.
-    echo "  WARNING: API_KEY is not set (and could not be loaded)."
-    echo "  WARNING: Proceeding without updating API_KEY app setting (will preserve existing value, if any)."
-    SKIP_API_KEY_UPDATE=1
-fi
-
-# --- Step 1: Pull latest code (skip if deploy.sh already did it) ---
-if [ "${SKIP_PULL:-}" != "1" ]; then
-    echo "[1/7] Pulling latest code..."
-    cd "$REPO_DIR"
-    git pull --ff-only origin main
-    echo ""
-    echo "[2/7] Installing dependencies..."
-    pnpm install --frozen-lockfile
-else
-    echo "[1/7] Skipping pull (already done by deploy.sh)"
-    echo "[2/7] Skipping install (already done by deploy.sh)"
-fi
-
-# --- Step 3: Build Next.js ---
-echo ""
-echo "[3/7] Building Next.js app..."
-rm -rf "$WEB_DIR/.next"
-
-# Export build-time env vars (sourced from /etc/buildatlas/.env by runner.sh)
-export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}"
-export NEXT_PUBLIC_POSTHOG_HOST="https://us.i.posthog.com"
-export NEXT_PUBLIC_POSTHOG_KEY="${POSTHOG_KEY:-}"
-export NEXT_PUBLIC_BUILD_SHA="${COMMIT_SHA:-unknown}"
-
-pnpm --filter web build
-
-# --- Step 4: Assemble deployment package ---
-echo ""
-echo "[4/7] Assembling deployment package..."
-cd "$WEB_DIR"
-rm -rf deploy deploy.zip
-
-mkdir -p deploy
-
-# Copy standalone output with symlinks dereferenced
-rsync -a --copy-links .next/standalone/apps/web/ deploy/
-rsync -a --copy-links .next/standalone/node_modules/ deploy/node_modules/
-
-# Copy static files
-mkdir -p deploy/.next/static
-rsync -a .next/static/ deploy/.next/static/
-
-# Copy public folder
-rsync -a public/ deploy/public/
-
-# Copy file-based datasets (regional fallback + API-down scenarios)
-rsync -a data/ deploy/data/
-
-# Remove Oryx artifacts
-rm -f deploy/node_modules.tar.gz
-rm -f deploy/oryx-manifest.toml
-rm -f deploy/.oryx-manifest.toml
-
-# --- Step 5: Fix pnpm symlinks ---
-echo ""
-echo "[5/7] Fixing pnpm symlinks..."
-
-# Build lookup map once (instead of running find per package)
-echo "  Building package lookup map..."
-declare -A PKG_MAP
-while IFS= read -r dir; do
-    # Extract package name from path: .../node_modules/PACKAGE
-    pkg="${dir##*/node_modules/}"
-    if [ -n "$pkg" ] && [ -z "${PKG_MAP[$pkg]:-}" ]; then
-        PKG_MAP["$pkg"]="$dir"
-    fi
-done < <(find deploy/node_modules/.pnpm -type d -path "*/node_modules/*" \
-    2>/dev/null)
-
-# Fallback map from repo root
-declare -A ROOT_PKG_MAP
-while IFS= read -r dir; do
-    pkg="${dir##*/node_modules/}"
-    if [ -n "$pkg" ] && [ -z "${ROOT_PKG_MAP[$pkg]:-}" ]; then
-        ROOT_PKG_MAP["$pkg"]="$dir"
-    fi
-done < <(find "$REPO_DIR/node_modules/.pnpm" -maxdepth 5 -type d -path "*/node_modules/*" \
-    2>/dev/null)
-echo "  Lookup map: ${#PKG_MAP[@]} deploy + ${#ROOT_PKG_MAP[@]} root packages"
-
-fix_package() {
-    local PKG=$1
-    local PKG_PATH="deploy/node_modules/$PKG"
-
-    rm -rf "$PKG_PATH"
-
-    local PKG_SRC="${PKG_MAP[$PKG]:-}"
-    if [ -z "$PKG_SRC" ]; then
-        PKG_SRC="${ROOT_PKG_MAP[$PKG]:-}"
-    fi
-
-    if [ -n "$PKG_SRC" ]; then
-        mkdir -p "$(dirname "$PKG_PATH")"
-        cp -rL "$PKG_SRC" "$PKG_PATH"
-        echo "  Fixed: $PKG"
-    fi
-}
-
-# Critical packages required by Next.js runtime
-CRITICAL_PACKAGES=(
-    "styled-jsx"
-    "@swc/helpers"
-    "@next/env"
-    "client-only"
-    "server-only"
-    "next-auth"
-    "@auth/core"
-    "@panva/hkdf"
-    "jose"
-    "oauth4webapi"
-    "preact"
-    "preact-render-to-string"
-    "caniuse-lite"
-    "postcss"
-    "react"
-    "react-dom"
-    "pg"
-    "pg-types"
-    "pg-pool"
-    "pg-protocol"
-    "pg-connection-string"
-    "pgpass"
-    "buffer-writer"
-    "packet-reader"
-    "postgres-array"
-    "postgres-bytea"
-    "postgres-date"
-    "postgres-interval"
-    "pg-int8"
-    "scheduler"
-    "xtend"
-    "split2"
-    "obuf"
-    "bcryptjs"
-)
-
-for PKG in "${CRITICAL_PACKAGES[@]}"; do
-    fix_package "$PKG"
-done
-
-# Fix broken symlinks (up to 3 passes — fewer needed with pre-built map)
-echo "Scanning for broken symlinks..."
-for i in 1 2 3; do
-    FOUND_BROKEN=0
-    while IFS= read -r LINK; do
-        if [ -n "$LINK" ] && [ ! -e "$LINK" ]; then
-            FOUND_BROKEN=1
-            PKG_NAME=$(basename "$LINK")
-            rm -f "$LINK"
-
-            PKG_SRC="${PKG_MAP[$PKG_NAME]:-}"
-            if [ -z "$PKG_SRC" ]; then
-                PKG_SRC="${ROOT_PKG_MAP[$PKG_NAME]:-}"
-            fi
-
-            if [ -n "$PKG_SRC" ]; then
-                cp -rL "$PKG_SRC" "$LINK"
-                echo "  Fixed broken symlink: $PKG_NAME (pass $i)"
-            fi
-        fi
-    done < <(find deploy/node_modules -type l 2>/dev/null)
-
-    if [ $FOUND_BROKEN -eq 0 ]; then
-        echo "No broken symlinks after pass $i"
-        break
-    fi
-done
-
-# Verify critical packages
-echo ""
-echo "Verifying critical packages..."
-MISSING=0
-for CHECK in "styled-jsx/package.json" "@swc/helpers/package.json" "next/package.json" "pg/package.json" "react/package.json"; do
-    if [ ! -f "deploy/node_modules/$CHECK" ]; then
-        echo "  MISSING: $CHECK"
-        MISSING=1
-    fi
-done
-if [ "$MISSING" -eq 1 ]; then
-    echo "ERROR: Critical packages missing. Aborting deploy."
-    exit 1
-fi
-echo "  All critical packages verified."
-
-# --- Step 6: Configure App Service settings ---
-echo ""
-echo "[6/7] Configuring App Service settings..."
 
 SETTINGS=(
     "NODE_ENV=production"
-    "WEBSITE_RUN_FROM_PACKAGE=1"
-    "SCM_DO_BUILD_DURING_DEPLOYMENT=false"
-    "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}"
-    "NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com"
+    "WEBSITES_PORT=8080"
     "NEXTAUTH_URL=${NEXTAUTH_URL:-https://buildatlas.net}"
     "PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://buildatlas.net}"
-    "NEXT_PUBLIC_BUILD_SHA=${COMMIT_SHA:-unknown}"
+    "NEXT_PUBLIC_BUILD_SHA=$COMMIT_SHA"
 )
 
-# Only set secrets when provided, to avoid wiping existing App Service settings.
+# Only set secrets when provided, to avoid wiping existing App Service settings
 if [ -n "${DATABASE_URL:-}" ]; then SETTINGS+=("DATABASE_URL=${DATABASE_URL}"); fi
 if [ -n "${NEXTAUTH_SECRET:-}" ]; then
     SETTINGS+=("AUTH_SECRET=${NEXTAUTH_SECRET}" "NEXTAUTH_SECRET=${NEXTAUTH_SECRET}")
@@ -299,52 +146,49 @@ az webapp config appsettings set \
     --settings "${SETTINGS[@]}" \
     --output none
 
-# --- Step 7: Deploy ---
-echo ""
-echo "[7/7] Deploying to App Service..."
-cd deploy && zip -qr ../deploy.zip . && cd ..
-
-az webapp deploy \
+# Remove legacy zip-deploy settings (idempotent, no-op if already gone)
+az webapp config appsettings delete \
     --resource-group "$RESOURCE_GROUP" \
     --name "$WEBAPP_NAME" \
-    --src-path deploy.zip \
-    --type zip \
-    --clean true
+    --setting-names WEBSITE_RUN_FROM_PACKAGE SCM_DO_BUILD_DURING_DEPLOYMENT \
+    --output none 2>/dev/null || true
 
+# --- Step 5: Smoke check ---
 echo ""
-echo "[8/8] Smoke check (verify build is live)..."
+echo "[5/5] Smoke check (verify build is live)..."
 BASE_URL="${PUBLIC_BASE_URL:-https://buildatlas.net}"
-if [ -z "${COMMIT_SHA:-}" ]; then
+
+if [ -z "${COMMIT_SHA:-}" ] || [ "$COMMIT_SHA" = "unknown" ]; then
     echo "  WARN: Missing COMMIT_SHA; skipping smoke check."
 else
     OK=0
-    for i in $(seq 1 30); do
-        # Bust any intermediate caches with a dummy query string.
-        HTML="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "${BASE_URL}/?v=${COMMIT_SHA}" 2>/dev/null || true)"
+    for i in $(seq 1 20); do
+        HTML="$(curl -fsS --max-time 10 -H 'Cache-Control: no-cache' "${BASE_URL}/?v=${COMMIT_SHA}" 2>/dev/null || true)"
         if echo "$HTML" | grep -q "ba-build-sha\" content=\"${COMMIT_SHA}\""; then
             OK=1
             echo "  OK: build marker ba-build-sha=${COMMIT_SHA}"
             break
         fi
-        echo "  Waiting for new build to become visible... (attempt $i/30)"
-        sleep 6
+        echo "  Waiting for new build to become visible... (attempt $i/20)"
+        sleep 3
     done
-    # If not visible after 3 min, restart App Service and retry
+
     if [ "$OK" -ne 1 ]; then
-        echo "  WARN: Build not visible after 3 min — restarting App Service..."
+        echo "  WARN: Build not visible after 60s — restarting App Service..."
         az webapp restart --resource-group "$RESOURCE_GROUP" --name "$WEBAPP_NAME" --output none 2>/dev/null || true
-        sleep 15
-        for i in $(seq 1 10); do
-            HTML="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "${BASE_URL}/?v=${COMMIT_SHA}-r" 2>/dev/null || true)"
+        sleep 10
+        for i in $(seq 1 8); do
+            HTML="$(curl -fsS --max-time 10 -H 'Cache-Control: no-cache' "${BASE_URL}/?v=${COMMIT_SHA}-r" 2>/dev/null || true)"
             if echo "$HTML" | grep -q "ba-build-sha\" content=\"${COMMIT_SHA}\""; then
                 OK=1
                 echo "  OK: build marker ba-build-sha=${COMMIT_SHA} (after restart)"
                 break
             fi
-            echo "  Post-restart check... (attempt $i/10)"
-            sleep 6
+            echo "  Post-restart check... (attempt $i/8)"
+            sleep 3
         done
     fi
+
     if [ "$OK" -ne 1 ]; then
         echo "ERROR: Deployed, but new build marker was not observed on ${BASE_URL} after restart+retry."
         exit 1
@@ -353,5 +197,6 @@ fi
 
 echo ""
 echo "=== Frontend deploy complete ==="
+echo "  Image: $FULL_IMAGE:$COMMIT_SHA"
 echo "  App: https://buildatlas.net"
 echo "  Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

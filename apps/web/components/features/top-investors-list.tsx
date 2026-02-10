@@ -38,7 +38,7 @@ export function TopInvestorsList({ data, maxItems = 8, className }: TopInvestors
     <Card className={cn(
       'h-full rounded-xl',
       'bg-card/50 backdrop-blur-sm',
-      'border border-white/[0.04]',
+      'border border-border/40',
       className
     )}>
       <div className="p-5">
@@ -104,7 +104,7 @@ export function TopInvestorsList({ data, maxItems = 8, className }: TopInvestors
                 <div className="text-right">
                   <p className={cn(
                     'text-[13px] tabular-nums',
-                    sortMode === 'amount' ? 'font-semibold text-foreground/80' : 'text-muted-foreground'
+                    sortMode === 'amount' ? 'font-light text-foreground/80' : 'text-muted-foreground'
                   )}>
                     {formatCurrency(investor.total_invested, true)}
                   </p>

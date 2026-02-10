@@ -203,7 +203,7 @@ export function NewsletterRenderer({ content, className }: NewsletterRendererPro
             <div className="my-10 relative">
               <hr className="border-t border-border/30" />
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-4 bg-card">
-                <div className="w-8 h-1 bg-gradient-to-r from-primary/40 to-sky-500/40 rounded-full" />
+                <div className="w-8 h-1 bg-gradient-to-r from-primary/40 to-accent-info/40 rounded-full" />
               </div>
             </div>
           ),

@@ -26,7 +26,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="rounded-lg border border-white/10 bg-card/95 backdrop-blur px-3 py-2 shadow-xl">
+      <div className="rounded-lg border border-border/40 bg-card/95 backdrop-blur px-3 py-2 shadow-xl">
         <p className="text-[12px] font-medium text-foreground">{data.name}</p>
         <p className="text-[11px] text-muted-foreground">
           {data.count} ({data.percentage?.toFixed(0) || 0}%)
@@ -93,7 +93,7 @@ function MiniDonut({ data, colors, title }: MiniDonutProps) {
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-sm font-semibold text-foreground tabular-nums">
+          <span className="text-sm font-light text-foreground tabular-nums">
             {topItem?.percentage?.toFixed(0)}%
           </span>
         </div>
@@ -124,7 +124,7 @@ export function MarketBreakdownChart({
     <Card className={cn(
       'h-full rounded-xl',
       'bg-card/50 backdrop-blur-sm',
-      'border border-white/[0.04]',
+      'border border-border/40',
       className
     )}>
       <div className="p-5">

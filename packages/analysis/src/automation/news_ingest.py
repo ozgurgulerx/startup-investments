@@ -4940,18 +4940,28 @@ class DailyNewsIngestor:
                         signal_stats["source_signal_adjustments"] = source_adj_applied
                         print(f"[signals] applied source adjustments: {len(source_adj_applied)} sources")
 
+                # Resolve schema capabilities early so pre-load queries can be region-aware.
+                self._regional_clusters_supported = await self._supports_regional_clusters(conn)
+
                 # Pre-load existing cluster_key → cluster_id mappings for signal scoring
                 existing_cids_global: Dict[str, str] = {}
                 existing_cids_turkey: Dict[str, str] = {}
                 try:
-                    _cid_rows = await conn.fetch(
-                        "SELECT cluster_key, id::text FROM news_clusters WHERE region = 'global' AND published_at > now() - interval '14 days'"
-                    )
-                    existing_cids_global = {r["cluster_key"]: r["id"] for r in _cid_rows}
-                    _cid_rows_tr = await conn.fetch(
-                        "SELECT cluster_key, id::text FROM news_clusters WHERE region = 'turkey' AND published_at > now() - interval '14 days'"
-                    )
-                    existing_cids_turkey = {r["cluster_key"]: r["id"] for r in _cid_rows_tr}
+                    if self._regional_clusters_supported:
+                        _cid_rows = await conn.fetch(
+                            "SELECT cluster_key, id::text FROM news_clusters WHERE region = 'global' AND published_at > now() - interval '14 days'"
+                        )
+                        existing_cids_global = {r["cluster_key"]: r["id"] for r in _cid_rows}
+                        _cid_rows_tr = await conn.fetch(
+                            "SELECT cluster_key, id::text FROM news_clusters WHERE region = 'turkey' AND published_at > now() - interval '14 days'"
+                        )
+                        existing_cids_turkey = {r["cluster_key"]: r["id"] for r in _cid_rows_tr}
+                    else:
+                        _cid_rows = await conn.fetch(
+                            "SELECT cluster_key, id::text FROM news_clusters WHERE published_at > now() - interval '14 days'"
+                        )
+                        existing_cids_global = {r["cluster_key"]: r["id"] for r in _cid_rows}
+                        existing_cids_turkey = existing_cids_global
                 except Exception as exc:
                     print(f"[signals] failed to pre-load cluster IDs: {exc}")
 
@@ -4979,9 +4989,6 @@ class DailyNewsIngestor:
                 # Enrich all clusters with LLM (gated by NEWS_LLM_MAX_CLUSTERS)
                 await self._enrich_clusters_with_llm(clusters)
                 images_enriched = await self._enrich_missing_images(conn, clusters)
-
-                # Resolve schema capabilities once per run.
-                self._regional_clusters_supported = await self._supports_regional_clusters(conn)
 
                 raw_lookup = await self._build_raw_item_lookup(conn)
 

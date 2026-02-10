@@ -153,7 +153,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
             </div>
 
             <div className="lg:col-span-4">
-              <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-card via-card to-emerald-400/10 p-5 shadow-[0_14px_40px_rgba(0,0,0,0.22)]">
+              <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-card via-card to-success/10 p-5 shadow-[0_14px_40px_rgba(0,0,0,0.22)]">
                 <p className="label-xs text-accent-info mb-3">What You Track</p>
                 <ul className="space-y-3">
                   {copy.heroBullets.slice(0, 3).map((bullet, index) => (
@@ -173,7 +173,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       <DailyNewsModule className="pt-0 pb-8" />
 
       {/* Stats Bar */}
-      <section className="py-12 border-y border-accent/20 bg-gradient-to-r from-muted/10 via-emerald-500/5 to-amber-400/5">
+      <section className="py-12 border-y border-accent/20 bg-gradient-to-r from-muted/10 via-success/5 to-warning/5">
         <div className="max-w-6xl mx-auto px-6">
           <p className="label-xs text-accent-info mb-6 text-center">{periodLabel} Snapshot</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
