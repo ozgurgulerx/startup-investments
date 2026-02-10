@@ -43,7 +43,16 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <NewsNav activeRegion="global" activePeriod="daily" />
+      <NewsNav
+        activeRegion="global"
+        activePeriod="daily"
+        rightSlot={
+          <>
+            <Link href="/methodology" className="hidden sm:inline hover:text-foreground transition-colors">Methodology</Link>
+            <Link href="/news" className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info bg-accent-info/10 border border-accent-info/25">Radar</Link>
+          </>
+        }
+      />
 
       {/* Hero */}
       <section className="relative overflow-hidden pt-8 pb-10 px-6">
@@ -396,7 +405,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
 	          <BrandMark size="sm" variant="muted" />
 	          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
 	            <Link href="/methodology" className="hover:text-accent-info transition-colors">Methodology</Link>
-	            <Link href="/news" className="hover:text-accent-info transition-colors">Newsroom</Link>
+	            <Link href="/news" className="hover:text-accent-info transition-colors">Radar</Link>
 	            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
 	            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
 	            <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>

@@ -209,7 +209,7 @@ class DailyNewsDigestSender:
                     {stories_html}
                     <tr>
                       <td style="padding-top:16px;font-size:13px;color:#6b7280;">
-                        Open full newsroom: <a href="{self.public_base_url}/news/{edition_date}">{self.public_base_url}/news/{edition_date}</a>
+                        Open full radar: <a href="{self.public_base_url}/news/{edition_date}">{self.public_base_url}/news/{edition_date}</a>
                       </td>
                     </tr>
                     <tr>
@@ -254,7 +254,7 @@ class DailyNewsDigestSender:
             )
         lines.extend(
             [
-                f"Full newsroom: {self.public_base_url}/news/{edition_date}",
+                f"Full radar: {self.public_base_url}/news/{edition_date}",
                 "",
                 f"Feedback / support: support@graph-atlas.com · {self.public_base_url}/support",
                 "",

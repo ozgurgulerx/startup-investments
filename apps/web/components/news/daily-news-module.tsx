@@ -301,7 +301,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
                   href="/news"
                   className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted/25 hover:text-foreground"
                 >
-                  Newsroom
+                  Radar
                 </Link>
               </div>
             </div>
@@ -335,7 +335,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
           </div>
         </div>
 
-        {/* Newsroom preview card */}
+        {/* Radar preview card */}
         <Link
           href="/news"
           className="group mb-6 flex flex-col gap-3 rounded-xl border border-accent-info/25 bg-gradient-to-br from-accent-info/8 via-card/80 to-card/50 px-5 py-4 transition-all hover:border-accent-info/40 hover:shadow-[0_0_24px_rgba(59,130,246,0.06)] sm:flex-row sm:items-center sm:justify-between"
@@ -354,7 +354,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             )}
           </div>
           <span className="inline-flex items-center gap-1 text-sm text-accent-info transition-colors group-hover:text-accent-info/80">
-            Go to Newsroom
+            Open Radar
             <ArrowUpRight className="h-3.5 w-3.5" />
           </span>
         </Link>
@@ -481,7 +481,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             .
           </p>
           <Link href="/news" className="inline-flex items-center gap-1 text-accent-info hover:text-accent-info/80">
-            Open full newsroom
+            Open full radar
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
