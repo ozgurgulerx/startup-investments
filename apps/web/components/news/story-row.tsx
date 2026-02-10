@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { TrustBadge } from './trust-badge';
+import { ReactionBar } from './reaction-bar';
 
 function timeAgo(iso: string): string {
   const now = Date.now();
@@ -30,9 +31,10 @@ interface StoryCardProps {
   isSelected: boolean;
   onSelect: (id: string) => void;
   isNew?: boolean;
+  onHide?: (id: string) => void;
 }
 
-export function StoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps) {
+export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadge(item.story_type);
   const tags = item.topic_tags.slice(0, 2);
@@ -42,12 +44,14 @@ export function StoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps)
   const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(item.id)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(item.id); } }}
       data-story-id={item.id}
       aria-pressed={isSelected}
-      className={`group w-full text-left rounded-xl border p-3 transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60
+      className={`group w-full text-left rounded-xl border p-3 transition-colors duration-150 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60
         ${isSelected
           ? 'border-accent-info/45 bg-accent-info/10'
           : 'border-border/40 bg-card hover:border-accent-info/30 hover:bg-muted/15'
@@ -123,22 +127,28 @@ export function StoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps)
           ))}
         </div>
       )}
-    </button>
+
+      <div className="mt-3 pt-2 border-t border-border/20">
+        <ReactionBar clusterId={item.id} compact onHide={onHide} />
+      </div>
+    </div>
   );
 }
 
-export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryCardProps) {
+export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadge(item.story_type);
   const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
   const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(item.id)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(item.id); } }}
       data-story-id={item.id}
-      className={`group w-full text-left rounded-xl border p-4 transition-all duration-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60
+      className={`group w-full text-left rounded-xl border p-4 transition-all duration-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/60
         ${isSelected
           ? 'border-accent-info/40 bg-accent-info/10'
           : 'border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/80 to-card/50 hover:border-accent-info/40'
@@ -186,6 +196,10 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew }: StoryCard
           : {item.builder_takeaway}
         </p>
       )}
-    </button>
+
+      <div className="mt-3 pt-2 border-t border-border/20">
+        <ReactionBar clusterId={item.id} compact onHide={onHide} />
+      </div>
+    </div>
   );
 }

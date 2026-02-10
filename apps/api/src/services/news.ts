@@ -27,7 +27,10 @@ export interface NewsItemCard {
   llm_confidence_score?: number;
   llm_topic_tags?: string[];
   llm_story_type?: string;
+  upvote_count?: number;
 }
+
+export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';
 
 export interface DailyNewsBrief {
   headline: string;
@@ -150,6 +153,9 @@ function rowToCard(row: Record<string, unknown>): NewsItemCard {
       : toNumber(row.llm_confidence_score),
     llm_topic_tags: Array.isArray(row.llm_topic_tags) ? (row.llm_topic_tags as string[]) : undefined,
     llm_story_type: row.llm_story_type ? String(row.llm_story_type) : undefined,
+    upvote_count: row.upvote_count !== undefined && row.upvote_count !== null
+      ? toNumber(row.upvote_count)
+      : undefined,
   };
 }
 
@@ -560,9 +566,10 @@ export function makeNewsService(pool: Pool) {
       if (!meta) return null;
 
       const limit = Math.max(1, Math.min(100, Number(params?.limit || 40)));
-      const items = params?.topic
+      const rawItems = params?.topic
         ? await getTopicClusterCards(params.topic, editionDate, region, limit)
         : await getEditionClusterCards(editionDate, region, limit);
+      const items = await mergeUpvoteCounts(rawItems);
 
       const statsJson = meta.stats_json || {};
       const brief = statsJson?.daily_brief?.headline
@@ -929,15 +936,11 @@ export function makeNewsService(pool: Pool) {
       idx++;
     }
 
-    // Region filter via topic_index
-    if (region !== 'global') {
-      conditions.push(`EXISTS (
-        SELECT 1 FROM news_topic_index nti
-        WHERE nti.cluster_id = c.id AND nti.region = $${idx}
-      )`);
-      queryParams.push(region);
-      idx++;
-    }
+    // Region-aware clusters: filter directly by cluster region.
+    // Fallback for older DBs (no c.region) is handled in the catch block.
+    conditions.push(`c.region = $${idx}`);
+    queryParams.push(region);
+    idx++;
 
     queryParams.push(limit);
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -987,7 +990,246 @@ export function makeNewsService(pool: Pool) {
         image_url: row.image_url ? String(row.image_url) : undefined,
       }));
     } catch (error) {
+      // Back-compat: older DBs didn't have per-region clusters.
+      if (isMissingColumnError(error, 'region')) {
+        const legacyConditions: string[] = [];
+        const legacyParams: unknown[] = [];
+        let legacyIdx = 1;
+
+        legacyConditions.push(`(c.title ILIKE $${legacyIdx} OR c.summary ILIKE $${legacyIdx})`);
+        legacyParams.push(q);
+        legacyIdx++;
+
+        if (params.story_type) {
+          legacyConditions.push(`c.story_type = $${legacyIdx}`);
+          legacyParams.push(params.story_type);
+          legacyIdx++;
+        }
+
+        if (params.topic) {
+          legacyConditions.push(`$${legacyIdx} = ANY(c.topic_tags)`);
+          legacyParams.push(params.topic);
+          legacyIdx++;
+        }
+
+        if (params.date_from) {
+          legacyConditions.push(`c.published_at >= $${legacyIdx}::date`);
+          legacyParams.push(params.date_from);
+          legacyIdx++;
+        }
+
+        if (params.date_to) {
+          legacyConditions.push(`c.published_at <= $${legacyIdx}::date`);
+          legacyParams.push(params.date_to);
+          legacyIdx++;
+        }
+
+        // Legacy region filtering via topic_index.
+        if (region !== 'global') {
+          legacyConditions.push(`EXISTS (
+            SELECT 1 FROM news_topic_index nti
+            WHERE nti.cluster_id = c.id AND nti.region = $${legacyIdx}
+          )`);
+          legacyParams.push(region);
+          legacyIdx++;
+        }
+
+        legacyParams.push(limit);
+        const legacyWhere = legacyConditions.length > 0 ? `WHERE ${legacyConditions.join(' AND ')}` : '';
+
+        const result = await pool.query(
+          `
+          SELECT
+            c.id::text AS id,
+            c.title,
+            COALESCE(c.llm_summary, c.summary) AS summary,
+            c.story_type,
+            c.topic_tags,
+            c.entities,
+            c.published_at::text AS published_at,
+            c.rank_score,
+            c.canonical_url AS primary_url,
+            (SELECT ns.display_name FROM news_cluster_items nci
+             JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+             JOIN news_sources ns ON ns.id = nir.source_id
+             WHERE nci.cluster_id = c.id AND nci.is_primary
+             LIMIT 1) AS primary_source,
+            (SELECT nir.payload_json->>'image_url' FROM news_cluster_items nci
+             JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+             WHERE nci.cluster_id = c.id AND nci.is_primary
+               AND nir.payload_json->>'image_url' IS NOT NULL
+             LIMIT 1) AS image_url
+          FROM news_clusters c
+          ${legacyWhere}
+          ORDER BY c.rank_score DESC, c.published_at DESC
+          LIMIT $${legacyIdx}
+          `,
+          legacyParams,
+        );
+
+        return result.rows.map((row) => ({
+          id: String(row.id),
+          title: String(row.title || ''),
+          summary: String(row.summary || ''),
+          story_type: String(row.story_type || 'news'),
+          topic_tags: Array.isArray(row.topic_tags) ? row.topic_tags : [],
+          entities: Array.isArray(row.entities) ? row.entities : [],
+          published_at: String(row.published_at || ''),
+          similarity: toNumber(row.rank_score),
+          primary_url: row.primary_url ? String(row.primary_url) : undefined,
+          primary_source: row.primary_source ? String(row.primary_source) : undefined,
+          image_url: row.image_url ? String(row.image_url) : undefined,
+        }));
+      }
       if (isMissingNewsSchemaError(error)) return [];
+      throw error;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Upvote count merging (safe — degrades gracefully if table doesn't exist)
+  // ---------------------------------------------------------------------------
+
+  async function mergeUpvoteCounts(items: NewsItemCard[]): Promise<NewsItemCard[]> {
+    if (items.length === 0) return items;
+    try {
+      const ids = items.map((item) => item.id);
+      const result = await pool.query(
+        `SELECT cluster_id::text, upvote_count FROM news_item_stats WHERE cluster_id = ANY($1::uuid[])`,
+        [ids]
+      );
+      const countMap = new Map<string, number>();
+      for (const row of result.rows) {
+        countMap.set(String(row.cluster_id), toNumber(row.upvote_count));
+      }
+      return items.map((item) => ({
+        ...item,
+        upvote_count: countMap.get(item.id) ?? 0,
+      }));
+    } catch {
+      // Table doesn't exist yet or other error — return items without counts
+      return items;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Community Signals (upvote / save / hide / not_useful)
+  // ---------------------------------------------------------------------------
+
+  const STAT_COLUMN: Record<string, string> = {
+    upvote: 'upvote_count',
+    save: 'save_count',
+    not_useful: 'not_useful_count',
+  };
+
+  async function toggleSignal(params: {
+    cluster_id: string;
+    action_type: SignalActionType;
+    user_id?: string;
+    anon_id?: string;
+  }): Promise<{ active: boolean; upvote_count: number }> {
+    const { cluster_id, action_type, user_id, anon_id } = params;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Check if signal already exists
+      const identityCondition = user_id
+        ? `user_id = $3`
+        : `anon_id = $3`;
+      const identityValue = user_id || anon_id;
+
+      const existing = await client.query(
+        `SELECT id FROM news_item_signals
+         WHERE cluster_id = $1 AND action_type = $2 AND ${identityCondition}`,
+        [cluster_id, action_type, identityValue]
+      );
+
+      let active: boolean;
+      const statCol = STAT_COLUMN[action_type];
+
+      if (existing.rows.length > 0) {
+        // Remove (toggle off)
+        await client.query(
+          `DELETE FROM news_item_signals WHERE id = $1`,
+          [existing.rows[0].id]
+        );
+        if (statCol) {
+          await client.query(
+            `UPDATE news_item_stats
+             SET ${statCol} = GREATEST(0, ${statCol} - 1), updated_at = now()
+             WHERE cluster_id = $1`,
+            [cluster_id]
+          );
+        }
+        active = false;
+      } else {
+        // Insert (toggle on)
+        await client.query(
+          `INSERT INTO news_item_signals (cluster_id, action_type, user_id, anon_id)
+           VALUES ($1, $2, $3, $4)`,
+          [cluster_id, action_type, user_id || null, anon_id || null]
+        );
+        if (statCol) {
+          await client.query(
+            `INSERT INTO news_item_stats (cluster_id, ${statCol}, updated_at)
+             VALUES ($1, 1, now())
+             ON CONFLICT (cluster_id)
+             DO UPDATE SET ${statCol} = news_item_stats.${statCol} + 1, updated_at = now()`,
+            [cluster_id]
+          );
+        }
+        active = true;
+      }
+
+      // Get current upvote count
+      const statsResult = await client.query(
+        `SELECT COALESCE(upvote_count, 0)::int AS upvote_count
+         FROM news_item_stats WHERE cluster_id = $1`,
+        [cluster_id]
+      );
+      const upvote_count = statsResult.rows[0]?.upvote_count ?? 0;
+
+      await client.query('COMMIT');
+      return { active, upvote_count };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function getUserSignals(params: {
+    cluster_ids: string[];
+    user_id?: string;
+    anon_id?: string;
+  }): Promise<Record<string, SignalActionType[]>> {
+    const { cluster_ids, user_id, anon_id } = params;
+    if (cluster_ids.length === 0) return {};
+
+    const identityCondition = user_id
+      ? `user_id = $2`
+      : `anon_id = $2`;
+    const identityValue = user_id || anon_id;
+
+    try {
+      const result = await pool.query(
+        `SELECT cluster_id::text, action_type
+         FROM news_item_signals
+         WHERE cluster_id = ANY($1::uuid[]) AND ${identityCondition}`,
+        [cluster_ids, identityValue]
+      );
+
+      const map: Record<string, SignalActionType[]> = {};
+      for (const row of result.rows) {
+        const cid = String(row.cluster_id);
+        if (!map[cid]) map[cid] = [];
+        map[cid].push(row.action_type as SignalActionType);
+      }
+      return map;
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return {};
       throw error;
     }
   }
@@ -1002,5 +1244,7 @@ export function makeNewsService(pool: Pool) {
     getPeriodicBrief,
     getPeriodicBriefArchive,
     searchNewsClusters,
+    toggleSignal,
+    getUserSignals,
   };
 }

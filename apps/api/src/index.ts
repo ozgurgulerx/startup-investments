@@ -25,6 +25,8 @@ import {
   newsSourcesQuerySchema,
   newsBriefQuerySchema,
   newsBriefArchiveQuerySchema,
+  newsSignalToggleSchema,
+  newsSignalBatchSchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -1907,6 +1909,40 @@ app.get('/api/v1/news/briefs/archive', async (req, res) => {
   } catch (error) {
     console.error('Error fetching brief archive:', error);
     return res.status(500).json({ error: 'Failed to fetch brief archive' });
+  }
+});
+
+// =============================================================================
+// News Signals API (upvote / save / hide / not_useful)
+// =============================================================================
+
+app.post('/api/v1/news/signals', async (req, res) => {
+  try {
+    const parsed = newsSignalToggleSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    const { cluster_id, action_type, user_id, anon_id } = parsed.data;
+    const result = await newsService.toggleSignal({ cluster_id, action_type, user_id, anon_id });
+    return res.json(result);
+  } catch (error) {
+    console.error('Error toggling news signal:', error);
+    return res.status(500).json({ error: 'Failed to toggle signal' });
+  }
+});
+
+app.post('/api/v1/news/signals/batch', async (req, res) => {
+  try {
+    const parsed = newsSignalBatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    const { cluster_ids, user_id, anon_id } = parsed.data;
+    const signals = await newsService.getUserSignals({ cluster_ids, user_id, anon_id });
+    return res.json(signals);
+  } catch (error) {
+    console.error('Error fetching user signals:', error);
+    return res.status(500).json({ error: 'Failed to fetch signals' });
   }
 });
 

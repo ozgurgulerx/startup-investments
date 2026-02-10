@@ -136,6 +136,31 @@ export const newsBriefArchiveQuerySchema = z.object({
 });
 
 // =============================================================================
+// News Signals schemas
+// =============================================================================
+
+const signalActionType = z.enum(['upvote', 'save', 'hide', 'not_useful']);
+
+export const newsSignalToggleSchema = z.object({
+  cluster_id: z.string().uuid(),
+  action_type: signalActionType,
+  user_id: z.string().uuid().optional(),
+  anon_id: z.string().min(1).max(100).optional(),
+}).refine(
+  (data) => (data.user_id != null) !== (data.anon_id != null),
+  { message: 'Exactly one of user_id or anon_id must be provided' }
+);
+
+export const newsSignalBatchSchema = z.object({
+  cluster_ids: z.array(z.string().uuid()).min(1).max(200),
+  user_id: z.string().uuid().optional(),
+  anon_id: z.string().min(1).max(100).optional(),
+}).refine(
+  (data) => (data.user_id != null) !== (data.anon_id != null),
+  { message: 'Exactly one of user_id or anon_id must be provided' }
+);
+
+// =============================================================================
 // Admin / POST schemas
 // =============================================================================
 

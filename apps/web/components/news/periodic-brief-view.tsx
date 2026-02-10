@@ -1,6 +1,11 @@
+'use client';
+
+import { useMemo } from 'react';
 import Link from 'next/link';
 import type { PeriodicBrief, PeriodicBriefSummary } from '@startup-intelligence/shared';
 import { NewsSubscriptionCard } from './news-subscription-card';
+import { SignalsProvider } from './signals-provider';
+import { ReactionBar } from './reaction-bar';
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
@@ -53,7 +58,13 @@ export function PeriodicBriefView({
     ? `/news/turkey/${brief.period_type}`
     : `/news/${brief.period_type}`;
 
+  const clusterIds = useMemo(
+    () => topStories.filter((s) => s.cluster_id).map((s) => s.cluster_id!),
+    [topStories]
+  );
+
   return (
+    <SignalsProvider clusterIds={clusterIds}>
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
       {/* Header */}
       <header className="mb-8">
@@ -111,12 +122,19 @@ export function PeriodicBriefView({
               {topStories.slice(0, 8).map((story, idx) => (
                 <li key={idx} className="flex items-start gap-2.5 text-sm text-foreground/85">
                   <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent/60" />
-                  <span>
-                    {story.title}
-                    <span className="ml-1.5 inline-flex items-center rounded-full border border-border/40 bg-muted/20 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
-                      {story.story_type}
+                  <div className="flex-1">
+                    <span>
+                      {story.title}
+                      <span className="ml-1.5 inline-flex items-center rounded-full border border-border/40 bg-muted/20 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+                        {story.story_type}
+                      </span>
                     </span>
-                  </span>
+                    {story.cluster_id && (
+                      <div className="mt-1">
+                        <ReactionBar clusterId={story.cluster_id} compact />
+                      </div>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -223,5 +241,6 @@ export function PeriodicBriefView({
         </section>
       ) : null}
     </div>
+    </SignalsProvider>
   );
 }

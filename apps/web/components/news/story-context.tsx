@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ExternalLink, X } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { TrustBadge } from './trust-badge';
+import { ReactionBar } from './reaction-bar';
 
 function timeAgo(iso: string): string {
   const now = Date.now();
@@ -168,7 +169,7 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
       </div>
 
       {/* Actions footer */}
-      <div className="border-t border-border/30 px-6 py-3 flex items-center gap-2">
+      <div className="border-t border-border/30 px-6 py-3 flex items-center gap-3">
         {item.url && (
           <Link
             href={item.url}
@@ -180,6 +181,7 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
             Read source
           </Link>
         )}
+        <ReactionBar clusterId={item.id} />
       </div>
     </div>
   );

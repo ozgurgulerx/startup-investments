@@ -197,14 +197,17 @@ def _build_stats(
     # Top stories
     top_stories = []
     for c in clusters[:10]:
-        top_stories.append({
+        entry: Dict[str, Any] = {
             "title": c["title"],
             "summary": c.get("llm_summary") or c.get("summary") or "",
             "story_type": c.get("story_type", "news"),
             "rank_score": float(c.get("rank_score") or 0),
             "entities": list(c.get("entities") or []),
             "builder_takeaway": c.get("builder_takeaway") or "",
-        })
+        }
+        if c.get("id"):
+            entry["cluster_id"] = str(c["id"])
+        top_stories.append(entry)
 
     # Top topics
     top_topics = [

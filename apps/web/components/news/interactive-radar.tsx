@@ -10,6 +10,7 @@ import { KpiStrip } from './kpi-strip';
 import { StoryCard } from './story-row';
 import { ContextPanel } from './context-panel';
 import { NewsSubscriptionCard } from './news-subscription-card';
+import { SignalsProvider } from './signals-provider';
 
 function formatTimestamp(value: string): string {
   const parsed = new Date(value);
@@ -55,6 +56,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   const [isPolling, setIsPolling] = useState(false);
   const editionRef = useRef<NewsEdition>(initialEdition);
   const isPollingRef = useRef(false);
+  const lastFocusRefreshAtRef = useRef(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const clearNewStoryIdsTimeoutRef = useRef<number | null>(null);
   const [newStoryIds, setNewStoryIds] = useState<Set<string>>(() => new Set());
@@ -63,6 +65,11 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('all');
   const [activeTopic, setActiveTopic] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+
+  const handleHideStory = useCallback((id: string) => {
+    setHiddenIds((prev) => new Set(prev).add(id));
+  }, []);
 
   // Brief dismiss state (persisted in localStorage)
   const [briefDismissed, setBriefDismissed] = useState(() => {
@@ -92,33 +99,60 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
     setNewStoryCount(countNewStories(current, data));
   }, []);
 
+  const refreshLatest = useCallback(async () => {
+    if (isArchive) return;
+    if (isPollingRef.current) return;
+
+    isPollingRef.current = true;
+    setIsPolling(true);
+    try {
+      const regionParam = region === 'turkey' ? '?region=turkey' : '';
+      const [editionRes, topicsRes] = await Promise.all([
+        fetch(`/api/news/latest${regionParam}`, { cache: 'no-store' }),
+        fetch(`/api/news/topics${regionParam}`, { cache: 'no-store' }),
+      ]);
+      if (editionRes.ok) {
+        applyEdition(await editionRes.json());
+      }
+      if (topicsRes.ok) {
+        setTopics(await topicsRes.json());
+      }
+    } catch {
+      // Silent refresh failure
+    } finally {
+      isPollingRef.current = false;
+      setIsPolling(false);
+    }
+  }, [applyEdition, isArchive, region]);
+
   useEffect(() => {
     if (isArchive) return;
-    const poll = window.setInterval(async () => {
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
-      setIsPolling(true);
-      try {
-        const regionParam = region === 'turkey' ? '?region=turkey' : '';
-        const [editionRes, topicsRes] = await Promise.all([
-          fetch(`/api/news/latest${regionParam}`, { cache: 'no-store' }),
-          fetch(`/api/news/topics${regionParam}`, { cache: 'no-store' }),
-        ]);
-        if (editionRes.ok) {
-          applyEdition(await editionRes.json());
-        }
-        if (topicsRes.ok) {
-          setTopics(await topicsRes.json());
-        }
-      } catch {
-        // Silent polling failure
-      } finally {
-        isPollingRef.current = false;
-        setIsPolling(false);
-      }
+    const poll = window.setInterval(() => {
+      void refreshLatest();
     }, 5 * 60 * 1000);
     return () => window.clearInterval(poll);
-  }, [applyEdition, isArchive, region]);
+  }, [isArchive, refreshLatest]);
+
+  useEffect(() => {
+    if (isArchive) return;
+
+    const maybeRefresh = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const now = Date.now();
+      if (now - lastFocusRefreshAtRef.current < 15_000) return;
+      lastFocusRefreshAtRef.current = now;
+
+      void refreshLatest();
+    };
+
+    window.addEventListener('focus', maybeRefresh);
+    document.addEventListener('visibilitychange', maybeRefresh);
+    return () => {
+      window.removeEventListener('focus', maybeRefresh);
+      document.removeEventListener('visibilitychange', maybeRefresh);
+    };
+  }, [isArchive, refreshLatest]);
 
   // URL-driven story selection
   const selectStory = useCallback((id: string | null) => {
@@ -154,6 +188,11 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   // Filter + sort
   const filteredItems = useMemo(() => {
     let items = [...edition.items];
+
+    // Hidden filter (client-side)
+    if (hiddenIds.size > 0) {
+      items = items.filter((item) => !hiddenIds.has(item.id));
+    }
 
     // Time window filter
     if (timeWindow !== 'all') {
@@ -198,7 +237,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
     }
 
     return items;
-  }, [edition.items, timeWindow, activeTopic, searchQuery, sortMode]);
+  }, [edition.items, timeWindow, activeTopic, searchQuery, sortMode, hiddenIds]);
 
   const totalEntities = useMemo(() => {
     const set = new Set<string>();
@@ -210,6 +249,17 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
   const crossSourceCount = edition.items.filter((item) => item.source_count >= 2).length;
   const selectedItem = selectedId ? filteredItems.find((item) => item.id === selectedId) || null : null;
+
+  const allClusterIds = useMemo(() => edition.items.map((item) => item.id), [edition.items]);
+  const initialUpvoteCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of edition.items) {
+      if (item.upvote_count != null && item.upvote_count > 0) {
+        counts[item.id] = item.upvote_count;
+      }
+    }
+    return counts;
+  }, [edition.items]);
 
   const orderedIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems]);
 
@@ -299,6 +349,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   }, [router, searchParams]);
 
   return (
+    <SignalsProvider clusterIds={allClusterIds} initialUpvoteCounts={initialUpvoteCounts}>
     <div className="flex flex-col flex-1 min-h-0">
       {/* Confirmation/unsubscribe banner */}
       {statusBanner && (
@@ -407,7 +458,8 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
             </span>
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
               <RefreshCcw className={`h-3 w-3 ${isPolling ? 'animate-spin text-accent-info' : ''}`} />
-              {formatTimestamp(edition.generated_at)}
+              Updated {formatTimestamp(edition.generated_at)}
+              {pendingEdition ? <span className="text-accent-info/70">· update ready</span> : null}
             </span>
           </div>
         </div>
@@ -438,6 +490,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                       isSelected={selectedId === item.id}
                       onSelect={(id) => handleSelectStory(id)}
                       isNew={newStoryIds.has(item.id)}
+                      onHide={handleHideStory}
                     />
                   ))}
                 </div>
@@ -473,5 +526,6 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         </div>
       )}
     </div>
+    </SignalsProvider>
   );
 }

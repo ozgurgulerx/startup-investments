@@ -636,7 +636,10 @@ export interface NewsItemCard {
   llm_confidence_score?: number;
   llm_topic_tags?: string[];
   llm_story_type?: string;
+  upvote_count?: number;
 }
+
+export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';
 
 export interface DailyNewsBrief {
   headline: string;
@@ -706,7 +709,7 @@ export interface PeriodicBriefNarrative {
 
 export interface PeriodicBriefStats {
   total_stories: number;
-  top_stories: Array<{ title: string; story_type: string; rank_score: number }>;
+  top_stories: Array<{ title: string; story_type: string; rank_score: number; cluster_id?: string }>;
   top_topics: Array<{ topic: string; count: number }>;
   story_types: Record<string, number>;
   funding_total_usd?: number;
