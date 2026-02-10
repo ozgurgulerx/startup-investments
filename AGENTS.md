@@ -248,6 +248,9 @@ Common failure mode:
 - **asyncpg DATE binding**: you must pass a Python `datetime.date` as the query argument for `edition_date`.
   - Symptom: `('str' object has no attribute 'toordinal')`
   - Fix: ensure `_resolve_edition_date()` returns `date` objects and DB calls use that date.
+- **Missing subscriber timezone column** (timezone-aware sending):
+  - Symptom: `column "timezone" does not exist`
+  - Fix: apply `database/migrations/027_subscriber_timezone.sql` (VM: `infrastructure/vm-cron/jobs/apply-migrations.sh news-digest`)
 
 Safe test mode:
 - Use `dry_run` to validate the pipeline without sending emails or writing deliveries:

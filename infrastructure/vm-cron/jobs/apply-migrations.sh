@@ -39,6 +39,11 @@ SETS = {
         "026_refinery_enhancements.sql",
         # Vector embeddings for semantic search (requires pgvector extension)
         "028_pgvector_embeddings.sql",
+        # Subscriber timezone support for digest delivery windows
+        "027_subscriber_timezone.sql",
+        # Email subscriptions: confirmation + region support + rate limits
+        "017_email_confirmation_and_region.sql",
+        "018_news_subscription_rate_limits.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
@@ -58,6 +63,7 @@ SETS = {
         "028_pgvector_embeddings.sql",
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
+        "027_subscriber_timezone.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",
