@@ -460,6 +460,16 @@ def test_vc_turkey_blogs_source_in_default_sources():
     assert src.source_type == "crawler"
 
 
+def test_vc_sources_have_lookback_override():
+    """Low-frequency VC sources must have lookback_hours_override=168 (7 days)."""
+    source_map = {s.source_key: s for s in DEFAULT_SOURCES}
+    for key in ("vc_212", "finberg", "endeavor_turkey", "startupcentrum_tr", "vc_turkey_blogs"):
+        assert key in source_map, f"{key} missing from DEFAULT_SOURCES"
+        assert source_map[key].lookback_hours_override == 168, (
+            f"{key} should have lookback_hours_override=168, got {source_map[key].lookback_hours_override}"
+        )
+
+
 def test_turkey_vc_blog_urls_non_empty_and_valid():
     """_TURKEY_VC_BLOG_URLS should contain (name, url) tuples."""
     assert len(_TURKEY_VC_BLOG_URLS) >= 30

@@ -306,6 +306,7 @@ class SourceDefinition:
     credibility_weight: float = 0.65
     legal_mode: str = "headline_snippet"
     language: str = ""  # override auto-detection (e.g. "en" for English Turkey sources)
+    lookback_hours_override: int = 0  # 0 = use global default; set >0 for low-frequency sources
 
 
 @dataclass
@@ -368,12 +369,12 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("daily_sabah_tech", "Daily Sabah Tech", "rss", "https://www.dailysabah.com/rss/business/tech", region="turkey", credibility_weight=0.58, language="en"),
     SourceDefinition("startups_watch", "Startups.watch", "rss", "https://medium.com/feed/startups-watch", region="turkey", credibility_weight=0.75, language="en"),
     # Turkey: VC & ecosystem RSS feeds
-    SourceDefinition("vc_212", "212 VC", "rss", "https://212.vc/feed", region="turkey", credibility_weight=0.70, language="en"),
-    SourceDefinition("finberg", "Finberg", "rss", "https://finberg.com.tr/feed", region="turkey", credibility_weight=0.68),
-    SourceDefinition("endeavor_turkey", "Endeavor Türkiye", "rss", "https://turkiye.endeavor.org/feed", region="turkey", credibility_weight=0.68),
-    SourceDefinition("startupcentrum_tr", "StartupCentrum TR", "rss", "https://media.startupcentrum.com/tr/feed", region="turkey", credibility_weight=0.65),
+    SourceDefinition("vc_212", "212 VC", "rss", "https://212.vc/feed", region="turkey", credibility_weight=0.70, language="en", lookback_hours_override=168),
+    SourceDefinition("finberg", "Finberg", "rss", "https://finberg.com.tr/feed", region="turkey", credibility_weight=0.68, lookback_hours_override=168),
+    SourceDefinition("endeavor_turkey", "Endeavor Türkiye", "rss", "https://turkiye.endeavor.org/feed", region="turkey", credibility_weight=0.68, lookback_hours_override=168),
+    SourceDefinition("startupcentrum_tr", "StartupCentrum TR", "rss", "https://media.startupcentrum.com/tr/feed", region="turkey", credibility_weight=0.65, lookback_hours_override=168),
     # Turkey: VC blog crawler (non-RSS VC sites — tries RSS discovery, falls back to HTML)
-    SourceDefinition("vc_turkey_blogs", "Turkey VC Blogs", "crawler", "vc://turkey-blogs", region="turkey", fetch_mode="crawler", credibility_weight=0.65),
+    SourceDefinition("vc_turkey_blogs", "Turkey VC Blogs", "crawler", "vc://turkey-blogs", region="turkey", fetch_mode="crawler", credibility_weight=0.65, lookback_hours_override=168),
     # NOTE: Consumer-tech feeds (e.g. phone/app updates) are intentionally excluded from the Turkey edition.
     SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
@@ -3153,35 +3154,36 @@ class DailyNewsIngestor:
             for source in DEFAULT_SOURCES:
                 attempted += 1
                 t0 = time.monotonic()
+                source_lookback = source.lookback_hours_override or lookback_hours
                 try:
                     if source.fetch_mode == "rss":
-                        items = await self._fetch_rss_source(client, source, lookback_hours)
+                        items = await self._fetch_rss_source(client, source, source_lookback)
                     elif source.source_key == "hackernews_api":
-                        items = await self._fetch_hackernews_api(client, source, lookback_hours)
+                        items = await self._fetch_hackernews_api(client, source, source_lookback)
                     elif source.source_key == "producthunt_api":
                         items = await self._fetch_producthunt_api(client, source)
                     elif source.source_key == "newsapi":
-                        items = await self._fetch_newsapi(client, source, lookback_hours)
+                        items = await self._fetch_newsapi(client, source, source_lookback)
                     elif source.source_key == "gnews":
-                        items = await self._fetch_gnews(client, source, lookback_hours)
+                        items = await self._fetch_gnews(client, source, source_lookback)
                     elif source.source_key == "github_trending_ai":
-                        items = await self._fetch_github_trending_ai(conn, client, source, lookback_hours)
+                        items = await self._fetch_github_trending_ai(conn, client, source, source_lookback)
                     elif source.source_key == "amazon_new_releases_ai":
-                        items = await self._fetch_amazon_new_releases_ai(conn, source, lookback_hours)
+                        items = await self._fetch_amazon_new_releases_ai(conn, source, source_lookback)
                     elif source.source_key == "newsapi_turkey":
-                        items = await self._fetch_newsapi_turkey(client, source, lookback_hours)
+                        items = await self._fetch_newsapi_turkey(client, source, source_lookback)
                     elif source.source_key == "gnews_turkey":
-                        items = await self._fetch_gnews_turkey(client, source, lookback_hours)
+                        items = await self._fetch_gnews_turkey(client, source, source_lookback)
                     elif source.source_key == "startup_owned_feeds":
-                        items = await self._fetch_startup_owned_sources(conn, client, source, lookback_hours)
+                        items = await self._fetch_startup_owned_sources(conn, client, source, source_lookback)
                     elif source.source_key == "vc_turkey_blogs":
-                        items = await self._fetch_vc_turkey_blogs(client, source, lookback_hours)
+                        items = await self._fetch_vc_turkey_blogs(client, source, source_lookback)
                     elif source.source_key == "huggingface_papers":
-                        items = await self._fetch_huggingface_papers(client, source, lookback_hours)
+                        items = await self._fetch_huggingface_papers(client, source, source_lookback)
                     elif source.fetch_mode == "digest_rss":
-                        items = await self._fetch_ainews_digest(client, source, lookback_hours)
+                        items = await self._fetch_ainews_digest(client, source, source_lookback)
                     elif source.fetch_mode == "crawler":
-                        items = await self._fetch_frontier_candidates(conn, client, source, lookback_hours)
+                        items = await self._fetch_frontier_candidates(conn, client, source, source_lookback)
                     else:
                         items = []
 
