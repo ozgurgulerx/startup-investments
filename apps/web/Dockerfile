@@ -39,7 +39,6 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 
 # Copy workspace config
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY turbo.json* ./
 
 # Copy shared package source (workspace dependency)
 COPY packages/shared/ packages/shared/
