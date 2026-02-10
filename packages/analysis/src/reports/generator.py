@@ -97,6 +97,264 @@ def _format_secret_sauce(analysis: StartupAnalysis) -> str:
     return "\n".join(lines).strip() if lines else "*No secret sauce identified*"
 
 
+def _format_model_details(analysis: StartupAnalysis) -> str:
+    """Format model architecture details. Returns '' if no meaningful data."""
+    md = analysis.model_details
+    has_data = (
+        md.primary_models
+        or md.fine_tuning.uses_fine_tuning
+        or md.inference_optimization
+        or md.model_routing.uses_routing
+        or md.compound_ai.is_compound_system
+    )
+    if not has_data:
+        return ""
+
+    lines = ["## Model Architecture", ""]
+    rows = []
+    if md.primary_models:
+        rows.append(f"| **Primary Models** | {', '.join(f'`{m}`' for m in md.primary_models)} |")
+    if md.fine_tuning.uses_fine_tuning:
+        approach = md.fine_tuning.fine_tuning_approach or "Yes"
+        rows.append(f"| **Fine-tuning** | {approach} |")
+        if md.fine_tuning.training_data_source:
+            rows.append(f"| **Training Data** | {md.fine_tuning.training_data_source} |")
+    if md.model_routing.uses_routing:
+        strategy = md.model_routing.routing_strategy or "Yes"
+        rows.append(f"| **Model Routing** | {strategy} |")
+    if md.compound_ai.is_compound_system:
+        pattern = md.compound_ai.orchestration_pattern or "Yes"
+        rows.append(f"| **Compound AI** | {pattern} |")
+    if md.inference_optimization:
+        rows.append(f"| **Optimization** | {', '.join(md.inference_optimization)} |")
+
+    if rows:
+        lines.append("| Aspect | Detail |")
+        lines.append("|:-------|:-------|")
+        lines.extend(rows)
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _format_discovered_patterns(analysis: StartupAnalysis) -> str:
+    """Format discovered patterns with novelty >= 6. Returns '' if none qualify."""
+    notable = [p for p in analysis.discovered_patterns if p.novelty_score >= 6]
+    if not notable:
+        return ""
+
+    notable.sort(key=lambda p: p.novelty_score, reverse=True)
+    lines = ["## Advanced Build Patterns", ""]
+
+    for p in notable[:8]:
+        novelty_bar = "★" * min(p.novelty_score, 10)
+        lines.append(f"**{p.pattern_name}** — `{p.category}`")
+        lines.append(f"- Novelty: {novelty_bar} ({p.novelty_score}/10) | Confidence: {int(p.confidence * 100)}%")
+        if p.description:
+            lines.append(f"- {p.description}")
+        if p.why_notable:
+            lines.append(f"- *Why notable:* {p.why_notable}")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_team_analysis(analysis: StartupAnalysis) -> str:
+    """Format team & leadership analysis. Returns '' if no meaningful data."""
+    ta = analysis.team_analysis
+    has_data = (
+        any(f.name for f in ta.founders)
+        or ta.founder_market_fit
+        or ta.team_strengths
+        or ta.team_red_flags
+    )
+    if not has_data or ta.team_confidence < 0.1:
+        return ""
+
+    lines = ["## Team & Leadership", ""]
+
+    # Founders
+    named_founders = [f for f in ta.founders if f.name]
+    if named_founders:
+        for f in named_founders:
+            role_str = f" — {f.role}" if f.role else ""
+            lines.append(f"**{f.name}**{role_str}")
+            if f.background:
+                lines.append(f"- {f.background}")
+            if f.previous_companies:
+                lines.append(f"- Previously: {', '.join(f.previous_companies)}")
+            depth = f.technical_depth if f.technical_depth != "unknown" else None
+            expertise = f.domain_expertise if f.domain_expertise and f.domain_expertise != "unknown" else None
+            tags = [t for t in [
+                f"Technical: {depth}" if depth else None,
+                f"Domain: {expertise}" if expertise else None,
+            ] if t]
+            if tags:
+                lines.append(f"- {' | '.join(tags)}")
+            lines.append("")
+
+    # Founder-market fit
+    if ta.founder_market_fit and "insufficient" not in ta.founder_market_fit.lower():
+        lines.append(f"> **Founder-Market Fit:** {ta.founder_market_fit}")
+        lines.append("")
+
+    # Strengths
+    real_strengths = [s for s in ta.team_strengths if "no public" not in s.lower() and "insufficient" not in s.lower()]
+    if real_strengths:
+        lines.append("**Strengths:**")
+        for s in real_strengths[:5]:
+            lines.append(f"- {s}")
+        lines.append("")
+
+    # Red flags
+    real_flags = [r for r in ta.team_red_flags if "no public" not in r.lower() and "lack of accessible" not in r.lower()]
+    if real_flags:
+        lines.append("**Red Flags:**")
+        for r in real_flags[:5]:
+            lines.append(f"- ⚠ {r}")
+        lines.append("")
+
+    # Only return if we generated more than the header
+    if len(lines) <= 2:
+        return ""
+
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_business_product(analysis: StartupAnalysis) -> str:
+    """Format business model + product analysis combined. Returns '' if no data."""
+    bm = analysis.business_model
+    pa = analysis.product_analysis
+
+    has_bm = bm.business_model_confidence > 0.1 or bm.business_model_clarity != "unclear"
+    has_pa = pa.product_confidence > 0.1 or pa.product_stage != "unknown"
+
+    if not has_bm and not has_pa:
+        return ""
+
+    lines = ["## Business Model & Product", ""]
+
+    # Business model table
+    bm_rows = []
+    if bm.pricing_model.type != "unknown":
+        bm_rows.append(f"| **Pricing** | `{bm.pricing_model.type.replace('_', ' ').title()}` |")
+    if bm.gtm_strategy.primary_channel != "unknown":
+        bm_rows.append(f"| **GTM** | {bm.gtm_strategy.primary_channel.replace('_', ' ').title()} |")
+    if bm.gtm_strategy.target_segment != "unknown":
+        bm_rows.append(f"| **Segment** | {bm.gtm_strategy.target_segment.replace('_', ' ').title()} |")
+    if bm.gtm_strategy.sales_motion != "unknown":
+        bm_rows.append(f"| **Sales Motion** | {bm.gtm_strategy.sales_motion.replace('_', ' ').title()} |")
+    if bm.revenue_model.recurring_revenue:
+        bm_rows.append("| **Revenue** | Recurring |")
+    if pa.product_stage != "unknown":
+        bm_rows.append(f"| **Product Stage** | `{pa.product_stage.replace('_', ' ').title()}` |")
+    bm_clarity = bm.business_model_clarity
+    if bm_clarity != "unclear":
+        bm_rows.append(f"| **Clarity** | {bm_clarity.title()} |")
+
+    if bm_rows:
+        lines.append("| Aspect | Detail |")
+        lines.append("|:-------|:-------|")
+        lines.extend(bm_rows)
+        lines.append("")
+
+    # Revenue approach
+    if bm.revenue_model.monetization_approach:
+        lines.append(f"> {bm.revenue_model.monetization_approach}")
+        lines.append("")
+
+    # Distribution advantages
+    if bm.distribution_advantages:
+        lines.append("**Distribution Advantages:**")
+        for d in bm.distribution_advantages[:4]:
+            lines.append(f"- {d}")
+        lines.append("")
+
+    # Price points
+    if bm.pricing_model.price_points:
+        lines.append(f"**Price Points:** {', '.join(bm.pricing_model.price_points)}")
+        lines.append("")
+
+    # Product strengths/risks
+    real_strengths = [s for s in pa.product_strengths if "no " not in s.lower()[:5]]
+    if real_strengths:
+        lines.append("**Product Strengths:**")
+        for s in real_strengths[:4]:
+            lines.append(f"- {s}")
+        lines.append("")
+
+    real_risks = [r for r in pa.product_risks if "no " not in r.lower()[:5]]
+    if real_risks:
+        lines.append("**Product Risks:**")
+        for r in real_risks[:4]:
+            lines.append(f"- {r}")
+        lines.append("")
+
+    if len(lines) <= 2:
+        return ""
+
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_story_angles(analysis: StartupAnalysis) -> str:
+    """Format story angles for newsletter editors. Returns '' if none."""
+    if not analysis.story_angles:
+        return ""
+
+    angles = sorted(analysis.story_angles, key=lambda a: a.uniqueness_score, reverse=True)
+    lines = ["## Story Angles", ""]
+
+    for i, angle in enumerate(angles[:5], 1):
+        type_label = angle.angle_type.replace("_", " ").title()
+        lines.append(f"### {i}. {angle.headline}")
+        lines.append(f"*{type_label}* — Uniqueness: **{angle.uniqueness_score}/10**")
+        lines.append("")
+        if angle.summary:
+            lines.append(angle.summary)
+            lines.append("")
+        if angle.evidence:
+            for e in angle.evidence[:3]:
+                lines.append(f"- *{e}*")
+            lines.append("")
+
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_anti_patterns(analysis: StartupAnalysis) -> str:
+    """Format warning signs / anti-patterns. Returns '' if none."""
+    if not analysis.anti_patterns:
+        return ""
+
+    severity_order = {"high": 0, "medium": 1, "low": 2}
+    patterns = sorted(analysis.anti_patterns, key=lambda p: severity_order.get(p.severity, 1))
+    lines = ["## Risk Factors", ""]
+
+    for p in patterns[:6]:
+        sev = p.severity.upper()
+        sev_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(sev, "⚪")
+        type_label = p.pattern_type.replace("_", " ").title()
+        lines.append(f"**{sev_icon} {type_label}** — Severity: `{sev}`")
+        lines.append(f"- {p.description}")
+        if p.evidence:
+            for e in p.evidence[:2]:
+                lines.append(f"  - *{e}*")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def generate_startup_brief(
     analysis: StartupAnalysis,
     startup_input: StartupInput,
@@ -175,6 +433,14 @@ def generate_startup_brief(
     if logo_path:
         logo_section = f'\n<img src="{logo_path}" alt="{analysis.company_name} logo" width="120" height="120" style="border-radius: 8px;" />\n'
 
+    # Format new sections (each returns '' if no data)
+    model_arch_section = _format_model_details(analysis)
+    advanced_patterns_section = _format_discovered_patterns(analysis)
+    team_section = _format_team_analysis(analysis)
+    business_section = _format_business_product(analysis)
+    story_section = _format_story_angles(analysis)
+    risk_section = _format_anti_patterns(analysis)
+
     brief = f"""# {analysis.company_name}
 {logo_section}
 > **GenAI Analysis Brief** | Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
@@ -213,13 +479,13 @@ def generate_startup_brief(
 
 ---
 
-## Build Patterns
+{model_arch_section}## Build Patterns
 
 {patterns_list}
 
 ---
 
-## Market Position
+{advanced_patterns_section}## Market Position
 
 | Classification | |
 |:---------------|:--|
@@ -252,7 +518,7 @@ def generate_startup_brief(
 
 ---
 
-## Newsletter Potential
+{team_section}{business_section}## Newsletter Potential
 
 | Metric | Assessment |
 |:-------|:----------:|
@@ -265,7 +531,7 @@ def generate_startup_brief(
 
 ---
 
-## Evidence
+{story_section}{risk_section}## Evidence
 
 {evidence_list}
 
