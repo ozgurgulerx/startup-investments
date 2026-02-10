@@ -3467,8 +3467,9 @@ class DailyNewsIngestor:
             "they lock in proprietary UX or stay model-agnostic, as that determines switching cost.' "
             "GOOD: 'Stripe\\'s acquisition signals payment infra consolidation — if you depend on "
             "competing APIs, evaluate migration paths now before integration points disappear.' "
-            "Return strict JSON with keys: "
-            "summary (<=160 chars), builder_takeaway (<=140 chars, specific and actionable), "
+            "Return strict JSON with ALL of these keys (every key is REQUIRED): "
+            "builder_takeaway (<=140 chars, specific and actionable — THIS IS THE MOST IMPORTANT FIELD), "
+            "summary (<=160 chars), "
             "story_type (funding|launch|mna|regulation|hiring|news), "
             "topic_tags (array of up to 6 lowercase tags), "
             "signal_score (0-1), confidence_score (0-1). "
@@ -3523,7 +3524,7 @@ class DailyNewsIngestor:
                     }
                     if _azure_supports_temperature(model_name):
                         azure_payload["temperature"] = 0.2
-                    azure_payload[token_param] = _azure_token_budget(model_name, 220)
+                    azure_payload[token_param] = _azure_token_budget(model_name, 350)
                     if with_response_format:
                         azure_payload["response_format"] = {"type": "json_object"}
 
@@ -3559,7 +3560,7 @@ class DailyNewsIngestor:
                         json={
                             "model": self.llm_model,
                             "temperature": 0.2,
-                            "max_tokens": 220,
+                            "max_tokens": 350,
                             "response_format": {"type": "json_object"},
                             "messages": [
                                 {"role": "system", "content": prompt},
