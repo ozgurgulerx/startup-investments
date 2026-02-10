@@ -38,6 +38,7 @@ class DeepResearchConsumer:
 
     # Model pricing per 1M tokens — keyed by model/deployment name
     MODEL_PRICING = {
+        "gpt-5-nano":  {"input": 0.10,  "output": 0.40},
         "gpt-4o":      {"input": 2.50,  "output": 10.0},
         "gpt-4o-mini": {"input": 0.15,  "output": 0.60},
         "gpt-4":       {"input": 30.0,  "output": 60.0},
