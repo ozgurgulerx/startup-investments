@@ -329,8 +329,24 @@ else
         echo "  Waiting for new build to become visible... (attempt $i/30)"
         sleep 6
     done
+    # If not visible after 3 min, restart App Service and retry
     if [ "$OK" -ne 1 ]; then
-        echo "ERROR: Deployed, but new build marker was not observed on ${BASE_URL} after 3 minutes."
+        echo "  WARN: Build not visible after 3 min — restarting App Service..."
+        az webapp restart --resource-group "$RESOURCE_GROUP" --name "$WEBAPP_NAME" --output none 2>/dev/null || true
+        sleep 15
+        for i in $(seq 1 10); do
+            HTML="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "${BASE_URL}/?v=${COMMIT_SHA}-r" 2>/dev/null || true)"
+            if echo "$HTML" | grep -q "ba-build-sha\" content=\"${COMMIT_SHA}\""; then
+                OK=1
+                echo "  OK: build marker ba-build-sha=${COMMIT_SHA} (after restart)"
+                break
+            fi
+            echo "  Post-restart check... (attempt $i/10)"
+            sleep 6
+        done
+    fi
+    if [ "$OK" -ne 1 ]; then
+        echo "ERROR: Deployed, but new build marker was not observed on ${BASE_URL} after restart+retry."
         exit 1
     fi
 fi
