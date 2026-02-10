@@ -3030,6 +3030,118 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
+    async def _fetch_vc_turkey_blogs(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        """Fetch recent posts from Turkish VC/ecosystem blogs.
+
+        For each VC URL, tries RSS discovery (/feed, /blog/feed, /news/feed),
+        then falls back to HTML title+summary extraction.  Limits to 2 entries
+        per VC and ``max_per_source`` total.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        sem = asyncio.Semaphore(12)
+        items: List[NormalizedNewsItem] = []
+
+        async def _try_vc(vc_name: str, base_url: str) -> List[NormalizedNewsItem]:
+            parsed = urlparse(base_url)
+            root = f"https://{parsed.netloc}".rstrip("/")
+            out: List[NormalizedNewsItem] = []
+
+            # 1. Try common RSS feed paths first.
+            for suffix in ("/feed", "/blog/feed", "/news/feed"):
+                feed_url = f"{root}{suffix}"
+                try:
+                    async with sem:
+                        resp = await client.get(feed_url)
+                    if resp.status_code >= 400:
+                        continue
+                    ct = str(resp.headers.get("content-type") or "").lower()
+                    if not ("xml" in ct or "rss" in ct or "atom" in ct):
+                        # Could be an HTML error page; skip.
+                        if "<rss" not in (resp.text or "")[:500].lower() and "<feed" not in (resp.text or "")[:500].lower():
+                            continue
+                    if feedparser is None:
+                        continue
+                    parsed_feed = feedparser.parse(resp.text or "")
+                    for entry in parsed_feed.entries[:2]:
+                        title = normalize_text(entry.get("title", ""))
+                        link = str(entry.get("link") or "")
+                        if not title or not link:
+                            continue
+                        if not is_likely_content_url(link):
+                            continue
+                        published = parse_entry_datetime(entry) or datetime.now(timezone.utc)
+                        if published < cutoff:
+                            continue
+                        summary_html = entry.get("summary", entry.get("description", ""))
+                        summary = normalize_text(re.sub(r"<[^>]+>", " ", summary_html or ""))[:280]
+                        feed_image = _extract_rss_image(entry, link)
+                        out.append(
+                            NormalizedNewsItem(
+                                source_key=source.source_key,
+                                source_name=source.display_name,
+                                source_type=source.source_type,
+                                title=title[:300],
+                                url=link,
+                                canonical_url=canonicalize_url(link),
+                                summary=summary,
+                                published_at=published,
+                                language=_detect_rss_language(parsed_feed) or "tr",
+                                payload={
+                                    "origin": "vc_blog",
+                                    "vc_name": vc_name,
+                                    "image_url": feed_image or None,
+                                },
+                                source_weight=source.credibility_weight,
+                            ).with_external_id()
+                        )
+                    if out:
+                        return out
+                except Exception:
+                    continue
+
+            # 2. Fallback: scrape the homepage/blog page for a recent post.
+            try:
+                async with sem:
+                    resp = await client.get(base_url)
+                if resp.status_code >= 400:
+                    return []
+                title, summary, page_published, image_url = extract_html_title_summary(resp.text or "", source_url=base_url)
+                if not title:
+                    return []
+                out.append(
+                    NormalizedNewsItem(
+                        source_key=source.source_key,
+                        source_name=source.display_name,
+                        source_type=source.source_type,
+                        title=title[:300],
+                        url=base_url,
+                        canonical_url=canonicalize_url(base_url),
+                        summary=(summary or "")[:280],
+                        published_at=page_published or datetime.now(timezone.utc),
+                        language="tr",
+                        payload={
+                            "origin": "vc_blog",
+                            "vc_name": vc_name,
+                            "image_url": normalize_image_url(image_url, base_url=base_url) if image_url else None,
+                        },
+                        source_weight=source.credibility_weight,
+                    ).with_external_id()
+                )
+            except Exception:
+                pass
+            return out
+
+        for idx in range(0, len(_TURKEY_VC_BLOG_URLS), 12):
+            chunk = _TURKEY_VC_BLOG_URLS[idx: idx + 12]
+            tasks = [_try_vc(name, url) for name, url in chunk]
+            for produced in await asyncio.gather(*tasks):
+                if produced:
+                    items.extend(produced)
+                if len(items) >= self.max_per_source:
+                    return items[: self.max_per_source]
+
+        return items[: self.max_per_source]
+
     async def _collect_items(self, conn: asyncpg.Connection, lookback_hours: int) -> Tuple[List[NormalizedNewsItem], List[str], int, List[SourceFetchResult]]:
         errors: List[str] = []
         attempted = 0
@@ -3062,6 +3174,8 @@ class DailyNewsIngestor:
                         items = await self._fetch_gnews_turkey(client, source, lookback_hours)
                     elif source.source_key == "startup_owned_feeds":
                         items = await self._fetch_startup_owned_sources(conn, client, source, lookback_hours)
+                    elif source.source_key == "vc_turkey_blogs":
+                        items = await self._fetch_vc_turkey_blogs(client, source, lookback_hours)
                     elif source.source_key == "huggingface_papers":
                         items = await self._fetch_huggingface_papers(client, source, lookback_hours)
                     elif source.fetch_mode == "digest_rss":

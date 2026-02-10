@@ -6,10 +6,12 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 from src.automation.news_ingest import (
+    DEFAULT_SOURCES,
     DailyNewsIngestor,
     NormalizedNewsItem,
     SourceDefinition,
     StoryCluster,
+    _TURKEY_VC_BLOG_URLS,
     _build_turkey_cluster,
     _is_relevant_turkey_news_item,
     _is_relevant_turkey_news_item_strict,
@@ -434,3 +436,41 @@ def test_build_turkey_cluster_keeps_llm_classified_non_ai_item():
     assert result is not None
     assert len(result.members) == 1
     assert result.members[0].title == member.title
+
+
+# --- Turkey VC & ecosystem source tests ---
+
+
+def test_new_turkey_rss_sources_in_default_sources():
+    """All 4 new Turkey RSS sources must be in DEFAULT_SOURCES with region='turkey'."""
+    source_map = {s.source_key: s for s in DEFAULT_SOURCES}
+    for key in ("vc_212", "finberg", "endeavor_turkey", "startupcentrum_tr"):
+        assert key in source_map, f"{key} missing from DEFAULT_SOURCES"
+        assert source_map[key].region == "turkey", f"{key} should have region='turkey'"
+        assert source_map[key].fetch_mode == "rss", f"{key} should be RSS"
+
+
+def test_vc_turkey_blogs_source_in_default_sources():
+    """vc_turkey_blogs must exist as a crawler source with region='turkey'."""
+    source_map = {s.source_key: s for s in DEFAULT_SOURCES}
+    assert "vc_turkey_blogs" in source_map
+    src = source_map["vc_turkey_blogs"]
+    assert src.region == "turkey"
+    assert src.fetch_mode == "crawler"
+    assert src.source_type == "crawler"
+
+
+def test_turkey_vc_blog_urls_non_empty_and_valid():
+    """_TURKEY_VC_BLOG_URLS should contain (name, url) tuples."""
+    assert len(_TURKEY_VC_BLOG_URLS) >= 30
+    for entry in _TURKEY_VC_BLOG_URLS:
+        assert isinstance(entry, tuple) and len(entry) == 2
+        name, url = entry
+        assert isinstance(name, str) and len(name) > 0
+        assert isinstance(url, str) and url.startswith("https://")
+
+
+def test_total_turkey_sources_count():
+    """After adding 4 RSS + 1 crawler, total Turkey sources should be 14."""
+    turkey = [s for s in DEFAULT_SOURCES if s.region == "turkey"]
+    assert len(turkey) == 14
