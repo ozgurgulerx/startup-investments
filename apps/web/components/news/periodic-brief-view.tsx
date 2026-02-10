@@ -74,14 +74,14 @@ export function PeriodicBriefView({
           {brief.title || `${regionLabel} ${periodLabel} — ${dateRange}`}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {dateRange} · {brief.story_count} stories
+          {dateRange} · {brief.story_count} signals
           {brief.generated_at ? ` · Generated ${new Date(brief.generated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
         </p>
       </header>
 
       {/* Stats grid */}
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Stories" value={stats.total_stories || brief.story_count} />
+        <StatCard label="Signals" value={stats.total_stories || brief.story_count} />
         {fundingTotal != null && fundingTotal > 0 ? (
           <StatCard label="Funding tracked" value={`$${(fundingTotal / 1_000_000).toFixed(0)}M`} />
         ) : null}
@@ -118,7 +118,7 @@ export function PeriodicBriefView({
         {/* Top stories */}
         {topStories.length > 0 ? (
           <section className="rounded-xl border border-border/30 bg-card/50 p-5">
-            <p className="label-xs text-accent">Top Stories</p>
+            <p className="label-xs text-accent">Highlights</p>
             <ul className="mt-3 space-y-2">
               {topStories.slice(0, 8).map((story, idx) => (
                 <li key={idx} className="flex items-start gap-2.5 text-sm text-foreground/85">
@@ -234,7 +234,7 @@ export function PeriodicBriefView({
                   className="text-sm text-foreground/80 hover:text-accent transition-colors"
                 >
                   {formatDateRange(a.period_start, a.period_end)}
-                  <span className="ml-2 text-muted-foreground">({a.story_count} stories)</span>
+                  <span className="ml-2 text-muted-foreground">({a.story_count} signals)</span>
                 </Link>
               </li>
             ))}

@@ -75,7 +75,7 @@ export function NewsSearchView({ region }: { region: 'global' | 'turkey' }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search stories... (e.g. 'AI agent funding round')"
+            placeholder="Search signals... (e.g. 'AI agent funding round')"
             className="w-full h-10 pl-10 pr-4 text-sm bg-muted/25 border border-border/40 rounded-lg placeholder:text-muted-foreground/50 text-foreground focus:outline-none focus:border-accent-info/55 focus:bg-muted/45 transition-colors"
           />
         </div>

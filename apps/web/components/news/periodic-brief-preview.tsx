@@ -51,7 +51,7 @@ function BriefCard({ brief, href }: { brief: BriefPreviewData; href: string }) {
           </p>
         ) : (
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {brief.story_count} stories covered
+            {brief.story_count} signals covered
           </p>
         )}
       </div>

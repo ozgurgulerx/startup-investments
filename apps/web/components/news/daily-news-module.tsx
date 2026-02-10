@@ -268,7 +268,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-accent-info" />
                 <span>
-                  <strong>{newStoryCount}</strong> new story{newStoryCount === 1 ? '' : 'ies'} ready.
+                  <strong>{newStoryCount}</strong> new signal{newStoryCount === 1 ? '' : 's'} ready.
                 </span>
               </div>
               <button
@@ -342,10 +342,10 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
         >
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
             <span className="text-muted-foreground">
-              <span className="font-medium text-foreground tabular-nums">{edition.items.length}</span> stories today
+              <span className="font-medium text-foreground tabular-nums">{edition.items.length}</span> signals today
             </span>
             <span className="text-muted-foreground">
-              Turkey: <span className="font-medium text-foreground tabular-nums">{turkeyStoryCount ?? '—'}</span> stories
+              Turkey: <span className="font-medium text-foreground tabular-nums">{turkeyStoryCount ?? '—'}</span> signals
             </span>
             {topics.length > 0 && (
               <span className="hidden text-muted-foreground sm:inline">
@@ -457,7 +457,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
             {/* Remaining items */}
             {sections.remaining.length > 0 && (
               <div>
-                <SectionHeader label="More Stories" count={sections.remaining.length} />
+                <SectionHeader label="More Signals" count={sections.remaining.length} />
                 <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {sections.remaining.slice(0, 6).map((item) => (
                     <NewsCard key={item.id} item={item} />
@@ -472,7 +472,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/40 bg-card/50 px-4 py-3 text-sm">
           <p className="text-muted-foreground">
             Showing <span className="text-foreground tabular-nums">{sortedItems.length}</span>{' '}
-            stories
+            signals
             {activeTopic !== 'all' ? (
               <>
                 {' '}for <span className="text-foreground">{activeTopic}</span>

@@ -109,7 +109,7 @@ export function DailyBriefCard({ brief, onDismiss }: DailyBriefCardProps) {
             </p>
           ) : (updatedTime || brief.cluster_count) ? (
             <p className="text-[10px] text-muted-foreground/60">
-              {brief.cluster_count ? `${brief.cluster_count} stories` : null}
+              {brief.cluster_count ? `${brief.cluster_count} highlights` : null}
               {brief.cluster_count && updatedTime ? ' · ' : null}
               {updatedTime ? `Updated ${updatedTime}` : null}
             </p>
@@ -119,7 +119,7 @@ export function DailyBriefCard({ brief, onDismiss }: DailyBriefCardProps) {
         <div className="flex items-center gap-2 flex-shrink-0">
           {isMinimized && brief.cluster_count ? (
             <span className="hidden sm:inline text-[10px] text-muted-foreground/60">
-              {brief.cluster_count} stories
+              {brief.cluster_count} highlights
             </span>
           ) : null}
           {isMinimized ? (

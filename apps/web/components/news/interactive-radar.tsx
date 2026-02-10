@@ -395,7 +395,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 	              <div className="flex items-center gap-2">
 	                <Sparkles className="h-4 w-4 text-accent-info" />
                 {newStoryCount > 0 ? (
-                  <span><strong>{newStoryCount}</strong> new {newStoryCount === 1 ? 'story' : 'stories'} ready.</span>
+                  <span><strong>{newStoryCount}</strong> new {newStoryCount === 1 ? 'signal' : 'signals'} ready.</span>
                 ) : (
                   <span>Edition updated.</span>
                 )}
@@ -524,7 +524,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
               </div>
             ) : (
               <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-                No stories match your filters.
+                No signals match your filters.
               </div>
             )}
 

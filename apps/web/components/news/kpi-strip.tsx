@@ -32,9 +32,9 @@ export function KpiStrip({ totalStories, crossSourceCount, totalEntities, totalC
         title="Expand feed stats"
       >
         <ChevronDown className="h-3 w-3" />
-        <span className="tabular-nums">{totalStories} stories</span>
+        <span className="tabular-nums">{totalStories} items</span>
         <span className="opacity-50">|</span>
-        <span className="tabular-nums" title="Stories covered by 2+ sources">
+        <span className="tabular-nums" title="Items covered by 2+ sources">
           {crossSourceCount} corroborated
         </span>
       </button>
@@ -45,14 +45,14 @@ export function KpiStrip({ totalStories, crossSourceCount, totalEntities, totalC
     <div className="flex items-center gap-4">
       <div className="flex items-center gap-4 text-[11px]">
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground" title="Stories in the current filtered feed view">
-            Stories
+          <span className="text-muted-foreground" title="Items in the current filtered feed view">
+            Items
           </span>
           <span className="text-foreground font-medium tabular-nums">{totalStories}</span>
         </div>
         <span className="text-border">|</span>
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground" title="Stories covered by 2+ sources in this view">
+          <span className="text-muted-foreground" title="Items covered by 2+ sources in this view">
             Corroborated
           </span>
           <span className="text-foreground font-medium tabular-nums">{crossSourceCount}</span>

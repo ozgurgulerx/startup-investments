@@ -133,7 +133,7 @@ export function ArchiveTimeline({
                         {formatDate(entry.edition_date)}
                       </span>
                       <span className="text-[10px] text-muted-foreground/60 tabular-nums">
-                        {entry.total_clusters} stories · {entry.top_story_count} top
+                        {entry.total_clusters} signals · {entry.top_story_count} top
                       </span>
                     </div>
 

@@ -135,11 +135,11 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
   return (
     <section className={`rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
       <p className="label-xs text-accent-info">
-        {region === 'turkey' ? 'Turkey Signal Feed' : 'Daily Startup Digest'}
+        {region === 'turkey' ? 'Turkey Signal Feed' : 'Daily Radar Digest'}
       </p>
-      <h3 className="mt-2 text-xl font-medium tracking-tight text-foreground">Get top stories by daily popularity</h3>
+      <h3 className="mt-2 text-xl font-medium tracking-tight text-foreground">Get top signals ranked by impact</h3>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-        Each day we send a ranked digest with cross-source signals and a short builder takeaway.
+        Each day we send a ranked digest with cross-source corroboration and a short takeaway.
       </p>
 
       <form className="mt-4 flex flex-col gap-3 md:flex-row md:items-center" onSubmit={onSubmit}>
@@ -179,7 +179,7 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
           />
           {region === 'turkey'
             ? 'Also receive the Global startup digest'
-            : 'Include Turkey startup ecosystem signals'}
+            : 'Include Turkey ecosystem signals'}
         </label>
       </div>
 

@@ -68,7 +68,7 @@ export function CommandBar({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search stories..."
+            placeholder="Search signals..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full h-7 pl-8 pr-3 text-xs bg-muted/25 border border-border/40 rounded-md
