@@ -3667,7 +3667,7 @@ class DailyNewsIngestor:
             "If no editorial_memory is provided, write the brief as a standalone edition. "
             "\n\n"
             "Return strict JSON with keys: "
-            "headline (<=80 chars, thematic — no company names), "
+            "headline (<=120 chars, thematic — no company names), "
             "summary (<=550 chars, editorial synthesis paragraph), "
             "bullets (array of 4-6 strings, each <=120 chars, each a different story), "
             "themes (array of up to 6 lowercase hyphenated tags). "
@@ -3759,7 +3759,7 @@ class DailyNewsIngestor:
             user_payload["editorial_memory"] = editorial_memory
 
         def parse_daily_brief(parsed: Dict[str, Any], model_label: Optional[str]) -> Optional[Dict[str, Any]]:
-            headline = _shorten_text(str(parsed.get("headline") or ""), 80)
+            headline = _shorten_text(str(parsed.get("headline") or ""), 120)
             summary = _shorten_text(str(parsed.get("summary") or ""), 550)
             raw_bullets = parsed.get("bullets") or []
             bullets: List[str] = []
