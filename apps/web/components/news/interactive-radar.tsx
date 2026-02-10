@@ -483,7 +483,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 	      {edition.brief && activeTopic === 'all' && !searchQuery.trim() && !briefDismissed && (
 	        <div className="border-b border-border/20">
 	          <PageContainer>
-	            <DailyBriefCard brief={edition.brief} onDismiss={handleDismissBrief} />
+	            <DailyBriefCard brief={edition.brief} onDismiss={handleDismissBrief} region={region} />
 	          </PageContainer>
 	        </div>
 	      )}
@@ -518,6 +518,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                       onSelect={(id) => handleSelectStory(id)}
                       isNew={newStoryIds.has(item.id)}
                       onHide={handleHideStory}
+                      region={region}
                     />
                   ))}
                 </div>
@@ -550,6 +551,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
               selectedItem={selectedItem}
               allItems={filteredItems}
               onClose={() => handleSelectStory(null)}
+              region={region}
             />
           </div>
         </div>

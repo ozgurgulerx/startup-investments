@@ -7,6 +7,7 @@ interface ContextPanelProps {
   selectedItem: NewsItemCard | null;
   allItems: NewsItemCard[];
   onClose: () => void;
+  region?: 'global' | 'turkey';
 }
 
 function ContextEmptyState() {
@@ -52,6 +53,7 @@ export function ContextPanel({
   selectedItem,
   allItems,
   onClose,
+  region = 'global',
 }: ContextPanelProps) {
   // Find related stories: same topic or overlapping entities
   const related = selectedItem
@@ -77,6 +79,7 @@ export function ContextPanel({
             item={selectedItem}
             onClose={onClose}
             relatedStories={related}
+            region={region}
           />
         ) : (
           <ContextEmptyState />

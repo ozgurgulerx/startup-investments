@@ -12,9 +12,10 @@ interface StoryContextProps {
   item: NewsItemCard;
   onClose: () => void;
   relatedStories: NewsItemCard[];
+  region?: 'global' | 'turkey';
 }
 
-export function StoryContext({ item, onClose, relatedStories }: StoryContextProps) {
+export function StoryContext({ item, onClose, relatedStories, region = 'global' }: StoryContextProps) {
   const summary = item.llm_summary || item.summary;
 
   return (
@@ -84,7 +85,7 @@ export function StoryContext({ item, onClose, relatedStories }: StoryContextProp
         )}
 
         {/* Why it matters */}
-        <ImpactBox item={item} />
+        <ImpactBox item={item} region={region} />
 
         {/* Source stack */}
         <div>

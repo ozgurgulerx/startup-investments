@@ -6,9 +6,27 @@ import { frameLabel, impactDisplayMode } from '@/lib/news-utils';
 interface ImpactBoxProps {
   item: NewsItemCard;
   compact?: boolean;
+  region?: 'global' | 'turkey';
 }
 
-export function ImpactBox({ item, compact }: ImpactBoxProps) {
+const TR_LABELS = {
+  build: 'Geliştir:',
+  invest: 'Yatırım:',
+  watch: 'Dikkat:',
+  verify: 'Doğrula:',
+  header: 'Neden Önemli',
+} as const;
+
+const EN_LABELS = {
+  build: 'Build:',
+  invest: 'Invest:',
+  watch: 'Watch:',
+  verify: 'Verify:',
+  header: 'Why It Matters',
+} as const;
+
+export function ImpactBox({ item, compact, region = 'global' }: ImpactBoxProps) {
+  const l = region === 'turkey' ? TR_LABELS : EN_LABELS;
   const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
   const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
 
@@ -37,16 +55,16 @@ export function ImpactBox({ item, compact }: ImpactBoxProps) {
         {mode === 'full' && (
           <div className={`space-y-1 ${compact ? 'text-[11px]' : 'text-xs'} leading-relaxed text-foreground/90`}>
             {builder_move && (
-              <p><span className="text-accent-info/80 font-medium">Build:</span> {builder_move}</p>
+              <p><span className="text-accent-info/80 font-medium">{l.build}</span> {builder_move}</p>
             )}
             {investor_angle && (
-              <p><span className="text-accent-info/80 font-medium">Invest:</span> {investor_angle}</p>
+              <p><span className="text-accent-info/80 font-medium">{l.invest}</span> {investor_angle}</p>
             )}
             {watchout && (
-              <p className={compact ? 'hidden group-hover/brief:block' : ''}><span className="text-accent-info/80 font-medium">Watch:</span> {watchout}</p>
+              <p className={compact ? 'hidden group-hover/brief:block' : ''}><span className="text-accent-info/80 font-medium">{l.watch}</span> {watchout}</p>
             )}
             {validation && (
-              <p className={compact ? 'hidden group-hover/brief:block' : ''}><span className="text-accent-info/80 font-medium">Verify:</span> {validation}</p>
+              <p className={compact ? 'hidden group-hover/brief:block' : ''}><span className="text-accent-info/80 font-medium">{l.verify}</span> {validation}</p>
             )}
           </div>
         )}
@@ -60,10 +78,10 @@ export function ImpactBox({ item, compact }: ImpactBoxProps) {
         {mode === 'early_signal' && (
           <div className={`space-y-1 ${compact ? 'text-[11px]' : 'text-xs'} leading-relaxed text-foreground/90`}>
             {validation && (
-              <p><span className="text-accent-info/80 font-medium">Verify:</span> {validation}</p>
+              <p><span className="text-accent-info/80 font-medium">{l.verify}</span> {validation}</p>
             )}
             {builder_move && (
-              <p><span className="text-accent-info/80 font-medium">Build:</span> {builder_move}</p>
+              <p><span className="text-accent-info/80 font-medium">{l.build}</span> {builder_move}</p>
             )}
           </div>
         )}
@@ -77,7 +95,7 @@ export function ImpactBox({ item, compact }: ImpactBoxProps) {
   return (
     <div className={`group/brief rounded-md border border-accent-info/25 bg-accent-info/10 px-2.5 py-2 transition-all duration-200 ${compact ? 'mt-2' : 'mt-3'}`}>
       <div className="flex items-center justify-between gap-2 mb-1">
-        <p className="text-[10px] uppercase tracking-wider text-accent-info">Why It Matters</p>
+        <p className="text-[10px] uppercase tracking-wider text-accent-info">{l.header}</p>
         {hasBuilderOrigin && !compact ? (
           <span className="inline-flex items-center rounded-full border border-accent-info/25 bg-accent-info/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-accent-info">
             {builderOriginLabel}

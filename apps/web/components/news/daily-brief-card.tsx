@@ -8,13 +8,15 @@ import type { DailyNewsBrief } from '@startup-intelligence/shared';
 interface DailyBriefCardProps {
   brief: DailyNewsBrief;
   onDismiss: () => void;
+  region?: 'global' | 'turkey';
 }
 
 const AUTO_MINIMIZE_DELAY = 5000;
 const RECOLLAPSE_DELAY = 1500;
 const PEEK_HEIGHT = 40;
 
-export function DailyBriefCard({ brief, onDismiss }: DailyBriefCardProps) {
+export function DailyBriefCard({ brief, onDismiss, region = 'global' }: DailyBriefCardProps) {
+  const isTR = region === 'turkey';
   const [expanded, setExpanded] = useState(false);
   const [autoMinimized, setAutoMinimized] = useState(false);
   const [userExpanded, setUserExpanded] = useState(false);
@@ -26,7 +28,7 @@ export function DailyBriefCard({ brief, onDismiss }: DailyBriefCardProps) {
   const isMinimized = autoMinimized && !userExpanded;
 
   const updatedTime = brief.generated_at
-    ? new Date(brief.generated_at).toLocaleString('en-US', {
+    ? new Date(brief.generated_at).toLocaleString(isTR ? 'tr-TR' : 'en-US', {
         hour: 'numeric',
         minute: '2-digit',
         timeZoneName: 'short',
@@ -101,7 +103,7 @@ export function DailyBriefCard({ brief, onDismiss }: DailyBriefCardProps) {
       >
         <div className="flex items-center gap-3 min-w-0">
           <p className="label-xs text-accent-info flex-shrink-0 whitespace-nowrap">
-            Today&apos;s Briefing
+            {isTR ? 'Günün Özeti' : 'Today\u0027s Briefing'}
           </p>
           {isMinimized ? (
             <p className="truncate text-sm font-light text-foreground/60">
@@ -109,9 +111,9 @@ export function DailyBriefCard({ brief, onDismiss }: DailyBriefCardProps) {
             </p>
           ) : (updatedTime || brief.cluster_count) ? (
             <p className="text-[10px] text-muted-foreground/60">
-              {brief.cluster_count ? `${brief.cluster_count} highlights` : null}
+              {brief.cluster_count ? `${brief.cluster_count} ${isTR ? 'öne çıkan' : 'highlights'}` : null}
               {brief.cluster_count && updatedTime ? ' · ' : null}
-              {updatedTime ? `Updated ${updatedTime}` : null}
+              {updatedTime ? `${isTR ? 'Güncellendi' : 'Updated'} ${updatedTime}` : null}
             </p>
           ) : null}
         </div>
@@ -119,7 +121,7 @@ export function DailyBriefCard({ brief, onDismiss }: DailyBriefCardProps) {
         <div className="flex items-center gap-2 flex-shrink-0">
           {isMinimized && brief.cluster_count ? (
             <span className="hidden sm:inline text-[10px] text-muted-foreground/60">
-              {brief.cluster_count} highlights
+              {brief.cluster_count} {isTR ? 'öne çıkan' : 'highlights'}
             </span>
           ) : null}
           {isMinimized ? (
@@ -190,9 +192,9 @@ export function DailyBriefCard({ brief, onDismiss }: DailyBriefCardProps) {
               className="flex flex-shrink-0 items-center gap-1 text-[11px] text-accent-info/70 transition-colors hover:text-accent-info"
             >
               {expanded ? (
-                <>Show less <ChevronUp className="h-3 w-3" /></>
+                <>{isTR ? 'Daha az göster' : 'Show less'} <ChevronUp className="h-3 w-3" /></>
               ) : (
-                <>Read more <ChevronDown className="h-3 w-3" /></>
+                <>{isTR ? 'Devamını oku' : 'Read more'} <ChevronDown className="h-3 w-3" /></>
               )}
             </button>
           ) : null}

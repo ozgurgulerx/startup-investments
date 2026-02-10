@@ -15,9 +15,10 @@ interface StoryCardProps {
   onSelect: (id: string) => void;
   isNew?: boolean;
   onHide?: (id: string) => void;
+  region?: 'global' | 'turkey';
 }
 
-export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCardProps) {
+export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global' }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadgeClass(item.story_type);
   const tags = item.topic_tags.slice(0, 2);
@@ -55,7 +56,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
       <div className="flex flex-wrap items-center gap-2">
         {isNew && (
           <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-success">
-            New
+            {region === 'turkey' ? 'Yeni' : 'New'}
           </span>
         )}
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
@@ -100,7 +101,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
         </p>
       )}
 
-      <ImpactBox item={item} compact />
+      <ImpactBox item={item} compact region={region} />
 
       {tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -124,7 +125,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCa
   );
 }
 
-export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: StoryCardProps) {
+export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global' }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadgeClass(item.story_type);
   return (
@@ -143,11 +144,11 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: S
     >
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-info/15 text-accent-info border border-accent-info/25">
-          Top Impact
+          {region === 'turkey' ? 'En Önemli' : 'Top Impact'}
         </span>
         {isNew && (
           <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-success/10 text-success border border-success/25">
-            New
+            {region === 'turkey' ? 'Yeni' : 'New'}
           </span>
         )}
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
@@ -187,7 +188,7 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide }: S
         </p>
       )}
 
-      <ImpactBox item={item} compact />
+      <ImpactBox item={item} compact region={region} />
 
       <div className="mt-3 pt-2 border-t border-border/20">
         <ReactionBar clusterId={item.id} compact onHide={onHide} />

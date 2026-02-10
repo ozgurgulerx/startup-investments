@@ -4135,9 +4135,17 @@ class DailyNewsIngestor:
         except (json.JSONDecodeError, TypeError, ValueError):
             return None
 
-    async def _llm_enrich_cluster(self, cluster: StoryCluster) -> LLMEnrichmentResult:
+    async def _llm_enrich_cluster(self, cluster: StoryCluster, region: str = "global") -> LLMEnrichmentResult:
         if not self.openai_api_key and not self.azure_client:
             return LLMEnrichmentResult(None, None, None, None, None, None, None, error_code="no_provider")
+
+        lang_instruction = (
+            "\n\nIMPORTANT: Write ALL output values (builder_takeaway, summary, "
+            "impact.kicker, impact.builder_move, impact.investor_angle, impact.watchout, "
+            "impact.validation) in Turkish (Türkçe). "
+            "Use native Turkish phrasing, not machine-translated English. "
+            "JSON keys stay in English."
+        ) if region == "turkey" else ""
 
         prompt = (
             "You are a startup intelligence analyst writing 1-sentence briefs that explain "
@@ -4164,6 +4172,7 @@ class DailyNewsIngestor:
             "watchout — OPTIONAL <=120 char risk or gotcha; "
             "validation — OPTIONAL <=120 char how to verify the claim). "
             "No prose outside JSON."
+            + lang_instruction
         )
         user_payload = {
             "title": cluster.title,
@@ -4587,7 +4596,7 @@ class DailyNewsIngestor:
             error_code=last_error_code or "llm_unavailable",
         )
 
-    async def _enrich_clusters_with_llm(self, clusters: Sequence[StoryCluster]) -> None:
+    async def _enrich_clusters_with_llm(self, clusters: Sequence[StoryCluster], region: str = "global") -> None:
         self._llm_metrics = {
             "enabled": bool(self.llm_enrichment_enabled),
             "model": self.llm_model,
@@ -4640,7 +4649,7 @@ class DailyNewsIngestor:
         ) -> Tuple[StoryCluster, LLMEnrichmentResult, float]:
             async with semaphore:
                 started = time.perf_counter()
-                llm_result = await self._llm_enrich_cluster(cluster)
+                llm_result = await self._llm_enrich_cluster(cluster, region=region)
                 latency_ms = (time.perf_counter() - started) * 1000.0
                 return (cluster, llm_result, latency_ms)
 
@@ -5716,14 +5725,14 @@ class DailyNewsIngestor:
                     print(f"[topic-research] loaded research context: global={research_loaded_global} turkey={research_loaded_turkey}")
 
                 # Enrich all clusters with LLM (gated by NEWS_LLM_MAX_CLUSTERS)
-                await self._enrich_clusters_with_llm(clusters)
+                await self._enrich_clusters_with_llm(clusters, region="global")
                 images_enriched = await self._enrich_missing_images(conn, clusters)
 
                 # Enrich turkey clusters with LLM too
                 if turkey_clusters:
                     llm_metrics_global = dict(self._llm_metrics)
                     self._signal_aggregator = _sig_agg_turkey
-                    await self._enrich_clusters_with_llm(turkey_clusters)
+                    await self._enrich_clusters_with_llm(turkey_clusters, region="turkey")
                     images_enriched_tr = await self._enrich_missing_images(conn, turkey_clusters)
                     images_enriched += images_enriched_tr
                     self._signal_aggregator = _sig_agg_global
