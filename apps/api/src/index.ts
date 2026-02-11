@@ -670,10 +670,14 @@ app.get('/api/v1/stats', async (req, res) => {
         ? ((countResult.genaiCount / countResult.startupCount) * 100).toFixed(1)
         : 0,
       patternDistribution: Object.fromEntries(
-        patternDistribution.map(p => [p.pattern || 'unknown', p.count])
+        patternDistribution
+          .filter(p => p.pattern != null)
+          .map(p => [p.pattern, p.count])
       ),
       stageDistribution: Object.fromEntries(
-        stageDistribution.map(s => [s.stage || 'unknown', s.count])
+        stageDistribution
+          .filter(s => s.stage != null)
+          .map(s => [s.stage, s.count])
       ),
     };
 
@@ -2041,7 +2045,7 @@ app.get('/api/v1/signals', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error fetching signals:', error);
-    res.status(500).json({ error: 'Failed to fetch signals' });
+    return res.status(500).json({ error: 'Failed to fetch signals' });
   }
 });
 
@@ -2075,7 +2079,7 @@ app.get('/api/v1/signals/summary', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error fetching signals summary:', error);
-    res.status(500).json({ error: 'Failed to fetch signals summary' });
+    return res.status(500).json({ error: 'Failed to fetch signals summary' });
   }
 });
 
@@ -2110,7 +2114,7 @@ app.get('/api/v1/signals/:id', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error fetching signal detail:', error);
-    res.status(500).json({ error: 'Failed to fetch signal detail' });
+    return res.status(500).json({ error: 'Failed to fetch signal detail' });
   }
 });
 

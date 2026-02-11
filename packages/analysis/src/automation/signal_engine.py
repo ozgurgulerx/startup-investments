@@ -543,10 +543,24 @@ class SignalEngine:
             )
             dates = [r["first_seen"] for r in company_dates if r["first_seen"]]
 
+            # Evidence source diversity: distinct source_type in linked events
+            ev_source_row = await conn.fetchrow(
+                """SELECT COUNT(DISTINCT se2.source_type) AS src_cnt
+                   FROM signal_evidence sev
+                   JOIN startup_events se2 ON sev.event_id = se2.id
+                   WHERE sev.signal_id = $1::uuid AND se2.source_type IS NOT NULL""",
+                signal_id,
+            )
+            distinct_sources = ev_source_row["src_cnt"] if ev_source_row else 1
+
             # Compute scores
             conviction = compute_conviction(
                 sig["unique_company_count"], source_diversity, sig["evidence_count"]
             )
+            # Diversity bonus: reward signals backed by independent source types
+            diversity_multiplier = min(1.3, 1 + 0.1 * (distinct_sources - 1))
+            conviction = min(1.0, conviction * diversity_multiplier)
+
             momentum = compute_momentum(recent_count, prev_count)
             impact_score = compute_impact(funding_amounts, has_enterprise, has_hyperscaler)
             velocity = compute_adoption_velocity(dates)

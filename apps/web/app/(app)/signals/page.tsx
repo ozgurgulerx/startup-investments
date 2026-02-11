@@ -88,6 +88,7 @@ export interface CategoryData {
 
 async function SignalsContent({ region }: { region?: string }) {
   // Try API-driven dynamic signals first
+  let fallbackReason: 'api_empty' | 'api_error' | undefined;
   if (isAPIConfigured()) {
     try {
       const summary = await getSignalsSummary(region);
@@ -102,8 +103,9 @@ async function SignalsContent({ region }: { region?: string }) {
           />
         );
       }
+      fallbackReason = 'api_empty';
     } catch {
-      // Fall through to static data
+      fallbackReason = 'api_error';
     }
   }
 
@@ -119,6 +121,7 @@ async function SignalsContent({ region }: { region?: string }) {
   const totalDeals = stats.deal_summary.total_deals;
 
   const patterns: PatternData[] = Object.entries(stats.genai_analysis.pattern_distribution)
+    .filter(([name]) => name !== 'unknown')
     .sort((a, b) => b[1] - a[1])
     .map(([name, count]) => {
       const companies = startups
@@ -216,6 +219,7 @@ async function SignalsContent({ region }: { region?: string }) {
       region={region}
       emergingPatterns={emergingPatterns}
       categories={categories}
+      fallbackReason={fallbackReason}
     />
   );
 }

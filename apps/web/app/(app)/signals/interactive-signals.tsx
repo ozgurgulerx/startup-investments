@@ -23,6 +23,7 @@ interface StaticModeProps {
   region?: string;
   emergingPatterns?: EmergingPattern[];
   categories?: CategoryData[];
+  fallbackReason?: 'api_empty' | 'api_error';
 }
 
 interface DynamicModeProps {
@@ -239,6 +240,15 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
 // Static signals view (original, used as fallback)
 // ---------------------------------------------------------------------------
 
+function FallbackBanner({ reason }: { reason?: 'api_empty' | 'api_error' }) {
+  if (!reason) return null;
+  return (
+    <div className="mb-6 px-4 py-3 rounded-lg border border-border/30 bg-muted/30 text-sm text-muted-foreground">
+      Signal engine has not produced data yet. Showing pattern analysis from monthly batch.
+    </div>
+  );
+}
+
 function StaticSignalsView({
   patterns,
   correlations,
@@ -246,6 +256,7 @@ function StaticSignalsView({
   region,
   emergingPatterns = [],
   categories = [],
+  fallbackReason,
 }: Omit<StaticModeProps, 'mode'>) {
   const regionKey = normalizeDatasetRegion(region);
   const withRegion = (href: string) => {
@@ -316,6 +327,8 @@ function StaticSignalsView({
 
   return (
     <>
+      <FallbackBanner reason={fallbackReason} />
+
       {/* Page Header */}
       <header className="briefing-header">
         <span className="briefing-date">Signals</span>
@@ -542,6 +555,7 @@ export function InteractiveSignals(props: InteractiveSignalsProps) {
       region={props.region}
       emergingPatterns={props.emergingPatterns}
       categories={props.categories}
+      fallbackReason={props.fallbackReason}
     />
   );
 }

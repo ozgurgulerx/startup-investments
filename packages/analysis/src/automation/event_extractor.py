@@ -203,6 +203,8 @@ class EventExtractor:
         for pattern_name, score in (cluster.gating_patterns or []):
             if score < 0.3:
                 continue
+            if not pattern_name or pattern_name.lower() in ('unknown', 'unknown_pattern', 'none'):
+                continue
             events.append(ExtractedEvent(
                 event_type=event_type,
                 confidence=min(score, 1.0),

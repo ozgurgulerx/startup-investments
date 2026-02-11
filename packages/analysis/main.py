@@ -2314,5 +2314,134 @@ def aggregate_signals(
         console.print(f"  Lifecycle transitions: {stats.get('lifecycle_transitions', 0)}")
 
 
+@app.command("diagnose-signals")
+def diagnose_signals():
+    """Diagnose signal engine health: counts, status, top signals, event distribution."""
+    import asyncpg
+
+    async def _diagnose():
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            raise typer.Exit(1)
+
+        conn = await asyncpg.connect(database_url)
+        try:
+            # 1. Last cron run time
+            last_run = await conn.fetchval(
+                "SELECT MAX(updated_at) FROM signals"
+            )
+
+            # 2. Signal counts by status
+            status_rows = await conn.fetch(
+                "SELECT status, COUNT(*) AS cnt FROM signals GROUP BY status ORDER BY cnt DESC"
+            )
+
+            # 3. Top 10 rising signals by momentum
+            top_rising = await conn.fetch(
+                """SELECT claim, conviction, momentum, impact, unique_company_count, status
+                   FROM signals
+                   WHERE status IN ('emerging', 'accelerating', 'candidate')
+                   ORDER BY momentum DESC
+                   LIMIT 10"""
+            )
+
+            # 4. Event counts by type (top 10)
+            event_rows = await conn.fetch(
+                """SELECT se.event_type, COUNT(*) AS cnt
+                   FROM startup_events se
+                   WHERE se.event_registry_id IS NOT NULL
+                   GROUP BY se.event_type
+                   ORDER BY cnt DESC
+                   LIMIT 10"""
+            )
+
+            # 5. Unmapped patterns
+            unmapped = await conn.fetchval(
+                """SELECT COUNT(*) FROM startup_events se
+                   WHERE se.event_type = 'arch_pattern_adopted'
+                     AND se.metadata_json->>'pattern_name' IS NOT NULL
+                     AND se.metadata_json->>'pattern_name' NOT IN (
+                         SELECT pattern_name FROM pattern_registry WHERE status = 'active'
+                     )"""
+            )
+
+            # 6. Source type distribution
+            source_rows = await conn.fetch(
+                """SELECT evidence_type, COUNT(*) AS cnt
+                   FROM signal_evidence
+                   GROUP BY evidence_type
+                   ORDER BY cnt DESC"""
+            )
+        finally:
+            await conn.close()
+
+        # --- Display ---
+        console.print(Panel.fit(
+            "[bold blue]Signal Engine Diagnostics[/bold blue]",
+            border_style="blue"
+        ))
+        console.print(f"[bold]Last signal update:[/bold] {last_run or '[yellow]never[/yellow]'}")
+
+        # Status table
+        if status_rows:
+            t = Table(title="Signals by Status")
+            t.add_column("Status", style="cyan")
+            t.add_column("Count", style="green", justify="right")
+            total = 0
+            for r in status_rows:
+                t.add_row(r["status"], str(r["cnt"]))
+                total += r["cnt"]
+            t.add_row("[bold]Total[/bold]", f"[bold]{total}[/bold]")
+            console.print(t)
+        else:
+            console.print("[yellow]No signals found.[/yellow]")
+
+        # Top rising
+        if top_rising:
+            t = Table(title="Top Rising Signals (by momentum)")
+            t.add_column("Claim", style="white", max_width=60)
+            t.add_column("Status", style="cyan")
+            t.add_column("Conv", justify="right")
+            t.add_column("Mom", justify="right")
+            t.add_column("Impact", justify="right")
+            t.add_column("Cos", justify="right")
+            for r in top_rising:
+                t.add_row(
+                    r["claim"][:60],
+                    r["status"],
+                    f"{float(r['conviction']):.2f}",
+                    f"{float(r['momentum']):+.2f}",
+                    f"{float(r['impact']):.2f}",
+                    str(r["unique_company_count"]),
+                )
+            console.print(t)
+
+        # Event types
+        if event_rows:
+            t = Table(title="Structured Events by Type (top 10)")
+            t.add_column("Event Type", style="cyan")
+            t.add_column("Count", style="green", justify="right")
+            for r in event_rows:
+                t.add_row(r["event_type"], str(r["cnt"]))
+            console.print(t)
+        else:
+            console.print("[yellow]No structured events found.[/yellow]")
+
+        # Unmapped patterns
+        console.print(f"\n[bold]Unmapped pattern events:[/bold] {unmapped or 0}")
+
+        # Source distribution
+        if source_rows:
+            t = Table(title="Evidence Source Distribution")
+            t.add_column("Source Type", style="cyan")
+            t.add_column("Count", style="green", justify="right")
+            for r in source_rows:
+                t.add_row(r["evidence_type"], str(r["cnt"]))
+            console.print(t)
+
+    asyncio.run(_diagnose())
+
+
 if __name__ == "__main__":
     app()
