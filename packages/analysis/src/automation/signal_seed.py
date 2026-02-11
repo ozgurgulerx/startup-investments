@@ -167,9 +167,12 @@ async def seed_all(conn: "asyncpg.Connection") -> Dict[str, int]:
 async def run_seed() -> None:
     """Standalone entry point."""
     import asyncpg
-    from src.config import settings
+    import os
 
-    conn = await asyncpg.connect(settings.database_url)
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL is required for signal seeding")
+    conn = await asyncpg.connect(database_url)
     try:
         counts = await seed_all(conn)
         print(f"Seeded: {counts['event_types']} event types, {counts['patterns']} patterns")

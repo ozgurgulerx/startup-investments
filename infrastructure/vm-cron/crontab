@@ -33,9 +33,9 @@ MAILTO=""
 # === Monthly Brief (1st of month 06:00 UTC) ===
 0 6 1 * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh monthly-brief 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/monthly-brief.sh
 
-# === Signal Aggregation (daily 07:00 UTC, after news-ingest) ===
+# === Signal Aggregation (every 4 hours at :30, after news-ingest) ===
 # Aggregates events into signals, scores, and updates lifecycle
-0 7 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh signal-aggregate 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/signal-aggregate.sh
+30 */4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh signal-aggregate 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/signal-aggregate.sh
 
 # === Dealbook Living Brief (daily 04:00 UTC / 07:00 Istanbul) ===
 # Generates fresh brief snapshots for each region
