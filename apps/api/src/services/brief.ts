@@ -12,6 +12,7 @@
 
 import { Pool } from 'pg';
 import crypto from 'crypto';
+import { validateBriefSnapshot } from './brief-validation';
 
 // Types are mirrored from packages/shared/src/types/brief-snapshot.ts
 // (API doesn't have a workspace dep on shared — keep in sync manually)
@@ -56,7 +57,7 @@ interface SignalRef {
   publishedAt: string;
 }
 
-interface BuilderActionRef {
+export interface BuilderActionRef {
   refType: 'signal' | 'pattern' | 'company';
   refId: string;
   label: string;
@@ -69,7 +70,7 @@ interface BuilderAction {
   refs: BuilderActionRef[];
 }
 
-interface BriefSnapshot {
+export interface BriefSnapshot {
   id: string;
   editionId?: string;
   region: 'global' | 'turkey';
@@ -155,6 +156,9 @@ interface GenerateEditionResult {
   revisionId: string;
   revision: number;
   wasSkipped: boolean;
+  inputHash: string;
+  signalsHash: string;
+  validationErrors?: string[];
 }
 
 const PROMPT_VERSION = 'brief-v2';
@@ -1504,6 +1508,8 @@ Rules:
             revisionId: latestRevisionId,
             revision: hashResult.rows[0].revision,
             wasSkipped: true,
+            inputHash,
+            signalsHash,
           };
         }
       }
@@ -1630,11 +1636,29 @@ Rules:
 
         await client2.query('COMMIT');
 
+        // E1.3: Validate the generated snapshot (non-blocking)
+        let validationErrors: string[] | undefined;
+        try {
+          const snapshot = await getEditionBrief({ editionId });
+          if (snapshot) {
+            const result = validateBriefSnapshot(snapshot);
+            if (result.errors.length > 0) {
+              console.warn('Brief validation warnings:', result.errors);
+              validationErrors = result.errors;
+            }
+          }
+        } catch (err) {
+          console.warn('Brief validation failed:', (err as Error).message);
+        }
+
         return {
           editionId,
           revisionId,
           revision: nextRev,
           wasSkipped: false,
+          inputHash,
+          signalsHash,
+          validationErrors,
         };
       } catch (err) {
         await client2.query('ROLLBACK');

@@ -43,7 +43,7 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
             <p className="label-xs text-accent-info">Topic Lens</p>
             <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">{topic || 'Startup'} News</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Ranked stories for the selected topic from the latest generated edition.
+              Ranked signals for the selected topic from the latest generated edition.
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm">
@@ -62,7 +62,7 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
 
         {!edition || edition.items.length === 0 ? (
           <section className="mt-6 rounded-2xl border border-border/40 bg-card/60 p-8 text-center">
-            <h2 className="text-xl font-medium text-foreground">No stories found for this topic</h2>
+            <h2 className="text-xl font-medium text-foreground">No signals found for this topic</h2>
             <p className="mt-3 text-sm text-muted-foreground">
               Try another topic from the chip bar or view the full daily feed.
             </p>

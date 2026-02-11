@@ -28,7 +28,13 @@ function formatTimestamp(value: string): string {
   });
 }
 
-function countNewStories(current: NewsEdition | null, incoming: NewsEdition): number {
+function scrollStoryIntoView(id: string) {
+  const selectorId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id;
+  const el = document.querySelector<HTMLElement>(`[data-story-id="${selectorId}"]`);
+  el?.scrollIntoView({ block: 'center', behavior: 'auto' });
+}
+
+function countNewSignals(current: NewsEdition | null, incoming: NewsEdition): number {
   if (!current) return incoming.items.length;
   const seen = new Set(current.items.map((item) => item.id));
   let count = 0;
@@ -59,7 +65,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   const [edition, setEdition] = useState<NewsEdition>(initialEdition);
   const [topics, setTopics] = useState(initialTopics);
   const [pendingEdition, setPendingEdition] = useState<NewsEdition | null>(null);
-  const [newStoryCount, setNewStoryCount] = useState(0);
+  const [newSignalCount, setNewStoryCount] = useState(0);
   const [isPolling, setIsPolling] = useState(false);
   const editionRef = useRef<NewsEdition>(initialEdition);
   const isPollingRef = useRef(false);
@@ -116,7 +122,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
       return;
     }
     setPendingEdition(data);
-    setNewStoryCount(countNewStories(current, data));
+    setNewStoryCount(countNewSignals(current, data));
   }, []);
 
   const refreshLatest = useCallback(async () => {
@@ -292,12 +298,6 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
       return target.isContentEditable;
     }
 
-    function scrollStoryIntoView(id: string) {
-      const selectorId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id;
-      const el = document.querySelector<HTMLElement>(`[data-story-id="${selectorId}"]`);
-      el?.scrollIntoView({ block: 'center', behavior: 'auto' });
-    }
-
     function onKeyDown(e: KeyboardEvent) {
       if (e.defaultPrevented) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -350,6 +350,15 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [filteredItems, handleSelectStory, orderedIds, selectedId]);
+
+  // Auto-scroll to deep-linked signal on initial load
+  useEffect(() => {
+    if (!selectedId) return;
+    const timer = setTimeout(() => {
+      scrollStoryIntoView(selectedId);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [selectedId]);
 
   const statusBanner = (() => {
     if (unsubscribed === '1') {
@@ -409,8 +418,8 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 	            <div className="flex flex-wrap items-center justify-between gap-3">
 	              <div className="flex items-center gap-2">
 	                <Sparkles className="h-4 w-4 text-accent-info" />
-                {newStoryCount > 0 ? (
-                  <span><strong>{newStoryCount}</strong> new {newStoryCount === 1 ? 'signal' : 'signals'} ready.</span>
+                {newSignalCount > 0 ? (
+                  <span><strong>{newSignalCount}</strong> new {newSignalCount === 1 ? 'signal' : 'signals'} ready.</span>
                 ) : (
                   <span>Edition updated.</span>
                 )}

@@ -11,11 +11,11 @@ import { ImpactBox } from './impact-box';
 interface StoryContextProps {
   item: NewsItemCard;
   onClose: () => void;
-  relatedStories: NewsItemCard[];
+  relatedSignals: NewsItemCard[];
   region?: 'global' | 'turkey';
 }
 
-export function StoryContext({ item, onClose, relatedStories, region = 'global' }: StoryContextProps) {
+export function StoryContext({ item, onClose, relatedSignals, region = 'global' }: StoryContextProps) {
   const summary = item.llm_summary || item.summary;
 
   return (
@@ -147,11 +147,11 @@ export function StoryContext({ item, onClose, relatedStories, region = 'global' 
         )}
 
         {/* Related cluster */}
-        {relatedStories.length > 0 && (
+        {relatedSignals.length > 0 && (
           <div>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Related</p>
             <div className="space-y-2">
-              {relatedStories.map((related) => (
+              {relatedSignals.map((related) => (
                 <p key={related.id} className="text-xs text-muted-foreground leading-snug">
                   <span className="text-foreground">{related.title}</span>
                   <span className="opacity-60 ml-1">({related.source_count} src)</span>

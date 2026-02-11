@@ -2159,6 +2159,9 @@ app.post('/api/v1/briefs/regenerate', async (req, res) => {
       revisionId: result.revisionId,
       revision: result.revision,
       wasSkipped: result.wasSkipped,
+      inputHash: result.inputHash,
+      signalsHash: result.signalsHash,
+      validationErrors: result.validationErrors,
     });
   } catch (error) {
     console.error('Error generating brief:', error);

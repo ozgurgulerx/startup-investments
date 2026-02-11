@@ -13,9 +13,9 @@ interface ContextPanelProps {
 function ContextEmptyState() {
   return (
     <div className="h-full px-6 py-6">
-      <p className="text-sm font-medium tracking-tight text-foreground">Select a story</p>
+      <p className="text-sm font-medium tracking-tight text-foreground">Select a signal</p>
       <p className="mt-2 text-xs leading-relaxed text-muted-foreground max-w-sm">
-        This space is reserved for context. Pick a story to open the detail view with sources, entities, and related coverage.
+        This space is reserved for context. Pick a signal to open the detail view with sources, entities, and related coverage.
       </p>
 
       <div className="mt-5 rounded-xl border border-border/35 bg-muted/15 p-4">
@@ -55,7 +55,7 @@ export function ContextPanel({
   onClose,
   region = 'global',
 }: ContextPanelProps) {
-  // Find related stories: same topic or overlapping entities
+  // Find related signals: same topic or overlapping entities
   const related = selectedItem
     ? allItems
       .filter((item) => {
@@ -78,7 +78,7 @@ export function ContextPanel({
           <StoryContext
             item={selectedItem}
             onClose={onClose}
-            relatedStories={related}
+            relatedSignals={related}
             region={region}
           />
         ) : (

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { makeBriefService, computeInputHashPure, computeSignalsHashPure, pctChange } from './brief';
+import { validateBriefSnapshot } from './brief-validation';
 
 // Minimal mock pool — only needed to instantiate the service for pure-function access
 const mockPool = { query: async () => ({ rows: [] }), connect: async () => ({ query: async () => ({ rows: [] }), release: () => {} }) } as any;
@@ -402,5 +403,130 @@ describe('draftBuilderActions', () => {
     );
     const actions = service.draftBuilderActions(signals, basePatterns, baseDeltas, null, 'global');
     expect(actions.length).toBeLessThanOrEqual(5);
+  });
+});
+
+// ============================================================================
+// validateBriefSnapshot
+// ============================================================================
+
+describe('validateBriefSnapshot', () => {
+  function makeValidSnapshot(): any {
+    return {
+      id: 'rev-1',
+      editionId: 'ed-1',
+      region: 'global',
+      periodType: 'monthly',
+      periodKey: '2026-02',
+      periodStart: '2026-02-01',
+      periodEnd: '2026-02-28',
+      periodLabel: 'February 2026',
+      kind: 'rolling',
+      revisionNumber: 1,
+      generatedAt: new Date().toISOString(),
+      metrics: {
+        totalFunding: 100_000_000,
+        dealCount: 50,
+        avgDeal: 2_000_000,
+        medianDeal: 1_500_000,
+        largestDeal: { company: 'Test', slug: 'test', amount: 20_000_000, stage: 'Series A' },
+        genaiAdoptionRate: 40,
+        analysisCount: 30,
+        topPatterns: [{ pattern: 'RAG', count: 15, prevalencePct: 50 }],
+        stageMix: [{ stage: 'Seed', amount: 20_000_000, deals: 25, pct: 20 }],
+      },
+      prevPeriod: null,
+      deltas: null,
+      revisionDeltas: null,
+      prevPeriodBounds: null,
+      newsContext: null,
+      topSignals: [{ clusterId: 'c-1', title: 'Test', summary: 'A test.', storyType: 'general', builderTakeaway: 'Watch.', signalScore: 0.8, linkedSlugs: [], publishedAt: '2026-02-10T00:00:00Z' }],
+      deltaBullets: ['Funding rose 25%'],
+      revisionDeltaBullets: [],
+      executiveSummary: 'February saw $100M deployed across 50 deals.',
+      theme: { name: 'RAG Era', summaryBullets: ['50 deals'] },
+      builderLessons: [{ title: 'Follow funding', text: 'Strong conviction.' }],
+      whatWatching: ['Deal velocity'],
+      builderActions: [{
+        action: 'Monitor this signal.',
+        rationale: 'Early detection advantage.',
+        refs: [{ refType: 'signal', refId: 'c-1', label: 'Test', url: '/news?story=c-1' }],
+      }],
+      patternLandscape: [{ pattern: 'RAG', prevalencePct: 50, startupCount: 15, signal: 'Dominant' }],
+      fundingByStage: [{ stage: 'Seed', amount: 20_000_000, pct: 20, deals: 25 }],
+      topDeals: [{ rank: 1, company: 'Test', slug: 'test', amount: 20_000_000, stage: 'Series A', location: 'US' }],
+      geography: [{ region: 'North America', deals: 30, totalFunding: 60_000_000, avgDeal: 2_000_000 }],
+      investors: { mostActive: [], megaCheckWriters: [] },
+      methodology: { bullets: ['Metrics derived from tracked funding rounds'] },
+      status: 'ready',
+    };
+  }
+
+  it('valid snapshot → valid: true, no hard errors', () => {
+    const result = validateBriefSnapshot(makeValidSnapshot());
+    expect(result.valid).toBe(true);
+    // May have warnings but no hard errors
+    const hardErrors = result.errors.filter(e => !e.startsWith('warning:'));
+    expect(hardErrors).toEqual([]);
+  });
+
+  it('missing metrics → error', () => {
+    const snap = makeValidSnapshot();
+    snap.metrics = undefined;
+    const result = validateBriefSnapshot(snap);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('metrics is missing');
+  });
+
+  it('empty executiveSummary → error', () => {
+    const snap = makeValidSnapshot();
+    snap.executiveSummary = '';
+    const result = validateBriefSnapshot(snap);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('executiveSummary is empty');
+  });
+
+  it('invalid BuilderActionRef URL → error', () => {
+    const snap = makeValidSnapshot();
+    snap.builderActions = [{
+      action: 'Test',
+      rationale: 'Test',
+      refs: [{ refType: 'signal', refId: 'c-1', label: 'Test', url: 'https://evil.com/exploit' }],
+    }];
+    const result = validateBriefSnapshot(snap);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('invalid BuilderActionRef URL'))).toBe(true);
+  });
+
+  it('empty topSignals → warning (still valid)', () => {
+    const snap = makeValidSnapshot();
+    snap.topSignals = [];
+    const result = validateBriefSnapshot(snap);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toContain('warning: topSignals is empty');
+  });
+
+  it('empty builderActions → warning (still valid)', () => {
+    const snap = makeValidSnapshot();
+    snap.builderActions = [];
+    const result = validateBriefSnapshot(snap);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toContain('warning: builderActions is empty');
+  });
+
+  it('invalid status → error', () => {
+    const snap = makeValidSnapshot();
+    snap.status = 'invalid';
+    const result = validateBriefSnapshot(snap);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('invalid status'))).toBe(true);
+  });
+
+  it('empty methodology.bullets → error', () => {
+    const snap = makeValidSnapshot();
+    snap.methodology = { bullets: [] };
+    const result = validateBriefSnapshot(snap);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('methodology.bullets is empty');
   });
 });

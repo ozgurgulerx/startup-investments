@@ -27,7 +27,7 @@ const compactCountFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 });
 
-function countNewStories(current: NewsEdition | null, incoming: NewsEdition): number {
+function countNewSignals(current: NewsEdition | null, incoming: NewsEdition): number {
   if (!current) return incoming.items.length;
   const seen = new Set(current.items.map((item) => item.id));
   let count = 0;
@@ -58,7 +58,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
   const [topics, setTopics] = useState<Array<{ topic: string; count: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [pendingEdition, setPendingEdition] = useState<NewsEdition | null>(null);
-  const [newStoryCount, setNewStoryCount] = useState(0);
+  const [newSignalCount, setNewStoryCount] = useState(0);
   const [activeTopic, setActiveTopic] = useState<string>('all');
   const [sortMode, setSortMode] = useState<SortMode>('impact');
   const [isPolling, setIsPolling] = useState(false);
@@ -91,7 +91,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
       return;
     }
     setPendingEdition(data);
-    setNewStoryCount(Math.max(1, countNewStories(current, data)));
+    setNewStoryCount(Math.max(1, countNewSignals(current, data)));
   }, []);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
@@ -268,7 +268,7 @@ export function DailyNewsModule({ className }: DailyNewsModuleProps) {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-accent-info" />
                 <span>
-                  <strong>{newStoryCount}</strong> new signal{newStoryCount === 1 ? '' : 's'} ready.
+                  <strong>{newSignalCount}</strong> new signal{newSignalCount === 1 ? '' : 's'} ready.
                 </span>
               </div>
               <button
