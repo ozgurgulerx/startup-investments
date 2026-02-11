@@ -54,7 +54,7 @@ export default async function TurkeySignalFeedPage() {
         <>
           <div className="mx-auto w-full max-w-6xl px-6 pt-3">
             <div className="rounded-xl border border-accent-info/25 bg-accent-info/10 px-4 py-2.5 text-xs text-foreground">
-              Turkey edition: ranked stories sourced from Turkey ecosystem feeds (e.g. Webrazzi, Egirisim), plus global coverage when it is explicitly Turkey-related.
+              Turkey edition: ranked stories from the local startup ecosystem, plus global coverage when it is explicitly Turkey-related.
             </div>
           </div>
           <Suspense fallback={null}>
