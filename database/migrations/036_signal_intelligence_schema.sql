@@ -124,8 +124,7 @@ CREATE TABLE IF NOT EXISTS signals (
     last_evidence_at TIMESTAMPTZ,
     last_scored_at TIMESTAMPTZ,
 
-    -- Embedding for merge detection (same config as news_clusters)
-    embedding vector(1536),
+    -- Embedding for merge detection (added conditionally if pgvector exists)
     embedded_at TIMESTAMPTZ,
 
     -- Metadata (lifecycle transitions, scoring history, etc.)
@@ -144,12 +143,30 @@ CREATE INDEX IF NOT EXISTS idx_signals_momentum
     ON signals(region, momentum DESC) WHERE status IN ('emerging', 'accelerating');
 CREATE INDEX IF NOT EXISTS idx_signals_pattern
     ON signals(pattern_id) WHERE pattern_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_signals_embedding
-    ON signals USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
-
 COMMENT ON TABLE signals IS
     'Statistical claims about pattern adoption acceleration. Lifecycle-managed (candidate → emerging → accelerating → established → decaying) with vector-based merge detection via pgvector.';
+
+-- Conditionally add embedding column + HNSW index only if pgvector is available
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'signals' AND column_name = 'embedding'
+        ) THEN
+            ALTER TABLE signals ADD COLUMN embedding vector(1536);
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_indexes
+            WHERE indexname = 'idx_signals_embedding'
+        ) THEN
+            CREATE INDEX idx_signals_embedding
+                ON signals USING hnsw (embedding vector_cosine_ops)
+                WITH (m = 16, ef_construction = 64);
+        END IF;
+    END IF;
+END $$;
 
 -- =============================================================================
 -- 5. SIGNAL EVIDENCE — Links signals to events/clusters

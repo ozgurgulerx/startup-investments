@@ -12,7 +12,12 @@ echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
 cd "$REPO_DIR/packages/analysis"
 
-# Run for both regions
+# Seed event_registry (32 types) and pattern_registry (26 patterns)
+# Idempotent (ON CONFLICT DO NOTHING / DO UPDATE) — safe to run every time
+echo "Seeding event/pattern registries..."
+"$VENV_DIR/bin/python" main.py seed-signals
+
+# Run aggregation for both regions
 "$VENV_DIR/bin/python" main.py aggregate-signals --lookback-days 30
 
 echo "=== Signal Aggregation complete ==="

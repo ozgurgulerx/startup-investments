@@ -140,11 +140,27 @@ class SignalEngine:
             raise RuntimeError("DATABASE_URL is required for signal aggregation")
         self.pool: Optional[Any] = None
         self._embedding_service: Optional[Any] = None
+        self._has_embedding: bool = False
 
     async def init(self) -> None:
         """Initialize connection pool and embedding service."""
         import asyncpg
         self.pool = await asyncpg.create_pool(self.database_url, min_size=1, max_size=4)
+
+        # Check if signals table has the embedding vector column (requires pgvector)
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'signals'
+                     AND column_name = 'embedding'
+                     AND udt_name = 'vector'""",
+            )
+            self._has_embedding = row is not None
+
+        if not self._has_embedding:
+            logger.info("signals.embedding column not found (pgvector not enabled) — signal merging disabled")
+            self._embedding_service = None
+            return
 
         # Initialize embedding service for signal merge detection
         try:
@@ -404,26 +420,46 @@ class SignalEngine:
         region: str,
     ) -> str:
         """Insert a new signal and return its ID."""
-        row = await conn.fetchrow(
-            """INSERT INTO signals
-                   (domain, cluster_name, pattern_id, claim, region,
-                    evidence_count, unique_company_count,
-                    embedding, embedded_at, metadata_json)
-               VALUES ($1, $2, $3::uuid, $4, $5,
-                       $6, $7,
-                       $8::vector, CASE WHEN $8 IS NOT NULL THEN NOW() ELSE NULL END,
-                       $9::jsonb)
-               RETURNING id::text""",
-            candidate.domain,
-            candidate.cluster_name,
-            pattern_id,
-            candidate.claim,
-            region,
-            len(candidate.evidence_events),
-            len(candidate.unique_companies),
-            str(embedding) if embedding else None,
-            json.dumps(candidate.metadata),
-        )
+        if self._has_embedding and embedding is not None:
+            row = await conn.fetchrow(
+                """INSERT INTO signals
+                       (domain, cluster_name, pattern_id, claim, region,
+                        evidence_count, unique_company_count,
+                        embedding, embedded_at, metadata_json)
+                   VALUES ($1, $2, $3::uuid, $4, $5,
+                           $6, $7,
+                           $8::vector, NOW(),
+                           $9::jsonb)
+                   RETURNING id::text""",
+                candidate.domain,
+                candidate.cluster_name,
+                pattern_id,
+                candidate.claim,
+                region,
+                len(candidate.evidence_events),
+                len(candidate.unique_companies),
+                str(embedding),
+                json.dumps(candidate.metadata),
+            )
+        else:
+            row = await conn.fetchrow(
+                """INSERT INTO signals
+                       (domain, cluster_name, pattern_id, claim, region,
+                        evidence_count, unique_company_count,
+                        metadata_json)
+                   VALUES ($1, $2, $3::uuid, $4, $5,
+                           $6, $7,
+                           $8::jsonb)
+                   RETURNING id::text""",
+                candidate.domain,
+                candidate.cluster_name,
+                pattern_id,
+                candidate.claim,
+                region,
+                len(candidate.evidence_events),
+                len(candidate.unique_companies),
+                json.dumps(candidate.metadata),
+            )
         return row["id"]
 
     async def _attach_evidence(

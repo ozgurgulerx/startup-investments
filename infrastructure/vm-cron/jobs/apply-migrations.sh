@@ -46,6 +46,8 @@ SETS = {
         "018_news_subscription_rate_limits.sql",
         # Topic research queue for automated deep-dive research
         "032_topic_research.sql",
+        # Signal intelligence engine — event registry, pattern registry, signals, evidence
+        "036_signal_intelligence_schema.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
