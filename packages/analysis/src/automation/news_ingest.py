@@ -3457,6 +3457,11 @@ class DailyNewsIngestor:
         if sim >= 0.55 and overlap and time_delta <= 72:
             return True
 
+        # Entity-heavy match: strong named-entity overlap compensates for low
+        # Jaccard when titles differ editorially (rewrites, added subtitles).
+        if len(item_entities & cluster_entities) >= 2 and time_delta <= 48:
+            return True
+
         return False
 
     def _cluster_items(self, items: Sequence[NormalizedNewsItem]) -> List[StoryCluster]:
