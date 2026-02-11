@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, useCallback, useMemo } from 'react';
+import { useState, useEffect, useTransition, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MonthSwitcher, formatMonthLabel } from '@/components/ui/month-switcher';
@@ -44,6 +44,7 @@ function useAnimatedNumber(target: number, duration: number = 400): number {
   const [current, setCurrent] = useState(target);
 
   useEffect(() => {
+    let rafId: number;
     const startValue = current;
     const startTime = performance.now();
 
@@ -58,11 +59,12 @@ function useAnimatedNumber(target: number, duration: number = 400): number {
       setCurrent(newValue);
 
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        rafId = requestAnimationFrame(animate);
       }
     }
 
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
   }, [target, duration]);
 
   return current;
@@ -123,6 +125,7 @@ export function BriefingClient({ initialData, availablePeriods }: BriefingClient
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const fetchIdRef = useRef(0);
 
   // Initialize + keep URL month in sync on browser back/forward.
   useEffect(() => {
@@ -159,6 +162,7 @@ export function BriefingClient({ initialData, availablePeriods }: BriefingClient
     if (newPeriod === validPeriod) return;
 
     setIsLoading(true);
+    const currentFetchId = ++fetchIdRef.current;
 
     try {
       // Update URL (shallow)
@@ -172,6 +176,9 @@ export function BriefingClient({ initialData, availablePeriods }: BriefingClient
       // Fetch new data
       const newData = await fetchBriefingData(newPeriod);
 
+      // Discard if a newer request was made while we were fetching
+      if (currentFetchId !== fetchIdRef.current) return;
+
       // Small delay to allow content fade
       await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -180,7 +187,9 @@ export function BriefingClient({ initialData, availablePeriods }: BriefingClient
       console.error('Failed to load briefing:', error);
       // Stay on current data if fetch fails
     } finally {
-      setIsLoading(false);
+      if (currentFetchId === fetchIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [validPeriod, router, fetchBriefingData]);
 

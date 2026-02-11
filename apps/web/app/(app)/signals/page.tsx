@@ -54,7 +54,7 @@ const PATTERN_THESIS: Record<string, {
 };
 
 function getConviction(count: number, total: number): 'high' | 'medium' | 'emerging' {
-  const percentage = count / total;
+  const percentage = total > 0 ? count / total : 0;
   if (percentage > 0.15) return 'high';
   if (percentage > 0.08) return 'medium';
   return 'emerging';
