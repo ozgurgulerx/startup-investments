@@ -1669,6 +1669,284 @@ def embed_backfill(
         console.print("[yellow]Dry run — nothing was persisted[/yellow]")
 
 
+@app.command("backfill-turkish-enrichments")
+def backfill_turkish_enrichments(
+    days: int = typer.Option(7, "--days", help="How many days back to re-enrich"),
+    since: str = typer.Option("", "--since", help="Override start date (YYYY-MM-DD)"),
+    until: str = typer.Option("", "--until", help="Override end date (YYYY-MM-DD)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Count clusters without calling LLM"),
+    concurrency: int = typer.Option(4, "--concurrency", help="Max parallel LLM calls"),
+    include_briefs: bool = typer.Option(True, "--include-briefs/--no-briefs", help="Also regenerate daily briefs"),
+):
+    """Re-enrich Turkey news clusters in Turkish.
+
+    Existing Turkey clusters were enriched before Turkish language prompts
+    were added (commit 1cbb3a7). This command re-runs LLM enrichment with
+    region='turkey' so builder_takeaway, impact, and daily briefs are in Turkish.
+    """
+    from datetime import date as dt_date, timedelta
+    import asyncpg as apg
+
+    # Parse date range
+    if since:
+        try:
+            start_date = dt_date.fromisoformat(since)
+        except ValueError:
+            console.print(f"[red]Invalid --since date '{since}'. Use YYYY-MM-DD.[/red]")
+            raise typer.Exit(1)
+    else:
+        start_date = dt_date.today() - timedelta(days=days)
+
+    if until:
+        try:
+            end_date = dt_date.fromisoformat(until)
+        except ValueError:
+            console.print(f"[red]Invalid --until date '{until}'. Use YYYY-MM-DD.[/red]")
+            raise typer.Exit(1)
+    else:
+        end_date = dt_date.today() + timedelta(days=1)
+
+    console.print(f"[bold]Turkey enrichment backfill: {start_date} → {end_date}[/bold]")
+
+    async def run():
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            return None
+
+        # Import ingestor to get LLM client and enrichment method
+        from src.automation.news_ingest import DailyNewsIngestor, StoryCluster
+
+        pool = await apg.create_pool(db_url, min_size=2, max_size=5, command_timeout=120)
+
+        # Query Turkey clusters that were already LLM-enriched (in English)
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id::text, cluster_key, canonical_url, title, summary,
+                       published_at, topic_tags, entities, story_type,
+                       source_count, rank_score, rank_reason, trust_score,
+                       builder_takeaway, llm_summary, llm_model,
+                       llm_signal_score, llm_confidence_score,
+                       llm_topic_tags, llm_story_type, impact,
+                       research_context
+                FROM news_clusters
+                WHERE region = 'turkey'
+                  AND published_at >= $1 AND published_at < $2
+                  AND llm_model IS NOT NULL
+                ORDER BY published_at DESC
+                """,
+                start_date,
+                end_date,
+            )
+
+        console.print(f"[bold]Found {len(rows)} Turkey clusters with existing LLM enrichment[/bold]")
+
+        if dry_run or len(rows) == 0:
+            await pool.close()
+            return {"total": len(rows), "enriched": 0, "failed": 0, "briefs": 0, "dry_run": dry_run}
+
+        # Instantiate ingestor for LLM access
+        ingestor = DailyNewsIngestor(database_url=db_url)
+        ingestor.llm_enrichment_enabled = True
+
+        enriched = 0
+        failed = 0
+        sem = asyncio.Semaphore(concurrency)
+        edition_dates = set()
+
+        async def enrich_one(row):
+            nonlocal enriched, failed
+            async with sem:
+                cluster = StoryCluster(
+                    cluster_key=row["cluster_key"],
+                    primary_source_key="",
+                    primary_external_id="",
+                    canonical_url=row["canonical_url"] or "",
+                    title=row["title"],
+                    summary=row["summary"] or "",
+                    published_at=row["published_at"],
+                    topic_tags=list(row["topic_tags"] or []),
+                    entities=list(row["entities"] or []),
+                    story_type=row["story_type"] or "news",
+                    rank_score=float(row["rank_score"] or 0),
+                    rank_reason=row["rank_reason"] or "",
+                    trust_score=float(row["trust_score"] or 0),
+                    builder_takeaway=row["builder_takeaway"],
+                    llm_summary=row["llm_summary"],
+                    llm_model=row["llm_model"],
+                    llm_signal_score=float(row["llm_signal_score"]) if row["llm_signal_score"] else None,
+                    llm_confidence_score=float(row["llm_confidence_score"]) if row["llm_confidence_score"] else None,
+                    llm_topic_tags=list(row["llm_topic_tags"] or []),
+                    llm_story_type=row["llm_story_type"],
+                    members=[],
+                    research_context=json.loads(row["research_context"]) if isinstance(row["research_context"], str) else row["research_context"],
+                    impact=json.loads(row["impact"]) if isinstance(row["impact"], str) else row["impact"],
+                )
+
+                try:
+                    result = await ingestor._llm_enrich_cluster(cluster, region="turkey")
+                    if result.error_code or result.timed_out:
+                        console.print(f"  [yellow]SKIP {cluster.title[:50]}… (error={result.error_code}, timeout={result.timed_out})[/yellow]")
+                        failed += 1
+                        return
+
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            """
+                            UPDATE news_clusters
+                            SET builder_takeaway = $2,
+                                impact = $3::jsonb,
+                                llm_summary = $4,
+                                llm_model = $5,
+                                llm_signal_score = $6,
+                                llm_confidence_score = $7,
+                                llm_topic_tags = $8::text[],
+                                llm_story_type = $9,
+                                updated_at = NOW()
+                            WHERE id = $1::uuid
+                            """,
+                            row["id"],
+                            result.builder_takeaway,
+                            json.dumps(result.impact) if result.impact else None,
+                            result.llm_summary,
+                            result.llm_model,
+                            result.llm_signal_score,
+                            result.llm_confidence_score,
+                            list(result.llm_topic_tags or []),
+                            result.llm_story_type,
+                        )
+
+                    enriched += 1
+                    pub_date = row["published_at"].date() if hasattr(row["published_at"], "date") else row["published_at"]
+                    edition_dates.add(pub_date)
+                    console.print(f"  [green]OK[/green] {cluster.title[:60]}…")
+                except Exception as exc:
+                    console.print(f"  [red]FAIL {cluster.title[:50]}…: {exc}[/red]")
+                    failed += 1
+
+        # Run enrichments with concurrency
+        tasks = [enrich_one(row) for row in rows]
+        await asyncio.gather(*tasks)
+
+        console.print(f"\n[bold]Enriched {enriched}/{len(rows)} clusters ({failed} failed)[/bold]")
+
+        # Regenerate daily briefs for affected edition dates
+        briefs_regenerated = 0
+        if include_briefs and edition_dates:
+            console.print(f"\n[bold]Regenerating daily briefs for {len(edition_dates)} edition dates…[/bold]")
+            for ed in sorted(edition_dates):
+                try:
+                    async with pool.acquire() as conn:
+                        # Load top clusters for this edition date
+                        cluster_rows = await conn.fetch(
+                            """
+                            SELECT id::text, cluster_key, canonical_url, title, summary,
+                                   published_at, topic_tags, entities, story_type,
+                                   source_count, rank_score, rank_reason, trust_score,
+                                   builder_takeaway, llm_summary, llm_model,
+                                   llm_signal_score, llm_confidence_score,
+                                   llm_topic_tags, llm_story_type, impact,
+                                   research_context
+                            FROM news_clusters
+                            WHERE region = 'turkey'
+                              AND published_at::date = $1
+                              AND llm_model IS NOT NULL
+                            ORDER BY rank_score DESC
+                            LIMIT 40
+                            """,
+                            ed,
+                        )
+
+                        if not cluster_rows:
+                            continue
+
+                        brief_clusters = []
+                        for cr in cluster_rows:
+                            sc = StoryCluster(
+                                cluster_key=cr["cluster_key"],
+                                primary_source_key="",
+                                primary_external_id="",
+                                canonical_url=cr["canonical_url"] or "",
+                                title=cr["title"],
+                                summary=cr["summary"] or "",
+                                published_at=cr["published_at"],
+                                topic_tags=list(cr["topic_tags"] or []),
+                                entities=list(cr["entities"] or []),
+                                story_type=cr["story_type"] or "news",
+                                rank_score=float(cr["rank_score"] or 0),
+                                rank_reason=cr["rank_reason"] or "",
+                                trust_score=float(cr["trust_score"] or 0),
+                                builder_takeaway=cr["builder_takeaway"],
+                                llm_summary=cr["llm_summary"],
+                                llm_model=cr["llm_model"],
+                                llm_signal_score=float(cr["llm_signal_score"]) if cr["llm_signal_score"] else None,
+                                llm_confidence_score=float(cr["llm_confidence_score"]) if cr["llm_confidence_score"] else None,
+                                llm_topic_tags=list(cr["llm_topic_tags"] or []),
+                                llm_story_type=cr["llm_story_type"],
+                                members=[],
+                                research_context=json.loads(cr["research_context"]) if isinstance(cr["research_context"], str) else cr["research_context"],
+                                impact=json.loads(cr["impact"]) if isinstance(cr["impact"], str) else cr["impact"],
+                            )
+                            brief_clusters.append(sc)
+
+                        brief = await ingestor._llm_generate_daily_brief(
+                            conn=conn, edition_date=ed, region="turkey", clusters=brief_clusters,
+                        )
+
+                        if brief:
+                            # Update stats_json.daily_brief in the edition
+                            existing_stats = await conn.fetchval(
+                                "SELECT stats_json FROM news_daily_editions WHERE edition_date = $1 AND region = 'turkey'",
+                                ed,
+                            )
+                            stats = json.loads(existing_stats) if existing_stats and isinstance(existing_stats, str) else (existing_stats or {})
+                            if not isinstance(stats, dict):
+                                stats = {}
+                            stats["daily_brief"] = brief
+
+                            await conn.execute(
+                                """
+                                UPDATE news_daily_editions
+                                SET stats_json = $2::jsonb, generated_at = NOW()
+                                WHERE edition_date = $1 AND region = 'turkey'
+                                """,
+                                ed,
+                                json.dumps(stats),
+                            )
+                            briefs_regenerated += 1
+                            console.print(f"  [green]Brief regenerated for {ed}[/green]")
+                        else:
+                            console.print(f"  [yellow]Brief skipped for {ed}[/yellow]")
+                except Exception as exc:
+                    console.print(f"  [red]Brief failed for {ed}: {exc}[/red]")
+
+        await pool.close()
+        return {"total": len(rows), "enriched": enriched, "failed": failed, "briefs": briefs_regenerated, "dry_run": False}
+
+    try:
+        result = asyncio.run(run())
+    except Exception as exc:
+        console.print(f"[red]Turkish enrichment backfill failed:[/red] {exc}")
+        import traceback
+        traceback.print_exc()
+        raise typer.Exit(1)
+
+    if not result:
+        return
+
+    console.print(Panel.fit(
+        "[bold blue]Turkish Enrichment Backfill Results[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"[bold]Total clusters:[/bold] {result.get('total', 0)}")
+    console.print(f"[bold]Re-enriched:[/bold] {result.get('enriched', 0)}")
+    console.print(f"[bold]Failed:[/bold] {result.get('failed', 0)}")
+    console.print(f"[bold]Briefs regenerated:[/bold] {result.get('briefs', 0)}")
+    if result.get("dry_run"):
+        console.print("[yellow]Dry run — nothing was persisted[/yellow]")
+
+
 @app.command("generate-weekly-brief")
 def generate_weekly_brief(
     region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
