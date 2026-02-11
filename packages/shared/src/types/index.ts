@@ -7,6 +7,8 @@ export type {
   BriefSnapshotDeltas,
   BriefNewsContext,
   SignalRef,
+  BuilderAction,
+  BuilderActionRef,
   BriefSnapshot,
   BriefSnapshotSummary,
   BriefEditionSummary,

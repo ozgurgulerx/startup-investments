@@ -47,6 +47,19 @@ export interface SignalRef {
   publishedAt: string;
 }
 
+export interface BuilderActionRef {
+  refType: 'signal' | 'pattern' | 'company';
+  refId: string;       // clusterId, pattern name, or slug
+  label: string;       // display text for the chip
+  url: string;         // deep link
+}
+
+export interface BuilderAction {
+  action: string;       // 1 sentence, 18-22 words
+  rationale: string;    // 1 sentence (why this matters)
+  refs: BuilderActionRef[];
+}
+
 export interface BriefSnapshot {
   id: string;
   editionId?: string;
@@ -75,6 +88,7 @@ export interface BriefSnapshot {
   theme: { name: string; summaryBullets: string[] };
   builderLessons: Array<{ title: string; text: string; howToApply?: string }>;
   whatWatching: string[];
+  builderActions: BuilderAction[];
 
   // Deterministic sections
   patternLandscape: Array<{ pattern: string; prevalencePct: number; startupCount: number; signal: string }>;

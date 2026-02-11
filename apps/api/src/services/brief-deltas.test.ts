@@ -271,3 +271,136 @@ describe('computeInputHashPure', () => {
     expect(h).toMatch(/^[a-f0-9]{64}$/);
   });
 });
+
+// ============================================================================
+// draftBuilderActions — deterministic builder actions
+// ============================================================================
+
+describe('draftBuilderActions', () => {
+  const makeSignal = (overrides: Partial<{
+    clusterId: string; title: string; summary: string;
+    storyType: string; builderTakeaway: string; signalScore: number;
+    linkedSlugs: string[]; publishedAt: string;
+  }> = {}) => ({
+    clusterId: overrides.clusterId || `c-${Math.random().toString(36).slice(2, 8)}`,
+    title: overrides.title || 'Test Signal',
+    summary: overrides.summary || 'A test signal summary.',
+    storyType: overrides.storyType || 'general',
+    builderTakeaway: overrides.builderTakeaway || 'Watch this space.',
+    signalScore: overrides.signalScore || 0.8,
+    linkedSlugs: overrides.linkedSlugs || [],
+    publishedAt: overrides.publishedAt || '2026-02-10T00:00:00Z',
+  });
+
+  const basePatterns = [
+    { pattern: 'RAG', prevalencePct: 50, startupCount: 15, signal: 'Dominant' },
+    { pattern: 'Agents', prevalencePct: 30, startupCount: 9, signal: 'Strong' },
+    { pattern: 'Fine-tuned Models', prevalencePct: 15, startupCount: 5, signal: 'Emerging' },
+  ];
+
+  const baseDeltas = {
+    totalFunding: { value: 50_000_000, pct: 35 },
+    dealCount: { value: 10, pct: 20 },
+    avgDeal: { value: 500_000, pct: 10 },
+    genaiAdoptionRate: { ppChange: 5 },
+    patternShifts: [
+      { pattern: 'RAG', prevPct: 40, currPct: 50, deltaPp: 10 },
+      { pattern: 'Agents', prevPct: 22, currPct: 30, deltaPp: 8 },
+    ],
+    stageShifts: [],
+  };
+
+  it('returns 3-5 actions given valid signals + patterns + deltas', () => {
+    const signals = [
+      makeSignal({ storyType: 'platform' }),
+      makeSignal({ storyType: 'regulation' }),
+      makeSignal({ storyType: 'funding' }),
+    ];
+    const actions = service.draftBuilderActions(signals, basePatterns, baseDeltas, null, 'global');
+    expect(actions.length).toBeGreaterThanOrEqual(3);
+    expect(actions.length).toBeLessThanOrEqual(5);
+  });
+
+  it('each action has at least 1 ref', () => {
+    const signals = [
+      makeSignal({ storyType: 'platform' }),
+      makeSignal({ storyType: 'product_launch', title: 'New Product X' }),
+    ];
+    const actions = service.draftBuilderActions(signals, basePatterns, baseDeltas, null, 'global');
+    for (const action of actions) {
+      expect(action.refs.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('no duplicate primary refs across actions', () => {
+    const signals = [
+      makeSignal({ storyType: 'platform', clusterId: 'c-1' }),
+      makeSignal({ storyType: 'regulation', clusterId: 'c-2' }),
+      makeSignal({ storyType: 'funding', clusterId: 'c-3' }),
+    ];
+    const actions = service.draftBuilderActions(signals, basePatterns, baseDeltas, null, 'global');
+    const primaryRefIds = actions.map(a => a.refs[0]?.refId);
+    const unique = new Set(primaryRefIds);
+    expect(unique.size).toBe(primaryRefIds.length);
+  });
+
+  it('empty inputs → empty actions', () => {
+    const actions = service.draftBuilderActions([], [], null, null, 'global');
+    expect(actions).toEqual([]);
+  });
+
+  it('signal-only input produces signal-driven actions', () => {
+    const signals = [
+      makeSignal({ storyType: 'agents' }),
+      makeSignal({ storyType: 'benchmark' }),
+    ];
+    const actions = service.draftBuilderActions(signals, [], null, null, 'global');
+    expect(actions.length).toBeGreaterThanOrEqual(1);
+    for (const action of actions) {
+      expect(action.refs[0].refType).toBe('signal');
+    }
+  });
+
+  it('pattern-only input produces pattern-driven actions', () => {
+    const highPrevalencePatterns = [
+      { pattern: 'RAG', prevalencePct: 50, startupCount: 15, signal: 'Dominant' },
+    ];
+    const actions = service.draftBuilderActions([], highPrevalencePatterns, null, null, 'global');
+    expect(actions.length).toBeGreaterThanOrEqual(1);
+    for (const action of actions) {
+      expect(action.refs[0].refType).toBe('pattern');
+    }
+  });
+
+  it('ref URLs are well-formed', () => {
+    const signals = [
+      makeSignal({ storyType: 'platform', linkedSlugs: ['acme-ai'] }),
+      makeSignal({ storyType: 'product_launch' }),
+    ];
+    const actions = service.draftBuilderActions(signals, basePatterns, baseDeltas, null, 'global');
+    for (const action of actions) {
+      for (const ref of action.refs) {
+        expect(ref.url).toMatch(/^\/(news\?story=|signals\?pattern=|company\/|dealbook)/);
+      }
+    }
+  });
+
+  it('turkey region appends ?region=turkey to URLs', () => {
+    const signals = [makeSignal({ storyType: 'platform' })];
+    const actions = service.draftBuilderActions(signals, [], null, null, 'turkey');
+    expect(actions.length).toBeGreaterThanOrEqual(1);
+    for (const action of actions) {
+      for (const ref of action.refs) {
+        expect(ref.url).toContain('region=turkey');
+      }
+    }
+  });
+
+  it('caps at 5 actions even with many inputs', () => {
+    const signals = Array.from({ length: 5 }, (_, i) =>
+      makeSignal({ storyType: ['platform', 'regulation', 'funding', 'acquisition', 'product_launch'][i] }),
+    );
+    const actions = service.draftBuilderActions(signals, basePatterns, baseDeltas, null, 'global');
+    expect(actions.length).toBeLessThanOrEqual(5);
+  });
+});

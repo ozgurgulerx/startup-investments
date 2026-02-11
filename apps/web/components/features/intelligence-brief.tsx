@@ -8,7 +8,7 @@ import { MonthSwitcher } from '@/components/ui/month-switcher';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { formatCurrency } from '@/lib/utils';
 import { normalizeDatasetRegion } from '@/lib/region';
-import type { BriefSnapshot, BriefSnapshotDeltas, SignalRef } from '@startup-intelligence/shared';
+import type { BriefSnapshot, BriefSnapshotDeltas, SignalRef, BuilderAction } from '@startup-intelligence/shared';
 
 function DeltaCell({ value, suffix = '%' }: { value?: number | null; suffix?: string }) {
   if (value == null || value === 0) return <span className="text-muted-foreground/50">—</span>;
@@ -215,6 +215,11 @@ export function IntelligenceBrief({
       {/* Signals behind this brief */}
       {snapshot?.topSignals && snapshot.topSignals.length > 0 && (
         <SignalsBehindBrief signals={snapshot.topSignals} region={regionKey} />
+      )}
+
+      {/* Builder Actions */}
+      {snapshot?.builderActions && snapshot.builderActions.length > 0 && (
+        <BuilderActionsSection actions={snapshot.builderActions} region={regionKey} />
       )}
 
       {/* By the Numbers */}
@@ -1041,6 +1046,39 @@ function SignalsBehindBrief({ signals, region }: { signals: SignalRef[]; region:
                   <Link key={slug} href={withRegionHref(`/company/${slug}`, region)}
                     className="text-[10px] px-1.5 py-0.5 bg-muted/50 rounded text-muted-foreground hover:text-accent-info transition-colors">
                     {slug}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BuilderActionsSection({ actions, region }: { actions: BuilderAction[]; region: string }) {
+  if (!actions || actions.length === 0) return null;
+
+  return (
+    <section className="section">
+      <div className="section-header">
+        <span className="section-title">Builder Actions</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Next 7 days</span>
+      </div>
+      <div className="space-y-3">
+        {actions.map((action, i) => (
+          <div key={i} className="p-4 border border-border/30 rounded-lg">
+            <p className="text-sm font-medium text-foreground">{action.action}</p>
+            {action.rationale && (
+              <p className="text-xs text-muted-foreground mt-1">{action.rationale}</p>
+            )}
+            {action.refs.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {action.refs.map((ref, j) => (
+                  <Link key={j} href={withRegionHref(ref.url, region)}
+                    className="text-[10px] px-1.5 py-0.5 bg-muted/50 rounded text-muted-foreground hover:text-accent-info transition-colors">
+                    {ref.label}
                   </Link>
                 ))}
               </div>

@@ -16,7 +16,7 @@ export default function MethodologyPage() {
               Methodology
             </h1>
             <p className="body-lg mt-4 max-w-xl">
-              BuildAtlas is a next-gen news site with an AI editor — designed to separate signal from noise.
+              BuildAtlas is an AI intelligence radar — designed to separate signal from noise.
               Our goal is simple: when the internet produces 1,000 &ldquo;updates,&rdquo; we want to surface the <em>few</em> that
               actually change what a builder, investor, or operator should believe or do.
             </p>

@@ -56,6 +56,19 @@ interface SignalRef {
   publishedAt: string;
 }
 
+interface BuilderActionRef {
+  refType: 'signal' | 'pattern' | 'company';
+  refId: string;
+  label: string;
+  url: string;
+}
+
+interface BuilderAction {
+  action: string;
+  rationale: string;
+  refs: BuilderActionRef[];
+}
+
 interface BriefSnapshot {
   id: string;
   editionId?: string;
@@ -81,6 +94,7 @@ interface BriefSnapshot {
   theme: { name: string; summaryBullets: string[] };
   builderLessons: Array<{ title: string; text: string; howToApply?: string }>;
   whatWatching: string[];
+  builderActions: BuilderAction[];
   patternLandscape: Array<{ pattern: string; prevalencePct: number; startupCount: number; signal: string }>;
   fundingByStage: Array<{ stage: string; amount: number; pct: number; deals: number }>;
   topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string }>;
@@ -846,6 +860,164 @@ export function makeBriefService(pool: Pool) {
   }
 
   // --------------------------------------------------------------------------
+  // Draft builder actions (deterministic template engine)
+  // --------------------------------------------------------------------------
+
+  function draftBuilderActions(
+    topSignals: SignalRef[],
+    patternLandscape: BriefSnapshot['patternLandscape'],
+    deltas: BriefSnapshotDeltas | null,
+    revisionDeltas: BriefSnapshotDeltas | null,
+    region: string,
+  ): BuilderAction[] {
+    const candidates: BuilderAction[] = [];
+
+    function regionUrl(url: string): string {
+      if (!region || region === 'global') return url;
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}region=${region}`;
+    }
+
+    function truncate(s: string, max: number): string {
+      return s.length > max ? s.slice(0, max - 1) + '\u2026' : s;
+    }
+
+    // 1. Signal-driven actions (up to 3)
+    const signalActions: BuilderAction[] = [];
+    for (const signal of topSignals.slice(0, 5)) {
+      if (signalActions.length >= 3) break;
+
+      const st = (signal.storyType || '').toLowerCase();
+      let actionText: string;
+      let rationale: string;
+
+      if (st === 'platform' || st === 'agents') {
+        actionText = 'Instrument agent workflows with retries and eval baselines before scaling to production.';
+        rationale = 'Agent reliability separates prototypes from production — eval-first unlocks safe iteration.';
+      } else if (st === 'regulation' || st === 'policy') {
+        actionText = 'Add audit logging and regional feature flags — compliance is becoming a product requirement.';
+        rationale = 'Regulatory signals indicate new compliance surfaces that early movers can turn into trust advantages.';
+      } else if (st === 'funding' || st === 'mega_round') {
+        actionText = `Revisit your fundraise timeline — capital is concentrating in ${st} plays.`;
+        rationale = 'Capital concentration shifts competitive dynamics; timing your raise matters more in clustered markets.';
+      } else if (st === 'acquisition' || st === 'consolidation') {
+        actionText = 'Map your competitive landscape — acqui-hire signals suggest consolidation in your vertical.';
+        rationale = 'Consolidation waves compress timelines; knowing the acquirers helps you position or partner early.';
+      } else if (st === 'product_launch') {
+        actionText = `Benchmark against ${truncate(signal.title, 30)} — new entrants are resetting customer expectations.`;
+        rationale = 'New product launches shift the baseline; benchmark early to avoid feature-gap surprises.';
+      } else if (st === 'research' || st === 'benchmark') {
+        actionText = 'Update your eval suite to include latest benchmarks — the bar just moved.';
+        rationale = 'Benchmark shifts can invalidate your current positioning overnight; update evals proactively.';
+      } else {
+        actionText = `Monitor '${truncate(signal.title, 30)}' — this signal could impact your roadmap within 30 days.`;
+        rationale = 'Early signal detection gives you a 2-4 week decision advantage over competitors.';
+      }
+
+      const refs: BuilderActionRef[] = [{
+        refType: 'signal',
+        refId: signal.clusterId,
+        label: truncate(signal.title, 40),
+        url: regionUrl(`/news?story=${signal.clusterId}`),
+      }];
+
+      if (signal.linkedSlugs && signal.linkedSlugs.length > 0) {
+        refs.push({
+          refType: 'company',
+          refId: signal.linkedSlugs[0],
+          label: signal.linkedSlugs[0],
+          url: regionUrl(`/company/${signal.linkedSlugs[0]}`),
+        });
+      }
+
+      signalActions.push({ action: actionText, rationale, refs });
+    }
+    candidates.push(...signalActions);
+
+    // 2. Pattern-driven actions (up to 2)
+    const allDeltas = deltas || revisionDeltas;
+    const patternShiftMap = new Map<string, number>(
+      (allDeltas?.patternShifts || []).map(s => [s.pattern, s.deltaPp]),
+    );
+
+    const patternActions: BuilderAction[] = [];
+    for (const p of patternLandscape) {
+      if (patternActions.length >= 2) break;
+
+      const deltaPp = patternShiftMap.get(p.pattern);
+      let actionText: string | null = null;
+      let rationale = '';
+
+      if (p.prevalencePct > 40) {
+        actionText = `Adopt ${p.pattern} as table stakes — ${p.prevalencePct}% of funded startups already ship it.`;
+        rationale = `At ${p.prevalencePct}% prevalence, not having ${p.pattern} is now a competitive disadvantage.`;
+      } else if (deltaPp && deltaPp > 5) {
+        actionText = `${p.pattern} prevalence jumped ${deltaPp}pp — evaluate whether this accelerates your time-to-market.`;
+        rationale = `Rapid adoption shifts (+${deltaPp}pp) signal market validation; early adopters capture integration advantages.`;
+      } else if (deltaPp && deltaPp < -5) {
+        actionText = `${p.pattern} is declining (${deltaPp}pp) — consider migrating to emerging alternatives.`;
+        rationale = 'Declining patterns signal ecosystem migration; reassess before lock-in costs rise.';
+      }
+
+      if (actionText) {
+        patternActions.push({
+          action: actionText,
+          rationale,
+          refs: [{
+            refType: 'pattern',
+            refId: p.pattern,
+            label: p.pattern,
+            url: regionUrl(`/signals?pattern=${encodeURIComponent(p.pattern)}`),
+          }],
+        });
+      }
+    }
+    candidates.push(...patternActions);
+
+    // 3. Delta-driven actions (up to 1)
+    if (deltas) {
+      let deltaAction: BuilderAction | null = null;
+      const fundingPct = deltas.totalFunding?.pct;
+      const dealPct = deltas.dealCount?.pct;
+
+      if (fundingPct != null && fundingPct > 30) {
+        deltaAction = {
+          action: `Capital inflows surged ${fundingPct}% — accelerate your go-to-market before the window closes.`,
+          rationale: 'Funding surges attract new entrants; speed-to-market becomes the primary moat.',
+          refs: [{ refType: 'pattern', refId: 'dealflow', label: 'Dealbook', url: regionUrl('/dealbook') }],
+        };
+      } else if (fundingPct != null && fundingPct < -20) {
+        deltaAction = {
+          action: `Funding contracted ${Math.abs(fundingPct)}% — extend your runway and prioritize unit economics.`,
+          rationale: 'Capital contraction rewards capital efficiency; unit economics become the investor pitch.',
+          refs: [{ refType: 'pattern', refId: 'dealflow', label: 'Dealbook', url: regionUrl('/dealbook') }],
+        };
+      } else if (dealPct != null && dealPct > 25) {
+        deltaAction = {
+          action: `Deal velocity is up ${dealPct}% — more competition entering; differentiate now.`,
+          rationale: 'Rising deal counts signal market entry acceleration; differentiation is your defense.',
+          refs: [{ refType: 'pattern', refId: 'dealflow', label: 'Dealbook', url: regionUrl('/dealbook') }],
+        };
+      }
+
+      if (deltaAction) candidates.push(deltaAction);
+    }
+
+    // Deduplicate by primary ref (refs[0].refId)
+    const seen = new Set<string>();
+    const deduped: BuilderAction[] = [];
+    for (const c of candidates) {
+      const key = c.refs[0]?.refId || '';
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(c);
+    }
+
+    // Cap at 5, prefer signal → pattern → delta ordering (already in that order)
+    return deduped.slice(0, 5);
+  }
+
+  // --------------------------------------------------------------------------
   // LLM generation (optional)
   // --------------------------------------------------------------------------
 
@@ -856,6 +1028,7 @@ export function makeBriefService(pool: Pool) {
     topSignals: SignalRef[],
     periodLabel: string,
     revisionDeltas?: BriefSnapshotDeltas | null,
+    draftActions?: BuilderAction[],
   ): Promise<{
     deltaBullets: string[];
     revisionDeltaBullets: string[];
@@ -863,6 +1036,7 @@ export function makeBriefService(pool: Pool) {
     theme: { name: string; summaryBullets: string[] };
     builderLessons: Array<{ title: string; text: string; howToApply?: string }>;
     whatWatching: string[];
+    builderActions: BuilderAction[];
   }> {
     // Try LLM generation via Azure OpenAI
     const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
@@ -870,11 +1044,11 @@ export function makeBriefService(pool: Pool) {
 
     if (!endpoint || !deployment) {
       console.log('Brief: LLM not configured, using template generation');
-      return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
+      return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas, draftActions);
     }
 
     try {
-      const prompt = buildLLMPrompt(metrics, deltas, newsContext, topSignals, periodLabel, revisionDeltas);
+      const prompt = buildLLMPrompt(metrics, deltas, newsContext, topSignals, periodLabel, revisionDeltas, draftActions);
 
       // Build request — try API key first, fall back to managed identity
       const apiKey = process.env.AZURE_OPENAI_API_KEY;
@@ -914,16 +1088,29 @@ export function makeBriefService(pool: Pool) {
 
       if (!response.ok) {
         console.warn(`Brief: LLM call failed (${response.status}), using template`);
-        return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
+        return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas, draftActions);
       }
 
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content;
       if (!content) {
-        return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
+        return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas, draftActions);
       }
 
       const parsed = JSON.parse(content);
+
+      // Overlay LLM-polished action text onto draft actions (preserve refs)
+      let builderActions = draftActions || [];
+      if (Array.isArray(parsed.builder_actions) && draftActions && draftActions.length > 0) {
+        builderActions = draftActions.map((draft, i) => {
+          const polished = parsed.builder_actions[i];
+          if (typeof polished === 'string' && polished.length > 0) {
+            return { ...draft, action: polished };
+          }
+          return draft;
+        });
+      }
+
       return {
         deltaBullets: Array.isArray(parsed.delta_bullets) ? parsed.delta_bullets.slice(0, 5) : [],
         revisionDeltaBullets: Array.isArray(parsed.revision_delta_bullets) ? parsed.revision_delta_bullets.slice(0, 3) : [],
@@ -935,10 +1122,11 @@ export function makeBriefService(pool: Pool) {
           ? parsed.builder_lessons.map((l: any) => ({ title: l.title || '', text: l.text || '', howToApply: l.howToApply }))
           : [],
         whatWatching: Array.isArray(parsed.what_watching) ? parsed.what_watching.slice(0, 5) : [],
+        builderActions,
       };
     } catch (err) {
       console.warn('Brief: LLM generation error:', (err as Error).message);
-      return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
+      return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas, draftActions);
     }
   }
 
@@ -949,6 +1137,7 @@ export function makeBriefService(pool: Pool) {
     topSignals: SignalRef[],
     periodLabel: string,
     revisionDeltas?: BriefSnapshotDeltas | null,
+    draftActions?: BuilderAction[],
   ): string {
     let prompt = `Generate a brief intelligence analysis for "${periodLabel}".
 
@@ -995,6 +1184,13 @@ Metrics:
       prompt += `\n(Reference these signals in executive_summary and builder_lessons where relevant.)`;
     }
 
+    if (draftActions && draftActions.length > 0) {
+      prompt += `\n\nDraft builder actions (rewrite to be crisper, 18-22 words, imperative voice, preserve meaning):`;
+      draftActions.forEach((a, i) => {
+        prompt += `\n${i + 1}. ${a.action}`;
+      });
+    }
+
     prompt += `
 
 Output JSON with these exact keys:
@@ -1003,13 +1199,13 @@ Output JSON with these exact keys:
   "executive_summary": "string (70-120 words, rephrase only — use provided numbers)",
   "theme": { "name": "string (2-4 words)", "summaryBullets": ["string", ...3-4 items] },
   "builder_lessons": [{ "title": "string", "text": "string", "howToApply": "string" }, ...2-3 items],
-  "what_watching": ["string", ...3-5 items]
+  "what_watching": ["string", ...3-5 items]${draftActions && draftActions.length > 0 ? `,\n  "builder_actions": ["string (rewritten action text, 18-22 words, imperative)", ...${draftActions.length} items]` : ''}
 }
 
 Rules:
 - Delta bullets must reference at least one numeric delta from input. Can reference news headlines. Max 24 words per bullet.${revisionDeltas ? '\n- Revision delta bullets describe what changed since the last update — reference the revision-level deltas provided.' : ''}
 - Executive summary: Rephrase only — use provided numbers. No fabricated statistics.
-- Theme: Ground in pattern shifts and news trends.
+- Theme: Ground in pattern shifts and news trends.${draftActions && draftActions.length > 0 ? '\n- Builder actions: Rewrite each draft action to be crisper (18-22 words). Do NOT change meaning or add new claims.' : ''}
 - NO fabricated numbers. If a delta is null, skip it.`;
 
     return prompt;
@@ -1024,6 +1220,7 @@ Rules:
     deltas: BriefSnapshotDeltas | null,
     periodLabel: string,
     revisionDeltas?: BriefSnapshotDeltas | null,
+    draftActions?: BuilderAction[],
   ) {
     const deltaBullets: string[] = [];
     if (deltas?.totalFunding) {
@@ -1095,7 +1292,7 @@ Rules:
       'Observing geographic expansion of AI funding beyond traditional hubs',
     ];
 
-    return { deltaBullets, revisionDeltaBullets, executiveSummary, theme, builderLessons, whatWatching };
+    return { deltaBullets, revisionDeltaBullets, executiveSummary, theme, builderLessons, whatWatching, builderActions: draftActions || [] };
   }
 
   // --------------------------------------------------------------------------
@@ -1212,6 +1409,7 @@ Rules:
         : { name: '', summaryBullets: [] },
       builderLessons: Array.isArray(content.implications) ? content.implications : [],
       whatWatching: content.what_were_watching || [],
+      builderActions: Array.isArray(content.builder_actions) ? content.builder_actions : [],
 
       patternLandscape: computed.patternLandscape || [],
       fundingByStage: computed.fundingByStage || [],
@@ -1333,8 +1531,9 @@ Rules:
       await client.query('COMMIT');
       client.release();
 
-      // 4. Generate LLM sections OUTSIDE the transaction
-      const llmSections = await generateLLMSections(metrics, deltas, newsContext, topSignals, periodLabel, revisionDeltas);
+      // 4. Draft builder actions (deterministic), then generate LLM sections
+      const draftActions = draftBuilderActions(topSignals, patternLandscape, deltas, revisionDeltas, region);
+      const llmSections = await generateLLMSections(metrics, deltas, newsContext, topSignals, periodLabel, revisionDeltas, draftActions);
 
       const contentSections = {
         title: `${periodLabel} Intelligence Brief`,
@@ -1345,6 +1544,7 @@ Rules:
         what_were_watching: llmSections.whatWatching,
         delta_bullets: llmSections.deltaBullets,
         revision_delta_bullets: llmSections.revisionDeltaBullets || [],
+        builder_actions: llmSections.builderActions,
       };
 
       const fundingByStage = metrics.stageMix.map(s => ({
@@ -1631,6 +1831,7 @@ Rules:
     resolvePeriodBounds,
     // Exposed for testing
     computeDeltas,
+    draftBuilderActions,
   };
 }
 
