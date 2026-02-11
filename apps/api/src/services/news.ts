@@ -278,6 +278,23 @@ export function deriveDeltaType(storyType: string, topicTags: string[]): string 
   return 'Market Signal';
 }
 
+export interface SignalRow {
+  id: string;
+  domain: string;
+  cluster_name: string | null;
+  claim: string;
+  region: string;
+  conviction: number;
+  momentum: number;
+  impact: number;
+  adoption_velocity: number;
+  status: string;
+  evidence_count: number;
+  unique_company_count: number;
+  first_seen_at: string;
+  last_evidence_at: string | null;
+}
+
 export function makeNewsService(pool: Pool) {
   async function getLatestEditionDate(params?: { region?: unknown }): Promise<string | null> {
     const region = normalizeRegion(params?.region);
@@ -1540,23 +1557,6 @@ export function makeNewsService(pool: Pool) {
   // =========================================================================
   // SIGNAL INTELLIGENCE QUERIES
   // =========================================================================
-
-  interface SignalRow {
-    id: string;
-    domain: string;
-    cluster_name: string | null;
-    claim: string;
-    region: string;
-    conviction: number;
-    momentum: number;
-    impact: number;
-    adoption_velocity: number;
-    status: string;
-    evidence_count: number;
-    unique_company_count: number;
-    first_seen_at: string;
-    last_evidence_at: string | null;
-  }
 
   function rowToSignal(row: any): SignalRow {
     return {
