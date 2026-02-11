@@ -38,7 +38,7 @@ export function NewsCard({ item, featured = false, className }: NewsCardProps) {
               src={item.image_url}
               alt=""
               loading="lazy"
-              className={`w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${featured ? 'h-32' : 'h-20'}`}
+              className={`w-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.02] ${featured ? 'h-32' : 'h-20'}`}
               onError={(event) => {
                 event.currentTarget.removeAttribute('src');
                 setShowImage(false);
