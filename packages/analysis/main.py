@@ -719,12 +719,16 @@ def send_news_digest(
     dry_run: bool = typer.Option(False, "--dry-run", help="Do not send emails or write deliveries; just validate pipeline"),
     target_hour: int = typer.Option(8, "--target-hour", help="Send to subscribers whose local time is this hour (0-23). Default 8 for 08:xx."),
     target_minute: int = typer.Option(45, "--target-minute", help="Target minute (informational, hour-window match). Default 45."),
+    qa_email: Optional[str] = typer.Option(None, "--qa-email", help="QA mode: send merged global+turkey digest to this email only. Bypasses subscribers, timezone, dedup."),
 ):
     """Send daily startup-news digest to active subscribers for a given region.
 
     Timezone-aware: only sends to subscribers whose local time is currently
     in the target hour (default 08:xx). Cron should run hourly at :45 so
     each timezone batch is reached at ~08:45 local.
+
+    With --qa-email, sends a single merged digest (global + turkey) to the
+    specified address for QA review. No subscriber or delivery records touched.
     """
     from src.automation.news_digest import run_news_digest_sender
 
@@ -740,11 +744,29 @@ def send_news_digest(
                 dry_run=dry_run,
                 target_hour=target_hour,
                 target_minute=target_minute,
+                qa_email=qa_email,
             )
         )
     except Exception as exc:
         console.print(f"[red]News digest send failed:[/red] {exc}")
         raise typer.Exit(1)
+
+    if result.get("qa"):
+        console.print(Panel.fit(
+            "[bold magenta]QA Digest Preview[/bold magenta]",
+            border_style="magenta"
+        ))
+        console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
+        console.print(f"[bold]QA email:[/bold] {result.get('qa_email')}")
+        console.print(f"[bold]Stories:[/bold] {result.get('stories', 0)} global + {result.get('turkey_stories', 0)} turkey")
+        console.print(f"[bold]Brief:[/bold] {'yes' if result.get('has_brief') else 'no'} global, {'yes' if result.get('has_turkey_brief') else 'no'} turkey")
+        if result.get("dry_run"):
+            console.print("[yellow]Dry run — email not sent[/yellow]")
+        elif result.get("error"):
+            console.print(f"[red]Error:[/red] {result['error']}")
+        elif result.get("sent"):
+            console.print(f"[bold green]Sent![/bold green] Message ID: {result.get('provider_message_id', '—')}")
+        return
 
     console.print(Panel.fit(
         "[bold blue]Daily News Digest Send Summary[/bold blue]",

@@ -538,6 +538,110 @@ class DailyNewsDigestSender:
             )
             return "failed"
 
+    async def _run_qa(
+        self,
+        *,
+        conn: asyncpg.Connection,
+        resolved_date: date,
+        resolved_date_str: str,
+        stories: List[DigestStory],
+        brief: Optional[DailyBrief],
+        qa_email: str,
+        region: str,
+    ) -> Dict[str, Any]:
+        """Send a merged global+turkey digest to a single QA email. No subscriber/dedup/delivery logic."""
+        # Always load both regions
+        if region == "global":
+            turkey_brief = await self._load_brief(conn, resolved_date, region="turkey")
+            turkey_stories = await self._load_stories(conn, resolved_date, region="turkey")
+        else:
+            # Started from turkey — load global as primary, turkey as secondary
+            global_brief = await self._load_brief(conn, resolved_date, region="global")
+            global_stories = await self._load_stories(conn, resolved_date, region="global")
+            # Swap: global becomes primary, original becomes turkey section
+            turkey_brief = brief
+            turkey_stories = stories
+            brief = global_brief
+            stories = global_stories
+            region = "global"  # render as global template with turkey section
+
+        if not turkey_stories:
+            turkey_stories = None
+            turkey_brief = None
+
+        unsubscribe_url = f"{self.public_base_url}/news/{resolved_date_str}"  # placeholder for QA
+        html = self._build_email_html(
+            edition_date=resolved_date_str,
+            stories=stories,
+            unsubscribe_url=unsubscribe_url,
+            brief=brief,
+            turkey_brief=turkey_brief,
+            turkey_stories=turkey_stories,
+            region=region,
+        )
+        text = self._build_email_text(
+            edition_date=resolved_date_str,
+            stories=stories,
+            unsubscribe_url=unsubscribe_url,
+            brief=brief,
+            turkey_brief=turkey_brief,
+            turkey_stories=turkey_stories,
+            region=region,
+        )
+
+        result: Dict[str, Any] = {
+            "qa": True,
+            "qa_email": qa_email,
+            "edition_date": resolved_date_str,
+            "stories": len(stories),
+            "turkey_stories": len(turkey_stories) if turkey_stories else 0,
+            "has_brief": brief is not None,
+            "has_turkey_brief": turkey_brief is not None,
+        }
+
+        if self.dry_run:
+            result["dry_run"] = True
+            return result
+
+        if not self.resend_api_key:
+            result["error"] = "RESEND_API_KEY not configured"
+            return result
+
+        subject = f"[QA] Build Atlas Daily Startup Digest — {resolved_date_str}"
+        payload: Dict[str, Any] = {
+            "from": self.from_email,
+            "to": [qa_email],
+            "subject": subject,
+            "html": html,
+            "text": text,
+        }
+        if self.reply_to:
+            payload["reply_to"] = self.reply_to
+
+        timeout = httpx.Timeout(20.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {self.resend_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            if response.status_code >= 400:
+                body_text = ""
+                try:
+                    body_text = (await response.aread()).decode("utf-8", errors="ignore")
+                except Exception:
+                    body_text = ""
+                result["error"] = f"resend_http_{response.status_code}:{body_text[:200]}"
+                return result
+
+            resp_data = response.json() or {}
+            result["provider_message_id"] = str(resp_data.get("id") or "")
+            result["sent"] = True
+            return result
+
     async def run(
         self,
         *,
@@ -545,6 +649,7 @@ class DailyNewsDigestSender:
         region: str = "global",
         target_hour: int = 8,
         target_minute: int = 45,
+        qa_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         await self.connect()
         assert self.pool is not None
@@ -556,6 +661,18 @@ class DailyNewsDigestSender:
             resolved_date_str = resolved_date.isoformat()
             stories = await self._load_stories(conn, resolved_date, region=region)
             brief = await self._load_brief(conn, resolved_date, region=region)
+
+            if qa_email:
+                return await self._run_qa(
+                    conn=conn,
+                    resolved_date=resolved_date,
+                    resolved_date_str=resolved_date_str,
+                    stories=stories,
+                    brief=brief,
+                    qa_email=qa_email,
+                    region=region,
+                )
+
             all_subscribers = await self._load_subscribers(conn, region=region)
 
             # Filter to subscribers whose local time is currently the target hour.
@@ -668,6 +785,7 @@ async def run_news_digest_sender(
     dry_run: bool = False,
     target_hour: int = 8,
     target_minute: int = 45,
+    qa_email: Optional[str] = None,
 ) -> Dict[str, Any]:
     sender = DailyNewsDigestSender()
     if dry_run:
@@ -678,6 +796,7 @@ async def run_news_digest_sender(
             region=region,
             target_hour=target_hour,
             target_minute=target_minute,
+            qa_email=qa_email,
         )
     finally:
         await sender.close()
