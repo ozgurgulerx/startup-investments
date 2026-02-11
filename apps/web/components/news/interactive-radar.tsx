@@ -14,6 +14,8 @@ import { ContextPanel } from './context-panel';
 import { NewsSubscriptionCard } from './news-subscription-card';
 import { PeriodicBriefPreview, type PeriodicBriefPreviewProps } from './periodic-brief-preview';
 import { SignalsProvider } from './signals-provider';
+import { isDecisionCardsEnabled } from '@/lib/radar-flags';
+import type { ViewMode } from './view-toggle';
 
 function formatTimestamp(value: string): string {
   const parsed = safeDate(value);
@@ -71,6 +73,19 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   const [activeTopic, setActiveTopic] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+
+  // Decision cards feature flag + view mode
+  const [decisionCardsEnabled] = useState(() => isDecisionCardsEnabled());
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('buildatlas:radar-view-mode') as ViewMode) || 'strategy';
+    }
+    return 'strategy';
+  });
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem('buildatlas:radar-view-mode', mode);
+  }, []);
 
   const handleHideStory = useCallback((id: string) => {
     setHiddenIds((prev) => new Set(prev).add(id));
@@ -445,6 +460,9 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchInputRef={searchInputRef}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        showViewToggle={decisionCardsEnabled}
       />
 
 	      {/* KPI Strip + status */}
@@ -519,6 +537,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                       isNew={newStoryIds.has(item.id)}
                       onHide={handleHideStory}
                       region={region}
+                      viewMode={decisionCardsEnabled ? viewMode : undefined}
                     />
                   ))}
                 </div>

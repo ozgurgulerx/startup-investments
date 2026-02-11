@@ -8,11 +8,13 @@ import { MonthSwitcher } from '@/components/ui/month-switcher';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { formatCurrency } from '@/lib/utils';
 import { normalizeDatasetRegion } from '@/lib/region';
+import type { BriefSnapshot } from '@startup-intelligence/shared';
 
 interface IntelligenceBriefProps {
   initialBrief: MonthlyBrief;
   availablePeriods: string[];
   region?: string;
+  snapshot?: BriefSnapshot;
 }
 
 function briefCacheKey(region: string, period: string): string {
@@ -35,6 +37,7 @@ export function IntelligenceBrief({
   initialBrief,
   availablePeriods,
   region,
+  snapshot,
 }: IntelligenceBriefProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -85,14 +88,36 @@ export function IntelligenceBrief({
         if (briefCache.has(key)) {
           setBrief(briefCache.get(key)!);
         } else {
+          // Try new snapshot API first, fall back to legacy
           const params = new URLSearchParams();
-          params.set('period', newPeriod);
           if (regionKey !== 'global') params.set('region', regionKey);
-          const response = await fetch(`/api/brief?${params.toString()}`);
-          if (response.ok) {
-            const data = await response.json();
-            briefCache.set(key, data);
-            setBrief(data);
+          params.set('period_key', newPeriod);
+          let fetched = false;
+          try {
+            const snapResponse = await fetch(`/api/v1/brief?${params.toString()}`);
+            if (snapResponse.ok) {
+              const snapData = await snapResponse.json();
+              // Convert snapshot to MonthlyBrief format for rendering
+              if (snapData && snapData.metrics) {
+                const { snapshotToMonthlyBrief: convert } = await import('@/lib/types/monthly-brief');
+                const converted = convert(snapData);
+                briefCache.set(key, converted);
+                setBrief(converted);
+                fetched = true;
+              }
+            }
+          } catch { /* fall through to legacy */ }
+
+          if (!fetched) {
+            const legacyParams = new URLSearchParams();
+            legacyParams.set('period', newPeriod);
+            if (regionKey !== 'global') legacyParams.set('region', regionKey);
+            const response = await fetch(`/api/brief?${legacyParams.toString()}`);
+            if (response.ok) {
+              const data = await response.json();
+              briefCache.set(key, data);
+              setBrief(data);
+            }
           }
         }
       } catch (error) {
@@ -117,14 +142,35 @@ export function IntelligenceBrief({
           if (!cancelled) setBrief(briefCache.get(key)!);
           return;
         }
+        // Try new snapshot API first, fall back to legacy
         const params = new URLSearchParams();
-        params.set('period', validPeriod);
         if (regionKey !== 'global') params.set('region', regionKey);
-        const response = await fetch(`/api/brief?${params.toString()}`);
-        if (response.ok) {
-          const data = await response.json();
-          briefCache.set(key, data);
-          if (!cancelled) setBrief(data);
+        params.set('period_key', validPeriod);
+        let fetched = false;
+        try {
+          const snapResponse = await fetch(`/api/v1/brief?${params.toString()}`);
+          if (snapResponse.ok) {
+            const snapData = await snapResponse.json();
+            if (snapData && snapData.metrics) {
+              const { snapshotToMonthlyBrief: convert } = await import('@/lib/types/monthly-brief');
+              const converted = convert(snapData);
+              briefCache.set(key, converted);
+              if (!cancelled) setBrief(converted);
+              fetched = true;
+            }
+          }
+        } catch { /* fall through */ }
+
+        if (!fetched) {
+          const legacyParams = new URLSearchParams();
+          legacyParams.set('period', validPeriod);
+          if (regionKey !== 'global') legacyParams.set('region', regionKey);
+          const response = await fetch(`/api/brief?${legacyParams.toString()}`);
+          if (response.ok) {
+            const data = await response.json();
+            briefCache.set(key, data);
+            if (!cancelled) setBrief(data);
+          }
         }
       } catch (error) {
         console.error('Failed to load brief:', error);
@@ -168,6 +214,11 @@ export function IntelligenceBrief({
 
       {/* Top Deals */}
       <TopDealsSection deals={brief.topDeals} region={regionKey} />
+
+      {/* In the News (when snapshot has news context) */}
+      {snapshot?.newsContext && snapshot.newsContext.clusters.length > 0 && (
+        <NewsContextSection clusters={snapshot.newsContext.clusters} region={regionKey} />
+      )}
 
       {/* Geographic Intelligence */}
       <GeographicSection
@@ -214,12 +265,19 @@ function BriefHeader({
 }) {
   return (
     <header className="briefing-header">
-      <MonthSwitcher
-        availableMonths={availablePeriods}
-        value={currentPeriod}
-        onChange={onMonthChange}
-        className="mb-4"
-      />
+      <div className="flex items-center gap-4 mb-4">
+        <MonthSwitcher
+          availableMonths={availablePeriods}
+          value={currentPeriod}
+          onChange={onMonthChange}
+        />
+        <Link
+          href="/brief/archive"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          View archive →
+        </Link>
+      </div>
       <h1 className="briefing-headline">{brief.title}</h1>
       <p className="text-sm text-accent-info mb-2">{brief.subtitle}</p>
       <p className="briefing-subhead">{brief.hook}</p>
@@ -886,6 +944,62 @@ function MethodologySection({
           </ul>
         </div>
       )}
+    </section>
+  );
+}
+
+function NewsContextSection({
+  clusters,
+  region,
+}: {
+  clusters: Array<{
+    id: string;
+    title: string;
+    summary: string;
+    storyType: string;
+    publishedAt: string;
+    linkedStartupSlugs: string[];
+    rankScore: number;
+  }>;
+  region: string;
+}) {
+  return (
+    <section className="section">
+      <div className="section-header">
+        <span className="section-title">In the News</span>
+        <Link href={withRegionHref('/news', region)} className="section-link">
+          Full radar
+        </Link>
+      </div>
+
+      <div className="space-y-3">
+        {clusters.slice(0, 5).map((cluster) => (
+          <div key={cluster.id} className="p-4 border border-border/30 rounded-lg">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{cluster.title}</p>
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{cluster.summary}</p>
+              </div>
+              <span className="text-[10px] text-muted-foreground shrink-0 uppercase tracking-wider">
+                {cluster.storyType}
+              </span>
+            </div>
+            {cluster.linkedStartupSlugs.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {cluster.linkedStartupSlugs.slice(0, 3).map((slug) => (
+                  <Link
+                    key={slug}
+                    href={withRegionHref(`/company/${slug}`, region)}
+                    className="text-[10px] px-1.5 py-0.5 bg-muted/50 rounded text-muted-foreground hover:text-accent-info transition-colors"
+                  >
+                    {slug}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 import { normalizeDatasetRegion } from '@/lib/region';
+import { RecentSignals } from '@/components/company/recent-signals';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -307,6 +308,9 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
           className="mt-6"
         />
       )}
+
+      {/* Recent Radar Signals linked to this company */}
+      <RecentSignals slug={startup.company_slug} region={region} />
 
       {/* Section 2: Why This Company Matters Now */}
       <section className="section">

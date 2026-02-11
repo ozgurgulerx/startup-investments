@@ -278,6 +278,29 @@ export const newsEditionOutputSchema = z.object({
 });
 
 // =============================================================================
+// Dealbook Brief schemas
+// =============================================================================
+
+export const briefQuerySchema = z.object({
+  region: datasetRegionParam,
+  period_type: z.enum(['monthly', 'weekly']).default('monthly'),
+  period_key: optionalTrimmedString(10),
+});
+
+export const briefArchiveQuerySchema = z.object({
+  region: datasetRegionParam,
+  period_type: z.enum(['monthly', 'weekly']).default('monthly'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const briefGenerateSchema = z.object({
+  region: z.enum(['global', 'turkey']).default('global'),
+  periodType: z.enum(['monthly', 'weekly']).default('monthly'),
+  periodKey: z.string().max(10).optional(),
+});
+
+// =============================================================================
 // Admin / POST schemas
 // =============================================================================
 

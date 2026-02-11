@@ -1,0 +1,49 @@
+name: VM Watchdog
+
+# Auto-restarts vm-buildatlas-cron if it's been deallocated or stopped.
+# Background: Microsoft's MCAPSGov-AutomationApp can deallocate the VM as part
+# of subscription governance. Since all cron jobs (ingest, digest, crawl, deploy,
+# heartbeat) run on this VM, a deallocation silently kills everything.
+# The VM's own heartbeat monitor can't fire when the VM is off, so this external
+# watchdog provides auto-recovery.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check-vm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Check VM power state and restart if needed
+        run: |
+          STATE=$(az vm show -g aistartuptr -n vm-buildatlas-cron --show-details --query powerState -o tsv)
+          echo "VM power state: $STATE"
+
+          if [ "$STATE" = "VM running" ]; then
+            echo "VM is running — no action needed"
+            exit 0
+          fi
+
+          echo "::warning::VM is $STATE — starting it now..."
+          az vm start -g aistartuptr -n vm-buildatlas-cron
+
+          # Verify it came back up
+          NEW_STATE=$(az vm show -g aistartuptr -n vm-buildatlas-cron --show-details --query powerState -o tsv)
+          echo "VM state after start: $NEW_STATE"
+
+          # Post to Slack
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            curl -s -X POST "$SLACK_WEBHOOK" \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"⚠️ *VM Watchdog*: vm-buildatlas-cron was _${STATE}_ — auto-restarted (now ${NEW_STATE}). Check cron jobs are resuming.\"}"
+          else
+            echo "::warning::SLACK_WEBHOOK_URL secret not set — skipping Slack notification"
+          fi
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}

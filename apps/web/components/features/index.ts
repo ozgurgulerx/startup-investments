@@ -24,3 +24,5 @@ export { SignalStrip, StaticSignalStrip } from './signal-strip';
 export type { SignalStripProps, StaticSignalStripProps } from './signal-strip';
 export { FilterBuilder } from './filter-builder';
 export type { FilterBuilderProps, SavedFilter } from './filter-builder';
+export { BriefHeaderStrip } from './brief-header-strip';
+export { BriefDeltaSection } from './brief-delta-section';

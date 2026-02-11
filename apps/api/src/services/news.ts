@@ -36,6 +36,9 @@ export interface NewsItemCard {
   llm_topic_tags?: string[];
   llm_story_type?: string;
   upvote_count?: number;
+  entity_links?: Array<{ entity_name: string; startup_slug: string | null; match_score: number }>;
+  primary_company_slug?: string | null;
+  delta_type?: string;
 }
 
 export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';
@@ -126,8 +129,10 @@ function isMissingNewsSchemaError(error: unknown): boolean {
   return code === '42P01' || code === '42703';
 }
 
-export function rowToCard(row: Record<string, unknown>): NewsItemCard {
+export function rowToCard(row: Record<string, unknown>): NewsItemCard & { _linked_entities_json?: unknown } {
   const builderTakeawayIsLlm = Boolean(row.llm_model);
+  const storyType = String(row.story_type || 'news');
+  const topicTags = Array.isArray(row.topic_tags) ? (row.topic_tags as string[]) : [];
   return {
     id: String(row.id || ''),
     title: String(row.title || ''),
@@ -136,8 +141,8 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard {
     url: String(row.primary_url || ''),
     canonical_url: row.primary_url ? String(row.primary_url) : undefined,
     published_at: String(row.published_at || ''),
-    story_type: String(row.story_type || 'news'),
-    topic_tags: Array.isArray(row.topic_tags) ? (row.topic_tags as string[]) : [],
+    story_type: storyType,
+    topic_tags: topicTags,
     entities: Array.isArray(row.entities) ? (row.entities as string[]) : [],
     rank_score: toNumber(row.rank_score),
     rank_reason: String(row.rank_reason || 'editorial rank blend'),
@@ -177,6 +182,9 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard {
     upvote_count: row.upvote_count !== undefined && row.upvote_count !== null
       ? toNumber(row.upvote_count)
       : undefined,
+    delta_type: deriveDeltaType(storyType, topicTags),
+    // Carry through raw linked_entities_json for enrichEntityLinks() post-processing
+    _linked_entities_json: row.linked_entities_json ?? undefined,
   };
 }
 
@@ -249,6 +257,25 @@ async function embedViaOpenAI(query: string): Promise<number[] | null> {
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Delta type derivation (pure function — no DB call)
+// ---------------------------------------------------------------------------
+
+export function deriveDeltaType(storyType: string, topicTags: string[]): string {
+  const st = (storyType || '').toLowerCase();
+  if (st === 'funding') return 'Capital Move';
+  if (st === 'mna') return 'Consolidation';
+  if (st === 'regulation') return 'Regulatory Shift';
+  if (st === 'launch') return 'Product Launch';
+  if (st === 'hiring') return 'Talent Signal';
+
+  // Default 'news' — inspect topic_tags
+  const tags = new Set(topicTags.map((t) => t.toLowerCase()));
+  if (tags.has('infrastructure') || tags.has('platform') || tags.has('open source')) return 'Platform Shift';
+  if (tags.has('research') || tags.has('frontier')) return 'Early Signal';
+  return 'Market Signal';
 }
 
 export function makeNewsService(pool: Pool) {
@@ -362,13 +389,15 @@ export function makeNewsService(pool: Pool) {
             MAX(NULLIF(nir.payload_json->>'image_url', ''))
           ) AS image_url,
           COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources,
+          nie.linked_entities_json
         FROM ordered o
         JOIN news_clusters c ON c.id = o.cluster_id
         LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
         LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
         LEFT JOIN news_sources ns ON ns.id = nir.source_id
-        GROUP BY c.id, o.ord
+        LEFT JOIN news_item_extractions nie ON nie.cluster_id = c.id
+        GROUP BY c.id, o.ord, nie.linked_entities_json
         ORDER BY o.ord ASC
         LIMIT $3
         `,
@@ -412,13 +441,15 @@ export function makeNewsService(pool: Pool) {
               MAX(NULLIF(nir.payload_json->>'image_url', ''))
             ) AS image_url,
             COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
-            ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
+            ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources,
+            nie.linked_entities_json
           FROM ordered o
           JOIN news_clusters c ON c.id = o.cluster_id
           LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
           LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
           LEFT JOIN news_sources ns ON ns.id = nir.source_id
-          GROUP BY c.id, o.ord
+          LEFT JOIN news_item_extractions nie ON nie.cluster_id = c.id
+          GROUP BY c.id, o.ord, nie.linked_entities_json
           ORDER BY o.ord ASC
           LIMIT $2
           `,
@@ -513,16 +544,18 @@ export function makeNewsService(pool: Pool) {
             MAX(NULLIF(nir.payload_json->>'image_url', ''))
           ) AS image_url,
           COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources,
+          nie.linked_entities_json
         FROM news_topic_index nti
         JOIN news_clusters c ON c.id = nti.cluster_id
         LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
         LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
         LEFT JOIN news_sources ns ON ns.id = nir.source_id
+        LEFT JOIN news_item_extractions nie ON nie.cluster_id = c.id
         WHERE nti.edition_date = $1::date
           AND nti.region = $2
           AND nti.topic = $3
-        GROUP BY c.id, nti.rank_score
+        GROUP BY c.id, nti.rank_score, nie.linked_entities_json
         ORDER BY nti.rank_score DESC, c.published_at DESC
         LIMIT $4
         `,
@@ -560,15 +593,17 @@ export function makeNewsService(pool: Pool) {
               MAX(NULLIF(nir.payload_json->>'image_url', ''))
             ) AS image_url,
             COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
-            ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
+            ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources,
+            nie.linked_entities_json
           FROM news_topic_index nti
           JOIN news_clusters c ON c.id = nti.cluster_id
           LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
           LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
           LEFT JOIN news_sources ns ON ns.id = nir.source_id
+          LEFT JOIN news_item_extractions nie ON nie.cluster_id = c.id
           WHERE nti.edition_date = $1::date
             AND nti.topic = $2
-          GROUP BY c.id, nti.rank_score
+          GROUP BY c.id, nti.rank_score, nie.linked_entities_json
           ORDER BY nti.rank_score DESC, c.published_at DESC
           LIMIT $3
           `,
@@ -667,7 +702,8 @@ export function makeNewsService(pool: Pool) {
       const rawItems = params?.topic
         ? await getTopicClusterCards(params.topic, editionDate, region, limit)
         : await getEditionClusterCards(editionDate, region, limit);
-      const items = await mergeUpvoteCounts(rawItems);
+      const enrichedItems = await enrichEntityLinks(rawItems);
+      const items = await mergeUpvoteCounts(enrichedItems);
 
       const statsJson = meta.stats_json || {};
       const brief = extractBrief(statsJson);
@@ -1252,6 +1288,122 @@ export function makeNewsService(pool: Pool) {
   }
 
   // ---------------------------------------------------------------------------
+  // Entity link enrichment (resolves startup_id → slug via batch query)
+  // ---------------------------------------------------------------------------
+
+  async function enrichEntityLinks(cards: Array<NewsItemCard & { _linked_entities_json?: unknown }>): Promise<NewsItemCard[]> {
+    // 1. Parse linked_entities_json for each card, collect startup_ids
+    type ParsedLink = { entity_name: string; startup_id: string | null; match_score: number };
+    const cardLinks = new Map<string, ParsedLink[]>();
+    const allStartupIds = new Set<string>();
+
+    for (const card of cards) {
+      const raw = card._linked_entities_json;
+      if (!raw) continue;
+      try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!Array.isArray(parsed)) continue;
+        const links: ParsedLink[] = [];
+        for (const entry of parsed) {
+          const link: ParsedLink = {
+            entity_name: String(entry.entity_name || entry.name || ''),
+            startup_id: entry.startup_id ? String(entry.startup_id) : null,
+            match_score: typeof entry.match_score === 'number' ? entry.match_score : 0,
+          };
+          links.push(link);
+          if (link.startup_id) allStartupIds.add(link.startup_id);
+        }
+        if (links.length > 0) cardLinks.set(card.id, links);
+      } catch {
+        // Skip malformed JSON
+      }
+    }
+
+    // 2. Batch resolve startup_ids → slugs
+    const slugMap = new Map<string, string>();
+    if (allStartupIds.size > 0) {
+      try {
+        const result = await pool.query(
+          `SELECT id::text, slug FROM startups WHERE id = ANY($1::uuid[])`,
+          [Array.from(allStartupIds)]
+        );
+        for (const row of result.rows) {
+          if (row.slug) slugMap.set(String(row.id), String(row.slug));
+        }
+      } catch {
+        // startups table may not exist or id column mismatch — degrade gracefully
+      }
+    }
+
+    // 3. Map back to cards
+    return cards.map((card) => {
+      const { _linked_entities_json: _, ...rest } = card;
+      const links = cardLinks.get(card.id);
+      if (!links) return rest;
+
+      const entityLinks = links.map((l) => ({
+        entity_name: l.entity_name,
+        startup_slug: l.startup_id ? (slugMap.get(l.startup_id) ?? null) : null,
+        match_score: l.match_score,
+      }));
+
+      // Pick primary: highest match_score with non-null slug
+      const withSlug = entityLinks.filter((el) => el.startup_slug);
+      const primary = withSlug.length > 0
+        ? withSlug.reduce((best, cur) => cur.match_score > best.match_score ? cur : best)
+        : null;
+
+      return {
+        ...rest,
+        entity_links: entityLinks,
+        primary_company_slug: primary?.startup_slug ?? null,
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Company signals (recent news linked to a startup by entity facts)
+  // ---------------------------------------------------------------------------
+
+  async function getCompanySignals(params: {
+    slug: string;
+    limit?: number;
+    days?: number;
+  }): Promise<Array<{ id: string; title: string; story_type: string; published_at: string; rank_score: number; delta_type: string }>> {
+    const limit = Math.max(1, Math.min(20, Number(params.limit || 5)));
+    const days = Math.max(1, Math.min(90, Number(params.days || 30)));
+    try {
+      const result = await pool.query(
+        `SELECT DISTINCT c.id::text, c.title, c.story_type,
+                to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
+                c.rank_score, c.topic_tags
+         FROM news_entity_facts nef
+         JOIN startups s ON s.id = nef.linked_startup_id
+         JOIN news_clusters c ON c.id = nef.source_cluster_id
+         WHERE s.slug = $1
+           AND nef.is_current = TRUE
+           AND c.published_at > NOW() - make_interval(days => $2)
+         ORDER BY c.published_at DESC
+         LIMIT $3`,
+        [params.slug, days, limit]
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        title: String(row.title || ''),
+        story_type: String(row.story_type || 'news'),
+        published_at: String(row.published_at || ''),
+        rank_score: toNumber(row.rank_score),
+        delta_type: deriveDeltaType(
+          String(row.story_type || 'news'),
+          Array.isArray(row.topic_tags) ? row.topic_tags : []
+        ),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Community Signals (upvote / save / hide / not_useful)
   // ---------------------------------------------------------------------------
 
@@ -1383,6 +1535,7 @@ export function makeNewsService(pool: Pool) {
     getPeriodicBrief,
     getPeriodicBriefArchive,
     searchNewsClusters,
+    getCompanySignals,
     toggleSignal,
     getUserSignals,
   };

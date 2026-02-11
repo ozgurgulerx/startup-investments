@@ -145,3 +145,77 @@ export interface BriefingDisplayData {
   displayYear: string;
   brief: MonthlyBrief;
 }
+
+/**
+ * Convert a BriefSnapshot (new API format) to MonthlyBrief (legacy format)
+ * for backward-compatible rendering.
+ */
+export function snapshotToMonthlyBrief(snapshot: {
+  periodKey: string;
+  periodLabel: string;
+  generatedAt: string;
+  metrics: {
+    totalFunding: number;
+    dealCount: number;
+    avgDeal: number;
+    medianDeal: number;
+    largestDeal: { company: string; slug: string; amount: number; stage: string };
+    genaiAdoptionRate: number;
+  };
+  executiveSummary: string;
+  theme: { name: string; summaryBullets: string[] };
+  patternLandscape: Array<{ pattern: string; prevalencePct: number; startupCount: number; signal: string }>;
+  fundingByStage: Array<{ stage: string; amount: number; pct: number; deals: number }>;
+  topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string }>;
+  geography: Array<{ region: string; deals: number; totalFunding: number; avgDeal: number }>;
+  investors: {
+    mostActive: Array<{ name: string; deals: number; totalDeployed: number }>;
+    megaCheckWriters: Array<{ name: string; singleInvestment: number; company: string }>;
+  };
+  spotlight?: {
+    company: string; slug: string; amount: number; stage: string; location: string;
+    whyThisMatters: string; buildPatterns: string[]; risk: string; builderTakeaway: string;
+  };
+  builderLessons: Array<{ title: string; text: string; howToApply?: string }>;
+  whatWatching: string[];
+  methodology: { bullets: string[] };
+}): MonthlyBrief {
+  const m = snapshot.metrics;
+  return {
+    monthKey: snapshot.periodKey,
+    title: `${snapshot.periodLabel} Intelligence Brief`,
+    subtitle: "The AI Builder's Intelligence Brief",
+    hook: `What $${(m.totalFunding / 1_000_000_000).toFixed(1)}B in AI funding reveals about where the industry is heading.`,
+    generatedAt: snapshot.generatedAt,
+    executiveSummary: snapshot.executiveSummary,
+    metrics: {
+      totalFunding: m.totalFunding,
+      totalDeals: m.dealCount,
+      avgDeal: m.avgDeal,
+      medianDeal: m.medianDeal,
+      largestDeal: { company: m.largestDeal.company, amount: m.largestDeal.amount, stage: m.largestDeal.stage },
+      genaiAdoptionPct: m.genaiAdoptionRate,
+    },
+    theme: snapshot.theme,
+    patternLandscape: snapshot.patternLandscape,
+    fundingByStage: snapshot.fundingByStage,
+    topDeals: snapshot.topDeals,
+    geography: snapshot.geography,
+    usDominance: { californiaTotal: 0, californiaPct: 0, cities: [] },
+    emergingHubs: [],
+    investors: {
+      mostActive: snapshot.investors.mostActive.map(inv => ({ ...inv, notableBets: '' })),
+      megaCheckWriters: snapshot.investors.megaCheckWriters,
+    },
+    spotlight: snapshot.spotlight ? {
+      ...snapshot.spotlight,
+      vertical: '',
+    } : undefined,
+    builderLessons: snapshot.builderLessons,
+    whatWatching: snapshot.whatWatching,
+    methodology: {
+      bullets: snapshot.methodology.bullets,
+      dataSources: [],
+    },
+  };
+}

@@ -158,6 +158,12 @@ function DeltaChip({ label, value, change, direction }: DeltaChipProps) {
 }
 
 // Static signal strip for server components
+export interface StaticSignalStripDeltas {
+  totalFunding?: { pct: number } | null;
+  dealCount?: { pct: number } | null;
+  genaiAdoptionRate?: { ppChange: number } | null;
+}
+
 export interface StaticSignalStripProps {
   metrics: {
     totalFunding: string;
@@ -165,10 +171,24 @@ export interface StaticSignalStripProps {
     genaiAdoption: string;
     topDeal?: { name: string; amount: string; slug?: string };
   };
+  deltas?: StaticSignalStripDeltas | null;
   className?: string;
 }
 
-export function StaticSignalStrip({ metrics, className }: StaticSignalStripProps) {
+function TrendArrow({ change, suffix = '%' }: { change: number; suffix?: string }) {
+  if (change === 0) return null;
+  const isUp = change > 0;
+  const Icon = isUp ? TrendingUp : TrendingDown;
+  const color = isUp ? 'text-success' : 'text-destructive';
+  return (
+    <span className={cn('inline-flex items-center gap-0.5 text-[10px] tabular-nums', color)}>
+      <Icon className="w-2.5 h-2.5" />
+      {isUp ? '+' : ''}{change}{suffix}
+    </span>
+  );
+}
+
+export function StaticSignalStrip({ metrics, deltas, className }: StaticSignalStripProps) {
   return (
     <div
       className={cn(
@@ -197,27 +217,36 @@ export function StaticSignalStrip({ metrics, className }: StaticSignalStripProps
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
             Total Funding
           </p>
-          <p className="text-sm font-medium text-foreground tabular-nums">
-            {metrics.totalFunding}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-foreground tabular-nums">
+              {metrics.totalFunding}
+            </p>
+            {deltas?.totalFunding && <TrendArrow change={deltas.totalFunding.pct} />}
+          </div>
         </div>
 
         <div className="p-3 border border-border/30 rounded">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
             Deals
           </p>
-          <p className="text-sm font-medium text-foreground tabular-nums">
-            {metrics.totalDeals}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-foreground tabular-nums">
+              {metrics.totalDeals}
+            </p>
+            {deltas?.dealCount && <TrendArrow change={deltas.dealCount.pct} />}
+          </div>
         </div>
 
         <div className="p-3 border border-border/30 rounded">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
             GenAI Adoption
           </p>
-          <p className="text-sm font-medium text-foreground tabular-nums">
-            {metrics.genaiAdoption}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-foreground tabular-nums">
+              {metrics.genaiAdoption}
+            </p>
+            {deltas?.genaiAdoptionRate && <TrendArrow change={deltas.genaiAdoptionRate.ppChange} suffix="pp" />}
+          </div>
         </div>
 
         {metrics.topDeal && (

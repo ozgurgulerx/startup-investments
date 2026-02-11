@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { PageContainer } from '@/components/layout/page-container';
+import { ViewToggle, type ViewMode } from './view-toggle';
 
 export type SortMode = 'impact' | 'latest';
 export type TimeWindow = '6h' | '24h' | '7d' | 'all';
@@ -18,6 +19,9 @@ interface CommandBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   searchInputRef?: React.RefObject<HTMLInputElement>;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+  showViewToggle?: boolean;
 }
 
 function PillButton({
@@ -56,6 +60,9 @@ export function CommandBar({
   searchQuery,
   onSearchChange,
   searchInputRef,
+  viewMode,
+  onViewModeChange,
+  showViewToggle,
 }: CommandBarProps) {
   const [showTopics, setShowTopics] = useState(false);
 
@@ -102,6 +109,14 @@ export function CommandBar({
             </PillButton>
           ))}
         </div>
+
+        {/* View mode toggle (gated by feature flag) */}
+        {showViewToggle && viewMode && onViewModeChange && (
+          <>
+            <div className="h-4 w-px bg-border/40" />
+            <ViewToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
+          </>
+        )}
 
         {/* Divider */}
         <div className="h-4 w-px bg-border/40" />

@@ -2,6 +2,14 @@
 // AI Startup Intelligence Platform - Shared Types
 // =============================================================================
 
+export type {
+  BriefSnapshotMetrics,
+  BriefSnapshotDeltas,
+  BriefNewsContext,
+  BriefSnapshot,
+  BriefSnapshotSummary,
+} from './brief-snapshot';
+
 // -----------------------------------------------------------------------------
 // Enums
 // -----------------------------------------------------------------------------
@@ -653,6 +661,9 @@ export interface NewsItemCard {
   llm_topic_tags?: string[];
   llm_story_type?: string;
   upvote_count?: number;
+  entity_links?: Array<{ entity_name: string; startup_slug: string | null; match_score: number }>;
+  primary_company_slug?: string | null;
+  delta_type?: string;
 }
 
 export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';

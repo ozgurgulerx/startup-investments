@@ -2,11 +2,13 @@
 
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { frameLabel, impactDisplayMode } from '@/lib/news-utils';
+import type { ViewMode } from './view-toggle';
 
 interface ImpactBoxProps {
   item: NewsItemCard;
   compact?: boolean;
   region?: 'global' | 'turkey';
+  viewMode?: ViewMode;
 }
 
 const TR_LABELS = {
@@ -25,7 +27,7 @@ const EN_LABELS = {
   header: 'Why It Matters',
 } as const;
 
-export function ImpactBox({ item, compact, region = 'global' }: ImpactBoxProps) {
+export function ImpactBox({ item, compact, region = 'global', viewMode }: ImpactBoxProps) {
   const l = region === 'turkey' ? TR_LABELS : EN_LABELS;
   const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
   const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
@@ -33,7 +35,11 @@ export function ImpactBox({ item, compact, region = 'global' }: ImpactBoxProps) 
   // Structured impact rendering
   if (item.impact) {
     const { frame, kicker, builder_move, investor_angle, watchout, validation } = item.impact;
-    const mode = impactDisplayMode(item.impact, item.llm_confidence_score);
+    // Override display mode when viewMode is set
+    const baseMode = impactDisplayMode(item.impact, item.llm_confidence_score);
+    const mode = viewMode === 'investor' ? 'compact'
+      : viewMode === 'builder' ? 'full'
+      : baseMode;
     const header = frameLabel(frame);
 
     return (
@@ -61,10 +67,10 @@ export function ImpactBox({ item, compact, region = 'global' }: ImpactBoxProps) 
               <p><span className="text-accent-info/80 font-medium">{l.invest}</span> {investor_angle}</p>
             )}
             {watchout && (
-              <p className={compact ? 'hidden group-hover/brief:block' : ''}><span className="text-accent-info/80 font-medium">{l.watch}</span> {watchout}</p>
+              <p className={compact && viewMode !== 'builder' ? 'hidden group-hover/brief:block' : ''}><span className="text-accent-info/80 font-medium">{l.watch}</span> {watchout}</p>
             )}
             {validation && (
-              <p className={compact ? 'hidden group-hover/brief:block' : ''}><span className="text-accent-info/80 font-medium">{l.verify}</span> {validation}</p>
+              <p className={compact && viewMode !== 'builder' ? 'hidden group-hover/brief:block' : ''}><span className="text-accent-info/80 font-medium">{l.verify}</span> {validation}</p>
             )}
           </div>
         )}

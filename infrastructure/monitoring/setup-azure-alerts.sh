@@ -427,6 +427,52 @@ else
     warn "VM resource not found: $VM_NAME in $RG_INFRA"
 fi
 
+# ─── Activity Log Alert: VM Deallocate ────────────────────────────────────────
+# Activity Log Alerts are free and fire at the platform level even when the VM is off.
+# This catches external actors (e.g., MCAPSGov-AutomationApp) deallocating the VM.
+if [[ -n "$VM_ID" ]]; then
+    log "--- Activity Log alerts ---"
+
+    ALERT_NAME="alert-vm-deallocated"
+    if az monitor activity-log alert show --name "$ALERT_NAME" --resource-group "$RG_INFRA" &>/dev/null; then
+        skip "$ALERT_NAME (already exists)"
+    else
+        info "Creating activity log alert: $ALERT_NAME"
+        if run_az monitor activity-log alert create \
+            --name "$ALERT_NAME" \
+            --resource-group "$RG_INFRA" \
+            --action-group "$ACTION_GROUP_ID" \
+            --condition "category=Administrative and operationName=Microsoft.Compute/virtualMachines/deallocate/action and resourceId=$VM_ID" \
+            --description "VM vm-buildatlas-cron was deallocated — all cron jobs are down. Auto-recovery via vm-watchdog workflow." \
+            --output none 2>/dev/null; then
+            ok "$ALERT_NAME"
+        else
+            fail "$ALERT_NAME"
+        fi
+    fi
+
+    ALERT_NAME="alert-vm-stopped"
+    if az monitor activity-log alert show --name "$ALERT_NAME" --resource-group "$RG_INFRA" &>/dev/null; then
+        skip "$ALERT_NAME (already exists)"
+    else
+        info "Creating activity log alert: $ALERT_NAME"
+        if run_az monitor activity-log alert create \
+            --name "$ALERT_NAME" \
+            --resource-group "$RG_INFRA" \
+            --action-group "$ACTION_GROUP_ID" \
+            --condition "category=Administrative and operationName=Microsoft.Compute/virtualMachines/powerOff/action and resourceId=$VM_ID" \
+            --description "VM vm-buildatlas-cron was powered off — all cron jobs are down." \
+            --output none 2>/dev/null; then
+            ok "$ALERT_NAME"
+        else
+            fail "$ALERT_NAME"
+        fi
+    fi
+    echo ""
+else
+    warn "Skipping Activity Log alerts — VM resource not found"
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
 log "============================================"

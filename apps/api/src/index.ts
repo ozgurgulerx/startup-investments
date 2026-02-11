@@ -35,13 +35,18 @@ import {
   editorialRulesQuerySchema,
   editorialStatsQuerySchema,
   newsEditionOutputSchema,
+  briefQuerySchema,
+  briefArchiveQuerySchema,
+  briefGenerateSchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
+import { makeBriefService } from './services/brief';
 import {
   getRedisClient,
   closeRedisClient,
   invalidateAll,
+  invalidatePattern,
   getCacheStats,
   dealBookKey,
   companyBySlugKey,
@@ -57,6 +62,8 @@ import {
   newsSourcesKey,
   newsBriefKey,
   newsBriefArchiveKey,
+  briefKey as briefCacheKey,
+  briefArchiveKey as briefArchiveCacheKey,
   hashObject,
   safeCacheParse,
   CACHE_TTL,
@@ -70,6 +77,7 @@ const API_KEY = process.env.API_KEY;
 const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
 const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
 const newsService = makeNewsService(pool);
+const briefService = makeBriefService(pool);
 
 // Trust proxy for correct client IP behind Azure Front Door / Load Balancer
 app.set('trust proxy', true);
@@ -546,6 +554,41 @@ app.get('/api/startups/:slug/logo', async (req, res) => {
   } catch (error) {
     console.error('Error fetching logo:', error);
     res.status(500).json({ error: 'Failed to fetch logo' });
+  }
+});
+
+// Get recent news signals linked to a startup
+app.get('/api/v1/startups/:slug/signals', async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(20, Number(req.query.limit || 5)));
+    const days = Math.max(1, Math.min(90, Number(req.query.days || 30)));
+
+    const cacheKey = `signals:company:${req.params.slug}:${limit}:${days}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          const data = safeCacheParse<unknown[]>(cached, cacheKey, redis);
+          if (data) return res.json(data);
+        }
+      } catch { /* cache miss */ }
+    }
+
+    const signals = await newsService.getCompanySignals({
+      slug: req.params.slug,
+      limit,
+      days,
+    });
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(signals), { EX: 300 }); } catch { /* noop */ }
+    }
+
+    res.json(signals);
+  } catch (error) {
+    console.error('Error fetching company signals:', error);
+    res.status(500).json({ error: 'Failed to fetch signals' });
   }
 });
 
@@ -1959,6 +2002,138 @@ app.post('/api/v1/news/signals/batch', async (req, res) => {
   } catch (error) {
     console.error('Error fetching user signals:', error);
     return res.status(500).json({ error: 'Failed to fetch signals' });
+  }
+});
+
+// =============================================================================
+// Dealbook Living Brief API
+// =============================================================================
+
+app.get('/api/v1/brief', async (req, res) => {
+  try {
+    const parsed = briefQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, period_type, period_key } = parsed.data;
+    const cacheKey = briefCacheKey({ region, periodType: period_type, periodKey: period_key });
+
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse(cachedData, cacheKey, redis);
+          if (data) {
+            res.setHeader('X-Cache', 'HIT');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const snapshot = await briefService.getLatestSnapshot(region, period_type, period_key);
+    if (!snapshot) {
+      return res.status(404).json({ error: 'No brief snapshot found' });
+    }
+
+    if (redis) {
+      try {
+        await redis.setEx(cacheKey, CACHE_TTL.BRIEF, JSON.stringify(snapshot));
+      } catch (cacheErr) {
+        console.error('Redis cache write error:', cacheErr);
+      }
+    }
+
+    res.json(snapshot);
+  } catch (error) {
+    console.error('Error fetching brief:', error);
+    res.status(500).json({ error: 'Failed to fetch brief' });
+  }
+});
+
+app.get('/api/v1/brief/archive', async (req, res) => {
+  try {
+    const parsed = briefArchiveQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, period_type, limit, offset } = parsed.data;
+    const cacheKey = briefArchiveCacheKey({ region, periodType: period_type, limit, offset });
+
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          const data = safeCacheParse(cachedData, cacheKey, redis);
+          if (data) {
+            res.setHeader('X-Cache', 'HIT');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const archive = await briefService.getSnapshotArchive(region, period_type, limit, offset);
+
+    if (redis) {
+      try {
+        await redis.setEx(cacheKey, CACHE_TTL.BRIEF_ARCHIVE, JSON.stringify(archive));
+      } catch (cacheErr) {
+        console.error('Redis cache write error:', cacheErr);
+      }
+    }
+
+    res.json(archive);
+  } catch (error) {
+    console.error('Error fetching brief archive:', error);
+    res.status(500).json({ error: 'Failed to fetch brief archive' });
+  }
+});
+
+app.post('/api/v1/brief/generate', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  try {
+    const parsed = briefGenerateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    const { region, periodType, periodKey } = parsed.data;
+
+    console.log(`Brief: Generating ${periodType} snapshot for ${region} (key=${periodKey || 'current'})`);
+    const snapshot = await briefService.computeBriefSnapshot({ region, periodType, periodKey });
+    const persisted = await briefService.persistSnapshot(snapshot);
+
+    // Invalidate related caches
+    await invalidatePattern('brief:v1:*');
+
+    console.log(`Brief: Generated rev ${persisted.revisionNumber} for ${persisted.periodKey} (${persisted.region})`);
+    res.json({
+      id: persisted.id,
+      region: persisted.region,
+      periodType: persisted.periodType,
+      periodKey: persisted.periodKey,
+      revisionNumber: persisted.revisionNumber,
+      status: persisted.status,
+      generatedAt: persisted.generatedAt,
+    });
+  } catch (error) {
+    console.error('Error generating brief:', error);
+    res.status(500).json({ error: 'Failed to generate brief' });
   }
 });
 

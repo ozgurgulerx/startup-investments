@@ -230,6 +230,23 @@ export function newsBriefArchiveKey(params: { region: string; periodType: string
   return `news:v1:brief-archive:${params.region}:${params.periodType}:l${params.limit}:o${params.offset}`;
 }
 
+/**
+ * Generate cache key for dealbook brief snapshot
+ */
+export function briefKey(params: { region: string; periodType: string; periodKey?: string }): string {
+  const safeRegion = (params.region || 'global').toLowerCase().trim() || 'global';
+  const keyPart = params.periodKey || 'latest';
+  return `brief:v1:${safeRegion}:${params.periodType}:${keyPart}`;
+}
+
+/**
+ * Generate cache key for dealbook brief archive listing
+ */
+export function briefArchiveKey(params: { region: string; periodType: string; limit: number; offset: number }): string {
+  const safeRegion = (params.region || 'global').toLowerCase().trim() || 'global';
+  return `brief:v1:archive:${safeRegion}:${params.periodType}:l${params.limit}:o${params.offset}`;
+}
+
 // Sort keys recursively so logically equivalent objects hash consistently.
 // Note: we preserve array ordering (arrays are not sorted).
 function sortDeep(value: unknown): unknown {
@@ -375,6 +392,7 @@ export async function invalidateAll(): Promise<void> {
   await invalidatePattern('periods:v1:*');
   await invalidatePattern('filters:v1:*');
   await invalidatePattern('news:v1:*');
+  await invalidatePattern('brief:v1:*');
 }
 
 /**
@@ -427,4 +445,6 @@ export const CACHE_TTL = {
   NEWS_BRIEF: 900,       // 15 minutes - generated periodically, read often
   NEWS_BRIEF_ARCHIVE: 1800, // 30 minutes - listing changes infrequently
   NEWS_SEARCH: 300,         // 5 minutes - search queries may overlap
+  BRIEF: 900,               // 15 minutes - living brief, regenerated daily
+  BRIEF_ARCHIVE: 1800,      // 30 minutes - archive listing changes infrequently
 } as const;

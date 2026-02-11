@@ -8,6 +8,9 @@ import { timeAgo, storyTypeBadgeClass, aiSignalLabel } from '@/lib/news-utils';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
 import { ImpactBox } from './impact-box';
+import { DecisionHeader } from './decision-header';
+import { ContextBar } from './context-bar';
+import type { ViewMode } from './view-toggle';
 
 interface StoryCardProps {
   item: NewsItemCard;
@@ -16,9 +19,10 @@ interface StoryCardProps {
   isNew?: boolean;
   onHide?: (id: string) => void;
   region?: 'global' | 'turkey';
+  viewMode?: ViewMode;
 }
 
-export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global' }: StoryCardProps) {
+export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global', viewMode }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadgeClass(item.story_type);
   const tags = item.topic_tags.slice(0, 2);
@@ -52,6 +56,8 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
           />
         </div>
       )}
+
+      {viewMode && <DecisionHeader item={item} region={region} />}
 
       <div className="flex flex-wrap items-center gap-2">
         {isNew && (
@@ -101,7 +107,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
         </p>
       )}
 
-      <ImpactBox item={item} compact region={region} />
+      <ImpactBox item={item} compact region={region} viewMode={viewMode} />
 
       {tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -118,6 +124,8 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
         </div>
       )}
 
+      {viewMode && <ContextBar item={item} region={region} />}
+
       <div className="mt-3 pt-2 border-t border-border/20">
         <ReactionBar clusterId={item.id} compact onHide={onHide} />
       </div>
@@ -125,7 +133,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
   );
 }
 
-export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global' }: StoryCardProps) {
+export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global', viewMode }: StoryCardProps) {
   const summary = item.llm_summary || item.summary || item.rank_reason;
   const typeBadge = storyTypeBadgeClass(item.story_type);
   return (
@@ -142,6 +150,8 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
         }
       `}
     >
+      {viewMode && <DecisionHeader item={item} region={region} />}
+
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-info/15 text-accent-info border border-accent-info/25">
           {region === 'turkey' ? 'En Önemli' : 'Top Impact'}
@@ -188,7 +198,9 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
         </p>
       )}
 
-      <ImpactBox item={item} compact region={region} />
+      <ImpactBox item={item} compact region={region} viewMode={viewMode} />
+
+      {viewMode && <ContextBar item={item} region={region} />}
 
       <div className="mt-3 pt-2 border-t border-border/20">
         <ReactionBar clusterId={item.id} compact onHide={onHide} />
