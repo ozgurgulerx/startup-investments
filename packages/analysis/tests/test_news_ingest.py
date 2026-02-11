@@ -7,12 +7,14 @@ from datetime import datetime, timedelta, timezone
 
 from src.automation.news_ingest import (
     DEFAULT_SOURCES,
+    TR_ENDEMIC_SOURCES,
     DailyNewsIngestor,
     NormalizedNewsItem,
     SourceDefinition,
     StoryCluster,
     _TURKEY_VC_BLOG_URLS,
     _build_turkey_cluster,
+    _has_turkey_nexus,
     _is_relevant_turkey_news_item,
     _is_relevant_turkey_news_item_strict,
     _parse_amazon_new_releases_html,
@@ -484,3 +486,228 @@ def test_total_turkey_sources_count():
     """After adding 4 RSS + 1 crawler, total Turkey sources should be 14."""
     turkey = [s for s in DEFAULT_SOURCES if s.region == "turkey"]
     assert len(turkey) == 14
+
+
+# --- Turkey nexus filter tests ---
+
+
+def _make_turkey_item(source_key: str, title: str, summary: str = "", **kwargs) -> NormalizedNewsItem:
+    """Helper to build a NormalizedNewsItem for Turkey nexus tests."""
+    return NormalizedNewsItem(
+        source_key=source_key,
+        source_name=kwargs.get("source_name", "Test"),
+        source_type=kwargs.get("source_type", "rss"),
+        title=title,
+        url=kwargs.get("url", "https://example.com/test"),
+        canonical_url=kwargs.get("canonical_url", "https://example.com/test"),
+        summary=summary,
+        published_at=datetime.now(timezone.utc),
+        language=kwargs.get("language", "tr"),
+        payload=kwargs.get("payload", {}),
+        source_weight=kwargs.get("source_weight", 0.70),
+    ).with_external_id()
+
+
+def test_nexus_rejects_french_startup_naboo():
+    """Naboo is French — no Turkey nexus signals, should be rejected."""
+    item = _make_turkey_item(
+        "webrazzi",
+        "Lightspeed, Naboo'nun etkinlik odaklı yapay zekasına 70 milyon dolar yatırdı",
+        "Naboo yapay zeka destekli etkinlik platformu için yatırım aldı.",
+    )
+    assert _has_turkey_nexus(item) is False
+
+
+def test_nexus_rejects_us_pharma_eli_lilly():
+    """Eli Lilly / Orna Therapeutics is a US deal — should be rejected."""
+    item = _make_turkey_item(
+        "egirisim",
+        "İlaç şirketi Eli Lilly, Orna Therapeutics'i 2,4 milyar dolara satın alıyor",
+    )
+    assert _has_turkey_nexus(item) is False
+
+
+def test_nexus_rejects_vega_security():
+    """Vega Security is not Turkish — should be rejected."""
+    item = _make_turkey_item(
+        "webrazzi",
+        "Vega Security, 120 Milyon Dolarlık Seri B Yatırımı Aldı",
+    )
+    assert _has_turkey_nexus(item) is False
+
+
+def test_nexus_rejects_stripe_turkish_translation():
+    """Stripe article translated to Turkish — no nexus."""
+    item = _make_turkey_item(
+        "gnews_turkey",
+        "Stripe, yapay zeka destekli ödeme altyapısını güncelledi",
+        "Stripe yeni AI özelliklerini yayınladı.",
+    )
+    assert _has_turkey_nexus(item) is False
+
+
+def test_nexus_rejects_mistral_turkish_translation():
+    """Mistral AI is French — translated to Turkish, no nexus."""
+    item = _make_turkey_item(
+        "newsapi_turkey",
+        "Mistral AI, 600 milyon dolar yatırım aldı",
+    )
+    assert _has_turkey_nexus(item) is False
+
+
+def test_nexus_accepts_city_istanbul():
+    """Article mentioning Istanbul should pass nexus check."""
+    item = _make_turkey_item(
+        "webrazzi",
+        "Istanbul merkezli yapay zeka girişimi X, Seri A turunu kapattı",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_accepts_city_ankara():
+    """Article mentioning Ankara should pass nexus check."""
+    item = _make_turkey_item(
+        "egirisim",
+        "Ankara Teknopark'ta kurulan startup yeni ürününü tanıttı",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_accepts_known_entity_getir():
+    """Getir is in TR_KNOWN_ENTITIES — should pass nexus."""
+    item = _make_turkey_item(
+        "webrazzi",
+        "Getir, 500 milyon dolar topladı",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_accepts_known_entity_papara():
+    """Papara is in TR_KNOWN_ENTITIES — should pass nexus."""
+    item = _make_turkey_item(
+        "egirisim",
+        "Papara, 100 milyon euro yatırım aldı",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_accepts_known_entity_insider():
+    """Insider is in TR_KNOWN_ENTITIES — should pass nexus."""
+    item = _make_turkey_item(
+        "webrazzi",
+        "Insider, yapay zeka pazarlama platformu için Seri D turunu kapattı",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_accepts_corporate_suffix_as():
+    """Articles with A.Ş. corporate suffix should pass nexus."""
+    item = _make_turkey_item(
+        "gnews_turkey",
+        "Acme Teknoloji A.Ş. yeni yazılımını duyurdu",
+        "Startup ekosistemi için yazılım çözümü.",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_accepts_institution_tubitak():
+    """Articles mentioning TUBITAK (ASCII form) should pass nexus."""
+    item = _make_turkey_item(
+        "webrazzi",
+        "TUBITAK destekli yapay zeka projesi başlatıldı",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_accepts_institution_teknopark():
+    """Articles mentioning teknopark should pass nexus."""
+    item = _make_turkey_item(
+        "egirisim",
+        "Teknopark İstanbul'da yeni girişim destekleniyor",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_accepts_country_keyword_turkiye():
+    """Articles mentioning Türkiye should pass nexus."""
+    item = _make_turkey_item(
+        "egirisim",
+        "Türkiye'de startup ekosistemi büyümeye devam ediyor",
+    )
+    assert _has_turkey_nexus(item) is True
+
+
+def test_nexus_endemic_source_exemption():
+    """Endemic sources (e.g. startups_watch) are exempt from nexus check
+    and should pass through _is_relevant_turkey_news_item even without nexus signals,
+    provided they have ecosystem keywords."""
+    item = _make_turkey_item(
+        "startups_watch",
+        "Yeni girişim yatırım aldı",
+        "Startup ekosisteminde yeni gelişme.",
+        source_name="Startups.watch",
+    )
+    # No Turkey nexus signals in the text, but endemic source is exempt
+    assert _has_turkey_nexus(item) is False  # No nexus signal in text
+    assert "startups_watch" in TR_ENDEMIC_SOURCES  # Exempt from nexus check
+    assert _is_relevant_turkey_news_item(item) is True  # Still passes
+
+
+def test_nexus_non_endemic_source_rejects_without_nexus():
+    """Non-endemic source (webrazzi) with ecosystem keywords but no nexus signals
+    should be rejected by _is_relevant_turkey_news_item."""
+    item = _make_turkey_item(
+        "webrazzi",
+        "Yeni girişim Seri A yatırım aldı",
+        "Startup seed turunda yatırım aldı.",
+    )
+    # Has ecosystem keywords (girişim, yatırım) but no Turkey nexus
+    assert _has_turkey_nexus(item) is False
+    assert _is_relevant_turkey_news_item(item) is False
+
+
+def test_nexus_build_turkey_cluster_rejects_foreign_startup():
+    """_build_turkey_cluster should reject foreign startup items from non-endemic sources."""
+    now = datetime.now(timezone.utc)
+    member = NormalizedNewsItem(
+        source_key="webrazzi",
+        source_name="Webrazzi",
+        source_type="rss",
+        title="Lightspeed, Naboo'nun yapay zekasına 70 milyon dolar yatırdı",
+        url="https://webrazzi.com/naboo",
+        canonical_url="https://webrazzi.com/naboo",
+        summary="Naboo etkinlik yapay zeka platformu için yatırım.",
+        published_at=now,
+        language="tr",
+        payload={"turkey_priority": 1, "turkey_classified_by": "llm"},
+        source_weight=0.74,
+    ).with_external_id()
+
+    cluster = StoryCluster(
+        cluster_key="test-cluster-foreign",
+        primary_source_key="webrazzi",
+        primary_external_id=member.external_id,
+        canonical_url=member.canonical_url,
+        title=member.title,
+        summary=member.summary,
+        published_at=now,
+        topic_tags=["funding"],
+        entities=["Naboo"],
+        story_type="funding",
+        rank_score=0.5,
+        rank_reason="test",
+        trust_score=0.7,
+        builder_takeaway=None,
+        llm_summary=None,
+        llm_model=None,
+        llm_signal_score=None,
+        llm_confidence_score=None,
+        llm_topic_tags=[],
+        llm_story_type=None,
+        members=[member],
+    )
+
+    turkey_source_keys = {"webrazzi", "egirisim", "gnews_turkey", "newsapi_turkey"}
+    result = _build_turkey_cluster(cluster, turkey_source_keys)
+    # Naboo has no Turkey nexus → should be filtered out → cluster is None
+    assert result is None

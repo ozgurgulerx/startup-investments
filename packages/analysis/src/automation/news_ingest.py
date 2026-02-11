@@ -252,6 +252,40 @@ TR_CONTEXT_KEYWORDS: Tuple[str, ...] = (
     "turk",
 )
 
+# Superset of TR_CONTEXT_KEYWORDS — any signal that an article has a Turkey connection.
+# Used by _has_turkey_nexus() to reject foreign startup news from Turkish-language sources.
+TR_NEXUS_SIGNALS: Tuple[str, ...] = (
+    # Country / nationality
+    "türkiye", "turkiye", "turkey", "türk", "turk", "turkish",
+    # Major cities
+    "istanbul", "ankara", "izmir", "antalya", "bursa", "gaziantep",
+    "eskişehir", "eskisehir", "kocaeli", "konya", "adana", "mersin",
+    "kayseri", "samsun", "trabzon", "diyarbakır", "diyarbakir",
+    # Institutions / regulators
+    "tübitak", "tubitak", "kosgeb", "teknopark", "teknokent",
+    "borsa istanbul", "borsa İstanbul", "bist", "spk", "btk", "bddk",
+    "tobb", "müsiad", "musiad", "tüsiad", "tusiad",
+    # Corporate suffixes (Turkish legal forms)
+    "a.ş.", "a.s.",
+)
+
+# Well-known Turkish startups whose name alone signals Turkey relevance.
+TR_KNOWN_ENTITIES: Tuple[str, ...] = (
+    "getir", "trendyol", "hepsiburada", "peak games", "dream games",
+    "papara", "insider", "iyzico", "jotform", "opsgenie", "foriba",
+    "parasut", "paraşüt", "modanisa", "armut", "scotty", "vivense",
+    "tapu.com", "martı", "marti", "obilet", "ikas", "storyly",
+    "segmentify", "rakam", "useinsider", "clockin", "fibabanka",
+    "colendi", "param", "simpra", "logo yazılım", "logo yazilim",
+    "softtech", "intertech", "etiya", "akinon", "invio",
+)
+
+# Sources that exclusively cover the Turkish ecosystem — exempt from nexus check.
+TR_ENDEMIC_SOURCES: frozenset = frozenset({
+    "startups_watch", "vc_212", "finberg", "endeavor_turkey",
+    "startupcentrum_tr", "vc_turkey_blogs", "startup_owned_feeds",
+})
+
 TR_CONSUMER_EXCLUDE_KEYWORDS: Tuple[str, ...] = (
     "iphone",
     "ipad",
@@ -1295,6 +1329,11 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     if not (has_startup_signal or has_ai_with_context):
         return False
 
+    # Turkey nexus: non-endemic sources must mention Turkey somewhere to avoid
+    # foreign startup news translated into Turkish passing through.
+    if item.source_key not in TR_ENDEMIC_SOURCES and not _has_turkey_nexus(item):
+        return False
+
     is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch", "vc_212", "finberg", "endeavor_turkey", "startupcentrum_tr"}
 
     # For broad API aggregators, require explicit Turkey context to avoid global chatter.
@@ -1357,6 +1396,19 @@ def _turkey_prefilter(item: "NormalizedNewsItem") -> bool:
     return True
 
 
+def _has_turkey_nexus(item: "NormalizedNewsItem") -> bool:
+    """Check whether a news item has any Turkey-connection signal in title+summary.
+
+    Returns True if the text mentions a Turkish city, institution, corporate suffix,
+    or a well-known Turkish startup name.  Used to reject foreign startup news that
+    Turkish-language sources translate and republish.
+    """
+    text = f"{item.title} {item.summary or ''}".strip().casefold()
+    if not text:
+        return False
+    return _contains_any(text, TR_NEXUS_SIGNALS) or _contains_any(text, TR_KNOWN_ENTITIES)
+
+
 def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optional["StoryCluster"]:
     """Create a Turkey-specific version of a cluster, or None if not Turkey-relevant.
 
@@ -1387,8 +1439,12 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
     # not just from a Turkey source reporting on global news.
     # Items the LLM already classified (turkey_priority >= 1) are kept directly;
     # only unclassified items go through the keyword heuristic.
+    # Non-endemic sources also require a Turkey-nexus signal.
     relevant_members = []
     for m in candidate_members:
+        # Nexus gate: non-endemic sources must mention Turkey somehow
+        if m.source_key not in TR_ENDEMIC_SOURCES and not _has_turkey_nexus(m):
+            continue
         llm_score = (m.payload or {}).get("turkey_priority")
         if llm_score is not None and llm_score >= 1:
             relevant_members.append(m)        # LLM already approved
@@ -1446,33 +1502,50 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
 _TURKEY_RELEVANCE_PROMPT = """\
 You are a relevance classifier for a Turkish tech startup intelligence feed.
 
+**CRITICAL: Turkish LANGUAGE does not mean Turkish COMPANY.**
+Many Turkish news sites translate and republish global startup news in Turkish.
+These articles are NOT relevant — they must be scored 0.
+
 For each article, respond with a relevance score (0, 1, or 2):
 
 2 = HIGH PRIORITY: A specific Turkish startup/company building or deploying AI/ML
-    (must name the company, fund, or deal)
+    (must name the company, fund, or deal AND the company must be from Turkey)
   - Turkish startups building or using AI/ML (funding, launch, M&A, product, hiring)
   - AI technology applied by a named Turkish company
   - Turkish VC/fund investing in AI/tech startups (must name the fund or startup)
 
 1 = RELEVANT: A specific Turkish startup, fund, or deal (not necessarily AI)
-    (must name the company, fund, or deal)
+    (must name a Turkish company, fund, or deal)
   - Turkish startups: funding rounds, launches, M&A, expansion, hiring
   - Turkish VC and investment activity in tech
   - Fintech, SaaS, e-commerce, deep-tech, biotech startups from Turkey
   - Turkish tech policy or regulation with named companies affected
   - Accelerator/incubator programs in Turkey (must name programs or cohort companies)
 
-0 = IRRELEVANT: No named Turkish company/startup/fund/deal
+0 = IRRELEVANT: Score 0 if ANY of these apply:
+  - The article is about a NON-Turkish startup, even if written in Turkish
   - General AI articles, tutorials, trends — even if in Turkish
-  - "How students use AI", "AI tools for X" without a named company
   - Big-tech global product news without a Turkish company angle
   - Consumer tech (phone reviews, app updates, streaming services)
-  - General business/economy not involving a specific tech startup
-  - Non-Turkish startup news that happens to be in Turkish language
-  - Listicles, opinion pieces, or commentary without a named entity
+  - General business/economy not involving a specific Turkish tech startup
+  - Listicles, opinion pieces, or commentary without a named Turkish entity
 
-KEY RULE: Score 1 or 2 ONLY if the article names a specific Turkish company,
-startup, fund, or deal. Generic "AI in Turkey" or "tech trends" = 0.
+EXAMPLES — Score 0 (foreign startups reported in Turkish):
+  - "Lightspeed, Naboo'nun etkinlik odaklı yapay zekasına 70 milyon dolar yatırdı" → 0 (Naboo is French)
+  - "İlaç şirketi Eli Lilly, Orna Therapeutics'i 2,4 milyar dolara satın alıyor" → 0 (US pharma deal)
+  - "Vega Security, 120 Milyon Dolarlık Seri B Yatırımı Aldı" → 0 (not a Turkish company)
+  - "Stripe, yapay zeka destekli ödeme altyapısını güncelledi" → 0 (US fintech)
+  - "Mistral AI, 600 milyon dolar yatırım aldı" → 0 (French AI company)
+
+EXAMPLES — Score 1 or 2 (actual Turkish startups):
+  - "Getir, 500 milyon dolar topladı" → 1 (Turkish delivery startup)
+  - "Insider, yapay zeka pazarlama platformu için Seri D turunu kapattı" → 2 (Turkish AI startup)
+  - "Papara, 100 milyon euro yatırım aldı" → 1 (Turkish fintech)
+  - "Jotform, yeni AI form oluşturucuyu tanıttı" → 2 (Turkish SaaS + AI)
+  - "İstanbul merkezli Peak Games, 1.8 milyar dolara satıldı" → 1 (Turkish gaming)
+
+KEY RULE: Score 1 or 2 ONLY if the article is about a Turkish company, fund, or deal.
+A Turkish-language article about a foreign company = 0.
 
 Articles:
 {articles}
@@ -3202,16 +3275,24 @@ class DailyNewsIngestor:
                     else:
                         items = []
 
-                    # Turkey pipeline: two-stage filter (fast heuristic + LLM classification).
+                    # Turkey pipeline: three-stage filter (heuristic → LLM → nexus check).
                     if (source.region or "global") == "turkey":
                         pre_filter = len(items)
                         items = [i for i in items if _turkey_prefilter(i)]
                         pre_llm = len(items)
                         items = await self._llm_classify_turkey_relevance(items, source.source_key)
+                        # Nexus check: for non-endemic sources, require a Turkey-connection signal
+                        # to reject foreign startup news translated into Turkish.
+                        if source.source_key not in TR_ENDEMIC_SOURCES:
+                            pre_nexus = len(items)
+                            dropped = [i.title for i in items if not _has_turkey_nexus(i)]
+                            items = [i for i in items if _has_turkey_nexus(i)]
+                            if dropped:
+                                print(f"[turkey-nexus] {source.source_key}: dropped {len(dropped)} items without Turkey nexus: {dropped[:5]}")
                         if pre_filter > 0 or (source.region or "global") == "turkey":
                             hi = sum(1 for i in items if (i.payload or {}).get("turkey_priority", 0) >= 2)
                             lo = len(items) - hi
-                            print(f"[news-ingest] {source.source_key}: {pre_filter} fetched → {pre_llm} prefilter → {len(items)} LLM-passed (ai={hi} other={lo})")
+                            print(f"[news-ingest] {source.source_key}: {pre_filter} fetched → {pre_llm} prefilter → {len(items)} LLM+nexus-passed (ai={hi} other={lo})")
 
                     elapsed_ms = int((time.monotonic() - t0) * 1000)
                     fetch_results.append(SourceFetchResult(
