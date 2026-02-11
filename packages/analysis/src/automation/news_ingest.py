@@ -83,8 +83,11 @@ FRONTIER_LISTING_PATHS = {
 }
 
 STOPWORDS = {
+    # English
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "in", "is", "it",
     "its", "of", "on", "or", "that", "the", "to", "with", "will", "new", "startup", "startups",
+    # Turkish
+    "bir", "ve", "bu", "da", "de", "ile", "için", "olan", "den", "dan", "mi", "mı",
 }
 
 GENERIC_ENTITIES = {
@@ -609,7 +612,7 @@ def parse_entry_datetime(entry: Any) -> Optional[datetime]:
 
 
 def tokenize_title(title: str) -> List[str]:
-    raw = re.findall(r"[a-zA-Z0-9]+", title.lower())
+    raw = re.findall(r"[\w]+", title.lower(), re.UNICODE)
     return [t for t in raw if t not in STOPWORDS and len(t) >= 2]
 
 
@@ -626,8 +629,16 @@ def title_similarity(a: str, b: str) -> float:
     return len(sa & sb) / len(sa | sb)
 
 
+_TR_UPPER = "ÇĞİÖŞÜ"
+_TR_LOWER = "çğıöşü"
+
+
 def extract_entities(title: str) -> List[str]:
-    pattern = re.compile(r"\b([A-Z][a-zA-Z0-9&.-]*(?:\s+[A-Z][a-zA-Z0-9&.-]*){0,2})\b")
+    pattern = re.compile(
+        rf"\b([A-Z{_TR_UPPER}][a-zA-Z{_TR_LOWER}{_TR_UPPER}0-9&.-]*"
+        rf"(?:\s+[A-Z{_TR_UPPER}][a-zA-Z{_TR_LOWER}{_TR_UPPER}0-9&.-]*)"
+        r"{0,2})\b"
+    )
     entities: List[str] = []
     for match in pattern.findall(title or ""):
         item = normalize_text(match)
