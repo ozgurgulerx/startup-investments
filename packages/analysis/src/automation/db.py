@@ -220,7 +220,7 @@ class DatabaseConnection:
     async def get_startups_for_monitoring(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get startups that need website monitoring."""
         rows = await self.fetch("""
-            SELECT id, name, website, content_hash, last_crawl_at
+            SELECT id, name, website, content_hash, last_crawl_at, last_content_sample
             FROM startups
             WHERE website IS NOT NULL
             ORDER BY last_crawl_at ASC NULLS FIRST
@@ -277,6 +277,17 @@ class DatabaseConnection:
                 WHERE id = $1
             """, startup_id, content_hash, now,
                  1.0 if crawl_success else 0.0, canonical_url)
+
+    async def update_startup_content_sample(
+        self,
+        startup_id: str,
+        content_sample: str,
+    ) -> None:
+        """Store first 2000 chars of crawl text for diff analysis."""
+        await self.execute(
+            "UPDATE startups SET last_content_sample = $2 WHERE id = $1",
+            startup_id, content_sample[:2000],
+        )
 
     async def find_startup_by_name(self, name: str) -> Optional[Dict[str, Any]]:
         """Find a startup by name (case-insensitive)."""

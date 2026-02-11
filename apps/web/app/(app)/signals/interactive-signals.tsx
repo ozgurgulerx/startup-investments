@@ -2,15 +2,21 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp } from 'lucide-react';
+import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock } from 'lucide-react';
 import { PatternCohortTable } from '@/components/features/pattern-cohort-table';
 import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
 import type { PatternData, EmergingPattern, CategoryData } from './page';
 import type { PatternCorrelation } from '@/lib/data/signals';
+import type { SignalItem, SignalsSummaryResponse } from '@/lib/api/client';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
 import { normalizeDatasetRegion } from '@/lib/region';
 
-interface InteractiveSignalsProps {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface StaticModeProps {
+  mode: 'static';
   patterns: PatternData[];
   correlations: PatternCorrelation[];
   totalDeals: number;
@@ -19,14 +25,228 @@ interface InteractiveSignalsProps {
   categories?: CategoryData[];
 }
 
-export function InteractiveSignals({
+interface DynamicModeProps {
+  mode: 'dynamic';
+  dynamicSignals: SignalsSummaryResponse;
+  region?: string;
+}
+
+type InteractiveSignalsProps = StaticModeProps | DynamicModeProps;
+
+// ---------------------------------------------------------------------------
+// Signal card component (dynamic mode)
+// ---------------------------------------------------------------------------
+
+const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  candidate: { bg: 'bg-muted/30', text: 'text-muted-foreground', label: 'Candidate' },
+  emerging: { bg: 'bg-accent-info/10', text: 'text-accent-info', label: 'Emerging' },
+  accelerating: { bg: 'bg-accent/10', text: 'text-accent', label: 'Accelerating' },
+  established: { bg: 'bg-foreground/10', text: 'text-foreground', label: 'Established' },
+  decaying: { bg: 'bg-destructive/10', text: 'text-destructive', label: 'Decaying' },
+};
+
+const DOMAIN_LABELS: Record<string, string> = {
+  architecture: 'Architecture',
+  gtm: 'GTM',
+  capital: 'Capital',
+  org: 'Organization',
+  product: 'Product',
+};
+
+function SignalCard({ signal }: { signal: SignalItem }) {
+  const style = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
+  const domainLabel = DOMAIN_LABELS[signal.domain] || signal.domain;
+
+  const timeSinceFirstSeen = useMemo(() => {
+    const first = new Date(signal.first_seen_at);
+    const now = new Date();
+    const days = Math.floor((now.getTime() - first.getTime()) / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'today';
+    if (days === 1) return '1 day ago';
+    if (days < 30) return `${days}d ago`;
+    return `${Math.floor(days / 30)}mo ago`;
+  }, [signal.first_seen_at]);
+
+  return (
+    <div className="py-6 border-b border-border/30 last:border-0">
+      {/* Top row: status + domain + time */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${style.bg} ${style.text}`}>
+          {style.label}
+        </span>
+        <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+          {domainLabel}
+        </span>
+        <span className="text-[10px] text-muted-foreground/40 ml-auto flex items-center gap-1">
+          <Clock className="w-2.5 h-2.5" />
+          {timeSinceFirstSeen}
+        </span>
+      </div>
+
+      {/* Claim text */}
+      <p className="text-sm text-foreground leading-relaxed mb-4">
+        {signal.claim}
+      </p>
+
+      {/* Metrics row */}
+      <div className="flex flex-wrap items-center gap-4">
+        <MetricBadge
+          label="Conviction"
+          value={signal.conviction}
+          format="percent"
+        />
+        <MetricBadge
+          label="Momentum"
+          value={signal.momentum}
+          format="delta"
+          icon={signal.momentum > 0 ? TrendingUp : signal.momentum < 0 ? TrendingDown : Activity}
+        />
+        <MetricBadge
+          label="Impact"
+          value={signal.impact}
+          format="percent"
+        />
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <BarChart3 className="w-3 h-3" />
+          <span>{signal.evidence_count} evidence</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Users className="w-3 h-3" />
+          <span>{signal.unique_company_count} {signal.unique_company_count === 1 ? 'company' : 'companies'}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricBadge({
+  label,
+  value,
+  format,
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  format: 'percent' | 'delta';
+  icon?: any;
+}) {
+  const displayValue = format === 'percent'
+    ? `${(value * 100).toFixed(0)}%`
+    : `${value >= 0 ? '+' : ''}${(value * 100).toFixed(0)}%`;
+
+  const colorClass = format === 'delta'
+    ? value > 0 ? 'text-accent-info' : value < 0 ? 'text-destructive' : 'text-muted-foreground'
+    : 'text-muted-foreground';
+
+  return (
+    <div className="flex items-center gap-1">
+      {Icon && <Icon className={`w-3 h-3 ${colorClass}`} />}
+      <span className="text-[10px] text-muted-foreground/60 uppercase">{label}</span>
+      <span className={`text-xs font-medium ${colorClass}`}>{displayValue}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic signals view
+// ---------------------------------------------------------------------------
+
+function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: SignalsSummaryResponse; region?: string }) {
+  const { rising, established, decaying, stats } = dynamicSignals;
+
+  return (
+    <>
+      {/* Header */}
+      <header className="briefing-header">
+        <span className="briefing-date">Signal Intelligence</span>
+        <h1 className="briefing-headline">
+          Live pattern adoption signals across AI infrastructure
+        </h1>
+        <p className="briefing-subhead">
+          {stats.total} active signals tracked across {Object.keys(stats.by_domain).length} domains.
+          {rising.length > 0 && (
+            <span className="text-accent-info"> {rising.length} signals rising.</span>
+          )}
+        </p>
+      </header>
+
+      {/* Stats strip */}
+      <div className="flex flex-wrap gap-4 mb-8 pb-6 border-b border-border/30">
+        {Object.entries(stats.by_status).map(([status, count]) => {
+          const style = STATUS_STYLES[status] || STATUS_STYLES.candidate;
+          return (
+            <div key={status} className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${style.bg.replace('/10', '/40').replace('/30', '/40')}`} />
+              <span className="text-xs text-muted-foreground capitalize">{status}</span>
+              <span className="text-xs font-medium text-foreground">{count}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Rising signals */}
+      {rising.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-4 h-4 text-accent-info" />
+            <h2 className="text-sm font-medium text-foreground uppercase tracking-wider">Rising</h2>
+            <span className="text-xs text-muted-foreground">({rising.length})</span>
+          </div>
+          <div className="divide-y divide-border/20">
+            {rising.map(signal => (
+              <SignalCard key={signal.id} signal={signal} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Established signals */}
+      {established.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-sm font-medium text-foreground uppercase tracking-wider">Established</h2>
+            <span className="text-xs text-muted-foreground">({established.length})</span>
+          </div>
+          <div className="divide-y divide-border/20">
+            {established.map(signal => (
+              <SignalCard key={signal.id} signal={signal} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Decaying signals */}
+      {decaying.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingDown className="w-4 h-4 text-destructive" />
+            <h2 className="text-sm font-medium text-foreground uppercase tracking-wider">Decaying</h2>
+            <span className="text-xs text-muted-foreground">({decaying.length})</span>
+          </div>
+          <div className="divide-y divide-border/20">
+            {decaying.map(signal => (
+              <SignalCard key={signal.id} signal={signal} />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Static signals view (original, used as fallback)
+// ---------------------------------------------------------------------------
+
+function StaticSignalsView({
   patterns,
   correlations,
   totalDeals,
   region,
   emergingPatterns = [],
   categories = [],
-}: InteractiveSignalsProps) {
+}: Omit<StaticModeProps, 'mode'>) {
   const regionKey = normalizeDatasetRegion(region);
   const withRegion = (href: string) => {
     if (regionKey === 'global') return href;
@@ -49,10 +269,8 @@ export function InteractiveSignals({
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Filter patterns by selected category
   const filteredPatterns = useMemo(() => {
     if (!selectedCategory) return patterns;
-    // For legacy patterns, we don't have category data, so show all when filtered
     return patterns;
   }, [patterns, selectedCategory]);
 
@@ -75,7 +293,6 @@ export function InteractiveSignals({
 
   const handleMatrixCellClick = useCallback(
     (patternA: string, patternB: string) => {
-      // Find companies that have both patterns
       const patternDataA = patterns.find(p => p.name === patternA);
       const companySlugsA = new Set(
         patternDataA?.companies.map(c => c.company_slug) || []
@@ -209,7 +426,6 @@ export function InteractiveSignals({
       <div className="space-y-0">
         {filteredPatterns.slice(0, 8).map(pattern => (
           <div key={pattern.name} className="signal-item">
-            {/* Header */}
             <div className="signal-header">
               <h3 className="signal-name">{pattern.name}</h3>
               <div className="signal-conviction">
@@ -220,16 +436,13 @@ export function InteractiveSignals({
               </div>
             </div>
 
-            {/* Thesis */}
             <p className="signal-thesis">{pattern.thesis}</p>
 
-            {/* What This Enables */}
             <div className="intel-callout">
               <span className="intel-callout-label">What This Enables</span>
               <p className="intel-callout-text">{pattern.enables}</p>
             </div>
 
-            {/* Meta */}
             <div className="signal-meta mt-6">
               <div className="signal-meta-item">
                 <span className="signal-meta-label">Time Horizon</span>
@@ -245,7 +458,6 @@ export function InteractiveSignals({
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex items-center gap-4 mt-6 pt-4 border-t border-border/20">
               <button
                 onClick={() => openCohort(pattern)}
@@ -288,7 +500,6 @@ export function InteractiveSignals({
           onCellClick={handleMatrixCellClick}
         />
 
-        {/* Matrix insight */}
         <div className="mt-4 p-4 border border-border/30 rounded-lg bg-muted/10">
           <div className="flex items-start gap-3">
             <Lightbulb className="w-4 h-4 text-accent-info mt-0.5 flex-shrink-0" />
@@ -313,6 +524,31 @@ export function InteractiveSignals({
     </>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Main export — dispatches between dynamic and static modes
+// ---------------------------------------------------------------------------
+
+export function InteractiveSignals(props: InteractiveSignalsProps) {
+  if (props.mode === 'dynamic') {
+    return <DynamicSignalsView dynamicSignals={props.dynamicSignals} region={props.region} />;
+  }
+
+  return (
+    <StaticSignalsView
+      patterns={props.patterns}
+      correlations={props.correlations}
+      totalDeals={props.totalDeals}
+      region={props.region}
+      emergingPatterns={props.emergingPatterns}
+      categories={props.categories}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function getTopCorrelationInsight(correlations: PatternCorrelation[]): string {
   if (correlations.length === 0) {

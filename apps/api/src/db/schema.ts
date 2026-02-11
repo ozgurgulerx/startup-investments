@@ -388,3 +388,75 @@ export const startupEventsRelations = relations(startupEvents, ({ one }) => ({
   }),
 }));
 
+// =============================================================================
+// SIGNAL INTELLIGENCE ENGINE
+// =============================================================================
+
+// Event registry - canonical event type definitions
+export const eventRegistry = pgTable('event_registry', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  domain: text('domain').notNull(),
+  eventType: text('event_type').notNull(),
+  displayName: text('display_name').notNull(),
+  description: text('description'),
+  extractionMethod: text('extraction_method').notNull().default('heuristic'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// Pattern registry - authoritative pattern definitions
+export const patternRegistry = pgTable('pattern_registry', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  domain: text('domain').notNull(),
+  clusterName: text('cluster_name').notNull(),
+  patternName: text('pattern_name').notNull(),
+  category: text('category'),
+  status: text('status').notNull().default('active'),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// Signals - statistical claims with lifecycle scoring
+export const signals = pgTable('signals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  domain: text('domain').notNull(),
+  clusterName: text('cluster_name'),
+  patternId: uuid('pattern_id').references(() => patternRegistry.id),
+  claim: text('claim').notNull(),
+  region: text('region').notNull().default('global'),
+  conviction: decimal('conviction', { precision: 5, scale: 4 }).notNull().default('0'),
+  momentum: decimal('momentum', { precision: 5, scale: 4 }).notNull().default('0'),
+  impact: decimal('impact', { precision: 5, scale: 4 }).notNull().default('0'),
+  adoptionVelocity: decimal('adoption_velocity', { precision: 8, scale: 4 }).notNull().default('0'),
+  status: text('status').notNull().default('candidate'),
+  evidenceCount: integer('evidence_count').notNull().default(0),
+  uniqueCompanyCount: integer('unique_company_count').notNull().default(0),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).defaultNow(),
+  lastEvidenceAt: timestamp('last_evidence_at', { withTimezone: true }),
+  lastScoredAt: timestamp('last_scored_at', { withTimezone: true }),
+  metadataJson: jsonb('metadata_json').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// Signal evidence - links signals to events/clusters
+export const signalEvidence = pgTable('signal_evidence', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  signalId: uuid('signal_id').notNull().references(() => signals.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').references(() => startupEvents.id, { onDelete: 'set null' }),
+  clusterId: uuid('cluster_id'),
+  startupId: uuid('startup_id').references(() => startups.id, { onDelete: 'set null' }),
+  weight: decimal('weight', { precision: 5, scale: 4 }).notNull().default('1'),
+  evidenceType: text('evidence_type').notNull().default('event'),
+  snippet: text('snippet'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+export const signalsRelations = relations(signals, ({ one }) => ({
+  pattern: one(patternRegistry, {
+    fields: [signals.patternId],
+    references: [patternRegistry.id],
+  }),
+}));
+

@@ -2269,5 +2269,50 @@ def test_research(
         console.print("[yellow]No LLM synthesis output (Azure client may not be configured)[/yellow]")
 
 
+@app.command("seed-signals")
+def seed_signals():
+    """Seed event_registry and pattern_registry for the Signal Intelligence Engine."""
+    from src.automation.signal_seed import run_seed
+
+    try:
+        asyncio.run(run_seed())
+    except Exception as exc:
+        console.print(f"[red]Signal seed failed:[/red] {exc}")
+        raise typer.Exit(1)
+    console.print("[green]Signal seed complete.[/green]")
+
+
+@app.command("aggregate-signals")
+def aggregate_signals(
+    lookback_days: int = typer.Option(30, "--lookback-days", help="How far back to aggregate events"),
+    region: Optional[str] = typer.Option(None, "--region", help="Region: 'global', 'turkey', or None for both"),
+):
+    """Aggregate events into signals, score, and update lifecycle."""
+    from src.automation.signal_engine import run_signal_aggregation
+
+    try:
+        result = asyncio.run(
+            run_signal_aggregation(
+                lookback_days=max(1, lookback_days),
+                region=region,
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]Signal aggregation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Signal Aggregation Summary[/bold blue]",
+        border_style="blue"
+    ))
+    for r, stats in result.items():
+        console.print(f"\n[bold]Region: {r}[/bold]")
+        console.print(f"  Candidates: {stats.get('candidates', 0)}")
+        console.print(f"  Merged: {stats.get('merged', 0)}")
+        console.print(f"  Created: {stats.get('created', 0)}")
+        console.print(f"  Scored: {stats.get('scored', 0)}")
+        console.print(f"  Lifecycle transitions: {stats.get('lifecycle_transitions', 0)}")
+
+
 if __name__ == "__main__":
     app()

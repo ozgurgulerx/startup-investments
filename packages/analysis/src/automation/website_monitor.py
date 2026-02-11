@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 
 from .db import DatabaseConnection
 
+
 # Import crawler utilities
 try:
     from src.crawler.url_normalizer import canonicalize_url
@@ -76,6 +77,20 @@ class WebsiteContentMonitor:
         self.timeout = timeout
         self.max_concurrent = max_concurrent
         self.user_agent = "Mozilla/5.0 (compatible; BuildAtlasMonitor/1.0)"
+        self._diff_extractor: Any = None  # CrawlDiffExtractor, lazy-loaded
+
+    async def _init_diff_extractor(self) -> None:
+        """Lazy-initialize the CrawlDiffExtractor. Graceful on missing tables."""
+        try:
+            from .crawl_diff_extractor import CrawlDiffExtractor
+            extractor = CrawlDiffExtractor()
+            async with self.db.acquire() as conn:
+                await extractor.load(conn)
+            self._diff_extractor = extractor
+            logger.info("CrawlDiffExtractor initialized with %d event types", len(extractor._registry))
+        except Exception:
+            logger.info("CrawlDiffExtractor not available (signal tables may not exist yet), skipping diff analysis")
+            self._diff_extractor = None
 
     async def monitor_websites(self, limit: int = 100) -> List[MonitorResult]:
         """Monitor a batch of startup websites for changes."""
@@ -83,6 +98,9 @@ class WebsiteContentMonitor:
 
         try:
             await self.db.connect()
+
+            # Initialize crawl diff extractor (lazy import, graceful on missing tables)
+            await self._init_diff_extractor()
 
             # Get startups to monitor (ordered by last_crawl_at)
             startups = await self.db.get_startups_for_monitoring(limit=limit)
@@ -200,6 +218,33 @@ class WebsiteContentMonitor:
                     event_content=f"Content hash changed from {old_hash} to {new_hash}"
                 )
                 event_created = True
+
+                # --- Crawl diff event extraction ---
+                if self._diff_extractor is not None:
+                    old_sample = startup.get("last_content_sample")
+                    new_sample = text_content[:2000]
+                    try:
+                        diff_events = self._diff_extractor.extract_from_diff(
+                            old_text=old_sample,
+                            new_text=new_sample,
+                            startup_id=startup_id,
+                            startup_name=startup_name,
+                        )
+                        if diff_events:
+                            from .crawl_diff_extractor import persist_crawl_diff_events
+                            async with self.db.acquire() as conn:
+                                n = await persist_crawl_diff_events(
+                                    conn, diff_events, self._diff_extractor._registry
+                                )
+                            logger.info("Persisted %d crawl_diff events for %s", n, startup_name)
+                    except Exception:
+                        logger.warning("Crawl diff extraction failed for %s", startup_name, exc_info=True)
+
+            # Always store new content sample for next diff comparison
+            try:
+                await self.db.update_startup_content_sample(startup_id, text_content[:2000])
+            except Exception:
+                pass  # Column may not exist yet (migration 037 not applied)
 
             # Log the crawl with enhanced metadata
             await self.db.log_crawl(

@@ -349,6 +349,67 @@ export function isAPIConfigured(): boolean {
   return process.env.NODE_ENV === 'production' ? true : !!process.env.NEXT_PUBLIC_API_URL;
 }
 
+// =============================================================================
+// SIGNAL INTELLIGENCE
+// =============================================================================
+
+export interface SignalItem {
+  id: string;
+  domain: string;
+  cluster_name: string | null;
+  claim: string;
+  region: string;
+  conviction: number;
+  momentum: number;
+  impact: number;
+  adoption_velocity: number;
+  status: 'candidate' | 'emerging' | 'accelerating' | 'established' | 'decaying';
+  evidence_count: number;
+  unique_company_count: number;
+  first_seen_at: string;
+  last_evidence_at: string | null;
+}
+
+export interface SignalsSummaryResponse {
+  rising: SignalItem[];
+  established: SignalItem[];
+  decaying: SignalItem[];
+  stats: {
+    total: number;
+    by_status: Record<string, number>;
+    by_domain: Record<string, number>;
+  };
+}
+
+export interface SignalsListResponse {
+  signals: SignalItem[];
+  total: number;
+}
+
+export async function getSignalsSummary(region?: string): Promise<SignalsSummaryResponse> {
+  const params = new URLSearchParams();
+  if (region) params.set('region', region);
+  return fetchFromAPI<SignalsSummaryResponse>(`/api/v1/signals/summary?${params.toString()}`);
+}
+
+export async function getSignalsList(params?: {
+  region?: string;
+  status?: string;
+  domain?: string;
+  sort?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<SignalsListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.region) qs.set('region', params.region);
+  if (params?.status) qs.set('status', params.status);
+  if (params?.domain) qs.set('domain', params.domain);
+  if (params?.sort) qs.set('sort', params.sort);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  return fetchFromAPI<SignalsListResponse>(`/api/v1/signals?${qs.toString()}`);
+}
+
 // Re-export health utilities
 export {
   checkApiHealth,

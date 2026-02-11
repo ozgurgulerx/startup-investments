@@ -38,6 +38,8 @@ import {
   briefQuerySchema,
   briefListSchema,
   briefRegenerateSchema,
+  signalsQuerySchema,
+  signalsSummaryQuerySchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -2002,6 +2004,113 @@ app.post('/api/v1/news/signals/batch', async (req, res) => {
   } catch (error) {
     console.error('Error fetching user signals:', error);
     return res.status(500).json({ error: 'Failed to fetch signals' });
+  }
+});
+
+// =============================================================================
+// SIGNAL INTELLIGENCE API
+// =============================================================================
+
+// GET /api/v1/signals — List signals with filtering
+app.get('/api/v1/signals', async (req, res) => {
+  try {
+    const parsed = signalsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const { region, status, domain, sort, limit, offset } = parsed.data;
+    const cacheKey = `signals:list:${region || 'global'}:${status || 'all'}:${domain || 'all'}:${sort}:${limit}:${offset}`;
+
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    const result = await newsService.getSignalsList({ region, status, domain, sort, limit, offset });
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching signals:', error);
+    res.status(500).json({ error: 'Failed to fetch signals' });
+  }
+});
+
+// GET /api/v1/signals/summary — Dashboard summary (rising/established/decaying)
+app.get('/api/v1/signals/summary', async (req, res) => {
+  try {
+    const parsed = signalsSummaryQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const { region } = parsed.data;
+    const cacheKey = `signals:summary:${region || 'global'}`;
+
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    const result = await newsService.getSignalsSummary({ region });
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching signals summary:', error);
+    res.status(500).json({ error: 'Failed to fetch signals summary' });
+  }
+});
+
+// GET /api/v1/signals/:id — Signal detail with evidence
+app.get('/api/v1/signals/:id', async (req, res) => {
+  try {
+    const signalId = req.params.id;
+    if (!signalId || !/^[0-9a-f-]{36}$/i.test(signalId)) {
+      return res.status(400).json({ error: 'Invalid signal ID' });
+    }
+
+    const cacheKey = `signals:detail:${signalId}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    const result = await newsService.getSignalDetail({ id: signalId });
+    if (!result.signal) {
+      return res.status(404).json({ error: 'Signal not found' });
+    }
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching signal detail:', error);
+    res.status(500).json({ error: 'Failed to fetch signal detail' });
   }
 });
 

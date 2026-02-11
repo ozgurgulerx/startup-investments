@@ -2,11 +2,13 @@ import { Suspense } from 'react';
 import { getMonthlyStats, getStartups, getAvailablePeriods } from '@/lib/data';
 import { InteractiveSignals } from './interactive-signals';
 import { computePatternCorrelations } from '@/lib/data/signals';
+import { isAPIConfigured, getSignalsSummary } from '@/lib/api/client';
+import type { SignalItem } from '@/lib/api/client';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
 
 const FALLBACK_PERIOD = '2026-01';
 
-// Pattern thesis descriptions
+// Pattern thesis descriptions (used for static fallback)
 const PATTERN_THESIS: Record<string, {
   thesis: string;
   enables: string;
@@ -51,7 +53,6 @@ const PATTERN_THESIS: Record<string, {
   },
 };
 
-// Determine conviction level based on company count
 function getConviction(count: number, total: number): 'high' | 'medium' | 'emerging' {
   const percentage = count / total;
   if (percentage > 0.15) return 'high';
@@ -86,6 +87,27 @@ export interface CategoryData {
 }
 
 async function SignalsContent({ region }: { region?: string }) {
+  // Try API-driven dynamic signals first
+  if (isAPIConfigured()) {
+    try {
+      const summary = await getSignalsSummary(region);
+      const hasSignals = summary.stats.total > 0;
+
+      if (hasSignals) {
+        return (
+          <InteractiveSignals
+            mode="dynamic"
+            dynamicSignals={summary}
+            region={region}
+          />
+        );
+      }
+    } catch {
+      // Fall through to static data
+    }
+  }
+
+  // Fallback to static data
   const availablePeriods = await getAvailablePeriods(region);
   const latestPeriod = availablePeriods[0]?.period || FALLBACK_PERIOD;
 
@@ -96,7 +118,6 @@ async function SignalsContent({ region }: { region?: string }) {
 
   const totalDeals = stats.deal_summary.total_deals;
 
-  // Get patterns with counts and notable companies
   const patterns: PatternData[] = Object.entries(stats.genai_analysis.pattern_distribution)
     .sort((a, b) => b[1] - a[1])
     .map(([name, count]) => {
@@ -111,16 +132,9 @@ async function SignalsContent({ region }: { region?: string }) {
         horizon: '12-24 months',
       };
 
-      return {
-        name,
-        count,
-        conviction: getConviction(count, totalDeals),
-        companies,
-        ...thesisData,
-      };
+      return { name, count, conviction: getConviction(count, totalDeals), companies, ...thesisData };
     });
 
-  // Extract emerging patterns from discovered_patterns
   const emergingPatternMap = new Map<string, {
     count: number;
     totalNovelty: number;
@@ -136,7 +150,7 @@ async function SignalsContent({ region }: { region?: string }) {
       const novelty = pattern.novelty_score || 5;
       const category = pattern.category || 'Other';
 
-      if (novelty >= 6) { // Only track patterns with notable novelty
+      if (novelty >= 6) {
         const existing = emergingPatternMap.get(name);
         if (existing) {
           existing.count++;
@@ -164,10 +178,9 @@ async function SignalsContent({ region }: { region?: string }) {
       companies: data.companies,
       whyNotable: data.whyNotable,
     }))
-    .filter(p => p.count >= 2 || p.avgNovelty >= 8) // At least 2 occurrences OR very high novelty
+    .filter(p => p.count >= 2 || p.avgNovelty >= 8)
     .sort((a, b) => b.avgNovelty - a.avgNovelty);
 
-  // Extract category distribution
   const categoryMap = new Map<string, { count: number; patterns: Set<string> }>();
   for (const startup of startups) {
     const discoveredPatterns = startup.discovered_patterns || [];
@@ -192,11 +205,11 @@ async function SignalsContent({ region }: { region?: string }) {
     }))
     .sort((a, b) => b.count - a.count);
 
-  // Compute pattern correlations
   const correlations = computePatternCorrelations(startups);
 
   return (
     <InteractiveSignals
+      mode="static"
       patterns={patterns}
       correlations={correlations}
       totalDeals={totalDeals}

@@ -330,3 +330,23 @@ export const syncStartupSchema = z.object({
 export const syncRequestSchema = z.object({
   startups: z.array(syncStartupSchema).min(1).max(5000),
 });
+
+// =============================================================================
+// SIGNAL INTELLIGENCE
+// =============================================================================
+
+const signalStatus = z.enum(['candidate', 'emerging', 'accelerating', 'established', 'decaying']);
+const signalDomain = z.enum(['architecture', 'gtm', 'capital', 'org', 'product']);
+
+export const signalsQuerySchema = z.object({
+  region: optionalTrimmedString(20),
+  status: signalStatus.optional(),
+  domain: signalDomain.optional(),
+  sort: z.enum(['conviction', 'momentum', 'impact', 'created']).optional().default('conviction'),
+  limit: z.coerce.number().int().min(1).max(50).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+});
+
+export const signalsSummaryQuerySchema = z.object({
+  region: optionalTrimmedString(20),
+});

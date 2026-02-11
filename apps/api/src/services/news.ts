@@ -1537,6 +1537,263 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  // =========================================================================
+  // SIGNAL INTELLIGENCE QUERIES
+  // =========================================================================
+
+  interface SignalRow {
+    id: string;
+    domain: string;
+    cluster_name: string | null;
+    claim: string;
+    region: string;
+    conviction: number;
+    momentum: number;
+    impact: number;
+    adoption_velocity: number;
+    status: string;
+    evidence_count: number;
+    unique_company_count: number;
+    first_seen_at: string;
+    last_evidence_at: string | null;
+  }
+
+  function rowToSignal(row: any): SignalRow {
+    return {
+      id: String(row.id),
+      domain: row.domain,
+      cluster_name: row.cluster_name || null,
+      claim: row.claim,
+      region: row.region,
+      conviction: Number(row.conviction),
+      momentum: Number(row.momentum),
+      impact: Number(row.impact),
+      adoption_velocity: Number(row.adoption_velocity),
+      status: row.status,
+      evidence_count: row.evidence_count,
+      unique_company_count: row.unique_company_count,
+      first_seen_at: row.first_seen_at?.toISOString?.() ?? row.first_seen_at,
+      last_evidence_at: row.last_evidence_at?.toISOString?.() ?? row.last_evidence_at ?? null,
+    };
+  }
+
+  async function getSignalsList(params: {
+    region?: string;
+    status?: string;
+    domain?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ signals: SignalRow[]; total: number }> {
+    try {
+      const region = normalizeRegion(params.region);
+      const conditions: string[] = ['region = $1'];
+      const values: any[] = [region];
+      let idx = 2;
+
+      if (params.status) {
+        conditions.push(`status = $${idx}`);
+        values.push(params.status);
+        idx++;
+      }
+      if (params.domain) {
+        conditions.push(`domain = $${idx}`);
+        values.push(params.domain);
+        idx++;
+      }
+
+      const where = conditions.join(' AND ');
+      const sortCol = ({
+        conviction: 'conviction DESC',
+        momentum: 'momentum DESC',
+        impact: 'impact DESC',
+        created: 'first_seen_at DESC',
+      } as Record<string, string>)[params.sort || 'conviction'] || 'conviction DESC';
+
+      const limit = Math.min(50, Math.max(1, params.limit || 20));
+      const offset = Math.max(0, params.offset || 0);
+
+      const countResult = await pool.query(
+        `SELECT COUNT(*) as cnt FROM signals WHERE ${where}`, values
+      );
+      const total = parseInt(countResult.rows[0]?.cnt || '0', 10);
+
+      const result = await pool.query(
+        `SELECT id::text, domain, cluster_name, claim, region,
+                conviction, momentum, impact, adoption_velocity,
+                status, evidence_count, unique_company_count,
+                first_seen_at, last_evidence_at
+         FROM signals
+         WHERE ${where}
+         ORDER BY ${sortCol}
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...values, limit, offset]
+      );
+
+      return { signals: result.rows.map(rowToSignal), total };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return { signals: [], total: 0 };
+      throw error;
+    }
+  }
+
+  async function getSignalDetail(params: {
+    id: string;
+    region?: string;
+  }): Promise<{ signal: SignalRow | null; evidence: any[]; related: SignalRow[] }> {
+    try {
+      const signalResult = await pool.query(
+        `SELECT id::text, domain, cluster_name, claim, region,
+                conviction, momentum, impact, adoption_velocity,
+                status, evidence_count, unique_company_count,
+                first_seen_at, last_evidence_at
+         FROM signals WHERE id = $1::uuid`,
+        [params.id]
+      );
+
+      if (signalResult.rows.length === 0) {
+        return { signal: null, evidence: [], related: [] };
+      }
+
+      const signal = rowToSignal(signalResult.rows[0]);
+
+      // Fetch evidence with cluster/startup details
+      const evidenceResult = await pool.query(
+        `SELECT se.id::text, se.event_id::text, se.cluster_id::text,
+                se.startup_id::text, se.weight, se.evidence_type,
+                se.snippet, se.created_at,
+                nc.title AS cluster_title,
+                s.name AS startup_name, s.slug AS startup_slug
+         FROM signal_evidence se
+         LEFT JOIN news_clusters nc ON nc.id = se.cluster_id
+         LEFT JOIN startups s ON s.id = se.startup_id
+         WHERE se.signal_id = $1::uuid
+         ORDER BY se.created_at DESC
+         LIMIT 50`,
+        [params.id]
+      );
+
+      const evidence = evidenceResult.rows.map((r: any) => ({
+        id: String(r.id),
+        event_id: r.event_id,
+        cluster_id: r.cluster_id,
+        startup_id: r.startup_id,
+        weight: Number(r.weight),
+        evidence_type: r.evidence_type,
+        snippet: r.snippet,
+        created_at: r.created_at?.toISOString?.() ?? r.created_at,
+        cluster_title: r.cluster_title || null,
+        startup_name: r.startup_name || null,
+        startup_slug: r.startup_slug || null,
+      }));
+
+      // Related signals in same domain
+      const relatedResult = await pool.query(
+        `SELECT id::text, domain, cluster_name, claim, region,
+                conviction, momentum, impact, adoption_velocity,
+                status, evidence_count, unique_company_count,
+                first_seen_at, last_evidence_at
+         FROM signals
+         WHERE region = $1 AND domain = $2 AND id != $3::uuid
+           AND status NOT IN ('decaying')
+         ORDER BY conviction DESC
+         LIMIT 5`,
+        [signal.region, signal.domain, params.id]
+      );
+
+      return {
+        signal,
+        evidence,
+        related: relatedResult.rows.map(rowToSignal),
+      };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return { signal: null, evidence: [], related: [] };
+      throw error;
+    }
+  }
+
+  async function getSignalsSummary(params: {
+    region?: string;
+  }): Promise<{
+    rising: SignalRow[];
+    established: SignalRow[];
+    decaying: SignalRow[];
+    stats: { total: number; by_status: Record<string, number>; by_domain: Record<string, number> };
+  }> {
+    try {
+      const region = normalizeRegion(params.region);
+
+      // Rising: emerging + accelerating, sorted by momentum
+      const risingResult = await pool.query(
+        `SELECT id::text, domain, cluster_name, claim, region,
+                conviction, momentum, impact, adoption_velocity,
+                status, evidence_count, unique_company_count,
+                first_seen_at, last_evidence_at
+         FROM signals
+         WHERE region = $1 AND status IN ('emerging', 'accelerating')
+         ORDER BY momentum DESC
+         LIMIT 20`,
+        [region]
+      );
+
+      // Established: sorted by conviction
+      const establishedResult = await pool.query(
+        `SELECT id::text, domain, cluster_name, claim, region,
+                conviction, momentum, impact, adoption_velocity,
+                status, evidence_count, unique_company_count,
+                first_seen_at, last_evidence_at
+         FROM signals
+         WHERE region = $1 AND status = 'established'
+         ORDER BY conviction DESC
+         LIMIT 20`,
+        [region]
+      );
+
+      // Decaying: sorted by momentum ascending (most negative first)
+      const decayingResult = await pool.query(
+        `SELECT id::text, domain, cluster_name, claim, region,
+                conviction, momentum, impact, adoption_velocity,
+                status, evidence_count, unique_company_count,
+                first_seen_at, last_evidence_at
+         FROM signals
+         WHERE region = $1 AND status = 'decaying'
+         ORDER BY momentum ASC
+         LIMIT 10`,
+        [region]
+      );
+
+      // Stats
+      const statusStats = await pool.query(
+        `SELECT status, COUNT(*) as cnt FROM signals WHERE region = $1 GROUP BY status`,
+        [region]
+      );
+      const domainStats = await pool.query(
+        `SELECT domain, COUNT(*) as cnt FROM signals WHERE region = $1 GROUP BY domain`,
+        [region]
+      );
+
+      const by_status: Record<string, number> = {};
+      for (const r of statusStats.rows) by_status[r.status] = parseInt(r.cnt, 10);
+
+      const by_domain: Record<string, number> = {};
+      for (const r of domainStats.rows) by_domain[r.domain] = parseInt(r.cnt, 10);
+
+      const total = Object.values(by_status).reduce((a, b) => a + b, 0);
+
+      return {
+        rising: risingResult.rows.map(rowToSignal),
+        established: establishedResult.rows.map(rowToSignal),
+        decaying: decayingResult.rows.map(rowToSignal),
+        stats: { total, by_status, by_domain },
+      };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) {
+        return { rising: [], established: [], decaying: [], stats: { total: 0, by_status: {}, by_domain: {} } };
+      }
+      throw error;
+    }
+  }
+
   return {
     normalizeRegion,
     getLatestEditionDate,
@@ -1550,5 +1807,8 @@ export function makeNewsService(pool: Pool) {
     getCompanySignals,
     toggleSignal,
     getUserSignals,
+    getSignalsList,
+    getSignalDetail,
+    getSignalsSummary,
   };
 }

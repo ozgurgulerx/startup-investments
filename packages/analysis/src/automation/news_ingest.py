@@ -5212,6 +5212,45 @@ class DailyNewsIngestor:
 
         return persisted
 
+    async def _extract_events(
+        self,
+        conn: "asyncpg.Connection",
+        clusters: Sequence[StoryCluster],
+        cluster_ids: Dict[str, str],
+        region: str = "global",
+    ) -> int:
+        """Extract structured events from clusters and persist to startup_events.
+
+        Uses the EventExtractor to convert memory gate outputs (claims, patterns,
+        GTM tags) into typed events with event_registry linkage. Zero LLM cost.
+        """
+        try:
+            from .event_extractor import EventExtractor, persist_events
+        except ImportError:
+            logger.warning("event_extractor module not available, skipping event extraction")
+            return 0
+
+        try:
+            extractor = EventExtractor()
+            await extractor.load(conn)
+        except Exception as exc:
+            logger.warning("Failed to load EventExtractor (event_registry table may not exist): %s", exc)
+            return 0
+
+        all_events = []
+        for cluster in clusters:
+            cid = cluster_ids.get(cluster.cluster_key)
+            events = extractor.extract_from_cluster(cluster, cid, region=region)
+            all_events.extend(events)
+
+        if not all_events:
+            return 0
+
+        inserted = await persist_events(conn, all_events, extractor._registry)
+        logger.info("[events:%s] Extracted %d events from %d clusters, persisted %d",
+                     region, len(all_events), len(clusters), inserted)
+        return inserted
+
     async def _enqueue_hot_topic_research(
         self,
         conn: "asyncpg.Connection",
@@ -5870,6 +5909,13 @@ class DailyNewsIngestor:
                 gating_persisted_global = await self._persist_gating_decisions(conn, clusters, cluster_ids_global, region="global")
                 gating_persisted_turkey = await self._persist_gating_decisions(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
                 gating_stats["decisions_persisted"] = gating_persisted_global + gating_persisted_turkey
+
+                # --- Extract structured events from clusters ---
+                events_global = await self._extract_events(conn, clusters, cluster_ids_global, region="global")
+                events_turkey = await self._extract_events(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
+                event_extraction_total = events_global + events_turkey
+                if event_extraction_total > 0:
+                    print(f"[events] extracted {events_global} global + {events_turkey} turkey structured events")
 
                 # --- Enqueue hot topics for async research ---
                 research_enqueued = await self._enqueue_hot_topic_research(
