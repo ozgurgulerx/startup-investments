@@ -288,7 +288,9 @@ async def persist_events(
                        (startup_id, event_type, event_title, event_content,
                         event_registry_id, confidence, source_type,
                         metadata_json, cluster_id, region)
-                   VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10)""",
+                   VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10)
+                   ON CONFLICT (cluster_id, event_type, startup_id)
+                       WHERE cluster_id IS NOT NULL DO NOTHING""",
                 evt.startup_id,
                 evt.event_type,
                 evt.snippet[:255] if evt.snippet else None,

@@ -2087,7 +2087,7 @@ app.get('/api/v1/signals/summary', async (req, res) => {
 app.get('/api/v1/signals/:id', async (req, res) => {
   try {
     const signalId = req.params.id;
-    if (!signalId || !/^[0-9a-f-]{36}$/i.test(signalId)) {
+    if (!signalId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(signalId)) {
       return res.status(400).json({ error: 'Invalid signal ID' });
     }
 
@@ -2955,7 +2955,7 @@ app.put('/api/admin/editorial/rules/:id', async (req, res) => {
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const ruleId = req.params.id;
-  if (!/^[0-9a-f-]{36}$/.test(ruleId)) return res.status(400).json({ error: 'Invalid rule ID' });
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ruleId)) return res.status(400).json({ error: 'Invalid rule ID' });
 
   const parsed = editorialRuleUpdateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });

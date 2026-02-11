@@ -368,8 +368,8 @@ class SignalEngine:
         pattern_id = None
         if candidate.cluster_name:
             row = await conn.fetchrow(
-                "SELECT id::text FROM pattern_registry WHERE pattern_name = $1 AND status = 'active' LIMIT 1",
-                candidate.cluster_name,
+                "SELECT id::text FROM pattern_registry WHERE pattern_name = $1 AND domain = $2 AND status = 'active' LIMIT 1",
+                candidate.cluster_name, candidate.domain,
             )
             if row:
                 pattern_id = row["id"]
@@ -400,6 +400,18 @@ class SignalEngine:
                 existing_signal_id = similar["id"]
                 logger.debug("Merging into existing signal %s (sim=%.3f): %s",
                              existing_signal_id, similar["similarity"], similar["claim"])
+
+        # Text fallback: exact domain+claim match when embedding unavailable
+        if not existing_signal_id and not embedding:
+            fallback = await conn.fetchrow(
+                """SELECT id::text FROM signals
+                   WHERE region = $1 AND status != 'decaying'
+                     AND domain = $2 AND claim = $3
+                   LIMIT 1""",
+                region, candidate.domain, candidate.claim,
+            )
+            if fallback:
+                existing_signal_id = fallback["id"]
 
         if existing_signal_id:
             # Attach evidence to existing signal
@@ -475,7 +487,7 @@ class SignalEngine:
                     """INSERT INTO signal_evidence
                            (signal_id, event_id, cluster_id, startup_id, weight, evidence_type, snippet)
                        VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
-                       ON CONFLICT DO NOTHING""",
+                       ON CONFLICT (signal_id, event_id) WHERE event_id IS NOT NULL DO NOTHING""",
                     signal_id,
                     evt.get("event_id"),
                     evt.get("cluster_id"),
@@ -510,7 +522,7 @@ class SignalEngine:
         signals = await conn.fetch(
             """SELECT id::text, evidence_count, unique_company_count, first_seen_at
                FROM signals
-               WHERE region = $1 AND status != 'decaying'""",
+               WHERE region = $1""",
             region,
         )
 
@@ -601,13 +613,21 @@ class SignalEngine:
             impact_score = compute_impact(funding_amounts, has_enterprise, has_hyperscaler)
             velocity = compute_adoption_velocity(dates)
 
+            # Persist prev_momentum in metadata for lifecycle decay detection
+            meta_row = await conn.fetchrow(
+                "SELECT metadata_json FROM signals WHERE id = $1::uuid", signal_id
+            )
+            metadata = json.loads(meta_row["metadata_json"]) if meta_row and meta_row["metadata_json"] else {}
+            metadata["prev_momentum"] = round(momentum, 4)
+
             await conn.execute(
                 """UPDATE signals SET
                        conviction = $2, momentum = $3, impact = $4,
-                       adoption_velocity = $5, last_scored_at = NOW(), updated_at = NOW()
+                       adoption_velocity = $5, metadata_json = $6::jsonb,
+                       last_scored_at = NOW(), updated_at = NOW()
                    WHERE id = $1::uuid""",
                 signal_id, round(conviction, 4), round(momentum, 4),
-                round(impact_score, 4), round(velocity, 4),
+                round(impact_score, 4), round(velocity, 4), json.dumps(metadata),
             )
             scored += 1
 
