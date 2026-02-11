@@ -8,6 +8,7 @@ export type {
   BriefNewsContext,
   BriefSnapshot,
   BriefSnapshotSummary,
+  BriefEditionSummary,
 } from './brief-snapshot';
 
 // -----------------------------------------------------------------------------

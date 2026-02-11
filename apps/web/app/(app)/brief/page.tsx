@@ -5,25 +5,55 @@ import { getAvailablePeriods, getMonthlyStats } from '@/lib/data';
 import { StaticSignalStrip } from '@/components/features/signal-strip';
 import { BriefHeaderStrip } from '@/components/features/brief-header-strip';
 import { BriefDeltaSection } from '@/components/features/brief-delta-section';
-import { getBriefSnapshot } from '@/lib/api/brief';
+import { BriefEditionSelector } from '@/components/features/brief-edition-selector';
+import { getBriefSnapshot, listBriefEditions } from '@/lib/api/brief';
 import { snapshotToMonthlyBrief } from '@/lib/types/monthly-brief';
 import { formatCurrency } from '@/lib/utils';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 
 const FALLBACK_PERIOD = '2026-01';
 
-async function BriefContent({ region }: { region?: string }) {
+async function BriefContent({
+  region,
+  periodType,
+  periodStart,
+  kind,
+  editionId,
+}: {
+  region?: string;
+  periodType?: string;
+  periodStart?: string;
+  kind?: string;
+  editionId?: string;
+}) {
   const regionKey = region || 'global';
+  const ptKey = periodType || 'monthly';
 
-  // Try fetching from new snapshot API first
-  const snapshot = await getBriefSnapshot(regionKey, 'monthly');
+  // Parallel fetch: snapshot + edition list
+  const [snapshot, editionList] = await Promise.all([
+    getBriefSnapshot({
+      editionId,
+      region: regionKey,
+      periodType: ptKey,
+      periodStart,
+      kind,
+    }),
+    listBriefEditions({ region: regionKey, periodType: ptKey }),
+  ]);
 
   if (snapshot) {
-    // New path: use snapshot as canonical data source
     const m = snapshot.metrics;
 
     return (
       <>
+        {/* Edition selector */}
+        <BriefEditionSelector
+          editions={editionList.items}
+          currentPeriodType={ptKey}
+          currentEditionId={snapshot.editionId}
+          region={regionKey}
+        />
+
         {/* Header Strip — freshness indicator */}
         <BriefHeaderStrip
           generatedAt={snapshot.generatedAt}
@@ -130,14 +160,26 @@ function BriefLoading() {
 export default async function BriefPage({
   searchParams,
 }: {
-  searchParams: Promise<{ region?: string }>;
+  searchParams: Promise<{
+    region?: string;
+    period_type?: string;
+    period_start?: string;
+    kind?: string;
+    edition_id?: string;
+  }>;
 }) {
-  const { region } = await searchParams;
+  const params = await searchParams;
 
   return (
     <Suspense fallback={<BriefLoading />}>
       <ReadingWrapper>
-        <BriefContent region={region} />
+        <BriefContent
+          region={params.region}
+          periodType={params.period_type}
+          periodStart={params.period_start}
+          kind={params.kind}
+          editionId={params.edition_id}
+        />
       </ReadingWrapper>
     </Suspense>
   );

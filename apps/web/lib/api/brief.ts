@@ -1,36 +1,40 @@
 /**
- * Frontend API client for Brief Snapshots
+ * Frontend API client for Brief Editions
  *
  * Server-side: uses fetchFromAPI (includes X-API-Key header)
- * Client-side: uses relative fetch (via Next.js proxy or direct)
  */
 
 import { fetchFromAPI } from './client';
-import type { BriefSnapshot, BriefSnapshotSummary } from '@startup-intelligence/shared';
+import type { BriefSnapshot, BriefEditionSummary } from '@startup-intelligence/shared';
 
-export type { BriefSnapshot, BriefSnapshotSummary };
+export type { BriefSnapshot, BriefEditionSummary };
 
 /**
- * Fetch the latest brief snapshot from the API (server-side)
+ * Fetch a brief snapshot from the API (server-side).
+ * Supports lookup by edition_id or by coordinates (region, periodType, periodStart, kind).
  */
-export async function getBriefSnapshot(
-  region: string = 'global',
-  periodType: string = 'monthly',
-  periodKey?: string,
-): Promise<BriefSnapshot | null> {
+export async function getBriefSnapshot(params: {
+  editionId?: string;
+  region?: string;
+  periodType?: string;
+  periodStart?: string;
+  kind?: string;
+  revision?: number;
+}): Promise<BriefSnapshot | null> {
   try {
-    const params = new URLSearchParams();
-    if (region && region !== 'global') params.set('region', region);
-    if (periodType !== 'monthly') params.set('period_type', periodType);
-    if (periodKey) params.set('period_key', periodKey);
-    const query = params.toString();
+    const qs = new URLSearchParams();
+    if (params.editionId) qs.set('edition_id', params.editionId);
+    if (params.region && params.region !== 'global') qs.set('region', params.region);
+    if (params.periodType && params.periodType !== 'monthly') qs.set('period_type', params.periodType);
+    if (params.periodStart) qs.set('period_start', params.periodStart);
+    if (params.kind) qs.set('kind', params.kind);
+    if (params.revision) qs.set('revision', String(params.revision));
+    const query = qs.toString();
 
-    const snapshot = await fetchFromAPI<BriefSnapshot>(
+    return await fetchFromAPI<BriefSnapshot>(
       `/api/v1/brief${query ? `?${query}` : ''}`
     );
-    return snapshot;
   } catch (error) {
-    // 404 = no snapshot yet, fall back gracefully
     if (error && typeof error === 'object' && 'status' in error && (error as any).status === 404) {
       return null;
     }
@@ -40,23 +44,25 @@ export async function getBriefSnapshot(
 }
 
 /**
- * Fetch brief archive listing (server-side)
+ * List brief editions from the API (server-side).
  */
-export async function getBriefArchive(
-  region: string = 'global',
-  periodType: string = 'monthly',
-  limit: number = 20,
-  offset: number = 0,
-): Promise<{ items: BriefSnapshotSummary[]; total: number }> {
+export async function listBriefEditions(params: {
+  region?: string;
+  periodType?: string;
+  kind?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: BriefEditionSummary[]; total: number }> {
   try {
-    const params = new URLSearchParams();
-    if (region && region !== 'global') params.set('region', region);
-    if (periodType !== 'monthly') params.set('period_type', periodType);
-    params.set('limit', limit.toString());
-    params.set('offset', offset.toString());
+    const qs = new URLSearchParams();
+    if (params.region && params.region !== 'global') qs.set('region', params.region);
+    if (params.periodType && params.periodType !== 'monthly') qs.set('period_type', params.periodType);
+    if (params.kind) qs.set('kind', params.kind);
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.offset) qs.set('offset', String(params.offset));
 
-    return await fetchFromAPI<{ items: BriefSnapshotSummary[]; total: number }>(
-      `/api/v1/brief/archive?${params.toString()}`
+    return await fetchFromAPI<{ items: BriefEditionSummary[]; total: number }>(
+      `/api/v1/briefs/list?${qs.toString()}`
     );
   } catch {
     return { items: [], total: 0 };

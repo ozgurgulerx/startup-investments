@@ -1,12 +1,17 @@
 /**
- * Dealbook Brief Service
+ * Dealbook Brief Service — Edition + Revision model
  *
  * Computes living brief snapshots from the database.
  * All metrics are deterministic (no LLM) — LLM is only used
  * for narrative sections (delta bullets, executive summary, etc).
+ *
+ * Two-table model:
+ *   brief_editions  — one row per (region, period_type, period_start, period_end, kind)
+ *   brief_revisions — each regeneration creates a new revision (only if input changed)
  */
 
 import { Pool } from 'pg';
+import crypto from 'crypto';
 
 // Types are mirrored from packages/shared/src/types/brief-snapshot.ts
 // (API doesn't have a workspace dep on shared — keep in sync manually)
@@ -42,12 +47,14 @@ interface BriefNewsContext {
 
 interface BriefSnapshot {
   id: string;
+  editionId?: string;
   region: 'global' | 'turkey';
   periodType: 'monthly' | 'weekly';
   periodKey: string;
   periodStart: string;
   periodEnd: string;
   periodLabel: string;
+  kind?: 'rolling' | 'sealed';
   revisionNumber: number;
   generatedAt: string;
   metrics: BriefSnapshotMetrics;
@@ -75,28 +82,25 @@ interface BriefSnapshot {
   status: 'draft' | 'ready' | 'sealed';
 }
 
-interface BriefSnapshotSummary {
-  id: string;
+interface BriefEditionSummary {
+  editionId: string;
   region: 'global' | 'turkey';
   periodType: 'monthly' | 'weekly';
   periodKey: string;
   periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  kind: 'rolling' | 'sealed';
   revisionNumber: number;
   generatedAt: string;
   dealCount: number;
   totalFunding: number;
-  status: 'draft' | 'ready' | 'sealed';
+  status: 'ready' | 'sealed';
 }
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface ComputeParams {
-  region: 'global' | 'turkey';
-  periodType: 'monthly' | 'weekly';
-  periodKey?: string; // defaults to current month/week
-}
 
 interface PeriodBounds {
   periodKey: string;
@@ -107,6 +111,24 @@ interface PeriodBounds {
   prevPeriodStart: string;
   prevPeriodEnd: string;
 }
+
+interface GenerateEditionParams {
+  region: 'global' | 'turkey';
+  periodType: 'monthly' | 'weekly';
+  periodStart: string;  // YYYY-MM-DD
+  periodEnd: string;    // YYYY-MM-DD
+  kind: 'rolling' | 'sealed';
+  force?: boolean;
+}
+
+interface GenerateEditionResult {
+  editionId: string;
+  revisionId: string;
+  revision: number;
+  wasSkipped: boolean;
+}
+
+const PROMPT_VERSION = 'brief-v2';
 
 // ============================================================================
 // Factory
@@ -193,21 +215,33 @@ export function makeBriefService(pool: Pool) {
     return monday;
   }
 
-  // --------------------------------------------------------------------------
-  // For monthly periods, map period key (YYYY-MM) to the `startups.period` column format
-  // For weekly, we use date-range filtering on funding_rounds.announced_date
-  // --------------------------------------------------------------------------
-
-  function periodMatchClause(periodType: string, periodKey: string, periodStart: string, periodEnd: string): { whereClause: string; params: string[] } {
+  /** Derive period key (YYYY-MM or YYYY-Wnn) from dates + type */
+  function derivePeriodKey(periodType: string, periodStart: string): string {
     if (periodType === 'monthly') {
-      // startups.period stores "YYYY-MM"
-      return { whereClause: `s.period = $OFFSET`, params: [periodKey] };
+      return periodStart.slice(0, 7); // "2026-02-01" → "2026-02"
     }
-    // Weekly: filter by funding round date range
-    return {
-      whereClause: `fr.announced_date >= $OFFSET::date AND fr.announced_date <= $NEXTOFFSET::date`,
-      params: [periodStart, periodEnd],
-    };
+    return currentISOWeek(new Date(periodStart));
+  }
+
+  /** Derive human-readable label from dates + type */
+  function derivePeriodLabel(periodType: string, periodStart: string, periodEnd: string, kind: string): string {
+    const start = new Date(periodStart);
+    const end = new Date(periodEnd);
+    const now = new Date();
+
+    if (periodType === 'monthly') {
+      const monthName = start.toLocaleString('en-US', { month: 'long' });
+      const year = start.getFullYear();
+      if (kind === 'rolling' && now >= start && now <= end) {
+        return `${monthName} ${year} (MTD)`;
+      }
+      return `${monthName} ${year}`;
+    }
+
+    // Weekly
+    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `Week of ${startStr}–${endStr}`;
   }
 
   // --------------------------------------------------------------------------
@@ -865,263 +899,420 @@ Rules:
   }
 
   // --------------------------------------------------------------------------
-  // Main: computeBriefSnapshot
+  // Input hash — SHA-256 of deterministic inputs for change detection
   // --------------------------------------------------------------------------
 
-  async function computeBriefSnapshot(params: ComputeParams): Promise<BriefSnapshot> {
-    const bounds = resolvePeriodBounds(params.periodType, params.periodKey);
+  function computeInputHash(inputs: {
+    region: string;
+    periodType: string;
+    periodStart: string;
+    periodEnd: string;
+    kind: string;
+    metricsSnapshot: any;
+    deltasSnapshot: any;
+    promptVersion: string;
+  }): string {
+    // Stable key ordering via sorted JSON
+    const sorted = JSON.stringify(inputs, Object.keys(inputs).sort());
+    return crypto.createHash('sha256').update(sorted).digest('hex');
+  }
 
-    // Compute metrics for current and previous period in parallel
+  // --------------------------------------------------------------------------
+  // Adapter: edition+revision row → BriefSnapshot (API response contract)
+  // --------------------------------------------------------------------------
+
+  function editionRevisionToSnapshot(edition: any, revision: any): BriefSnapshot {
+    const content = revision.content_sections || {};
+    const computed = revision.computed_sections || {};
+    const metricsData = revision.metrics_snapshot || {};
+    const periodKey = derivePeriodKey(edition.period_type, dateStr(edition.period_start));
+    const periodLabel = derivePeriodLabel(
+      edition.period_type, dateStr(edition.period_start),
+      dateStr(edition.period_end), edition.kind,
+    );
+
+    return {
+      id: revision.id,
+      editionId: edition.id,
+      region: edition.region,
+      periodType: edition.period_type,
+      periodKey,
+      periodStart: dateStr(edition.period_start),
+      periodEnd: dateStr(edition.period_end),
+      periodLabel,
+      kind: edition.kind,
+      revisionNumber: revision.revision,
+      generatedAt: revision.generated_at instanceof Date ? revision.generated_at.toISOString() : revision.generated_at,
+
+      metrics: metricsData.metrics || {},
+      prevPeriod: metricsData.prevPeriod || null,
+      deltas: revision.deltas_snapshot && Object.keys(revision.deltas_snapshot).length > 0
+        ? revision.deltas_snapshot : null,
+      newsContext: computed.newsContext || null,
+
+      deltaBullets: content.delta_bullets || [],
+      executiveSummary: content.executive_summary || '',
+      theme: content.theme_title
+        ? { name: content.theme_title, summaryBullets: content.theme_bullets || [] }
+        : { name: '', summaryBullets: [] },
+      builderLessons: Array.isArray(content.implications) ? content.implications : [],
+      whatWatching: content.what_were_watching || [],
+
+      patternLandscape: computed.patternLandscape || [],
+      fundingByStage: computed.fundingByStage || [],
+      topDeals: computed.topDeals || [],
+      geography: computed.geography || [],
+      investors: computed.investors || { mostActive: [], megaCheckWriters: [] },
+      spotlight: computed.spotlight || undefined,
+      methodology: computed.methodology || { bullets: [] },
+
+      status: edition.kind === 'sealed' ? 'sealed' : 'ready',
+    };
+  }
+
+  function dateStr(d: any): string {
+    if (d instanceof Date) return d.toISOString().split('T')[0];
+    if (typeof d === 'string') return d.split('T')[0];
+    return String(d);
+  }
+
+  // ==========================================================================
+  // Main: generateEditionRevision
+  // ==========================================================================
+
+  async function generateEditionRevision(params: GenerateEditionParams): Promise<GenerateEditionResult> {
+    const { region, periodType, periodStart, periodEnd, kind, force } = params;
+    const periodKey = derivePeriodKey(periodType, periodStart);
+    const periodLabel = derivePeriodLabel(periodType, periodStart, periodEnd, kind);
+
+    // Resolve previous period for deltas
+    const bounds = resolvePeriodBounds(periodType, periodKey);
+
+    // 1. Compute all deterministic data in parallel
     const [metrics, prevMetrics, topDeals, geography, investorsData, patternLandscape, spotlight, newsContext] = await Promise.all([
-      computeMetrics(params.region, bounds.periodKey, params.periodType, bounds.periodStart, bounds.periodEnd),
-      computeMetrics(params.region, bounds.prevPeriodKey, params.periodType, bounds.prevPeriodStart, bounds.prevPeriodEnd),
-      computeTopDeals(params.region, bounds.periodKey),
-      computeGeography(params.region, bounds.periodKey),
-      computeInvestors(params.region, bounds.periodKey),
-      computePatternLandscape(params.region, bounds.periodKey),
-      computeSpotlight(params.region, bounds.periodKey),
-      computeNewsContext(params.region, bounds.periodKey),
+      computeMetrics(region, periodKey, periodType, periodStart, periodEnd),
+      computeMetrics(region, bounds.prevPeriodKey, periodType, bounds.prevPeriodStart, bounds.prevPeriodEnd),
+      computeTopDeals(region, periodKey),
+      computeGeography(region, periodKey),
+      computeInvestors(region, periodKey),
+      computePatternLandscape(region, periodKey),
+      computeSpotlight(region, periodKey),
+      computeNewsContext(region, periodKey),
     ]);
 
     const deltas = computeDeltas(metrics, prevMetrics);
 
-    // Generate LLM sections (with template fallback)
-    const llmSections = await generateLLMSections(metrics, deltas, newsContext, bounds.periodLabel);
-
-    // Funding by stage for display
-    const fundingByStage = metrics.stageMix.map((s: BriefSnapshotMetrics['stageMix'][number]) => ({
-      stage: s.stage,
-      amount: s.amount,
-      pct: s.pct,
-      deals: s.deals,
-    }));
-
-    return {
-      id: '', // will be set by persist
-      region: params.region,
-      periodType: params.periodType,
-      periodKey: bounds.periodKey,
-      periodStart: bounds.periodStart,
-      periodEnd: bounds.periodEnd,
-      periodLabel: bounds.periodLabel,
-      revisionNumber: 0, // will be set by persist
-      generatedAt: new Date().toISOString(),
-
+    const metricsSnapshot = {
       metrics,
       prevPeriod: prevMetrics.dealCount > 0 ? prevMetrics : null,
-      deltas,
-      newsContext,
-
-      deltaBullets: llmSections.deltaBullets,
-      executiveSummary: llmSections.executiveSummary,
-      theme: llmSections.theme,
-      builderLessons: llmSections.builderLessons,
-      whatWatching: llmSections.whatWatching,
-
-      patternLandscape,
-      fundingByStage,
-      topDeals,
-      geography,
-      investors: investorsData,
-      spotlight,
-      methodology: computeMethodology(),
-
-      status: 'ready',
     };
+    const deltasSnapshot = deltas || {};
+
+    // 2. Compute input hash
+    const inputHash = computeInputHash({
+      region, periodType, periodStart, periodEnd, kind,
+      metricsSnapshot, deltasSnapshot, promptVersion: PROMPT_VERSION,
+    });
+
+    // 3. Upsert edition and check hash — inside a transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 3a. Upsert edition
+      const editionResult = await client.query(`
+        INSERT INTO brief_editions (region, period_type, period_start, period_end, kind)
+        VALUES ($1, $2, $3::date, $4::date, $5)
+        ON CONFLICT (region, period_type, period_start, period_end, kind)
+        DO UPDATE SET id = brief_editions.id
+        RETURNING id, latest_revision_id
+      `, [region, periodType, periodStart, periodEnd, kind]);
+
+      const editionId = editionResult.rows[0].id;
+      const latestRevisionId = editionResult.rows[0].latest_revision_id;
+
+      // 3b. Check if input hash matches latest revision (skip if unchanged)
+      if (!force && latestRevisionId) {
+        const hashResult = await client.query(
+          `SELECT input_hash, revision FROM brief_revisions WHERE id = $1`,
+          [latestRevisionId],
+        );
+        if (hashResult.rows.length > 0 && hashResult.rows[0].input_hash === inputHash) {
+          await client.query('COMMIT');
+          return {
+            editionId,
+            revisionId: latestRevisionId,
+            revision: hashResult.rows[0].revision,
+            wasSkipped: true,
+          };
+        }
+      }
+
+      // Release connection before LLM call — we'll re-acquire for the insert
+      await client.query('COMMIT');
+      client.release();
+
+      // 4. Generate LLM sections OUTSIDE the transaction
+      const llmSections = await generateLLMSections(metrics, deltas, newsContext, periodLabel);
+
+      const contentSections = {
+        title: `${periodLabel} Intelligence Brief`,
+        executive_summary: llmSections.executiveSummary,
+        theme_title: llmSections.theme.name,
+        theme_bullets: llmSections.theme.summaryBullets,
+        implications: llmSections.builderLessons,
+        what_were_watching: llmSections.whatWatching,
+        delta_bullets: llmSections.deltaBullets,
+      };
+
+      const fundingByStage = metrics.stageMix.map(s => ({
+        stage: s.stage, amount: s.amount, pct: s.pct, deals: s.deals,
+      }));
+
+      const computedSections = {
+        topDeals,
+        geography,
+        investors: investorsData,
+        patternLandscape,
+        fundingByStage,
+        spotlight,
+        newsContext,
+        methodology: computeMethodology(),
+      };
+
+      // 5. Insert revision inside a new transaction
+      const client2 = await pool.connect();
+      try {
+        await client2.query('BEGIN');
+
+        // Get next revision number
+        const revNumResult = await client2.query(
+          `SELECT COALESCE(MAX(revision), 0) + 1 AS next_rev FROM brief_revisions WHERE edition_id = $1`,
+          [editionId],
+        );
+        const nextRev = parseInt(revNumResult.rows[0].next_rev) || 1;
+
+        const model = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5-nano';
+
+        const revResult = await client2.query(`
+          INSERT INTO brief_revisions (
+            edition_id, revision, input_hash, prompt_version, model,
+            metrics_snapshot, deltas_snapshot, content_sections, computed_sections
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING id
+        `, [
+          editionId, nextRev, inputHash, PROMPT_VERSION, model,
+          JSON.stringify(metricsSnapshot),
+          JSON.stringify(deltasSnapshot),
+          JSON.stringify(contentSections),
+          JSON.stringify(computedSections),
+        ]);
+
+        const revisionId = revResult.rows[0].id;
+
+        // Update edition pointer
+        await client2.query(
+          `UPDATE brief_editions SET latest_revision_id = $1 WHERE id = $2`,
+          [revisionId, editionId],
+        );
+
+        // Seal if requested
+        if (kind === 'sealed') {
+          await client2.query(
+            `UPDATE brief_editions SET sealed_at = NOW() WHERE id = $1 AND sealed_at IS NULL`,
+            [editionId],
+          );
+        }
+
+        await client2.query('COMMIT');
+
+        return {
+          editionId,
+          revisionId,
+          revision: nextRev,
+          wasSkipped: false,
+        };
+      } catch (err) {
+        await client2.query('ROLLBACK');
+        throw err;
+      } finally {
+        client2.release();
+      }
+    } catch (err) {
+      // Only rollback if client not already released
+      try { await client.query('ROLLBACK'); } catch { /* already released */ }
+      throw err;
+    } finally {
+      try { client.release(); } catch { /* already released */ }
+    }
   }
 
-  // --------------------------------------------------------------------------
-  // Persist snapshot
-  // --------------------------------------------------------------------------
+  // ==========================================================================
+  // Query: getEditionBrief — fetch one brief (by edition ID or coordinates)
+  // ==========================================================================
 
-  async function persistSnapshot(snapshot: BriefSnapshot): Promise<BriefSnapshot> {
-    // Get next revision number
-    const revResult = await pool.query(`
-      SELECT COALESCE(MAX(revision_number), 0) + 1 AS next_rev
-      FROM dealbook_brief_snapshots
-      WHERE region = $1 AND period_type = $2 AND period_key = $3
-    `, [snapshot.region, snapshot.periodType, snapshot.periodKey]);
+  async function getEditionBrief(params: {
+    editionId?: string;
+    region?: string;
+    periodType?: string;
+    periodStart?: string;
+    kind?: string;
+    revision?: number;
+  }): Promise<BriefSnapshot | null> {
+    let editionQuery: string;
+    let editionParams: any[];
 
-    const revisionNumber = parseInt(revResult.rows[0]?.next_rev) || 1;
-
-    // Determine status: if period has ended, seal it
-    const now = new Date();
-    const endDate = new Date(snapshot.periodEnd);
-    const status = endDate < now ? 'sealed' : 'ready';
-
-    const result = await pool.query(`
-      INSERT INTO dealbook_brief_snapshots (
-        region, period_type, period_key, period_start, period_end, period_label,
-        revision_number, metrics_json, prev_period_json, deltas_json,
-        delta_bullets, executive_summary, theme_json, builder_lessons_json, what_watching,
-        top_deals_json, geography_json, investors_json, spotlight_json,
-        patterns_json, funding_by_stage_json, methodology_json,
-        news_context_json, status, generated_at
-      ) VALUES (
-        $1, $2, $3, $4::date, $5::date, $6,
-        $7, $8, $9, $10,
-        $11, $12, $13, $14, $15,
-        $16, $17, $18, $19,
-        $20, $21, $22,
-        $23, $24, NOW()
-      )
-      RETURNING id, generated_at, revision_number
-    `, [
-      snapshot.region, snapshot.periodType, snapshot.periodKey,
-      snapshot.periodStart, snapshot.periodEnd, snapshot.periodLabel,
-      revisionNumber,
-      JSON.stringify(snapshot.metrics),
-      snapshot.prevPeriod ? JSON.stringify(snapshot.prevPeriod) : null,
-      snapshot.deltas ? JSON.stringify(snapshot.deltas) : null,
-      snapshot.deltaBullets,
-      snapshot.executiveSummary,
-      JSON.stringify(snapshot.theme),
-      JSON.stringify(snapshot.builderLessons),
-      snapshot.whatWatching,
-      JSON.stringify(snapshot.topDeals),
-      JSON.stringify(snapshot.geography),
-      JSON.stringify(snapshot.investors),
-      snapshot.spotlight ? JSON.stringify(snapshot.spotlight) : null,
-      JSON.stringify(snapshot.patternLandscape),
-      JSON.stringify(snapshot.fundingByStage),
-      JSON.stringify(snapshot.methodology),
-      snapshot.newsContext ? JSON.stringify(snapshot.newsContext) : null,
-      status,
-    ]);
-
-    const row = result.rows[0];
-    return {
-      ...snapshot,
-      id: row.id,
-      revisionNumber: row.revision_number,
-      generatedAt: row.generated_at.toISOString(),
-      status,
-    };
-  }
-
-  // --------------------------------------------------------------------------
-  // Query: getLatestSnapshot
-  // --------------------------------------------------------------------------
-
-  async function getLatestSnapshot(
-    region: string,
-    periodType: string,
-    periodKey?: string,
-  ): Promise<BriefSnapshot | null> {
-    let query: string;
-    let params: any[];
-
-    if (periodKey) {
-      query = `
-        SELECT * FROM dealbook_brief_snapshots
-        WHERE region = $1 AND period_type = $2 AND period_key = $3
-          AND status IN ('ready', 'sealed')
-        ORDER BY revision_number DESC
+    if (params.editionId) {
+      editionQuery = `SELECT * FROM brief_editions WHERE id = $1`;
+      editionParams = [params.editionId];
+    } else if (params.region && params.periodType && params.periodStart) {
+      const k = params.kind || 'rolling';
+      // Derive period_end from period_start + period_type
+      const start = new Date(params.periodStart);
+      let end: Date;
+      if (params.periodType === 'monthly') {
+        end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+      } else {
+        end = new Date(start);
+        end.setDate(end.getDate() + 6);
+      }
+      editionQuery = `
+        SELECT * FROM brief_editions
+        WHERE region = $1 AND period_type = $2 AND period_start = $3::date
+          AND kind = $4
         LIMIT 1
       `;
-      params = [region, periodType, periodKey];
+      editionParams = [params.region, params.periodType, params.periodStart, k];
+    } else if (params.region && params.periodType) {
+      // No period_start: get most recent edition
+      const k = params.kind || 'rolling';
+      editionQuery = `
+        SELECT * FROM brief_editions
+        WHERE region = $1 AND period_type = $2 AND kind = $3
+          AND latest_revision_id IS NOT NULL
+        ORDER BY period_start DESC
+        LIMIT 1
+      `;
+      editionParams = [params.region, params.periodType, k];
     } else {
-      query = `
-        SELECT * FROM dealbook_brief_snapshots
-        WHERE region = $1 AND period_type = $2
-          AND status IN ('ready', 'sealed')
-        ORDER BY generated_at DESC
-        LIMIT 1
-      `;
-      params = [region, periodType];
+      return null;
     }
 
-    const result = await pool.query(query, params);
-    if (result.rows.length === 0) return null;
-    return rowToSnapshot(result.rows[0]);
+    const editionResult = await pool.query(editionQuery, editionParams);
+    if (editionResult.rows.length === 0) return null;
+
+    const edition = editionResult.rows[0];
+    if (!edition.latest_revision_id && !params.revision) return null;
+
+    let revisionQuery: string;
+    let revisionParams: any[];
+
+    if (params.revision) {
+      revisionQuery = `SELECT * FROM brief_revisions WHERE edition_id = $1 AND revision = $2`;
+      revisionParams = [edition.id, params.revision];
+    } else {
+      revisionQuery = `SELECT * FROM brief_revisions WHERE id = $1`;
+      revisionParams = [edition.latest_revision_id];
+    }
+
+    const revisionResult = await pool.query(revisionQuery, revisionParams);
+    if (revisionResult.rows.length === 0) return null;
+
+    return editionRevisionToSnapshot(edition, revisionResult.rows[0]);
   }
 
-  // --------------------------------------------------------------------------
-  // Query: getSnapshotArchive
-  // --------------------------------------------------------------------------
+  // ==========================================================================
+  // Query: listEditions — list available briefs
+  // ==========================================================================
 
-  async function getSnapshotArchive(
-    region: string,
-    periodType: string,
-    limit: number,
-    offset: number,
-  ): Promise<{ items: BriefSnapshotSummary[]; total: number }> {
-    // Get latest revision per period_key
+  async function listEditions(params: {
+    region: string;
+    periodType: string;
+    kind?: string;
+    limit: number;
+    offset: number;
+  }): Promise<{ items: BriefEditionSummary[]; total: number }> {
+    const conditions = ['e.latest_revision_id IS NOT NULL', 'e.region = $1', 'e.period_type = $2'];
+    const queryParams: any[] = [params.region, params.periodType];
+    let paramIdx = 3;
+
+    if (params.kind) {
+      conditions.push(`e.kind = $${paramIdx}`);
+      queryParams.push(params.kind);
+      paramIdx += 1;
+    }
+
+    const whereClause = conditions.join(' AND ');
+
     const result = await pool.query(`
-      SELECT DISTINCT ON (period_key)
-        id, region, period_type, period_key, period_label,
-        revision_number, generated_at,
-        (metrics_json->>'dealCount')::int AS deal_count,
-        (metrics_json->>'totalFunding')::bigint AS total_funding,
-        status
-      FROM dealbook_brief_snapshots
-      WHERE region = $1 AND period_type = $2
-        AND status IN ('ready', 'sealed')
-      ORDER BY period_key DESC, revision_number DESC
-      LIMIT $3 OFFSET $4
-    `, [region, periodType, limit, offset]);
+      SELECT
+        e.id AS edition_id,
+        e.region,
+        e.period_type,
+        e.period_start,
+        e.period_end,
+        e.kind,
+        e.sealed_at,
+        r.revision,
+        r.generated_at,
+        (r.metrics_snapshot->'metrics'->>'dealCount')::int AS deal_count,
+        (r.metrics_snapshot->'metrics'->>'totalFunding')::bigint AS total_funding
+      FROM brief_editions e
+      JOIN brief_revisions r ON r.id = e.latest_revision_id
+      WHERE ${whereClause}
+      ORDER BY e.period_start DESC
+      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+    `, [...queryParams, params.limit, params.offset]);
 
     const countResult = await pool.query(`
-      SELECT COUNT(DISTINCT period_key)::int AS total
-      FROM dealbook_brief_snapshots
-      WHERE region = $1 AND period_type = $2
-        AND status IN ('ready', 'sealed')
-    `, [region, periodType]);
+      SELECT COUNT(*)::int AS total
+      FROM brief_editions e
+      WHERE ${whereClause}
+    `, queryParams);
 
     return {
-      items: result.rows.map(r => ({
-        id: r.id,
-        region: r.region,
-        periodType: r.period_type,
-        periodKey: r.period_key,
-        periodLabel: r.period_label,
-        revisionNumber: r.revision_number,
-        generatedAt: r.generated_at?.toISOString() || '',
-        dealCount: parseInt(r.deal_count) || 0,
-        totalFunding: parseInt(r.total_funding) || 0,
-        status: r.status,
-      })),
+      items: result.rows.map(r => {
+        const ps = dateStr(r.period_start);
+        const pe = dateStr(r.period_end);
+        return {
+          editionId: r.edition_id,
+          region: r.region,
+          periodType: r.period_type,
+          periodKey: derivePeriodKey(r.period_type, ps),
+          periodLabel: derivePeriodLabel(r.period_type, ps, pe, r.kind),
+          periodStart: ps,
+          periodEnd: pe,
+          kind: r.kind,
+          revisionNumber: r.revision,
+          generatedAt: r.generated_at instanceof Date ? r.generated_at.toISOString() : r.generated_at,
+          dealCount: parseInt(r.deal_count) || 0,
+          totalFunding: parseInt(r.total_funding) || 0,
+          status: r.kind === 'sealed' ? 'sealed' as const : 'ready' as const,
+        };
+      }),
       total: parseInt(countResult.rows[0]?.total) || 0,
     };
   }
 
-  // --------------------------------------------------------------------------
-  // Row mapper
-  // --------------------------------------------------------------------------
+  // ==========================================================================
+  // Query: getRevisionHistory — list revisions for one edition
+  // ==========================================================================
 
-  function rowToSnapshot(row: any): BriefSnapshot {
-    return {
-      id: row.id,
-      region: row.region,
-      periodType: row.period_type,
-      periodKey: row.period_key,
-      periodStart: row.period_start instanceof Date ? row.period_start.toISOString().split('T')[0] : row.period_start,
-      periodEnd: row.period_end instanceof Date ? row.period_end.toISOString().split('T')[0] : row.period_end,
-      periodLabel: row.period_label,
-      revisionNumber: row.revision_number,
-      generatedAt: row.generated_at instanceof Date ? row.generated_at.toISOString() : row.generated_at,
+  async function getRevisionHistory(editionId: string): Promise<Array<{
+    revision: number; generatedAt: string; inputHash: string;
+  }>> {
+    const result = await pool.query(`
+      SELECT revision, generated_at, input_hash
+      FROM brief_revisions
+      WHERE edition_id = $1
+      ORDER BY revision DESC
+    `, [editionId]);
 
-      metrics: row.metrics_json || {},
-      prevPeriod: row.prev_period_json || null,
-      deltas: row.deltas_json || null,
-      newsContext: row.news_context_json || null,
-
-      deltaBullets: row.delta_bullets || [],
-      executiveSummary: row.executive_summary || '',
-      theme: row.theme_json || { name: '', summaryBullets: [] },
-      builderLessons: row.builder_lessons_json || [],
-      whatWatching: row.what_watching || [],
-
-      patternLandscape: row.patterns_json || [],
-      fundingByStage: row.funding_by_stage_json || [],
-      topDeals: row.top_deals_json || [],
-      geography: row.geography_json || [],
-      investors: row.investors_json || { mostActive: [], megaCheckWriters: [] },
-      spotlight: row.spotlight_json || undefined,
-      methodology: row.methodology_json || { bullets: [] },
-
-      status: row.status,
-    };
+    return result.rows.map(r => ({
+      revision: r.revision,
+      generatedAt: r.generated_at instanceof Date ? r.generated_at.toISOString() : r.generated_at,
+      inputHash: r.input_hash,
+    }));
   }
 
   // --------------------------------------------------------------------------
@@ -1129,10 +1320,10 @@ Rules:
   // --------------------------------------------------------------------------
 
   return {
-    computeBriefSnapshot,
-    persistSnapshot,
-    getLatestSnapshot,
-    getSnapshotArchive,
+    generateEditionRevision,
+    getEditionBrief,
+    listEditions,
+    getRevisionHistory,
     resolvePeriodBounds,
   };
 }

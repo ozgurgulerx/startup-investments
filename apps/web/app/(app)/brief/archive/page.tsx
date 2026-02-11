@@ -1,13 +1,18 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { getBriefArchive } from '@/lib/api/brief';
+import { listBriefEditions } from '@/lib/api/brief';
 import { formatCurrency } from '@/lib/utils';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 
 export const dynamic = 'force-dynamic';
 
 async function ArchiveContent({ region, periodType }: { region: string; periodType: string }) {
-  const { items, total } = await getBriefArchive(region, periodType, 50, 0);
+  const { items, total } = await listBriefEditions({
+    region,
+    periodType,
+    limit: 50,
+    offset: 0,
+  });
 
   if (items.length === 0) {
     return (
@@ -31,6 +36,7 @@ async function ArchiveContent({ region, periodType }: { region: string; periodTy
               <th className="text-right py-2 text-muted-foreground font-medium hidden sm:table-cell">Rev</th>
               <th className="text-right py-2 text-muted-foreground font-medium">Deals</th>
               <th className="text-right py-2 text-muted-foreground font-medium hidden md:table-cell">Funding</th>
+              <th className="text-right py-2 text-muted-foreground font-medium hidden sm:table-cell">Kind</th>
               <th className="text-right py-2 text-muted-foreground font-medium">Status</th>
             </tr>
           </thead>
@@ -38,11 +44,11 @@ async function ArchiveContent({ region, periodType }: { region: string; periodTy
             {items.map((item) => {
               const params = new URLSearchParams();
               if (region !== 'global') params.set('region', region);
-              const qs = params.toString();
-              const href = `/brief?period_type=${item.periodType}&period_key=${item.periodKey}${qs ? `&${qs}` : ''}`;
+              params.set('edition_id', item.editionId);
+              const href = `/brief?${params.toString()}`;
 
               return (
-                <tr key={item.id} className="border-b border-border/20 hover:bg-muted/10 transition-colors">
+                <tr key={item.editionId} className="border-b border-border/20 hover:bg-muted/10 transition-colors">
                   <td className="py-3">
                     <Link href={href} className="font-medium hover:text-accent-info transition-colors">
                       {item.periodLabel}
@@ -57,6 +63,11 @@ async function ArchiveContent({ region, periodType }: { region: string; periodTy
                   <td className="text-right tabular-nums">{item.dealCount}</td>
                   <td className="text-right tabular-nums hidden md:table-cell">
                     {formatCurrency(item.totalFunding, true)}
+                  </td>
+                  <td className="text-right hidden sm:table-cell">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {item.kind}
+                    </span>
                   </td>
                   <td className="text-right">
                     <span className={`text-[10px] uppercase tracking-wider ${

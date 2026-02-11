@@ -282,22 +282,32 @@ export const newsEditionOutputSchema = z.object({
 // =============================================================================
 
 export const briefQuerySchema = z.object({
+  edition_id: z.string().uuid().optional(),
   region: datasetRegionParam,
   period_type: z.enum(['monthly', 'weekly']).default('monthly'),
-  period_key: optionalTrimmedString(10),
+  period_start: optionalTrimmedString(10),
+  kind: z.enum(['rolling', 'sealed']).optional(),
+  revision: z.preprocess((v) => {
+    if (v === undefined || v === null || v === '' || v === 'latest') return undefined;
+    return Number(v);
+  }, z.number().int().min(1).optional()),
 });
 
-export const briefArchiveQuerySchema = z.object({
+export const briefListSchema = z.object({
   region: datasetRegionParam,
   period_type: z.enum(['monthly', 'weekly']).default('monthly'),
+  kind: z.enum(['rolling', 'sealed']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
 });
 
-export const briefGenerateSchema = z.object({
+export const briefRegenerateSchema = z.object({
   region: z.enum(['global', 'turkey']).default('global'),
-  periodType: z.enum(['monthly', 'weekly']).default('monthly'),
-  periodKey: z.string().max(10).optional(),
+  period_type: z.enum(['monthly', 'weekly']).default('monthly'),
+  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  kind: z.enum(['rolling', 'sealed']).default('rolling'),
+  force: z.boolean().optional().default(false),
 });
 
 // =============================================================================

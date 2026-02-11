@@ -36,8 +36,8 @@ import {
   editorialStatsQuerySchema,
   newsEditionOutputSchema,
   briefQuerySchema,
-  briefArchiveQuerySchema,
-  briefGenerateSchema,
+  briefListSchema,
+  briefRegenerateSchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -63,7 +63,7 @@ import {
   newsBriefKey,
   newsBriefArchiveKey,
   briefKey as briefCacheKey,
-  briefArchiveKey as briefArchiveCacheKey,
+  briefListKey as briefListCacheKey,
   hashObject,
   safeCacheParse,
   CACHE_TTL,
@@ -2006,7 +2006,7 @@ app.post('/api/v1/news/signals/batch', async (req, res) => {
 });
 
 // =============================================================================
-// Dealbook Living Brief API
+// Dealbook Living Brief API — Edition + Revision model
 // =============================================================================
 
 app.get('/api/v1/brief', async (req, res) => {
@@ -2015,8 +2015,8 @@ app.get('/api/v1/brief', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const { region, period_type, period_key } = parsed.data;
-    const cacheKey = briefCacheKey({ region, periodType: period_type, periodKey: period_key });
+    const { edition_id, region, period_type, period_start, kind, revision } = parsed.data;
+    const cacheKey = briefCacheKey({ editionId: edition_id, region, periodType: period_type, periodStart: period_start, kind, revision });
 
     const redis = await getRedisClient();
     if (redis) {
@@ -2035,9 +2035,16 @@ app.get('/api/v1/brief', async (req, res) => {
     }
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
-    const snapshot = await briefService.getLatestSnapshot(region, period_type, period_key);
+    const snapshot = await briefService.getEditionBrief({
+      editionId: edition_id,
+      region,
+      periodType: period_type,
+      periodStart: period_start,
+      kind,
+      revision,
+    });
     if (!snapshot) {
-      return res.status(404).json({ error: 'No brief snapshot found' });
+      return res.status(404).json({ error: 'No brief edition found' });
     }
 
     if (redis) {
@@ -2055,14 +2062,15 @@ app.get('/api/v1/brief', async (req, res) => {
   }
 });
 
-app.get('/api/v1/brief/archive', async (req, res) => {
+// List brief editions (new canonical endpoint)
+app.get('/api/v1/briefs/list', async (req, res) => {
   try {
-    const parsed = briefArchiveQuerySchema.safeParse(req.query);
+    const parsed = briefListSchema.safeParse(req.query);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const { region, period_type, limit, offset } = parsed.data;
-    const cacheKey = briefArchiveCacheKey({ region, periodType: period_type, limit, offset });
+    const { region, period_type, kind, limit, offset } = parsed.data;
+    const cacheKey = briefListCacheKey({ region, periodType: period_type, kind, limit, offset });
 
     const redis = await getRedisClient();
     if (redis) {
@@ -2081,24 +2089,40 @@ app.get('/api/v1/brief/archive', async (req, res) => {
     }
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
-    const archive = await briefService.getSnapshotArchive(region, period_type, limit, offset);
+    const editions = await briefService.listEditions({ region, periodType: period_type, kind, limit, offset });
 
     if (redis) {
       try {
-        await redis.setEx(cacheKey, CACHE_TTL.BRIEF_ARCHIVE, JSON.stringify(archive));
+        await redis.setEx(cacheKey, CACHE_TTL.BRIEF_ARCHIVE, JSON.stringify(editions));
       } catch (cacheErr) {
         console.error('Redis cache write error:', cacheErr);
       }
     }
 
-    res.json(archive);
+    res.json(editions);
+  } catch (error) {
+    console.error('Error listing brief editions:', error);
+    res.status(500).json({ error: 'Failed to list brief editions' });
+  }
+});
+
+// Backward compat alias: /api/v1/brief/archive → /api/v1/briefs/list
+app.get('/api/v1/brief/archive', async (req, res) => {
+  try {
+    const parsed = briefListSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, period_type, kind, limit, offset } = parsed.data;
+    const editions = await briefService.listEditions({ region, periodType: period_type, kind, limit, offset });
+    res.json(editions);
   } catch (error) {
     console.error('Error fetching brief archive:', error);
     res.status(500).json({ error: 'Failed to fetch brief archive' });
   }
 });
 
-app.post('/api/v1/brief/generate', async (req, res) => {
+app.post('/api/v1/briefs/regenerate', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
@@ -2108,28 +2132,33 @@ app.post('/api/v1/brief/generate', async (req, res) => {
   }
 
   try {
-    const parsed = briefGenerateSchema.safeParse(req.body);
+    const parsed = briefRegenerateSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const { region, periodType, periodKey } = parsed.data;
+    const { region, period_type, period_start, period_end, kind, force } = parsed.data;
 
-    console.log(`Brief: Generating ${periodType} snapshot for ${region} (key=${periodKey || 'current'})`);
-    const snapshot = await briefService.computeBriefSnapshot({ region, periodType, periodKey });
-    const persisted = await briefService.persistSnapshot(snapshot);
+    console.log(`Brief: Generating ${period_type} edition for ${region} (${period_start} → ${period_end}, kind=${kind}, force=${force})`);
+    const result = await briefService.generateEditionRevision({
+      region, periodType: period_type, periodStart: period_start,
+      periodEnd: period_end, kind, force,
+    });
 
     // Invalidate related caches
-    await invalidatePattern('brief:v1:*');
+    await invalidatePattern('brief:v2:*');
+    await invalidatePattern('brief:v1:*'); // clean up any legacy keys
 
-    console.log(`Brief: Generated rev ${persisted.revisionNumber} for ${persisted.periodKey} (${persisted.region})`);
+    if (result.wasSkipped) {
+      console.log(`Brief: Skipped — data unchanged (rev ${result.revision})`);
+    } else {
+      console.log(`Brief: Created rev ${result.revision} for edition ${result.editionId}`);
+    }
+
     res.json({
-      id: persisted.id,
-      region: persisted.region,
-      periodType: persisted.periodType,
-      periodKey: persisted.periodKey,
-      revisionNumber: persisted.revisionNumber,
-      status: persisted.status,
-      generatedAt: persisted.generatedAt,
+      editionId: result.editionId,
+      revisionId: result.revisionId,
+      revision: result.revision,
+      wasSkipped: result.wasSkipped,
     });
   } catch (error) {
     console.error('Error generating brief:', error);

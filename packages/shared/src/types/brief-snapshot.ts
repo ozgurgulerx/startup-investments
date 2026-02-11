@@ -38,12 +38,14 @@ export interface BriefNewsContext {
 
 export interface BriefSnapshot {
   id: string;
+  editionId?: string;
   region: 'global' | 'turkey';
   periodType: 'monthly' | 'weekly';
   periodKey: string;
   periodStart: string;
   periodEnd: string;
   periodLabel: string;
+  kind?: 'rolling' | 'sealed';
   revisionNumber: number;
   generatedAt: string;
 
@@ -95,4 +97,20 @@ export interface BriefSnapshotSummary {
   dealCount: number;
   totalFunding: number;
   status: 'draft' | 'ready' | 'sealed';
+}
+
+export interface BriefEditionSummary {
+  editionId: string;
+  region: 'global' | 'turkey';
+  periodType: 'monthly' | 'weekly';
+  periodKey: string;
+  periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  kind: 'rolling' | 'sealed';
+  revisionNumber: number;
+  generatedAt: string;
+  dealCount: number;
+  totalFunding: number;
+  status: 'ready' | 'sealed';
 }

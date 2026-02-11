@@ -231,20 +231,40 @@ export function newsBriefArchiveKey(params: { region: string; periodType: string
 }
 
 /**
- * Generate cache key for dealbook brief snapshot
+ * Generate cache key for dealbook brief edition
  */
-export function briefKey(params: { region: string; periodType: string; periodKey?: string }): string {
+export function briefKey(params: {
+  editionId?: string;
+  region?: string;
+  periodType?: string;
+  periodStart?: string;
+  kind?: string;
+  revision?: number;
+}): string {
+  if (params.editionId) {
+    const revPart = params.revision ? `r${params.revision}` : 'latest';
+    return `brief:v2:eid:${params.editionId}:${revPart}`;
+  }
   const safeRegion = (params.region || 'global').toLowerCase().trim() || 'global';
-  const keyPart = params.periodKey || 'latest';
-  return `brief:v1:${safeRegion}:${params.periodType}:${keyPart}`;
+  const startPart = params.periodStart || 'latest';
+  const kindPart = params.kind || 'rolling';
+  const revPart = params.revision ? `r${params.revision}` : 'latest';
+  return `brief:v2:${safeRegion}:${params.periodType || 'monthly'}:${startPart}:${kindPart}:${revPart}`;
 }
 
 /**
- * Generate cache key for dealbook brief archive listing
+ * Generate cache key for brief edition listing
  */
-export function briefArchiveKey(params: { region: string; periodType: string; limit: number; offset: number }): string {
+export function briefListKey(params: {
+  region: string;
+  periodType: string;
+  kind?: string;
+  limit: number;
+  offset: number;
+}): string {
   const safeRegion = (params.region || 'global').toLowerCase().trim() || 'global';
-  return `brief:v1:archive:${safeRegion}:${params.periodType}:l${params.limit}:o${params.offset}`;
+  const kindPart = params.kind || 'all';
+  return `brief:v2:list:${safeRegion}:${params.periodType}:${kindPart}:l${params.limit}:o${params.offset}`;
 }
 
 // Sort keys recursively so logically equivalent objects hash consistently.
@@ -393,6 +413,7 @@ export async function invalidateAll(): Promise<void> {
   await invalidatePattern('filters:v1:*');
   await invalidatePattern('news:v1:*');
   await invalidatePattern('brief:v1:*');
+  await invalidatePattern('brief:v2:*');
 }
 
 /**
