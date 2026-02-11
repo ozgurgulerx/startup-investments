@@ -75,7 +75,7 @@ export function PeriodicBriefView({
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {dateRange} · {brief.story_count} signals
-          {brief.generated_at ? ` · Generated ${new Date(brief.generated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
+          {brief.generated_at ? ` · Generated ${new Date(brief.generated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
         </p>
       </header>
 

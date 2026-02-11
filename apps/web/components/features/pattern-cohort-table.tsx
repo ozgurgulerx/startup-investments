@@ -81,7 +81,7 @@ export function PatternCohortTable({
               <div>
                 <span className="text-muted-foreground">GenAI: </span>
                 <span className="tabular-nums text-foreground">
-                  {genaiCount} ({((genaiCount / companies.length) * 100).toFixed(0)}%)
+                  {genaiCount} ({companies.length > 0 ? ((genaiCount / companies.length) * 100).toFixed(0) : 0}%)
                 </span>
               </div>
             </div>

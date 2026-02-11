@@ -161,8 +161,8 @@ export function InteractiveDealbook({
       if (urlFilters.verticalId) query.verticalId = urlFilters.verticalId;
       if (urlFilters.subVerticalId) query.subVerticalId = urlFilters.subVerticalId;
       if (urlFilters.leafId) query.leafId = urlFilters.leafId;
-      if (urlFilters.minFunding) query.fundingMin = urlFilters.minFunding;
-      if (urlFilters.maxFunding) query.fundingMax = urlFilters.maxFunding;
+      if (urlFilters.minFunding !== undefined) query.fundingMin = urlFilters.minFunding;
+      if (urlFilters.maxFunding !== undefined) query.fundingMax = urlFilters.maxFunding;
       if (urlFilters.usesGenai !== undefined) query.usesGenai = urlFilters.usesGenai;
       setActiveQuery(query);
     }
@@ -214,8 +214,8 @@ export function InteractiveDealbook({
     if (query.verticalId) params.set('verticalId', query.verticalId);
     if (query.subVerticalId) params.set('subVerticalId', query.subVerticalId);
     if (query.leafId) params.set('leafId', query.leafId);
-    if (query.fundingMin) params.set('minFunding', query.fundingMin.toString());
-    if (query.fundingMax) params.set('maxFunding', query.fundingMax.toString());
+    if (query.fundingMin !== undefined) params.set('minFunding', query.fundingMin.toString());
+    if (query.fundingMax !== undefined) params.set('maxFunding', query.fundingMax.toString());
     if (query.usesGenai !== undefined) params.set('usesGenai', query.usesGenai.toString());
 
     const queryString = params.toString();
@@ -297,7 +297,7 @@ export function InteractiveDealbook({
     if (urlFilters?.verticalId) count++;
     if (urlFilters?.subVerticalId) count++;
     if (urlFilters?.leafId) count++;
-    if (urlFilters?.minFunding || urlFilters?.maxFunding) count++;
+    if (urlFilters?.minFunding !== undefined || urlFilters?.maxFunding !== undefined) count++;
     if (urlFilters?.usesGenai !== undefined) count++;
     return count;
   }, [urlFilters]);

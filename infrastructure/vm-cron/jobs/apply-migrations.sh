@@ -48,6 +48,8 @@ SETS = {
         "032_topic_research.sql",
         # Signal intelligence engine — event registry, pattern registry, signals, evidence
         "036_signal_intelligence_schema.sql",
+        # Fix signal deduplication — unique indexes + count recompute
+        "038_fix_signal_dedupe.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",

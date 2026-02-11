@@ -39,8 +39,11 @@ export default function WatchlistPage() {
       // Fallback: use current year-month format to find latest period
       const now = new Date();
       const candidates = [];
-      for (let m = now.getMonth() + 1; m >= 1; m--) {
-        candidates.push(`${now.getFullYear()}-${String(m).padStart(2, '0')}`);
+      for (let y = now.getFullYear(); y >= now.getFullYear() - 2; y--) {
+        const maxMonth = y === now.getFullYear() ? now.getMonth() + 1 : 12;
+        for (let m = maxMonth; m >= 1; m--) {
+          candidates.push(`${y}-${String(m).padStart(2, '0')}`);
+        }
       }
       for (const period of candidates) {
         try {

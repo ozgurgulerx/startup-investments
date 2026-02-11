@@ -282,8 +282,11 @@ function StaticSignalsView({
 
   const filteredPatterns = useMemo(() => {
     if (!selectedCategory) return patterns;
-    return patterns;
-  }, [patterns, selectedCategory]);
+    const category = categories.find(c => c.name === selectedCategory);
+    if (!category) return patterns;
+    const patternNames = new Set(category.patterns);
+    return patterns.filter(p => patternNames.has(p.name));
+  }, [patterns, selectedCategory, categories]);
 
   const filteredEmergingPatterns = useMemo(() => {
     if (!selectedCategory) return emergingPatterns;

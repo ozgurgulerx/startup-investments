@@ -113,8 +113,8 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
     verticalId: params.verticalId,
     subVerticalId: params.subVerticalId,
     leafId: params.leafId,
-    minFunding: params.minFunding ? parseInt(params.minFunding, 10) : undefined,
-    maxFunding: params.maxFunding ? parseInt(params.maxFunding, 10) : undefined,
+    minFunding: params.minFunding ? (Number.isFinite(parseInt(params.minFunding, 10)) ? parseInt(params.minFunding, 10) : undefined) : undefined,
+    maxFunding: params.maxFunding ? (Number.isFinite(parseInt(params.maxFunding, 10)) ? parseInt(params.maxFunding, 10) : undefined) : undefined,
     usesGenai: params.usesGenai === 'true' ? true : params.usesGenai === 'false' ? false : undefined,
     search: params.search,
     ...sortConfig,
@@ -163,8 +163,8 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   if (filters.verticalId) currentSearchParams.verticalId = filters.verticalId;
   if (filters.subVerticalId) currentSearchParams.subVerticalId = filters.subVerticalId;
   if (filters.leafId) currentSearchParams.leafId = filters.leafId;
-  if (filters.minFunding) currentSearchParams.minFunding = filters.minFunding.toString();
-  if (filters.maxFunding) currentSearchParams.maxFunding = filters.maxFunding.toString();
+  if (filters.minFunding !== undefined) currentSearchParams.minFunding = filters.minFunding.toString();
+  if (filters.maxFunding !== undefined) currentSearchParams.maxFunding = filters.maxFunding.toString();
   if (filters.usesGenai !== undefined) currentSearchParams.usesGenai = filters.usesGenai.toString();
   if (filters.search) currentSearchParams.search = filters.search;
 

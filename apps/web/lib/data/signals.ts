@@ -59,7 +59,9 @@ export function deriveSignalEvents(
     .slice(0, 3);
 
   for (const [pattern, count] of patterns) {
-    const percentage = ((count / stats.genai_analysis.total_analyzed) * 100).toFixed(0);
+    const percentage = stats.genai_analysis.total_analyzed > 0
+      ? ((count / stats.genai_analysis.total_analyzed) * 100).toFixed(0)
+      : '0';
     events.push({
       id: `pattern-${pattern.toLowerCase().replace(/\s+/g, '-')}`,
       type: 'pattern',

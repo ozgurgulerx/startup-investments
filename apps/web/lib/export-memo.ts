@@ -43,7 +43,7 @@ export function generateWatchlistMemo(
   lines.push('## Summary');
   lines.push('');
   lines.push(`- Total funding tracked: ${formatCurrency(totalFunding, true)}`);
-  lines.push(`- GenAI companies: ${genaiCount} (${((genaiCount / startups.length) * 100).toFixed(0)}%)`);
+  lines.push(`- GenAI companies: ${genaiCount} (${startups.length > 0 ? ((genaiCount / startups.length) * 100).toFixed(0) : 0}%)`);
   lines.push('');
 
   // Company list

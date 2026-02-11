@@ -98,7 +98,9 @@ export async function generateMonthlyBrief(period: string, region?: string): Pro
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([pattern, count]) => {
-      const prevalencePct = Math.round((count / stats.genai_analysis.total_analyzed) * 100);
+      const prevalencePct = stats.genai_analysis.total_analyzed > 0
+        ? Math.round((count / stats.genai_analysis.total_analyzed) * 100)
+        : 0;
       return {
         pattern,
         prevalencePct,
@@ -117,7 +119,7 @@ export async function generateMonthlyBrief(period: string, region?: string): Pro
     .map(([stage, data]) => ({
       stage: STAGE_LABELS[stage] || stage,
       amount: data.total_usd,
-      pct: Math.round((data.total_usd / totalStageFunding) * 100),
+      pct: totalStageFunding > 0 ? Math.round((data.total_usd / totalStageFunding) * 100) : 0,
       deals: data.count,
     }))
     .sort((a, b) => b.amount - a.amount);

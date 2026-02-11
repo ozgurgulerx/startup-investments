@@ -45,7 +45,7 @@ export function detectOutlierRounds(
     const amount = startup.funding_amount;
     if (!amount || amount <= 0) continue;
 
-    const zScore = (amount - mean) / stdDev;
+    const zScore = stdDev === 0 ? 0 : (amount - mean) / stdDev;
     const percentileIndex = sorted.findIndex(a => a >= amount);
     const percentile = ((percentileIndex + 1) / sorted.length) * 100;
 
@@ -104,6 +104,7 @@ function getStageContext(
   if (!bucket || bucket.count === 0) return null;
 
   const stageAvg = bucket.total_usd / bucket.count;
+  if (!stageAvg) return null;
   const ratio = amount / stageAvg;
 
   if (ratio > 2) {

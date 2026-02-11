@@ -285,10 +285,12 @@ async function getAggregatedStats(region?: string): Promise<MonthlyStats> {
       ...latestStats.genai_analysis,
       total_analyzed: validStats.reduce((sum, s) => sum + s.genai_analysis.total_analyzed, 0),
       uses_genai_count: validStats.reduce((sum, s) => sum + s.genai_analysis.uses_genai_count, 0),
-      genai_adoption_rate: validStats.length > 0
-        ? validStats.reduce((sum, s) => sum + s.genai_analysis.uses_genai_count, 0) /
-          validStats.reduce((sum, s) => sum + s.genai_analysis.total_analyzed, 0)
-        : 0,
+      genai_adoption_rate: (() => {
+        const totalAnalyzed = validStats.reduce((sum, s) => sum + s.genai_analysis.total_analyzed, 0);
+        return totalAnalyzed > 0
+          ? validStats.reduce((sum, s) => sum + s.genai_analysis.uses_genai_count, 0) / totalAnalyzed
+          : 0;
+      })(),
     },
   };
 

@@ -62,7 +62,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
   }));
 
   // Calculate month-over-month changes
-  const currentData = trendData[trendData.length - 1];
+  const currentData = trendData[trendData.length - 1] ?? { period, funding: 0, deals: 0, genaiRate: 0 };
   const previousData = trendData.length > 1 ? trendData[trendData.length - 2] : currentData;
   const previousLabel = previousData.period.replace('-', ' ');
 
@@ -83,7 +83,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
     .map(([name, count]) => ({
       name,
       count,
-      percentage: (count / dealSummary.total_deals) * 100,
+      percentage: dealSummary.total_deals > 0 ? (count / dealSummary.total_deals) * 100 : 0,
     }));
 
   return (
@@ -156,7 +156,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
               <div className="flex-1">
                 <p className="font-medium text-sm">Agentic Architectures Growing</p>
                 <p className="text-sm text-muted-foreground">
-                  {Math.round((genaiAnalysis.pattern_distribution['Agentic Architectures'] || 0) / dealSummary.total_deals * 100)}% of funded startups now use agentic patterns.
+                  {dealSummary.total_deals > 0 ? Math.round((genaiAnalysis.pattern_distribution['Agentic Architectures'] || 0) / dealSummary.total_deals * 100) : 0}% of funded startups now use agentic patterns.
                 </p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground mt-0.5" />
@@ -184,7 +184,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
               <div className="flex-1">
                 <p className="font-medium text-sm">Vertical Data Moats Emerging</p>
                 <p className="text-sm text-muted-foreground">
-                  {Math.round((genaiAnalysis.pattern_distribution['Vertical Data Moats'] || 0) / dealSummary.total_deals * 100)}% of startups building industry-specific data strategies.
+                  {dealSummary.total_deals > 0 ? Math.round((genaiAnalysis.pattern_distribution['Vertical Data Moats'] || 0) / dealSummary.total_deals * 100) : 0}% of startups building industry-specific data strategies.
                 </p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground mt-0.5" />
@@ -241,7 +241,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
                       {formatPercentage(row.genaiRate)}
                     </td>
                     <td className="text-right py-3 px-4 tabular-nums">
-                      {formatCurrency(row.funding / row.deals, true)}
+                      {formatCurrency(row.deals > 0 ? row.funding / row.deals : 0, true)}
                     </td>
                   </tr>
                 ))}

@@ -305,8 +305,8 @@ export const api = {
     if (filters.verticalId) searchParams.set('verticalId', filters.verticalId);
     if (filters.subVerticalId) searchParams.set('subVerticalId', filters.subVerticalId);
     if (filters.leafId) searchParams.set('leafId', filters.leafId);
-    if (filters.minFunding) searchParams.set('minFunding', filters.minFunding.toString());
-    if (filters.maxFunding) searchParams.set('maxFunding', filters.maxFunding.toString());
+    if (filters.minFunding !== undefined) searchParams.set('minFunding', filters.minFunding.toString());
+    if (filters.maxFunding !== undefined) searchParams.set('maxFunding', filters.maxFunding.toString());
     if (filters.usesGenai !== undefined) searchParams.set('usesGenai', filters.usesGenai.toString());
     if (filters.sortBy) searchParams.set('sortBy', filters.sortBy);
     if (filters.sortOrder) searchParams.set('sortOrder', filters.sortOrder);

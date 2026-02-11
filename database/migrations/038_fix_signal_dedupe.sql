@@ -33,7 +33,7 @@ WHERE a.cluster_id = b.cluster_id
   AND a.event_type = b.event_type
   AND a.startup_id = b.startup_id
   AND a.cluster_id IS NOT NULL
-  AND a.created_at > b.created_at;
+  AND a.detected_at > b.detected_at;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_startup_events_cluster_type_startup
     ON startup_events (cluster_id, event_type, startup_id)
