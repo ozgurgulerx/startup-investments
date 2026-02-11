@@ -6,6 +6,7 @@ export type {
   BriefSnapshotMetrics,
   BriefSnapshotDeltas,
   BriefNewsContext,
+  SignalRef,
   BriefSnapshot,
   BriefSnapshotSummary,
   BriefEditionSummary,

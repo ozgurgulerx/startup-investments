@@ -45,6 +45,17 @@ interface BriefNewsContext {
   topEntities: Array<{ name: string; factCount: number; latestFact: string }>;
 }
 
+interface SignalRef {
+  clusterId: string;
+  title: string;
+  summary: string;
+  storyType: string;
+  builderTakeaway: string;
+  signalScore: number;
+  linkedSlugs: string[];
+  publishedAt: string;
+}
+
 interface BriefSnapshot {
   id: string;
   editionId?: string;
@@ -60,8 +71,12 @@ interface BriefSnapshot {
   metrics: BriefSnapshotMetrics;
   prevPeriod: BriefSnapshotMetrics | null;
   deltas: BriefSnapshotDeltas | null;
+  revisionDeltas: BriefSnapshotDeltas | null;
+  prevPeriodBounds: { periodStart: string; periodEnd: string; mtdAligned: boolean } | null;
   newsContext: BriefNewsContext | null;
+  topSignals: SignalRef[];
   deltaBullets: string[];
+  revisionDeltaBullets: string[];
   executiveSummary: string;
   theme: { name: string; summaryBullets: string[] };
   builderLessons: Array<{ title: string; text: string; howToApply?: string }>;
@@ -130,6 +145,17 @@ interface GenerateEditionResult {
 
 const PROMPT_VERSION = 'brief-v2';
 
+/** Recursively sort object keys for stable JSON serialization */
+function sortKeysDeep(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sortKeysDeep);
+  const sorted: Record<string, any> = {};
+  for (const key of Object.keys(obj).sort()) {
+    sorted[key] = sortKeysDeep(obj[key]);
+  }
+  return sorted;
+}
+
 // ============================================================================
 // Factory
 // ============================================================================
@@ -139,7 +165,11 @@ export function makeBriefService(pool: Pool) {
   // Period helpers
   // --------------------------------------------------------------------------
 
-  function resolvePeriodBounds(periodType: 'monthly' | 'weekly', periodKey?: string): PeriodBounds {
+  function resolvePeriodBounds(
+    periodType: 'monthly' | 'weekly',
+    periodKey?: string,
+    mtdAlign?: { periodEnd: string },
+  ): PeriodBounds & { mtdAligned: boolean } {
     const now = new Date();
 
     if (periodType === 'monthly') {
@@ -154,7 +184,21 @@ export function makeBriefService(pool: Pool) {
       // Previous month
       const prevDate = new Date(year, month - 2, 1);
       const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-      const prevEnd = new Date(year, month - 1, 0);
+
+      let prevEnd: Date;
+      let mtdAligned = false;
+
+      if (mtdAlign) {
+        // MTD-aligned: match day count into previous month
+        const currentEnd = new Date(mtdAlign.periodEnd);
+        const dayCount = Math.ceil((currentEnd.getTime() - start.getTime()) / 86400000) + 1;
+        const prevLastDay = new Date(year, month - 1, 0).getDate(); // last day of prev month
+        const alignedDay = Math.min(dayCount, prevLastDay);
+        prevEnd = new Date(prevDate.getFullYear(), prevDate.getMonth(), alignedDay);
+        mtdAligned = true;
+      } else {
+        prevEnd = new Date(year, month - 1, 0);
+      }
 
       return {
         periodKey: key,
@@ -164,6 +208,7 @@ export function makeBriefService(pool: Pool) {
         prevPeriodKey: prevKey,
         prevPeriodStart: fmt(prevDate),
         prevPeriodEnd: fmt(prevEnd),
+        mtdAligned,
       };
     }
 
@@ -188,6 +233,7 @@ export function makeBriefService(pool: Pool) {
       prevPeriodKey: prevKey,
       prevPeriodStart: fmt(prevStart),
       prevPeriodEnd: fmt(prevEnd),
+      mtdAligned: false,
     };
   }
 
@@ -623,8 +669,8 @@ export function makeBriefService(pool: Pool) {
       const clustersResult = await pool.query(`
         SELECT DISTINCT ON (nc.id)
           nc.id::text,
-          nc.representative_title AS title,
-          nc.representative_summary AS summary,
+          nc.title,
+          nc.summary,
           COALESCE(nc.llm_story_type, nc.story_type, 'general') AS story_type,
           nc.published_at,
           nc.rank_score,
@@ -635,7 +681,7 @@ export function makeBriefService(pool: Pool) {
         WHERE nef.linked_startup_id = ANY($1::uuid[])
           AND nef.is_current = true
           AND nc.published_at > NOW() - INTERVAL '30 days'
-        GROUP BY nc.id, nc.representative_title, nc.representative_summary,
+        GROUP BY nc.id, nc.title, nc.summary,
                  nc.llm_story_type, nc.story_type, nc.published_at, nc.rank_score
         ORDER BY nc.id, nc.rank_score DESC
         LIMIT 10
@@ -679,6 +725,127 @@ export function makeBriefService(pool: Pool) {
   }
 
   // --------------------------------------------------------------------------
+  // Select top news signals for provenance
+  // --------------------------------------------------------------------------
+
+  async function selectTopSignals(
+    region: string,
+    periodKey: string,
+  ): Promise<{ signals: SignalRef[]; meta: { candidateCount: number; selectedAt: string } }> {
+    try {
+      // Get startup IDs for this period
+      const startupIdsResult = await pool.query(`
+        SELECT id FROM startups
+        WHERE dataset_region = $1 AND period = $2
+      `, [region, periodKey]);
+
+      if (startupIdsResult.rows.length === 0) {
+        return { signals: [], meta: { candidateCount: 0, selectedAt: new Date().toISOString() } };
+      }
+
+      const ids = startupIdsResult.rows.map(r => r.id);
+
+      // Two-part UNION: entity-linked clusters + high-score unlinked clusters
+      const candidatesResult = await pool.query(`
+        WITH linked AS (
+          SELECT DISTINCT ON (nc.id)
+            nc.id::text AS cluster_id,
+            nc.title,
+            nc.summary,
+            COALESCE(nc.llm_story_type, nc.story_type, 'general') AS story_type,
+            nc.builder_takeaway,
+            nc.published_at,
+            nc.llm_signal_score,
+            nc.rank_score,
+            nc.trust_score,
+            nc.source_count,
+            true AS has_entity_link,
+            array_agg(DISTINCT s.slug) FILTER (WHERE s.slug IS NOT NULL) AS linked_slugs
+          FROM news_entity_facts nef
+          INNER JOIN news_clusters nc ON nef.source_cluster_id = nc.id
+          INNER JOIN startups s ON nef.linked_startup_id = s.id
+          WHERE nef.linked_startup_id = ANY($1::uuid[])
+            AND nef.is_current = true
+            AND nc.published_at > NOW() - INTERVAL '30 days'
+            AND nc.builder_takeaway IS NOT NULL
+          GROUP BY nc.id, nc.title, nc.summary, nc.llm_story_type, nc.story_type,
+                   nc.builder_takeaway, nc.published_at, nc.llm_signal_score,
+                   nc.rank_score, nc.trust_score, nc.source_count
+        ),
+        unlinked AS (
+          SELECT
+            nc.id::text AS cluster_id,
+            nc.title,
+            nc.summary,
+            COALESCE(nc.llm_story_type, nc.story_type, 'general') AS story_type,
+            nc.builder_takeaway,
+            nc.published_at,
+            nc.llm_signal_score,
+            nc.rank_score,
+            nc.trust_score,
+            nc.source_count,
+            false AS has_entity_link,
+            ARRAY[]::text[] AS linked_slugs
+          FROM news_clusters nc
+          WHERE nc.region = $2
+            AND nc.published_at > NOW() - INTERVAL '30 days'
+            AND nc.builder_takeaway IS NOT NULL
+            AND nc.id NOT IN (SELECT nc2.id::uuid FROM linked nc2)
+          ORDER BY nc.llm_signal_score DESC NULLS LAST
+          LIMIT 20
+        ),
+        combined AS (
+          SELECT * FROM linked
+          UNION ALL
+          SELECT * FROM unlinked
+        )
+        SELECT *,
+          (0.4 * COALESCE(llm_signal_score, 0)
+           + 0.3 * COALESCE(rank_score, 0)
+           + 0.2 * COALESCE(trust_score, 0)
+           + 0.1 * LEAST(COALESCE(source_count, 1)::numeric / 5.0, 1.0)
+          ) AS composite_score
+        FROM combined
+        ORDER BY has_entity_link DESC, composite_score DESC
+        LIMIT 20
+      `, [ids, region]);
+
+      const candidates = candidatesResult.rows;
+
+      // Diversity constraint: max 2 per story_type, select up to 8
+      const signals: SignalRef[] = [];
+      const storyTypeCounts = new Map<string, number>();
+
+      for (const row of candidates) {
+        if (signals.length >= 8) break;
+        const st = row.story_type || 'general';
+        const count = storyTypeCounts.get(st) || 0;
+        if (count >= 2) continue;
+        storyTypeCounts.set(st, count + 1);
+
+        signals.push({
+          clusterId: row.cluster_id,
+          title: row.title || '',
+          summary: (row.summary || '').split(/[.!?]\s/)[0] + '.',
+          storyType: st,
+          builderTakeaway: row.builder_takeaway || '',
+          signalScore: parseFloat(row.composite_score) || 0,
+          linkedSlugs: row.linked_slugs || [],
+          publishedAt: row.published_at?.toISOString?.() || row.published_at || '',
+        });
+      }
+
+      return {
+        signals,
+        meta: { candidateCount: candidates.length, selectedAt: new Date().toISOString() },
+      };
+    } catch (err) {
+      console.warn('Brief: selectTopSignals failed (tables may not exist):', (err as Error).message);
+      return { signals: [], meta: { candidateCount: 0, selectedAt: new Date().toISOString() } };
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // LLM generation (optional)
   // --------------------------------------------------------------------------
 
@@ -686,9 +853,12 @@ export function makeBriefService(pool: Pool) {
     metrics: BriefSnapshotMetrics,
     deltas: BriefSnapshotDeltas | null,
     newsContext: BriefNewsContext | null,
+    topSignals: SignalRef[],
     periodLabel: string,
+    revisionDeltas?: BriefSnapshotDeltas | null,
   ): Promise<{
     deltaBullets: string[];
+    revisionDeltaBullets: string[];
     executiveSummary: string;
     theme: { name: string; summaryBullets: string[] };
     builderLessons: Array<{ title: string; text: string; howToApply?: string }>;
@@ -700,11 +870,11 @@ export function makeBriefService(pool: Pool) {
 
     if (!endpoint || !deployment) {
       console.log('Brief: LLM not configured, using template generation');
-      return generateTemplateSections(metrics, deltas, periodLabel);
+      return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
     }
 
     try {
-      const prompt = buildLLMPrompt(metrics, deltas, newsContext, periodLabel);
+      const prompt = buildLLMPrompt(metrics, deltas, newsContext, topSignals, periodLabel, revisionDeltas);
 
       // Build request — try API key first, fall back to managed identity
       const apiKey = process.env.AZURE_OPENAI_API_KEY;
@@ -722,7 +892,7 @@ export function makeBriefService(pool: Pool) {
           headers['Authorization'] = `Bearer ${token.token}`;
         } catch {
           console.log('Brief: Cannot get Azure credential, using template generation');
-          return generateTemplateSections(metrics, deltas, periodLabel);
+          return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
         }
       }
 
@@ -744,18 +914,19 @@ export function makeBriefService(pool: Pool) {
 
       if (!response.ok) {
         console.warn(`Brief: LLM call failed (${response.status}), using template`);
-        return generateTemplateSections(metrics, deltas, periodLabel);
+        return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
       }
 
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content;
       if (!content) {
-        return generateTemplateSections(metrics, deltas, periodLabel);
+        return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
       }
 
       const parsed = JSON.parse(content);
       return {
         deltaBullets: Array.isArray(parsed.delta_bullets) ? parsed.delta_bullets.slice(0, 5) : [],
+        revisionDeltaBullets: Array.isArray(parsed.revision_delta_bullets) ? parsed.revision_delta_bullets.slice(0, 3) : [],
         executiveSummary: typeof parsed.executive_summary === 'string' ? parsed.executive_summary : '',
         theme: parsed.theme && typeof parsed.theme.name === 'string'
           ? { name: parsed.theme.name, summaryBullets: Array.isArray(parsed.theme.summaryBullets) ? parsed.theme.summaryBullets : [] }
@@ -767,7 +938,7 @@ export function makeBriefService(pool: Pool) {
       };
     } catch (err) {
       console.warn('Brief: LLM generation error:', (err as Error).message);
-      return generateTemplateSections(metrics, deltas, periodLabel);
+      return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
     }
   }
 
@@ -775,7 +946,9 @@ export function makeBriefService(pool: Pool) {
     metrics: BriefSnapshotMetrics,
     deltas: BriefSnapshotDeltas | null,
     newsContext: BriefNewsContext | null,
+    topSignals: SignalRef[],
     periodLabel: string,
+    revisionDeltas?: BriefSnapshotDeltas | null,
   ): string {
     let prompt = `Generate a brief intelligence analysis for "${periodLabel}".
 
@@ -790,10 +963,21 @@ Metrics:
       prompt += `\n\nChanges vs prior period:`;
       if (deltas.totalFunding) prompt += `\n- Total funding: ${deltas.totalFunding.pct > 0 ? '+' : ''}${deltas.totalFunding.pct}%`;
       if (deltas.dealCount) prompt += `\n- Deal count: ${deltas.dealCount.pct > 0 ? '+' : ''}${deltas.dealCount.pct}%`;
+      if (deltas.avgDeal) prompt += `\n- Average deal: ${deltas.avgDeal.pct > 0 ? '+' : ''}${deltas.avgDeal.pct}%`;
       if (deltas.genaiAdoptionRate) prompt += `\n- GenAI adoption: ${deltas.genaiAdoptionRate.ppChange > 0 ? '+' : ''}${deltas.genaiAdoptionRate.ppChange}pp`;
       if (deltas.patternShifts.length > 0) {
         prompt += `\n- Pattern shifts: ${deltas.patternShifts.map((s: BriefSnapshotDeltas['patternShifts'][number]) => `${s.pattern} ${s.deltaPp > 0 ? '+' : ''}${s.deltaPp}pp`).join(', ')}`;
       }
+      if (deltas.stageShifts.length > 0) {
+        prompt += `\n- Stage shifts: ${deltas.stageShifts.map((s: BriefSnapshotDeltas['stageShifts'][number]) => `${s.stage} ${s.deltaPp > 0 ? '+' : ''}${s.deltaPp}pp`).join(', ')}`;
+      }
+    }
+
+    if (revisionDeltas) {
+      prompt += `\n\nChanges since last update (revision-level):`;
+      if (revisionDeltas.totalFunding) prompt += `\n- Funding: ${revisionDeltas.totalFunding.pct > 0 ? '+' : ''}${revisionDeltas.totalFunding.pct}%`;
+      if (revisionDeltas.dealCount) prompt += `\n- Deals: ${revisionDeltas.dealCount.value > 0 ? '+' : ''}${revisionDeltas.dealCount.value}`;
+      if (revisionDeltas.avgDeal) prompt += `\n- Avg deal: ${revisionDeltas.avgDeal.pct > 0 ? '+' : ''}${revisionDeltas.avgDeal.pct}%`;
     }
 
     if (newsContext && newsContext.clusters.length > 0) {
@@ -803,11 +987,19 @@ Metrics:
       });
     }
 
+    if (topSignals && topSignals.length > 0) {
+      prompt += `\n\nTop signals informing this brief:`;
+      topSignals.slice(0, 5).forEach(s => {
+        prompt += `\n- "${s.title}" [${s.storyType}]: ${s.builderTakeaway}`;
+      });
+      prompt += `\n(Reference these signals in executive_summary and builder_lessons where relevant.)`;
+    }
+
     prompt += `
 
 Output JSON with these exact keys:
 {
-  "delta_bullets": ["string (max 24 words each, reference specific numbers)", ...3-5 items],
+  "delta_bullets": ["string (max 24 words each, reference specific numbers)", ...3-5 items],${revisionDeltas ? '\n  "revision_delta_bullets": ["string (max 20 words, what changed since last update)", ...1-3 items],' : ''}
   "executive_summary": "string (70-120 words, rephrase only — use provided numbers)",
   "theme": { "name": "string (2-4 words)", "summaryBullets": ["string", ...3-4 items] },
   "builder_lessons": [{ "title": "string", "text": "string", "howToApply": "string" }, ...2-3 items],
@@ -815,7 +1007,7 @@ Output JSON with these exact keys:
 }
 
 Rules:
-- Delta bullets must reference at least one numeric delta from input. Can reference news headlines. Max 24 words per bullet.
+- Delta bullets must reference at least one numeric delta from input. Can reference news headlines. Max 24 words per bullet.${revisionDeltas ? '\n- Revision delta bullets describe what changed since the last update — reference the revision-level deltas provided.' : ''}
 - Executive summary: Rephrase only — use provided numbers. No fabricated statistics.
 - Theme: Ground in pattern shifts and news trends.
 - NO fabricated numbers. If a delta is null, skip it.`;
@@ -831,6 +1023,7 @@ Rules:
     metrics: BriefSnapshotMetrics,
     deltas: BriefSnapshotDeltas | null,
     periodLabel: string,
+    revisionDeltas?: BriefSnapshotDeltas | null,
   ) {
     const deltaBullets: string[] = [];
     if (deltas?.totalFunding) {
@@ -839,8 +1032,32 @@ Rules:
     if (deltas?.dealCount) {
       deltaBullets.push(`Deal count ${deltas.dealCount.pct > 0 ? 'increased' : 'decreased'} ${Math.abs(deltas.dealCount.pct)}% to ${metrics.dealCount} deals`);
     }
+    if (deltas?.avgDeal) {
+      deltaBullets.push(`Average deal size ${deltas.avgDeal.pct > 0 ? 'rose' : 'fell'} ${Math.abs(deltas.avgDeal.pct)}% to ${formatM(metrics.avgDeal)}`);
+    }
     if (deltas?.genaiAdoptionRate && deltas.genaiAdoptionRate.ppChange !== 0) {
       deltaBullets.push(`GenAI adoption ${deltas.genaiAdoptionRate.ppChange > 0 ? 'rose' : 'fell'} ${Math.abs(deltas.genaiAdoptionRate.ppChange)}pp to ${metrics.genaiAdoptionRate}%`);
+    }
+    if (deltas?.patternShifts) {
+      for (const s of deltas.patternShifts.slice(0, 2)) {
+        deltaBullets.push(`${s.pattern} prevalence ${s.deltaPp > 0 ? 'rose' : 'fell'} ${Math.abs(s.deltaPp)}pp to ${s.currPct}%`);
+      }
+    }
+    if (deltas?.stageShifts) {
+      for (const s of deltas.stageShifts.slice(0, 2)) {
+        deltaBullets.push(`${s.stage} share ${s.deltaPp > 0 ? 'rose' : 'fell'} ${Math.abs(s.deltaPp)}pp`);
+      }
+    }
+
+    // Revision delta bullets
+    const revisionDeltaBullets: string[] = [];
+    if (revisionDeltas) {
+      if (revisionDeltas.dealCount && revisionDeltas.dealCount.value !== 0) {
+        revisionDeltaBullets.push(`${Math.abs(revisionDeltas.dealCount.value)} ${revisionDeltas.dealCount.value > 0 ? 'new' : 'fewer'} deal${Math.abs(revisionDeltas.dealCount.value) !== 1 ? 's' : ''} tracked since last update`);
+      }
+      if (revisionDeltas.totalFunding && revisionDeltas.totalFunding.pct !== 0) {
+        revisionDeltaBullets.push(`Funding ${revisionDeltas.totalFunding.pct > 0 ? 'up' : 'down'} ${Math.abs(revisionDeltas.totalFunding.pct)}% vs previous revision`);
+      }
     }
 
     const topPattern = metrics.topPatterns[0];
@@ -878,24 +1095,35 @@ Rules:
       'Observing geographic expansion of AI funding beyond traditional hubs',
     ];
 
-    return { deltaBullets, executiveSummary, theme, builderLessons, whatWatching };
+    return { deltaBullets, revisionDeltaBullets, executiveSummary, theme, builderLessons, whatWatching };
   }
 
   // --------------------------------------------------------------------------
   // Methodology
   // --------------------------------------------------------------------------
 
-  function computeMethodology(): BriefSnapshot['methodology'] {
-    return {
-      bullets: [
-        'Metrics derived from tracked funding rounds and startup profiles in the BuildAtlas database',
-        'GenAI adoption determined by analysis pipeline examining company website, documentation, and product signals',
-        'Pattern prevalence calculated across all startups with completed analysis for this period',
-        'Top deals ranked by disclosed funding amount; undisclosed rounds excluded from aggregations',
-        'Geography based on startup headquarters location; investor geography may differ',
-        'Brief generated daily with incremental revision tracking',
-      ],
-    };
+  function computeMethodology(model?: string, promptVersion?: string): BriefSnapshot['methodology'] {
+    const bullets = [
+      'Metrics derived from tracked funding rounds and startup profiles in the BuildAtlas database',
+      'GenAI adoption determined by analysis pipeline examining company website, documentation, and product signals',
+      'Pattern prevalence calculated across all startups with completed analysis for this period',
+      'Top deals ranked by disclosed funding amount; undisclosed rounds excluded from aggregations',
+      'Geography based on startup headquarters location; investor geography may differ',
+      'Brief generated daily with incremental revision tracking',
+    ];
+    if (model) {
+      bullets.push(`Generated using ${model} (prompt ${promptVersion || 'unknown'})`);
+    }
+    return { bullets };
+  }
+
+  // --------------------------------------------------------------------------
+  // Signals hash — SHA-256 of sorted cluster IDs
+  // --------------------------------------------------------------------------
+
+  function computeSignalsHash(signals: SignalRef[]): string {
+    const ids = signals.map(s => s.clusterId).sort();
+    return crypto.createHash('sha256').update(JSON.stringify(ids)).digest('hex');
   }
 
   // --------------------------------------------------------------------------
@@ -909,11 +1137,11 @@ Rules:
     periodEnd: string;
     kind: string;
     metricsSnapshot: any;
-    deltasSnapshot: any;
     promptVersion: string;
+    signalsHash: string;
   }): string {
-    // Stable key ordering via sorted JSON
-    const sorted = JSON.stringify(inputs, Object.keys(inputs).sort());
+    // Stable key ordering via recursive sort
+    const sorted = JSON.stringify(sortKeysDeep(inputs));
     return crypto.createHash('sha256').update(sorted).digest('hex');
   }
 
@@ -931,6 +1159,30 @@ Rules:
       dateStr(edition.period_end), edition.kind,
     );
 
+    // Parse deltas envelope — support both new envelope and legacy flat format
+    const rawDeltas = revision.deltas_snapshot;
+    let periodDeltas: BriefSnapshotDeltas | null = null;
+    let revisionDeltas: BriefSnapshotDeltas | null = null;
+    let prevPeriodBounds: { periodStart: string; periodEnd: string; mtdAligned: boolean } | null = null;
+
+    if (rawDeltas && Object.keys(rawDeltas).length > 0) {
+      if (rawDeltas.vsPrevPeriod !== undefined) {
+        // New envelope format
+        if (rawDeltas.vsPrevPeriod) {
+          const { periodStart: ps, periodEnd: pe, mtdAligned, ...deltaFields } = rawDeltas.vsPrevPeriod;
+          periodDeltas = deltaFields;
+          prevPeriodBounds = ps ? { periodStart: ps, periodEnd: pe, mtdAligned: !!mtdAligned } : null;
+        }
+        if (rawDeltas.vsPrevRevision) {
+          const { prevRevisionId, prevGeneratedAt, ...deltaFields } = rawDeltas.vsPrevRevision;
+          revisionDeltas = deltaFields;
+        }
+      } else {
+        // Legacy flat format — treat whole object as period deltas
+        periodDeltas = rawDeltas;
+      }
+    }
+
     return {
       id: revision.id,
       editionId: edition.id,
@@ -946,11 +1198,14 @@ Rules:
 
       metrics: metricsData.metrics || {},
       prevPeriod: metricsData.prevPeriod || null,
-      deltas: revision.deltas_snapshot && Object.keys(revision.deltas_snapshot).length > 0
-        ? revision.deltas_snapshot : null,
+      deltas: periodDeltas,
+      revisionDeltas,
+      prevPeriodBounds,
       newsContext: computed.newsContext || null,
+      topSignals: revision.top_signal_refs?.signals || [],
 
       deltaBullets: content.delta_bullets || [],
+      revisionDeltaBullets: content.revision_delta_bullets || [],
       executiveSummary: content.executive_summary || '',
       theme: content.theme_title
         ? { name: content.theme_title, summaryBullets: content.theme_bullets || [] }
@@ -985,11 +1240,14 @@ Rules:
     const periodKey = derivePeriodKey(periodType, periodStart);
     const periodLabel = derivePeriodLabel(periodType, periodStart, periodEnd, kind);
 
-    // Resolve previous period for deltas
-    const bounds = resolvePeriodBounds(periodType, periodKey);
+    // Resolve previous period for deltas (MTD-aligned for rolling monthly)
+    const bounds = resolvePeriodBounds(
+      periodType, periodKey,
+      kind === 'rolling' && periodType === 'monthly' ? { periodEnd } : undefined,
+    );
 
     // 1. Compute all deterministic data in parallel
-    const [metrics, prevMetrics, topDeals, geography, investorsData, patternLandscape, spotlight, newsContext] = await Promise.all([
+    const [metrics, prevMetrics, topDeals, geography, investorsData, patternLandscape, spotlight, newsContext, signalResult] = await Promise.all([
       computeMetrics(region, periodKey, periodType, periodStart, periodEnd),
       computeMetrics(region, bounds.prevPeriodKey, periodType, bounds.prevPeriodStart, bounds.prevPeriodEnd),
       computeTopDeals(region, periodKey),
@@ -998,7 +1256,11 @@ Rules:
       computePatternLandscape(region, periodKey),
       computeSpotlight(region, periodKey),
       computeNewsContext(region, periodKey),
+      selectTopSignals(region, periodKey),
     ]);
+
+    const topSignals = signalResult.signals;
+    const signalsHash = computeSignalsHash(topSignals);
 
     const deltas = computeDeltas(metrics, prevMetrics);
 
@@ -1006,12 +1268,12 @@ Rules:
       metrics,
       prevPeriod: prevMetrics.dealCount > 0 ? prevMetrics : null,
     };
-    const deltasSnapshot = deltas || {};
 
-    // 2. Compute input hash
+    // 2. Compute input hash (deltas excluded — derived deterministically from metrics)
     const inputHash = computeInputHash({
       region, periodType, periodStart, periodEnd, kind,
-      metricsSnapshot, deltasSnapshot, promptVersion: PROMPT_VERSION,
+      metricsSnapshot, promptVersion: PROMPT_VERSION,
+      signalsHash,
     });
 
     // 3. Upsert edition and check hash — inside a transaction
@@ -1048,12 +1310,31 @@ Rules:
         }
       }
 
+      // 3c. Compute revision-vs-revision deltas
+      let revisionDeltas: BriefSnapshotDeltas | null = null;
+      let prevRevisionId: string | null = null;
+      let prevGeneratedAt: string | null = null;
+      if (latestRevisionId) {
+        const prevRev = await client.query(
+          'SELECT metrics_snapshot, id, generated_at FROM brief_revisions WHERE id = $1',
+          [latestRevisionId],
+        );
+        const prevMetricsData = prevRev.rows[0]?.metrics_snapshot?.metrics;
+        prevRevisionId = prevRev.rows[0]?.id || null;
+        prevGeneratedAt = prevRev.rows[0]?.generated_at instanceof Date
+          ? prevRev.rows[0].generated_at.toISOString()
+          : prevRev.rows[0]?.generated_at || null;
+        if (prevMetricsData && prevMetricsData.dealCount > 0) {
+          revisionDeltas = computeDeltas(metrics, prevMetricsData);
+        }
+      }
+
       // Release connection before LLM call — we'll re-acquire for the insert
       await client.query('COMMIT');
       client.release();
 
       // 4. Generate LLM sections OUTSIDE the transaction
-      const llmSections = await generateLLMSections(metrics, deltas, newsContext, periodLabel);
+      const llmSections = await generateLLMSections(metrics, deltas, newsContext, topSignals, periodLabel, revisionDeltas);
 
       const contentSections = {
         title: `${periodLabel} Intelligence Brief`,
@@ -1063,6 +1344,7 @@ Rules:
         implications: llmSections.builderLessons,
         what_were_watching: llmSections.whatWatching,
         delta_bullets: llmSections.deltaBullets,
+        revision_delta_bullets: llmSections.revisionDeltaBullets || [],
       };
 
       const fundingByStage = metrics.stageMix.map(s => ({
@@ -1077,7 +1359,27 @@ Rules:
         fundingByStage,
         spotlight,
         newsContext,
-        methodology: computeMethodology(),
+        methodology: computeMethodology(process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5-nano', PROMPT_VERSION),
+      };
+
+      const topSignalRefsPayload = {
+        signals: topSignals,
+        selectionMeta: signalResult.meta,
+      };
+
+      // Build deltas envelope
+      const deltasEnvelope = {
+        vsPrevPeriod: deltas ? {
+          ...deltas,
+          periodStart: bounds.prevPeriodStart,
+          periodEnd: bounds.prevPeriodEnd,
+          mtdAligned: bounds.mtdAligned,
+        } : null,
+        vsPrevRevision: revisionDeltas ? {
+          ...revisionDeltas,
+          prevRevisionId,
+          prevGeneratedAt,
+        } : null,
       };
 
       // 5. Insert revision inside a new transaction
@@ -1097,15 +1399,17 @@ Rules:
         const revResult = await client2.query(`
           INSERT INTO brief_revisions (
             edition_id, revision, input_hash, prompt_version, model,
-            metrics_snapshot, deltas_snapshot, content_sections, computed_sections
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            metrics_snapshot, deltas_snapshot, content_sections, computed_sections,
+            top_signal_refs
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING id
         `, [
           editionId, nextRev, inputHash, PROMPT_VERSION, model,
           JSON.stringify(metricsSnapshot),
-          JSON.stringify(deltasSnapshot),
+          JSON.stringify(deltasEnvelope),
           JSON.stringify(contentSections),
           JSON.stringify(computedSections),
+          JSON.stringify(topSignalRefsPayload),
         ]);
 
         const revisionId = revResult.rows[0].id;
@@ -1325,5 +1629,38 @@ Rules:
     listEditions,
     getRevisionHistory,
     resolvePeriodBounds,
+    // Exposed for testing
+    computeDeltas,
   };
+}
+
+// =============================================================================
+// Exported pure functions for testing
+// =============================================================================
+
+/** Compute percentage change between two numbers */
+export function pctChange(curr: number, prev: number): { value: number; pct: number } | null {
+  if (prev === 0) return curr !== 0 ? { value: curr, pct: 100 } : null;
+  return { value: curr - prev, pct: Math.round(((curr - prev) / prev) * 100) };
+}
+
+/** Compute SHA-256 of sorted cluster IDs for signal change detection */
+export function computeSignalsHashPure(signals: { clusterId: string }[]): string {
+  const ids = signals.map(s => s.clusterId).sort();
+  return crypto.createHash('sha256').update(JSON.stringify(ids)).digest('hex');
+}
+
+/** Compute SHA-256 input hash for idempotency */
+export function computeInputHashPure(inputs: {
+  region: string;
+  periodType: string;
+  periodStart: string;
+  periodEnd: string;
+  kind: string;
+  metricsSnapshot: any;
+  promptVersion: string;
+  signalsHash: string;
+}): string {
+  const sorted = JSON.stringify(sortKeysDeep(inputs));
+  return crypto.createHash('sha256').update(sorted).digest('hex');
 }

@@ -8,7 +8,18 @@ import { MonthSwitcher } from '@/components/ui/month-switcher';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { formatCurrency } from '@/lib/utils';
 import { normalizeDatasetRegion } from '@/lib/region';
-import type { BriefSnapshot } from '@startup-intelligence/shared';
+import type { BriefSnapshot, BriefSnapshotDeltas, SignalRef } from '@startup-intelligence/shared';
+
+function DeltaCell({ value, suffix = '%' }: { value?: number | null; suffix?: string }) {
+  if (value == null || value === 0) return <span className="text-muted-foreground/50">—</span>;
+  if (Math.abs(value) < 1) return <span className="text-muted-foreground/50">—</span>;
+  const color = value > 0 ? 'text-success' : 'text-destructive';
+  return (
+    <span className={`text-xs tabular-nums ${color}`}>
+      {value > 0 ? '+' : ''}{value}{suffix}
+    </span>
+  );
+}
 
 interface IntelligenceBriefProps {
   initialBrief: MonthlyBrief;
@@ -186,6 +197,7 @@ export function IntelligenceBrief({
   }, [validPeriod, brief.monthKey, regionKey]);
 
   const fadeClass = isLoading ? 'opacity-60' : 'opacity-100';
+  const periodDeltas = snapshot?.deltas ?? null;
 
   return (
     <div className={`space-y-12 transition-opacity duration-150 ${fadeClass}`}>
@@ -200,17 +212,22 @@ export function IntelligenceBrief({
       {/* Executive Summary */}
       <ExecutiveSummary summary={brief.executiveSummary} />
 
+      {/* Signals behind this brief */}
+      {snapshot?.topSignals && snapshot.topSignals.length > 0 && (
+        <SignalsBehindBrief signals={snapshot.topSignals} region={regionKey} />
+      )}
+
       {/* By the Numbers */}
-      <MetricsSection metrics={brief.metrics} region={regionKey} />
+      <MetricsSection metrics={brief.metrics} region={regionKey} periodDeltas={periodDeltas} />
 
       {/* This Month's Theme */}
       <ThemeSection theme={brief.theme} />
 
       {/* Pattern Landscape */}
-      <PatternLandscape patterns={brief.patternLandscape} region={regionKey} />
+      <PatternLandscape patterns={brief.patternLandscape} region={regionKey} patternShifts={periodDeltas?.patternShifts} />
 
       {/* Market Landscape - Funding by Stage */}
-      <FundingByStageSection stages={brief.fundingByStage} />
+      <FundingByStageSection stages={brief.fundingByStage} stageShifts={periodDeltas?.stageShifts} />
 
       {/* Top Deals */}
       <TopDealsSection deals={brief.topDeals} region={regionKey} />
@@ -303,7 +320,7 @@ function ExecutiveSummary({ summary }: { summary: string }) {
   );
 }
 
-function MetricsSection({ metrics, region }: { metrics: MonthlyBrief['metrics']; region: string }) {
+function MetricsSection({ metrics, region, periodDeltas }: { metrics: MonthlyBrief['metrics']; region: string; periodDeltas?: BriefSnapshotDeltas | null }) {
   return (
     <section className="section">
       <div className="section-header">
@@ -319,18 +336,21 @@ function MetricsSection({ metrics, region }: { metrics: MonthlyBrief['metrics'];
           <KpiCard
             label="Total Funding"
             value={formatCurrency(metrics.totalFunding, true)}
+            trend={periodDeltas?.totalFunding ? { value: periodDeltas.totalFunding.pct, isPositive: periodDeltas.totalFunding.pct > 0 } : undefined}
           />
         </Link>
         <Link href={withRegionHref('/dealbook', region)}>
           <KpiCard
             label="Total Deals"
             value={metrics.totalDeals.toString()}
+            trend={periodDeltas?.dealCount ? { value: periodDeltas.dealCount.pct, isPositive: periodDeltas.dealCount.pct > 0 } : undefined}
           />
         </Link>
         <Link href={withRegionHref('/dealbook?sortBy=funding&sortOrder=desc', region)}>
           <KpiCard
             label="Average Deal"
             value={formatCurrency(metrics.avgDeal, true)}
+            trend={periodDeltas?.avgDeal ? { value: periodDeltas.avgDeal.pct, isPositive: periodDeltas.avgDeal.pct > 0 } : undefined}
           />
         </Link>
         <Link href={withRegionHref('/dealbook?sortBy=funding&sortOrder=desc', region)}>
@@ -355,6 +375,7 @@ function MetricsSection({ metrics, region }: { metrics: MonthlyBrief['metrics'];
           <KpiCard
             label="GenAI Adoption"
             value={`${metrics.genaiAdoptionPct}%`}
+            trend={periodDeltas?.genaiAdoptionRate ? { value: periodDeltas.genaiAdoptionRate.ppChange, isPositive: periodDeltas.genaiAdoptionRate.ppChange > 0, suffix: 'pp' } : undefined}
           />
         </Link>
       </div>
@@ -370,6 +391,11 @@ function MetricsSection({ metrics, region }: { metrics: MonthlyBrief['metrics'];
               <th className="text-right py-2 text-muted-foreground font-medium">
                 Value
               </th>
+              {periodDeltas && (
+                <th className="text-right py-2 text-muted-foreground font-medium">
+                  vs Prev
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -378,22 +404,32 @@ function MetricsSection({ metrics, region }: { metrics: MonthlyBrief['metrics'];
               <td className="text-right tabular-nums">
                 {formatCurrency(metrics.totalFunding, true)}
               </td>
+              {periodDeltas && (
+                <td className="text-right"><DeltaCell value={periodDeltas.totalFunding?.pct} /></td>
+              )}
             </tr>
             <tr className="border-b border-border/20">
               <td className="py-2">Total Deals</td>
               <td className="text-right tabular-nums">{metrics.totalDeals}</td>
+              {periodDeltas && (
+                <td className="text-right"><DeltaCell value={periodDeltas.dealCount?.pct} /></td>
+              )}
             </tr>
             <tr className="border-b border-border/20">
               <td className="py-2">Average Deal Size</td>
               <td className="text-right tabular-nums">
                 {formatCurrency(metrics.avgDeal, true)}
               </td>
+              {periodDeltas && (
+                <td className="text-right"><DeltaCell value={periodDeltas.avgDeal?.pct} /></td>
+              )}
             </tr>
             <tr className="border-b border-border/20">
               <td className="py-2">Median Deal Size</td>
               <td className="text-right tabular-nums">
                 {formatCurrency(metrics.medianDeal, true)}
               </td>
+              {periodDeltas && <td className="text-right"><DeltaCell value={null} /></td>}
             </tr>
             <tr className="border-b border-border/20">
               <td className="py-2">Largest Deal</td>
@@ -401,12 +437,16 @@ function MetricsSection({ metrics, region }: { metrics: MonthlyBrief['metrics'];
                 {formatCurrency(metrics.largestDeal.amount, true)} (
                 {metrics.largestDeal.company})
               </td>
+              {periodDeltas && <td className="text-right"><DeltaCell value={null} /></td>}
             </tr>
             <tr>
               <td className="py-2">GenAI Adoption Rate</td>
               <td className="text-right tabular-nums">
                 {metrics.genaiAdoptionPct}%
               </td>
+              {periodDeltas && (
+                <td className="text-right"><DeltaCell value={periodDeltas.genaiAdoptionRate?.ppChange} suffix="pp" /></td>
+              )}
             </tr>
           </tbody>
         </table>
@@ -441,12 +481,15 @@ function ThemeSection({ theme }: { theme: MonthlyBrief['theme'] }) {
 function PatternLandscape({
   patterns,
   region,
+  patternShifts,
 }: {
   patterns: MonthlyBrief['patternLandscape'];
   region: string;
+  patternShifts?: BriefSnapshotDeltas['patternShifts'];
 }) {
   // Top 3 signals for callout cards
   const topSignals = patterns.slice(0, 3);
+  const shiftMap = patternShifts ? new Map(patternShifts.map(s => [s.pattern, s.deltaPp])) : null;
 
   return (
     <section className="section">
@@ -468,6 +511,11 @@ function PatternLandscape({
               <th className="text-right py-2 text-muted-foreground font-medium">
                 Prevalence
               </th>
+              {shiftMap && (
+                <th className="text-right py-2 text-muted-foreground font-medium hidden md:table-cell">
+                  Shift
+                </th>
+              )}
               <th className="text-right py-2 text-muted-foreground font-medium">
                 Startups
               </th>
@@ -481,6 +529,11 @@ function PatternLandscape({
               <tr key={i} className="border-b border-border/20">
                 <td className="py-3 font-medium">{p.pattern}</td>
                 <td className="text-right tabular-nums">{p.prevalencePct}%</td>
+                {shiftMap && (
+                  <td className="text-right hidden md:table-cell">
+                    <DeltaCell value={shiftMap.get(p.pattern)} suffix="pp" />
+                  </td>
+                )}
                 <td className="text-right tabular-nums">{p.startupCount}</td>
                 <td className="text-left pl-6 text-muted-foreground hidden md:table-cell">
                   {p.signal}
@@ -512,10 +565,13 @@ function PatternLandscape({
 
 function FundingByStageSection({
   stages,
+  stageShifts,
 }: {
   stages: MonthlyBrief['fundingByStage'];
+  stageShifts?: BriefSnapshotDeltas['stageShifts'];
 }) {
   const maxAmount = Math.max(...stages.map(s => s.amount));
+  const shiftMap = stageShifts ? new Map(stageShifts.map(s => [s.stage, s.deltaPp])) : null;
 
   return (
     <section className="section">
@@ -541,6 +597,11 @@ function FundingByStageSection({
             <span className="w-16 text-xs text-muted-foreground text-right">
               {stage.deals} deals
             </span>
+            {shiftMap && (
+              <span className="w-12 text-right">
+                <DeltaCell value={shiftMap.get(stage.stage)} suffix="pp" />
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -944,6 +1005,49 @@ function MethodologySection({
           </ul>
         </div>
       )}
+    </section>
+  );
+}
+
+function SignalsBehindBrief({ signals, region }: { signals: SignalRef[]; region: string }) {
+  if (!signals || signals.length === 0) return null;
+
+  return (
+    <section className="section">
+      <div className="section-header">
+        <span className="section-title">Signals behind this brief</span>
+        <Link href={withRegionHref('/news', region)} className="section-link">
+          Full radar
+        </Link>
+      </div>
+      <p className="text-xs text-muted-foreground mb-4">
+        The top news signals that informed this brief&apos;s narrative and analysis.
+      </p>
+      <div className="space-y-3">
+        {signals.map((signal) => (
+          <div key={signal.clusterId} className="p-4 border border-border/30 rounded-lg">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{signal.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">{signal.builderTakeaway}</p>
+              </div>
+              <span className="text-[10px] text-muted-foreground shrink-0 uppercase tracking-wider">
+                {signal.storyType}
+              </span>
+            </div>
+            {signal.linkedSlugs.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {signal.linkedSlugs.slice(0, 3).map((slug) => (
+                  <Link key={slug} href={withRegionHref(`/company/${slug}`, region)}
+                    className="text-[10px] px-1.5 py-0.5 bg-muted/50 rounded text-muted-foreground hover:text-accent-info transition-colors">
+                    {slug}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

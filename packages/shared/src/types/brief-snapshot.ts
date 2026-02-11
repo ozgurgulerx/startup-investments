@@ -36,6 +36,17 @@ export interface BriefNewsContext {
   topEntities: Array<{ name: string; factCount: number; latestFact: string }>;
 }
 
+export interface SignalRef {
+  clusterId: string;
+  title: string;
+  summary: string;
+  storyType: string;
+  builderTakeaway: string;
+  signalScore: number;
+  linkedSlugs: string[];
+  publishedAt: string;
+}
+
 export interface BriefSnapshot {
   id: string;
   editionId?: string;
@@ -52,10 +63,14 @@ export interface BriefSnapshot {
   metrics: BriefSnapshotMetrics;
   prevPeriod: BriefSnapshotMetrics | null;
   deltas: BriefSnapshotDeltas | null;
+  revisionDeltas: BriefSnapshotDeltas | null;
+  prevPeriodBounds: { periodStart: string; periodEnd: string; mtdAligned: boolean } | null;
   newsContext: BriefNewsContext | null;
+  topSignals: SignalRef[];
 
   // LLM sections
   deltaBullets: string[];
+  revisionDeltaBullets: string[];
   executiveSummary: string;
   theme: { name: string; summaryBullets: string[] };
   builderLessons: Array<{ title: string; text: string; howToApply?: string }>;

@@ -362,6 +362,12 @@ export function makeNewsService(pool: Pool) {
           FROM news_daily_editions e,
           unnest(e.top_cluster_ids) WITH ORDINALITY AS u(cluster_id, ord)
           WHERE e.edition_date = $1::date AND e.region = $2
+        ),
+        deduped AS (
+          SELECT DISTINCT ON (c.canonical_url) o.cluster_id, o.ord
+          FROM ordered o
+          JOIN news_clusters c ON c.id = o.cluster_id
+          ORDER BY c.canonical_url, o.ord ASC
         )
         SELECT
           c.id::text AS id,
@@ -391,7 +397,7 @@ export function makeNewsService(pool: Pool) {
           COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources,
           nie.linked_entities_json
-        FROM ordered o
+        FROM deduped o
         JOIN news_clusters c ON c.id = o.cluster_id
         LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
         LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
@@ -414,6 +420,12 @@ export function makeNewsService(pool: Pool) {
             FROM news_daily_editions e,
             unnest(e.top_cluster_ids) WITH ORDINALITY AS u(cluster_id, ord)
             WHERE e.edition_date = $1::date
+          ),
+          deduped AS (
+            SELECT DISTINCT ON (c.canonical_url) o.cluster_id, o.ord
+            FROM ordered o
+            JOIN news_clusters c ON c.id = o.cluster_id
+            ORDER BY c.canonical_url, o.ord ASC
           )
           SELECT
             c.id::text AS id,
@@ -443,7 +455,7 @@ export function makeNewsService(pool: Pool) {
             COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
             ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources,
             nie.linked_entities_json
-          FROM ordered o
+          FROM deduped o
           JOIN news_clusters c ON c.id = o.cluster_id
           LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
           LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id

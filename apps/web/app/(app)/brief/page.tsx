@@ -44,6 +44,15 @@ async function BriefContent({
   if (snapshot) {
     const m = snapshot.metrics;
 
+    // Compute revision delta highlight for header strip
+    const revDelta = snapshot.revisionDeltas;
+    const deltaHighlight = revDelta
+      ? [
+          revDelta.totalFunding ? `Funding ${revDelta.totalFunding.pct > 0 ? '+' : ''}${revDelta.totalFunding.pct}%` : null,
+          revDelta.dealCount ? `${Math.abs(revDelta.dealCount.value)} new deal${Math.abs(revDelta.dealCount.value) !== 1 ? 's' : ''}` : null,
+        ].filter(Boolean).join(', ') || null
+      : null;
+
     return (
       <>
         {/* Edition selector */}
@@ -59,6 +68,8 @@ async function BriefContent({
           generatedAt={snapshot.generatedAt}
           periodLabel={snapshot.periodLabel}
           revisionNumber={snapshot.revisionNumber}
+          revisionDelta={deltaHighlight}
+          kind={snapshot.kind}
         />
 
         {/* Signal Strip — metrics from snapshot (consistent) */}
@@ -77,7 +88,7 @@ async function BriefContent({
         />
 
         {/* Delta Bullets — "What Changed" section */}
-        <BriefDeltaSection bullets={snapshot.deltaBullets} />
+        <BriefDeltaSection bullets={snapshot.deltaBullets} revisionBullets={snapshot.revisionDeltaBullets} />
 
         {/* Main Brief — rendered from snapshot via adapter */}
         <IntelligenceBrief

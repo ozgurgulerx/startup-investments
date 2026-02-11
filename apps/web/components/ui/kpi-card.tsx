@@ -11,6 +11,7 @@ export interface KpiCardProps {
   trend?: {
     value: number;
     isPositive?: boolean;
+    suffix?: string;
   };
   onClick?: () => void;
   className?: string;
@@ -56,7 +57,7 @@ export function KpiCard({
               )}
             >
               {trend.isPositive ? '+' : ''}
-              {trend.value}% vs prev
+              {trend.value}{trend.suffix || '%'} vs prev
             </p>
           )}
         </div>
