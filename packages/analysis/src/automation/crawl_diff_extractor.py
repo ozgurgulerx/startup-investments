@@ -20,6 +20,8 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from .event_extractor import compute_event_key
+
 if TYPE_CHECKING:
     import asyncpg
 
@@ -277,14 +279,15 @@ async def persist_crawl_diff_events(
     inserted = 0
     for evt in events:
         registry_id = registry.get(evt.event_type)
+        event_key = compute_event_key(evt.event_type, evt.metadata)
         try:
             await conn.execute(
                 """INSERT INTO startup_events
                        (startup_id, event_type, event_title, event_content,
                         event_registry_id, confidence, source_type,
-                        metadata_json, region)
+                        metadata_json, region, event_key, effective_date)
                    VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, 'crawl_diff',
-                           $7::jsonb, 'global')""",
+                           $7::jsonb, 'global', $8, CURRENT_DATE)""",
                 evt.startup_id,
                 evt.event_type,
                 evt.snippet[:255] if evt.snippet else None,
@@ -292,6 +295,7 @@ async def persist_crawl_diff_events(
                 registry_id,
                 evt.confidence,
                 json.dumps(evt.metadata),
+                event_key,
             )
             inserted += 1
         except Exception:
