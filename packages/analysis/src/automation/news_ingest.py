@@ -5095,9 +5095,15 @@ class DailyNewsIngestor:
 
             except Exception as exc:
                 print(f"[gating:{region}] Failed for cluster {cluster.cluster_key}: {exc}")
-                # Default: let it through to LLM (publish)
+                # Default: let it through to LLM (publish) with zero scores
+                # so _persist_gating_decisions creates a row for post-gate editorial updates
                 cluster.gating_decision = "publish"
                 cluster.gating_reason = f"Gating error: {exc}"
+                cluster.gating_scores = {
+                    "builder_insight": 0, "pattern_novelty": 0,
+                    "gtm_uniqueness": 0, "evidence_quality": 0,
+                    "composite": 0.0,
+                }
                 decision_counts["publish"] = decision_counts.get("publish", 0) + 1
 
         # Update pattern/GTM counts for accumulate+ tiers
@@ -6152,6 +6158,7 @@ class DailyNewsIngestor:
                     excluded_cluster_ids=rejected_global,
                     raw_lookup=raw_lookup,
                 )
+                self._signal_aggregator = _sig_agg_turkey
                 turkey_stats = await self._persist_edition(
                     conn,
                     edition_date=e_date,
@@ -6161,6 +6168,7 @@ class DailyNewsIngestor:
                     excluded_cluster_ids=rejected_turkey,
                     raw_lookup=raw_lookup,
                 )
+                self._signal_aggregator = _sig_agg_global
 
                 # --- Generate editorial rule suggestions from accumulated rejections ---
                 try:

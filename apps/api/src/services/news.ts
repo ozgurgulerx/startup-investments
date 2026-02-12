@@ -1507,9 +1507,18 @@ export function makeNewsService(pool: Pool) {
     let idx = 2;
 
     if (params.cursor) {
-      conditions.push(`se.effective_date < $${idx}::date`);
-      values.push(params.cursor);
-      idx++;
+      const cursorParts = params.cursor.split('|');
+      if (cursorParts.length === 2) {
+        // Compound cursor: date|id — handles same-day pagination
+        conditions.push(`(se.effective_date < $${idx}::date OR (se.effective_date = $${idx}::date AND se.id < $${idx + 1}::uuid))`);
+        values.push(cursorParts[0], cursorParts[1]);
+        idx += 2;
+      } else {
+        // Legacy date-only cursor for backward compat
+        conditions.push(`se.effective_date < $${idx}::date`);
+        values.push(params.cursor);
+        idx++;
+      }
     }
     if (params.domain) {
       conditions.push(`er.domain = $${idx}`);
@@ -1567,8 +1576,9 @@ export function makeNewsService(pool: Pool) {
         has_more: hasMore,
       });
 
-      const next_cursor = hasMore && events.length > 0
-        ? events[events.length - 1].effective_date
+      const lastEvent = hasMore && events.length > 0 ? events[events.length - 1] : null;
+      const next_cursor = lastEvent
+        ? `${lastEvent.effective_date}|${lastEvent.id}`
         : null;
 
       return { events, next_cursor };

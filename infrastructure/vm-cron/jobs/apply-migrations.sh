@@ -54,6 +54,8 @@ SETS = {
         "042_event_key_discriminator.sql",
         # Event-driven refresh jobs — boost frontier priority for startups with news events
         "043_startup_refresh_jobs.sql",
+        # Event timeline effective_date column
+        "043_effective_date.sql",
         # Startup merge infrastructure — adds onboarding_status (used by memory_gate.py)
         "046_startup_merge_infrastructure.sql",
     ],
@@ -77,6 +79,8 @@ SETS = {
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
         "027_subscriber_timezone.sql",
+        # Event timeline effective_date column
+        "043_effective_date.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",
