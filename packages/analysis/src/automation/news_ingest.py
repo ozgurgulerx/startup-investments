@@ -5741,7 +5741,7 @@ class DailyNewsIngestor:
             edition_date,
             region,
         )
-        for c in clusters:
+        for c in top:
             cid = cluster_ids.get(c.cluster_key)
             if not cid:
                 continue
@@ -6037,7 +6037,9 @@ class DailyNewsIngestor:
                 if self._regional_clusters_supported:
                     cluster_ids_turkey = await self._persist_clusters(conn, turkey_clusters, region="turkey", raw_lookup=raw_lookup)
                 else:
-                    cluster_ids_turkey = cluster_ids_global
+                    cluster_ids_turkey = {}
+                    turkey_clusters = []
+                    print("[news-ingest] regional clusters not supported, skipping turkey pipeline")
 
                 # Persist memory gate results per-region
                 mem_facts_global = await self._persist_memory_results(conn, clusters, cluster_ids_global, region="global")
@@ -6049,26 +6051,9 @@ class DailyNewsIngestor:
                 gating_persisted_turkey = await self._persist_gating_decisions(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
                 gating_stats["decisions_persisted"] = gating_persisted_global + gating_persisted_turkey
 
-                # --- Extract structured events from clusters ---
-                events_global = await self._extract_events(conn, clusters, cluster_ids_global, region="global")
-                events_turkey = await self._extract_events(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
-                event_extraction_total = events_global + events_turkey
-                if event_extraction_total > 0:
-                    print(f"[events] extracted {events_global} global + {events_turkey} turkey structured events")
-
-                # --- Enqueue hot topics for async research ---
-                research_enqueued = await self._enqueue_hot_topic_research(
-                    conn, clusters, cluster_ids_global, region="global"
-                )
-                research_enqueued_tr = await self._enqueue_hot_topic_research(
-                    conn, turkey_clusters, cluster_ids_turkey, region="turkey"
-                )
-
-                # --- Embed clusters (non-blocking) ---
-                embed_stats = await self._embed_clusters(conn, clusters, cluster_ids_global)
-                related_count = await self._populate_related_clusters(conn, cluster_ids_global)
-
                 # --- Editorial post-gating: force-drop clusters matching editorial rules ---
+                # Runs BEFORE events/research/embedding so dropped clusters don't
+                # get persisted events, research queue items, or embeddings.
                 if _ed_engine_global.loaded:
                     ed_post_excluded = 0
                     for c in clusters:
@@ -6087,6 +6072,35 @@ class DailyNewsIngestor:
                         if reason:
                             c.gating_decision = "drop"
                             c.gating_reason = f"editorial: {reason}"
+
+                # Build filtered lists excluding editorially-dropped clusters
+                non_dropped_global = [
+                    c for c in clusters
+                    if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                ]
+                non_dropped_turkey = [
+                    c for c in turkey_clusters
+                    if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                ]
+
+                # --- Extract structured events from clusters ---
+                events_global = await self._extract_events(conn, non_dropped_global, cluster_ids_global, region="global")
+                events_turkey = await self._extract_events(conn, non_dropped_turkey, cluster_ids_turkey, region="turkey")
+                event_extraction_total = events_global + events_turkey
+                if event_extraction_total > 0:
+                    print(f"[events] extracted {events_global} global + {events_turkey} turkey structured events")
+
+                # --- Enqueue hot topics for async research ---
+                research_enqueued = await self._enqueue_hot_topic_research(
+                    conn, non_dropped_global, cluster_ids_global, region="global"
+                )
+                research_enqueued_tr = await self._enqueue_hot_topic_research(
+                    conn, non_dropped_turkey, cluster_ids_turkey, region="turkey"
+                )
+
+                # --- Embed clusters (non-blocking) ---
+                embed_stats = await self._embed_clusters(conn, non_dropped_global, cluster_ids_global)
+                related_count = await self._populate_related_clusters(conn, cluster_ids_global)
 
                 # Load admin-rejected cluster IDs to exclude from editions
                 rejected_global = await load_rejected_cluster_ids(conn, "global")
