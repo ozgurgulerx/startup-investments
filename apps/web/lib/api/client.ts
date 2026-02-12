@@ -398,6 +398,11 @@ export interface SignalItem {
   explain?: SignalExplain;
   explain_generated_at?: string;
   evidence_timeline?: number[];
+  evidence_timeline_meta?: {
+    bin_count: number;
+    timeline_start: string;
+    timeline_end: string;
+  };
 }
 
 export interface SignalsSummaryResponse {

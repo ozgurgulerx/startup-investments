@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock, ChevronRight, Info, Bell } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock, ChevronRight, Info, Bell, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { PatternCohortTable } from '@/components/features/pattern-cohort-table';
 import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
@@ -202,14 +203,16 @@ function FollowButton({
 // Notification pill
 // ---------------------------------------------------------------------------
 
-function NotificationPill({ count, onClick }: { count: number; onClick: () => void }) {
+function NotificationPill({ count, onDismiss }: { count: number; onDismiss: () => void }) {
   if (count <= 0) return null;
   return (
     <button
-      onClick={onClick}
-      className="px-2.5 py-1 text-[11px] rounded-full bg-accent-info/10 text-accent-info border border-accent-info/25 animate-in fade-in-0 duration-300"
+      onClick={onDismiss}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-full bg-accent-info/10 text-accent-info border border-accent-info/25 animate-in fade-in-0 duration-300 hover:bg-accent-info/15 transition-colors"
+      aria-label="Dismiss new signals notification"
     >
       {count} new
+      <X className="w-3 h-3" />
     </button>
   );
 }
@@ -218,11 +221,15 @@ function NotificationPill({ count, onClick }: { count: number; onClick: () => vo
 // Sparkline (raw SVG, no library)
 // ---------------------------------------------------------------------------
 
-function Sparkline({ data }: { data: number[] }) {
+function Sparkline({ data, meta }: { data: number[]; meta?: { timeline_start: string; timeline_end: string } }) {
   const max = Math.max(...data, 1);
   const points = data.map((v, i) => `${i * 8},${16 - (v / max) * 14}`).join(' ');
+  const tooltip = meta?.timeline_start && meta?.timeline_end
+    ? `Evidence trend: ${meta.timeline_start} — ${meta.timeline_end}`
+    : 'Evidence trend (30 days)';
   return (
-    <svg viewBox="0 0 56 16" className="w-14 h-4" aria-hidden="true">
+    <svg viewBox="0 0 56 16" className="w-14 h-4" aria-label={tooltip} role="img">
+      <title>{tooltip}</title>
       <polyline
         points={points}
         fill="none"
@@ -289,7 +296,7 @@ function SignalCard({
           {domainLabel}
         </span>
         {signal.evidence_timeline && signal.evidence_timeline.length > 0 && (
-          <Sparkline data={signal.evidence_timeline} />
+          <Sparkline data={signal.evidence_timeline} meta={signal.evidence_timeline_meta} />
         )}
         <span className="text-[9px] text-muted-foreground/40 ml-auto flex items-center gap-0.5">
           <Clock className="w-2.5 h-2.5" />
@@ -473,6 +480,11 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   const { data: session } = useSession();
   const isAuthenticated = !!session?.user?.id;
   const { stats } = dynamicSignals;
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // URL-persisted selection (2.1)
+  const selectedId = searchParams.get('id');
 
   // Build initial flat list from summary (all three arrays)
   const initialSignals = useMemo(() => {
@@ -495,8 +507,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   const [fetchedSignals, setFetchedSignals] = useState<SignalItem[] | null>(null);
   const [listLoading, setListLoading] = useState(false);
 
-  // Selection
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Mobile sheet
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   // Evidence drawer
@@ -519,10 +530,9 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       .catch(() => {});
   }, [isAuthenticated]);
 
-  // Fetch "new since last visit" count (auth-gated)
+  // Fetch "new since last visit" count (auth-gated, no auto-mark-seen)
   useEffect(() => {
     if (!isAuthenticated || !session?.user) return;
-    // Use a stored timestamp; the user object may have last_seen_signals_at
     const lastSeen = (session.user as any).last_seen_signals_at;
     if (!lastSeen) return;
 
@@ -535,9 +545,6 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
         if (data.new_count) setNewCount(data.new_count);
       })
       .catch(() => {});
-
-    // Mark signals as seen
-    fetch('/api/signals/seen', { method: 'PATCH' }).catch(() => {});
   }, [isAuthenticated, session, region]);
 
   const handleToggleFollow = useCallback((signalId: string) => {
@@ -630,19 +637,21 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
     return STATUS_ORDER.filter(s => groupedSignals[s]?.length);
   }, [groupedSignals]);
 
-  // Auto-select first signal
+  // Auto-select first signal only when no ?id= param present
   useEffect(() => {
     if (signals.length > 0 && (!selectedId || !signals.find(s => s.id === selectedId))) {
-      setSelectedId(signals[0].id);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('id', signals[0].id);
+      router.replace(`?${params.toString()}`, { scroll: false });
     }
-  }, [signals, selectedId]);
+  }, [signals, selectedId, searchParams, router]);
 
   const handleSelectSignal = useCallback((id: string) => {
-    setSelectedId(id);
-    if (!isDesktop) {
-      setMobileSheetOpen(true);
-    }
-  }, [isDesktop]);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('id', id);
+    router.replace(`?${params.toString()}`, { scroll: false });
+    if (!isDesktop) setMobileSheetOpen(true);
+  }, [searchParams, router, isDesktop]);
 
   const selectedSignal = useMemo(
     () => signals.find(s => s.id === selectedId),
@@ -682,7 +691,10 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
         </div>
         {isAuthenticated && newCount > 0 && (
           <div className="pt-1">
-            <NotificationPill count={newCount} onClick={() => setNewCount(0)} />
+            <NotificationPill count={newCount} onDismiss={() => {
+              fetch('/api/signals/seen', { method: 'PATCH' }).catch(() => {});
+              setNewCount(0);
+            }} />
           </div>
         )}
       </div>
@@ -782,9 +794,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
                 signalId={selectedId}
                 listSignal={selectedSignal}
                 allSignals={signals}
-                onSelectSignal={(id) => {
-                  setSelectedId(id);
-                }}
+                onSelectSignal={handleSelectSignal}
               />
             ) : (
               <InspectorEmpty />

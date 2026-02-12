@@ -526,7 +526,13 @@ class SignalEngine:
                 len(candidate.unique_companies),
                 json.dumps(candidate.metadata),
             )
-        return row["id"]
+
+        signal_id = row["id"]
+
+        # Emit signal_updates row for 'created'
+        await self._emit_signal_update(conn, signal_id, "created")
+
+        return signal_id
 
     async def _attach_evidence(
         self,
@@ -579,7 +585,8 @@ class SignalEngine:
     async def score_signals(self, conn: "asyncpg.Connection", region: str) -> int:
         """Recompute scores for all non-decaying signals."""
         signals = await conn.fetch(
-            """SELECT id::text, evidence_count, unique_company_count, first_seen_at
+            """SELECT id::text, evidence_count, unique_company_count, first_seen_at,
+                      domain, metadata_json
                FROM signals
                WHERE region = $1""",
             region,
@@ -588,6 +595,12 @@ class SignalEngine:
         now = datetime.now(timezone.utc)
         recent_cutoff = now - timedelta(days=SCORING_LOOKBACK_DAYS)
         prev_cutoff = recent_cutoff - timedelta(days=SCORING_LOOKBACK_DAYS)
+        # Domain signal counts for rarity weighting (batch 3.2)
+        domain_counts: Dict[str, int] = {}
+        total_signals = len(signals)
+        for sig in signals:
+            d = sig["domain"] or "architecture"
+            domain_counts[d] = domain_counts.get(d, 0) + 1
 
         scored = 0
         for sig in signals:
@@ -638,7 +651,6 @@ class SignalEngine:
                 amt = self._parse_funding_amount(meta.get("funding_amount", ""))
                 if amt:
                     funding_amounts.append(amt)
-                # Check enterprise/hyperscaler keywords in snippet
                 snippet = meta.get("snippet", "").lower()
                 if "enterprise" in snippet:
                     has_enterprise = True
@@ -666,24 +678,43 @@ class SignalEngine:
             )
             distinct_sources = ev_source_row["src_cnt"] if ev_source_row else 1
 
-            # Compute scores
+            # Compute conviction with rarity bonus (3.2)
             conviction = compute_conviction(
                 sig["unique_company_count"], source_diversity, sig["evidence_count"]
             )
-            # Diversity bonus: reward signals backed by independent source types
             diversity_multiplier = min(1.3, 1 + 0.1 * (distinct_sources - 1))
             conviction = min(1.0, conviction * diversity_multiplier)
 
-            momentum = compute_momentum(recent_count, prev_count)
+            # Rarity bonus: signals in less-populated domains get small boost
+            sig_domain = sig["domain"] or "architecture"
+            domain_count = domain_counts.get(sig_domain, 1)
+            if total_signals > 0:
+                rarity_bonus = 0.1 * (1.0 - domain_count / total_signals)
+            else:
+                rarity_bonus = 0.0
+            conviction = min(1.0, conviction + rarity_bonus)
+
+            # Momentum with EMA smoothing (3.1)
+            raw_momentum = compute_momentum(recent_count, prev_count)
+
+            # Load prev_momentum from metadata for EMA
+            metadata = json.loads(sig["metadata_json"]) if sig["metadata_json"] else {}
+            old_momentum = metadata.get("prev_momentum")
+            old_conviction = metadata.get("prev_conviction")
+
+            alpha = 0.3
+            if old_momentum is not None:
+                momentum = alpha * raw_momentum + (1 - alpha) * float(old_momentum)
+            else:
+                momentum = raw_momentum
+            momentum = max(-1.0, min(1.0, momentum))
+
             impact_score = compute_impact(funding_amounts, has_enterprise, has_hyperscaler)
             velocity = compute_adoption_velocity(dates)
 
-            # Persist prev_momentum in metadata for lifecycle decay detection
-            meta_row = await conn.fetchrow(
-                "SELECT metadata_json FROM signals WHERE id = $1::uuid", signal_id
-            )
-            metadata = json.loads(meta_row["metadata_json"]) if meta_row and meta_row["metadata_json"] else {}
+            # Persist smoothed values in metadata
             metadata["prev_momentum"] = round(momentum, 4)
+            metadata["prev_conviction"] = round(conviction, 4)
 
             await conn.execute(
                 """UPDATE signals SET
@@ -694,6 +725,20 @@ class SignalEngine:
                 signal_id, round(conviction, 4), round(momentum, 4),
                 round(impact_score, 4), round(velocity, 4), json.dumps(metadata),
             )
+
+            # Emit score_change update if significant change
+            if old_momentum is not None:
+                momentum_delta = abs(momentum - float(old_momentum))
+                conviction_delta = abs(conviction - float(old_conviction)) if old_conviction is not None else 0
+                if momentum_delta > 0.2 or conviction_delta > 0.15:
+                    await self._emit_signal_update(
+                        conn, signal_id, "score_change",
+                        metadata_json={
+                            "momentum_delta": round(momentum_delta, 4),
+                            "conviction_delta": round(conviction_delta, 4),
+                        },
+                    )
+
             scored += 1
 
         logger.info("[signals:%s] Scored %d signals", region, scored)
@@ -741,6 +786,13 @@ class SignalEngine:
                        WHERE id = $1::uuid""",
                     sig["id"], new_status, json.dumps(metadata),
                 )
+
+                # Emit signal_updates row for status change
+                await self._emit_signal_update(
+                    conn, sig["id"], "status_change",
+                    old_value=old_status, new_value=new_status,
+                )
+
                 transitions += 1
                 logger.info("Signal %s: %s → %s", sig["id"][:8], old_status, new_status)
 
@@ -903,6 +955,14 @@ class SignalEngine:
     # 6. Explain JSON + Evidence Timeline (zero LLM cost)
     # ------------------------------------------------------------------
 
+    DEFINITION_TEMPLATES: Dict[str, str] = {
+        "architecture": "A technical infrastructure pattern where {claim_summary}",
+        "gtm": "A go-to-market strategy where {claim_summary}",
+        "capital": "A funding pattern where {claim_summary}",
+        "org": "An organizational pattern where {claim_summary}",
+        "product": "A product development approach where {claim_summary}",
+    }
+
     DOMAIN_RISK_TEMPLATES: Dict[str, str] = {
         "architecture": "Technical complexity may slow adoption; lock-in risk if pattern becomes unfashionable",
         "gtm": "Market conditions may shift; messaging that resonates today may not in 6 months",
@@ -935,15 +995,21 @@ class SignalEngine:
         """Build explain_json and evidence_timeline for all signals (zero LLM cost).
 
         explain_json is template-derived from existing data:
-          - definition from claim text + domain
+          - definition from claim text + domain (using DEFINITION_TEMPLATES)
           - why from status + momentum
           - examples from top company names in evidence
           - risk from domain templates
           - time_horizon from domain
           - top_evidence from evidence snippets
 
-        evidence_timeline is an 8-bin histogram of evidence counts over 30 days.
+        evidence_timeline is an 8-bin histogram of evidence counts over 30 days,
+        stored as an object with bin metadata for frontend display.
+
+        Includes explain_version for cache invalidation — only regenerates if
+        version < 2 or explain is >24h stale.
         """
+        CURRENT_EXPLAIN_VERSION = 2
+
         signals = await conn.fetch(
             """SELECT id::text, domain, claim, status, conviction, momentum,
                       metadata_json
@@ -951,6 +1017,7 @@ class SignalEngine:
             region,
         )
 
+        now = datetime.now(timezone.utc)
         enriched = 0
         for sig in signals:
             signal_id = sig["id"]
@@ -959,12 +1026,26 @@ class SignalEngine:
             status = sig["status"] or "candidate"
             momentum = float(sig["momentum"] or 0)
 
+            # Check if we can skip (version current + not stale)
+            metadata = json.loads(sig["metadata_json"]) if sig["metadata_json"] else {}
+            existing_version = 0
+            if metadata.get("explain_json"):
+                existing_version = metadata["explain_json"].get("explain_version", 1)
+            existing_generated = metadata.get("explain_generated_at")
+            if existing_version >= CURRENT_EXPLAIN_VERSION and existing_generated:
+                try:
+                    gen_time = datetime.fromisoformat(existing_generated.replace("Z", "+00:00"))
+                    if (now - gen_time).total_seconds() < 86400:
+                        continue  # Fresh enough, skip
+                except (ValueError, TypeError):
+                    pass
+
             # --- Build explain_json ---
 
-            # Definition: first sentence of claim + domain context
-            definition = claim
-            if len(definition) > 150:
-                definition = definition[:147] + "..."
+            # Definition: domain-specific template with claim summary
+            claim_summary = claim.split(".")[0].strip().lower()[:120]
+            template = self.DEFINITION_TEMPLATES.get(domain, "{claim_summary}")
+            definition = template.format(claim_summary=claim_summary)
 
             # Why: based on status and momentum direction
             why_base = self.STATUS_WHY_TEMPLATES.get(status, "Signal detected")
@@ -1011,9 +1092,13 @@ class SignalEngine:
                 "risk": risk,
                 "time_horizon": time_horizon,
                 "top_evidence": top_evidence,
+                "explain_version": CURRENT_EXPLAIN_VERSION,
             }
 
-            # --- Build evidence_timeline (8 bins over 30 days) ---
+            # --- Build evidence_timeline (8 bins over 30 days) with metadata ---
+            timeline_start = (now - timedelta(days=30)).date()
+            timeline_end = now.date()
+
             timeline_rows = await conn.fetch(
                 """SELECT width_bucket(
                        EXTRACT(EPOCH FROM se.created_at),
@@ -1026,18 +1111,23 @@ class SignalEngine:
                    GROUP BY bin ORDER BY bin""",
                 signal_id,
             )
-            # Convert to 8-element array (bins 1-8, 0 = out of range)
-            timeline = [0] * 8
+            bins = [0] * 8
             for row in timeline_rows:
                 b = int(row["bin"])
                 if 1 <= b <= 8:
-                    timeline[b - 1] = int(row["cnt"])
+                    bins[b - 1] = int(row["cnt"])
+
+            evidence_timeline = {
+                "bins": bins,
+                "bin_count": 8,
+                "timeline_start": timeline_start.isoformat(),
+                "timeline_end": timeline_end.isoformat(),
+            }
 
             # --- Merge into metadata ---
-            metadata = json.loads(sig["metadata_json"]) if sig["metadata_json"] else {}
             metadata["explain_json"] = explain_json
-            metadata["explain_generated_at"] = datetime.now(timezone.utc).isoformat()
-            metadata["evidence_timeline"] = timeline
+            metadata["explain_generated_at"] = now.isoformat()
+            metadata["evidence_timeline"] = evidence_timeline
 
             await conn.execute(
                 """UPDATE signals SET metadata_json = $2::jsonb, updated_at = NOW()
@@ -1049,6 +1139,34 @@ class SignalEngine:
 
         logger.info("[signals:%s] Enriched %d signals with explain + timeline", region, enriched)
         return enriched
+
+    # ------------------------------------------------------------------
+    # Signal update emission
+    # ------------------------------------------------------------------
+
+    async def _emit_signal_update(
+        self,
+        conn: "asyncpg.Connection",
+        signal_id: str,
+        update_type: str,
+        old_value: Optional[str] = None,
+        new_value: Optional[str] = None,
+        metadata_json: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Insert a row into signal_updates (best-effort, swallows errors if table missing)."""
+        try:
+            await conn.execute(
+                """INSERT INTO signal_updates (signal_id, update_type, old_value, new_value, metadata_json)
+                   VALUES ($1::uuid, $2, $3, $4, $5::jsonb)""",
+                signal_id,
+                update_type,
+                old_value,
+                new_value,
+                json.dumps(metadata_json) if metadata_json else None,
+            )
+        except Exception:
+            # Table may not exist yet (migration 049 not applied) — log and continue
+            logger.debug("Failed to emit signal_update (table may not exist)", exc_info=True)
 
     # ------------------------------------------------------------------
     # Helpers

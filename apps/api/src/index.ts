@@ -44,6 +44,7 @@ import {
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
+import { makeSignalsService } from './services/signals';
 import { makeBriefService } from './services/brief';
 import {
   getRedisClient,
@@ -80,6 +81,7 @@ const API_KEY = process.env.API_KEY;
 const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
 const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
 const newsService = makeNewsService(pool);
+const signalsService = makeSignalsService(pool);
 const briefService = makeBriefService(pool);
 
 // Trust proxy for correct client IP behind Azure Front Door / Load Balancer
@@ -2067,7 +2069,7 @@ app.post('/api/v1/news/signals/batch', async (req, res) => {
 });
 
 // =============================================================================
-// SIGNAL INTELLIGENCE API
+// SIGNAL INTELLIGENCE API (service: signalsService)
 // =============================================================================
 
 // GET /api/v1/signals — List signals with filtering
@@ -2092,7 +2094,7 @@ app.get('/api/v1/signals', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await newsService.getSignalsList({ region, status, domain, sort, window, limit, offset });
+    const result = await signalsService.getSignalsList({ region, status, domain, sort, window, limit, offset });
 
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
@@ -2126,7 +2128,7 @@ app.get('/api/v1/signals/summary', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await newsService.getSignalsSummary({ region, window });
+    const result = await signalsService.getSignalsSummary({ region, window });
 
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
@@ -2160,7 +2162,7 @@ app.get('/api/v1/signals/similar-companies', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await newsService.getSimilarCompanies({ startupId, limit });
+    const result = await signalsService.getSimilarCompanies({ startupId, limit });
 
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 600 }); } catch { /* noop */ }
@@ -2172,6 +2174,7 @@ app.get('/api/v1/signals/similar-companies', async (req, res) => {
   }
 });
 
+// NO CACHE — user-specific endpoint
 // GET /api/v1/signals/follows — Get user's followed signal IDs
 // MUST be registered before /api/v1/signals/:id
 app.get('/api/v1/signals/follows', async (req, res) => {
@@ -2180,7 +2183,7 @@ app.get('/api/v1/signals/follows', async (req, res) => {
     if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
       return res.status(400).json({ error: 'Invalid user_id (must be UUID)' });
     }
-    const result = await newsService.getUserSignalFollows({ userId });
+    const result = await signalsService.getUserSignalFollows({ userId });
     res.json(result);
   } catch (error) {
     console.error('Error fetching signal follows:', error);
@@ -2188,6 +2191,7 @@ app.get('/api/v1/signals/follows', async (req, res) => {
   }
 });
 
+// NO CACHE — user-specific endpoint
 // GET /api/v1/signals/updates — Count new/changed signals since timestamp
 // MUST be registered before /api/v1/signals/:id
 app.get('/api/v1/signals/updates', async (req, res) => {
@@ -2197,7 +2201,7 @@ app.get('/api/v1/signals/updates', async (req, res) => {
     if (!since) {
       return res.status(400).json({ error: 'since query parameter is required (ISO timestamp)' });
     }
-    const result = await newsService.getSignalUpdates({ since, region });
+    const result = await signalsService.getSignalUpdates({ since, region });
     res.json(result);
   } catch (error) {
     console.error('Error fetching signal updates:', error);
@@ -2205,6 +2209,7 @@ app.get('/api/v1/signals/updates', async (req, res) => {
   }
 });
 
+// NO CACHE — user-specific endpoint
 // POST /api/v1/signals/:id/follow — Toggle follow on a signal
 app.post('/api/v1/signals/:id/follow', async (req, res) => {
   try {
@@ -2216,7 +2221,7 @@ app.post('/api/v1/signals/:id/follow', async (req, res) => {
     if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
       return res.status(400).json({ error: 'Invalid user_id (must be UUID)' });
     }
-    const result = await newsService.toggleSignalFollow({ userId, signalId });
+    const result = await signalsService.toggleSignalFollow({ userId, signalId });
     res.json(result);
   } catch (error) {
     console.error('Error toggling signal follow:', error);
@@ -2224,6 +2229,7 @@ app.post('/api/v1/signals/:id/follow', async (req, res) => {
   }
 });
 
+// NO CACHE — user-specific endpoint
 // PATCH /api/v1/signals/seen — Update user's last_seen_signals_at timestamp
 // MUST be registered before /api/v1/signals/:id
 app.patch('/api/v1/signals/seen', async (req, res) => {
@@ -2232,7 +2238,7 @@ app.patch('/api/v1/signals/seen', async (req, res) => {
     if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
       return res.status(400).json({ error: 'Invalid user_id (must be UUID)' });
     }
-    await newsService.markSignalsSeen({ userId });
+    await signalsService.markSignalsSeen({ userId });
     res.json({ success: true });
   } catch (error) {
     console.error('Error marking signals seen:', error);
@@ -2240,7 +2246,7 @@ app.patch('/api/v1/signals/seen', async (req, res) => {
   }
 });
 
-// GET /api/v1/signals/:id — Signal detail with evidence
+// GET /api/v1/signals/:id — Signal detail with evidence (supports pagination)
 app.get('/api/v1/signals/:id', async (req, res) => {
   try {
     const signalId = req.params.id;
@@ -2248,9 +2254,15 @@ app.get('/api/v1/signals/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid signal ID' });
     }
 
+    const evidenceOffset = parseInt(req.query.evidence_offset as string) || 0;
+    const evidenceLimit = parseInt(req.query.evidence_limit as string) || 10;
+
+    // Only cache first page (no offset) to avoid cache bloat
+    const isCacheable = evidenceOffset === 0;
     const cacheKey = `signals:detail:${signalId}`;
     const redis = await getRedisClient();
-    if (redis) {
+
+    if (isCacheable && redis) {
       try {
         const cached = await redis.get(cacheKey);
         if (cached) {
@@ -2260,12 +2272,16 @@ app.get('/api/v1/signals/:id', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await newsService.getSignalDetail({ id: signalId });
+    const result = await signalsService.getSignalDetail({
+      id: signalId,
+      evidence_offset: evidenceOffset,
+      evidence_limit: evidenceLimit,
+    });
     if (!result.signal) {
       return res.status(404).json({ error: 'Signal not found' });
     }
 
-    if (redis) {
+    if (isCacheable && redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
     }
     res.json(result);

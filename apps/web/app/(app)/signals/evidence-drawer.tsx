@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { Sheet, SheetHeader, SheetContent } from '@/components/ui/sheet';
@@ -14,6 +14,8 @@ const EVIDENCE_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
   manual: { bg: 'bg-muted/30', text: 'text-muted-foreground' },
 };
 
+const PAGE_SIZE = 10;
+
 interface EvidenceDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,21 +25,27 @@ interface EvidenceDrawerProps {
 
 export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: EvidenceDrawerProps) {
   const [evidence, setEvidence] = useState<SignalEvidence[]>([]);
+  const [evidenceTotal, setEvidenceTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  // Initial fetch (first page)
   useEffect(() => {
     if (!open) return;
 
     let cancelled = false;
     setLoading(true);
+    setEvidence([]);
+    setEvidenceTotal(0);
 
-    fetch(`/api/signals/${signalId}`)
+    fetch(`/api/signals/${signalId}?evidence_limit=${PAGE_SIZE}&evidence_offset=0`)
       .then(r => r.json())
       .then(data => {
-        if (!cancelled && data.evidence) {
-          setEvidence(data.evidence);
+        if (!cancelled) {
+          setEvidence(data.evidence || []);
+          setEvidenceTotal(data.evidence_total || data.evidence?.length || 0);
+          setLoading(false);
         }
-        if (!cancelled) setLoading(false);
       })
       .catch(() => {
         if (!cancelled) setLoading(false);
@@ -46,10 +54,32 @@ export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: Ev
     return () => { cancelled = true; };
   }, [open, signalId]);
 
+  const handleLoadMore = useCallback(() => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+
+    const offset = evidence.length;
+    fetch(`/api/signals/${signalId}?evidence_limit=${PAGE_SIZE}&evidence_offset=${offset}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.evidence) {
+          setEvidence(prev => [...prev, ...data.evidence]);
+        }
+        setLoadingMore(false);
+      })
+      .catch(() => {
+        setLoadingMore(false);
+      });
+  }, [signalId, evidence.length, loadingMore]);
+
+  const hasMore = evidence.length < evidenceTotal;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange} side="right" className="w-[380px] max-w-[90vw]">
       <SheetHeader onClose={() => onOpenChange(false)}>
-        <span className="text-sm">Evidence</span>
+        <span className="text-sm">
+          Evidence{evidenceTotal > 0 && ` (${evidenceTotal} items)`}
+        </span>
       </SheetHeader>
       <SheetContent>
         <p className="text-xs text-muted-foreground mb-4 line-clamp-2">
@@ -72,7 +102,7 @@ export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: Ev
           </p>
         ) : (
           <div className="space-y-2">
-            {evidence.slice(0, 10).map(ev => {
+            {evidence.map(ev => {
               const typeStyle = EVIDENCE_TYPE_STYLES[ev.evidence_type] || EVIDENCE_TYPE_STYLES.manual;
               return (
                 <div key={ev.id} className="p-3 border border-border/20 rounded-lg">
@@ -106,10 +136,15 @@ export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: Ev
                 </div>
               );
             })}
-            {evidence.length > 10 && (
-              <p className="text-[10px] text-muted-foreground/50 text-center pt-2">
-                Showing 10 of {evidence.length} evidence items
-              </p>
+
+            {hasMore && (
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="w-full py-2 text-[11px] text-accent-info hover:text-accent-info/80 transition-colors disabled:opacity-50"
+              >
+                {loadingMore ? 'Loading...' : `Load more (${evidenceTotal - evidence.length} remaining)`}
+              </button>
             )}
           </div>
         )}
