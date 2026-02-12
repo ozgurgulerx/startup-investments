@@ -136,15 +136,18 @@ async def _load_period_entity_facts(
     else:
         region_filter = "region = 'global'"
 
-    # Funding facts
+    # Funding facts — deduplicate per entity so the same round isn't summed twice
     funding_rows = await conn.fetch(
         f"""
-        SELECT entity_name, fact_value
+        SELECT DISTINCT ON (COALESCE(linked_startup_id::text, LOWER(entity_name)))
+               entity_name, fact_value
         FROM news_entity_facts
         WHERE fact_key = 'funding_amount'
           AND is_current = TRUE
           AND first_seen_at >= $1 AND first_seen_at <= $2
           AND {region_filter}
+        ORDER BY COALESCE(linked_startup_id::text, LOWER(entity_name)),
+                 last_confirmed_at DESC
         """,
         start_date,
         end_date + timedelta(days=1),

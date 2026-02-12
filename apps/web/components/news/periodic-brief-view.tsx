@@ -83,7 +83,7 @@ export function PeriodicBriefView({
       {/* Stats grid */}
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Signals" value={stats.total_stories || brief.story_count} />
-        {fundingTotal != null && fundingTotal > 0 ? (
+        {fundingTotal != null && fundingTotal > 0 && fundingTotal < 1_000_000_000_000 ? (
           <StatCard label="Funding tracked" value={formatCurrency(fundingTotal, true)} />
         ) : null}
         {stats.new_entities_count != null ? (

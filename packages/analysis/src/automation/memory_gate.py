@@ -484,12 +484,9 @@ class FactExtractor:
         elif story_type in ("hiring", "regulation"):
             claims.extend(self._extract_general(text, primary_entity, story_type))
         else:
-            # Generic news — try funding patterns first, then general
-            funding = self._extract_funding(text, primary_entity)
-            if funding:
-                claims.extend(funding)
-            else:
-                claims.extend(self._extract_general(text, primary_entity, story_type))
+            # Generic news — use general extraction only (mentioned_amount, not funding_amount)
+            # to avoid inflating funding totals with revenue, market-cap, etc.
+            claims.extend(self._extract_general(text, primary_entity, story_type))
 
         # Turkish patterns — run in addition to English when region is turkey
         if region == "turkey":
