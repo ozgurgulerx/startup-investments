@@ -1408,7 +1408,7 @@ app.get('/api/v1/news/latest-date', async (req, res) => {
           const data = safeCacheParse<{ edition_date: string | null }>(cachedData, cacheKey, redis);
           if (data) {
             res.setHeader('X-Cache', 'HIT');
-            res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+            res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=60');
             return res.json(data);
           }
         }
@@ -1429,7 +1429,7 @@ app.get('/api/v1/news/latest-date', async (req, res) => {
       }
     }
 
-    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=60');
     return res.json(responseData);
   } catch (error) {
     console.error('Error fetching latest news edition date:', error);
@@ -1453,13 +1453,13 @@ app.get('/api/v1/news/latest', async (req, res) => {
         if (cachedData) {
           if (cachedData === 'null') {
             res.setHeader('X-Cache', 'HIT');
-            res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+            res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=60');
             return res.status(404).json({ error: 'No news edition available' });
           }
           const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
           if (data !== null) {
             res.setHeader('X-Cache', 'HIT');
-            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
             return res.json(data);
           }
         }
@@ -1481,7 +1481,7 @@ app.get('/api/v1/news/latest', async (req, res) => {
       try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_EDITION, JSON.stringify(edition)); } catch { /* best effort */ }
     }
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
     return res.json(edition);
   } catch (error) {
     console.error('Error fetching latest news edition:', error);
@@ -1539,13 +1539,13 @@ app.get('/api/v1/news', async (req, res) => {
         if (cachedData) {
           if (cachedData === 'null') {
             res.setHeader('X-Cache', 'HIT');
-            res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+            res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=60');
             return res.status(404).json({ error: 'No news edition available' });
           }
           const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
           if (data !== null) {
             res.setHeader('X-Cache', 'HIT');
-            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
             return res.json(data);
           }
         }
@@ -1576,7 +1576,7 @@ app.get('/api/v1/news', async (req, res) => {
       try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_EDITION, JSON.stringify(edition)); } catch { /* best effort */ }
     }
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
     return res.json(edition);
   } catch (error) {
     console.error('Error fetching news edition:', error);
@@ -1632,7 +1632,7 @@ app.get('/api/v1/news/topics', async (req, res) => {
           const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
           if (data !== null) {
             res.setHeader('X-Cache', 'HIT');
-            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+            res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
             return res.json(data);
           }
         }
@@ -1647,7 +1647,7 @@ app.get('/api/v1/news/topics', async (req, res) => {
       try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_TOPICS, JSON.stringify(topics)); } catch { /* best effort */ }
     }
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
     return res.json(topics);
   } catch (error) {
     console.error('Error fetching news topics:', error);
@@ -1672,7 +1672,7 @@ app.get('/api/v1/news/archive', async (req, res) => {
           const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
           if (data !== null) {
             res.setHeader('X-Cache', 'HIT');
-            res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+            res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=60');
             return res.json(data);
           }
         }
@@ -1687,7 +1687,7 @@ app.get('/api/v1/news/archive', async (req, res) => {
       try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_ARCHIVE, JSON.stringify(archive)); } catch { /* best effort */ }
     }
 
-    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=60');
     return res.json(archive);
   } catch (error) {
     console.error('Error fetching news archive:', error);

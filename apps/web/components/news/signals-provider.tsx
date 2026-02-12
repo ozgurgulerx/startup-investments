@@ -31,12 +31,14 @@ interface SignalsProviderProps {
 export function SignalsProvider({ clusterIds, initialUpvoteCounts, children }: SignalsProviderProps) {
   const [actionMap, setActionMap] = useState<Record<string, SignalActionType[]>>({});
   const [upvoteCounts, setUpvoteCounts] = useState<Record<string, number>>(initialUpvoteCounts || {});
-  const fetchedRef = useRef(false);
+  const lastFetchedKeyRef = useRef<string>('');
 
-  // Batch fetch user's signals on mount
+  // Batch fetch user's signals when cluster IDs change
   useEffect(() => {
-    if (fetchedRef.current || clusterIds.length === 0) return;
-    fetchedRef.current = true;
+    if (clusterIds.length === 0) return;
+    const key = clusterIds.slice().sort().join(',');
+    if (lastFetchedKeyRef.current === key) return;
+    lastFetchedKeyRef.current = key;
 
     fetch('/api/news/signals/batch', {
       method: 'POST',

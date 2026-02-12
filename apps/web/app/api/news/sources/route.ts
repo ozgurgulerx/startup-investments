@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const sources = await getActiveNewsSources({ region });
     return NextResponse.json(sources, {
       headers: {
-        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=3600',
+        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=60',
       },
     });
   } catch (error) {

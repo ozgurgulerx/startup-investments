@@ -113,11 +113,23 @@ export async function POST(request: NextRequest) {
     }
     const { companySlug, notes } = data;
 
-    // First, find the startup by slug
-    const startupResult = await query<{ id: string; name: string }>(
-      'SELECT id, name FROM startups WHERE slug = $1 LIMIT 1',
+    // Find the startup by slug (excluding merged), with alias fallback
+    let startupResult = await query<{ id: string; name: string }>(
+      `SELECT id, name FROM startups
+       WHERE slug = $1 AND COALESCE(onboarding_status, 'verified') != 'merged'
+       LIMIT 1`,
       [companySlug]
     );
+
+    if (startupResult.rows.length === 0) {
+      startupResult = await query<{ id: string; name: string }>(
+        `SELECT s.id, s.name FROM startup_aliases sa
+         JOIN startups s ON s.id = sa.startup_id
+         WHERE sa.alias = $1 AND COALESCE(s.onboarding_status, 'verified') != 'merged'
+         LIMIT 1`,
+        [companySlug]
+      );
+    }
 
     if (startupResult.rows.length === 0) {
       return NextResponse.json(
@@ -174,13 +186,30 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Find the startup by slug and delete the watchlist entry
-    const result = await query(
-      `DELETE FROM user_watchlists
-       WHERE user_id = $1
-       AND startup_id = (SELECT id FROM startups WHERE slug = $2)`,
-      [session.user.id, companySlug]
+    // Resolve slug to startup_id (excluding merged), with alias fallback
+    let startupResult = await query<{ id: string }>(
+      `SELECT id FROM startups
+       WHERE slug = $1 AND COALESCE(onboarding_status, 'verified') != 'merged'
+       LIMIT 1`,
+      [companySlug]
     );
+
+    if (startupResult.rows.length === 0) {
+      startupResult = await query<{ id: string }>(
+        `SELECT s.id FROM startup_aliases sa
+         JOIN startups s ON s.id = sa.startup_id
+         WHERE sa.alias = $1 AND COALESCE(s.onboarding_status, 'verified') != 'merged'
+         LIMIT 1`,
+        [companySlug]
+      );
+    }
+
+    const result = startupResult.rows.length > 0
+      ? await query(
+          `DELETE FROM user_watchlists WHERE user_id = $1 AND startup_id = $2`,
+          [session.user.id, startupResult.rows[0].id]
+        )
+      : { rowCount: 0 };
 
     return NextResponse.json({
       success: true,

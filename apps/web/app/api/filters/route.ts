@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const alertsEnabled = body?.alertsEnabled === undefined ? false : Boolean(body.alertsEnabled);
+    const alertsEnabled = body?.alertsEnabled === true || body?.alertsEnabled === 'true';
     const filterQuery = parsedQuery.data;
 
     // Get user's plan and existing filters

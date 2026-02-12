@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const topics = await getNewsTopics({ date, limit: Number.isFinite(limit) ? limit : undefined, region });
     return NextResponse.json(topics, {
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=1800',
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',
       },
     });
   } catch (error) {
