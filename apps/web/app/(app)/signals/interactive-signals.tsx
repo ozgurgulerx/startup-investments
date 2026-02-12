@@ -116,6 +116,60 @@ function SignalCard({ signal }: { signal: SignalItem }) {
           <span>{signal.unique_company_count} {signal.unique_company_count === 1 ? 'company' : 'companies'}</span>
         </div>
       </div>
+
+      {/* Stage breakdown (if stage_context is available) */}
+      <StageBreakdown signal={signal} />
+    </div>
+  );
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  pre_seed: 'Pre-Seed',
+  seed: 'Seed',
+  series_a: 'Series A',
+  series_b: 'Series B',
+  series_c: 'Series C',
+  series_d_plus: 'Series D+',
+  late_stage: 'Late',
+  unknown: 'Unknown',
+};
+
+function StageBreakdown({ signal }: { signal: SignalItem }) {
+  const ctx = signal.stage_context;
+  if (!ctx?.adoption_by_stage) return null;
+
+  const stages = Object.entries(ctx.adoption_by_stage)
+    .filter(([, v]) => v.total >= 2)
+    .sort((a, b) => b[1].pct - a[1].pct)
+    .slice(0, 4);
+
+  if (stages.length === 0) return null;
+
+  const maxPct = Math.max(...stages.map(([, v]) => v.pct), 1);
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/20">
+      <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+        Adoption by Stage
+      </span>
+      <div className="mt-1.5 space-y-1">
+        {stages.map(([stage, data]) => (
+          <div key={stage} className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground w-16 shrink-0 truncate">
+              {STAGE_LABELS[stage] || stage}
+            </span>
+            <div className="flex-1 h-1.5 bg-muted/20 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-accent-info/40 rounded-full"
+                style={{ width: `${Math.max(2, (data.pct / maxPct) * 100)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+              {data.pct.toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -353,6 +353,18 @@ export function isAPIConfigured(): boolean {
 // SIGNAL INTELLIGENCE
 // =============================================================================
 
+export interface StageAdoption {
+  adopters: number;
+  total: number;
+  pct: number;
+}
+
+export interface StageContext {
+  adoption_by_stage: Record<string, StageAdoption>;
+  stage_acceleration: string | null;
+  computed_at: string;
+}
+
 export interface SignalItem {
   id: string;
   domain: string;
@@ -368,6 +380,7 @@ export interface SignalItem {
   unique_company_count: number;
   first_seen_at: string;
   last_evidence_at: string | null;
+  stage_context?: StageContext;
 }
 
 export interface SignalsSummaryResponse {
