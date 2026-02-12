@@ -262,7 +262,7 @@ class SignalEngine:
         rows = await conn.fetch(
             """SELECT se.id::text, se.event_type, se.startup_id::text,
                       se.metadata_json, se.cluster_id::text, se.confidence,
-                      se.detected_at, se.event_title,
+                      se.detected_at, se.event_title, se.event_key,
                       er.domain
                FROM startup_events se
                JOIN event_registry er ON se.event_registry_id = er.id
@@ -293,20 +293,26 @@ class SignalEngine:
             metadata = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
             domain = row["domain"]
 
-            # Determine sub-group discriminator
-            pattern_name = metadata.get("pattern_name")
+            # Determine sub-group discriminator — prefer event_key (set at
+            # write time by event_extractor), fall back to metadata parsing
+            # for legacy rows that predate migration 042.
+            event_key = row["event_key"] or ""
 
-            if pattern_name:
-                # Universal rule: any event with pattern_name sub-groups by it
-                discriminator = pattern_name
-                group_key = f"{event_type}:{pattern_name}"
-            elif event_type == "cap_funding_raised":
-                round_type = metadata.get("round_type") or "all"
-                discriminator = round_type
-                group_key = f"{event_type}:{round_type}"
+            if event_key:
+                discriminator = event_key
+                group_key = f"{event_type}:{event_key}"
             else:
-                discriminator = None
-                group_key = event_type
+                pattern_name = metadata.get("pattern_name")
+                if pattern_name:
+                    discriminator = pattern_name
+                    group_key = f"{event_type}:{pattern_name}"
+                elif event_type == "cap_funding_raised":
+                    round_type = metadata.get("round_type") or "all"
+                    discriminator = round_type
+                    group_key = f"{event_type}:{round_type}"
+                else:
+                    discriminator = None
+                    group_key = event_type
 
             if group_key not in groups:
                 groups[group_key] = {
