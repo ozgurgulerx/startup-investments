@@ -2625,5 +2625,98 @@ def merge_startups_cmd(
     asyncio.run(_merge())
 
 
+@app.command("collect-github-metrics")
+def collect_github_metrics_cmd(
+    startup_id: Optional[str] = typer.Option(None, "--startup-id", help="Specific startup UUID"),
+    limit: int = typer.Option(50, "--limit", "-l", help="Max startups to process"),
+):
+    """Collect GitHub temporal metrics (stars, forks, PRs, contributors) for startups."""
+    from src.automation.github_metrics import run_github_metrics_collection
+
+    try:
+        result = asyncio.run(
+            run_github_metrics_collection(startup_id=startup_id, limit=limit)
+        )
+    except Exception as exc:
+        console.print(f"[red]GitHub metrics collection failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]GitHub Metrics Collection[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"  Processed: {result.get('processed', 0)}")
+    console.print(f"  Collected: {result.get('collected', 0)}")
+    console.print(f"  Errors: {result.get('errors', 0)}")
+
+
+@app.command("compute-signal-occurrences")
+def compute_signal_occurrences_cmd(
+    signal_id: Optional[str] = typer.Option(None, "--signal-id", help="Specific signal UUID"),
+    region: Optional[str] = typer.Option(None, "--region", help="Region: 'global', 'turkey'"),
+):
+    """Compute per-startup occurrence scores for signals (deterministic, zero LLM)."""
+    from src.automation.deep_dive_engine import compute_signal_occurrences
+
+    async def _run():
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            raise typer.Exit(1)
+        import asyncpg
+        conn = await asyncpg.connect(database_url)
+        try:
+            return await compute_signal_occurrences(conn, signal_id, region)
+        finally:
+            await conn.close()
+
+    try:
+        result = asyncio.run(_run())
+    except Exception as exc:
+        console.print(f"[red]Occurrence scoring failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Signal Occurrence Scoring[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"  Signals processed: {result.get('signals_processed', 0)}")
+    console.print(f"  Occurrences upserted: {result.get('occurrences_upserted', 0)}")
+
+
+@app.command("generate-deep-dives")
+def generate_deep_dives_cmd(
+    signal_id: Optional[str] = typer.Option(None, "--signal-id", help="Specific signal UUID"),
+    top_n: int = typer.Option(15, "--top-n", help="Max signals to process"),
+    region: Optional[str] = typer.Option(None, "--region", help="Region: 'global', 'turkey'"),
+    force: bool = typer.Option(False, "--force", help="Force re-generation even if evidence unchanged"),
+):
+    """Generate deep dives: evidence enrichment → occurrence scoring → move extraction → synthesis."""
+    from src.automation.deep_dive_engine import generate_deep_dives
+
+    try:
+        result = asyncio.run(
+            generate_deep_dives(
+                signal_id=signal_id,
+                top_n=top_n,
+                region=region,
+                force=force,
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]Deep dive generation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Deep Dive Generation[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"  Evidence enriched: {result.get('evidence_enriched', 0)}")
+    console.print(f"  Occurrences computed: {result.get('occurrences_computed', 0)}")
+    console.print(f"  Moves extracted: {result.get('moves_extracted', 0)}")
+    console.print(f"  Dives synthesized: {result.get('dives_synthesized', 0)}")
+    console.print(f"  Errors: {result.get('errors', 0)}")
+
+
 if __name__ == "__main__":
     app()

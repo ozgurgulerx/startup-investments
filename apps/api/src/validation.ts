@@ -366,3 +366,26 @@ export const signalsSummaryQuerySchema = z.object({
   region: optionalTrimmedString(20),
   window: z.coerce.number().int().refine(v => [7, 30, 90].includes(v)).optional(),
 });
+
+// =============================================================================
+// SIGNAL DEEP DIVES
+// =============================================================================
+
+export const deepDiveVersionQuerySchema = z.object({
+  version: z.coerce.number().int().min(1),
+});
+
+export const occurrencesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+});
+
+export const movesQuerySchema = z.object({
+  startup_id: optionalTrimmedString(50),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+});
+
+export const deepDiveListQuerySchema = z.object({
+  region: optionalTrimmedString(20),
+  limit: z.coerce.number().int().min(1).max(50).optional().default(20),
+});

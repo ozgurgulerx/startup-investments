@@ -40,11 +40,16 @@ import {
   briefRegenerateSchema,
   signalsQuerySchema,
   signalsSummaryQuerySchema,
+  deepDiveVersionQuerySchema,
+  occurrencesQuerySchema,
+  movesQuerySchema,
+  deepDiveListQuerySchema,
   timelineQuerySchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
 import { makeSignalsService } from './services/signals';
+import { makeDeepDivesService } from './services/deep-dives';
 import { makeBriefService } from './services/brief';
 import {
   getRedisClient,
@@ -82,6 +87,7 @@ const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
 const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
 const newsService = makeNewsService(pool);
 const signalsService = makeSignalsService(pool);
+const deepDivesService = makeDeepDivesService(pool);
 const briefService = makeBriefService(pool);
 
 // Trust proxy for correct client IP behind Azure Front Door / Load Balancer
@@ -2243,6 +2249,211 @@ app.patch('/api/v1/signals/seen', async (req, res) => {
   } catch (error) {
     console.error('Error marking signals seen:', error);
     return res.status(500).json({ error: 'Failed to mark signals seen' });
+  }
+});
+
+// =============================================================================
+// SIGNAL DEEP DIVES (service: deepDivesService)
+// MUST be registered BEFORE /api/v1/signals/:id to avoid matching
+// =============================================================================
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// GET /api/v1/deep-dives — List all available deep dives
+app.get('/api/v1/deep-dives', async (req, res) => {
+  try {
+    const parsed = deepDiveListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const cacheKey = `deep-dives:list:${parsed.data.region || 'all'}:${parsed.data.limit}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await deepDivesService.listDeepDives({
+      region: parsed.data.region || undefined,
+      limit: parsed.data.limit,
+    });
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 900 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error listing deep dives:', error);
+    return res.status(500).json({ error: 'Failed to list deep dives' });
+  }
+});
+
+// GET /api/v1/signals/:id/deep-dive — Latest deep dive for a signal
+app.get('/api/v1/signals/:id/deep-dive', async (req, res) => {
+  try {
+    const signalId = req.params.id;
+    if (!signalId || !UUID_REGEX.test(signalId)) {
+      return res.status(400).json({ error: 'Invalid signal ID' });
+    }
+
+    const cacheKey = `deep-dive:${signalId}:latest`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await deepDivesService.getLatestDeepDive(signalId);
+    if (!result.deep_dive) {
+      return res.status(404).json({ error: 'No deep dive available for this signal' });
+    }
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 900 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching deep dive:', error);
+    return res.status(500).json({ error: 'Failed to fetch deep dive' });
+  }
+});
+
+// GET /api/v1/signals/:id/deep-dive/v/:version — Specific version
+app.get('/api/v1/signals/:id/deep-dive/v/:version', async (req, res) => {
+  try {
+    const signalId = req.params.id;
+    if (!signalId || !UUID_REGEX.test(signalId)) {
+      return res.status(400).json({ error: 'Invalid signal ID' });
+    }
+    const parsed = deepDiveVersionQuerySchema.safeParse(req.params);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid version', details: parsed.error.issues });
+    }
+
+    const cacheKey = `deep-dive:${signalId}:v${parsed.data.version}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await deepDivesService.getDeepDiveVersion(signalId, parsed.data.version);
+    if (!result) {
+      return res.status(404).json({ error: 'Deep dive version not found' });
+    }
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 3600 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching deep dive version:', error);
+    return res.status(500).json({ error: 'Failed to fetch deep dive version' });
+  }
+});
+
+// GET /api/v1/signals/:id/deep-dive/versions — Version history + diffs
+app.get('/api/v1/signals/:id/deep-dive/versions', async (req, res) => {
+  try {
+    const signalId = req.params.id;
+    if (!signalId || !UUID_REGEX.test(signalId)) {
+      return res.status(400).json({ error: 'Invalid signal ID' });
+    }
+
+    const cacheKey = `deep-dive:${signalId}:versions`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await deepDivesService.getVersionHistory(signalId);
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 900 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching deep dive versions:', error);
+    return res.status(500).json({ error: 'Failed to fetch version history' });
+  }
+});
+
+// GET /api/v1/signals/:id/occurrences — Per-startup scores
+app.get('/api/v1/signals/:id/occurrences', async (req, res) => {
+  try {
+    const signalId = req.params.id;
+    if (!signalId || !UUID_REGEX.test(signalId)) {
+      return res.status(400).json({ error: 'Invalid signal ID' });
+    }
+    const parsed = occurrencesQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const cacheKey = `deep-dive:${signalId}:occ:${parsed.data.limit}:${parsed.data.offset}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await deepDivesService.getOccurrences(signalId, parsed.data.limit, parsed.data.offset);
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 600 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching occurrences:', error);
+    return res.status(500).json({ error: 'Failed to fetch occurrences' });
+  }
+});
+
+// GET /api/v1/signals/:id/moves — Extracted moves
+app.get('/api/v1/signals/:id/moves', async (req, res) => {
+  try {
+    const signalId = req.params.id;
+    if (!signalId || !UUID_REGEX.test(signalId)) {
+      return res.status(400).json({ error: 'Invalid signal ID' });
+    }
+    const parsed = movesQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const cacheKey = `deep-dive:${signalId}:moves:${parsed.data.startup_id || 'all'}:${parsed.data.limit}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await deepDivesService.getMoves(signalId, {
+      startup_id: parsed.data.startup_id || undefined,
+      limit: parsed.data.limit,
+    });
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 600 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching moves:', error);
+    return res.status(500).json({ error: 'Failed to fetch moves' });
   }
 });
 

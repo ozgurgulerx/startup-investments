@@ -445,6 +445,108 @@ export async function getSignalsList(params?: {
   return fetchFromAPI<SignalsListResponse>(`/api/v1/signals?${qs.toString()}`);
 }
 
+// ---------------------------------------------------------------------------
+// Signal Deep Dives
+// ---------------------------------------------------------------------------
+
+export interface DeepDiveContent {
+  tldr: string;
+  mechanism: string;
+  patterns: Array<{ archetype: string; description: string; startups: string[] }>;
+  case_studies: Array<{
+    startup_slug: string;
+    startup_name: string;
+    summary: string;
+    key_moves: string[];
+  }>;
+  thresholds: Array<{ metric: string; value: string; action: string }>;
+  failure_modes: Array<{ mode: string; description: string; example: string | null }>;
+  watchlist: Array<{ startup_slug: string; why: string }>;
+}
+
+export interface DeepDiveResponse {
+  deep_dive: {
+    id: string;
+    signal_id: string;
+    version: number;
+    status: string;
+    content_json: DeepDiveContent;
+    sample_startup_ids: string[];
+    sample_count: number;
+    generation_model: string | null;
+    generation_cost_tokens: number | null;
+    evidence_hash: string | null;
+    created_at: string;
+  } | null;
+  signal: SignalItem | null;
+  diff: {
+    from_version: number;
+    to_version: number;
+    diff_json: Record<string, any>;
+    created_at: string;
+  } | null;
+}
+
+export interface OccurrenceItem {
+  id: string;
+  signal_id: string;
+  startup_id: string;
+  startup_name: string;
+  startup_slug: string;
+  funding_stage: string | null;
+  score: number;
+  features_json: Record<string, any>;
+  explain_json: Record<string, any>;
+  evidence_count: number;
+  computed_at: string;
+}
+
+export interface MoveItem {
+  id: string;
+  signal_id: string;
+  startup_id: string;
+  startup_name: string;
+  startup_slug: string;
+  move_type: string;
+  what_happened: string;
+  why_it_worked: string | null;
+  unique_angle: string | null;
+  timestamp_hint: string | null;
+  evidence_ids: string[];
+  confidence: number;
+  extracted_at: string;
+}
+
+export interface DeepDiveListItem {
+  signal_id: string;
+  claim: string;
+  domain: string;
+  status: string;
+  conviction: number;
+  momentum: number;
+  region: string;
+  version: number;
+  created_at: string;
+  tldr: string;
+  sample_count: number;
+}
+
+export async function getDeepDive(signalId: string): Promise<DeepDiveResponse> {
+  return fetchFromAPI<DeepDiveResponse>(`/api/v1/signals/${signalId}/deep-dive`);
+}
+
+export async function getOccurrences(signalId: string, limit = 50, offset = 0): Promise<{
+  occurrences: OccurrenceItem[];
+  total: number;
+}> {
+  return fetchFromAPI(`/api/v1/signals/${signalId}/occurrences?limit=${limit}&offset=${offset}`);
+}
+
+export async function getMoves(signalId: string, startupId?: string): Promise<MoveItem[]> {
+  const qs = startupId ? `?startup_id=${startupId}` : '';
+  return fetchFromAPI<MoveItem[]>(`/api/v1/signals/${signalId}/moves${qs}`);
+}
+
 // Re-export health utilities
 export {
   checkApiHealth,

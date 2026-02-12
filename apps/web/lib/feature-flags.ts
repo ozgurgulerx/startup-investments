@@ -18,6 +18,7 @@ export type Feature =
   | 'export_memo'
   | 'pattern_correlations'
   | 'company_deep_dive'
+  | 'signal_deep_dive'
   | 'api_access'
   | 'team_sharing'
   | 'priority_notifications'
@@ -31,6 +32,7 @@ const FEATURE_ACCESS: Record<UserPlan, Set<Feature>> = {
     'saved_filters', // Limited to 3
     'export_memo',
     'company_deep_dive',
+    'signal_deep_dive',
   ]),
   pro: new Set([
     'saved_filters',
@@ -38,6 +40,7 @@ const FEATURE_ACCESS: Record<UserPlan, Set<Feature>> = {
     'export_memo',
     'pattern_correlations',
     'company_deep_dive',
+    'signal_deep_dive',
     'api_access',
     'priority_notifications',
     'historical_data',
@@ -48,6 +51,7 @@ const FEATURE_ACCESS: Record<UserPlan, Set<Feature>> = {
     'export_memo',
     'pattern_correlations',
     'company_deep_dive',
+    'signal_deep_dive',
     'api_access',
     'team_sharing',
     'priority_notifications',
@@ -147,6 +151,11 @@ export function getUpgradePrompt(feature: Feature): {
     company_deep_dive: {
       title: 'Deep dive into company analysis',
       description: 'Access detailed pattern analysis and technical breakdowns for each startup.',
+      cta: 'Get Started',
+    },
+    signal_deep_dive: {
+      title: 'Signal deep dives',
+      description: 'Access full deep dive reports with case studies, playbooks, and failure modes for each signal.',
       cta: 'Get Started',
     },
     api_access: {
