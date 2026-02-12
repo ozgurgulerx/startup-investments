@@ -5529,6 +5529,82 @@ class DailyNewsIngestor:
 
         return loaded
 
+    @staticmethod
+    def _merge_entity_duplicates(ranked: List[StoryCluster]) -> List[StoryCluster]:
+        """Merge clusters that share a primary entity + similar title.
+
+        Instead of silently dropping the lower-ranked duplicate, absorb its
+        members/entities/tags into the higher-ranked surviving cluster so no
+        source context is lost.
+        """
+        seen_entity_clusters: Dict[str, List[StoryCluster]] = {}
+        merged: List[StoryCluster] = []
+        absorbed: set = set()
+
+        for c in ranked:
+            if id(c) in absorbed:
+                continue
+            primary_ent = c.entities[0].lower() if c.entities else None
+            if primary_ent and primary_ent in seen_entity_clusters:
+                # Check if any previously-seen cluster is similar enough to merge into
+                target = None
+                for prev in seen_entity_clusters[primary_ent]:
+                    if title_similarity(c.title, prev.title) >= 0.30:
+                        target = prev
+                        break
+                if target is not None:
+                    # Merge c into target — target is higher-ranked (appeared first)
+                    existing_keys = {(m.source_key, m.external_id) for m in target.members}
+                    new_members = [m for m in c.members if (m.source_key, m.external_id) not in existing_keys]
+                    target.members = target.members + new_members
+
+                    # Union entities (target-first ordering)
+                    seen_ents = {e.lower() for e in target.entities}
+                    for e in c.entities:
+                        if e.lower() not in seen_ents:
+                            target.entities.append(e)
+                            seen_ents.add(e.lower())
+
+                    # Union topic_tags (target-first ordering)
+                    seen_tags = set(target.topic_tags)
+                    for t in c.topic_tags:
+                        if t not in seen_tags:
+                            target.topic_tags.append(t)
+                            seen_tags.add(t)
+
+                    # Fill-if-missing LLM fields (target wins)
+                    if not target.builder_takeaway and c.builder_takeaway:
+                        target.builder_takeaway = c.builder_takeaway
+                    if not target.llm_summary and c.llm_summary:
+                        target.llm_summary = c.llm_summary
+                    if not target.impact and c.impact:
+                        target.impact = c.impact
+                    if target.llm_signal_score is None and c.llm_signal_score is not None:
+                        target.llm_signal_score = c.llm_signal_score
+                    if target.llm_confidence_score is None and c.llm_confidence_score is not None:
+                        target.llm_confidence_score = c.llm_confidence_score
+                    if not target.llm_topic_tags and c.llm_topic_tags:
+                        target.llm_topic_tags = c.llm_topic_tags
+                    if not target.llm_story_type and c.llm_story_type:
+                        target.llm_story_type = c.llm_story_type
+
+                    # Rank boost for broader source coverage
+                    target.rank_score = min(1.0, target.rank_score + 0.02)
+
+                    absorbed.add(id(c))
+                    print(
+                        f"[edition-merge] merged '{c.title[:60]}' into "
+                        f"'{target.title[:60]}' (+{len(new_members)} members)"
+                    )
+                    continue
+
+            # Not merged — keep this cluster
+            if primary_ent:
+                seen_entity_clusters.setdefault(primary_ent, []).append(c)
+            merged.append(c)
+
+        return merged
+
     async def _persist_edition(
         self,
         conn: asyncpg.Connection,
@@ -5538,6 +5614,7 @@ class DailyNewsIngestor:
         clusters: Sequence[StoryCluster],
         cluster_ids: Dict[str, str],
         excluded_cluster_ids: set = frozenset(),
+        raw_lookup: Optional[Dict[Tuple[str, str], str]] = None,
     ) -> Dict[str, Any]:
         # Merge community signal boost into rank_score before sorting
         sig_agg = getattr(self, "_signal_aggregator", None)
@@ -5549,11 +5626,40 @@ class DailyNewsIngestor:
                     if sig > 0:
                         c.rank_score = min(1.0, c.rank_score + sig * 0.08)
         ranked = sorted(clusters, key=lambda c: (c.rank_score, c.trust_score, c.published_at), reverse=True)
-        top = ranked[:40]
+
+        # Merge clusters that share a primary entity + similar title, then take top 50
+        merged = self._merge_entity_duplicates(ranked)
+        top = merged[:50]
         top_ids = [
             cluster_ids[c.cluster_key] for c in top
             if c.cluster_key in cluster_ids and cluster_ids[c.cluster_key] not in excluded_cluster_ids
         ]
+
+        # Persist merged members back to DB (new members absorbed from duplicates)
+        if raw_lookup:
+            for c in top:
+                cid = cluster_ids.get(c.cluster_key)
+                if not cid:
+                    continue
+                await conn.execute(
+                    "UPDATE news_clusters SET source_count = $1 WHERE id = $2::uuid",
+                    len(c.members),
+                    cid,
+                )
+                for member in c.members:
+                    raw_id = raw_lookup.get((member.source_key, member.external_id))
+                    if not raw_id:
+                        continue
+                    await conn.execute(
+                        """
+                        INSERT INTO news_cluster_items (cluster_id, raw_item_id, is_primary, source_rank)
+                        VALUES ($1::uuid, $2::uuid, false, $3)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        cid,
+                        str(raw_id),
+                        member.source_weight,
+                    )
 
         story_type_counts: Dict[str, int] = {}
         topic_counts: Dict[str, int] = {}
@@ -5986,6 +6092,7 @@ class DailyNewsIngestor:
                     clusters=clusters,
                     cluster_ids=cluster_ids_global,
                     excluded_cluster_ids=rejected_global,
+                    raw_lookup=raw_lookup,
                 )
                 turkey_stats = await self._persist_edition(
                     conn,
@@ -5994,6 +6101,7 @@ class DailyNewsIngestor:
                     clusters=turkey_clusters_for_edition,
                     cluster_ids=cluster_ids_turkey,
                     excluded_cluster_ids=rejected_turkey,
+                    raw_lookup=raw_lookup,
                 )
 
                 # --- Generate editorial rule suggestions from accumulated rejections ---

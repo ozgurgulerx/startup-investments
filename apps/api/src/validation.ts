@@ -88,14 +88,14 @@ export const investorsQuerySchema = z.object({
 
 export const newsLatestQuerySchema = z.object({
   region: newsRegionParam,
-  limit: z.coerce.number().int().min(1).max(100).default(40),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 export const newsEditionQuerySchema = z.object({
   region: newsRegionParam,
   date: newsDateParam,
   topic: optionalTopicString,
-  limit: z.coerce.number().int().min(1).max(100).default(40),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 export const newsTopicsQuerySchema = z.object({

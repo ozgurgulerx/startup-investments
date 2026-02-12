@@ -727,7 +727,7 @@ export function makeNewsService(pool: Pool) {
 
       if (!meta) return null;
 
-      const limit = Math.max(1, Math.min(100, Number(params?.limit || 40)));
+      const limit = Math.max(1, Math.min(100, Number(params?.limit || 50)));
       const rawItems = params?.topic
         ? await getTopicClusterCards(params.topic, editionDate, region, limit)
         : await getEditionClusterCards(editionDate, region, limit);

@@ -20,7 +20,7 @@ function briefToPreview(brief: Awaited<ReturnType<typeof getPeriodicBrief>>) {
 }
 
 export default async function DailyNewsPage() {
-  const edition = await getNewsEdition({ limit: 40 });
+  const edition = await getNewsEdition({ limit: 50 });
   const [topics, weeklyBrief, monthlyBrief] = await Promise.all([
     edition ? getNewsTopics({ date: edition.edition_date, limit: 24 }) : Promise.resolve([]),
     withTimeout(getPeriodicBrief({ periodType: 'weekly', region: 'global' }), 2000).catch(() => null),

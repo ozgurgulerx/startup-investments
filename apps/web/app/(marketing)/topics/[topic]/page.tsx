@@ -30,7 +30,7 @@ export default async function TopicNewsPage({ params, searchParams }: TopicNewsP
   const topic = normalizeTopic(params.topic);
   const dateParam = searchParams?.date;
   const fallbackDate = dateParam || (await getLatestNewsEditionDate()) || undefined;
-  const edition = await getNewsEdition({ date: fallbackDate, topic, limit: 40 });
+  const edition = await getNewsEdition({ date: fallbackDate, topic, limit: 50 });
   const topics = await getNewsTopics({ date: fallbackDate, limit: 24 });
 
   return (

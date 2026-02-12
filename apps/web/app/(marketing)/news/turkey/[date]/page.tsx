@@ -21,7 +21,7 @@ export default async function TurkeyNewsArchivePage({ params }: TurkeyNewsArchiv
     notFound();
   }
 
-  const edition = await getNewsEdition({ date: params.date, limit: 40, region: 'turkey' });
+  const edition = await getNewsEdition({ date: params.date, limit: 50, region: 'turkey' });
   if (!edition) {
     notFound();
   }

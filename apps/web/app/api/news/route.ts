@@ -3,7 +3,7 @@ import { getNewsEdition } from '@/lib/data/news';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/news?date=YYYY-MM-DD&topic=ai&limit=40&region=global|turkey
+// GET /api/news?date=YYYY-MM-DD&topic=ai&limit=50&region=global|turkey
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

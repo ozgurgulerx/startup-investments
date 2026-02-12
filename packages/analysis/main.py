@@ -1899,7 +1899,7 @@ def backfill_turkish_enrichments(
                               AND published_at::date = $1
                               AND llm_model IS NOT NULL
                             ORDER BY rank_score DESC
-                            LIMIT 40
+                            LIMIT 50
                             """,
                             ed,
                         )

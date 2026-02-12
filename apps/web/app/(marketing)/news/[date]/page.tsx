@@ -21,7 +21,7 @@ export default async function NewsArchivePage({ params }: NewsArchivePageProps) 
     notFound();
   }
 
-  const edition = await getNewsEdition({ date: params.date, limit: 40 });
+  const edition = await getNewsEdition({ date: params.date, limit: 50 });
   if (!edition) {
     notFound();
   }
