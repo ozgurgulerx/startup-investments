@@ -46,6 +46,19 @@ REASON_TO_BOOST: Dict[str, int] = {
     "manual": 50,
 }
 
+# Cooldown: skip re-enqueue if a completed job with same startup+reason
+# exists within these many hours. Prevents churn from repeated events.
+_REASON_COOLDOWN_HOURS: Dict[str, int] = {
+    "crawl_diff_analysis": 168,  # 7 days
+    "news_onboard": 72,          # 3 days
+    "funding_event": 24,
+    "product_launch": 48,
+    "key_hire": 72,
+    "acquisition": 24,
+    "pricing_change": 48,
+    "manual": 0,                 # no cooldown for manual
+}
+
 # ---------------------------------------------------------------------------
 # SQL constants
 # ---------------------------------------------------------------------------
@@ -102,6 +115,29 @@ async def enqueue_refresh_job(
     updated to match the winning boost. Always returns the job ID.
     """
     boost = REASON_TO_BOOST.get(reason, 30)
+
+    # Cooldown check: skip if a completed job for same startup+reason
+    # exists within the cooldown window
+    cooldown_hours = _REASON_COOLDOWN_HOURS.get(reason, 0)
+    if cooldown_hours > 0:
+        existing_id = await conn.fetchval(
+            """SELECT id::text FROM startup_refresh_jobs
+               WHERE startup_id = $1::uuid
+                 AND reason = $2
+                 AND status = 'completed'
+                 AND completed_at > NOW() - make_interval(hours => $3)
+               LIMIT 1""",
+            startup_id,
+            reason,
+            cooldown_hours,
+        )
+        if existing_id:
+            logger.info(
+                "Cooldown active for startup %s reason=%s (%dh), skipping enqueue",
+                startup_id, reason, cooldown_hours,
+            )
+            return existing_id
+
     row = await conn.fetchrow(
         """INSERT INTO startup_refresh_jobs
                (startup_id, trigger_event_id, reason, priority_boost)

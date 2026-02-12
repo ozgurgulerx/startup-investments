@@ -221,6 +221,7 @@ class WebsiteContentMonitor:
 
                 # --- Crawl diff event extraction ---
                 diff_events_count = 0
+                diff_events: list = []
                 if self._diff_extractor is not None:
                     old_sample = startup.get("last_content_sample")
                     new_sample = text_content[:2000]
@@ -243,9 +244,14 @@ class WebsiteContentMonitor:
                         logger.warning("Crawl diff extraction failed for %s", startup_name, exc_info=True)
 
                 # --- Crawl → re-analysis trigger ---
-                # Enqueue analysis refresh when diff is meaningful or analysis is stale/missing
+                # Only trigger refresh if: analysis is missing OR meaningful events detected.
+                # Skip if the only events are low-confidence crawl_diff events.
                 analysis_missing = not startup.get("analysis_data")
-                if diff_events_count > 0 or analysis_missing:
+                meaningful_diff = (
+                    diff_events_count >= 2
+                    or any(e.confidence >= 0.6 for e in (diff_events if diff_events else []))
+                ) if diff_events_count > 0 else False
+                if meaningful_diff or analysis_missing:
                     try:
                         from ..crawl_runtime.refresh_jobs import enqueue_refresh_job
                         async with self.db.acquire() as conn:

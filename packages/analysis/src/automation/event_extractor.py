@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     import asyncpg
@@ -179,6 +181,9 @@ class EventExtractor:
         for evt in events:
             if not evt.event_date:
                 evt.event_date = cluster_event_date
+            # Stash cluster_key so downstream (e.g. onboarding) can look up source stats
+            if hasattr(cluster, "cluster_key") and cluster.cluster_key:
+                evt.metadata["cluster_key"] = cluster.cluster_key
 
         return events
 
@@ -299,23 +304,26 @@ class EventExtractor:
         if not cluster.memory_result or not cluster.memory_result.linked_entities:
             return
 
-        # Build entity_name → (startup_id, match_score, match_method) lookup
-        entity_lookup: Dict[str, tuple] = {}  # lowercase name → (startup_id, score)
+        # Build entity_name → (startup_id, score, entity_type) lookup
+        entity_lookup: Dict[str, tuple] = {}  # lowercase name → (startup_id, score, entity_type)
         all_participants: List[Dict[str, Any]] = []
         best_startup_id: Optional[str] = None
         best_score = 0.0
         best_name: Optional[str] = None
+        best_entity_type: Optional[str] = None
 
         for entity in cluster.memory_result.linked_entities:
+            etype = getattr(entity, "entity_type", None)
             if entity.startup_id:
                 name_lower = entity.entity_name.lower()
                 existing = entity_lookup.get(name_lower)
                 if not existing or entity.match_score > existing[1]:
-                    entity_lookup[name_lower] = (entity.startup_id, entity.match_score)
+                    entity_lookup[name_lower] = (entity.startup_id, entity.match_score, etype)
                 if entity.match_score > best_score:
                     best_startup_id = entity.startup_id
                     best_score = entity.match_score
                     best_name = entity.entity_name
+                    best_entity_type = etype
                 all_participants.append({
                     "startup_id": entity.startup_id,
                     "entity_name": entity.entity_name,
@@ -330,12 +338,15 @@ class EventExtractor:
                 match = entity_lookup.get(evt.entity_name.lower())
                 if match:
                     evt.startup_id = match[0]
+                    evt.metadata["entity_type"] = match[2]  # from entity_lookup
                 elif best_startup_id:
                     evt.startup_id = best_startup_id
+                    evt.metadata["entity_type"] = best_entity_type
                     if not evt.entity_name and best_name:
                         evt.entity_name = best_name
             elif best_startup_id:
                 evt.startup_id = best_startup_id
+                evt.metadata["entity_type"] = best_entity_type
                 if not evt.entity_name and best_name:
                     evt.entity_name = best_name
 
@@ -606,10 +617,85 @@ async def upsert_funding_from_events(
 
 def _slugify(name: str) -> str:
     """Generate a URL-safe slug from a company name."""
-    import re as _re
     slug = name.lower().strip()
-    slug = _re.sub(r'[^a-z0-9]+', '-', slug)
+    slug = re.sub(r'[^a-z0-9]+', '-', slug)
     return slug.strip('-')[:200]
+
+
+# ---------------------------------------------------------------------------
+# Multi-source confirmation helpers
+# ---------------------------------------------------------------------------
+
+# Common two-level domains where the registrable domain includes the second level
+_COMMON_2LD = {"co.uk", "com.au", "co.jp", "co.kr", "com.br", "co.nz",
+               "co.za", "com.tr", "co.in", "com.mx", "com.cn", "co.il"}
+
+
+def _publisher_domain(url: str) -> str:
+    """Normalize URL to registrable domain (e.g. 'bbc.co.uk', 'techcrunch.com').
+
+    Handles common two-level TLDs. Returns empty string on failure.
+    """
+    try:
+        host = urlparse(url).hostname or ""
+        host = host.lower().removeprefix("www.")
+        parts = host.split(".")
+        if len(parts) >= 3:
+            two_level = ".".join(parts[-2:])
+            if two_level in _COMMON_2LD:
+                return ".".join(parts[-3:])
+        return ".".join(parts[-2:]) if len(parts) >= 2 else host
+    except Exception:
+        return ""
+
+
+def cluster_source_stats(cluster: "StoryCluster") -> Dict[str, Any]:
+    """Compute source diversity stats for a cluster.
+
+    Returns dict with:
+      - source_keys: set of distinct source_key values
+      - publisher_domains: set of distinct publisher domains
+      - multi_source_confirmed: True if >= 2 distinct publishers OR >= 2 distinct source_keys
+    """
+    source_keys: set = set()
+    publisher_domains: set = set()
+
+    for member in getattr(cluster, "members", []):
+        sk = getattr(member, "source_key", None)
+        if sk:
+            source_keys.add(sk)
+        url = getattr(member, "url", None)
+        if url:
+            dom = _publisher_domain(url)
+            if dom:
+                publisher_domains.add(dom)
+
+    multi = len(publisher_domains) >= 2 or len(source_keys) >= 2
+    return {
+        "source_keys": source_keys,
+        "publisher_domains": publisher_domains,
+        "multi_source_confirmed": multi,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Entity name denylist for onboarding quality gates
+# ---------------------------------------------------------------------------
+
+_ONBOARD_DENYLIST = {
+    "ai", "ml", "labs", "tech", "data", "cloud", "api",
+    "saas", "the", "new", "app", "inc", "llc", "ltd",
+    "fund", "capital", "ventures", "partners", "group",
+    "association", "foundation", "institute", "university",
+    "google", "microsoft", "amazon", "apple", "meta",
+    "openai", "anthropic", "nvidia",  # big tech, not stubs
+}
+
+_ONBOARD_DENY_PATTERNS = [
+    re.compile(r'^[A-Z]{1,4}$'),           # ALL-CAPS <= 4 chars (acronyms)
+    re.compile(r'^\d'),                      # starts with digit
+    re.compile(r'^(the|a|an)\s', re.I),     # articles
+]
 
 
 async def onboard_unknown_startups(
@@ -621,15 +707,24 @@ async def onboard_unknown_startups(
 ) -> int:
     """Create stub startups for entities mentioned in events but not yet in DB.
 
-    Only onboards when:
-    - The event has entity_name but no startup_id (not linked by memory gate)
-    - Confidence >= threshold
-    - Entity name doesn't fuzzy-match an existing startup (ILIKE check)
-    - Rate limited to max_per_run per pipeline invocation
+    Quality gates (applied in order):
+    1. Denylist check (generic words, big tech, acronyms)
+    2. Investor table dedup (skip known investor names)
+    3. Entity type filter: "investor"/"person" → skip, "company" → allow,
+       None/unknown → require multi-source confirmation
+    4. Name/slug dedup against existing startups
+    5. Rate limited to max_per_run per pipeline invocation
 
     After creation, backfills the event's startup_id and enqueues a refresh job.
     Returns count of startups created.
     """
+    # Build cluster lookup for source stats
+    cluster_by_key: Dict[str, Any] = {}
+    for c in clusters:
+        ck = getattr(c, "cluster_key", None)
+        if ck:
+            cluster_by_key[ck] = c
+
     # Collect unique unlinked entity names from qualifying events
     seen_names: Dict[str, ExtractedEvent] = {}  # lowercase → first event
     for evt in events:
@@ -646,23 +741,63 @@ async def onboard_unknown_startups(
     if not seen_names:
         return 0
 
-    # Build cluster lookup for guessing website from URLs
-    cluster_urls: Dict[Optional[str], str] = {}
-    for c in clusters:
-        if hasattr(c, 'cluster_key') and hasattr(c, 'members'):
-            for m in c.members:
-                url = getattr(m, 'url', None)
-                if url and hasattr(c, 'cluster_key'):
-                    cluster_urls[c.cluster_key] = url
+    # Pre-fetch existing investor names for dedup (lowercase set)
+    try:
+        investor_rows = await conn.fetch(
+            "SELECT LOWER(name) AS name_lower FROM investors WHERE name IS NOT NULL"
+        )
+        investor_names = {r["name_lower"] for r in investor_rows}
+    except Exception:
+        investor_names = set()  # investors table may not exist
 
     created = 0
+    skipped_reasons: Dict[str, int] = {}
+
+    def _skip(reason: str) -> None:
+        skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
+
     for name_lower, evt in list(seen_names.items())[:max_per_run]:
         entity_name = evt.entity_name or name_lower
-        slug = _slugify(entity_name)
-        if not slug:
+
+        # --- Gate 1: Denylist ---
+        if name_lower in _ONBOARD_DENYLIST:
+            _skip("denylist")
+            continue
+        if any(p.match(entity_name) for p in _ONBOARD_DENY_PATTERNS):
+            _skip("deny_pattern")
             continue
 
-        # Check if a startup with similar name already exists (fuzzy ILIKE)
+        # --- Gate 2: Investor table dedup ---
+        if name_lower in investor_names:
+            _skip("known_investor")
+            continue
+
+        # --- Gate 3: Entity type filter ---
+        entity_type = evt.metadata.get("entity_type")
+        if entity_type in ("investor", "person"):
+            _skip("entity_type_" + str(entity_type))
+            continue
+
+        if entity_type != "company":
+            # Unknown type → require multi-source confirmation
+            cluster_key = evt.metadata.get("cluster_key")
+            cluster = cluster_by_key.get(cluster_key) if cluster_key else None
+            if cluster:
+                stats = cluster_source_stats(cluster)
+                if not stats["multi_source_confirmed"]:
+                    _skip("single_source")
+                    continue
+            else:
+                # No cluster found → cannot verify sources → skip
+                _skip("no_cluster")
+                continue
+
+        # --- Gate 4: Name/slug dedup ---
+        slug = _slugify(entity_name)
+        if not slug:
+            _skip("empty_slug")
+            continue
+
         try:
             existing = await conn.fetchval(
                 """SELECT id FROM startups
@@ -677,15 +812,15 @@ async def onboard_unknown_startups(
                 for e in events:
                     if e.entity_name and e.entity_name.lower().strip() == name_lower and not e.startup_id:
                         e.startup_id = str(existing)
+                _skip("existing_startup")
                 continue
         except Exception:
             logger.warning("Onboard check failed for '%s'", entity_name, exc_info=True)
             continue
 
-        # Guess region from event
+        # --- Create stub startup ---
         region = evt.region or "global"
 
-        # Create stub startup
         try:
             new_id = await conn.fetchval(
                 """INSERT INTO startups (name, slug, dataset_region, description, period)
@@ -695,7 +830,7 @@ async def onboard_unknown_startups(
                 entity_name,
                 slug,
                 region,
-                f"Auto-discovered from news events. Pending analysis.",
+                "Auto-discovered from news events. Pending analysis.",
             )
             if not new_id:
                 continue  # Slug collision
@@ -729,6 +864,8 @@ async def onboard_unknown_startups(
         except Exception:
             logger.warning("Failed to onboard startup '%s'", entity_name, exc_info=True)
 
+    if skipped_reasons:
+        logger.info("Onboarding skipped: %s", skipped_reasons)
     if created:
         logger.info("Onboarded %d new stub startups from unlinked events", created)
 
