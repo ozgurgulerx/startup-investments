@@ -5228,14 +5228,14 @@ class DailyNewsIngestor:
         try:
             from .event_extractor import EventExtractor, persist_events, enqueue_refresh_for_events
         except ImportError:
-            logger.warning("event_extractor module not available, skipping event extraction")
+            print("[news-ingest] event_extractor module not available, skipping event extraction")
             return 0
 
         try:
             extractor = EventExtractor()
             await extractor.load(conn)
         except Exception as exc:
-            logger.warning("Failed to load EventExtractor (event_registry table may not exist): %s", exc)
+            print(f"[news-ingest] Failed to load EventExtractor (event_registry table may not exist): {exc}")
             return 0
 
         all_events = []
@@ -5248,33 +5248,32 @@ class DailyNewsIngestor:
             return 0
 
         inserted, inserted_events = await persist_events(conn, all_events, extractor._registry)
-        logger.info("[events:%s] Extracted %d events from %d clusters, persisted %d",
-                     region, len(all_events), len(clusters), inserted)
+        print(f"[events:{region}] Extracted {len(all_events)} events from {len(clusters)} clusters, persisted {inserted}")
 
         # Upsert funding rounds from high-confidence funding events
         try:
             from .event_extractor import upsert_funding_from_events
             funding_inserted = await upsert_funding_from_events(conn, all_events)
             if funding_inserted:
-                logger.info("[funding:%s] Upserted %d funding rounds from events", region, funding_inserted)
-        except Exception:
-            logger.warning("Failed to upsert funding rounds from events", exc_info=True)
+                print(f"[funding:{region}] Upserted {funding_inserted} funding rounds from events")
+        except Exception as exc:
+            print(f"[news-ingest] Failed to upsert funding rounds from events: {exc}")
 
         # Onboard unknown startups from unlinked entity mentions
         try:
             from .event_extractor import onboard_unknown_startups
             onboarded = await onboard_unknown_startups(conn, all_events, clusters)
             if onboarded:
-                logger.info("[onboard:%s] Created %d stub startups from unlinked events", region, onboarded)
-        except Exception:
-            logger.warning("Failed to onboard unknown startups", exc_info=True)
+                print(f"[onboard:{region}] Created {onboarded} stub startups from unlinked events")
+        except Exception as exc:
+            print(f"[news-ingest] Failed to onboard unknown startups: {exc}")
 
         # Enqueue refresh jobs for startups with qualifying events
         try:
             if inserted_events:
                 await enqueue_refresh_for_events(conn, inserted_events)
-        except Exception:
-            logger.warning("Failed to enqueue refresh jobs (table may not exist yet)", exc_info=True)
+        except Exception as exc:
+            print(f"[news-ingest] Failed to enqueue refresh jobs (table may not exist yet): {exc}")
 
         return inserted
 
