@@ -485,6 +485,20 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
 
     const row = rows?.[0];
     if (!row) {
+      // Check if slug is an alias for a merged/renamed startup
+      const aliasRow = await db.execute(sql`
+        SELECT s.slug, s.dataset_region
+        FROM startup_aliases sa
+        JOIN startups s ON s.id = sa.startup_id
+        WHERE sa.alias = ${slug}
+          AND s.dataset_region = ${region}
+          AND COALESCE(s.onboarding_status, 'verified') != 'merged'
+        LIMIT 1
+      `);
+      if (aliasRow.rows.length > 0) {
+        const canonical = (aliasRow.rows[0] as any).slug;
+        return res.redirect(301, `/api/v1/companies/${canonical}?period=${period}&region=${region}`);
+      }
       return res.status(404).json({ error: 'Not found' });
     }
 
@@ -603,7 +617,8 @@ app.get('/api/v1/startups/:slug/timeline', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
 
-    const cacheKey = `timeline:${req.params.slug}:${parsed.data.limit}:${parsed.data.cursor || ''}:${parsed.data.domain || ''}:${parsed.data.type || ''}:${parsed.data.min_confidence || ''}`;
+    const hasQuery = !!parsed.data.query;
+    const cacheKey = `timeline:${req.params.slug}:${parsed.data.limit}:${parsed.data.cursor || ''}:${parsed.data.domain || ''}:${parsed.data.type || ''}:${parsed.data.min_confidence || ''}:${parsed.data.query || ''}`;
     const redis = await getRedisClient();
     if (redis) {
       try {
@@ -621,7 +636,8 @@ app.get('/api/v1/startups/:slug/timeline', async (req, res) => {
     });
 
     if (redis) {
-      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
+      // Shorter TTL for search queries to avoid cache bloat
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: hasQuery ? 60 : 300 }); } catch { /* noop */ }
     }
 
     res.json(result);

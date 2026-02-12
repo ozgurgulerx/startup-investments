@@ -341,6 +341,7 @@ export const timelineQuerySchema = z.object({
   domain: z.enum(['architecture', 'gtm', 'capital', 'org', 'product']).optional(),
   type: optionalTrimmedString(50),           // event_type filter
   min_confidence: z.coerce.number().min(0).max(1).optional(),
+  query: optionalTrimmedString(500),         // semantic search
 });
 
 // =============================================================================

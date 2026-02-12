@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { timeAgo } from '@/lib/news-utils';
 
 // ---------------------------------------------------------------------------
@@ -78,12 +78,27 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [domainFilter, setDomainFilter] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Debounce search input → debouncedQuery
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(searchInput.trim());
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [searchInput]);
+
+  const isSearching = debouncedQuery.length > 0;
 
   const fetchTimeline = useCallback(
     async (cursor?: string | null) => {
       const params = new URLSearchParams({ limit: '30' });
-      if (cursor) params.set('cursor', cursor);
+      if (cursor && !isSearching) params.set('cursor', cursor);
       if (domainFilter) params.set('domain', domainFilter);
+      if (debouncedQuery) params.set('query', debouncedQuery);
 
       const res = await fetch(
         `/api/v1/startups/${encodeURIComponent(slug)}/timeline?${params}`
@@ -91,7 +106,7 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
       if (!res.ok) return null;
       return res.json() as Promise<TimelineResponse>;
     },
-    [slug, domainFilter]
+    [slug, domainFilter, debouncedQuery, isSearching]
   );
 
   useEffect(() => {
@@ -110,7 +125,7 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
   }, [fetchTimeline]);
 
   const loadMore = async () => {
-    if (!nextCursor || loadingMore) return;
+    if (!nextCursor || loadingMore || isSearching) return;
     setLoadingMore(true);
     try {
       const data = await fetchTimeline(nextCursor);
@@ -137,7 +152,7 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
     );
   }
 
-  if (events.length === 0 && !loading) return null;
+  if (events.length === 0 && !loading && !isSearching) return null;
 
   // Group events by effective_date
   const grouped: Record<string, TimelineEvent[]> = {};
@@ -153,8 +168,30 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
       <div className="section-header">
         <span className="section-title">Event Timeline</span>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {events.length} event{events.length !== 1 ? 's' : ''}
+          {isSearching
+            ? `${events.length} result${events.length !== 1 ? 's' : ''}`
+            : `${events.length} event${events.length !== 1 ? 's' : ''}`}
         </span>
+      </div>
+
+      {/* Search input */}
+      <div className="relative mt-3">
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search events..."
+          className="w-full rounded border border-border/40 bg-transparent px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/30 transition-colors"
+        />
+        {searchInput && (
+          <button
+            onClick={() => setSearchInput('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs transition-colors"
+            aria-label="Clear search"
+          >
+            &times;
+          </button>
+        )}
       </div>
 
       {/* Domain filter chips */}
@@ -183,6 +220,13 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
           </button>
         ))}
       </div>
+
+      {/* Empty search state */}
+      {isSearching && events.length === 0 && !loading && (
+        <p className="text-xs text-muted-foreground/60 py-4">
+          No events found for &ldquo;{debouncedQuery}&rdquo;
+        </p>
+      )}
 
       {/* Timeline */}
       <div className="relative pl-4 border-l border-border/30">
@@ -235,8 +279,8 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
         ))}
       </div>
 
-      {/* Load more */}
-      {nextCursor && (
+      {/* Load more (only in chronological mode) */}
+      {nextCursor && !isSearching && (
         <button
           onClick={loadMore}
           disabled={loadingMore}

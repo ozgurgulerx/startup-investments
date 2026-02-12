@@ -1473,6 +1473,7 @@ export function makeNewsService(pool: Pool) {
     domain?: string;
     type?: string;
     min_confidence?: number;
+    query?: string;
   }): Promise<{ events: TimelineEvent[]; next_cursor: string | null }> {
     const limit = Math.max(1, Math.min(100, Number(params.limit || 50)));
 
@@ -1486,9 +1487,21 @@ export function makeNewsService(pool: Pool) {
     }
     const startupId = slugResult.rows[0].id;
 
+    // -----------------------------------------------------------------------
+    // Semantic search path: when `query` is present, find matching cluster IDs
+    // via embedding cosine similarity, then filter timeline to those clusters
+    // -----------------------------------------------------------------------
+    if (params.query) {
+      return getCompanyTimelineSearch(startupId, params.query, limit, params);
+    }
+
+    // -----------------------------------------------------------------------
+    // Default chronological path (unchanged)
+    // -----------------------------------------------------------------------
+
     // Match direct startup_id OR appearance in metadata_json.participants[]
     const conditions: string[] = [
-      `(se.startup_id = $1::uuid OR se.metadata_json @> jsonb_build_object('participants', jsonb_build_array(jsonb_build_object('startup_id', $1))))`,
+      `(se.startup_id = $1::uuid OR se.metadata_json @> jsonb_build_object('participants', jsonb_build_array(jsonb_build_object('startup_id', $1::text))))`,
     ];
     const values: unknown[] = [startupId];
     let idx = 2;
@@ -1546,22 +1559,7 @@ export function makeNewsService(pool: Pool) {
 
       const rows = result.rows;
       const hasMore = rows.length > limit;
-      const events: TimelineEvent[] = rows.slice(0, limit).map((r) => ({
-        id: String(r.id),
-        event_type: String(r.event_type),
-        event_key: String(r.event_key || ''),
-        domain: String(r.domain),
-        display_name: String(r.display_name),
-        confidence: Number(r.confidence || 0),
-        effective_date: String(r.effective_date || ''),
-        detected_at: String(r.detected_at || ''),
-        event_title: r.event_title ? String(r.event_title) : null,
-        event_content: r.event_content ? String(r.event_content) : null,
-        cluster_id: r.cluster_id ? String(r.cluster_id) : null,
-        metadata_json: r.metadata_json && typeof r.metadata_json === 'object' ? r.metadata_json as Record<string, unknown> : null,
-        source_type: String(r.source_type),
-        region: String(r.region),
-      }));
+      const events: TimelineEvent[] = rows.slice(0, limit).map(rowToTimelineEvent);
 
       const next_cursor = hasMore && events.length > 0
         ? events[events.length - 1].effective_date
@@ -1571,6 +1569,226 @@ export function makeNewsService(pool: Pool) {
     } catch (error) {
       console.error('Error fetching company timeline:', error);
       return { events: [], next_cursor: null };
+    }
+  }
+
+  // Helper: map a DB row to TimelineEvent
+  function rowToTimelineEvent(r: Record<string, unknown>): TimelineEvent {
+    return {
+      id: String(r.id),
+      event_type: String(r.event_type),
+      event_key: String(r.event_key || ''),
+      domain: String(r.domain),
+      display_name: String(r.display_name),
+      confidence: Number(r.confidence || 0),
+      effective_date: String(r.effective_date || ''),
+      detected_at: String(r.detected_at || ''),
+      event_title: r.event_title ? String(r.event_title) : null,
+      event_content: r.event_content ? String(r.event_content) : null,
+      cluster_id: r.cluster_id ? String(r.cluster_id) : null,
+      metadata_json: r.metadata_json && typeof r.metadata_json === 'object' ? r.metadata_json as Record<string, unknown> : null,
+      source_type: String(r.source_type),
+      region: String(r.region),
+    };
+  }
+
+  // Semantic search within a startup's timeline
+  async function getCompanyTimelineSearch(
+    startupId: string,
+    query: string,
+    limit: number,
+    filters: { domain?: string; type?: string; min_confidence?: number },
+  ): Promise<{ events: TimelineEvent[]; next_cursor: string | null }> {
+    // Embed query and run text fallback search in parallel
+    const [queryEmbedding, textFallbackIds] = await Promise.all([
+      embedQuery(query),
+      timelineTextSearch(startupId, query, limit, filters),
+    ]);
+
+    let matchedClusterIds: string[] = [];
+
+    if (queryEmbedding) {
+      // Vector search: find semantically similar clusters scoped to this startup
+      try {
+        const embStr = `[${queryEmbedding.join(',')}]`;
+        const filterConditions: string[] = [];
+        const filterValues: unknown[] = [startupId, embStr];
+        let idx = 3;
+
+        if (filters.domain) {
+          filterConditions.push(`er.domain = $${idx}`);
+          filterValues.push(filters.domain);
+          idx++;
+        }
+        if (filters.type) {
+          filterConditions.push(`se.event_type = $${idx}`);
+          filterValues.push(filters.type);
+          idx++;
+        }
+        if (filters.min_confidence != null) {
+          filterConditions.push(`se.confidence >= $${idx}`);
+          filterValues.push(filters.min_confidence);
+          idx++;
+        }
+
+        filterValues.push(limit);
+
+        const extraWhere = filterConditions.length > 0
+          ? `AND ${filterConditions.join(' AND ')}`
+          : '';
+
+        const vectorResult = await pool.query(
+          `WITH startup_clusters AS (
+              SELECT DISTINCT se.cluster_id
+              FROM startup_events se
+              LEFT JOIN event_registry er ON er.id = se.event_registry_id
+              WHERE (se.startup_id = $1::uuid
+                OR se.metadata_json @> jsonb_build_object('participants', jsonb_build_array(jsonb_build_object('startup_id', $1::text))))
+                AND se.cluster_id IS NOT NULL
+                ${extraWhere}
+           ),
+           ranked AS (
+              SELECT nc.id,
+                     1 - (nc.embedding <=> $2::vector) AS similarity
+              FROM news_clusters nc
+              JOIN startup_clusters sc ON sc.cluster_id = nc.id
+              WHERE nc.embedding IS NOT NULL
+              ORDER BY nc.embedding <=> $2::vector
+              LIMIT $${idx}
+           )
+           SELECT id::text, similarity FROM ranked WHERE similarity >= 0.3`,
+          filterValues,
+        );
+
+        matchedClusterIds = vectorResult.rows.map((r: Record<string, unknown>) => String(r.id));
+      } catch {
+        // pgvector not available — fall through to text fallback
+      }
+    }
+
+    // Merge vector and text results (vector-matched IDs take priority)
+    if (matchedClusterIds.length === 0 && textFallbackIds.length === 0) {
+      return { events: [], next_cursor: null };
+    }
+
+    // Combine cluster IDs (vector first, then text), deduplicate
+    const allClusterIds = [...new Set([...matchedClusterIds, ...textFallbackIds])];
+
+    // Fetch full timeline events for matched clusters
+    const filterConditions: string[] = [];
+    const values: unknown[] = [startupId, allClusterIds];
+    let idx = 3;
+
+    if (filters.domain) {
+      filterConditions.push(`er.domain = $${idx}`);
+      values.push(filters.domain);
+      idx++;
+    }
+    if (filters.type) {
+      filterConditions.push(`se.event_type = $${idx}`);
+      values.push(filters.type);
+      idx++;
+    }
+    if (filters.min_confidence != null) {
+      filterConditions.push(`se.confidence >= $${idx}`);
+      values.push(filters.min_confidence);
+      idx++;
+    }
+
+    values.push(limit);
+    const extraWhere = filterConditions.length > 0
+      ? `AND ${filterConditions.join(' AND ')}`
+      : '';
+
+    try {
+      const result = await pool.query(
+        `SELECT
+            se.id::text,
+            se.event_type,
+            COALESCE(se.event_key, '') AS event_key,
+            COALESCE(er.domain, 'product') AS domain,
+            COALESCE(er.display_name, se.event_type) AS display_name,
+            COALESCE(se.confidence, 0) AS confidence,
+            to_char(se.effective_date, 'YYYY-MM-DD') AS effective_date,
+            to_char(se.detected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS detected_at,
+            se.event_title,
+            se.event_content,
+            se.cluster_id::text,
+            se.metadata_json,
+            COALESCE(se.source_type, 'news') AS source_type,
+            COALESCE(se.region, 'global') AS region,
+            array_position($2::uuid[], se.cluster_id) AS rank_pos
+         FROM startup_events se
+         LEFT JOIN event_registry er ON er.id = se.event_registry_id
+         WHERE (se.startup_id = $1::uuid
+           OR se.metadata_json @> jsonb_build_object('participants', jsonb_build_array(jsonb_build_object('startup_id', $1::text))))
+           AND se.cluster_id = ANY($2::uuid[])
+           AND se.effective_date IS NOT NULL
+           ${extraWhere}
+         ORDER BY rank_pos ASC NULLS LAST, se.effective_date DESC
+         LIMIT $${idx}`,
+        values,
+      );
+
+      const events: TimelineEvent[] = result.rows.map(rowToTimelineEvent);
+      // No cursor-based pagination in search mode — results are ranked
+      return { events, next_cursor: null };
+    } catch (error) {
+      console.error('Error fetching timeline search results:', error);
+      return { events: [], next_cursor: null };
+    }
+  }
+
+  // Text fallback: find cluster IDs matching via ILIKE on event_title/event_content
+  async function timelineTextSearch(
+    startupId: string,
+    query: string,
+    limit: number,
+    filters: { domain?: string; type?: string; min_confidence?: number },
+  ): Promise<string[]> {
+    try {
+      const q = `%${query.replace(/[%_\\]/g, '\\$&')}%`;
+      const filterConditions: string[] = [];
+      const values: unknown[] = [startupId, q];
+      let idx = 3;
+
+      if (filters.domain) {
+        filterConditions.push(`er.domain = $${idx}`);
+        values.push(filters.domain);
+        idx++;
+      }
+      if (filters.type) {
+        filterConditions.push(`se.event_type = $${idx}`);
+        values.push(filters.type);
+        idx++;
+      }
+      if (filters.min_confidence != null) {
+        filterConditions.push(`se.confidence >= $${idx}`);
+        values.push(filters.min_confidence);
+        idx++;
+      }
+
+      values.push(limit);
+      const extraWhere = filterConditions.length > 0
+        ? `AND ${filterConditions.join(' AND ')}`
+        : '';
+
+      const result = await pool.query(
+        `SELECT DISTINCT se.cluster_id::text
+         FROM startup_events se
+         LEFT JOIN event_registry er ON er.id = se.event_registry_id
+         WHERE (se.startup_id = $1::uuid
+           OR se.metadata_json @> jsonb_build_object('participants', jsonb_build_array(jsonb_build_object('startup_id', $1::text))))
+           AND se.cluster_id IS NOT NULL
+           AND (se.event_title ILIKE $2 OR se.event_content ILIKE $2)
+           AND se.effective_date IS NOT NULL
+           ${extraWhere}
+         LIMIT $${idx}`,
+        values,
+      );
+      return result.rows.map((r: Record<string, unknown>) => String(r.cluster_id));
+    } catch {
+      return [];
     }
   }
 
