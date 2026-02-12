@@ -45,11 +45,19 @@ import {
   movesQuerySchema,
   deepDiveListQuerySchema,
   timelineQuerySchema,
+  moversFeedQuerySchema,
+  moversSummaryQuerySchema,
+  moversUnreadQuerySchema,
+  moversSeenSchema,
+  startupDeltasQuerySchema,
+  startupNeighborsQuerySchema,
+  startupBenchmarksQuerySchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
 import { makeSignalsService } from './services/signals';
 import { makeDeepDivesService } from './services/deep-dives';
+import { makeMoversService } from './services/movers';
 import { makeBriefService } from './services/brief';
 import {
   getRedisClient,
@@ -88,6 +96,7 @@ const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
 const newsService = makeNewsService(pool);
 const signalsService = makeSignalsService(pool);
 const deepDivesService = makeDeepDivesService(pool);
+const moversService = makeMoversService(pool);
 const briefService = makeBriefService(pool);
 
 // Trust proxy for correct client IP behind Azure Front Door / Load Balancer
@@ -2499,6 +2508,238 @@ app.get('/api/v1/signals/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching signal detail:', error);
     return res.status(500).json({ error: 'Failed to fetch signal detail' });
+  }
+});
+
+// =============================================================================
+// MOVERS / CHANGEFEED API
+// =============================================================================
+
+app.get('/api/v1/movers', async (req, res) => {
+  try {
+    const parsed = moversFeedQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const params = parsed.data;
+    const cacheKey = `movers:feed:${params.region}:${params.delta_type || 'all'}:${params.domain || 'all'}:${params.period || 'all'}:${params.limit}:${params.offset}`;
+
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    const result = await moversService.getDeltaFeed(params);
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.MOVERS_FEED }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching movers feed:', error);
+    return res.status(500).json({ error: 'Failed to fetch movers feed' });
+  }
+});
+
+app.get('/api/v1/movers/summary', async (req, res) => {
+  try {
+    const parsed = moversSummaryQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const params = parsed.data;
+    const cacheKey = `movers:summary:${params.region}:${params.period || 'all'}:${params.limit}`;
+
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    const result = await moversService.getMoversSummary(params);
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.MOVERS_SUMMARY }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching movers summary:', error);
+    return res.status(500).json({ error: 'Failed to fetch movers summary' });
+  }
+});
+
+app.get('/api/v1/movers/unread', async (req, res) => {
+  try {
+    const parsed = moversUnreadQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const result = await moversService.getUnreadCount({
+      userId: parsed.data.user_id,
+      region: parsed.data.region,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+    return res.status(500).json({ error: 'Failed to fetch unread count' });
+  }
+});
+
+app.patch('/api/v1/movers/seen', async (req, res) => {
+  try {
+    const parsed = moversSeenSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    await moversService.markFeedSeen({
+      userId: parsed.data.user_id,
+      region: parsed.data.region,
+      seenAt: parsed.data.seen_at,
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error marking feed seen:', error);
+    return res.status(500).json({ error: 'Failed to mark feed seen' });
+  }
+});
+
+app.get('/api/v1/companies/:slug/deltas', async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    if (!slug || slug.length > 255) {
+      return res.status(400).json({ error: 'Invalid slug' });
+    }
+    const parsed = startupDeltasQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `movers:startup:${slug}:${parsed.data.region}:${parsed.data.limit}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    const events = await moversService.getStartupDeltas({
+      startupSlug: slug,
+      region: parsed.data.region,
+      limit: parsed.data.limit,
+    });
+    const result = { events };
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.MOVERS_FEED }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching startup deltas:', error);
+    return res.status(500).json({ error: 'Failed to fetch startup deltas' });
+  }
+});
+
+app.get('/api/v1/companies/:slug/neighbors', async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    if (!slug || slug.length > 255) {
+      return res.status(400).json({ error: 'Invalid slug' });
+    }
+    const parsed = startupNeighborsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `neighbors:${slug}:${parsed.data.period || 'latest'}:${parsed.data.limit}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    // Resolve slug to startup ID
+    const startupResult = await pool.query(
+      `SELECT id FROM startups WHERE slug = $1 LIMIT 1`,
+      [slug],
+    );
+    if (!startupResult.rows[0]) {
+      return res.status(404).json({ error: 'Startup not found' });
+    }
+    const startupId = startupResult.rows[0].id;
+
+    const result = await signalsService.getStartupNeighbors({
+      startupId,
+      period: parsed.data.period,
+      limit: parsed.data.limit,
+    });
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.NEIGHBORS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching startup neighbors:', error);
+    return res.status(500).json({ error: 'Failed to fetch startup neighbors' });
+  }
+});
+
+app.get('/api/v1/companies/:slug/benchmarks', async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    if (!slug || slug.length > 255) {
+      return res.status(400).json({ error: 'Invalid slug' });
+    }
+    const parsed = startupBenchmarksQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `benchmarks:${slug}:${parsed.data.period || 'latest'}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    // Resolve slug to startup ID
+    const startupResult = await pool.query(
+      `SELECT id FROM startups WHERE slug = $1 LIMIT 1`,
+      [slug],
+    );
+    if (!startupResult.rows[0]) {
+      return res.status(404).json({ error: 'Startup not found' });
+    }
+    const startupId = startupResult.rows[0].id;
+
+    const result = await signalsService.getStartupBenchmarks({
+      startupId,
+      period: parsed.data.period,
+    });
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching startup benchmarks:', error);
+    return res.status(500).json({ error: 'Failed to fetch startup benchmarks' });
   }
 });
 

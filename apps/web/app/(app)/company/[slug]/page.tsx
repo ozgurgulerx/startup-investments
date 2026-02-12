@@ -20,6 +20,9 @@ import { normalizeDatasetRegion } from '@/lib/region';
 import { safeHref } from '@/lib/url';
 import { RecentSignals } from '@/components/company/recent-signals';
 import { EventTimeline } from '@/components/company/event-timeline';
+import { ComparableStartups } from '@/components/company/comparable-startups';
+import { CohortBenchmarks } from '@/components/company/cohort-benchmarks';
+import { StartupDeltas } from '@/components/company/startup-deltas';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -316,6 +319,21 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
 
       {/* Event Timeline: structured events with time semantics */}
       <EventTimeline slug={startup.company_slug} region={region} />
+
+      {/* Recent Changes (Delta Events) */}
+      <Suspense fallback={null}>
+        <StartupDeltas slug={startup.company_slug} region={region} />
+      </Suspense>
+
+      {/* Comparable Startups (Neighbors) */}
+      <Suspense fallback={null}>
+        <ComparableStartups slug={startup.company_slug} region={region} />
+      </Suspense>
+
+      {/* Cohort Benchmarks (Percentile Bars) */}
+      <Suspense fallback={null}>
+        <CohortBenchmarks slug={startup.company_slug} region={region} />
+      </Suspense>
 
       {/* Section 2: Why This Company Matters Now */}
       <section className="section">

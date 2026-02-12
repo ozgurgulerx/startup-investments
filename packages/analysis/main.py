@@ -2718,5 +2718,99 @@ def generate_deep_dives_cmd(
     console.print(f"  Errors: {result.get('errors', 0)}")
 
 
+@app.command("generate-deltas")
+def generate_deltas_cmd(
+    period: str = typer.Option(..., "--period", "-p", help="Period to generate deltas for (e.g., 2026-02)"),
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+):
+    """Generate delta events by diffing startup state across periods.
+
+    Detects funding rounds, pattern changes, score shifts, stage transitions,
+    employee changes, signal spikes, new entries, and GTM shifts.
+
+    Example:
+        python main.py generate-deltas --period 2026-02 --region global
+    """
+    from src.automation.delta_generator import run_delta_generation
+
+    try:
+        result = asyncio.run(run_delta_generation(period=period, region=region))
+    except Exception as exc:
+        console.print(f"[red]Delta generation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Delta Generation Summary[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"  Total inserted: [green]{result.get('total', 0)}[/green]")
+    console.print(f"  Duplicates skipped: [yellow]{result.get('skipped_duplicate', 0)}[/yellow]")
+    for dtype in ("funding_round", "pattern_added", "pattern_removed", "score_change",
+                   "stage_change", "employee_change", "signal_spike", "new_entry", "gtm_shift"):
+        count = result.get(dtype, 0)
+        if count > 0:
+            console.print(f"  {dtype}: [cyan]{count}[/cyan]")
+
+
+@app.command("compute-neighbors")
+def compute_neighbors_cmd(
+    period: str = typer.Option(..., "--period", "-p", help="Period (e.g., 2026-02)"),
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+    k: int = typer.Option(10, "--k", help="Number of neighbors per startup"),
+):
+    """Compute k-nearest neighbors for all startups in a period.
+
+    Uses hybrid scoring: vector similarity (if embeddings exist) + pattern Jaccard + metadata.
+
+    Example:
+        python main.py compute-neighbors --period 2026-02 --k 10
+    """
+    from src.automation.neighbors_benchmarks import run_compute_neighbors
+
+    try:
+        result = asyncio.run(run_compute_neighbors(period=period, region=region, k=k))
+    except Exception as exc:
+        console.print(f"[red]Neighbor computation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Neighbors Computation[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"  Processed: [green]{result.get('processed', 0)}[/green]")
+    console.print(f"  Neighbors inserted: [cyan]{result.get('neighbors_inserted', 0)}[/cyan]")
+    console.print(f"  Errors: [red]{result.get('errors', 0)}[/red]")
+
+
+@app.command("compute-benchmarks")
+def compute_benchmarks_cmd(
+    period: str = typer.Option(..., "--period", "-p", help="Period (e.g., 2026-02)"),
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+):
+    """Compute cohort benchmarks (percentile distributions) for all metrics.
+
+    Computes p10/p25/p50/p75/p90/mean/stddev for funding, confidence,
+    engineering quality, and pattern count across stage/vertical cohorts.
+
+    Example:
+        python main.py compute-benchmarks --period 2026-02
+    """
+    from src.automation.neighbors_benchmarks import run_compute_benchmarks
+
+    try:
+        result = asyncio.run(run_compute_benchmarks(period=period, region=region))
+    except Exception as exc:
+        console.print(f"[red]Benchmark computation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Cohort Benchmarks[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"  Cohorts computed: [green]{result.get('cohorts_computed', 0)}[/green]")
+    console.print(f"  Benchmarks inserted: [cyan]{result.get('benchmarks_inserted', 0)}[/cyan]")
+    console.print(f"  Skipped (small cohort): [yellow]{result.get('skipped_small', 0)}[/yellow]")
+
+
 if __name__ == "__main__":
     app()

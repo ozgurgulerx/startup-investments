@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, date, bigint, uniqueIndex, index, decimal, jsonb, customType } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, date, bigint, uniqueIndex, index, decimal, jsonb, customType, real } from 'drizzle-orm/pg-core';
 
 // Custom bytea type for binary data (logos)
 const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
@@ -477,3 +477,165 @@ export const signalsRelations = relations(signals, ({ one }) => ({
   }),
 }));
 
+// =============================================================================
+// MOVERS / CHANGEFEED
+// =============================================================================
+
+// Delta events — captures startup state changes between periods
+export const deltaEvents = pgTable('delta_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  startupId: uuid('startup_id').references(() => startups.id, { onDelete: 'cascade' }),
+  signalId: uuid('signal_id').references(() => signals.id, { onDelete: 'set null' }),
+  deltaType: text('delta_type').notNull(),
+  domain: text('domain').notNull().default('general'),
+  region: text('region').notNull().default('global'),
+  oldValue: text('old_value'),
+  newValue: text('new_value'),
+  magnitude: real('magnitude'),
+  direction: text('direction'),
+  headline: text('headline').notNull(),
+  detail: text('detail'),
+  evidenceJson: jsonb('evidence_json').notNull().default({}),
+  period: text('period'),
+  effectiveAt: timestamp('effective_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// User feed state — tracks read position per user per region
+export const userFeedState = pgTable('user_feed_state', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull(),
+  region: text('region').notNull().default('global'),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().default(new Date('1970-01-01')),
+}, (table) => ({
+  uniqueUserRegion: uniqueIndex('uq_user_feed_state').on(table.userId, table.region),
+}));
+
+// =============================================================================
+// COMPARABLES & BENCHMARKS
+// =============================================================================
+
+// Startup neighbors — pre-computed similar startups
+export const startupNeighbors = pgTable('startup_neighbors', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  startupId: uuid('startup_id').notNull().references(() => startups.id, { onDelete: 'cascade' }),
+  neighborId: uuid('neighbor_id').notNull().references(() => startups.id, { onDelete: 'cascade' }),
+  rank: integer('rank').notNull(),
+  overallScore: real('overall_score').notNull(),
+  vectorScore: real('vector_score'),
+  patternScore: real('pattern_score'),
+  metaScore: real('meta_score'),
+  sharedPatterns: text('shared_patterns').array().notNull().default([]),
+  method: text('method').notNull().default('hybrid'),
+  period: text('period').notNull(),
+  computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueNeighborPeriod: uniqueIndex('uq_startup_neighbors').on(table.startupId, table.neighborId, table.period),
+}));
+
+// Cohort benchmarks — percentile distributions per cohort per metric
+export const cohortBenchmarks = pgTable('cohort_benchmarks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  cohortKey: text('cohort_key').notNull(),
+  cohortType: text('cohort_type').notNull(),
+  region: text('region').notNull().default('global'),
+  metric: text('metric').notNull(),
+  cohortSize: integer('cohort_size').notNull(),
+  p10: real('p10'),
+  p25: real('p25'),
+  p50: real('p50'),
+  p75: real('p75'),
+  p90: real('p90'),
+  mean: real('mean'),
+  stddev: real('stddev'),
+  period: text('period').notNull(),
+  computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueCohortMetric: uniqueIndex('uq_cohort_benchmarks').on(table.cohortKey, table.metric, table.period, table.region),
+}));
+
+// =============================================================================
+// INVESTOR DNA
+// =============================================================================
+
+// Investor pattern mix — monthly materialized investor profile
+export const investorPatternMix = pgTable('investor_pattern_mix', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  scope: text('scope').notNull().default('global'),
+  month: date('month').notNull(),
+  investorId: uuid('investor_id').notNull().references(() => investors.id, { onDelete: 'cascade' }),
+  dealCount: integer('deal_count').notNull().default(0),
+  totalAmountUsd: decimal('total_amount_usd'),
+  leadCount: integer('lead_count').notNull().default(0),
+  medianCheckUsd: decimal('median_check_usd'),
+  patternDealCounts: jsonb('pattern_deal_counts').notNull().default({}),
+  patternAmounts: jsonb('pattern_amounts').notNull().default({}),
+  stageDealCounts: jsonb('stage_deal_counts').notNull().default({}),
+  stageAmounts: jsonb('stage_amounts').notNull().default({}),
+  thesisShiftJs: decimal('thesis_shift_js', { precision: 5, scale: 4 }),
+  topGainers: jsonb('top_gainers'),
+  computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueMix: uniqueIndex('uq_investor_pattern_mix').on(table.scope, table.month, table.investorId),
+}));
+
+// Co-invest edges — monthly materialized co-investment graph
+export const investorCoInvestEdges = pgTable('investor_co_invest_edges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  scope: text('scope').notNull().default('global'),
+  month: date('month').notNull(),
+  investorId: uuid('investor_id').notNull().references(() => investors.id, { onDelete: 'cascade' }),
+  partnerInvestorId: uuid('partner_investor_id').notNull().references(() => investors.id, { onDelete: 'cascade' }),
+  coDeals: integer('co_deals').notNull().default(0),
+  coAmountUsd: decimal('co_amount_usd'),
+  sharedPatterns: jsonb('shared_patterns'),
+}, (table) => ({
+  uniqueEdge: uniqueIndex('uq_co_invest_edges').on(table.scope, table.month, table.investorId, table.partnerInvestorId),
+}));
+
+// =============================================================================
+// WATCHLIST INTELLIGENCE
+// =============================================================================
+
+// User subscriptions — extended subscription targets
+export const userSubscriptions = pgTable('user_subscriptions', {
+  userId: uuid('user_id').notNull(),
+  scope: text('scope').notNull().default('global'),
+  objectType: text('object_type').notNull(),
+  objectId: text('object_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  pk: uniqueIndex('pk_user_subscriptions').on(table.userId, table.scope, table.objectType, table.objectId),
+}));
+
+// User alerts — materialized alerts from delta_events
+export const userAlerts = pgTable('user_alerts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull(),
+  scope: text('scope').notNull().default('global'),
+  deltaId: uuid('delta_id').notNull().references(() => deltaEvents.id, { onDelete: 'cascade' }),
+  severity: integer('severity').notNull().default(1),
+  status: text('status').notNull().default('unread'),
+  reason: jsonb('reason').notNull().default({}),
+  narrative: jsonb('narrative'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  feedIdx: index('idx_user_alerts_feed').on(table.userId, table.status, table.createdAt),
+  deltaIdx: index('idx_user_alerts_delta').on(table.deltaId),
+}));
+
+// User digest threads — weekly/monthly digest compilations
+export const userDigestThreads = pgTable('user_digest_threads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull(),
+  scope: text('scope').notNull().default('global'),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  themes: jsonb('themes').notNull().default([]),
+  alertIds: text('alert_ids').array().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index('idx_user_digest_threads_user').on(table.userId, table.periodEnd),
+}));

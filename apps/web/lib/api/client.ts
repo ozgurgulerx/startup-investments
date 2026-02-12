@@ -547,6 +547,145 @@ export async function getMoves(signalId: string, startupId?: string): Promise<Mo
   return fetchFromAPI<MoveItem[]>(`/api/v1/signals/${signalId}/moves${qs}`);
 }
 
+// ---------------------------------------------------------------------------
+// Movers / Changefeed
+// ---------------------------------------------------------------------------
+
+export interface DeltaEvent {
+  id: string;
+  startup_id: string | null;
+  startup_name: string | null;
+  startup_slug: string | null;
+  signal_id: string | null;
+  delta_type: string;
+  domain: string;
+  region: string;
+  old_value: string | null;
+  new_value: string | null;
+  magnitude: number | null;
+  direction: string | null;
+  headline: string;
+  detail: string | null;
+  evidence_json: Record<string, any>;
+  period: string | null;
+  effective_at: string;
+}
+
+export interface MoversSummaryResponse {
+  top_movers: DeltaEvent[];
+  by_type: Record<string, number>;
+  total: number;
+}
+
+export interface DeltaFeedResponse {
+  events: DeltaEvent[];
+  total: number;
+}
+
+export async function getMoversSummary(params?: {
+  region?: string;
+  period?: string;
+  limit?: number;
+}): Promise<MoversSummaryResponse> {
+  const qs = new URLSearchParams();
+  if (params?.region) qs.set('region', params.region);
+  if (params?.period) qs.set('period', params.period);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  return fetchFromAPI<MoversSummaryResponse>(`/api/v1/movers/summary?${qs.toString()}`);
+}
+
+export async function getDeltaFeed(params?: {
+  region?: string;
+  delta_type?: string;
+  domain?: string;
+  period?: string;
+  min_magnitude?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<DeltaFeedResponse> {
+  const qs = new URLSearchParams();
+  if (params?.region) qs.set('region', params.region);
+  if (params?.delta_type) qs.set('delta_type', params.delta_type);
+  if (params?.domain) qs.set('domain', params.domain);
+  if (params?.period) qs.set('period', params.period);
+  if (params?.min_magnitude != null) qs.set('min_magnitude', String(params.min_magnitude));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  return fetchFromAPI<DeltaFeedResponse>(`/api/v1/movers?${qs.toString()}`);
+}
+
+export async function getStartupDeltas(slug: string, region?: string, limit?: number): Promise<{
+  events: DeltaEvent[];
+}> {
+  const qs = new URLSearchParams();
+  if (region) qs.set('region', region);
+  if (limit) qs.set('limit', String(limit));
+  return fetchFromAPI(`/api/v1/companies/${slug}/deltas?${qs.toString()}`);
+}
+
+// ---------------------------------------------------------------------------
+// Comparables & Benchmarks
+// ---------------------------------------------------------------------------
+
+export interface NeighborItem {
+  id: string;
+  name: string;
+  slug: string;
+  vertical: string | null;
+  stage: string | null;
+  rank: number;
+  overall_score: number;
+  vector_score: number | null;
+  pattern_score: number | null;
+  meta_score: number | null;
+  shared_patterns: string[];
+  period: string | null;
+}
+
+export interface NeighborsResponse {
+  neighbors: NeighborItem[];
+  method: string;
+}
+
+export interface BenchmarkItem {
+  cohort_key: string;
+  cohort_type: string;
+  metric: string;
+  cohort_size: number;
+  p10: number | null;
+  p25: number | null;
+  p50: number | null;
+  p75: number | null;
+  p90: number | null;
+  mean: number | null;
+  stddev: number | null;
+  period: string;
+}
+
+export interface BenchmarksResponse {
+  startup_values: Record<string, number | null>;
+  benchmarks: BenchmarkItem[];
+  cohort_keys: string[];
+}
+
+export async function getStartupNeighbors(slug: string, params?: {
+  period?: string;
+  limit?: number;
+}): Promise<NeighborsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.period) qs.set('period', params.period);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  return fetchFromAPI<NeighborsResponse>(`/api/v1/companies/${slug}/neighbors?${qs.toString()}`);
+}
+
+export async function getStartupBenchmarks(slug: string, params?: {
+  period?: string;
+}): Promise<BenchmarksResponse> {
+  const qs = new URLSearchParams();
+  if (params?.period) qs.set('period', params.period);
+  return fetchFromAPI<BenchmarksResponse>(`/api/v1/companies/${slug}/benchmarks?${qs.toString()}`);
+}
+
 // Re-export health utilities
 export {
   checkApiHealth,

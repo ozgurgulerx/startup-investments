@@ -605,6 +605,147 @@ export function makeSignalsService(pool: Pool) {
     }
   }
 
+  async function getStartupNeighbors(params: {
+    startupId: string;
+    period?: string;
+    limit?: number;
+  }): Promise<{ neighbors: any[]; method: string }> {
+    const { startupId, period, limit = 8 } = params;
+    try {
+      // Try pre-computed neighbors first
+      const periodCondition = period ? 'AND sn.period = $2' : '';
+      const periodValues = period ? [startupId, period] : [startupId];
+
+      const result = await pool.query(
+        `SELECT sn.*, s.name, s.slug, s.industry,
+                s.funding_stage, s.stage
+         FROM startup_neighbors sn
+         JOIN startups s ON s.id = sn.neighbor_id
+         WHERE sn.startup_id = $1::uuid ${periodCondition}
+         ORDER BY sn.rank ASC
+         LIMIT $${periodValues.length + 1}`,
+        [...periodValues, limit],
+      );
+
+      if (result.rows.length > 0) {
+        return {
+          neighbors: result.rows.map(r => ({
+            id: r.neighbor_id,
+            name: r.name,
+            slug: r.slug,
+            vertical: r.industry,
+            stage: r.funding_stage || r.stage,
+            rank: r.rank,
+            overall_score: Number(r.overall_score),
+            vector_score: r.vector_score != null ? Number(r.vector_score) : null,
+            pattern_score: Number(r.pattern_score),
+            meta_score: Number(r.meta_score),
+            shared_patterns: r.shared_patterns || [],
+            period: r.period,
+          })),
+          method: result.rows[0]?.method || 'hybrid',
+        };
+      }
+
+      // Fallback to existing getSimilarCompanies if no pre-computed neighbors
+      const fallback = await getSimilarCompanies({ startupId, limit });
+      return {
+        neighbors: fallback.companies.map((c: any) => ({
+          id: c.startup_id || c.id,
+          name: c.name,
+          slug: c.slug,
+          vertical: c.vertical,
+          stage: c.funding_stage,
+          rank: 0,
+          overall_score: Number(c.similarity || 0),
+          vector_score: null,
+          pattern_score: null,
+          meta_score: null,
+          shared_patterns: c.build_patterns || [],
+          period: null,
+        })),
+        method: 'fallback',
+      };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return { neighbors: [], method: 'unavailable' };
+      throw error;
+    }
+  }
+
+  async function getStartupBenchmarks(params: {
+    startupId: string;
+    period?: string;
+  }): Promise<{ startup_values: Record<string, number | null>; benchmarks: any[]; cohort_keys: string[] }> {
+    const { startupId, period } = params;
+    try {
+      // Get startup's own values from state snapshot
+      const stateResult = await pool.query(
+        `SELECT ss.funding_stage, ss.vertical, ss.confidence_score,
+                ss.engineering_quality_score, ss.build_patterns,
+                s.money_raised_usd
+         FROM startup_state_snapshot ss
+         JOIN startups s ON s.id = ss.startup_id
+         WHERE ss.startup_id = $1::uuid
+         ${period ? 'AND ss.analysis_period = $2' : ''}
+         ORDER BY ss.snapshot_at DESC LIMIT 1`,
+        period ? [startupId, period] : [startupId],
+      );
+
+      const state = stateResult.rows[0];
+      if (!state) {
+        return { startup_values: {}, benchmarks: [], cohort_keys: [] };
+      }
+
+      const startupValues: Record<string, number | null> = {
+        funding_total_usd: state.money_raised_usd ? Number(state.money_raised_usd) : null,
+        confidence_score: state.confidence_score != null ? Number(state.confidence_score) : null,
+        engineering_quality_score: state.engineering_quality_score != null ? Number(state.engineering_quality_score) : null,
+        pattern_count: state.build_patterns ? state.build_patterns.length : 0,
+      };
+
+      // Determine relevant cohort keys
+      const cohortKeys: string[] = ['all:all'];
+      if (state.funding_stage) cohortKeys.push(`stage:${state.funding_stage}`);
+      if (state.vertical) cohortKeys.push(`vertical:${state.vertical}`);
+      if (state.funding_stage && state.vertical) {
+        cohortKeys.push(`stage_vertical:${state.funding_stage}:${state.vertical}`);
+      }
+
+      // Fetch benchmarks for those cohorts
+      const benchResult = await pool.query(
+        `SELECT * FROM cohort_benchmarks
+         WHERE cohort_key = ANY($1)
+         ${period ? 'AND period = $2' : ''}
+         ORDER BY cohort_type, metric`,
+        period ? [cohortKeys, period] : [cohortKeys],
+      );
+
+      return {
+        startup_values: startupValues,
+        benchmarks: benchResult.rows.map(r => ({
+          cohort_key: r.cohort_key,
+          cohort_type: r.cohort_type,
+          metric: r.metric,
+          cohort_size: r.cohort_size,
+          p10: r.p10 != null ? Number(r.p10) : null,
+          p25: r.p25 != null ? Number(r.p25) : null,
+          p50: r.p50 != null ? Number(r.p50) : null,
+          p75: r.p75 != null ? Number(r.p75) : null,
+          p90: r.p90 != null ? Number(r.p90) : null,
+          mean: r.mean != null ? Number(r.mean) : null,
+          stddev: r.stddev != null ? Number(r.stddev) : null,
+          period: r.period,
+        })),
+        cohort_keys: cohortKeys,
+      };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) {
+        return { startup_values: {}, benchmarks: [], cohort_keys: [] };
+      }
+      throw error;
+    }
+  }
+
   return {
     getSignalsList,
     getSignalDetail,
@@ -614,5 +755,7 @@ export function makeSignalsService(pool: Pool) {
     getUserSignalFollows,
     getSignalUpdates,
     markSignalsSeen,
+    getStartupNeighbors,
+    getStartupBenchmarks,
   };
 }

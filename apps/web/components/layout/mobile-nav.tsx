@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { label: 'Brief', href: '/brief', regionAware: true },
   { label: 'Dossiers', href: '/dealbook', regionAware: true },
   { label: 'Signals', href: '/signals', regionAware: true },
+  { label: 'Movers', href: '/movers', regionAware: true },
   { label: 'Capital', href: '/capital', regionAware: true },
   { label: 'Library', href: '/library' },
   { label: 'Watchlist', href: '/watchlist', showBadge: true },

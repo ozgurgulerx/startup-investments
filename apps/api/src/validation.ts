@@ -389,3 +389,55 @@ export const deepDiveListQuerySchema = z.object({
   region: optionalTrimmedString(20),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
 });
+
+// =============================================================================
+// MOVERS / CHANGEFEED
+// =============================================================================
+
+const deltaType = z.enum([
+  'funding_round', 'pattern_added', 'pattern_removed', 'signal_spike',
+  'score_change', 'stage_change', 'employee_change', 'rank_jump',
+  'new_entry', 'gtm_shift',
+]);
+
+export const moversFeedQuerySchema = z.object({
+  region: z.enum(['global', 'turkey']).default('global'),
+  delta_type: deltaType.optional(),
+  domain: optionalTrimmedString(50),
+  startup_id: optionalTrimmedString(50),
+  period: optionalTrimmedString(10),
+  min_magnitude: z.coerce.number().min(0).max(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const moversSummaryQuerySchema = z.object({
+  region: z.enum(['global', 'turkey']).default('global'),
+  period: optionalTrimmedString(10),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+export const moversUnreadQuerySchema = z.object({
+  region: z.enum(['global', 'turkey']).default('global'),
+  user_id: z.string().uuid(),
+});
+
+export const moversSeenSchema = z.object({
+  user_id: z.string().uuid(),
+  region: z.enum(['global', 'turkey']).default('global'),
+  seen_at: z.string().datetime().optional(),
+});
+
+export const startupDeltasQuerySchema = z.object({
+  region: z.enum(['global', 'turkey']).default('global'),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+export const startupNeighborsQuerySchema = z.object({
+  period: optionalTrimmedString(10),
+  limit: z.coerce.number().int().min(1).max(20).default(8),
+});
+
+export const startupBenchmarksQuerySchema = z.object({
+  period: optionalTrimmedString(10),
+});

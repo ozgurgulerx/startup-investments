@@ -468,4 +468,8 @@ export const CACHE_TTL = {
   NEWS_SEARCH: 300,         // 5 minutes - search queries may overlap
   BRIEF: 900,               // 15 minutes - living brief, regenerated daily
   BRIEF_ARCHIVE: 1800,      // 30 minutes - archive listing changes infrequently
+  MOVERS_FEED: 120,          // 2 minutes - changefeed, refreshed on delta generation
+  MOVERS_SUMMARY: 300,       // 5 minutes - top movers summary
+  NEIGHBORS: 600,            // 10 minutes - pre-computed, changes weekly
+  BENCHMARKS: 600,           // 10 minutes - pre-computed, changes weekly
 } as const;
