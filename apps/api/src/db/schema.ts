@@ -284,6 +284,7 @@ export const startupEvents = pgTable('startup_events', {
   eventTitle: text('event_title'),
   eventUrl: varchar('event_url', { length: 1000 }),
   eventContent: text('event_content'),
+  eventKey: text('event_key'),
 
   // Processing status
   processed: boolean('processed').default(false),
@@ -292,6 +293,7 @@ export const startupEvents = pgTable('startup_events', {
 
   // Timestamps
   eventDate: timestamp('event_date', { withTimezone: true }),
+  effectiveDate: date('effective_date'),
   detectedAt: timestamp('detected_at', { withTimezone: true }).defaultNow(),
   processedAt: timestamp('processed_at', { withTimezone: true }),
 });

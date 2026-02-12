@@ -25,8 +25,8 @@ import logging
 import math
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from datetime import date, datetime, timedelta, timezone
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     import asyncpg
@@ -102,7 +102,7 @@ def compute_impact(funding_amounts: List[float], has_enterprise: bool, has_hyper
     return min(1.0, funding_score + enterprise_weight + hyperscaler_bonus)
 
 
-def compute_adoption_velocity(company_dates: List[datetime]) -> float:
+def compute_adoption_velocity(company_dates: List[Union[date, datetime]]) -> float:
     """d(U)/dt — slope of cumulative unique company count over time.
 
     Returns companies/day normalized to [0, 1] range. 1.0 ≈ 10+ companies/day.
@@ -258,18 +258,18 @@ class SignalEngine:
         """
         cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
 
-        # Query recent structured events
+        # Query recent structured events (using effective_date for real event timing)
         rows = await conn.fetch(
             """SELECT se.id::text, se.event_type, se.startup_id::text,
                       se.metadata_json, se.cluster_id::text, se.confidence,
-                      se.detected_at, se.event_title, se.event_key,
+                      se.detected_at, se.effective_date, se.event_title, se.event_key,
                       er.domain
                FROM startup_events se
                JOIN event_registry er ON se.event_registry_id = er.id
                WHERE se.region = $1
-                 AND se.detected_at >= $2
-               ORDER BY se.detected_at DESC""",
-            region, cutoff,
+                 AND se.effective_date >= $2::date
+               ORDER BY se.effective_date DESC""",
+            region, cutoff.date(),
         )
 
         if not rows:
@@ -598,16 +598,21 @@ class SignalEngine:
             )
             source_diversity = diversity_row["diversity"] if diversity_row else 1
 
-            # Recent vs previous event counts
+            # Recent vs previous event counts (by event effective_date, not evidence creation time)
             recent_row = await conn.fetchrow(
-                """SELECT COUNT(*) AS cnt FROM signal_evidence
-                   WHERE signal_id = $1::uuid AND created_at >= $2""",
-                signal_id, recent_cutoff,
+                """SELECT COUNT(*) AS cnt FROM signal_evidence sev
+                   JOIN startup_events se ON sev.event_id = se.id
+                   WHERE sev.signal_id = $1::uuid
+                     AND se.effective_date >= $2::date""",
+                signal_id, recent_cutoff.date(),
             )
             prev_row = await conn.fetchrow(
-                """SELECT COUNT(*) AS cnt FROM signal_evidence
-                   WHERE signal_id = $1::uuid AND created_at >= $2 AND created_at < $3""",
-                signal_id, prev_cutoff, recent_cutoff,
+                """SELECT COUNT(*) AS cnt FROM signal_evidence sev
+                   JOIN startup_events se ON sev.event_id = se.id
+                   WHERE sev.signal_id = $1::uuid
+                     AND se.effective_date >= $2::date
+                     AND se.effective_date < $3::date""",
+                signal_id, prev_cutoff.date(), recent_cutoff.date(),
             )
             recent_count = recent_row["cnt"] if recent_row else 0
             prev_count = prev_row["cnt"] if prev_row else 0
@@ -636,12 +641,13 @@ class SignalEngine:
                 if any(h in snippet for h in ("aws", "gcp", "azure", "google cloud", "microsoft")):
                     has_hyperscaler = True
 
-            # Company first-seen dates for velocity
+            # Company first-seen dates for velocity (by event effective_date)
             company_dates = await conn.fetch(
-                """SELECT MIN(created_at) AS first_seen
-                   FROM signal_evidence
-                   WHERE signal_id = $1::uuid AND startup_id IS NOT NULL
-                   GROUP BY startup_id""",
+                """SELECT MIN(se.effective_date) AS first_seen
+                   FROM signal_evidence sev
+                   JOIN startup_events se ON sev.event_id = se.id
+                   WHERE sev.signal_id = $1::uuid AND sev.startup_id IS NOT NULL
+                   GROUP BY sev.startup_id""",
                 signal_id,
             )
             dates = [r["first_seen"] for r in company_dates if r["first_seen"]]

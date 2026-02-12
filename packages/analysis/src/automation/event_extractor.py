@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
@@ -41,6 +42,7 @@ class ExtractedEvent:
     snippet: str = ""
     region: str = "global"
     event_key: str = ""      # Discriminator for dedup (e.g. pattern_name, round_type)
+    event_date: Optional[datetime] = None  # When the event actually happened
 
 
 def compute_event_key(event_type: str, metadata: Dict[str, Any]) -> str:
@@ -168,6 +170,15 @@ class EventExtractor:
 
         # --- 5. Attach startup_id from linked entities ---
         self._attach_startup_ids(cluster, events)
+
+        # --- 6. Derive event_date from cluster member publication dates ---
+        cluster_event_date = min(
+            (m.published_at for m in cluster.members),
+            default=cluster.published_at,
+        )
+        for evt in events:
+            if not evt.event_date:
+                evt.event_date = cluster_event_date
 
         return events
 
@@ -336,8 +347,10 @@ async def persist_events(
                 """INSERT INTO startup_events
                        (startup_id, event_type, event_title, event_content,
                         event_registry_id, confidence, source_type,
-                        metadata_json, cluster_id, region, event_key)
-                   VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11)
+                        metadata_json, cluster_id, region, event_key,
+                        event_date, effective_date)
+                   VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
+                           $12, COALESCE($12::date, CURRENT_DATE))
                    ON CONFLICT (cluster_id, startup_id, event_type, event_key)
                        WHERE cluster_id IS NOT NULL DO NOTHING
                    RETURNING id""",
@@ -352,6 +365,7 @@ async def persist_events(
                 evt.cluster_id,
                 evt.region,
                 evt.event_key,
+                evt.event_date,
             )
             if row is not None:
                 inserted += 1
