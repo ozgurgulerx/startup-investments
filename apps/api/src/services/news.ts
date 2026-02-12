@@ -1507,7 +1507,7 @@ export function makeNewsService(pool: Pool) {
     let idx = 2;
 
     if (params.cursor) {
-      conditions.push(`se.event_date < $${idx}::date`);
+      conditions.push(`se.effective_date < $${idx}::date`);
       values.push(params.cursor);
       idx++;
     }
@@ -1540,7 +1540,7 @@ export function makeNewsService(pool: Pool) {
             COALESCE(er.domain, 'product') AS domain,
             COALESCE(er.display_name, se.event_type) AS display_name,
             COALESCE(se.confidence, 0) AS confidence,
-            to_char(se.event_date, 'YYYY-MM-DD') AS effective_date,
+            to_char(se.effective_date, 'YYYY-MM-DD') AS effective_date,
             to_char(se.detected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS detected_at,
             se.event_title,
             se.event_content,
@@ -1551,8 +1551,8 @@ export function makeNewsService(pool: Pool) {
          FROM startup_events se
          LEFT JOIN event_registry er ON er.id = se.event_registry_id
          WHERE ${whereClause}
-           AND se.event_date IS NOT NULL
-         ORDER BY se.event_date DESC, se.detected_at DESC
+           AND se.effective_date IS NOT NULL
+         ORDER BY se.effective_date DESC, se.detected_at DESC
          LIMIT $${idx}`,
         values
       );
@@ -1715,7 +1715,7 @@ export function makeNewsService(pool: Pool) {
             COALESCE(er.domain, 'product') AS domain,
             COALESCE(er.display_name, se.event_type) AS display_name,
             COALESCE(se.confidence, 0) AS confidence,
-            to_char(se.event_date, 'YYYY-MM-DD') AS effective_date,
+            to_char(se.effective_date, 'YYYY-MM-DD') AS effective_date,
             to_char(se.detected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS detected_at,
             se.event_title,
             se.event_content,
@@ -1729,9 +1729,9 @@ export function makeNewsService(pool: Pool) {
          WHERE (se.startup_id = $1::uuid
            OR se.metadata_json @> jsonb_build_object('participants', jsonb_build_array(jsonb_build_object('startup_id', $1::text))))
            AND se.cluster_id = ANY($2::uuid[])
-           AND se.event_date IS NOT NULL
+           AND se.effective_date IS NOT NULL
            ${extraWhere}
-         ORDER BY rank_pos ASC NULLS LAST, se.event_date DESC
+         ORDER BY rank_pos ASC NULLS LAST, se.effective_date DESC
          LIMIT $${idx}`,
         values,
       );
@@ -1797,7 +1797,7 @@ export function makeNewsService(pool: Pool) {
            OR se.metadata_json @> jsonb_build_object('participants', jsonb_build_array(jsonb_build_object('startup_id', $1::text))))
            AND se.cluster_id IS NOT NULL
            AND (se.event_title ILIKE $2 OR se.event_content ILIKE $2)
-           AND se.event_date IS NOT NULL
+           AND se.effective_date IS NOT NULL
            ${extraWhere}
          LIMIT $${idx}`,
         values,
