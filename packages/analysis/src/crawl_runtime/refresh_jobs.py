@@ -41,6 +41,8 @@ REASON_TO_BOOST: Dict[str, int] = {
     "key_hire": 20,
     "acquisition": 40,
     "pricing_change": 25,
+    "crawl_diff_analysis": 15,
+    "news_onboard": 35,
     "manual": 50,
 }
 

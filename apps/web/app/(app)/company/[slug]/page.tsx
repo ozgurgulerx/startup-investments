@@ -18,6 +18,7 @@ import { formatCurrency } from '@/lib/utils';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 import { normalizeDatasetRegion } from '@/lib/region';
 import { RecentSignals } from '@/components/company/recent-signals';
+import { EventTimeline } from '@/components/company/event-timeline';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -311,6 +312,9 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
 
       {/* Recent Radar Signals linked to this company */}
       <RecentSignals slug={startup.company_slug} region={region} />
+
+      {/* Event Timeline: structured events with time semantics */}
+      <EventTimeline slug={startup.company_slug} region={region} />
 
       {/* Section 2: Why This Company Matters Now */}
       <section className="section">

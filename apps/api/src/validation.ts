@@ -332,6 +332,18 @@ export const syncRequestSchema = z.object({
 });
 
 // =============================================================================
+// Dossier Timeline
+// =============================================================================
+
+export const timelineQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: optionalTrimmedString(100),        // ISO effective_date for keyset pagination
+  domain: z.enum(['architecture', 'gtm', 'capital', 'org', 'product']).optional(),
+  type: optionalTrimmedString(50),           // event_type filter
+  min_confidence: z.coerce.number().min(0).max(1).optional(),
+});
+
+// =============================================================================
 // SIGNAL INTELLIGENCE
 // =============================================================================
 

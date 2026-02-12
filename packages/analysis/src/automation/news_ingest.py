@@ -5251,6 +5251,24 @@ class DailyNewsIngestor:
         logger.info("[events:%s] Extracted %d events from %d clusters, persisted %d",
                      region, len(all_events), len(clusters), inserted)
 
+        # Upsert funding rounds from high-confidence funding events
+        try:
+            from .event_extractor import upsert_funding_from_events
+            funding_inserted = await upsert_funding_from_events(conn, all_events)
+            if funding_inserted:
+                logger.info("[funding:%s] Upserted %d funding rounds from events", region, funding_inserted)
+        except Exception:
+            logger.warning("Failed to upsert funding rounds from events", exc_info=True)
+
+        # Onboard unknown startups from unlinked entity mentions
+        try:
+            from .event_extractor import onboard_unknown_startups
+            onboarded = await onboard_unknown_startups(conn, all_events, clusters)
+            if onboarded:
+                logger.info("[onboard:%s] Created %d stub startups from unlinked events", region, onboarded)
+        except Exception:
+            logger.warning("Failed to onboard unknown startups", exc_info=True)
+
         # Enqueue refresh jobs for startups with qualifying events
         try:
             if inserted_events:

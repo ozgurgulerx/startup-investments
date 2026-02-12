@@ -33,6 +33,7 @@ Both the NIC-level and subnet-level NSGs need the rule — one alone is not enou
 | `signal-aggregate` | Every 4 hours :30 | Aggregate events into signals, score, lifecycle |
 | `news-digest` | Hourly :45 | Send email digests (timezone-aware, 08:45 local) |
 | `health-report` | Every 4 hours :45 | Infrastructure health summary to Slack (8 checks) |
+| `daily-observability` | Daily 09:00 UTC | Pipeline quality SLO report (latency, refresh, linking) |
 | `slack-summary` | Daily 14:00 | Ops summary to Slack |
 | `sync-data` | 30 min all days | Blob sync → DB sync → logo extraction → git push → frontend deploy |
 | `code-update` | Every 15 min (staggered) | git pull → conditional backend/frontend deploy |

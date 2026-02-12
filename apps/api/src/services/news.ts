@@ -278,6 +278,18 @@ export function deriveDeltaType(storyType: string, topicTags: string[]): string 
   return 'Market Signal';
 }
 
+export interface StageAdoption {
+  adopters: number;
+  total: number;
+  pct: number;
+}
+
+export interface StageContext {
+  adoption_by_stage: Record<string, StageAdoption>;
+  stage_acceleration: string | null;
+  computed_at: string;
+}
+
 export interface SignalRow {
   id: string;
   domain: string;
@@ -293,6 +305,24 @@ export interface SignalRow {
   unique_company_count: number;
   first_seen_at: string;
   last_evidence_at: string | null;
+  stage_context?: StageContext;
+}
+
+export interface TimelineEvent {
+  id: string;
+  event_type: string;
+  event_key: string;
+  domain: string;
+  display_name: string;
+  confidence: number;
+  effective_date: string;
+  detected_at: string;
+  event_title: string | null;
+  event_content: string | null;
+  cluster_id: string | null;
+  metadata_json: Record<string, unknown> | null;
+  source_type: string;
+  region: string;
 }
 
 export function makeNewsService(pool: Pool) {
@@ -1433,6 +1463,118 @@ export function makeNewsService(pool: Pool) {
   }
 
   // ---------------------------------------------------------------------------
+  // Dossier Timeline (event spine for a single startup)
+  // ---------------------------------------------------------------------------
+
+  async function getCompanyTimeline(params: {
+    slug: string;
+    limit?: number;
+    cursor?: string;
+    domain?: string;
+    type?: string;
+    min_confidence?: number;
+  }): Promise<{ events: TimelineEvent[]; next_cursor: string | null }> {
+    const limit = Math.max(1, Math.min(100, Number(params.limit || 50)));
+
+    // First resolve slug → startup_id (needed for participant JSONB check)
+    const slugResult = await pool.query(
+      `SELECT id::text FROM startups WHERE slug = $1 LIMIT 1`,
+      [params.slug]
+    );
+    if (slugResult.rows.length === 0) {
+      return { events: [], next_cursor: null };
+    }
+    const startupId = slugResult.rows[0].id;
+
+    // Match direct startup_id OR appearance in metadata_json.participants[]
+    const conditions: string[] = [
+      `(se.startup_id = $1::uuid OR se.metadata_json @> jsonb_build_object('participants', jsonb_build_array(jsonb_build_object('startup_id', $1))))`,
+    ];
+    const values: unknown[] = [startupId];
+    let idx = 2;
+
+    if (params.cursor) {
+      conditions.push(`se.effective_date < $${idx}::date`);
+      values.push(params.cursor);
+      idx++;
+    }
+    if (params.domain) {
+      conditions.push(`er.domain = $${idx}`);
+      values.push(params.domain);
+      idx++;
+    }
+    if (params.type) {
+      conditions.push(`se.event_type = $${idx}`);
+      values.push(params.type);
+      idx++;
+    }
+    if (params.min_confidence != null) {
+      conditions.push(`se.confidence >= $${idx}`);
+      values.push(params.min_confidence);
+      idx++;
+    }
+
+    values.push(limit + 1); // fetch one extra for next_cursor
+
+    const whereClause = conditions.join(' AND ');
+
+    try {
+      const result = await pool.query(
+        `SELECT
+            se.id::text,
+            se.event_type,
+            COALESCE(se.event_key, '') AS event_key,
+            COALESCE(er.domain, 'product') AS domain,
+            COALESCE(er.display_name, se.event_type) AS display_name,
+            COALESCE(se.confidence, 0) AS confidence,
+            to_char(se.effective_date, 'YYYY-MM-DD') AS effective_date,
+            to_char(se.detected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS detected_at,
+            se.event_title,
+            se.event_content,
+            se.cluster_id::text,
+            se.metadata_json,
+            COALESCE(se.source_type, 'news') AS source_type,
+            COALESCE(se.region, 'global') AS region
+         FROM startup_events se
+         LEFT JOIN event_registry er ON er.id = se.event_registry_id
+         WHERE ${whereClause}
+           AND se.effective_date IS NOT NULL
+         ORDER BY se.effective_date DESC, se.detected_at DESC
+         LIMIT $${idx}`,
+        values
+      );
+
+      const rows = result.rows;
+      const hasMore = rows.length > limit;
+      const events: TimelineEvent[] = rows.slice(0, limit).map((r) => ({
+        id: String(r.id),
+        event_type: String(r.event_type),
+        event_key: String(r.event_key || ''),
+        domain: String(r.domain),
+        display_name: String(r.display_name),
+        confidence: Number(r.confidence || 0),
+        effective_date: String(r.effective_date || ''),
+        detected_at: String(r.detected_at || ''),
+        event_title: r.event_title ? String(r.event_title) : null,
+        event_content: r.event_content ? String(r.event_content) : null,
+        cluster_id: r.cluster_id ? String(r.cluster_id) : null,
+        metadata_json: r.metadata_json && typeof r.metadata_json === 'object' ? r.metadata_json as Record<string, unknown> : null,
+        source_type: String(r.source_type),
+        region: String(r.region),
+      }));
+
+      const next_cursor = hasMore && events.length > 0
+        ? events[events.length - 1].effective_date
+        : null;
+
+      return { events, next_cursor };
+    } catch (error) {
+      console.error('Error fetching company timeline:', error);
+      return { events: [], next_cursor: null };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Community Signals (upvote / save / hide / not_useful)
   // ---------------------------------------------------------------------------
 
@@ -1559,6 +1701,17 @@ export function makeNewsService(pool: Pool) {
   // =========================================================================
 
   function rowToSignal(row: any): SignalRow {
+    // Extract stage_context from metadata_json if present
+    let stageContext: StageContext | undefined;
+    if (row.metadata_json) {
+      try {
+        const meta = typeof row.metadata_json === 'string' ? JSON.parse(row.metadata_json) : row.metadata_json;
+        if (meta?.stage_context) {
+          stageContext = meta.stage_context as StageContext;
+        }
+      } catch { /* ignore parse errors */ }
+    }
+
     return {
       id: String(row.id),
       domain: row.domain,
@@ -1574,6 +1727,7 @@ export function makeNewsService(pool: Pool) {
       unique_company_count: row.unique_company_count,
       first_seen_at: row.first_seen_at?.toISOString?.() ?? row.first_seen_at,
       last_evidence_at: row.last_evidence_at?.toISOString?.() ?? row.last_evidence_at ?? null,
+      ...(stageContext ? { stage_context: stageContext } : {}),
     };
   }
 
@@ -1640,13 +1794,13 @@ export function makeNewsService(pool: Pool) {
   async function getSignalDetail(params: {
     id: string;
     region?: string;
-  }): Promise<{ signal: SignalRow | null; evidence: any[]; related: SignalRow[] }> {
+  }): Promise<{ signal: SignalRow | null; evidence: any[]; related: SignalRow[]; stage_context?: StageContext | null }> {
     try {
       const signalResult = await pool.query(
         `SELECT id::text, domain, cluster_name, claim, region,
                 conviction, momentum, impact, adoption_velocity,
                 status, evidence_count, unique_company_count,
-                first_seen_at, last_evidence_at
+                first_seen_at, last_evidence_at, metadata_json
          FROM signals WHERE id = $1::uuid`,
         [params.id]
       );
@@ -1656,6 +1810,16 @@ export function makeNewsService(pool: Pool) {
       }
 
       const signal = rowToSignal(signalResult.rows[0]);
+
+      // Extract stage_context from metadata_json if present
+      let stageContext: StageContext | null = null;
+      try {
+        const meta = signalResult.rows[0].metadata_json;
+        const parsed = typeof meta === 'string' ? JSON.parse(meta) : meta;
+        if (parsed?.stage_context) {
+          stageContext = parsed.stage_context as StageContext;
+        }
+      } catch { /* ignore parse errors */ }
 
       // Fetch evidence with cluster/startup details
       const evidenceResult = await pool.query(
@@ -1705,6 +1869,7 @@ export function makeNewsService(pool: Pool) {
         signal,
         evidence,
         related: relatedResult.rows.map(rowToSignal),
+        stage_context: stageContext,
       };
     } catch (error) {
       if (isMissingNewsSchemaError(error)) return { signal: null, evidence: [], related: [] };
@@ -1728,7 +1893,7 @@ export function makeNewsService(pool: Pool) {
         `SELECT id::text, domain, cluster_name, claim, region,
                 conviction, momentum, impact, adoption_velocity,
                 status, evidence_count, unique_company_count,
-                first_seen_at, last_evidence_at
+                first_seen_at, last_evidence_at, metadata_json
          FROM signals
          WHERE region = $1 AND status IN ('emerging', 'accelerating')
          ORDER BY momentum DESC
@@ -1741,7 +1906,7 @@ export function makeNewsService(pool: Pool) {
         `SELECT id::text, domain, cluster_name, claim, region,
                 conviction, momentum, impact, adoption_velocity,
                 status, evidence_count, unique_company_count,
-                first_seen_at, last_evidence_at
+                first_seen_at, last_evidence_at, metadata_json
          FROM signals
          WHERE region = $1 AND status = 'established'
          ORDER BY conviction DESC
@@ -1754,7 +1919,7 @@ export function makeNewsService(pool: Pool) {
         `SELECT id::text, domain, cluster_name, claim, region,
                 conviction, momentum, impact, adoption_velocity,
                 status, evidence_count, unique_company_count,
-                first_seen_at, last_evidence_at
+                first_seen_at, last_evidence_at, metadata_json
          FROM signals
          WHERE region = $1 AND status = 'decaying'
          ORDER BY momentum ASC
@@ -1794,6 +1959,117 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  async function getSimilarCompanies(params: {
+    startupId: string;
+    limit?: number;
+  }): Promise<{ companies: any[]; method: string }> {
+    try {
+      const limit = Math.min(params.limit ?? 10, 20);
+
+      // Check if state_embedding column exists (pgvector Phase 5)
+      const hasEmbedding = await pool.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'startup_state_snapshot' AND column_name = 'state_embedding'
+           AND udt_name = 'vector'`
+      );
+
+      if (hasEmbedding.rows.length > 0) {
+        // Vector similarity search
+        const result = await pool.query(
+          `WITH target AS (
+             SELECT state_embedding, startup_id
+             FROM startup_state_snapshot
+             WHERE startup_id = $1::uuid AND state_embedding IS NOT NULL
+             ORDER BY snapshot_at DESC LIMIT 1
+           )
+           SELECT ss.startup_id::text, s.name, s.slug,
+                  ss.funding_stage, ss.vertical, ss.genai_intensity,
+                  ss.build_patterns, ss.implementation_maturity,
+                  1 - (ss.state_embedding <=> t.state_embedding) AS similarity
+           FROM startup_state_snapshot ss
+           CROSS JOIN target t
+           JOIN startups s ON s.id = ss.startup_id
+           WHERE ss.startup_id != t.startup_id
+             AND ss.state_embedding IS NOT NULL
+             AND ss.snapshot_at >= NOW() - INTERVAL '90 days'
+           ORDER BY ss.state_embedding <=> t.state_embedding
+           LIMIT $2`,
+          [params.startupId, limit]
+        );
+
+        return {
+          companies: result.rows.map((r: any) => ({
+            startup_id: r.startup_id,
+            name: r.name,
+            slug: r.slug,
+            funding_stage: r.funding_stage,
+            vertical: r.vertical,
+            genai_intensity: r.genai_intensity,
+            build_patterns: r.build_patterns || [],
+            implementation_maturity: r.implementation_maturity,
+            similarity: Number(r.similarity).toFixed(3),
+          })),
+          method: 'vector',
+        };
+      }
+
+      // Fallback: pattern overlap similarity using arrays
+      const result = await pool.query(
+        `WITH target AS (
+           SELECT startup_id, build_patterns, discovered_patterns,
+                  tech_stack_models, tech_stack_frameworks
+           FROM startup_state_snapshot
+           WHERE startup_id = $1::uuid
+           ORDER BY snapshot_at DESC LIMIT 1
+         )
+         SELECT ss.startup_id::text, s.name, s.slug,
+                ss.funding_stage, ss.vertical, ss.genai_intensity,
+                ss.build_patterns, ss.implementation_maturity,
+                (
+                  COALESCE(array_length(
+                    ARRAY(SELECT unnest(ss.build_patterns) INTERSECT SELECT unnest(t.build_patterns)), 1
+                  ), 0) +
+                  COALESCE(array_length(
+                    ARRAY(SELECT unnest(ss.discovered_patterns) INTERSECT SELECT unnest(t.discovered_patterns)), 1
+                  ), 0) +
+                  COALESCE(array_length(
+                    ARRAY(SELECT unnest(ss.tech_stack_frameworks) INTERSECT SELECT unnest(t.tech_stack_frameworks)), 1
+                  ), 0)
+                )::float / NULLIF(
+                  COALESCE(array_length(t.build_patterns, 1), 0) +
+                  COALESCE(array_length(t.discovered_patterns, 1), 0) +
+                  COALESCE(array_length(t.tech_stack_frameworks, 1), 0),
+                0) AS similarity
+         FROM startup_state_snapshot ss
+         CROSS JOIN target t
+         JOIN startups s ON s.id = ss.startup_id
+         WHERE ss.startup_id != t.startup_id
+           AND ss.snapshot_at >= NOW() - INTERVAL '90 days'
+         ORDER BY similarity DESC NULLS LAST
+         LIMIT $2`,
+        [params.startupId, limit]
+      );
+
+      return {
+        companies: result.rows.map((r: any) => ({
+          startup_id: r.startup_id,
+          name: r.name,
+          slug: r.slug,
+          funding_stage: r.funding_stage,
+          vertical: r.vertical,
+          genai_intensity: r.genai_intensity,
+          build_patterns: r.build_patterns || [],
+          implementation_maturity: r.implementation_maturity,
+          similarity: r.similarity != null ? Number(r.similarity).toFixed(3) : '0',
+        })),
+        method: 'pattern_overlap',
+      };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return { companies: [], method: 'unavailable' };
+      throw error;
+    }
+  }
+
   return {
     normalizeRegion,
     getLatestEditionDate,
@@ -1805,10 +2081,12 @@ export function makeNewsService(pool: Pool) {
     getPeriodicBriefArchive,
     searchNewsClusters,
     getCompanySignals,
+    getCompanyTimeline,
     toggleSignal,
     getUserSignals,
     getSignalsList,
     getSignalDetail,
     getSignalsSummary,
+    getSimilarCompanies,
   };
 }

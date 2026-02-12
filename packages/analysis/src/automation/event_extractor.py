@@ -275,6 +275,13 @@ class EventExtractor:
                     events.append(evt)
                     break  # One event per GTM tag
 
+    # Event types that naturally involve multiple companies
+    _MULTI_PARTY_TYPES = {
+        "cap_acquisition_announced",
+        "gtm_partnership_announced",
+        "gtm_channel_launched",
+    }
+
     def _attach_startup_ids(
         self,
         cluster: "StoryCluster",
@@ -285,12 +292,16 @@ class EventExtractor:
         When an event already has entity_name, look up that specific entity's
         startup_id instead of blindly assigning the best-scored startup.
         Falls back to the best-scored startup for events with no entity_name.
+
+        For multi-party event types (acquisitions, partnerships), also writes
+        metadata_json.participants with all linked entities and their roles.
         """
         if not cluster.memory_result or not cluster.memory_result.linked_entities:
             return
 
-        # Build entity_name → (startup_id, match_score) lookup
+        # Build entity_name → (startup_id, match_score, match_method) lookup
         entity_lookup: Dict[str, tuple] = {}  # lowercase name → (startup_id, score)
+        all_participants: List[Dict[str, Any]] = []
         best_startup_id: Optional[str] = None
         best_score = 0.0
         best_name: Optional[str] = None
@@ -305,21 +316,45 @@ class EventExtractor:
                     best_startup_id = entity.startup_id
                     best_score = entity.match_score
                     best_name = entity.entity_name
+                all_participants.append({
+                    "startup_id": entity.startup_id,
+                    "entity_name": entity.entity_name,
+                    "match_score": round(entity.match_score, 3),
+                    "match_method": getattr(entity, "match_method", "entity_link"),
+                })
 
         for evt in events:
             if evt.startup_id:
-                continue
-            # Try entity-specific lookup first
-            if evt.entity_name:
+                pass  # Already assigned, but still add participants below
+            elif evt.entity_name:
                 match = entity_lookup.get(evt.entity_name.lower())
                 if match:
                     evt.startup_id = match[0]
-                    continue
-            # Fall back to best-scored startup
-            if best_startup_id:
+                elif best_startup_id:
+                    evt.startup_id = best_startup_id
+                    if not evt.entity_name and best_name:
+                        evt.entity_name = best_name
+            elif best_startup_id:
                 evt.startup_id = best_startup_id
                 if not evt.entity_name and best_name:
                     evt.entity_name = best_name
+
+            # For multi-party events, attach participants list
+            if (
+                evt.event_type in self._MULTI_PARTY_TYPES
+                and len(all_participants) > 1
+            ):
+                # Infer roles: for acquisitions, primary is acquirer, others are targets
+                participants_with_roles = []
+                for p in all_participants:
+                    role = "participant"
+                    if evt.event_type == "cap_acquisition_announced":
+                        if p["startup_id"] == evt.startup_id:
+                            role = "acquirer"
+                        else:
+                            role = "target"
+                    participants_with_roles.append({**p, "role": role})
+                evt.metadata["participants"] = participants_with_roles
 
 
 # ---------------------------------------------------------------------------
@@ -407,3 +442,294 @@ async def enqueue_refresh_for_events(
     if enqueued:
         logger.info("Enqueued %d refresh jobs from %d inserted events", enqueued, len(inserted_events))
     return enqueued
+
+
+# ---------------------------------------------------------------------------
+# Funding amount parser (standalone copy from signal_engine)
+# ---------------------------------------------------------------------------
+
+def _parse_funding_amount(amount_str: str) -> Optional[float]:
+    """Parse funding amount string like '$10M', '$1.5B' to float (USD)."""
+    if not amount_str:
+        return None
+    s = str(amount_str).strip().replace(",", "").replace("$", "")
+    multiplier = 1.0
+    s_lower = s.lower()
+    if s_lower.endswith("b"):
+        multiplier = 1e9
+        s = s[:-1]
+    elif s_lower.endswith("m"):
+        multiplier = 1e6
+        s = s[:-1]
+    elif s_lower.endswith("k"):
+        multiplier = 1e3
+        s = s[:-1]
+    try:
+        return float(s) * multiplier
+    except ValueError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Funding upsert from high-confidence events
+# ---------------------------------------------------------------------------
+
+_VALID_ROUND_TYPES = {
+    "pre-seed", "seed", "series a", "series b", "series c", "series d",
+    "series e", "series f", "series g", "series h",
+    "angel", "grant", "debt", "convertible note",
+    "venture round", "private equity", "ipo", "secondary market",
+    "undisclosed",
+}
+
+
+async def upsert_funding_from_events(
+    conn: "asyncpg.Connection",
+    events: List[ExtractedEvent],
+    confidence_threshold: float = 0.7,
+) -> int:
+    """Upsert funding_rounds rows from high-confidence cap_funding_raised events.
+
+    Applies fuzzy dedup (same startup + round_type within ±14 days) to avoid
+    duplicating CSV-confirmed rows or near-duplicate news-derived rows.
+    After inserts, updates startups.money_raised_usd for affected startups.
+
+    Returns count of rows inserted.
+    """
+    # Filter to qualifying funding events
+    candidates = [
+        e for e in events
+        if e.event_type == "cap_funding_raised"
+        and e.confidence >= confidence_threshold
+        and e.startup_id
+        and e.metadata.get("round_type")
+    ]
+    if not candidates:
+        return 0
+
+    inserted = 0
+    affected_startup_ids: set = set()
+
+    for evt in candidates:
+        raw_round = evt.metadata["round_type"]
+        round_type = raw_round.strip()
+        if round_type.lower() not in _VALID_ROUND_TYPES:
+            continue
+
+        # Parse funding amount from metadata
+        amount_usd: Optional[float] = None
+        for key in ("funding_amount", "mentioned_amount"):
+            raw = evt.metadata.get(key)
+            if raw:
+                amount_usd = _parse_funding_amount(str(raw))
+                if amount_usd is not None:
+                    break
+
+        event_date = evt.event_date.date() if evt.event_date else None
+        lead_investor = evt.metadata.get("lead_investor")
+        valuation_raw = evt.metadata.get("valuation")
+        valuation_usd = _parse_funding_amount(str(valuation_raw)) if valuation_raw else None
+
+        # Fuzzy dedup: skip if a round with same startup+type exists within ±14 days
+        try:
+            dup = await conn.fetchval(
+                """SELECT 1 FROM funding_rounds
+                   WHERE startup_id = $1::uuid
+                     AND LOWER(round_type) = LOWER($2)
+                     AND (announced_date IS NULL
+                          OR $3::date IS NULL
+                          OR ABS(announced_date - $3::date) <= 14)
+                   LIMIT 1""",
+                evt.startup_id,
+                round_type,
+                event_date,
+            )
+            if dup:
+                continue
+        except Exception:
+            logger.warning("Fuzzy dedup check failed for %s/%s", evt.startup_id, round_type, exc_info=True)
+            continue
+
+        # Insert with ON CONFLICT safety net
+        try:
+            result = await conn.fetchval(
+                """INSERT INTO funding_rounds
+                       (startup_id, round_type, amount_usd, announced_date,
+                        lead_investor, valuation_usd, source)
+                   VALUES ($1::uuid, $2, $3, $4, $5, $6, 'news_event')
+                   ON CONFLICT (startup_id, round_type, announced_date) DO NOTHING
+                   RETURNING id""",
+                evt.startup_id,
+                round_type,
+                int(amount_usd) if amount_usd is not None else None,
+                event_date,
+                lead_investor[:255] if lead_investor else None,
+                int(valuation_usd) if valuation_usd is not None else None,
+            )
+            if result:
+                inserted += 1
+                affected_startup_ids.add(evt.startup_id)
+        except Exception:
+            logger.warning(
+                "Failed to insert funding round for %s (%s)",
+                evt.startup_id, round_type, exc_info=True,
+            )
+
+    # Update money_raised_usd for affected startups
+    for sid in affected_startup_ids:
+        try:
+            await conn.execute(
+                """UPDATE startups SET
+                       money_raised_usd = sub.total,
+                       updated_at = NOW()
+                   FROM (
+                       SELECT startup_id, SUM(amount_usd) AS total
+                       FROM funding_rounds
+                       WHERE startup_id = $1::uuid AND amount_usd IS NOT NULL
+                       GROUP BY startup_id
+                   ) sub
+                   WHERE startups.id = sub.startup_id""",
+                sid,
+            )
+        except Exception:
+            logger.warning("Failed to update money_raised_usd for %s", sid, exc_info=True)
+
+    if inserted:
+        logger.info("Upserted %d funding rounds from %d candidate events", inserted, len(candidates))
+
+    return inserted
+
+
+# ---------------------------------------------------------------------------
+# Unknown startup onboarding from events
+# ---------------------------------------------------------------------------
+
+def _slugify(name: str) -> str:
+    """Generate a URL-safe slug from a company name."""
+    import re as _re
+    slug = name.lower().strip()
+    slug = _re.sub(r'[^a-z0-9]+', '-', slug)
+    return slug.strip('-')[:200]
+
+
+async def onboard_unknown_startups(
+    conn: "asyncpg.Connection",
+    events: List[ExtractedEvent],
+    clusters: list,
+    confidence_threshold: float = 0.5,
+    max_per_run: int = 10,
+) -> int:
+    """Create stub startups for entities mentioned in events but not yet in DB.
+
+    Only onboards when:
+    - The event has entity_name but no startup_id (not linked by memory gate)
+    - Confidence >= threshold
+    - Entity name doesn't fuzzy-match an existing startup (ILIKE check)
+    - Rate limited to max_per_run per pipeline invocation
+
+    After creation, backfills the event's startup_id and enqueues a refresh job.
+    Returns count of startups created.
+    """
+    # Collect unique unlinked entity names from qualifying events
+    seen_names: Dict[str, ExtractedEvent] = {}  # lowercase → first event
+    for evt in events:
+        if evt.startup_id:
+            continue
+        if not evt.entity_name:
+            continue
+        if evt.confidence < confidence_threshold:
+            continue
+        name_lower = evt.entity_name.lower().strip()
+        if name_lower and name_lower not in seen_names and len(name_lower) > 2:
+            seen_names[name_lower] = evt
+
+    if not seen_names:
+        return 0
+
+    # Build cluster lookup for guessing website from URLs
+    cluster_urls: Dict[Optional[str], str] = {}
+    for c in clusters:
+        if hasattr(c, 'cluster_key') and hasattr(c, 'members'):
+            for m in c.members:
+                url = getattr(m, 'url', None)
+                if url and hasattr(c, 'cluster_key'):
+                    cluster_urls[c.cluster_key] = url
+
+    created = 0
+    for name_lower, evt in list(seen_names.items())[:max_per_run]:
+        entity_name = evt.entity_name or name_lower
+        slug = _slugify(entity_name)
+        if not slug:
+            continue
+
+        # Check if a startup with similar name already exists (fuzzy ILIKE)
+        try:
+            existing = await conn.fetchval(
+                """SELECT id FROM startups
+                   WHERE LOWER(name) = $1
+                      OR slug = $2
+                   LIMIT 1""",
+                name_lower,
+                slug,
+            )
+            if existing:
+                # Link the orphan events to this existing startup
+                for e in events:
+                    if e.entity_name and e.entity_name.lower().strip() == name_lower and not e.startup_id:
+                        e.startup_id = str(existing)
+                continue
+        except Exception:
+            logger.warning("Onboard check failed for '%s'", entity_name, exc_info=True)
+            continue
+
+        # Guess region from event
+        region = evt.region or "global"
+
+        # Create stub startup
+        try:
+            new_id = await conn.fetchval(
+                """INSERT INTO startups (name, slug, dataset_region, description, period)
+                   VALUES ($1, $2, $3, $4, to_char(CURRENT_DATE, 'YYYY-MM'))
+                   ON CONFLICT (dataset_region, slug) DO NOTHING
+                   RETURNING id::text""",
+                entity_name,
+                slug,
+                region,
+                f"Auto-discovered from news events. Pending analysis.",
+            )
+            if not new_id:
+                continue  # Slug collision
+
+            created += 1
+            logger.info("Onboarded stub startup '%s' (id=%s) from event", entity_name, new_id)
+
+            # Backfill startup_id on all events for this entity
+            for e in events:
+                if e.entity_name and e.entity_name.lower().strip() == name_lower and not e.startup_id:
+                    e.startup_id = new_id
+
+            # Also update already-persisted events in DB
+            await conn.execute(
+                """UPDATE startup_events
+                   SET startup_id = $1::uuid
+                   WHERE startup_id IS NULL
+                     AND LOWER(event_title) LIKE '%' || $2 || '%'
+                     AND detected_at > NOW() - INTERVAL '7 days'""",
+                new_id,
+                name_lower,
+            )
+
+            # Enqueue refresh job so the crawler immediately picks it up
+            try:
+                from ..crawl_runtime.refresh_jobs import enqueue_refresh_job
+                await enqueue_refresh_job(conn, new_id, "news_onboard")
+            except Exception:
+                pass  # refresh_jobs may not exist yet
+
+        except Exception:
+            logger.warning("Failed to onboard startup '%s'", entity_name, exc_info=True)
+
+    if created:
+        logger.info("Onboarded %d new stub startups from unlinked events", created)
+
+    return created

@@ -220,6 +220,7 @@ class WebsiteContentMonitor:
                 event_created = True
 
                 # --- Crawl diff event extraction ---
+                diff_events_count = 0
                 if self._diff_extractor is not None:
                     old_sample = startup.get("last_content_sample")
                     new_sample = text_content[:2000]
@@ -236,9 +237,27 @@ class WebsiteContentMonitor:
                                 n = await persist_crawl_diff_events(
                                     conn, diff_events, self._diff_extractor._registry
                                 )
+                            diff_events_count = n
                             logger.info("Persisted %d crawl_diff events for %s", n, startup_name)
                     except Exception:
                         logger.warning("Crawl diff extraction failed for %s", startup_name, exc_info=True)
+
+                # --- Crawl → re-analysis trigger ---
+                # Enqueue analysis refresh when diff is meaningful or analysis is stale/missing
+                analysis_missing = not startup.get("analysis_data")
+                if diff_events_count > 0 or analysis_missing:
+                    try:
+                        from ..crawl_runtime.refresh_jobs import enqueue_refresh_job
+                        async with self.db.acquire() as conn:
+                            await enqueue_refresh_job(
+                                conn, startup_id, "crawl_diff_analysis"
+                            )
+                        logger.info(
+                            "Enqueued crawl_diff_analysis refresh for %s (events=%d, missing=%s)",
+                            startup_name, diff_events_count, analysis_missing,
+                        )
+                    except Exception:
+                        pass  # refresh_jobs table may not exist yet
 
             # Always store new content sample for next diff comparison
             try:

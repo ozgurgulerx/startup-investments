@@ -40,6 +40,7 @@ import {
   briefRegenerateSchema,
   signalsQuerySchema,
   signalsSummaryQuerySchema,
+  timelineQuerySchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -591,6 +592,42 @@ app.get('/api/v1/startups/:slug/signals', async (req, res) => {
   } catch (error) {
     console.error('Error fetching company signals:', error);
     res.status(500).json({ error: 'Failed to fetch signals' });
+  }
+});
+
+// Get dossier event timeline for a startup
+app.get('/api/v1/startups/:slug/timeline', async (req, res) => {
+  try {
+    const parsed = timelineQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const cacheKey = `timeline:${req.params.slug}:${parsed.data.limit}:${parsed.data.cursor || ''}:${parsed.data.domain || ''}:${parsed.data.type || ''}:${parsed.data.min_confidence || ''}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          const data = safeCacheParse<{ events: unknown[]; next_cursor: string | null }>(cached, cacheKey, redis);
+          if (data) return res.json(data);
+        }
+      } catch { /* cache miss */ }
+    }
+
+    const result = await newsService.getCompanyTimeline({
+      slug: req.params.slug,
+      ...parsed.data,
+    });
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching company timeline:', error);
+    res.status(500).json({ error: 'Failed to fetch timeline' });
   }
 });
 
@@ -2080,6 +2117,40 @@ app.get('/api/v1/signals/summary', async (req, res) => {
   } catch (error) {
     console.error('Error fetching signals summary:', error);
     return res.status(500).json({ error: 'Failed to fetch signals summary' });
+  }
+});
+
+// GET /api/v1/signals/similar-companies — Find startups with similar architecture profiles
+// MUST be registered before /api/v1/signals/:id to avoid matching as :id param
+app.get('/api/v1/signals/similar-companies', async (req, res) => {
+  try {
+    const startupId = req.query.startup_id as string;
+    if (!startupId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(startupId)) {
+      return res.status(400).json({ error: 'Invalid startup_id (must be UUID)' });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 20);
+    const cacheKey = `signals:similar:${startupId}:${limit}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch { /* noop */ }
+    }
+
+    const result = await newsService.getSimilarCompanies({ startupId, limit });
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 600 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching similar companies:', error);
+    return res.status(500).json({ error: 'Failed to fetch similar companies' });
   }
 });
 

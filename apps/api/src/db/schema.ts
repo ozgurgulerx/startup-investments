@@ -54,6 +54,7 @@ export const fundingRounds = pgTable('funding_rounds', {
   announcedDate: date('announced_date'),
   leadInvestor: varchar('lead_investor', { length: 255 }),
   valuationUsd: bigint('valuation_usd', { mode: 'number' }),
+  source: varchar('source', { length: 50 }).notNull().default('csv'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => ({
   uniqueRound: uniqueIndex('idx_funding_rounds_unique').on(table.startupId, table.roundType, table.announcedDate),
