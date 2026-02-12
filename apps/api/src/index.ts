@@ -618,7 +618,7 @@ app.get('/api/v1/startups/:slug/timeline', async (req, res) => {
     }
 
     const hasQuery = !!parsed.data.query;
-    const cacheKey = `timeline:${req.params.slug}:${parsed.data.limit}:${parsed.data.cursor || ''}:${parsed.data.domain || ''}:${parsed.data.type || ''}:${parsed.data.min_confidence || ''}:${parsed.data.query || ''}`;
+    const cacheKey = `timeline:${req.params.slug}:${parsed.data.region}:${parsed.data.limit}:${parsed.data.cursor || ''}:${parsed.data.domain || ''}:${parsed.data.type || ''}:${parsed.data.min_confidence || ''}:${parsed.data.query || ''}`;
     const redis = await getRedisClient();
     if (redis) {
       try {
@@ -2818,7 +2818,7 @@ app.get('/api/admin/editorial/review', async (req, res) => {
       const clusters = await pgClient.query(`
         SELECT c.id::text, c.cluster_key, c.title, c.summary, c.story_type, c.topic_tags, c.entities,
                c.rank_score, c.trust_score, c.published_at, c.region,
-               d.gating_decision, d.composite_score, d.decision_reason,
+               d.decision, d.score_composite, d.decision_reason,
                s.upvote_count, s.save_count, s.not_useful_count,
                ea.action AS editorial_action, ea.reason_category, ea.created_at AS action_at,
                (SELECT ns.source_key FROM news_cluster_items nci
@@ -2865,7 +2865,7 @@ app.post('/api/admin/editorial/actions', async (req, res) => {
       // Fetch cluster metadata for snapshot
       const cluster = await pgClient.query(`
         SELECT c.region, c.topic_tags, c.entities,
-               d.gating_decision, d.composite_score,
+               d.decision, d.score_composite,
                (SELECT ns.source_key FROM news_cluster_items nci
                 JOIN news_items_raw nir ON nir.id = nci.raw_item_id
                 JOIN news_sources ns ON ns.id = nir.source_id
@@ -2896,8 +2896,8 @@ app.post('/api/admin/editorial/actions', async (req, res) => {
         cluster_id, action, reason_category || null, reason_text || null,
         meta.region || 'global', meta.source_key || null,
         meta.topic_tags || [], meta.entities || [],
-        title_keywords || [], meta.gating_decision || null,
-        meta.composite_score || null,
+        title_keywords || [], meta.decision || null,
+        meta.score_composite || null,
       ]);
 
       // If reject: remove from current edition

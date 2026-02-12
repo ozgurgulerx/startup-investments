@@ -342,6 +342,7 @@ export const timelineQuerySchema = z.object({
   type: optionalTrimmedString(50),           // event_type filter
   min_confidence: z.coerce.number().min(0).max(1).optional(),
   query: optionalTrimmedString(500),         // semantic search
+  region: z.enum(['global', 'turkey']).default('global'),
 });
 
 // =============================================================================

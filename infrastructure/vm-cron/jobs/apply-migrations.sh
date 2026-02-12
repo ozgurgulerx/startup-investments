@@ -58,6 +58,8 @@ SETS = {
         "043_effective_date.sql",
         # Startup merge infrastructure — adds onboarding_status (used by memory_gate.py)
         "046_startup_merge_infrastructure.sql",
+        # Extend scoring_method CHECK to include editorial_postgate
+        "047_editorial_scoring_method.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
@@ -81,6 +83,8 @@ SETS = {
         "027_subscriber_timezone.sql",
         # Event timeline effective_date column
         "043_effective_date.sql",
+        # Extend scoring_method CHECK to include editorial_postgate
+        "047_editorial_scoring_method.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",

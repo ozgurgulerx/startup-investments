@@ -1474,18 +1474,32 @@ export function makeNewsService(pool: Pool) {
     type?: string;
     min_confidence?: number;
     query?: string;
+    region?: string;
   }): Promise<{ events: TimelineEvent[]; next_cursor: string | null }> {
     const limit = Math.max(1, Math.min(100, Number(params.limit || 50)));
+    const region = params.region || 'global';
 
-    // First resolve slug → startup_id (needed for participant JSONB check)
+    // First resolve slug → startup_id, scoped to region with alias fallback
     const slugResult = await pool.query(
-      `SELECT id::text FROM startups WHERE slug = $1 LIMIT 1`,
-      [params.slug]
+      `SELECT id::text FROM startups WHERE slug = $1 AND dataset_region = $2 LIMIT 1`,
+      [params.slug, region]
     );
-    if (slugResult.rows.length === 0) {
-      return { events: [], next_cursor: null };
+    let startupId: string;
+    if (slugResult.rows.length > 0) {
+      startupId = slugResult.rows[0].id;
+    } else {
+      // Alias fallback (mirrors pattern at index.ts company endpoint)
+      const aliasResult = await pool.query(
+        `SELECT s.id::text FROM startup_aliases sa
+         JOIN startups s ON s.id = sa.startup_id
+         WHERE sa.alias = $1 AND s.dataset_region = $2
+           AND COALESCE(s.onboarding_status, 'verified') != 'merged'
+         LIMIT 1`,
+        [params.slug, region]
+      );
+      if (aliasResult.rows.length === 0) return { events: [], next_cursor: null };
+      startupId = aliasResult.rows[0].id;
     }
-    const startupId = slugResult.rows[0].id;
 
     // -----------------------------------------------------------------------
     // Semantic search path: when `query` is present, find matching cluster IDs
@@ -1561,7 +1575,7 @@ export function makeNewsService(pool: Pool) {
          LEFT JOIN event_registry er ON er.id = se.event_registry_id
          WHERE ${whereClause}
            AND se.effective_date IS NOT NULL
-         ORDER BY se.effective_date DESC, se.detected_at DESC
+         ORDER BY se.effective_date DESC, se.id DESC
          LIMIT $${idx}`,
         values
       );

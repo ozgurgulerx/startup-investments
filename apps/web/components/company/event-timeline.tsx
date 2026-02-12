@@ -99,6 +99,7 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
       if (cursor && !isSearching) params.set('cursor', cursor);
       if (domainFilter) params.set('domain', domainFilter);
       if (debouncedQuery) params.set('query', debouncedQuery);
+      if (region) params.set('region', region);
 
       const res = await fetch(
         `/api/v1/startups/${encodeURIComponent(slug)}/timeline?${params}`
@@ -106,7 +107,7 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
       if (!res.ok) return null;
       return res.json() as Promise<TimelineResponse>;
     },
-    [slug, domainFilter, debouncedQuery, isSearching]
+    [slug, region, domainFilter, debouncedQuery, isSearching]
   );
 
   useEffect(() => {

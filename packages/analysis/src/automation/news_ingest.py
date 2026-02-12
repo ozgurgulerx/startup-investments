@@ -6089,7 +6089,7 @@ class DailyNewsIngestor:
                             await conn.execute(
                                 """
                                 UPDATE news_item_decisions
-                                SET decision = 'drop', decision_reason = $2, scoring_method = 'editorial_postgate'
+                                SET decision = 'drop', decision_reason = $2
                                 WHERE cluster_id = $1::uuid
                                 """,
                                 cid, c.gating_reason or "editorial: rule match",
@@ -6192,6 +6192,24 @@ class DailyNewsIngestor:
                     "related_clusters_populated": related_count,
                     "research_enqueued": research_enqueued + research_enqueued_tr,
                 }
+
+                # --- Turkey pipeline diagnostic summary ---
+                _tr_src_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
+                _tr_fetched = [fr for fr in fetch_results if fr.source_key in _tr_src_keys] if not rebuild_only else []
+                _tr_src_ok = sum(1 for fr in _tr_fetched if fr.success)
+                _tr_src_fail = sum(1 for fr in _tr_fetched if not fr.success)
+                _tr_items_collected = sum(fr.items_count for fr in _tr_fetched)
+                _tr_ed_clusters = len(turkey_clusters_for_edition)
+                _tr_ed_top = int(turkey_stats.get("top_story_count") or 0) if isinstance(turkey_stats, dict) else 0
+                _tr_has_brief = bool(turkey_stats.get("daily_brief")) if isinstance(turkey_stats, dict) else False
+                print(
+                    f"\n[turkey-summary] sources: {_tr_src_ok} ok / {_tr_src_fail} failed (of {len(_tr_src_keys)} defined)"
+                    f"\n[turkey-summary] items collected: {_tr_items_collected}"
+                    f"\n[turkey-summary] clusters: {len(turkey_clusters)} built → "
+                    f"{len(non_dropped_turkey)} after editorial → {_tr_ed_clusters} for edition"
+                    f"\n[turkey-summary] edition: {_tr_ed_top} top clusters, brief={_tr_has_brief}, "
+                    f"regional_supported={self._regional_clusters_supported}"
+                )
 
                 result = {
                     "run_id": run_id,

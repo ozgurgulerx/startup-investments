@@ -259,12 +259,18 @@ class DailyNewsDigestSender:
                 result.append(sub)
         return result
 
-    def _build_story_rows_html(self, stories: List[DigestStory], edition_date: str) -> str:
+    @staticmethod
+    def _news_url(base: str, edition_date: str, region: str = "global") -> str:
+        if region == "turkey":
+            return f"{base}/news/turkey/{edition_date}"
+        return f"{base}/news/{edition_date}"
+
+    def _build_story_rows_html(self, stories: List[DigestStory], edition_date: str, region: str = "global") -> str:
         blocks = []
         for idx, story in enumerate(stories, start=1):
             summary = story.summary or "Signal captured in today's startup radar."
             takeaway = story.builder_takeaway or "Validate the signal with customer evidence before acting."
-            url = story.url or f"{self.public_base_url}/news/{edition_date}"
+            url = story.url or self._news_url(self.public_base_url, edition_date, region)
             signal_tags_html = ""
             if story.signal_tags:
                 tags_text = ", ".join(story.signal_tags)
@@ -386,7 +392,7 @@ class DailyNewsDigestSender:
 
         # --- Primary stories ---
         stories_label = "TOP SİNYALLER" if region == "turkey" else "TOP SIGNALS"
-        stories_html = self._build_story_rows_html(stories, edition_date)
+        stories_html = self._build_story_rows_html(stories, edition_date, region)
         if stories_html:
             stories_html = f"""<tr>
                   <td style="padding:20px 0 4px 0;">
@@ -404,7 +410,7 @@ class DailyNewsDigestSender:
             if turkey_brief:
                 turkey_brief_html = self._build_brief_html(turkey_brief, label="GÜNÜN ÖZETİ")
             turkey_signal_radar_html = self._build_signal_radar_html(turkey_signal_context)
-            turkey_stories_html = self._build_story_rows_html(turkey_stories, edition_date)
+            turkey_stories_html = self._build_story_rows_html(turkey_stories, edition_date, "turkey")
             turkey_stories_block = ""
             if turkey_stories_html:
                 turkey_stories_block = f"""<tr>
@@ -445,7 +451,7 @@ class DailyNewsDigestSender:
                     {turkey_section_html}
                     <tr>
                       <td style="padding-top:16px;font-size:13px;color:#6b7280;">
-                        Open full radar: <a href="{self.public_base_url}/news/{edition_date}">{self.public_base_url}/news/{edition_date}</a>
+                        Open full radar: <a href="{self._news_url(self.public_base_url, edition_date, region)}">{self._news_url(self.public_base_url, edition_date, region)}</a>
                       </td>
                     </tr>
                     <tr>
@@ -476,10 +482,11 @@ class DailyNewsDigestSender:
         return lines
 
     @staticmethod
-    def _build_stories_text(stories: List[DigestStory], public_base_url: str, edition_date: str) -> List[str]:
+    def _build_stories_text(stories: List[DigestStory], public_base_url: str, edition_date: str, region: str = "global") -> List[str]:
         lines: List[str] = []
         for idx, story in enumerate(stories, start=1):
-            url = story.url or f"{public_base_url}/news/{edition_date}"
+            fallback = f"{public_base_url}/news/turkey/{edition_date}" if region == "turkey" else f"{public_base_url}/news/{edition_date}"
+            url = story.url or fallback
             summary = story.summary or "Signal captured in today's radar."
             builder_takeaway = story.builder_takeaway or "Validate with user pull before acting."
             lines.extend([
@@ -545,17 +552,17 @@ class DailyNewsDigestSender:
 
         lines.append("Top stories ranked by popularity and source corroboration:")
         lines.append("")
-        lines.extend(self._build_stories_text(stories, self.public_base_url, edition_date))
+        lines.extend(self._build_stories_text(stories, self.public_base_url, edition_date, region))
 
         if turkey_stories:
             lines.extend(["---", "", "TURKEY ECOSYSTEM", ""])
             if turkey_brief:
                 lines.extend(self._build_brief_text(turkey_brief, label="GÜNÜN ÖZETİ"))
             lines.extend(self._build_signal_radar_text(turkey_signal_context))
-            lines.extend(self._build_stories_text(turkey_stories, self.public_base_url, edition_date))
+            lines.extend(self._build_stories_text(turkey_stories, self.public_base_url, edition_date, "turkey"))
 
         lines.extend([
-            f"Full radar: {self.public_base_url}/news/{edition_date}",
+            f"Full radar: {self._news_url(self.public_base_url, edition_date, region)}",
             "",
             f"Feedback / support: support@graph-atlas.com · {self.public_base_url}/support",
             "",
@@ -784,7 +791,7 @@ class DailyNewsDigestSender:
                 if turkey_signal_context:
                     self._attach_signal_tags(turkey_stories, turkey_signal_context.cluster_signal_map)
 
-        unsubscribe_url = f"{self.public_base_url}/news/{resolved_date_str}"  # placeholder for QA
+        unsubscribe_url = self._news_url(self.public_base_url, resolved_date_str, region)  # placeholder for QA
         html = self._build_email_html(
             edition_date=resolved_date_str,
             stories=stories,
