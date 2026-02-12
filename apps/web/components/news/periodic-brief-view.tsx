@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import type { PeriodicBrief, PeriodicBriefSummary } from '@startup-intelligence/shared';
 import { PageContainer } from '@/components/layout/page-container';
+import { formatCurrency } from '@/lib/utils';
 import { NewsSubscriptionCard } from './news-subscription-card';
 import { SignalsProvider } from './signals-provider';
 import { ReactionBar } from './reaction-bar';
@@ -83,7 +84,7 @@ export function PeriodicBriefView({
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Signals" value={stats.total_stories || brief.story_count} />
         {fundingTotal != null && fundingTotal > 0 ? (
-          <StatCard label="Funding tracked" value={`$${(fundingTotal / 1_000_000).toFixed(0)}M`} />
+          <StatCard label="Funding tracked" value={formatCurrency(fundingTotal, true)} />
         ) : null}
         {stats.new_entities_count != null ? (
           <StatCard label="New entities" value={stats.new_entities_count} />
