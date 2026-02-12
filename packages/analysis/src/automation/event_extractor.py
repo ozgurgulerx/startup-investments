@@ -798,14 +798,17 @@ async def onboard_unknown_startups(
             _skip("empty_slug")
             continue
 
+        region = evt.region or "global"
+
         try:
             existing = await conn.fetchval(
                 """SELECT id FROM startups
-                   WHERE LOWER(name) = $1
-                      OR slug = $2
+                   WHERE dataset_region = $3
+                     AND (LOWER(name) = $1 OR slug = $2)
                    LIMIT 1""",
                 name_lower,
                 slug,
+                region,
             )
             if existing:
                 # Link the orphan events to this existing startup
@@ -819,7 +822,6 @@ async def onboard_unknown_startups(
             continue
 
         # --- Create stub startup ---
-        region = evt.region or "global"
 
         try:
             new_id = await conn.fetchval(

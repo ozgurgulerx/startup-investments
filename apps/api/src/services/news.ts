@@ -1578,7 +1578,7 @@ export function makeNewsService(pool: Pool) {
          LEFT JOIN event_registry er ON er.id = se.event_registry_id
          WHERE ${whereClause}
            AND se.effective_date IS NOT NULL
-         ORDER BY se.effective_date DESC, se.id DESC
+         ORDER BY se.effective_date DESC, se.detected_at DESC, se.id DESC
          LIMIT $${idx}`,
         values
       );
@@ -1631,11 +1631,12 @@ export function makeNewsService(pool: Pool) {
     query: string,
     limit: number,
     filters: { domain?: string; type?: string; min_confidence?: number },
+    region: string = 'global',
   ): Promise<{ events: TimelineEvent[]; next_cursor: string | null }> {
     // Embed query and run text fallback search in parallel
     const [queryEmbedding, textFallbackIds] = await Promise.all([
       embedQuery(query),
-      timelineTextSearch(startupId, query, limit, filters),
+      timelineTextSearch(startupId, query, limit, filters, region),
     ]);
 
     let matchedClusterIds: string[] = [];
@@ -1663,6 +1664,9 @@ export function makeNewsService(pool: Pool) {
           filterValues.push(filters.min_confidence);
           idx++;
         }
+        filterConditions.push(`COALESCE(se.region, 'global') = $${idx}`);
+        filterValues.push(region);
+        idx++;
 
         filterValues.push(limit);
 
@@ -1727,6 +1731,9 @@ export function makeNewsService(pool: Pool) {
       values.push(filters.min_confidence);
       idx++;
     }
+    filterConditions.push(`COALESCE(se.region, 'global') = $${idx}`);
+    values.push(region);
+    idx++;
 
     values.push(limit);
     const extraWhere = filterConditions.length > 0
@@ -1788,6 +1795,7 @@ export function makeNewsService(pool: Pool) {
     query: string,
     limit: number,
     filters: { domain?: string; type?: string; min_confidence?: number },
+    region: string = 'global',
   ): Promise<string[]> {
     try {
       const q = `%${query.replace(/[%_\\]/g, '\\$&')}%`;
@@ -1810,6 +1818,9 @@ export function makeNewsService(pool: Pool) {
         values.push(filters.min_confidence);
         idx++;
       }
+      filterConditions.push(`COALESCE(se.region, 'global') = $${idx}`);
+      values.push(region);
+      idx++;
 
       values.push(limit);
       const extraWhere = filterConditions.length > 0
