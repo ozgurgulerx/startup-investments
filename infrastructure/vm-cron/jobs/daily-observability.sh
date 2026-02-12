@@ -1,10 +1,11 @@
 #!/bin/bash
 # daily-observability.sh — Daily pipeline quality metrics posted to Slack.
 #
-# Reports 3 SLO metrics:
+# Reports 4 SLO metrics:
 #   1. Event→Crawl latency (p50/p90): time from event detection to first crawl
 #   2. Refresh effectiveness: % completed jobs with urls_boosted > 0
 #   3. Linking quality: % events with startup_id, % with participants[]
+#   4. Embedding coverage: unembedded count, last-24h embedded, coverage %
 #
 # Run via: runner.sh daily-observability 10 .../jobs/daily-observability.sh
 set -uo pipefail
@@ -30,7 +31,7 @@ fi
 # Metric 1: Event → Crawl latency (time from event to first subsequent crawl)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[1/3] Event→Crawl latency..."
+echo "[1/4] Event→Crawl latency..."
 
 LATENCY=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
 WITH event_crawl AS (
@@ -73,7 +74,7 @@ echo "  p50: ${LATENCY_P50}h  p90: ${LATENCY_P90}h  (n=${LATENCY_N})"
 # Metric 2: Refresh effectiveness (% jobs with urls_boosted > 0)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[2/3] Refresh effectiveness..."
+echo "[2/4] Refresh effectiveness..."
 
 REFRESH=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
 SELECT
@@ -97,7 +98,7 @@ echo "  ${REFRESH_EFFECTIVE}/${REFRESH_TOTAL} effective (${REFRESH_PCT}%)"
 # Metric 3: Linking quality (% events with startup_id)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[3/3] Linking quality..."
+echo "[3/4] Linking quality..."
 
 LINKING=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
 SELECT
@@ -120,6 +121,30 @@ LINK_PARTICIPANTS=$(echo "$LINKING" | cut -d'|' -f4 | tr -d ' ')
 echo "  ${LINK_LINKED}/${LINK_TOTAL} linked (${LINK_PCT}%), ${LINK_PARTICIPANTS} with participants"
 
 # ---------------------------------------------------------------------------
+# Metric 4: Embedding coverage
+# ---------------------------------------------------------------------------
+echo ""
+echo "[4/4] Embedding coverage..."
+
+EMBEDDING=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
+SELECT
+    COUNT(*) FILTER (WHERE embedding IS NULL) AS unembedded,
+    COUNT(*) FILTER (WHERE embedded_at > NOW() - INTERVAL '24 hours') AS embedded_24h,
+    COUNT(*) AS total,
+    CASE WHEN COUNT(*) > 0
+         THEN ROUND(100.0 * COUNT(*) FILTER (WHERE embedding IS NOT NULL) / COUNT(*), 1)
+         ELSE 0 END AS coverage_pct
+FROM news_clusters;
+SQL
+)
+
+EMB_UNEMBEDDED=$(echo "$EMBEDDING" | cut -d'|' -f1 | tr -d ' ')
+EMB_LAST24H=$(echo "$EMBEDDING" | cut -d'|' -f2 | tr -d ' ')
+EMB_TOTAL=$(echo "$EMBEDDING" | cut -d'|' -f3 | tr -d ' ')
+EMB_PCT=$(echo "$EMBEDDING" | cut -d'|' -f4 | tr -d ' ')
+echo "  unembedded: ${EMB_UNEMBEDDED}  embedded_last_24h: ${EMB_LAST24H}  coverage: ${EMB_PCT}%"
+
+# ---------------------------------------------------------------------------
 # Build Slack message
 # ---------------------------------------------------------------------------
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
@@ -140,6 +165,8 @@ BODY="${BODY}${REFRESH_EFFECTIVE}/${REFRESH_TOTAL} jobs with urls_boosted > 0 ($
 BODY="${BODY}*Linking Quality (7d)*"$'\n'
 BODY="${BODY}${LINK_LINKED}/${LINK_TOTAL} events linked to startup (${LINK_PCT}%)"$'\n'
 BODY="${BODY}${LINK_PARTICIPANTS} events with multi-party participants"$'\n\n'
+BODY="${BODY}*Embedding Coverage*"$'\n'
+BODY="${BODY}unembedded: ${EMB_UNEMBEDDED}  \u2022  last 24h: ${EMB_LAST24H}  \u2022  coverage: ${EMB_PCT}%"$'\n\n'
 BODY="${BODY}_${TIMESTAMP}_"
 
 echo ""

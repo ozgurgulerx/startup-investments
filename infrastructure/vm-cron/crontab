@@ -33,6 +33,10 @@ MAILTO=""
 # === Monthly Brief (1st of month 06:00 UTC) ===
 0 6 1 * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh monthly-brief 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/monthly-brief.sh
 
+# === Embedding Backfill (hourly at :25, after news-ingest) ===
+# Embeds unembedded clusters; at 03:xx UTC also populates related_cluster_ids
+25 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh embed-backfill 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/embed-backfill.sh
+
 # === Signal Aggregation (every 4 hours at :30, after news-ingest) ===
 # Aggregates events into signals, scores, and updates lifecycle
 30 */4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh signal-aggregate 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/signal-aggregate.sh
@@ -48,6 +52,10 @@ MAILTO=""
 # === Infrastructure Health Report (every 4 hours at :45) ===
 # Posts a concise all-systems status to Slack (6 reports/day)
 45 0,4,8,12,16,20 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh health-report 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/health-report.sh
+
+# === Daily Observability Report (daily 09:00 UTC) ===
+# Pipeline quality SLO report (latency, refresh, linking, embedding coverage)
+0 9 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh daily-observability 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/daily-observability.sh
 
 # === Slack Daily Summary (daily 14:00 UTC) ===
 0 14 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh slack-summary 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/slack-summary.sh

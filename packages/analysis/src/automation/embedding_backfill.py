@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
+EXPECTED_DIMENSIONS = 1536
+
 
 # ------------------------------------------------------------------
 # Data transfer object
@@ -102,7 +104,14 @@ async def store_embedding(
     """Idempotent UPDATE — sets embedding only if still NULL.
 
     Returns True if the row was actually updated.
+    Rejects embeddings with wrong dimensionality.
     """
+    if len(embedding) != EXPECTED_DIMENSIONS:
+        logger.warning(
+            "Skipping cluster %s: got %d dims, expected %d",
+            cluster_id, len(embedding), EXPECTED_DIMENSIONS,
+        )
+        return False
     result = await conn.execute(
         """UPDATE news_clusters
            SET embedding = $1::vector, embedded_at = NOW()
