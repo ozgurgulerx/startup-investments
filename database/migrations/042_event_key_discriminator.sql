@@ -96,7 +96,7 @@ WHERE event_id IS NOT NULL
 
 DROP INDEX IF EXISTS uq_startup_events_cluster_type_startup;
 
-CREATE UNIQUE INDEX uq_startup_events_cluster_type_startup_key
+CREATE UNIQUE INDEX IF NOT EXISTS uq_startup_events_cluster_type_startup_key
     ON startup_events (cluster_id, startup_id, event_type, event_key)
     WHERE cluster_id IS NOT NULL;
 

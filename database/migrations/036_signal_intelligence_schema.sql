@@ -82,8 +82,11 @@ CREATE INDEX IF NOT EXISTS idx_pattern_registry_active
 CREATE INDEX IF NOT EXISTS idx_pattern_registry_domain
     ON pattern_registry(domain, cluster_name);
 
-ALTER TABLE pattern_registry
-    ADD CONSTRAINT chk_no_unknown_label CHECK (pattern_name <> 'unknown');
+DO $$ BEGIN
+    ALTER TABLE pattern_registry
+        ADD CONSTRAINT chk_no_unknown_label CHECK (pattern_name <> 'unknown');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 COMMENT ON TABLE pattern_registry IS
     'Authoritative pattern definitions. 20 architecture patterns (from _PATTERN_KEYWORDS) + 6 GTM parent categories (from _GTM_PARENT). Linked by name to news_pattern_library for mention counts.';
