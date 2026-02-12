@@ -2818,7 +2818,7 @@ app.get('/api/admin/editorial/review', async (req, res) => {
       const clusters = await pgClient.query(`
         SELECT c.id::text, c.cluster_key, c.title, c.summary, c.story_type, c.topic_tags, c.entities,
                c.rank_score, c.trust_score, c.published_at, c.region,
-               d.decision, d.score_composite, d.decision_reason,
+               d.decision AS gating_decision, d.score_composite AS composite_score, d.decision_reason,
                s.upvote_count, s.save_count, s.not_useful_count,
                ea.action AS editorial_action, ea.reason_category, ea.created_at AS action_at,
                (SELECT ns.source_key FROM news_cluster_items nci

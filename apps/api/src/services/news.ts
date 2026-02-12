@@ -1481,7 +1481,7 @@ export function makeNewsService(pool: Pool) {
 
     // First resolve slug → startup_id, scoped to region with alias fallback
     const slugResult = await pool.query(
-      `SELECT id::text FROM startups WHERE slug = $1 AND dataset_region = $2 LIMIT 1`,
+      `SELECT id::text FROM startups WHERE slug = $1 AND dataset_region = $2 AND COALESCE(onboarding_status, 'verified') != 'merged' LIMIT 1`,
       [params.slug, region]
     );
     let startupId: string;
@@ -1506,7 +1506,7 @@ export function makeNewsService(pool: Pool) {
     // via embedding cosine similarity, then filter timeline to those clusters
     // -----------------------------------------------------------------------
     if (params.query) {
-      return getCompanyTimelineSearch(startupId, params.query, limit, params);
+      return getCompanyTimelineSearch(startupId, params.query, limit, params, region);
     }
 
     // -----------------------------------------------------------------------
@@ -1549,6 +1549,9 @@ export function makeNewsService(pool: Pool) {
       values.push(params.min_confidence);
       idx++;
     }
+    conditions.push(`COALESCE(se.region, 'global') = $${idx}`);
+    values.push(region);
+    idx++;
 
     values.push(limit + 1); // fetch one extra for next_cursor
 
