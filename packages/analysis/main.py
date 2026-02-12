@@ -1653,30 +1653,30 @@ def embed_backfill(
         service = EmbeddingService(azure_client=azure_client, deployment_name=deployment)
 
         pool = await apg.create_pool(db_url, min_size=2, max_size=5, command_timeout=120)
-        async with pool.acquire() as conn:
-            # Dry-run: just count and return
-            if dry_run:
-                clusters = await fetch_unembedded_clusters(
-                    conn, limit=limit, order=order, days=days,
+        try:
+            async with pool.acquire() as conn:
+                # Dry-run: just count and return
+                if dry_run:
+                    clusters = await fetch_unembedded_clusters(
+                        conn, limit=limit, order=order, days=days,
+                    )
+                    count = len(clusters)
+                    console.print(f"[bold]Found {count} unembedded clusters[/bold]")
+                    return {"selected": count, "stored": 0, "populate_related_updated": 0, "dry_run": True}
+
+                stats = await backfill_cluster_embeddings(
+                    conn,
+                    service,
+                    limit=limit,
+                    batch_size=batch_size,
+                    order=order,
+                    days=days,
+                    sleep_ms=sleep_ms,
+                    populate_related=populate_related,
                 )
-                count = len(clusters)
-                console.print(f"[bold]Found {count} unembedded clusters[/bold]")
-                await pool.close()
-                return {"selected": count, "stored": 0, "populate_related_updated": 0, "dry_run": True}
-
-            stats = await backfill_cluster_embeddings(
-                conn,
-                service,
-                limit=limit,
-                batch_size=batch_size,
-                order=order,
-                days=days,
-                sleep_ms=sleep_ms,
-                populate_related=populate_related,
-            )
-
-        await pool.close()
-        return stats
+                return stats
+        finally:
+            await pool.close()
 
     try:
         result = asyncio.run(run())
