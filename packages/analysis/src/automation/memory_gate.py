@@ -139,9 +139,11 @@ class EntityIndex:
                     'turkey' loads global + turkey entity facts (one-way merge).
                     Startups and investors are always loaded globally.
         """
-        # Startups: name, slug, website (always global — all startups are relevant)
+        # Startups: name, slug, website (always global — skip merged startups)
+        # onboarding_status added by migration 046 — graceful fallback via try/except in news_ingest.py
         rows = await conn.fetch(
-            "SELECT id::text, name, slug, website FROM startups WHERE name IS NOT NULL"
+            "SELECT id::text, name, slug, website FROM startups "
+            "WHERE name IS NOT NULL AND COALESCE(onboarding_status, 'verified') != 'merged'"
         )
         for row in rows:
             sid = row["id"]
@@ -162,6 +164,21 @@ class EntityIndex:
                 domain = self._extract_domain(website)
                 if domain:
                     self._domain_index[domain] = sid
+
+        # Load aliases into name/domain indexes
+        try:
+            alias_rows = await conn.fetch(
+                "SELECT alias, startup_id::text, alias_type FROM startup_aliases"
+            )
+            for arow in alias_rows:
+                alias_lower = arow["alias"].strip().lower()
+                sid = arow["startup_id"]
+                if alias_lower not in self._name_index:
+                    self._name_index[alias_lower] = ("company", sid, None)
+                if arow["alias_type"] == "domain" and alias_lower not in self._domain_index:
+                    self._domain_index[alias_lower] = sid
+        except asyncpg.UndefinedTableError:
+            pass  # startup_aliases table may not exist yet
 
         # Investors (always global)
         inv_rows = await conn.fetch(

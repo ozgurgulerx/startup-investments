@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, date, bigint, uniqueIndex, decimal, jsonb, customType } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, date, bigint, uniqueIndex, index, decimal, jsonb, customType } from 'drizzle-orm/pg-core';
 
 // Custom bytea type for binary data (logos)
 const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
@@ -39,10 +39,24 @@ export const startups = pgTable('startups', {
   moneyRaisedUsd: bigint('money_raised_usd', { mode: 'number' }),
   fundingStage: varchar('funding_stage', { length: 50 }),
   usesGenai: boolean('uses_genai').default(false),
+  mergedIntoStartupId: uuid('merged_into_startup_id'),
+  onboardingStatus: varchar('onboarding_status', { length: 20 }).notNull().default('verified'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (table) => ({
   uniqueSlug: uniqueIndex('idx_startups_slug').on(table.datasetRegion, table.slug),
+}));
+
+// Startup aliases — maps old names/slugs/domains to canonical startup after merge
+export const startupAliases = pgTable('startup_aliases', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  alias: text('alias').notNull(),
+  startupId: uuid('startup_id').notNull().references(() => startups.id, { onDelete: 'cascade' }),
+  aliasType: varchar('alias_type', { length: 20 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueAlias: uniqueIndex('uq_startup_aliases_alias').on(table.alias),
+  startupIdx: index('idx_startup_aliases_startup').on(table.startupId),
 }));
 
 // Funding rounds table

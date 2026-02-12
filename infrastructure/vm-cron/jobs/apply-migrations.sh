@@ -54,6 +54,8 @@ SETS = {
         "042_event_key_discriminator.sql",
         # Event-driven refresh jobs — boost frontier priority for startups with news events
         "043_startup_refresh_jobs.sql",
+        # Startup merge infrastructure — adds onboarding_status (used by memory_gate.py)
+        "046_startup_merge_infrastructure.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
@@ -82,6 +84,8 @@ SETS = {
         "019_startup_vertical_taxonomy_indexes.sql",
         "021_build_patterns_and_funding_indexes.sql",
         "022_startup_dataset_region.sql",
+        # Startup merge infrastructure — adds onboarding_status (used by memory_gate.py)
+        "046_startup_merge_infrastructure.sql",
     ],
     "performance": [
         "015_performance_indexes.sql",

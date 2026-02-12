@@ -6073,6 +6073,22 @@ class DailyNewsIngestor:
                             c.gating_decision = "drop"
                             c.gating_reason = f"editorial: {reason}"
 
+                # Persist editorial drops back to news_item_decisions so admin review is accurate
+                ed_drops_global = [c for c in clusters if c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:")]
+                ed_drops_turkey = [c for c in turkey_clusters if c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:")]
+                for drop_list, cid_map in [(ed_drops_global, cluster_ids_global), (ed_drops_turkey, cluster_ids_turkey)]:
+                    for c in drop_list:
+                        cid = cid_map.get(c.cluster_key)
+                        if cid:
+                            await conn.execute(
+                                """
+                                UPDATE news_item_decisions
+                                SET decision = 'drop', decision_reason = $2, scoring_method = 'editorial_postgate'
+                                WHERE cluster_id = $1::uuid
+                                """,
+                                cid, c.gating_reason or "editorial: rule match",
+                            )
+
                 # Build filtered lists excluding editorially-dropped clusters
                 non_dropped_global = [
                     c for c in clusters
