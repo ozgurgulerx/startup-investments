@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock, ChevronRight, Info, Bell, X } from 'lucide-react';
+import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock, ChevronRight, Info, Bell, X, Layers } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { PatternCohortTable } from '@/components/features/pattern-cohort-table';
 import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
@@ -322,6 +322,14 @@ function SignalCard({
           {signal.explain && (
             <ExplainPopover explain={signal.explain} />
           )}
+          <Link
+            href={`/signals/${signal.id}`}
+            className="p-1 rounded hover:bg-muted/30 transition-colors"
+            aria-label="Deep dive"
+            title="View deep dive"
+          >
+            <Layers className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-accent-info" />
+          </Link>
           {onOpenEvidence && (
             <button
               onClick={() => onOpenEvidence(signal.id)}

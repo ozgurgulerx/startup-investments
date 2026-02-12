@@ -329,6 +329,18 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
         </>
       )}
 
+      {/* Deep Dive link */}
+      <div className="h-px bg-border/20" />
+      <Link
+        href={`/signals/${signal.id}`}
+        className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/20 hover:border-border/40 hover:bg-muted/10 transition-colors group"
+      >
+        <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+          View Full Deep Dive
+        </span>
+        <ExternalLink className="w-3 h-3 text-muted-foreground/50 group-hover:text-accent-info transition-colors" />
+      </Link>
+
       {/* Related Signals */}
       {related.length > 0 && (
         <>
