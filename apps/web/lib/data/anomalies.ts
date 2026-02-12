@@ -288,6 +288,124 @@ export function detectStageAnomalies(
   return anomalies.sort((a, b) => b.ratio - a.ratio);
 }
 
+// ---------------------------------------------------------------------------
+// Lorenz Curve / Pareto / Coverage helpers
+// ---------------------------------------------------------------------------
+
+export interface LorenzPoint {
+  /** Cumulative % of deals (0–100) */
+  x: number;
+  /** Cumulative % of funding (0–100) */
+  y: number;
+}
+
+/**
+ * Build a Lorenz curve from startup funding amounts.
+ * Returns an array of {x, y} where x = cumulative % of deals sorted ascending,
+ * y = cumulative % of funding.  First point is always {0,0}.
+ */
+export function computeLorenzCurve(startups: StartupAnalysis[]): LorenzPoint[] {
+  const amounts = startups
+    .filter(s => s.funding_amount && s.funding_amount > 0)
+    .map(s => s.funding_amount!)
+    .sort((a, b) => a - b);
+
+  if (amounts.length === 0) return [{ x: 0, y: 0 }, { x: 100, y: 100 }];
+
+  const total = amounts.reduce((a, b) => a + b, 0);
+  const n = amounts.length;
+  const points: LorenzPoint[] = [{ x: 0, y: 0 }];
+
+  let cumFunding = 0;
+  for (let i = 0; i < n; i++) {
+    cumFunding += amounts[i];
+    points.push({
+      x: ((i + 1) / n) * 100,
+      y: (cumFunding / total) * 100,
+    });
+  }
+
+  return points;
+}
+
+export interface ParetoPoint {
+  rank: number;
+  name: string;
+  slug: string;
+  amount: number;
+  cumShare: number; // cumulative % of total funding
+}
+
+/**
+ * Build a Pareto (ranked) curve – deals sorted descending by amount with
+ * cumulative funding share.
+ */
+export function computeParetoCurve(
+  startups: StartupAnalysis[],
+  limit = 20,
+): ParetoPoint[] {
+  const funded = startups
+    .filter(s => s.funding_amount && s.funding_amount > 0)
+    .sort((a, b) => b.funding_amount! - a.funding_amount!);
+
+  const total = funded.reduce((s, c) => s + c.funding_amount!, 0);
+  if (total === 0) return [];
+
+  const points: ParetoPoint[] = [];
+  let cumFunding = 0;
+  for (let i = 0; i < Math.min(funded.length, limit); i++) {
+    cumFunding += funded[i].funding_amount!;
+    points.push({
+      rank: i + 1,
+      name: funded[i].company_name,
+      slug: funded[i].company_slug,
+      amount: funded[i].funding_amount!,
+      cumShare: (cumFunding / total) * 100,
+    });
+  }
+  return points;
+}
+
+export interface CoverageMetrics {
+  totalDeals: number;
+  knownAmounts: number;
+  knownStages: number;
+  knownPatterns: number;
+  amountCoverage: number; // 0–1
+  stageCoverage: number;
+  patternCoverage: number;
+}
+
+/**
+ * Compute data-coverage metrics: how many deals have known funding amount,
+ * stage, and at least one build pattern.
+ */
+export function computeCoverageMetrics(
+  startups: StartupAnalysis[],
+  stats: MonthlyStats,
+): CoverageMetrics {
+  const totalDeals = stats.deal_summary.total_deals || startups.length;
+  let knownAmounts = 0;
+  let knownStages = 0;
+  let knownPatterns = 0;
+
+  for (const s of startups) {
+    if (s.funding_amount && s.funding_amount > 0) knownAmounts++;
+    if (s.funding_stage && s.funding_stage !== 'unknown') knownStages++;
+    if (s.build_patterns && s.build_patterns.length > 0) knownPatterns++;
+  }
+
+  return {
+    totalDeals,
+    knownAmounts,
+    knownStages,
+    knownPatterns,
+    amountCoverage: totalDeals > 0 ? knownAmounts / totalDeals : 0,
+    stageCoverage: totalDeals > 0 ? knownStages / totalDeals : 0,
+    patternCoverage: totalDeals > 0 ? knownPatterns / totalDeals : 0,
+  };
+}
+
 /**
  * Normalize stage names
  */

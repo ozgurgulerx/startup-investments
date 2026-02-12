@@ -13,8 +13,49 @@ export interface KpiCardProps {
     isPositive?: boolean;
     suffix?: string;
   };
+  /** Array of numeric values for an inline sparkline (oldest → newest). */
+  sparklineData?: number[];
   onClick?: () => void;
   className?: string;
+}
+
+/** Tiny inline SVG sparkline – no external deps. */
+function Sparkline({ data, className }: { data: number[]; className?: string }) {
+  if (data.length < 2) return null;
+
+  const h = 24;
+  const w = 64;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+
+  const points = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  const isUp = data[data.length - 1] >= data[0];
+
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className={cn('flex-shrink-0', className)}
+      style={{ width: w, height: h }}
+      aria-hidden
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke={isUp ? 'hsl(var(--success))' : 'hsl(var(--destructive))'}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 export function KpiCard({
@@ -22,6 +63,7 @@ export function KpiCard({
   value,
   subtext,
   trend,
+  sparklineData,
   onClick,
   className,
 }: KpiCardProps) {
@@ -61,9 +103,14 @@ export function KpiCard({
             </p>
           )}
         </div>
-        {isClickable && (
-          <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors flex-shrink-0 mt-1" />
-        )}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {sparklineData && sparklineData.length >= 2 && (
+            <Sparkline data={sparklineData} />
+          )}
+          {isClickable && (
+            <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors mt-1" />
+          )}
+        </div>
       </div>
     </button>
   );

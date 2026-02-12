@@ -8,3 +8,8 @@ export { VerticalInvestmentChart } from './vertical-investment-chart';
 export { VerticalBubbleChart } from './vertical-bubble-chart';
 export { ModelUsageChart } from './model-usage-chart';
 export { MarketBreakdownChart } from './market-breakdown-chart';
+export { StageMixChart } from './stage-mix-chart';
+export { ConcentrationChart } from './concentration-chart';
+export { GeoBarChart } from './geo-bar-chart';
+export { DealSizeDistribution, buildDealSizeBuckets } from './deal-size-distribution';
+export { HeatmapChart } from './heatmap-chart';
