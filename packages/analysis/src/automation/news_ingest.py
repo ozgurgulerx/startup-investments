@@ -3170,7 +3170,7 @@ class DailyNewsIngestor:
                                 canonical_url=canonicalize_url(link),
                                 summary=summary,
                                 published_at=published,
-                                language=_detect_rss_language(parsed_feed) or "tr",
+                                language=self._detect_rss_language(source, parsed_feed) or "tr",
                                 payload={
                                     "origin": "vc_blog",
                                     "vc_name": vc_name,
@@ -3693,8 +3693,12 @@ class DailyNewsIngestor:
                     n.strip().lower() for n in entity_names if n.strip()
                 ))[:20]
                 if names_lower:
+                    if region == "turkey":
+                        region_clause = "AND region IN ('global', 'turkey')"
+                    else:
+                        region_clause = "AND region = 'global'"
                     rows = await conn.fetch(
-                        """
+                        f"""
                         SELECT entity_name, fact_key, fact_value,
                                confirmation_count,
                                first_seen_at::date AS first_seen,
@@ -3703,6 +3707,7 @@ class DailyNewsIngestor:
                         WHERE LOWER(entity_name) = ANY($1)
                           AND is_current = TRUE
                           AND confirmation_count >= 2
+                          {region_clause}
                         ORDER BY last_confirmed_at DESC
                         LIMIT 15
                         """,
@@ -5646,11 +5651,13 @@ class DailyNewsIngestor:
 
         # Merge clusters that share a primary entity + similar title, then take top 50
         merged = self._merge_entity_duplicates(ranked)
-        top = merged[:50]
-        top_ids = [
-            cluster_ids[c.cluster_key] for c in top
-            if c.cluster_key in cluster_ids and cluster_ids[c.cluster_key] not in excluded_cluster_ids
+        eligible = [
+            c for c in merged
+            if c.cluster_key in cluster_ids
+            and cluster_ids[c.cluster_key] not in excluded_cluster_ids
         ]
+        top = eligible[:50]
+        top_ids = [cluster_ids[c.cluster_key] for c in top]
 
         # Persist merged members back to DB (new members absorbed from duplicates)
         if raw_lookup:
@@ -5693,7 +5700,7 @@ class DailyNewsIngestor:
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        daily_brief = await self._llm_generate_daily_brief(conn=conn, edition_date=edition_date, region=region, clusters=clusters)
+        daily_brief = await self._llm_generate_daily_brief(conn=conn, edition_date=edition_date, region=region, clusters=top)
         if daily_brief:
             stats["daily_brief"] = daily_brief
         else:
@@ -5867,14 +5874,6 @@ class DailyNewsIngestor:
                     f"members: llm={_tr_llm_members} heuristic={_tr_heur_members} unclassified={_tr_uncl_members}"
                 )
 
-                # --- Memory gate: run per-region (global then turkey) ---
-                memory_stats_global = await self._run_memory_gate(conn, clusters, region="global")
-                memory_stats_turkey = await self._run_memory_gate(conn, turkey_clusters, region="turkey")
-                memory_stats = {
-                    "global": memory_stats_global,
-                    "turkey": memory_stats_turkey,
-                }
-
                 # --- Editorial rules: load admin-curated & auto-generated filters ---
                 from .editorial_rules import EditorialRuleEngine, generate_rule_suggestions, load_rejected_cluster_ids
                 _ed_engine_global = EditorialRuleEngine()
@@ -5903,6 +5902,14 @@ class DailyNewsIngestor:
                             tc = _build_turkey_cluster(c, turkey_source_keys)
                             if tc:
                                 turkey_clusters.append(tc)
+
+                # --- Memory gate: run per-region (global then turkey) ---
+                memory_stats_global = await self._run_memory_gate(conn, clusters, region="global")
+                memory_stats_turkey = await self._run_memory_gate(conn, turkey_clusters, region="turkey")
+                memory_stats = {
+                    "global": memory_stats_global,
+                    "turkey": memory_stats_turkey,
+                }
 
                 # --- Signal feedback: load community signals for ranking/gating ---
                 from .signal_feedback import SignalAggregator
@@ -6102,11 +6109,15 @@ class DailyNewsIngestor:
                         f"for edition (from {len(turkey_clusters)} total) — thin edition"
                     )
 
+                global_clusters_for_edition = [
+                    c for c in clusters
+                    if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                ]
                 global_stats = await self._persist_edition(
                     conn,
                     edition_date=e_date,
                     region="global",
-                    clusters=clusters,
+                    clusters=global_clusters_for_edition,
                     cluster_ids=cluster_ids_global,
                     excluded_cluster_ids=rejected_global,
                     raw_lookup=raw_lookup,
