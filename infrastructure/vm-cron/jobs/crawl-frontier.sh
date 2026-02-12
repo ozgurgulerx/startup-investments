@@ -18,6 +18,10 @@ bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" crawl
 
 cd "$REPO_DIR/packages/analysis"
 
+# Process event-driven refresh jobs (boost priority before seeding)
+echo "Processing refresh jobs..."
+"$VENV_DIR/bin/python" main.py process-refresh-jobs --batch-size 50
+
 # Seed frontier queue
 echo "Seeding frontier..."
 "$VENV_DIR/bin/python" main.py seed-frontier --limit 5000

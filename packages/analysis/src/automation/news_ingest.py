@@ -5223,9 +5223,10 @@ class DailyNewsIngestor:
 
         Uses the EventExtractor to convert memory gate outputs (claims, patterns,
         GTM tags) into typed events with event_registry linkage. Zero LLM cost.
+        Also enqueues refresh jobs for startups with qualifying events.
         """
         try:
-            from .event_extractor import EventExtractor, persist_events
+            from .event_extractor import EventExtractor, persist_events, enqueue_refresh_for_events
         except ImportError:
             logger.warning("event_extractor module not available, skipping event extraction")
             return 0
@@ -5246,9 +5247,17 @@ class DailyNewsIngestor:
         if not all_events:
             return 0
 
-        inserted = await persist_events(conn, all_events, extractor._registry)
+        inserted, inserted_events = await persist_events(conn, all_events, extractor._registry)
         logger.info("[events:%s] Extracted %d events from %d clusters, persisted %d",
                      region, len(all_events), len(clusters), inserted)
+
+        # Enqueue refresh jobs for startups with qualifying events
+        try:
+            if inserted_events:
+                await enqueue_refresh_for_events(conn, inserted_events)
+        except Exception:
+            logger.warning("Failed to enqueue refresh jobs (table may not exist yet)", exc_info=True)
+
         return inserted
 
     async def _enqueue_hot_topic_research(

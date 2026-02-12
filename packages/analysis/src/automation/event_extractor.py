@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     import asyncpg
@@ -40,6 +40,26 @@ class ExtractedEvent:
     metadata: Dict[str, Any] = field(default_factory=dict)
     snippet: str = ""
     region: str = "global"
+    event_key: str = ""      # Discriminator for dedup (e.g. pattern_name, round_type)
+
+
+def compute_event_key(event_type: str, metadata: Dict[str, Any]) -> str:
+    """Derive a deterministic discriminator from event type + metadata.
+
+    Allows multiple events of the same type per cluster when they represent
+    distinct observations (e.g. 3 different arch patterns detected).
+    """
+    if event_type == "arch_pattern_adopted":
+        return metadata.get("pattern_name", "")
+    if event_type == "cap_funding_raised":
+        return metadata.get("round_type", "")
+    if event_type == "cap_acquisition_announced":
+        return metadata.get("acquisition_target", "")
+    if event_type.startswith("gtm_"):
+        return metadata.get("gtm_tag", "")
+    if event_type == "prod_launched":
+        return metadata.get("product_launched", "")
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +196,7 @@ class EventExtractor:
                 existing.metadata[claim.fact_key] = claim.fact_value
                 existing.confidence = max(existing.confidence, claim.confidence)
             else:
+                meta = {claim.fact_key: claim.fact_value}
                 evt = ExtractedEvent(
                     event_type=event_type,
                     confidence=claim.confidence,
@@ -183,7 +204,8 @@ class EventExtractor:
                     entity_name=claim.entity_name,
                     snippet=claim.text_span[:200] if claim.text_span else cluster.title[:200],
                     region=region,
-                    metadata={claim.fact_key: claim.fact_value},
+                    metadata=meta,
+                    event_key=compute_event_key(event_type, meta),
                 )
                 seen_types[event_type] = evt
                 events.append(evt)
@@ -205,13 +227,15 @@ class EventExtractor:
                 continue
             if not pattern_name or pattern_name.lower() in ('unknown', 'unknown_pattern', 'none'):
                 continue
+            meta = {"pattern_name": pattern_name, "match_score": score}
             events.append(ExtractedEvent(
                 event_type=event_type,
                 confidence=min(score, 1.0),
                 cluster_id=cluster_id,
                 snippet=f"Pattern '{pattern_name}' detected in: {cluster.title[:150]}",
                 region=region,
-                metadata={"pattern_name": pattern_name, "match_score": score},
+                metadata=meta,
+                event_key=compute_event_key(event_type, meta),
             ))
 
     def _extract_from_gtm(
@@ -226,13 +250,15 @@ class EventExtractor:
         for tag in (cluster.gating_gtm_tags or []):
             for pattern_key, event_type in _GTM_EVENT_PATTERNS.items():
                 if pattern_key in tag and self._is_valid(event_type) and event_type not in seen_types:
+                    meta = {"gtm_tag": tag, "story_type": cluster.story_type}
                     evt = ExtractedEvent(
                         event_type=event_type,
                         confidence=0.5,
                         cluster_id=cluster_id,
                         snippet=cluster.title[:200],
                         region=region,
-                        metadata={"gtm_tag": tag, "story_type": cluster.story_type},
+                        metadata=meta,
+                        event_key=compute_event_key(event_type, meta),
                     )
                     seen_types[event_type] = evt
                     events.append(evt)
@@ -243,25 +269,44 @@ class EventExtractor:
         cluster: "StoryCluster",
         events: List[ExtractedEvent],
     ) -> None:
-        """Attach startup_id to events from memory gate linked entities."""
+        """Attach startup_id to events from memory gate linked entities.
+
+        When an event already has entity_name, look up that specific entity's
+        startup_id instead of blindly assigning the best-scored startup.
+        Falls back to the best-scored startup for events with no entity_name.
+        """
         if not cluster.memory_result or not cluster.memory_result.linked_entities:
             return
 
-        # Find the best-matched startup entity
+        # Build entity_name → (startup_id, match_score) lookup
+        entity_lookup: Dict[str, tuple] = {}  # lowercase name → (startup_id, score)
         best_startup_id: Optional[str] = None
         best_score = 0.0
         best_name: Optional[str] = None
 
         for entity in cluster.memory_result.linked_entities:
-            if entity.startup_id and entity.match_score > best_score:
-                best_startup_id = entity.startup_id
-                best_score = entity.match_score
-                best_name = entity.entity_name
+            if entity.startup_id:
+                name_lower = entity.entity_name.lower()
+                existing = entity_lookup.get(name_lower)
+                if not existing or entity.match_score > existing[1]:
+                    entity_lookup[name_lower] = (entity.startup_id, entity.match_score)
+                if entity.match_score > best_score:
+                    best_startup_id = entity.startup_id
+                    best_score = entity.match_score
+                    best_name = entity.entity_name
 
-        if best_startup_id:
-            for evt in events:
-                if not evt.startup_id:
-                    evt.startup_id = best_startup_id
+        for evt in events:
+            if evt.startup_id:
+                continue
+            # Try entity-specific lookup first
+            if evt.entity_name:
+                match = entity_lookup.get(evt.entity_name.lower())
+                if match:
+                    evt.startup_id = match[0]
+                    continue
+            # Fall back to best-scored startup
+            if best_startup_id:
+                evt.startup_id = best_startup_id
                 if not evt.entity_name and best_name:
                     evt.entity_name = best_name
 
@@ -274,23 +319,28 @@ async def persist_events(
     conn: "asyncpg.Connection",
     events: List[ExtractedEvent],
     registry: Dict[str, str],
-) -> int:
-    """Persist extracted events to startup_events table. Returns count inserted."""
+) -> Tuple[int, List[Tuple[str, str, str]]]:
+    """Persist extracted events to startup_events table.
+
+    Returns (count_inserted, list of (event_id, startup_id, event_type) tuples).
+    """
     if not events:
-        return 0
+        return 0, []
 
     inserted = 0
+    inserted_events: List[Tuple[str, str, str]] = []
     for evt in events:
         registry_id = registry.get(evt.event_type)
         try:
-            await conn.execute(
+            row = await conn.fetchrow(
                 """INSERT INTO startup_events
                        (startup_id, event_type, event_title, event_content,
                         event_registry_id, confidence, source_type,
-                        metadata_json, cluster_id, region)
-                   VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10)
-                   ON CONFLICT (cluster_id, event_type, startup_id)
-                       WHERE cluster_id IS NOT NULL DO NOTHING""",
+                        metadata_json, cluster_id, region, event_key)
+                   VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11)
+                   ON CONFLICT (cluster_id, startup_id, event_type, event_key)
+                       WHERE cluster_id IS NOT NULL DO NOTHING
+                   RETURNING id""",
                 evt.startup_id,
                 evt.event_type,
                 evt.snippet[:255] if evt.snippet else None,
@@ -301,9 +351,45 @@ async def persist_events(
                 json.dumps(evt.metadata),
                 evt.cluster_id,
                 evt.region,
+                evt.event_key,
             )
-            inserted += 1
+            if row is not None:
+                inserted += 1
+                if evt.startup_id:
+                    inserted_events.append((str(row["id"]), evt.startup_id, evt.event_type))
         except Exception:
             logger.warning("Failed to persist event %s for cluster %s", evt.event_type, evt.cluster_id, exc_info=True)
 
-    return inserted
+    return inserted, inserted_events
+
+
+async def enqueue_refresh_for_events(
+    conn: "asyncpg.Connection",
+    inserted_events: List[Tuple[str, str, str]],
+) -> int:
+    """Enqueue refresh jobs for startups that had qualifying events inserted.
+
+    Args:
+        conn: database connection
+        inserted_events: list of (event_id, startup_id, event_type) from persist_events
+
+    Returns count of jobs enqueued.
+    """
+    from ..crawl_runtime.refresh_jobs import EVENT_TYPE_TO_REASON, enqueue_refresh_job
+
+    # Group by startup_id, pick first event_id per startup
+    startup_map: Dict[str, Tuple[str, str]] = {}  # startup_id → (event_id, reason)
+    for event_id, startup_id, event_type in inserted_events:
+        reason = EVENT_TYPE_TO_REASON.get(event_type)
+        if reason and startup_id not in startup_map:
+            startup_map[startup_id] = (event_id, reason)
+
+    enqueued = 0
+    for startup_id, (event_id, reason) in startup_map.items():
+        job_id = await enqueue_refresh_job(conn, startup_id, reason, trigger_event_id=event_id)
+        if job_id:
+            enqueued += 1
+
+    if enqueued:
+        logger.info("Enqueued %d refresh jobs from %d inserted events", enqueued, len(inserted_events))
+    return enqueued

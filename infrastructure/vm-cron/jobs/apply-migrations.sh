@@ -50,10 +50,15 @@ SETS = {
         "036_signal_intelligence_schema.sql",
         # Fix signal deduplication — unique indexes + count recompute
         "038_fix_signal_dedupe.sql",
+        # Event key discriminator — allows multiple events of same type per cluster
+        "042_event_key_discriminator.sql",
+        # Event-driven refresh jobs — boost frontier priority for startups with news events
+        "043_startup_refresh_jobs.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
         "016_crawl_replay_and_policy_feedback.sql",
+        "043_startup_refresh_jobs.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",

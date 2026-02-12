@@ -580,6 +580,30 @@ def seed_frontier(
     console.print(f"[bold]URLs seeded:[/bold] {result.get('urls_seeded', 0)}")
 
 
+@app.command("process-refresh-jobs")
+def process_refresh_jobs(
+    batch_size: int = typer.Option(50, "--batch-size", "-b", help="Max jobs to process per run"),
+):
+    """Process pending startup refresh jobs — boost crawl frontier priority for event-affected startups."""
+    from src.crawl_runtime.refresh_jobs import process_refresh_jobs as _process
+
+    try:
+        stats = asyncio.run(_process(batch_size=max(1, int(batch_size))))
+    except Exception as exc:
+        console.print(f"[red]Refresh job processing failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Refresh Jobs Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Jobs processed:[/bold] {stats.get('jobs_processed', 0)}")
+    console.print(f"[bold]URLs boosted:[/bold] {stats.get('total_urls_boosted', 0)}")
+    errors = stats.get("errors", 0)
+    if errors:
+        console.print(f"[bold red]Errors:[/bold red] {errors}")
+
+
 @app.command("ingest-news")
 def ingest_news(
     lookback_hours: int = typer.Option(48, "--lookback-hours", help="How far back to collect stories"),
@@ -2441,6 +2465,104 @@ def diagnose_signals():
             console.print(t)
 
     asyncio.run(_diagnose())
+
+
+@app.command("backfill-state")
+def backfill_state(
+    period: Optional[str] = typer.Option(None, "--period", "-p", help="Period to backfill (e.g., 2026-02). All periods if omitted."),
+    with_diffs: bool = typer.Option(True, "--diffs/--no-diffs", help="Compute architecture diffs between periods"),
+    with_events: bool = typer.Option(True, "--events/--no-events", help="Emit transition events for signal engine"),
+    with_embeddings: bool = typer.Option(False, "--embeddings/--no-embeddings", help="Generate state embeddings (requires Azure OpenAI)"),
+):
+    """Backfill startup state snapshots from existing analysis_data.
+
+    Extracts structured state (patterns, tech stack, GTM, scores) from the
+    monolithic analysis_data JSONB into the startup_state_snapshot table.
+
+    Optionally computes diffs between periods (Phase 2) and emits transition
+    events for the signal engine (Phase 3).
+
+    Example:
+        python main.py backfill-state --period 2026-02
+        python main.py backfill-state --no-diffs --no-events
+    """
+    import asyncpg
+
+    async def _backfill():
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            raise typer.Exit(1)
+
+        conn = await asyncpg.connect(database_url)
+        try:
+            # Wire up the component chain based on flags
+            emitter = None
+            differ = None
+            embedding_service = None
+
+            if with_events:
+                from src.intelligence.dossier.transition_emitter import TransitionEmitter
+                emitter = TransitionEmitter()
+
+            if with_diffs:
+                from src.intelligence.dossier.state_differ import StateDiffer
+                differ = StateDiffer(emitter=emitter)
+
+            if with_embeddings:
+                try:
+                    from src.automation.embedding import EmbeddingService
+                    from src.config import AzureOpenAIConfig
+                    azure_config = AzureOpenAIConfig()
+                    embedding_service = EmbeddingService(
+                        azure_client=azure_config.get_async_client(),
+                        deployment_name=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"),
+                    )
+                except Exception as exc:
+                    console.print(f"[yellow]Embedding service unavailable: {exc}[/yellow]")
+
+            from src.intelligence.dossier.state_extractor import StateExtractor
+            extractor = StateExtractor(differ=differ, embedding_service=embedding_service)
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task(
+                    f"[cyan]Backfilling state snapshots{f' for {period}' if period else ''}...",
+                    total=None,
+                )
+
+                stats = await extractor.backfill_all(conn, period=period)
+
+                progress.update(task, completed=True)
+
+            console.print(Panel.fit(
+                "[bold blue]State Snapshot Backfill Complete[/bold blue]",
+                border_style="blue",
+            ))
+            console.print(f"  Extracted: [green]{stats['extracted']}[/green]")
+            console.print(f"  Skipped:   [yellow]{stats['skipped']}[/yellow]")
+            console.print(f"  Errors:    [red]{stats['errors']}[/red]")
+
+            if with_diffs:
+                # Count history entries created
+                history_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM startup_architecture_history"
+                )
+                console.print(f"  History entries: [cyan]{history_count}[/cyan]")
+
+            if with_events:
+                event_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM startup_events WHERE source_type = 'analysis_diff'"
+                )
+                console.print(f"  Transition events: [cyan]{event_count}[/cyan]")
+
+        finally:
+            await conn.close()
+
+    asyncio.run(_backfill())
 
 
 if __name__ == "__main__":
