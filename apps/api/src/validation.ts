@@ -356,11 +356,13 @@ export const signalsQuerySchema = z.object({
   region: optionalTrimmedString(20),
   status: signalStatus.optional(),
   domain: signalDomain.optional(),
-  sort: z.enum(['conviction', 'momentum', 'impact', 'created']).optional().default('conviction'),
+  sort: z.enum(['conviction', 'momentum', 'impact', 'created', 'novelty']).optional().default('conviction'),
+  window: z.coerce.number().int().refine(v => [7, 30, 90].includes(v)).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
 });
 
 export const signalsSummaryQuerySchema = z.object({
   region: optionalTrimmedString(20),
+  window: z.coerce.number().int().refine(v => [7, 30, 90].includes(v)).optional(),
 });

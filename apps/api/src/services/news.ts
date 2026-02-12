@@ -290,6 +290,15 @@ export interface StageContext {
   computed_at: string;
 }
 
+export interface SignalExplain {
+  definition: string;
+  why: string;
+  examples: string[];
+  risk: string;
+  time_horizon: string;
+  top_evidence: Array<{ snippet: string; source: string; date: string; url?: string }>;
+}
+
 export interface SignalRow {
   id: string;
   domain: string;
@@ -306,6 +315,9 @@ export interface SignalRow {
   first_seen_at: string;
   last_evidence_at: string | null;
   stage_context?: StageContext;
+  explain?: SignalExplain;
+  explain_generated_at?: string;
+  evidence_timeline?: number[];
 }
 
 export interface TimelineEvent {
@@ -1973,13 +1985,24 @@ export function makeNewsService(pool: Pool) {
   // =========================================================================
 
   function rowToSignal(row: any): SignalRow {
-    // Extract stage_context from metadata_json if present
+    // Extract stage_context, explain_json, evidence_timeline from metadata_json if present
     let stageContext: StageContext | undefined;
+    let explain: SignalExplain | undefined;
+    let explainGeneratedAt: string | undefined;
+    let evidenceTimeline: number[] | undefined;
+
     if (row.metadata_json) {
       try {
         const meta = typeof row.metadata_json === 'string' ? JSON.parse(row.metadata_json) : row.metadata_json;
         if (meta?.stage_context) {
           stageContext = meta.stage_context as StageContext;
+        }
+        if (meta?.explain_json) {
+          explain = meta.explain_json as SignalExplain;
+          explainGeneratedAt = meta.explain_generated_at;
+        }
+        if (Array.isArray(meta?.evidence_timeline)) {
+          evidenceTimeline = meta.evidence_timeline;
         }
       } catch { /* ignore parse errors */ }
     }
@@ -2000,6 +2023,8 @@ export function makeNewsService(pool: Pool) {
       first_seen_at: row.first_seen_at?.toISOString?.() ?? row.first_seen_at,
       last_evidence_at: row.last_evidence_at?.toISOString?.() ?? row.last_evidence_at ?? null,
       ...(stageContext ? { stage_context: stageContext } : {}),
+      ...(explain ? { explain, explain_generated_at: explainGeneratedAt } : {}),
+      ...(evidenceTimeline ? { evidence_timeline: evidenceTimeline } : {}),
     };
   }
 
@@ -2008,6 +2033,7 @@ export function makeNewsService(pool: Pool) {
     status?: string;
     domain?: string;
     sort?: string;
+    window?: number;
     limit?: number;
     offset?: number;
   }): Promise<{ signals: SignalRow[]; total: number }> {
@@ -2027,6 +2053,9 @@ export function makeNewsService(pool: Pool) {
         values.push(params.domain);
         idx++;
       }
+      if (params.window) {
+        conditions.push(`last_evidence_at >= NOW() - INTERVAL '${params.window} days'`);
+      }
 
       const where = conditions.join(' AND ');
       const sortCol = ({
@@ -2034,6 +2063,7 @@ export function makeNewsService(pool: Pool) {
         momentum: 'momentum DESC',
         impact: 'impact DESC',
         created: 'first_seen_at DESC',
+        novelty: 'first_seen_at DESC',
       } as Record<string, string>)[params.sort || 'conviction'] || 'conviction DESC';
 
       const limit = Math.min(50, Math.max(1, params.limit || 20));
@@ -2048,7 +2078,7 @@ export function makeNewsService(pool: Pool) {
         `SELECT id::text, domain, cluster_name, claim, region,
                 conviction, momentum, impact, adoption_velocity,
                 status, evidence_count, unique_company_count,
-                first_seen_at, last_evidence_at
+                first_seen_at, last_evidence_at, metadata_json
          FROM signals
          WHERE ${where}
          ORDER BY ${sortCol}
@@ -2151,6 +2181,7 @@ export function makeNewsService(pool: Pool) {
 
   async function getSignalsSummary(params: {
     region?: string;
+    window?: number;
   }): Promise<{
     rising: SignalRow[];
     established: SignalRow[];
@@ -2159,6 +2190,9 @@ export function makeNewsService(pool: Pool) {
   }> {
     try {
       const region = normalizeRegion(params.region);
+      const windowFilter = params.window
+        ? `AND last_evidence_at >= NOW() - INTERVAL '${params.window} days'`
+        : '';
 
       // Rising: emerging + accelerating, sorted by momentum
       const risingResult = await pool.query(
@@ -2167,7 +2201,7 @@ export function makeNewsService(pool: Pool) {
                 status, evidence_count, unique_company_count,
                 first_seen_at, last_evidence_at, metadata_json
          FROM signals
-         WHERE region = $1 AND status IN ('emerging', 'accelerating')
+         WHERE region = $1 AND status IN ('emerging', 'accelerating') ${windowFilter}
          ORDER BY momentum DESC
          LIMIT 20`,
         [region]
@@ -2180,7 +2214,7 @@ export function makeNewsService(pool: Pool) {
                 status, evidence_count, unique_company_count,
                 first_seen_at, last_evidence_at, metadata_json
          FROM signals
-         WHERE region = $1 AND status = 'established'
+         WHERE region = $1 AND status = 'established' ${windowFilter}
          ORDER BY conviction DESC
          LIMIT 20`,
         [region]
@@ -2193,7 +2227,7 @@ export function makeNewsService(pool: Pool) {
                 status, evidence_count, unique_company_count,
                 first_seen_at, last_evidence_at, metadata_json
          FROM signals
-         WHERE region = $1 AND status = 'decaying'
+         WHERE region = $1 AND status = 'decaying' ${windowFilter}
          ORDER BY momentum ASC
          LIMIT 10`,
         [region]
@@ -2201,11 +2235,11 @@ export function makeNewsService(pool: Pool) {
 
       // Stats
       const statusStats = await pool.query(
-        `SELECT status, COUNT(*) as cnt FROM signals WHERE region = $1 GROUP BY status`,
+        `SELECT status, COUNT(*) as cnt FROM signals WHERE region = $1 ${windowFilter} GROUP BY status`,
         [region]
       );
       const domainStats = await pool.query(
-        `SELECT domain, COUNT(*) as cnt FROM signals WHERE region = $1 GROUP BY domain`,
+        `SELECT domain, COUNT(*) as cnt FROM signals WHERE region = $1 ${windowFilter} GROUP BY domain`,
         [region]
       );
 
@@ -2342,6 +2376,100 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  // =========================================================================
+  // SIGNAL FOLLOWS & NOTIFICATIONS
+  // =========================================================================
+
+  async function toggleSignalFollow(params: {
+    userId: string;
+    signalId: string;
+  }): Promise<{ following: boolean }> {
+    try {
+      // Check if already following
+      const existing = await pool.query(
+        `SELECT 1 FROM user_signal_follows WHERE user_id = $1::uuid AND signal_id = $2::uuid`,
+        [params.userId, params.signalId]
+      );
+
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `DELETE FROM user_signal_follows WHERE user_id = $1::uuid AND signal_id = $2::uuid`,
+          [params.userId, params.signalId]
+        );
+        return { following: false };
+      }
+
+      await pool.query(
+        `INSERT INTO user_signal_follows (user_id, signal_id) VALUES ($1::uuid, $2::uuid)
+         ON CONFLICT DO NOTHING`,
+        [params.userId, params.signalId]
+      );
+      return { following: true };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return { following: false };
+      throw error;
+    }
+  }
+
+  async function getUserSignalFollows(params: {
+    userId: string;
+  }): Promise<{ signal_ids: string[] }> {
+    try {
+      const result = await pool.query(
+        `SELECT signal_id::text FROM user_signal_follows WHERE user_id = $1::uuid`,
+        [params.userId]
+      );
+      return { signal_ids: result.rows.map((r: any) => r.signal_id) };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return { signal_ids: [] };
+      throw error;
+    }
+  }
+
+  async function getSignalUpdates(params: {
+    since: string;
+    region?: string;
+  }): Promise<{ new_count: number; updated_count: number; signal_ids: string[] }> {
+    try {
+      const region = normalizeRegion(params.region);
+      const sinceDate = new Date(params.since);
+      if (isNaN(sinceDate.getTime())) {
+        return { new_count: 0, updated_count: 0, signal_ids: [] };
+      }
+
+      // New signals since timestamp
+      const newResult = await pool.query(
+        `SELECT id::text FROM signals
+         WHERE region = $1 AND first_seen_at > $2 AND status NOT IN ('decaying')
+         ORDER BY first_seen_at DESC`,
+        [region, sinceDate]
+      );
+
+      return {
+        new_count: newResult.rows.length,
+        updated_count: 0,  // Could track status changes via lifecycle_transitions in metadata_json
+        signal_ids: newResult.rows.map((r: any) => r.id),
+      };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return { new_count: 0, updated_count: 0, signal_ids: [] };
+      throw error;
+    }
+  }
+
+  async function markSignalsSeen(params: {
+    userId: string;
+  }): Promise<void> {
+    try {
+      await pool.query(
+        `UPDATE users SET last_seen_signals_at = NOW() WHERE id = $1::uuid`,
+        [params.userId]
+      );
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return;
+      throw error;
+    }
+  }
+
   return {
     normalizeRegion,
     getLatestEditionDate,
@@ -2360,5 +2488,9 @@ export function makeNewsService(pool: Pool) {
     getSignalDetail,
     getSignalsSummary,
     getSimilarCompanies,
+    toggleSignalFollow,
+    getUserSignalFollows,
+    getSignalUpdates,
+    markSignalsSeen,
   };
 }

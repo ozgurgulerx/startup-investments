@@ -782,6 +782,10 @@ export async function getStartupsPaginated(
   filtered.sort((a, b) => {
     let comparison = 0;
     if (sortBy === 'funding') {
+      // Push null/undefined funding to the bottom regardless of sort direction
+      const aNull = a.funding_amount == null;
+      const bNull = b.funding_amount == null;
+      if (aNull !== bNull) return aNull ? 1 : -1;
       comparison = (a.funding_amount || 0) - (b.funding_amount || 0);
     } else if (sortBy === 'name') {
       comparison = a.company_name.localeCompare(b.company_name);

@@ -1,13 +1,20 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock } from 'lucide-react';
+import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock, ChevronRight, Info, Bell } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { PatternCohortTable } from '@/components/features/pattern-cohort-table';
 import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
+import { Sheet, SheetHeader, SheetContent } from '@/components/ui/sheet';
+import { useIsDesktop } from '@/lib/hooks/use-media-query';
+import { cn } from '@/lib/utils';
+import { SignalInspector, InspectorSkeleton, InspectorEmpty } from './signal-inspector';
+import { ExplainPopover } from './explain-popover';
+import { EvidenceDrawer } from './evidence-drawer';
 import type { PatternData, EmergingPattern, CategoryData } from './page';
 import type { PatternCorrelation } from '@/lib/data/signals';
-import type { SignalItem, SignalsSummaryResponse } from '@/lib/api/client';
+import type { SignalItem, SignalsSummaryResponse, SignalsListResponse } from '@/lib/api/client';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
 import { normalizeDatasetRegion } from '@/lib/region';
 
@@ -35,7 +42,7 @@ interface DynamicModeProps {
 type InteractiveSignalsProps = StaticModeProps | DynamicModeProps;
 
 // ---------------------------------------------------------------------------
-// Signal card component (dynamic mode)
+// Constants
 // ---------------------------------------------------------------------------
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -54,74 +61,16 @@ const DOMAIN_LABELS: Record<string, string> = {
   product: 'Product',
 };
 
-function SignalCard({ signal }: { signal: SignalItem }) {
-  const style = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
-  const domainLabel = DOMAIN_LABELS[signal.domain] || signal.domain;
+const STATUS_ORDER = ['accelerating', 'emerging', 'candidate', 'established', 'decaying'] as const;
 
-  const timeSinceFirstSeen = useMemo(() => {
-    const first = new Date(signal.first_seen_at);
-    const now = new Date();
-    const days = Math.floor((now.getTime() - first.getTime()) / (1000 * 60 * 60 * 24));
-    if (days === 0) return 'today';
-    if (days === 1) return '1 day ago';
-    if (days < 30) return `${days}d ago`;
-    return `${Math.floor(days / 30)}mo ago`;
-  }, [signal.first_seen_at]);
+const SORT_OPTIONS = [
+  { value: 'momentum', label: 'Momentum' },
+  { value: 'conviction', label: 'Conviction' },
+  { value: 'impact', label: 'Impact' },
+  { value: 'created', label: 'Newest' },
+] as const;
 
-  return (
-    <div className="py-6 border-b border-border/30 last:border-0">
-      {/* Top row: status + domain + time */}
-      <div className="flex items-center gap-2 mb-3">
-        <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${style.bg} ${style.text}`}>
-          {style.label}
-        </span>
-        <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-          {domainLabel}
-        </span>
-        <span className="text-[10px] text-muted-foreground/40 ml-auto flex items-center gap-1">
-          <Clock className="w-2.5 h-2.5" />
-          {timeSinceFirstSeen}
-        </span>
-      </div>
-
-      {/* Claim text */}
-      <p className="text-sm text-foreground leading-relaxed mb-4">
-        {signal.claim}
-      </p>
-
-      {/* Metrics row */}
-      <div className="flex flex-wrap items-center gap-4">
-        <MetricBadge
-          label="Conviction"
-          value={signal.conviction}
-          format="percent"
-        />
-        <MetricBadge
-          label="Momentum"
-          value={signal.momentum}
-          format="delta"
-          icon={signal.momentum > 0 ? TrendingUp : signal.momentum < 0 ? TrendingDown : Activity}
-        />
-        <MetricBadge
-          label="Impact"
-          value={signal.impact}
-          format="percent"
-        />
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <BarChart3 className="w-3 h-3" />
-          <span>{signal.evidence_count} evidence</span>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Users className="w-3 h-3" />
-          <span>{signal.unique_company_count} {signal.unique_company_count === 1 ? 'company' : 'companies'}</span>
-        </div>
-      </div>
-
-      {/* Stage breakdown (if stage_context is available) */}
-      <StageBreakdown signal={signal} />
-    </div>
-  );
-}
+type SortKey = typeof SORT_OPTIONS[number]['value'];
 
 const STAGE_LABELS: Record<string, string> = {
   pre_seed: 'Pre-Seed',
@@ -133,6 +82,38 @@ const STAGE_LABELS: Record<string, string> = {
   late_stage: 'Late',
   unknown: 'Unknown',
 };
+
+// ---------------------------------------------------------------------------
+// Shared sub-components
+// ---------------------------------------------------------------------------
+
+function MetricBadge({
+  label,
+  value,
+  format,
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  format: 'percent' | 'delta';
+  icon?: React.ComponentType<{ className?: string }>;
+}) {
+  const displayValue = format === 'percent'
+    ? `${(value * 100).toFixed(0)}%`
+    : `${value >= 0 ? '+' : ''}${(value * 100).toFixed(0)}%`;
+
+  const colorClass = format === 'delta'
+    ? value > 0 ? 'text-accent-info' : value < 0 ? 'text-destructive' : 'text-muted-foreground'
+    : 'text-muted-foreground';
+
+  return (
+    <div className="flex items-center gap-1">
+      {Icon && <Icon className={`w-3 h-3 ${colorClass}`} />}
+      <span className="text-[10px] text-muted-foreground/60 uppercase">{label}</span>
+      <span className={`text-xs font-medium ${colorClass}`}>{displayValue}</span>
+    </div>
+  );
+}
 
 function StageBreakdown({ signal }: { signal: SignalItem }) {
   const ctx = signal.stage_context;
@@ -174,40 +155,501 @@ function StageBreakdown({ signal }: { signal: SignalItem }) {
   );
 }
 
-function MetricBadge({
-  label,
-  value,
-  format,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  format: 'percent' | 'delta';
-  icon?: any;
-}) {
-  const displayValue = format === 'percent'
-    ? `${(value * 100).toFixed(0)}%`
-    : `${value >= 0 ? '+' : ''}${(value * 100).toFixed(0)}%`;
+// ---------------------------------------------------------------------------
+// Follow button (auth-gated)
+// ---------------------------------------------------------------------------
 
-  const colorClass = format === 'delta'
-    ? value > 0 ? 'text-accent-info' : value < 0 ? 'text-destructive' : 'text-muted-foreground'
-    : 'text-muted-foreground';
+function FollowButton({
+  signalId,
+  isFollowing,
+  onToggle,
+  isAuthenticated,
+}: {
+  signalId: string;
+  isFollowing: boolean;
+  onToggle: (id: string) => void;
+  isAuthenticated: boolean;
+}) {
+  if (!isAuthenticated) {
+    return (
+      <button
+        className="p-1 rounded hover:bg-muted/30 transition-colors"
+        aria-label="Sign in to follow"
+        title="Sign in to follow"
+        disabled
+      >
+        <Bell className="w-3.5 h-3.5 text-muted-foreground/30" />
+      </button>
+    );
+  }
 
   return (
-    <div className="flex items-center gap-1">
-      {Icon && <Icon className={`w-3 h-3 ${colorClass}`} />}
-      <span className="text-[10px] text-muted-foreground/60 uppercase">{label}</span>
-      <span className={`text-xs font-medium ${colorClass}`}>{displayValue}</span>
+    <button
+      onClick={() => onToggle(signalId)}
+      className="p-1 rounded hover:bg-muted/30 transition-colors"
+      aria-label={isFollowing ? 'Unfollow signal' : 'Follow signal'}
+    >
+      {isFollowing ? (
+        <Bell className="w-3.5 h-3.5 text-accent-info fill-accent-info/30" />
+      ) : (
+        <Bell className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" />
+      )}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Notification pill
+// ---------------------------------------------------------------------------
+
+function NotificationPill({ count, onClick }: { count: number; onClick: () => void }) {
+  if (count <= 0) return null;
+  return (
+    <button
+      onClick={onClick}
+      className="px-2.5 py-1 text-[11px] rounded-full bg-accent-info/10 text-accent-info border border-accent-info/25 animate-in fade-in-0 duration-300"
+    >
+      {count} new
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sparkline (raw SVG, no library)
+// ---------------------------------------------------------------------------
+
+function Sparkline({ data }: { data: number[] }) {
+  const max = Math.max(...data, 1);
+  const points = data.map((v, i) => `${i * 8},${16 - (v / max) * 14}`).join(' ');
+  return (
+    <svg viewBox="0 0 56 16" className="w-14 h-4" aria-hidden="true">
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-accent-info/60"
+      />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Compact signal card for the list pane
+// ---------------------------------------------------------------------------
+
+function SignalCard({
+  signal,
+  selected,
+  onSelect,
+  onOpenEvidence,
+  isFollowing,
+  onToggleFollow,
+  isAuthenticated,
+}: {
+  signal: SignalItem;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onOpenEvidence?: (id: string) => void;
+  isFollowing?: boolean;
+  onToggleFollow?: (id: string) => void;
+  isAuthenticated?: boolean;
+}) {
+  const style = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
+  const domainLabel = DOMAIN_LABELS[signal.domain] || signal.domain;
+
+  const timeSinceFirstSeen = useMemo(() => {
+    const first = new Date(signal.first_seen_at);
+    const now = new Date();
+    const days = Math.floor((now.getTime() - first.getTime()) / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'today';
+    if (days === 1) return '1d ago';
+    if (days < 30) return `${days}d ago`;
+    return `${Math.floor(days / 30)}mo ago`;
+  }, [signal.first_seen_at]);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(signal.id)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect(signal.id); }}
+      className={cn(
+        'w-full text-left px-4 py-3.5 transition-colors border-b border-border/20 last:border-0 cursor-pointer',
+        'hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-info/50',
+        selected && 'bg-muted/30 border-l-2 border-l-accent-info'
+      )}
+    >
+      {/* Top row */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`px-1.5 py-0.5 text-[9px] font-medium rounded-full ${style.bg} ${style.text}`}>
+          {style.label}
+        </span>
+        <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
+          {domainLabel}
+        </span>
+        {signal.evidence_timeline && signal.evidence_timeline.length > 0 && (
+          <Sparkline data={signal.evidence_timeline} />
+        )}
+        <span className="text-[9px] text-muted-foreground/40 ml-auto flex items-center gap-0.5">
+          <Clock className="w-2.5 h-2.5" />
+          {timeSinceFirstSeen}
+        </span>
+      </div>
+
+      {/* Claim */}
+      <p className="text-sm text-foreground leading-snug mb-2 line-clamp-2">
+        {signal.claim}
+      </p>
+
+      {/* Metrics + action icons */}
+      <div className="flex items-center gap-3">
+        <MetricBadge label="Conv" value={signal.conviction} format="percent" />
+        <MetricBadge
+          label="Mom"
+          value={signal.momentum}
+          format="delta"
+          icon={signal.momentum > 0 ? TrendingUp : signal.momentum < 0 ? TrendingDown : undefined}
+        />
+        <div className="flex items-center gap-1 ml-auto" onClick={e => e.stopPropagation()}>
+          {signal.explain && (
+            <ExplainPopover explain={signal.explain} />
+          )}
+          {onOpenEvidence && (
+            <button
+              onClick={() => onOpenEvidence(signal.id)}
+              className="p-1 rounded hover:bg-muted/30 transition-colors"
+              aria-label="View evidence"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" />
+            </button>
+          )}
+          {onToggleFollow && (
+            <FollowButton
+              signalId={signal.id}
+              isFollowing={!!isFollowing}
+              onToggle={onToggleFollow}
+              isAuthenticated={!!isAuthenticated}
+            />
+          )}
+          <span className="text-[10px] text-muted-foreground/40 tabular-nums ml-1">
+            {signal.evidence_count}
+          </span>
+        </div>
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 hidden lg:block" />
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Dynamic signals view
+// Filter bar (pill buttons)
+// ---------------------------------------------------------------------------
+
+function PillButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap',
+        active
+          ? 'bg-accent-info/10 text-accent-info border border-accent-info/25'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/25 border border-transparent'
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FilterBar({
+  sort,
+  onSortChange,
+  domain,
+  onDomainChange,
+  status,
+  onStatusChange,
+  stats,
+}: {
+  sort: SortKey;
+  onSortChange: (s: SortKey) => void;
+  domain: string | null;
+  onDomainChange: (d: string | null) => void;
+  status: string | null;
+  onStatusChange: (s: string | null) => void;
+  stats: SignalsSummaryResponse['stats'];
+}) {
+  return (
+    <div className="space-y-3 pb-4 border-b border-border/30">
+      {/* Sort */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider w-10 shrink-0">Sort</span>
+        <div className="flex flex-wrap gap-1">
+          {SORT_OPTIONS.map(opt => (
+            <PillButton key={opt.value} active={sort === opt.value} onClick={() => onSortChange(opt.value)}>
+              {opt.label}
+            </PillButton>
+          ))}
+        </div>
+      </div>
+
+      {/* Domain */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider w-10 shrink-0">Lens</span>
+        <div className="flex flex-wrap gap-1">
+          <PillButton active={domain === null} onClick={() => onDomainChange(null)}>All</PillButton>
+          {Object.entries(DOMAIN_LABELS).map(([key, label]) => (
+            <PillButton key={key} active={domain === key} onClick={() => onDomainChange(key)}>
+              {label}
+              {stats.by_domain[key] != null && (
+                <span className="ml-1 opacity-50">{stats.by_domain[key]}</span>
+              )}
+            </PillButton>
+          ))}
+        </div>
+      </div>
+
+      {/* Status */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider w-10 shrink-0">State</span>
+        <div className="flex flex-wrap gap-1">
+          <PillButton active={status === null} onClick={() => onStatusChange(null)}>All</PillButton>
+          {STATUS_ORDER.map(s => {
+            const st = STATUS_STYLES[s];
+            return (
+              <PillButton key={s} active={status === s} onClick={() => onStatusChange(s)}>
+                {st.label}
+                {stats.by_status[s] != null && (
+                  <span className="ml-1 opacity-50">{stats.by_status[s]}</span>
+                )}
+              </PillButton>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// List skeleton
+// ---------------------------------------------------------------------------
+
+function ListSkeleton() {
+  return (
+    <div className="animate-pulse">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="px-4 py-4 border-b border-border/20">
+          <div className="flex gap-2 mb-2">
+            <div className="h-4 w-16 bg-muted/30 rounded-full" />
+            <div className="h-4 w-12 bg-muted/30 rounded" />
+          </div>
+          <div className="h-4 w-full bg-muted/30 rounded mb-1" />
+          <div className="h-4 w-3/4 bg-muted/30 rounded mb-2" />
+          <div className="flex gap-3">
+            <div className="h-3 w-16 bg-muted/30 rounded" />
+            <div className="h-3 w-16 bg-muted/30 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic signals view — two-pane layout
 // ---------------------------------------------------------------------------
 
 function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: SignalsSummaryResponse; region?: string }) {
-  const { rising, established, decaying, stats } = dynamicSignals;
+  const isDesktop = useIsDesktop();
+  const { data: session } = useSession();
+  const isAuthenticated = !!session?.user?.id;
+  const { stats } = dynamicSignals;
+
+  // Build initial flat list from summary (all three arrays)
+  const initialSignals = useMemo(() => {
+    const all = [...dynamicSignals.rising, ...dynamicSignals.established, ...dynamicSignals.decaying];
+    // Dedupe by id
+    const seen = new Set<string>();
+    return all.filter(s => {
+      if (seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
+  }, [dynamicSignals]);
+
+  // Filter / sort state
+  const [sort, setSort] = useState<SortKey>('momentum');
+  const [domain, setDomain] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  // Fetched signals (null = using initial data)
+  const [fetchedSignals, setFetchedSignals] = useState<SignalItem[] | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+
+  // Selection
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+
+  // Evidence drawer
+  const [evidenceDrawerSignalId, setEvidenceDrawerSignalId] = useState<string | null>(null);
+
+  // Follow state
+  const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
+
+  // Notification state
+  const [newCount, setNewCount] = useState(0);
+
+  // Fetch user follows on mount (auth-gated)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch('/api/signals/follows')
+      .then(r => r.json())
+      .then(data => {
+        if (data.signal_ids) setFollowedIds(new Set(data.signal_ids));
+      })
+      .catch(() => {});
+  }, [isAuthenticated]);
+
+  // Fetch "new since last visit" count (auth-gated)
+  useEffect(() => {
+    if (!isAuthenticated || !session?.user) return;
+    // Use a stored timestamp; the user object may have last_seen_signals_at
+    const lastSeen = (session.user as any).last_seen_signals_at;
+    if (!lastSeen) return;
+
+    const params = new URLSearchParams({ since: lastSeen });
+    if (region) params.set('region', region);
+
+    fetch(`/api/signals/updates?${params.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.new_count) setNewCount(data.new_count);
+      })
+      .catch(() => {});
+
+    // Mark signals as seen
+    fetch('/api/signals/seen', { method: 'PATCH' }).catch(() => {});
+  }, [isAuthenticated, session, region]);
+
+  const handleToggleFollow = useCallback((signalId: string) => {
+    // Optimistic update
+    setFollowedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(signalId)) next.delete(signalId);
+      else next.add(signalId);
+      return next;
+    });
+
+    fetch(`/api/signals/${signalId}/follow`, { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        // Reconcile with server state
+        setFollowedIds(prev => {
+          const next = new Set(prev);
+          if (data.following) next.add(signalId);
+          else next.delete(signalId);
+          return next;
+        });
+      })
+      .catch(() => {
+        // Revert on error
+        setFollowedIds(prev => {
+          const next = new Set(prev);
+          if (next.has(signalId)) next.delete(signalId);
+          else next.add(signalId);
+          return next;
+        });
+      });
+  }, []);
+
+  // Determine if we need to re-fetch (filters changed from default)
+  const isDefaultFilters = sort === 'momentum' && domain === null && status === null;
+
+  // Fetch signals when filters change
+  useEffect(() => {
+    if (isDefaultFilters) {
+      setFetchedSignals(null);
+      return;
+    }
+
+    let cancelled = false;
+    setListLoading(true);
+
+    const params = new URLSearchParams();
+    if (region) params.set('region', region);
+    if (domain) params.set('domain', domain);
+    if (status) params.set('status', status);
+    params.set('sort', sort);
+    params.set('limit', '50');
+
+    fetch(`/api/signals?${params.toString()}`)
+      .then(r => r.json())
+      .then((data: SignalsListResponse) => {
+        if (!cancelled) {
+          setFetchedSignals(data.signals);
+          setListLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setListLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [sort, domain, status, region, isDefaultFilters]);
+
+  // Current signals list (use fetched or initial)
+  const signals = fetchedSignals || initialSignals;
+
+  // Evidence drawer signal lookup (must come after signals is defined)
+  const evidenceDrawerSignal = useMemo(
+    () => evidenceDrawerSignalId ? signals.find(s => s.id === evidenceDrawerSignalId) : undefined,
+    [evidenceDrawerSignalId, signals]
+  );
+
+  // Group signals by status for the list sections
+  const groupedSignals = useMemo(() => {
+    const groups: Record<string, SignalItem[]> = {};
+    for (const s of signals) {
+      if (!groups[s.status]) groups[s.status] = [];
+      groups[s.status].push(s);
+    }
+    return groups;
+  }, [signals]);
+
+  // Ordered status sections to display
+  const visibleSections = useMemo(() => {
+    return STATUS_ORDER.filter(s => groupedSignals[s]?.length);
+  }, [groupedSignals]);
+
+  // Auto-select first signal
+  useEffect(() => {
+    if (signals.length > 0 && (!selectedId || !signals.find(s => s.id === selectedId))) {
+      setSelectedId(signals[0].id);
+    }
+  }, [signals, selectedId]);
+
+  const handleSelectSignal = useCallback((id: string) => {
+    setSelectedId(id);
+    if (!isDesktop) {
+      setMobileSheetOpen(true);
+    }
+  }, [isDesktop]);
+
+  const selectedSignal = useMemo(
+    () => signals.find(s => s.id === selectedId),
+    [signals, selectedId]
+  );
+
+  const listRef = useRef<HTMLDivElement>(null);
 
   return (
     <>
@@ -219,79 +661,153 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
         </h1>
         <p className="briefing-subhead">
           {stats.total} active signals tracked across {Object.keys(stats.by_domain).length} domains.
-          {rising.length > 0 && (
-            <span className="text-accent-info"> {rising.length} signals rising.</span>
+          {dynamicSignals.rising.length > 0 && (
+            <span className="text-accent-info"> {dynamicSignals.rising.length} signals rising.</span>
           )}
         </p>
       </header>
 
-      {/* Stats strip */}
-      <div className="flex flex-wrap gap-4 mb-8 pb-6 border-b border-border/30">
-        {Object.entries(stats.by_status).map(([status, count]) => {
-          const style = STATUS_STYLES[status] || STATUS_STYLES.candidate;
-          return (
-            <div key={status} className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${style.bg.replace('/10', '/40').replace('/30', '/40')}`} />
-              <span className="text-xs text-muted-foreground capitalize">{status}</span>
-              <span className="text-xs font-medium text-foreground">{count}</span>
-            </div>
-          );
-        })}
+      {/* Filter bar + notification pill */}
+      <div className="flex items-start gap-3">
+        <div className="flex-1">
+          <FilterBar
+            sort={sort}
+            onSortChange={setSort}
+            domain={domain}
+            onDomainChange={setDomain}
+            status={status}
+            onStatusChange={setStatus}
+            stats={stats}
+          />
+        </div>
+        {isAuthenticated && newCount > 0 && (
+          <div className="pt-1">
+            <NotificationPill count={newCount} onClick={() => setNewCount(0)} />
+          </div>
+        )}
       </div>
 
-      {/* Rising signals */}
-      {rising.length > 0 && (
-        <section className="mb-10">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-4 h-4 text-accent-info" />
-            <h2 className="text-sm font-medium text-foreground uppercase tracking-wider">Rising</h2>
-            <span className="text-xs text-muted-foreground">({rising.length})</span>
+      {/* Two-pane layout */}
+      <div className={cn(
+        'mt-4',
+        isDesktop && 'flex gap-0 min-h-[600px]'
+      )}>
+        {/* Left pane: signal list */}
+        <div
+          ref={listRef}
+          className={cn(
+            'overflow-y-auto',
+            isDesktop
+              ? 'w-[380px] shrink-0 border-r border-border/20 max-h-[calc(100vh-280px)]'
+              : 'w-full'
+          )}
+        >
+          {listLoading ? (
+            <ListSkeleton />
+          ) : signals.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground/60">
+              No signals match your filters
+            </div>
+          ) : (
+            visibleSections.map(statusKey => {
+              const sectionSignals = groupedSignals[statusKey];
+              const style = STATUS_STYLES[statusKey];
+              const StatusIcon = statusKey === 'accelerating' ? TrendingUp
+                : statusKey === 'decaying' ? TrendingDown
+                : Activity;
+              const iconColor = statusKey === 'accelerating' ? 'text-accent-info'
+                : statusKey === 'decaying' ? 'text-destructive'
+                : 'text-muted-foreground/60';
+
+              return (
+                <div key={statusKey}>
+                  <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm px-4 py-2 flex items-center gap-2 border-b border-border/10">
+                    <StatusIcon className={cn('w-3 h-3', iconColor)} />
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                      {style.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/40">
+                      ({sectionSignals.length})
+                    </span>
+                  </div>
+                  {sectionSignals.map(signal => (
+                    <SignalCard
+                      key={signal.id}
+                      signal={signal}
+                      selected={signal.id === selectedId}
+                      onSelect={handleSelectSignal}
+                      onOpenEvidence={setEvidenceDrawerSignalId}
+                      isFollowing={followedIds.has(signal.id)}
+                      onToggleFollow={handleToggleFollow}
+                      isAuthenticated={isAuthenticated}
+                    />
+                  ))}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Right pane: inspector (desktop only) */}
+        {isDesktop && (
+          <div className="flex-1 sticky top-20 self-start max-h-[calc(100vh-280px)] overflow-y-auto border-l border-border/20">
+            {selectedId ? (
+              <SignalInspector
+                signalId={selectedId}
+                listSignal={selectedSignal}
+                allSignals={signals}
+                onSelectSignal={handleSelectSignal}
+              />
+            ) : (
+              <InspectorEmpty />
+            )}
           </div>
-          <div className="divide-y divide-border/20">
-            {rising.map(signal => (
-              <SignalCard key={signal.id} signal={signal} />
-            ))}
-          </div>
-        </section>
+        )}
+      </div>
+
+      {/* Mobile inspector sheet */}
+      {!isDesktop && (
+        <Sheet
+          open={mobileSheetOpen}
+          onOpenChange={setMobileSheetOpen}
+          side="right"
+          className="w-[340px] max-w-[90vw]"
+        >
+          <SheetHeader onClose={() => setMobileSheetOpen(false)}>
+            Signal Detail
+          </SheetHeader>
+          <SheetContent>
+            {selectedId ? (
+              <SignalInspector
+                signalId={selectedId}
+                listSignal={selectedSignal}
+                allSignals={signals}
+                onSelectSignal={(id) => {
+                  setSelectedId(id);
+                }}
+              />
+            ) : (
+              <InspectorEmpty />
+            )}
+          </SheetContent>
+        </Sheet>
       )}
 
-      {/* Established signals */}
-      {established.length > 0 && (
-        <section className="mb-10">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="w-4 h-4 text-muted-foreground" />
-            <h2 className="text-sm font-medium text-foreground uppercase tracking-wider">Established</h2>
-            <span className="text-xs text-muted-foreground">({established.length})</span>
-          </div>
-          <div className="divide-y divide-border/20">
-            {established.map(signal => (
-              <SignalCard key={signal.id} signal={signal} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Decaying signals */}
-      {decaying.length > 0 && (
-        <section className="mb-10">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingDown className="w-4 h-4 text-destructive" />
-            <h2 className="text-sm font-medium text-foreground uppercase tracking-wider">Decaying</h2>
-            <span className="text-xs text-muted-foreground">({decaying.length})</span>
-          </div>
-          <div className="divide-y divide-border/20">
-            {decaying.map(signal => (
-              <SignalCard key={signal.id} signal={signal} />
-            ))}
-          </div>
-        </section>
+      {/* Evidence drawer */}
+      {evidenceDrawerSignalId && (
+        <EvidenceDrawer
+          open={!!evidenceDrawerSignalId}
+          onOpenChange={(open) => { if (!open) setEvidenceDrawerSignalId(null); }}
+          signalId={evidenceDrawerSignalId}
+          signalClaim={evidenceDrawerSignal?.claim || ''}
+        />
       )}
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Static signals view (original, used as fallback)
+// Static signals view (original, used as fallback — unchanged)
 // ---------------------------------------------------------------------------
 
 function FallbackBanner({ reason }: { reason?: 'api_empty' | 'api_error' }) {

@@ -1011,12 +1011,14 @@ app.get('/api/v1/dealbook', async (req, res) => {
         : undefined;
 
     // Determine sort order — relevance-first when searching
-    const orderColumn = sortBy === 'name'
-      ? startups.name
-      : sortBy === 'date'
-        ? startups.createdAt
-        : startups.moneyRaisedUsd;
-    const defaultOrderDir = sortOrder === 'asc' ? orderColumn : desc(orderColumn);
+    // For funding sort, use NULLS LAST so auto-discovered startups with no data don't dominate
+    const defaultOrderDir = sortBy === 'funding'
+      ? (sortOrder === 'asc'
+          ? sql`${startups.moneyRaisedUsd} ASC NULLS LAST`
+          : sql`${startups.moneyRaisedUsd} DESC NULLS LAST`)
+      : sortBy === 'name'
+        ? (sortOrder === 'asc' ? startups.name : desc(startups.name))
+        : (sortOrder === 'asc' ? startups.createdAt : desc(startups.createdAt));
     // When user is searching, sort by relevance score first, then by the chosen sort
     const orderDir = searchScoreExpr
       ? [desc(searchScoreExpr), defaultOrderDir]
@@ -2076,8 +2078,8 @@ app.get('/api/v1/signals', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
 
-    const { region, status, domain, sort, limit, offset } = parsed.data;
-    const cacheKey = `signals:list:${region || 'global'}:${status || 'all'}:${domain || 'all'}:${sort}:${limit}:${offset}`;
+    const { region, status, domain, sort, window, limit, offset } = parsed.data;
+    const cacheKey = `signals:list:${region || 'global'}:${status || 'all'}:${domain || 'all'}:${sort}:${window || 'all'}:${limit}:${offset}`;
 
     const redis = await getRedisClient();
     if (redis) {
@@ -2090,7 +2092,7 @@ app.get('/api/v1/signals', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await newsService.getSignalsList({ region, status, domain, sort, limit, offset });
+    const result = await newsService.getSignalsList({ region, status, domain, sort, window, limit, offset });
 
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
@@ -2110,8 +2112,8 @@ app.get('/api/v1/signals/summary', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
 
-    const { region } = parsed.data;
-    const cacheKey = `signals:summary:${region || 'global'}`;
+    const { region, window } = parsed.data;
+    const cacheKey = `signals:summary:${region || 'global'}:${window || 'all'}`;
 
     const redis = await getRedisClient();
     if (redis) {
@@ -2124,7 +2126,7 @@ app.get('/api/v1/signals/summary', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await newsService.getSignalsSummary({ region });
+    const result = await newsService.getSignalsSummary({ region, window });
 
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
@@ -2167,6 +2169,74 @@ app.get('/api/v1/signals/similar-companies', async (req, res) => {
   } catch (error) {
     console.error('Error fetching similar companies:', error);
     return res.status(500).json({ error: 'Failed to fetch similar companies' });
+  }
+});
+
+// GET /api/v1/signals/follows — Get user's followed signal IDs
+// MUST be registered before /api/v1/signals/:id
+app.get('/api/v1/signals/follows', async (req, res) => {
+  try {
+    const userId = req.query.user_id as string;
+    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      return res.status(400).json({ error: 'Invalid user_id (must be UUID)' });
+    }
+    const result = await newsService.getUserSignalFollows({ userId });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching signal follows:', error);
+    return res.status(500).json({ error: 'Failed to fetch signal follows' });
+  }
+});
+
+// GET /api/v1/signals/updates — Count new/changed signals since timestamp
+// MUST be registered before /api/v1/signals/:id
+app.get('/api/v1/signals/updates', async (req, res) => {
+  try {
+    const since = req.query.since as string;
+    const region = req.query.region as string | undefined;
+    if (!since) {
+      return res.status(400).json({ error: 'since query parameter is required (ISO timestamp)' });
+    }
+    const result = await newsService.getSignalUpdates({ since, region });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching signal updates:', error);
+    return res.status(500).json({ error: 'Failed to fetch signal updates' });
+  }
+});
+
+// POST /api/v1/signals/:id/follow — Toggle follow on a signal
+app.post('/api/v1/signals/:id/follow', async (req, res) => {
+  try {
+    const signalId = req.params.id;
+    if (!signalId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(signalId)) {
+      return res.status(400).json({ error: 'Invalid signal ID' });
+    }
+    const userId = req.body?.user_id as string;
+    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      return res.status(400).json({ error: 'Invalid user_id (must be UUID)' });
+    }
+    const result = await newsService.toggleSignalFollow({ userId, signalId });
+    res.json(result);
+  } catch (error) {
+    console.error('Error toggling signal follow:', error);
+    return res.status(500).json({ error: 'Failed to toggle signal follow' });
+  }
+});
+
+// PATCH /api/v1/signals/seen — Update user's last_seen_signals_at timestamp
+// MUST be registered before /api/v1/signals/:id
+app.patch('/api/v1/signals/seen', async (req, res) => {
+  try {
+    const userId = req.body?.user_id as string;
+    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      return res.status(400).json({ error: 'Invalid user_id (must be UUID)' });
+    }
+    await newsService.markSignalsSeen({ userId });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking signals seen:', error);
+    return res.status(500).json({ error: 'Failed to mark signals seen' });
   }
 });
 

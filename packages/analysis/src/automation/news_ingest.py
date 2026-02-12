@@ -3115,6 +3115,22 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
+    _VC_HOMEPAGE_TITLE_RE = re.compile(
+        r"\b(anasayfa|ana sayfa|homepage|home page|hoş geldiniz|welcome)\b",
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _is_vc_homepage_junk(title: str, url: str, root_netloc: str) -> bool:
+        """Detect homepage/landing-page entries from VC blog crawls."""
+        if DailyNewsIngestor._VC_HOMEPAGE_TITLE_RE.search(title):
+            return True
+        parsed_url = urlparse(url)
+        path = parsed_url.path.strip("/")
+        if not path and parsed_url.netloc == root_netloc:
+            return True
+        return False
+
     async def _fetch_vc_turkey_blogs(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         """Fetch recent posts from Turkish VC/ecosystem blogs.
 
@@ -3153,6 +3169,8 @@ class DailyNewsIngestor:
                         if not title or not link:
                             continue
                         if not is_likely_content_url(link):
+                            continue
+                        if self._is_vc_homepage_junk(title, link, parsed.netloc):
                             continue
                         published = parse_entry_datetime(entry) or datetime.now(timezone.utc)
                         if published < cutoff:
@@ -3196,6 +3214,8 @@ class DailyNewsIngestor:
                     return []
                 title, summary, page_published, image_url = extract_html_title_summary(resp.text or "", source_url=base_url)
                 if not title:
+                    return []
+                if self._is_vc_homepage_junk(title, base_url, parsed.netloc):
                     return []
                 out.append(
                     NormalizedNewsItem(

@@ -365,6 +365,20 @@ export interface StageContext {
   computed_at: string;
 }
 
+export interface SignalExplain {
+  definition: string;
+  why: string;
+  examples: string[];
+  risk: string;
+  time_horizon: string;
+  top_evidence: Array<{
+    snippet: string;
+    source: string;
+    date: string;
+    url?: string;
+  }>;
+}
+
 export interface SignalItem {
   id: string;
   domain: string;
@@ -381,6 +395,9 @@ export interface SignalItem {
   first_seen_at: string;
   last_evidence_at: string | null;
   stage_context?: StageContext;
+  explain?: SignalExplain;
+  explain_generated_at?: string;
+  evidence_timeline?: number[];
 }
 
 export interface SignalsSummaryResponse {

@@ -236,6 +236,10 @@ class SignalEngine:
             stage_enriched = await self.compute_stage_context(conn, region)
             stats["stage_enriched"] = stage_enriched
 
+            # 6. Compute explain_json and evidence_timeline for all signals
+            explain_enriched = await self.compute_explain_and_timeline(conn, region)
+            stats["explain_enriched"] = explain_enriched
+
         await self.close()
         logger.info("Signal aggregation complete: %s", stats)
         return stats
@@ -893,6 +897,157 @@ class SignalEngine:
             enriched += 1
 
         logger.info("[signals:%s] Enriched %d signals with stage context", region, enriched)
+        return enriched
+
+    # ------------------------------------------------------------------
+    # 6. Explain JSON + Evidence Timeline (zero LLM cost)
+    # ------------------------------------------------------------------
+
+    DOMAIN_RISK_TEMPLATES: Dict[str, str] = {
+        "architecture": "Technical complexity may slow adoption; lock-in risk if pattern becomes unfashionable",
+        "gtm": "Market conditions may shift; messaging that resonates today may not in 6 months",
+        "capital": "Funding patterns are cyclical; current trends may not sustain",
+        "org": "Organizational changes take time to validate; correlation vs. causation risk",
+        "product": "Product trends may reflect noise; need sustained adoption to confirm",
+    }
+
+    DOMAIN_HORIZON_TEMPLATES: Dict[str, str] = {
+        "architecture": "6-18 months",
+        "gtm": "3-12 months",
+        "capital": "0-6 months",
+        "org": "12-24 months",
+        "product": "3-12 months",
+    }
+
+    STATUS_WHY_TEMPLATES: Dict[str, str] = {
+        "candidate": "Early signal with limited evidence — worth monitoring",
+        "emerging": "Growing adoption with positive momentum — gaining traction",
+        "accelerating": "Strong momentum and increasing conviction — high confidence trend",
+        "established": "Widely adopted pattern — consider implications for your strategy",
+        "decaying": "Declining adoption — may be losing relevance or being superseded",
+    }
+
+    async def compute_explain_and_timeline(
+        self,
+        conn: "asyncpg.Connection",
+        region: str,
+    ) -> int:
+        """Build explain_json and evidence_timeline for all signals (zero LLM cost).
+
+        explain_json is template-derived from existing data:
+          - definition from claim text + domain
+          - why from status + momentum
+          - examples from top company names in evidence
+          - risk from domain templates
+          - time_horizon from domain
+          - top_evidence from evidence snippets
+
+        evidence_timeline is an 8-bin histogram of evidence counts over 30 days.
+        """
+        signals = await conn.fetch(
+            """SELECT id::text, domain, claim, status, conviction, momentum,
+                      metadata_json
+               FROM signals WHERE region = $1""",
+            region,
+        )
+
+        enriched = 0
+        for sig in signals:
+            signal_id = sig["id"]
+            domain = sig["domain"] or "architecture"
+            claim = sig["claim"] or ""
+            status = sig["status"] or "candidate"
+            momentum = float(sig["momentum"] or 0)
+
+            # --- Build explain_json ---
+
+            # Definition: first sentence of claim + domain context
+            definition = claim
+            if len(definition) > 150:
+                definition = definition[:147] + "..."
+
+            # Why: based on status and momentum direction
+            why_base = self.STATUS_WHY_TEMPLATES.get(status, "Signal detected")
+            mom_dir = "accelerating" if momentum > 0.1 else "slowing" if momentum < -0.1 else "steady"
+            why = f"{why_base}. Momentum is {mom_dir}."
+
+            # Examples: top 3 company names from evidence
+            company_rows = await conn.fetch(
+                """SELECT DISTINCT s.name
+                   FROM signal_evidence se
+                   JOIN startups s ON s.id = se.startup_id
+                   WHERE se.signal_id = $1::uuid AND se.startup_id IS NOT NULL
+                   ORDER BY s.name
+                   LIMIT 3""",
+                signal_id,
+            )
+            examples = [r["name"] for r in company_rows]
+
+            # Risk + horizon from domain templates
+            risk = self.DOMAIN_RISK_TEMPLATES.get(domain, "Limited data on long-term viability")
+            time_horizon = self.DOMAIN_HORIZON_TEMPLATES.get(domain, "6-18 months")
+
+            # Top evidence: snippets from recent evidence
+            evidence_rows = await conn.fetch(
+                """SELECT se.snippet, se.evidence_type AS source, se.created_at
+                   FROM signal_evidence se
+                   WHERE se.signal_id = $1::uuid AND se.snippet IS NOT NULL
+                   ORDER BY se.created_at DESC
+                   LIMIT 3""",
+                signal_id,
+            )
+            top_evidence = []
+            for ev in evidence_rows:
+                top_evidence.append({
+                    "snippet": (ev["snippet"] or "")[:200],
+                    "source": ev["source"] or "unknown",
+                    "date": ev["created_at"].strftime("%b %d") if ev["created_at"] else "",
+                })
+
+            explain_json = {
+                "definition": definition,
+                "why": why,
+                "examples": examples,
+                "risk": risk,
+                "time_horizon": time_horizon,
+                "top_evidence": top_evidence,
+            }
+
+            # --- Build evidence_timeline (8 bins over 30 days) ---
+            timeline_rows = await conn.fetch(
+                """SELECT width_bucket(
+                       EXTRACT(EPOCH FROM se.created_at),
+                       EXTRACT(EPOCH FROM (NOW() - INTERVAL '30 days')),
+                       EXTRACT(EPOCH FROM NOW()), 8
+                   ) AS bin, COUNT(*) AS cnt
+                   FROM signal_evidence se
+                   WHERE se.signal_id = $1::uuid
+                     AND se.created_at >= NOW() - INTERVAL '30 days'
+                   GROUP BY bin ORDER BY bin""",
+                signal_id,
+            )
+            # Convert to 8-element array (bins 1-8, 0 = out of range)
+            timeline = [0] * 8
+            for row in timeline_rows:
+                b = int(row["bin"])
+                if 1 <= b <= 8:
+                    timeline[b - 1] = int(row["cnt"])
+
+            # --- Merge into metadata ---
+            metadata = json.loads(sig["metadata_json"]) if sig["metadata_json"] else {}
+            metadata["explain_json"] = explain_json
+            metadata["explain_generated_at"] = datetime.now(timezone.utc).isoformat()
+            metadata["evidence_timeline"] = timeline
+
+            await conn.execute(
+                """UPDATE signals SET metadata_json = $2::jsonb, updated_at = NOW()
+                   WHERE id = $1::uuid""",
+                signal_id,
+                json.dumps(metadata),
+            )
+            enriched += 1
+
+        logger.info("[signals:%s] Enriched %d signals with explain + timeline", region, enriched)
         return enriched
 
     # ------------------------------------------------------------------
