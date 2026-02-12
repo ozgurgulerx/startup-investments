@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 try:
     import asyncpg
@@ -25,6 +28,8 @@ class DigestStory:
     builder_takeaway: str
     url: str
     source: str
+    cluster_id: str = ""
+    signal_tags: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -58,6 +63,14 @@ class DailyNewsDigestSender:
         self.max_items = max(3, int(os.getenv("NEWS_DIGEST_MAX_ITEMS", "10")))
         self.dry_run = os.getenv("NEWS_DIGEST_DRY_RUN", "false").strip().lower() == "true"
 
+        # Signal intelligence feature
+        self.signals_enabled = os.getenv("NEWS_DIGEST_SIGNALS_ENABLED", "true").lower() == "true"
+        self.max_signals = max(3, int(os.getenv("NEWS_DIGEST_MAX_SIGNALS", "5")))
+        self._azure_client: Any = None
+        self._azure_model_name: Optional[str] = None
+        if self.signals_enabled:
+            self._init_azure_client()
+
     async def connect(self) -> None:
         if self.pool is None:
             self.pool = await asyncpg.create_pool(self.database_url, min_size=1, max_size=4)
@@ -66,6 +79,40 @@ class DailyNewsDigestSender:
         if self.pool is not None:
             await self.pool.close()
             self.pool = None
+
+    def _init_azure_client(self) -> None:
+        """Lazy-init Azure OpenAI client for signal narrative generation."""
+        try:
+            from openai import AsyncAzureOpenAI
+        except ImportError:
+            return
+        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+        if not endpoint:
+            return
+        self._azure_model_name = (
+            os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+            or os.getenv("AZURE_OPENAI_FAST_DEPLOYMENT_NAME")
+            or "gpt-5-nano"
+        )
+        try:
+            from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+            _credential = DefaultAzureCredential()
+            _token_provider = get_bearer_token_provider(
+                _credential, "https://cognitiveservices.azure.com/.default"
+            )
+            self._azure_client = AsyncAzureOpenAI(
+                azure_ad_token_provider=_token_provider,
+                api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+                azure_endpoint=endpoint,
+            )
+        except ImportError:
+            api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+            if api_key:
+                self._azure_client = AsyncAzureOpenAI(
+                    api_key=api_key,
+                    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+                    azure_endpoint=endpoint,
+                )
 
     async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str], *, region: str) -> date:
         if edition_date:
@@ -117,6 +164,7 @@ class DailyNewsDigestSender:
               WHERE e.edition_date = $1::date AND e.region = $2
             )
             SELECT
+              c.id::text AS cluster_id,
               c.title,
               COALESCE(c.llm_summary, c.summary, '') AS summary,
               COALESCE(c.builder_takeaway, '') AS builder_takeaway,
@@ -145,6 +193,7 @@ class DailyNewsDigestSender:
                     builder_takeaway=str(row["builder_takeaway"] or "").strip(),
                     url=str(row["primary_url"] or "").strip(),
                     source=str(row["primary_source"] or "Unknown").strip(),
+                    cluster_id=str(row["cluster_id"] or ""),
                 )
             )
         return stories
@@ -216,6 +265,13 @@ class DailyNewsDigestSender:
             summary = story.summary or "Signal captured in today's startup radar."
             takeaway = story.builder_takeaway or "Validate the signal with customer evidence before acting."
             url = story.url or f"{self.public_base_url}/news/{edition_date}"
+            signal_tags_html = ""
+            if story.signal_tags:
+                tags_text = ", ".join(story.signal_tags)
+                signal_tags_html = (
+                    f'<div style="margin-top:6px;font-size:11px;color:#6366f1;">'
+                    f"Signals: {tags_text}</div>"
+                )
             blocks.append(
                 f"""<tr>
                   <td style="padding:16px 0;border-bottom:1px solid #e5e7eb;">
@@ -225,6 +281,7 @@ class DailyNewsDigestSender:
                     <div style="margin-top:8px;padding:8px 10px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;font-size:12px;line-height:1.45;color:#9a3412;">
                       Builder view: {takeaway}
                     </div>
+                    {signal_tags_html}
                   </td>
                 </tr>"""
             )
@@ -244,6 +301,68 @@ class DailyNewsDigestSender:
                   </td>
                 </tr>"""
 
+    @staticmethod
+    def _build_signal_radar_html(signal_context: Any) -> str:
+        """Render the Signal Radar section as HTML table rows."""
+        from src.automation.digest_signals import DigestSignalContext
+        if not signal_context or not isinstance(signal_context, DigestSignalContext):
+            return ""
+        if not signal_context.top_signals:
+            return ""
+
+        STATUS_COLORS = {
+            "emerging": "#10b981",       # green
+            "accelerating": "#f59e0b",   # amber
+        }
+
+        # Narrative paragraph
+        narrative_html = ""
+        if signal_context.narrative:
+            narrative_html = (
+                f'<div style="margin-top:8px;font-size:14px;line-height:1.55;color:#374151;">'
+                f'{signal_context.narrative}</div>'
+            )
+
+        # Signal cards
+        cards: List[str] = []
+        for sig in signal_context.top_signals:
+            color = STATUS_COLORS.get(sig.status, "#6b7280")
+            badge = (
+                f'<span style="display:inline-block;padding:2px 8px;border-radius:4px;'
+                f'background:{color};color:#fff;font-size:10px;text-transform:uppercase;'
+                f'letter-spacing:0.05em;font-weight:600;">{sig.status}</span>'
+            )
+            scorecard = (
+                f'<span style="font-size:11px;color:#6b7280;">'
+                f'Momentum {sig.momentum:.2f} · Conviction {sig.conviction:.2f} · '
+                f'{sig.unique_company_count} companies</span>'
+            )
+            transition_html = ""
+            if sig.lifecycle_transition:
+                transition_html = (
+                    f'<div style="margin-top:4px;font-size:11px;color:#8b5cf6;font-style:italic;">'
+                    f'Newly {sig.status} — was {sig.lifecycle_transition.split(" → ")[0] if " → " in sig.lifecycle_transition else "?"} '
+                    f'{sig.transition_recency or ""}</div>'
+                )
+            cards.append(
+                f'<div style="margin-top:10px;padding:10px 12px;background:#f5f3ff;'
+                f'border:1px solid #ddd6fe;border-radius:8px;">'
+                f'{badge}'
+                f'<div style="margin-top:6px;font-size:14px;font-weight:600;color:#1e1b4b;">{sig.claim}</div>'
+                f'<div style="margin-top:4px;">{scorecard}</div>'
+                f'{transition_html}'
+                f'</div>'
+            )
+
+        cards_html = "\n".join(cards)
+        return f"""<tr>
+                  <td style="padding:20px 0 4px 0;border-bottom:1px solid #e5e7eb;">
+                    <div style="font-size:11px;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">SIGNAL RADAR</div>
+                    {narrative_html}
+                    {cards_html}
+                  </td>
+                </tr>"""
+
     def _build_email_html(
         self,
         *,
@@ -254,11 +373,16 @@ class DailyNewsDigestSender:
         turkey_brief: Optional[DailyBrief] = None,
         turkey_stories: Optional[List[DigestStory]] = None,
         region: str = "global",
+        signal_context: Any = None,
+        turkey_signal_context: Any = None,
     ) -> str:
         # --- Brief section ---
         brief_html = ""
         if brief:
             brief_html = self._build_brief_html(brief)
+
+        # --- Signal Radar section ---
+        signal_radar_html = self._build_signal_radar_html(signal_context)
 
         # --- Primary stories ---
         stories_label = "TOP SİNYALLER" if region == "turkey" else "TOP SIGNALS"
@@ -279,6 +403,7 @@ class DailyNewsDigestSender:
             turkey_brief_html = ""
             if turkey_brief:
                 turkey_brief_html = self._build_brief_html(turkey_brief, label="GÜNÜN ÖZETİ")
+            turkey_signal_radar_html = self._build_signal_radar_html(turkey_signal_context)
             turkey_stories_html = self._build_story_rows_html(turkey_stories, edition_date)
             turkey_stories_block = ""
             if turkey_stories_html:
@@ -294,6 +419,7 @@ class DailyNewsDigestSender:
                   </td>
                 </tr>
                 {turkey_brief_html}
+                {turkey_signal_radar_html}
                 {turkey_stories_block}"""
 
         # --- Subject line title ---
@@ -314,6 +440,7 @@ class DailyNewsDigestSender:
                       </td>
                     </tr>
                     {brief_html}
+                    {signal_radar_html}
                     {stories_html}
                     {turkey_section_html}
                     <tr>
@@ -361,8 +488,35 @@ class DailyNewsDigestSender:
                 f"   Summary: {summary}",
                 f"   Builder view: {builder_takeaway}",
                 f"   Link: {url}",
-                "",
             ])
+            if story.signal_tags:
+                lines.append(f"   Signals: {', '.join(story.signal_tags)}")
+            lines.append("")
+        return lines
+
+    @staticmethod
+    def _build_signal_radar_text(signal_context: Any) -> List[str]:
+        """Render the Signal Radar section as plain text."""
+        from src.automation.digest_signals import DigestSignalContext
+        if not signal_context or not isinstance(signal_context, DigestSignalContext):
+            return []
+        if not signal_context.top_signals:
+            return []
+
+        lines = ["SIGNAL RADAR", ""]
+        if signal_context.narrative:
+            lines.append(signal_context.narrative)
+            lines.append("")
+        for sig in signal_context.top_signals:
+            transition_note = ""
+            if sig.lifecycle_transition:
+                transition_note = f" (was {sig.lifecycle_transition.split(' → ')[0] if ' → ' in sig.lifecycle_transition else '?'} {sig.transition_recency or ''})"
+            lines.append(
+                f"  [{sig.status.upper()}] {sig.claim}"
+                f"  — momentum={sig.momentum:.2f}, conviction={sig.conviction:.2f}, "
+                f"{sig.unique_company_count} companies{transition_note}"
+            )
+        lines.append("")
         return lines
 
     def _build_email_text(
@@ -375,6 +529,8 @@ class DailyNewsDigestSender:
         turkey_brief: Optional[DailyBrief] = None,
         turkey_stories: Optional[List[DigestStory]] = None,
         region: str = "global",
+        signal_context: Any = None,
+        turkey_signal_context: Any = None,
     ) -> str:
         title = "Turkey Signal Feed" if region == "turkey" else "Daily Startup Digest"
         lines = [
@@ -385,6 +541,8 @@ class DailyNewsDigestSender:
         if brief:
             lines.extend(self._build_brief_text(brief))
 
+        lines.extend(self._build_signal_radar_text(signal_context))
+
         lines.append("Top stories ranked by popularity and source corroboration:")
         lines.append("")
         lines.extend(self._build_stories_text(stories, self.public_base_url, edition_date))
@@ -393,6 +551,7 @@ class DailyNewsDigestSender:
             lines.extend(["---", "", "TURKEY ECOSYSTEM", ""])
             if turkey_brief:
                 lines.extend(self._build_brief_text(turkey_brief, label="GÜNÜN ÖZETİ"))
+            lines.extend(self._build_signal_radar_text(turkey_signal_context))
             lines.extend(self._build_stories_text(turkey_stories, self.public_base_url, edition_date))
 
         lines.extend([
@@ -447,6 +606,8 @@ class DailyNewsDigestSender:
         turkey_brief: Optional[DailyBrief] = None,
         turkey_stories: Optional[List[DigestStory]] = None,
         turkey_sub_id: Optional[str] = None,
+        signal_context: Any = None,
+        turkey_signal_context: Any = None,
     ) -> str:
         """Send one email. Returns 'sent', 'failed', or 'skipped'."""
         unsubscribe_url = (
@@ -461,6 +622,8 @@ class DailyNewsDigestSender:
             turkey_brief=turkey_brief,
             turkey_stories=turkey_stories,
             region=region,
+            signal_context=signal_context,
+            turkey_signal_context=turkey_signal_context,
         )
         text = self._build_email_text(
             edition_date=resolved_date_str,
@@ -470,6 +633,8 @@ class DailyNewsDigestSender:
             turkey_brief=turkey_brief,
             turkey_stories=turkey_stories,
             region=region,
+            signal_context=signal_context,
+            turkey_signal_context=turkey_signal_context,
         )
         try:
             subject_label = "Turkey Signal Feed" if region == "turkey" else "Daily Startup Digest"
@@ -538,6 +703,20 @@ class DailyNewsDigestSender:
             )
             return "failed"
 
+    @staticmethod
+    def _attach_signal_tags(
+        stories: List[DigestStory],
+        cluster_signal_map: Dict[str, Any],
+    ) -> None:
+        """Populate signal_tags on each story from cluster_signal_map."""
+        for story in stories:
+            if not story.cluster_id:
+                continue
+            signals = cluster_signal_map.get(story.cluster_id, [])
+            story.signal_tags = list(dict.fromkeys(
+                s.cluster_name or s.claim[:40] for s in signals
+            ))
+
     async def _run_qa(
         self,
         *,
@@ -569,6 +748,42 @@ class DailyNewsDigestSender:
             turkey_stories = None
             turkey_brief = None
 
+        # --- Load signal context for QA previews ---
+        signal_context = None
+        turkey_signal_context = None
+        if self.signals_enabled:
+            from src.automation.digest_signals import load_digest_signal_context, fetch_cluster_ids_for_edition
+            global_cluster_ids = await fetch_cluster_ids_for_edition(
+                conn, resolved_date, region="global", limit=self.max_items,
+            )
+            signal_context = await load_digest_signal_context(
+                conn,
+                region="global",
+                cluster_ids=global_cluster_ids,
+                max_signals=self.max_signals,
+                azure_client=self._azure_client,
+                model_name=self._azure_model_name,
+                story_titles=[s.title for s in stories],
+            )
+            # Attach signal tags to global stories
+            if signal_context:
+                self._attach_signal_tags(stories, signal_context.cluster_signal_map)
+            if turkey_stories:
+                turkey_cluster_ids = await fetch_cluster_ids_for_edition(
+                    conn, resolved_date, region="turkey", limit=self.max_items,
+                )
+                turkey_signal_context = await load_digest_signal_context(
+                    conn,
+                    region="turkey",
+                    cluster_ids=turkey_cluster_ids,
+                    max_signals=self.max_signals,
+                    azure_client=self._azure_client,
+                    model_name=self._azure_model_name,
+                    story_titles=[s.title for s in turkey_stories],
+                )
+                if turkey_signal_context:
+                    self._attach_signal_tags(turkey_stories, turkey_signal_context.cluster_signal_map)
+
         unsubscribe_url = f"{self.public_base_url}/news/{resolved_date_str}"  # placeholder for QA
         html = self._build_email_html(
             edition_date=resolved_date_str,
@@ -578,6 +793,8 @@ class DailyNewsDigestSender:
             turkey_brief=turkey_brief,
             turkey_stories=turkey_stories,
             region=region,
+            signal_context=signal_context,
+            turkey_signal_context=turkey_signal_context,
         )
         text = self._build_email_text(
             edition_date=resolved_date_str,
@@ -587,6 +804,8 @@ class DailyNewsDigestSender:
             turkey_brief=turkey_brief,
             turkey_stories=turkey_stories,
             region=region,
+            signal_context=signal_context,
+            turkey_signal_context=turkey_signal_context,
         )
 
         result: Dict[str, Any] = {
@@ -597,6 +816,8 @@ class DailyNewsDigestSender:
             "turkey_stories": len(turkey_stories) if turkey_stories else 0,
             "has_brief": brief is not None,
             "has_turkey_brief": turkey_brief is not None,
+            "has_signal_context": signal_context is not None,
+            "has_turkey_signal_context": turkey_signal_context is not None,
         }
 
         if self.dry_run:
@@ -673,6 +894,30 @@ class DailyNewsDigestSender:
                     region=region,
                 )
 
+            # --- Signal context loading ---
+            signal_context = None
+            turkey_signal_context = None
+            if self.signals_enabled:
+                try:
+                    from src.automation.digest_signals import load_digest_signal_context, fetch_cluster_ids_for_edition
+                    cluster_ids = await fetch_cluster_ids_for_edition(
+                        conn, resolved_date, region=region, limit=self.max_items,
+                    )
+                    signal_context = await load_digest_signal_context(
+                        conn,
+                        region=region,
+                        cluster_ids=cluster_ids,
+                        max_signals=self.max_signals,
+                        azure_client=self._azure_client,
+                        model_name=self._azure_model_name,
+                        story_titles=[s.title for s in stories],
+                    )
+                    if signal_context:
+                        self._attach_signal_tags(stories, signal_context.cluster_signal_map)
+                except Exception as exc:
+                    logger.warning("Signal context loading failed: %s", exc)
+                    signal_context = None
+
             all_subscribers = await self._load_subscribers(conn, region=region)
 
             # Filter to subscribers whose local time is currently the target hour.
@@ -717,6 +962,28 @@ class DailyNewsDigestSender:
                         turkey_brief = None
                         turkey_stories = None
 
+            # Load turkey signal context for cross-region emails
+            if self.signals_enabled and turkey_stories:
+                try:
+                    from src.automation.digest_signals import load_digest_signal_context, fetch_cluster_ids_for_edition
+                    turkey_cluster_ids = await fetch_cluster_ids_for_edition(
+                        conn, resolved_date, region="turkey", limit=self.max_items,
+                    )
+                    turkey_signal_context = await load_digest_signal_context(
+                        conn,
+                        region="turkey",
+                        cluster_ids=turkey_cluster_ids,
+                        max_signals=self.max_signals,
+                        azure_client=self._azure_client,
+                        model_name=self._azure_model_name,
+                        story_titles=[s.title for s in turkey_stories],
+                    )
+                    if turkey_signal_context:
+                        self._attach_signal_tags(turkey_stories, turkey_signal_context.cluster_signal_map)
+                except Exception as exc:
+                    logger.warning("Turkey signal context loading failed: %s", exc)
+                    turkey_signal_context = None
+
             result: Dict[str, Any] = {
                 "edition_date": resolved_date_str,
                 "region": region,
@@ -727,6 +994,7 @@ class DailyNewsDigestSender:
                 "already_sent": max(0, len(tz_eligible) - len(subscribers)),
                 "to_send": len(subscribers),
                 "cross_region": len(cross_region_map),
+                "has_signal_context": signal_context is not None,
                 "sent": 0,
                 "failed": 0,
                 "skipped": 0,
@@ -761,6 +1029,7 @@ class DailyNewsDigestSender:
                     sub_turkey_stories = turkey_stories if is_cross else None
                     turkey_sub_id = cross_region_map.get(email_norm) if is_cross else None
 
+                    sub_turkey_signal_ctx = turkey_signal_context if is_cross else None
                     outcome = await self._send_one(
                         client, conn,
                         subscriber=subscriber,
@@ -772,6 +1041,8 @@ class DailyNewsDigestSender:
                         turkey_brief=sub_turkey_brief,
                         turkey_stories=sub_turkey_stories,
                         turkey_sub_id=turkey_sub_id,
+                        signal_context=signal_context,
+                        turkey_signal_context=sub_turkey_signal_ctx,
                     )
                     result[outcome] += 1
 
