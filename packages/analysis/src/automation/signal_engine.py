@@ -63,21 +63,10 @@ class CandidateSignal:
 
 
 # ---------------------------------------------------------------------------
-# Claim templates
+# Aggregation constants
 # ---------------------------------------------------------------------------
 
-_CLAIM_TEMPLATES: Dict[str, str] = {
-    "arch_pattern_adopted": "{pattern} adoption trending: {n} companies in {days} days",
-    "cap_funding_raised": "Funding activity in {pattern}: ${amount} across {n} deals in {days} days",
-    "cap_acquisition_announced": "M&A activity increasing: {n} acquisitions in {days} days",
-    "prod_launched": "Product launch surge: {n} new launches in {days} days",
-    "prod_major_update": "Product momentum: {n} major updates in {days} days",
-    "org_key_hire": "Hiring activity rising: {n} key hires announced in {days} days",
-    "gtm_enterprise_tier_launched": "Enterprise GTM shift: {n} companies launched enterprise tiers in {days} days",
-    "gtm_open_source_strategy": "Open-source GTM gaining traction: {n} companies adopting in {days} days",
-    "gtm_channel_launched": "Distribution expansion: {n} new channels launched in {days} days",
-    "gtm_vertical_expansion": "Vertical expansion trending: {n} companies expanding in {days} days",
-}
+MAX_EVIDENCE_PER_SIGNAL = 50
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +232,10 @@ class SignalEngine:
             transitions = await self.update_lifecycle(conn, region)
             stats["lifecycle_transitions"] = transitions
 
+            # 5. Compute stage-aware context for signals with pattern_id
+            stage_enriched = await self.compute_stage_context(conn, region)
+            stats["stage_enriched"] = stage_enriched
+
         await self.close()
         logger.info("Signal aggregation complete: %s", stats)
         return stats
@@ -257,7 +250,12 @@ class SignalEngine:
         region: str,
         lookback_days: int,
     ) -> List[CandidateSignal]:
-        """Group recent events and generate candidate signal claims."""
+        """Group recent events by event_type + meaningful discriminator.
+
+        Instead of lumping all events of the same type into one signal,
+        sub-groups by pattern_name, round_type, or other metadata so that
+        each signal carries a specific, actionable claim.
+        """
         cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
 
         # Query recent structured events
@@ -277,73 +275,119 @@ class SignalEngine:
         if not rows:
             return []
 
-        # Group by event_type + pattern_name (for arch events)
-        groups: Dict[str, CandidateSignal] = {}
+        # Batch-fetch startup names for company-enriched claims
+        startup_ids = list({row["startup_id"] for row in rows if row["startup_id"]})
+        startup_names: Dict[str, str] = {}
+        if startup_ids:
+            name_rows = await conn.fetch(
+                "SELECT id::text, name FROM startups WHERE id = ANY($1::uuid[])",
+                startup_ids,
+            )
+            startup_names = {r["id"]: r["name"] for r in name_rows}
+
+        # Group by event_type + meaningful discriminator from metadata
+        groups: Dict[str, Dict[str, Any]] = {}
 
         for row in rows:
             event_type = row["event_type"]
             metadata = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
             domain = row["domain"]
 
-            # For arch events, group by pattern name
+            # Determine sub-group discriminator
             pattern_name = metadata.get("pattern_name")
-            if event_type == "arch_pattern_adopted" and pattern_name:
+
+            if pattern_name:
+                # Universal rule: any event with pattern_name sub-groups by it
+                discriminator = pattern_name
                 group_key = f"{event_type}:{pattern_name}"
-                cluster_name = pattern_name
+            elif event_type == "cap_funding_raised":
+                round_type = metadata.get("round_type") or "all"
+                discriminator = round_type
+                group_key = f"{event_type}:{round_type}"
             else:
+                discriminator = None
                 group_key = event_type
-                cluster_name = None
 
             if group_key not in groups:
-                template = _CLAIM_TEMPLATES.get(event_type, "{n} events of type {event_type} in {days} days")
-                groups[group_key] = CandidateSignal(
-                    domain=domain,
-                    cluster_name=cluster_name,
-                    claim=template,  # Will be formatted later
-                    region=region,
-                    metadata={"event_type": event_type},
-                )
+                groups[group_key] = {
+                    "domain": domain,
+                    "event_type": event_type,
+                    "discriminator": discriminator,
+                    "events": [],
+                    "companies": set(),
+                }
 
-            candidate = groups[group_key]
-            candidate.evidence_events.append({
+            g = groups[group_key]
+            g["events"].append({
                 "event_id": row["id"],
                 "cluster_id": row["cluster_id"],
                 "startup_id": row["startup_id"],
                 "confidence": float(row["confidence"]) if row["confidence"] else 0.5,
                 "detected_at": row["detected_at"].isoformat() if row["detected_at"] else None,
                 "metadata": metadata,
+                "event_title": row["event_title"],
             })
             if row["startup_id"]:
-                candidate.unique_companies.add(row["startup_id"])
+                g["companies"].add(row["startup_id"])
 
-        # Format claim templates with actual counts
-        candidates = []
-        for candidate in groups.values():
-            n = len(candidate.evidence_events)
+        # Build candidate signals from groups
+        candidates: List[CandidateSignal] = []
+
+        for g in groups.values():
+            events = g["events"]
+            n = len(events)
             if n < 2:
                 continue  # Skip singletons — not yet a signal
 
-            funding_amounts = []
-            for evt in candidate.evidence_events:
+            # Cap evidence per signal (keep highest confidence first)
+            if n > MAX_EVIDENCE_PER_SIGNAL:
+                events = sorted(events, key=lambda e: e["confidence"], reverse=True)[
+                    :MAX_EVIDENCE_PER_SIGNAL
+                ]
+
+            unique_companies: set = g["companies"]
+
+            # Collect funding amounts (handle both numeric and string formats)
+            funding_amounts: List[float] = []
+            for evt in events:
                 amt = evt["metadata"].get("funding_amount", "")
-                if isinstance(amt, str):
-                    # Parse "$10M" → 10_000_000
+                if isinstance(amt, (int, float)) and amt > 0:
+                    funding_amounts.append(float(amt))
+                elif isinstance(amt, str):
                     parsed = self._parse_funding_amount(amt)
                     if parsed:
                         funding_amounts.append(parsed)
 
-            total_amount = sum(funding_amounts) if funding_amounts else 0
+            # Resolve company names for claim enrichment
+            company_names = [
+                startup_names[sid]
+                for sid in unique_companies
+                if sid in startup_names and startup_names[sid]
+            ]
 
-            claim = candidate.claim.format(
-                pattern=candidate.cluster_name or "pattern",
-                n=n,
-                days=lookback_days,
-                amount=self._format_amount(total_amount),
-                event_type=candidate.metadata.get("event_type", ""),
+            claim = self._build_claim(
+                event_type=g["event_type"],
+                discriminator=g["discriminator"],
+                n_events=len(events),
+                n_companies=len(unique_companies),
+                company_names=company_names,
+                funding_amounts=funding_amounts,
+                lookback_days=lookback_days,
             )
-            candidate.claim = claim
-            candidate.metadata["funding_amounts"] = funding_amounts
-            candidate.metadata["total_amount"] = total_amount
+
+            candidate = CandidateSignal(
+                domain=g["domain"],
+                cluster_name=g["discriminator"],
+                claim=claim,
+                region=region,
+                evidence_events=events,
+                unique_companies=unique_companies,
+                metadata={
+                    "event_type": g["event_type"],
+                    "funding_amounts": funding_amounts,
+                    "total_amount": sum(funding_amounts) if funding_amounts else 0,
+                },
+            )
             candidates.append(candidate)
 
         logger.info("[signals:%s] Aggregated %d candidate signals from %d events",
@@ -482,6 +526,11 @@ class SignalEngine:
     ) -> None:
         """Attach evidence events to a signal and update counts."""
         for evt in candidate.evidence_events:
+            # Extract snippet from event_title or metadata
+            snippet = (
+                evt.get("event_title")
+                or evt.get("metadata", {}).get("snippet")
+            )
             try:
                 await conn.execute(
                     """INSERT INTO signal_evidence
@@ -494,7 +543,7 @@ class SignalEngine:
                     evt.get("startup_id"),
                     evt.get("confidence", 1.0),
                     "event",
-                    None,
+                    snippet,
                 )
             except Exception:
                 logger.debug("Evidence attach failed for signal %s", signal_id, exc_info=True)
@@ -722,8 +771,226 @@ class SignalEngine:
         return current
 
     # ------------------------------------------------------------------
+    # 5. Stage-aware context enrichment
+    # ------------------------------------------------------------------
+
+    async def compute_stage_context(
+        self,
+        conn: "asyncpg.Connection",
+        region: str,
+    ) -> int:
+        """Compute per-stage adoption baselines and enrich signal metadata.
+
+        For each active signal with a pattern_id, queries startup_state_snapshot
+        to compute adoption percentages by funding stage, then stores the result
+        in signals.metadata_json as 'stage_context'.
+
+        Returns count of signals enriched.
+        """
+        # Check if startup_state_snapshot table exists
+        table_exists = await conn.fetchval(
+            """SELECT EXISTS (
+                   SELECT 1 FROM information_schema.tables
+                   WHERE table_name = 'startup_state_snapshot'
+               )"""
+        )
+        if not table_exists:
+            return 0
+
+        # Get all active signals with pattern_id
+        signals = await conn.fetch(
+            """SELECT s.id::text, s.pattern_id::text, pr.pattern_name
+               FROM signals s
+               JOIN pattern_registry pr ON pr.id = s.pattern_id
+               WHERE s.region = $1
+                 AND s.status NOT IN ('decaying')
+                 AND s.pattern_id IS NOT NULL""",
+            region,
+        )
+
+        if not signals:
+            return 0
+
+        enriched = 0
+
+        for sig in signals:
+            pattern_name = sig["pattern_name"]
+            signal_id = sig["id"]
+
+            # Compute adoption by funding stage
+            stage_rows = await conn.fetch(
+                """SELECT
+                       ss.funding_stage,
+                       COUNT(*) FILTER (WHERE $1 = ANY(ss.build_patterns)
+                                           OR $1 = ANY(ss.discovered_patterns)) AS adopters,
+                       COUNT(*) AS total
+                   FROM startup_state_snapshot ss
+                   WHERE ss.snapshot_at >= NOW() - INTERVAL '90 days'
+                     AND ss.funding_stage IS NOT NULL
+                   GROUP BY ss.funding_stage
+                   HAVING COUNT(*) >= 2
+                   ORDER BY COUNT(*) FILTER (WHERE $1 = ANY(ss.build_patterns)
+                                                OR $1 = ANY(ss.discovered_patterns))::float
+                            / NULLIF(COUNT(*), 0) DESC""",
+                pattern_name,
+            )
+
+            if not stage_rows:
+                continue
+
+            adoption_by_stage = {}
+            for row in stage_rows:
+                stage = row["funding_stage"]
+                total = row["total"]
+                adopters = row["adopters"]
+                pct = round(100.0 * adopters / total, 1) if total > 0 else 0
+                adoption_by_stage[stage] = {
+                    "adopters": adopters,
+                    "total": total,
+                    "pct": pct,
+                }
+
+            # Find stage with highest adoption acceleration
+            sorted_stages = sorted(
+                adoption_by_stage.items(),
+                key=lambda x: x[1]["pct"],
+                reverse=True,
+            )
+            stage_acceleration = sorted_stages[0][0] if sorted_stages else None
+
+            stage_context = {
+                "adoption_by_stage": adoption_by_stage,
+                "stage_acceleration": stage_acceleration,
+                "computed_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+            # Merge into existing metadata
+            meta_row = await conn.fetchrow(
+                "SELECT metadata_json FROM signals WHERE id = $1::uuid",
+                signal_id,
+            )
+            metadata = json.loads(meta_row["metadata_json"]) if meta_row and meta_row["metadata_json"] else {}
+            metadata["stage_context"] = stage_context
+
+            await conn.execute(
+                """UPDATE signals SET metadata_json = $2::jsonb, updated_at = NOW()
+                   WHERE id = $1::uuid""",
+                signal_id,
+                json.dumps(metadata),
+            )
+            enriched += 1
+
+        logger.info("[signals:%s] Enriched %d signals with stage context", region, enriched)
+        return enriched
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_claim(
+        event_type: str,
+        discriminator: Optional[str],
+        n_events: int,
+        n_companies: int,
+        company_names: List[str],
+        funding_amounts: List[float],
+        lookback_days: int,
+    ) -> str:
+        """Build a specific, readable signal claim from aggregated event data.
+
+        Returns a human-readable claim string (~120 chars) that includes
+        the actual pattern/stage name and top company names.
+        """
+        # Build company name suffix (up to 3 names)
+        names_part = ""
+        if company_names:
+            top = sorted(company_names)[:3]
+            names_part = " including " + ", ".join(top)
+            remaining = n_companies - len(top)
+            if remaining > 0:
+                names_part += f" +{remaining} more"
+
+        label = discriminator or "pattern"
+
+        # --- Architecture events ---
+        if event_type == "arch_pattern_adopted":
+            claim = f"{label} adoption trending: {n_companies} companies{names_part} in {lookback_days} days"
+
+        elif event_type == "arch_state_pattern_added":
+            claim = f"{label} detected in analysis: {n_companies} companies adopted {label}"
+
+        elif event_type == "arch_state_pattern_removed":
+            claim = f"{label} being dropped: {n_companies} companies removed {label}"
+
+        elif event_type == "arch_migration_announced":
+            claim = f"Architecture migration: {n_events} announcements{names_part} in {lookback_days} days"
+
+        elif event_type == "arch_open_sourced":
+            claim = f"Open-source releases: {n_events} projects{names_part} in {lookback_days} days"
+
+        # --- Capital events ---
+        elif event_type == "cap_funding_raised":
+            total = sum(funding_amounts) if funding_amounts else 0
+            amount_str = SignalEngine._format_amount(total)
+            stage = discriminator if discriminator and discriminator != "all" else "AI"
+            claim = f"{stage} funding: {amount_str} across {n_events} deals in {lookback_days} days"
+
+        elif event_type == "cap_acquisition_announced":
+            claim = f"M&A activity: {n_events} acquisitions{names_part} in {lookback_days} days"
+
+        # --- Product events ---
+        elif event_type == "prod_launched":
+            claim = f"Product launches accelerating: {n_events} new products{names_part} in {lookback_days} days"
+
+        elif event_type == "prod_major_update":
+            claim = f"Product momentum: {n_events} major updates{names_part} in {lookback_days} days"
+
+        # --- GTM events ---
+        elif event_type == "gtm_enterprise_tier_launched":
+            claim = f"Enterprise GTM shift: {n_companies} companies launched enterprise tiers{names_part}"
+
+        elif event_type == "gtm_open_source_strategy":
+            claim = f"Open-source GTM gaining traction: {n_companies} companies{names_part} in {lookback_days} days"
+
+        elif event_type == "gtm_channel_launched":
+            claim = f"Distribution expansion: {n_events} new channels{names_part} in {lookback_days} days"
+
+        elif event_type == "gtm_vertical_expansion":
+            claim = f"Vertical expansion: {n_companies} companies expanding{names_part} in {lookback_days} days"
+
+        elif event_type == "gtm_state_strategy_changed":
+            claim = f"GTM pivot to {label}: {n_companies} companies shifted strategy"
+
+        elif event_type == "gtm_pricing_changed":
+            claim = f"Pricing changes: {n_events} companies updated pricing{names_part} in {lookback_days} days"
+
+        elif event_type == "gtm_customer_signed":
+            claim = f"Customer wins: {n_events} notable signings{names_part} in {lookback_days} days"
+
+        elif event_type == "gtm_partnership_announced":
+            claim = f"Partnership momentum: {n_events} partnerships{names_part} in {lookback_days} days"
+
+        # --- Org events ---
+        elif event_type == "org_key_hire":
+            claim = f"Key hires rising: {n_events} announcements{names_part} in {lookback_days} days"
+
+        # --- Tech state change (analysis diff) ---
+        elif event_type == "tech_state_model_changed":
+            claim = f"{label} adoption rising: {n_companies} new integrations{names_part}"
+
+        # --- Fallback ---
+        else:
+            readable = event_type.replace("_", " ")
+            for prefix in ("arch ", "cap ", "prod ", "gtm ", "org "):
+                readable = readable.replace(prefix, "", 1)
+            claim = f"{readable}: {n_events} events across {n_companies} companies in {lookback_days} days"
+
+        # Truncate to ~200 chars for DB readability
+        if len(claim) > 200:
+            claim = claim[:197] + "..."
+
+        return claim
 
     @staticmethod
     def _parse_funding_amount(amount_str: str) -> Optional[float]:
