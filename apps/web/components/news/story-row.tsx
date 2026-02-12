@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { timeAgo, storyTypeBadgeClass, aiSignalLabel } from '@/lib/news-utils';
+import { safeHref } from '@/lib/url';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
 import { ImpactBox } from './impact-box';
@@ -80,9 +81,9 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
       </div>
 
       <h3 className="mt-2 text-sm font-medium leading-snug tracking-tight">
-        {item.url ? (
+        {safeHref(item.url) ? (
           <a
-            href={item.url}
+            href={safeHref(item.url)!}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
@@ -171,9 +172,9 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
       </div>
 
       <h3 className="text-base font-medium leading-snug tracking-tight">
-        {item.url ? (
+        {safeHref(item.url) ? (
           <a
-            href={item.url}
+            href={safeHref(item.url)!}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}

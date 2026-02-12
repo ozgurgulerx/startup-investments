@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { UserMenu } from '@/components/auth/user-menu';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
 import { ReadingModeToggle } from '@/components/ui/reading-mode-toggle';
@@ -9,16 +10,14 @@ import { MobileNavTrigger } from '@/components/layout/mobile-nav';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { RegionSwitch } from '@/components/ui/region-switch';
 
-interface AppHeaderProps {
-  onSearch?: (query: string) => void;
-}
-
-export function AppHeader({ onSearch }: AppHeaderProps) {
+export function AppHeader() {
   const [searchQuery, setSearchQuery] = useState('');
+  const router = useRouter();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    onSearch?.(searchQuery);
+    const q = searchQuery.trim();
+    if (q) router.push(`/news/search?q=${encodeURIComponent(q)}`);
   };
 
   return (

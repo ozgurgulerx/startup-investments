@@ -579,7 +579,7 @@ export function FilterBuilder({
                   size="sm"
                   variant="outline"
                   onClick={() => setShowSaveInput(true)}
-                  disabled={Object.keys(query).length === 0}
+                  disabled={!hasActiveFilters(query)}
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Save Current Filter

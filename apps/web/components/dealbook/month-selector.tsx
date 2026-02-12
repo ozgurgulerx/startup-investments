@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -91,6 +91,21 @@ export function MonthSelector({
     }
   };
 
+  // Dropdown open state + click-outside
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
   // Current period stats
   const currentStats = useMemo(() => {
     if (selectedMonth === 'all') {
@@ -121,9 +136,12 @@ export function MonthSelector({
       </button>
 
       {/* Month dropdown */}
-      <div className="relative group">
+      <div className="relative" ref={dropdownRef}>
         <button
           type="button"
+          onClick={() => setIsOpen((o) => !o)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setIsOpen(false); }}
+          aria-expanded={isOpen}
           className={cn(
             'flex items-center gap-2 px-3 py-1.5 rounded transition-colors duration-150',
             'text-sm font-medium',
@@ -136,7 +154,10 @@ export function MonthSelector({
               Latest
             </span>
           )}
-          <span className="text-[10px] text-muted-foreground/60 transition-transform duration-150 group-hover:translate-y-0.5">
+          <span className={cn(
+            'text-[10px] text-muted-foreground/60 transition-transform duration-150',
+            isOpen && 'translate-y-0.5'
+          )}>
             ▾
           </span>
         </button>
@@ -148,14 +169,15 @@ export function MonthSelector({
           'bg-card/95 backdrop-blur-sm rounded-lg',
           'border border-border/50',
           'shadow-lg shadow-black/20',
-          'opacity-0 invisible translate-y-1',
-          'group-hover:opacity-100 group-hover:visible group-hover:translate-y-0',
-          'transition-all duration-150'
+          'transition-all duration-150',
+          isOpen
+            ? 'opacity-100 visible translate-y-0'
+            : 'opacity-0 invisible translate-y-1'
         )}>
           {/* All Time option */}
           <button
             type="button"
-            onClick={() => navigateToMonth('all')}
+            onClick={() => { setIsOpen(false); navigateToMonth('all'); }}
             className={cn(
               'w-full px-3 py-2.5 text-left text-sm',
               'flex items-center justify-between',
@@ -181,7 +203,7 @@ export function MonthSelector({
               <button
                 key={period.period}
                 type="button"
-                onClick={() => navigateToMonth(period.period)}
+                onClick={() => { setIsOpen(false); navigateToMonth(period.period); }}
                 className={cn(
                   'w-full px-3 py-2 text-left text-sm',
                   'flex items-center justify-between',

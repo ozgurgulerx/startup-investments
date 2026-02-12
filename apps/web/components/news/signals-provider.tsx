@@ -101,13 +101,21 @@ export function SignalsProvider({ clusterIds, initialUpvoteCounts, children }: S
 
         return result;
       } catch {
-        // Revert optimistic update
+        // Revert optimistic action map
         setActionMap((prev) => {
           const current = prev[clusterId] || [];
           const has = current.includes(action);
           const reverted = has ? current.filter((a) => a !== action) : [...current, action];
           return { ...prev, [clusterId]: reverted };
         });
+        // Revert optimistic upvote count
+        if (action === 'upvote') {
+          const wasActive = (actionMap[clusterId] || []).includes('upvote');
+          setUpvoteCounts((prev) => ({
+            ...prev,
+            [clusterId]: Math.max(0, (prev[clusterId] ?? 0) + (wasActive ? 1 : -1)),
+          }));
+        }
         return { active: false, upvote_count: upvoteCounts[clusterId] ?? 0 };
       }
     },

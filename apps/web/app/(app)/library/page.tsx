@@ -3,7 +3,6 @@ import { Card } from '@/components/ui';
 import { getNewsletterMarkdown, getAvailablePeriods, getMonthlyStats } from '@/lib/data';
 import { formatPeriod } from '@/lib/utils';
 import { NewsletterRenderer } from '@/components/features';
-import { Download, Share2 } from 'lucide-react';
 import { PeriodNav } from '@/components/ui/period-nav';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 
@@ -64,17 +63,7 @@ async function LibraryContent({ selectedMonth, region }: { selectedMonth?: strin
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <PeriodNav availableMonths={availableMonths} currentMonth={period} />
-          <button className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground rounded-md border border-border/30 hover:text-foreground hover:border-border/50 transition-colors">
-            <Share2 className="h-3.5 w-3.5" />
-            Share
-          </button>
-          <button className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground rounded-md border border-border/30 hover:text-foreground hover:border-border/50 transition-colors">
-            <Download className="h-3.5 w-3.5" />
-            Download
-          </button>
-        </div>
+        <PeriodNav availableMonths={availableMonths} currentMonth={period} />
       </div>
 
       {/* Newsletter Content */}

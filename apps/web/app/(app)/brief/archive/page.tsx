@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { listBriefEditions } from '@/lib/api/brief';
 import { formatCurrency } from '@/lib/utils';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,7 +104,7 @@ export default async function BriefArchivePage({
   searchParams: Promise<{ region?: string; period_type?: string }>;
 }) {
   const params = await searchParams;
-  const region = params.region || 'global';
+  const region = normalizeDatasetRegion(params.region);
   const periodType = params.period_type || 'monthly';
 
   return (

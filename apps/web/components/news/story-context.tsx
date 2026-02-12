@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ExternalLink, X } from 'lucide-react';
 import type { NewsItemCard } from '@startup-intelligence/shared';
 import { timeAgo, aiSignalLabel } from '@/lib/news-utils';
+import { safeHref } from '@/lib/url';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
 import { ImpactBox } from './impact-box';
@@ -24,9 +25,9 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
       <div className="flex items-center justify-between px-6 py-3 border-b border-border/30">
         <span className="text-[10px] uppercase tracking-wider text-accent-info">Story Detail</span>
         <div className="flex items-center gap-2">
-          {item.url && (
+          {safeHref(item.url) && (
             <a
-              href={item.url}
+              href={safeHref(item.url)!}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 rounded-md border border-accent-info/30 bg-accent-info/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info hover:bg-accent-info/20 transition-colors"

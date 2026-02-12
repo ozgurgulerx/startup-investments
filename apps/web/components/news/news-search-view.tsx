@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, type FormEvent } from 'react';
+import { safeHref } from '@/lib/url';
 
 interface SearchResult {
   id: string;
@@ -137,7 +138,7 @@ export function NewsSearchView({ region }: { region: 'global' | 'turkey' }) {
           {results.map((r) => (
             <a
               key={r.id}
-              href={r.primary_url || '#'}
+              href={safeHref(r.primary_url) || '#'}
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded-lg border border-border/30 bg-muted/10 p-4 hover:border-border/50 hover:bg-muted/20 transition-colors"

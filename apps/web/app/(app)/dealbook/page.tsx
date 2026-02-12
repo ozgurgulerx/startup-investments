@@ -87,7 +87,11 @@ async function DealbookContent({ searchParams }: { searchParams: PageProps['sear
   }
 
   // Support 'all' for all-time view, or specific month, or default to latest
-  const selectedMonth = params.month === 'all' ? 'all' : (params.month || latestPeriod);
+  const rawMonth = params.month === 'all' ? 'all' : (params.month || latestPeriod);
+  // Validate month against available periods
+  const selectedMonth = rawMonth === 'all' || availablePeriods.some(p => p.period === rawMonth)
+    ? rawMonth
+    : latestPeriod;
   // Avoid all-time stats aggregation on the web tier (it depends on local monthly_stats.json files).
   // For all-time scope, we render totals from the filtered result set instead.
   const statsPeriod = selectedMonth === 'all' ? latestPeriod : selectedMonth;

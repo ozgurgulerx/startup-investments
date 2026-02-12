@@ -10,6 +10,7 @@ import { getBriefSnapshot, listBriefEditions } from '@/lib/api/brief';
 import { snapshotToMonthlyBrief } from '@/lib/types/monthly-brief';
 import { formatCurrency } from '@/lib/utils';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -26,7 +27,7 @@ async function BriefContent({
   kind?: string;
   editionId?: string;
 }) {
-  const regionKey = region || 'global';
+  const regionKey = normalizeDatasetRegion(region);
   const ptKey = periodType || 'monthly';
 
   // Parallel fetch: snapshot + edition list

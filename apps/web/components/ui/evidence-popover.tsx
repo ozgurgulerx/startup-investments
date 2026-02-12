@@ -5,6 +5,7 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '@/lib/utils';
 import { ExternalLink, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { safeHref } from '@/lib/url';
 
 export interface EvidenceSource {
   type: 'company' | 'article' | 'data';
@@ -69,9 +70,9 @@ export function EvidencePopover({
                           >
                             {source.title}
                           </Link>
-                        ) : source.url ? (
+                        ) : safeHref(source.url) ? (
                           <a
-                            href={source.url}
+                            href={safeHref(source.url)!}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-foreground hover:text-accent-info transition-colors font-medium"

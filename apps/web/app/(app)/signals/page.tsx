@@ -5,6 +5,7 @@ import { computePatternCorrelations } from '@/lib/data/signals';
 import { isAPIConfigured, getSignalsSummary } from '@/lib/api/client';
 import type { SignalItem } from '@/lib/api/client';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -250,7 +251,8 @@ export default async function SignalsPage({
 }: {
   searchParams: Promise<{ region?: string }>;
 }) {
-  const { region } = await searchParams;
+  const { region: rawRegion } = await searchParams;
+  const region = normalizeDatasetRegion(rawRegion);
   return (
     <Suspense fallback={<SignalsLoading />}>
       <SignalsContent region={region} />
