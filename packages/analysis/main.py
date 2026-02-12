@@ -1588,6 +1588,10 @@ def embed_backfill(
     days: int = typer.Option(0, "--days", help="Limit to clusters from last N days (0 = all)"),
     batch_size: int = typer.Option(100, "--batch-size", help="Embedding batch size"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Count unembedded clusters without processing"),
+    limit: int = typer.Option(0, "--limit", help="Max clusters to process (0 = all)"),
+    order: str = typer.Option("newest", "--order", help="Processing order: 'newest' or 'oldest'"),
+    sleep_ms: int = typer.Option(0, "--sleep-ms", help="Milliseconds to sleep between batches"),
+    populate_related: bool = typer.Option(True, "--populate-related/--no-populate-related", help="Populate related_cluster_ids after embedding"),
 ):
     """Backfill embeddings for existing news clusters.
 
@@ -1598,7 +1602,15 @@ def embed_backfill(
     Requires AZURE_OPENAI_ENDPOINT and managed identity (or AZURE_OPENAI_API_KEY).
     """
     from src.automation.embedding import EmbeddingService
+    from src.automation.embedding_backfill import (
+        backfill_cluster_embeddings,
+        fetch_unembedded_clusters,
+    )
     import asyncpg as apg
+
+    if order not in ("newest", "oldest"):
+        console.print("[red]--order must be 'newest' or 'oldest'[/red]")
+        raise typer.Exit(1)
 
     async def run():
         db_url = os.getenv("DATABASE_URL")
@@ -1642,58 +1654,29 @@ def embed_backfill(
 
         pool = await apg.create_pool(db_url, min_size=2, max_size=5, command_timeout=120)
         async with pool.acquire() as conn:
-            where = "WHERE embedding IS NULL"
-            params: list = []
-            if days > 0:
-                where += " AND published_at >= NOW() - ($1 || ' days')::interval"
-                params.append(str(days))
-
-            count = await conn.fetchval(
-                f"SELECT COUNT(*) FROM news_clusters {where}", *params
-            )
-            console.print(f"[bold]Found {count} unembedded clusters[/bold]")
-
-            if dry_run or count == 0:
+            # Dry-run: just count and return
+            if dry_run:
+                clusters = await fetch_unembedded_clusters(
+                    conn, limit=limit, order=order, days=days,
+                )
+                count = len(clusters)
+                console.print(f"[bold]Found {count} unembedded clusters[/bold]")
                 await pool.close()
-                return {"total": count, "embedded": 0, "related": 0, "dry_run": dry_run}
+                return {"selected": count, "stored": 0, "populate_related_updated": 0, "dry_run": True}
 
-            rows = await conn.fetch(
-                f"""SELECT id::text, title, summary, entities
-                    FROM news_clusters {where}
-                    ORDER BY published_at DESC""",
-                *params,
+            stats = await backfill_cluster_embeddings(
+                conn,
+                service,
+                limit=limit,
+                batch_size=batch_size,
+                order=order,
+                days=days,
+                sleep_ms=sleep_ms,
+                populate_related=populate_related,
             )
-
-            embedded = 0
-            for b_start in range(0, len(rows), batch_size):
-                batch = rows[b_start : b_start + batch_size]
-                texts = [
-                    service.prepare_text(
-                        row["title"],
-                        row["summary"],
-                        list(row["entities"] or []),
-                    )
-                    for row in batch
-                ]
-                embeddings = await service.embed_texts(texts)
-
-                for row, emb in zip(batch, embeddings):
-                    if emb is not None:
-                        await conn.execute(
-                            """UPDATE news_clusters
-                               SET embedding = $1::vector, embedded_at = NOW()
-                               WHERE id = $2::uuid""",
-                            str(emb), row["id"],
-                        )
-                        embedded += 1
-                console.print(f"  Embedded {min(b_start + batch_size, len(rows))}/{len(rows)}")
-
-            # Populate related clusters for newly embedded items
-            all_ids = [row["id"] for row in rows]
-            related = await service.populate_related_clusters(conn, all_ids)
 
         await pool.close()
-        return {"total": len(rows), "embedded": embedded, "related": related}
+        return stats
 
     try:
         result = asyncio.run(run())
@@ -1705,12 +1688,13 @@ def embed_backfill(
         return
 
     console.print(Panel.fit(
-        f"[bold blue]Embedding Backfill Results[/bold blue]",
+        "[bold blue]Embedding Backfill Results[/bold blue]",
         border_style="blue",
     ))
-    console.print(f"[bold]Total unembedded:[/bold] {result.get('total', 0)}")
-    console.print(f"[bold]Embedded:[/bold] {result.get('embedded', 0)}")
-    console.print(f"[bold]Related populated:[/bold] {result.get('related', 0)}")
+    console.print(f"[bold]Selected:[/bold] {result.get('selected', 0)}")
+    console.print(f"[bold]Stored:[/bold] {result.get('stored', 0)}")
+    console.print(f"[bold]Failed:[/bold] {result.get('failed', 0)}")
+    console.print(f"[bold]Related populated:[/bold] {result.get('populate_related_updated', 0)}")
     if result.get("dry_run"):
         console.print("[yellow]Dry run — nothing was persisted[/yellow]")
 
@@ -2563,6 +2547,82 @@ def backfill_state(
             await conn.close()
 
     asyncio.run(_backfill())
+
+
+@app.command("merge-startups")
+def merge_startups_cmd(
+    from_id: str = typer.Option(..., "--from", help="Source startup UUID (will be merged away)"),
+    to_id: str = typer.Option(..., "--to", help="Target startup UUID (canonical)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without making changes"),
+):
+    """Merge duplicate startup FROM into canonical startup TO.
+
+    Re-points all FK references, creates aliases for old identifiers,
+    and marks FROM as merged. Use --dry-run to preview first.
+    """
+    from src.automation.merge_startups import merge_startups
+
+    async def _merge():
+        conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+        try:
+            # Show what we're about to merge
+            from_row = await conn.fetchrow(
+                "SELECT name, slug, website FROM startups WHERE id = $1", from_id
+            )
+            to_row = await conn.fetchrow(
+                "SELECT name, slug, website FROM startups WHERE id = $1", to_id
+            )
+            if not from_row:
+                console.print(f"[red]FROM startup {from_id} not found[/red]")
+                raise typer.Exit(1)
+            if not to_row:
+                console.print(f"[red]TO startup {to_id} not found[/red]")
+                raise typer.Exit(1)
+
+            console.print(Panel.fit(
+                f"[bold red]FROM (merge away):[/bold red] {from_row['name']} ({from_id})\n"
+                f"  slug: {from_row['slug']}  website: {from_row['website']}\n\n"
+                f"[bold green]TO (canonical):[/bold green] {to_row['name']} ({to_id})\n"
+                f"  slug: {to_row['slug']}  website: {to_row['website']}",
+                border_style="yellow",
+                title="Startup Merge" + (" [DRY RUN]" if dry_run else ""),
+            ))
+
+            if not dry_run:
+                if not typer.confirm("\nProceed with merge? This cannot be undone."):
+                    raise typer.Exit()
+
+            result = await merge_startups(conn, from_id, to_id, dry_run=dry_run)
+
+            # Display results
+            table = Table(title="Merge Results" + (" [DRY RUN]" if dry_run else ""))
+            table.add_column("Table", style="cyan")
+            table.add_column("Moved", style="green", justify="right")
+            table.add_column("Deleted", style="red", justify="right")
+            table.add_column("Other", style="yellow", justify="right")
+
+            for tbl, tbl_stats in result["tables"].items():
+                moved = str(tbl_stats.get("moved", 0))
+                deleted = str(tbl_stats.get("deleted", 0))
+                other_parts = []
+                for k, v in tbl_stats.items():
+                    if k not in ("moved", "deleted") and v:
+                        other_parts.append(f"{k}={v}")
+                other = ", ".join(other_parts) if other_parts else ""
+                table.add_row(tbl, moved, deleted, other)
+
+            console.print(table)
+
+            if dry_run:
+                console.print("\n[yellow]Dry run — no changes were made.[/yellow]")
+            else:
+                console.print(f"\n[bold green]Merge complete![/bold green] {from_row['name']} → {to_row['name']}")
+
+        finally:
+            await conn.close()
+
+    import asyncpg
+    asyncio.run(_merge())
 
 
 if __name__ == "__main__":
