@@ -6045,7 +6045,9 @@ class DailyNewsIngestor:
                 else:
                     cluster_ids_turkey = {}
                     turkey_clusters = []
-                    print("[news-ingest] regional clusters not supported, skipping turkey pipeline")
+                    msg = "Turkey pipeline disabled: news_clusters.region column missing (migration 030)"
+                    print(f"[CRITICAL] {msg}")
+                    errors.append(msg)
 
                 # Persist memory gate results per-region
                 mem_facts_global = await self._persist_memory_results(conn, clusters, cluster_ids_global, region="global")
@@ -6159,15 +6161,19 @@ class DailyNewsIngestor:
                     raw_lookup=raw_lookup,
                 )
                 self._signal_aggregator = _sig_agg_turkey
-                turkey_stats = await self._persist_edition(
-                    conn,
-                    edition_date=e_date,
-                    region="turkey",
-                    clusters=turkey_clusters_for_edition,
-                    cluster_ids=cluster_ids_turkey,
-                    excluded_cluster_ids=rejected_turkey,
-                    raw_lookup=raw_lookup,
-                )
+                if turkey_clusters_for_edition:
+                    turkey_stats = await self._persist_edition(
+                        conn,
+                        edition_date=e_date,
+                        region="turkey",
+                        clusters=turkey_clusters_for_edition,
+                        cluster_ids=cluster_ids_turkey,
+                        excluded_cluster_ids=rejected_turkey,
+                        raw_lookup=raw_lookup,
+                    )
+                else:
+                    turkey_stats = {"total_clusters": 0, "skipped": True}
+                    print("[turkey-funnel] 0 clusters for edition — preserving previous edition")
                 self._signal_aggregator = _sig_agg_global
 
                 # --- Generate editorial rule suggestions from accumulated rejections ---
@@ -6202,8 +6208,12 @@ class DailyNewsIngestor:
                 _tr_ed_clusters = len(turkey_clusters_for_edition)
                 _tr_ed_top = int(turkey_stats.get("top_story_count") or 0) if isinstance(turkey_stats, dict) else 0
                 _tr_has_brief = bool(turkey_stats.get("daily_brief")) if isinstance(turkey_stats, dict) else False
+                _tr_failed_details = ", ".join(
+                    f"{fr.source_key}({fr.error[:60]})" for fr in _tr_fetched if not fr.success
+                ) or "none"
                 print(
                     f"\n[turkey-summary] sources: {_tr_src_ok} ok / {_tr_src_fail} failed (of {len(_tr_src_keys)} defined)"
+                    f"\n[turkey-summary] failed sources: {_tr_failed_details}"
                     f"\n[turkey-summary] items collected: {_tr_items_collected}"
                     f"\n[turkey-summary] clusters: {len(turkey_clusters)} built → "
                     f"{len(non_dropped_turkey)} after editorial → {_tr_ed_clusters} for edition"

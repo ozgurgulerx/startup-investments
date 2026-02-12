@@ -115,17 +115,25 @@ base = Path("$REPO_DIR/database/migrations")
 
 async def run():
     conn = await asyncpg.connect(db_url)
+    failed = []
     try:
         for filename in files:
             path = base / filename
             if path.exists():
-                sql = path.read_text(encoding="utf-8")
-                await conn.execute(sql)
-                print(f"  Applied: {filename}")
+                try:
+                    sql = path.read_text(encoding="utf-8")
+                    await conn.execute(sql)
+                    print(f"  Applied: {filename}")
+                except Exception as e:
+                    print(f"  FAILED: {filename}: {e}")
+                    failed.append(filename)
             else:
                 print(f"  Skipped (not found): {filename}")
     finally:
         await conn.close()
+    if failed:
+        print(f"\nWARNING: {len(failed)} migration(s) failed: {', '.join(failed)}")
+        raise SystemExit(1)
 
 asyncio.run(run())
 PYEOF
