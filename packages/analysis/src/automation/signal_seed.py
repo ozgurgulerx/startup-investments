@@ -62,6 +62,12 @@ EVENT_REGISTRY: List[Dict[str, str]] = [
     {"domain": "product", "event_type": "prod_sunset", "display_name": "Product Sunset", "description": "Product or service discontinued", "extraction_method": "hybrid"},
     {"domain": "product", "event_type": "prod_major_update", "display_name": "Major Update", "description": "Significant product update or version release", "extraction_method": "heuristic"},
     {"domain": "product", "event_type": "prod_waitlist_opened", "display_name": "Waitlist Opened", "description": "New product waitlist or early access program", "extraction_method": "heuristic"},
+
+    # Analysis-diff events (4) — from state snapshot diffing, not news
+    {"domain": "architecture", "event_type": "arch_state_pattern_added", "display_name": "Pattern Adopted (Analysis)", "description": "Pattern adoption detected from analysis diff (not news)", "extraction_method": "heuristic"},
+    {"domain": "architecture", "event_type": "arch_state_pattern_removed", "display_name": "Pattern Dropped (Analysis)", "description": "Pattern removal detected from analysis diff", "extraction_method": "heuristic"},
+    {"domain": "gtm", "event_type": "gtm_state_strategy_changed", "display_name": "GTM Strategy Changed (Analysis)", "description": "GTM motion or pricing model changed detected from analysis diff", "extraction_method": "heuristic"},
+    {"domain": "product", "event_type": "tech_state_model_changed", "display_name": "Tech Stack Changed (Analysis)", "description": "LLM model, framework, or vector DB change detected from analysis diff", "extraction_method": "heuristic"},
 ]
 
 # ---------------------------------------------------------------------------
