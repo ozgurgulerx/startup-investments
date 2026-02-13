@@ -7,6 +7,9 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(value: number, compact = false): string {
   if (compact) {
+    if (value >= 1_000_000_000_000) {
+      return `$${(value / 1_000_000_000_000).toFixed(1)}T`;
+    }
     if (value >= 1_000_000_000) {
       return `$${(value / 1_000_000_000).toFixed(1)}B`;
     }

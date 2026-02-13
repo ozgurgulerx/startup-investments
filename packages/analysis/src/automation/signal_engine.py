@@ -357,16 +357,20 @@ class SignalEngine:
 
             unique_companies: set = g["companies"]
 
-            # Collect funding amounts (handle both numeric and string formats)
-            funding_amounts: List[float] = []
+            # Collect funding amounts, deduplicated by company (max per startup)
+            # Multiple news articles about the same round would otherwise inflate totals
+            _funding_by_company: Dict[str, float] = {}
             for evt in events:
-                amt = evt["metadata"].get("funding_amount", "")
-                if isinstance(amt, (int, float)) and amt > 0:
-                    funding_amounts.append(float(amt))
-                elif isinstance(amt, str):
-                    parsed = self._parse_funding_amount(amt)
-                    if parsed:
-                        funding_amounts.append(parsed)
+                amt_raw = evt["metadata"].get("funding_amount", "")
+                amt_val: Optional[float] = None
+                if isinstance(amt_raw, (int, float)) and amt_raw > 0:
+                    amt_val = float(amt_raw)
+                elif isinstance(amt_raw, str):
+                    amt_val = self._parse_funding_amount(amt_raw)
+                if amt_val and amt_val > 0:
+                    sid = evt.get("startup_id") or "unknown"
+                    _funding_by_company[sid] = max(_funding_by_company.get(sid, 0), amt_val)
+            funding_amounts: List[float] = list(_funding_by_company.values())
 
             # Resolve company names for claim enrichment
             company_names = [
@@ -634,28 +638,30 @@ class SignalEngine:
             recent_count = recent_row["cnt"] if recent_row else 0
             prev_count = prev_row["cnt"] if prev_row else 0
 
-            # Funding amounts from evidence metadata
+            # Funding amounts from evidence metadata (deduplicated by company)
             funding_rows = await conn.fetch(
-                """SELECT se2.metadata_json
+                """SELECT se2.metadata_json, se2.startup_id::text AS startup_id
                    FROM startup_events se2
                    JOIN signal_evidence sev ON sev.event_id = se2.id
                    WHERE sev.signal_id = $1::uuid
                      AND se2.event_type = 'cap_funding_raised'""",
                 signal_id,
             )
-            funding_amounts = []
+            _funding_by_co: Dict[str, float] = {}
             has_enterprise = False
             has_hyperscaler = False
             for fr in funding_rows:
                 meta = json.loads(fr["metadata_json"]) if fr["metadata_json"] else {}
                 amt = self._parse_funding_amount(meta.get("funding_amount", ""))
                 if amt:
-                    funding_amounts.append(amt)
+                    sid = fr["startup_id"] or "unknown"
+                    _funding_by_co[sid] = max(_funding_by_co.get(sid, 0), amt)
                 snippet = meta.get("snippet", "").lower()
                 if "enterprise" in snippet:
                     has_enterprise = True
                 if any(h in snippet for h in ("aws", "gcp", "azure", "google cloud", "microsoft")):
                     has_hyperscaler = True
+            funding_amounts = list(_funding_by_co.values())
 
             # Company first-seen dates for velocity (by event effective_date)
             company_dates = await conn.fetch(
@@ -1219,7 +1225,8 @@ class SignalEngine:
             total = sum(funding_amounts) if funding_amounts else 0
             amount_str = SignalEngine._format_amount(total)
             stage = discriminator if discriminator and discriminator != "all" else "AI"
-            claim = f"{stage} funding: {amount_str} across {n_events} deals in {lookback_days} days"
+            deal_count = len(funding_amounts) if funding_amounts else n_companies
+            claim = f"{stage} funding: {amount_str} across {deal_count} deals in {lookback_days} days"
 
         elif event_type == "cap_acquisition_announced":
             claim = f"M&A activity: {n_events} acquisitions{names_part} in {lookback_days} days"
@@ -1302,7 +1309,9 @@ class SignalEngine:
     @staticmethod
     def _format_amount(amount: float) -> str:
         """Format amount as human-readable string."""
-        if amount >= 1e9:
+        if amount >= 1e12:
+            return f"${amount / 1e12:.1f}T"
+        elif amount >= 1e9:
             return f"${amount / 1e9:.1f}B"
         elif amount >= 1e6:
             return f"${amount / 1e6:.1f}M"
