@@ -6,8 +6,6 @@ set -euo pipefail
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"
 STATE_DIR="${CRAWL_FRONTIER_STATE_DIR:-/var/lib/buildatlas}"
-SEED_CURSOR_FILE="$STATE_DIR/crawl-frontier.seed.cursor"
-SEED_LAST_FILE="$STATE_DIR/crawl-frontier.seed.last"
 
 SEED_ENABLED_RAW="${CRAWL_FRONTIER_SEED_ENABLED:-true}"
 SEED_FORCE_RAW="${CRAWL_FRONTIER_FORCE_SEED:-false}"
@@ -19,7 +17,14 @@ SEED_TIMEOUT_MIN="${CRAWL_FRONTIER_SEED_TIMEOUT_MIN:-20}"
 WORKER_BATCH_SIZE="${CRAWLER_FRONTIER_BATCH_SIZE:-50}"
 WORKER_MAX_LOOPS="${CRAWL_FRONTIER_MAX_LOOPS:-1}"
 
-mkdir -p "$STATE_DIR"
+if ! mkdir -p "$STATE_DIR" 2>/dev/null; then
+    echo "WARN: Could not create state dir '$STATE_DIR' (permission denied). Falling back to /tmp/buildatlas."
+    STATE_DIR="/tmp/buildatlas"
+    mkdir -p "$STATE_DIR"
+fi
+
+SEED_CURSOR_FILE="$STATE_DIR/crawl-frontier.seed.cursor"
+SEED_LAST_FILE="$STATE_DIR/crawl-frontier.seed.last"
 
 is_true() {
     local value
