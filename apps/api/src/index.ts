@@ -2341,8 +2341,8 @@ app.get('/api/v1/signals/:id/deep-dive', async (req, res) => {
     }
 
     const result = await deepDivesService.getLatestDeepDive(signalId);
-    if (!result.deep_dive) {
-      return res.status(404).json({ error: 'No deep dive available for this signal' });
+    if (!result.signal) {
+      return res.status(404).json({ error: 'Signal not found' });
     }
 
     if (redis) {
