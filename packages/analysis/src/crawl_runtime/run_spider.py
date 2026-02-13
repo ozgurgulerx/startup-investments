@@ -283,111 +283,147 @@ class StartupSpider(scrapy.Spider):
         current_page_type = response.meta.get("seed_page_type") or classify_page_type(response.url)
         request_headers = headers_to_dict(getattr(response.request, "headers", {}))
         response_headers = headers_to_dict(response.headers)
+        try:
+            if response.status == 304:
+                self._record_doc(
+                    url=response.url,
+                    status=response.status,
+                    html="",
+                    clean_text="",
+                    clean_markdown="",
+                    fetch_method="browser" if rendered else "http",
+                    response_time_ms=int((time.monotonic() - start_ts) * 1000),
+                    page_type=current_page_type,
+                    etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
+                    last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
+                    blocked_detected=False,
+                    request_headers=request_headers,
+                    response_headers=response_headers,
+                    proxy_tier=proxy_tier,
+                )
+                return
 
-        if response.status == 304:
+            ctype = (response.headers.get("Content-Type") or b"").decode("utf-8", errors="ignore").lower()
+            if "application/pdf" in ctype or response.url.lower().endswith(".pdf"):
+                body_bytes = bytes(response.body)
+                text = extract_pdf_text(body_bytes) or ""
+                clipped = body_bytes[:MAX_RAW_BODY_BYTES]
+                self._record_doc(
+                    url=response.url,
+                    status=response.status,
+                    html="",
+                    clean_text=text,
+                    clean_markdown=text,
+                    fetch_method="browser" if rendered else "http",
+                    response_time_ms=int((time.monotonic() - start_ts) * 1000),
+                    page_type=current_page_type,
+                    content_type="pdf",
+                    etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
+                    last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
+                    blocked_detected=is_probably_blocked(int(response.status), ""),
+                    request_headers=request_headers,
+                    response_headers=response_headers,
+                    raw_body=base64.b64encode(clipped).decode("ascii"),
+                    raw_body_encoding="base64",
+                    proxy_tier=proxy_tier,
+                )
+                return
+
+            html = response.text or ""
+            js_shell_detected = detect_js_shell(html)
+            if not rendered and self.use_playwright and js_shell_detected:
+                # Escalate to browser rendering only when static fetch appears insufficient.
+                meta = self._build_meta(rendered=True, proxy_tier="residential")
+                meta["seed_page_type"] = current_page_type
+                meta["escalated_js_shell"] = True
+                yield scrapy.Request(
+                    url=response.url,
+                    callback=self.parse,
+                    meta=meta,
+                    errback=self.errback,
+                    dont_filter=True,
+                )
+                return
+
+            clean_text, clean_markdown = extract_main_content(html)
+            blocked_detected = is_probably_blocked(int(response.status), html)
+            clipped_html = html[:MAX_RAW_BODY_BYTES]
             self._record_doc(
                 url=response.url,
                 status=response.status,
+                html=html,
+                clean_text=clean_text,
+                clean_markdown=clean_markdown,
+                fetch_method="browser" if rendered else "http",
+                response_time_ms=int((time.monotonic() - start_ts) * 1000),
+                page_type=current_page_type,
+                etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
+                last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
+                blocked_detected=blocked_detected,
+                js_shell_detected=js_shell_detected,
+                request_headers=request_headers,
+                response_headers=response_headers,
+                raw_body=clipped_html,
+                raw_body_encoding="utf-8",
+                proxy_tier=proxy_tier,
+            )
+
+            if len(self.seen) >= self.max_pages:
+                return
+
+            for href in response.css("a::attr(href)").getall():
+                if len(self.seen) >= self.max_pages:
+                    break
+
+                abs_url = response.urljoin(href)
+                canonical = canonicalize_url(abs_url)
+                if not canonical:
+                    continue
+                if canonical in self.seen:
+                    continue
+                if self.allowed_domain and not is_same_site(canonical, f"https://{self.allowed_domain}"):
+                    continue
+
+                self.seen.add(canonical)
+                meta = self._build_meta(rendered=self.force_render, proxy_tier=self.default_proxy_tier)
+                meta["seed_page_type"] = classify_page_type(canonical)
+                yield scrapy.Request(url=abs_url, callback=self.parse, meta=meta, errback=self.errback)
+        except Exception as exc:  # pragma: no cover - defensive extraction
+            http_status = int(getattr(response, "status", 0) or 0)
+            err = f"ParseError (http_status={http_status}): {exc.__class__.__name__}: {exc}".strip()
+            if len(err) > 1000:
+                err = err[:997] + "..."
+
+            # `response.text` can itself raise (encoding issues). Use bytes with ignore.
+            raw_body = ""
+            try:
+                body = bytes(getattr(response, "body", b"") or b"")
+                raw_body = body[:MAX_RAW_BODY_BYTES].decode("utf-8", errors="ignore")
+            except Exception:
+                raw_body = ""
+
+            self._record_doc(
+                url=str(getattr(response, "url", "") or ""),
+                status=599,
                 html="",
                 clean_text="",
                 clean_markdown="",
                 fetch_method="browser" if rendered else "http",
                 response_time_ms=int((time.monotonic() - start_ts) * 1000),
                 page_type=current_page_type,
+                content_type="html",
                 etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
                 last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
-                blocked_detected=False,
+                blocked_detected=is_probably_blocked(http_status, raw_body),
+                js_shell_detected=False,
+                error_message=err,
                 request_headers=request_headers,
                 response_headers=response_headers,
+                raw_body=raw_body,
+                raw_body_encoding="utf-8",
                 proxy_tier=proxy_tier,
             )
             return
-
-        ctype = (response.headers.get("Content-Type") or b"").decode("utf-8", errors="ignore").lower()
-        if "application/pdf" in ctype or response.url.lower().endswith(".pdf"):
-            body_bytes = bytes(response.body)
-            text = extract_pdf_text(body_bytes) or ""
-            clipped = body_bytes[:MAX_RAW_BODY_BYTES]
-            self._record_doc(
-                url=response.url,
-                status=response.status,
-                html="",
-                clean_text=text,
-                clean_markdown=text,
-                fetch_method="browser" if rendered else "http",
-                response_time_ms=int((time.monotonic() - start_ts) * 1000),
-                page_type=current_page_type,
-                content_type="pdf",
-                etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
-                last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
-                blocked_detected=is_probably_blocked(int(response.status), ""),
-                request_headers=request_headers,
-                response_headers=response_headers,
-                raw_body=base64.b64encode(clipped).decode("ascii"),
-                raw_body_encoding="base64",
-                proxy_tier=proxy_tier,
-            )
-            return
-
-        html = response.text or ""
-        js_shell_detected = detect_js_shell(html)
-        if not rendered and self.use_playwright and js_shell_detected:
-            # Escalate to browser rendering only when static fetch appears insufficient.
-            meta = self._build_meta(rendered=True, proxy_tier="residential")
-            meta["seed_page_type"] = current_page_type
-            meta["escalated_js_shell"] = True
-            yield scrapy.Request(
-                url=response.url,
-                callback=self.parse,
-                meta=meta,
-                errback=self.errback,
-                dont_filter=True,
-            )
-            return
-
-        clean_text, clean_markdown = extract_main_content(html)
-        blocked_detected = is_probably_blocked(int(response.status), html)
-        clipped_html = html[:MAX_RAW_BODY_BYTES]
-        self._record_doc(
-            url=response.url,
-            status=response.status,
-            html=html,
-            clean_text=clean_text,
-            clean_markdown=clean_markdown,
-            fetch_method="browser" if rendered else "http",
-            response_time_ms=int((time.monotonic() - start_ts) * 1000),
-            page_type=current_page_type,
-            etag=response.headers.get("ETag", b"").decode("utf-8", errors="ignore") or None,
-            last_modified=response.headers.get("Last-Modified", b"").decode("utf-8", errors="ignore") or None,
-            blocked_detected=blocked_detected,
-            js_shell_detected=js_shell_detected,
-            request_headers=request_headers,
-            response_headers=response_headers,
-            raw_body=clipped_html,
-            raw_body_encoding="utf-8",
-            proxy_tier=proxy_tier,
-        )
-
-        if len(self.seen) >= self.max_pages:
-            return
-
-        for href in response.css("a::attr(href)").getall():
-            if len(self.seen) >= self.max_pages:
-                break
-
-            abs_url = response.urljoin(href)
-            canonical = canonicalize_url(abs_url)
-            if not canonical:
-                continue
-            if canonical in self.seen:
-                continue
-            if self.allowed_domain and not is_same_site(canonical, f"https://{self.allowed_domain}"):
-                continue
-
-            self.seen.add(canonical)
-            meta = self._build_meta(rendered=self.force_render, proxy_tier=self.default_proxy_tier)
-            meta["seed_page_type"] = classify_page_type(canonical)
-            yield scrapy.Request(url=abs_url, callback=self.parse, meta=meta, errback=self.errback)
 
     def closed(self, reason: str):  # pragma: no cover - scrapy callback
         out = Path(self.output_path)
