@@ -74,8 +74,8 @@ MAILTO=""
 # Pipeline quality SLO report (latency, refresh, linking, embedding coverage)
 0 9 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh daily-observability 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/daily-observability.sh
 
-# === Slack Daily Summary (daily 14:00 UTC) ===
-0 14 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh slack-summary 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/slack-summary.sh
+# === Slack + Metrics Email Summary (every 3 hours) ===
+0 */3 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh slack-summary 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/slack-summary.sh
 
 # === Slack Commit Notify (every 2 min) ===
 */2 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh slack-commit-notify 5 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/slack-commit-notify.sh

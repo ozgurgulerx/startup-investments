@@ -17,6 +17,12 @@ from src.config import llm_kwargs
 
 from .db import DatabaseConnection
 
+try:
+    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+except Exception:  # pragma: no cover - optional in local/dev installs
+    DefaultAzureCredential = None
+    get_bearer_token_provider = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,12 +65,33 @@ class DeepResearchConsumer:
         self.max_monthly_usd = self._env_float("DEEP_RESEARCH_MAX_MONTHLY_USD", 300.0)
         self.max_items_per_run = max(1, self._env_int("DEEP_RESEARCH_MAX_ITEMS_PER_RUN", 8))
 
-        # Initialize OpenAI client
-        self.client = AsyncAzureOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version="2024-02-15-preview",
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
-        )
+        # Initialize Azure OpenAI client:
+        # prefer AAD/managed identity, fall back to API key if provided.
+        self.azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        self.azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        self.azure_openai_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+        self.client = None
+        if AsyncAzureOpenAI is not None and self.azure_openai_endpoint:
+            if DefaultAzureCredential is not None and get_bearer_token_provider is not None:
+                try:
+                    credential = DefaultAzureCredential()
+                    token_provider = get_bearer_token_provider(
+                        credential, "https://cognitiveservices.azure.com/.default"
+                    )
+                    self.client = AsyncAzureOpenAI(
+                        azure_ad_token_provider=token_provider,
+                        api_version=self.azure_openai_api_version,
+                        azure_endpoint=self.azure_openai_endpoint,
+                    )
+                    logger.info("Deep research Azure client configured via AAD")
+                except Exception as exc:
+                    logger.warning("Deep research AAD init failed, trying API key fallback: %s", exc)
+            if self.client is None and self.azure_openai_api_key:
+                self.client = AsyncAzureOpenAI(
+                    api_key=self.azure_openai_api_key,
+                    api_version=self.azure_openai_api_version,
+                    azure_endpoint=self.azure_openai_endpoint,
+                )
         # Azure uses deployment names; prefer *_DEPLOYMENT_NAME but keep legacy var.
         self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5-nano")
 
@@ -114,6 +141,12 @@ class DeepResearchConsumer:
         results = []
         if not self.enabled:
             logger.info("Deep research consumer disabled (DEEP_RESEARCH_ENABLED=false)")
+            return results
+        if self.client is None:
+            logger.warning(
+                "Deep research consumer enabled but Azure client is unavailable "
+                "(set AZURE_OPENAI_ENDPOINT and either AAD identity or AZURE_OPENAI_API_KEY)"
+            )
             return results
 
         try:
