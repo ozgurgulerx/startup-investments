@@ -143,6 +143,11 @@ function isMissingNewsSchemaError(error: unknown): boolean {
   return code === '42P01' || code === '42703';
 }
 
+function safeJsonParse<T>(value: unknown): T | undefined {
+  if (typeof value !== 'string') return value as T | undefined;
+  try { return JSON.parse(value) as T; } catch { return undefined; }
+}
+
 export function rowToCard(row: Record<string, unknown>): NewsItemCard & { _linked_entities_json?: unknown } {
   const builderTakeawayIsLlm = Boolean(row.llm_model);
   const storyType = String(row.story_type || 'news');
@@ -170,7 +175,7 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard & { _linke
     builder_takeaway_is_llm: builderTakeawayIsLlm,
     impact: (() => {
       if (!builderTakeawayIsLlm || !row.impact) return undefined;
-      const raw = typeof row.impact === 'string' ? JSON.parse(row.impact) : row.impact;
+      const raw = safeJsonParse<Record<string, unknown>>(row.impact) ?? (typeof row.impact === 'object' ? row.impact : undefined);
       if (!raw?.frame || !raw?.kicker) return undefined;
       return {
         frame: String(raw.frame),
@@ -198,11 +203,11 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard & { _linke
       : undefined,
     delta_type: deriveDeltaType(storyType, topicTags),
     ba_title: row.ba_title ? String(row.ba_title) : undefined,
-    ba_bullets: Array.isArray(row.ba_bullets) ? row.ba_bullets as string[] : (typeof row.ba_bullets === 'string' ? JSON.parse(row.ba_bullets) : undefined),
+    ba_bullets: Array.isArray(row.ba_bullets) ? row.ba_bullets as string[] : (typeof row.ba_bullets === 'string' ? safeJsonParse<string[]>(row.ba_bullets) : undefined),
     why_it_matters: row.why_it_matters ? String(row.why_it_matters) : undefined,
     evidence: (() => {
       if (!row.evidence_json) return undefined;
-      const raw = typeof row.evidence_json === 'string' ? JSON.parse(row.evidence_json) : row.evidence_json;
+      const raw = safeJsonParse<unknown[]>(row.evidence_json) ?? (typeof row.evidence_json === 'object' ? row.evidence_json : undefined);
       return Array.isArray(raw) ? raw as EvidenceItem[] : undefined;
     })(),
     // Carry through raw linked_entities_json for enrichEntityLinks() post-processing
@@ -1149,7 +1154,7 @@ export function makeNewsService(pool: Pool) {
       idx++;
     }
     if (params.date_to) {
-      conditions.push(`c.published_at <= $${idx}::date`);
+      conditions.push(`c.published_at < ($${idx}::date + interval '1 day')`);
       queryParams.push(params.date_to);
       idx++;
     }
@@ -1233,7 +1238,7 @@ export function makeNewsService(pool: Pool) {
         if (filters.story_type) { legacyConditions.push(`c.story_type = $${li}`); legacyParams.push(filters.story_type); li++; }
         if (filters.topic) { legacyConditions.push(`$${li} = ANY(c.topic_tags)`); legacyParams.push(filters.topic); li++; }
         if (filters.date_from) { legacyConditions.push(`c.published_at >= $${li}::date`); legacyParams.push(filters.date_from); li++; }
-        if (filters.date_to) { legacyConditions.push(`c.published_at <= $${li}::date`); legacyParams.push(filters.date_to); li++; }
+        if (filters.date_to) { legacyConditions.push(`c.published_at < ($${li}::date + interval '1 day')`); legacyParams.push(filters.date_to); li++; }
         if (region !== 'global') {
           legacyConditions.push(`EXISTS (SELECT 1 FROM news_topic_index nti WHERE nti.cluster_id = c.id AND nti.region = $${li})`);
           legacyParams.push(region);

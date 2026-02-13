@@ -90,6 +90,8 @@ export function FilteredDealsDrawer({
         comparison = (a.funding_amount || 0) - (b.funding_amount || 0);
       } else if (sortBy === 'name') {
         comparison = (a.company_name || '').localeCompare(b.company_name || '');
+      } else if (sortBy === 'date') {
+        comparison = (a.analyzed_at || '').localeCompare(b.analyzed_at || '');
       }
       return sortOrder === 'desc' ? -comparison : comparison;
     });

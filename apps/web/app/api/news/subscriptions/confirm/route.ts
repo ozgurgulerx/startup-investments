@@ -3,15 +3,12 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-function baseUrlFromRequest(req: NextRequest): string {
+function baseUrlFromRequest(_req: NextRequest): string {
   const configured = (process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
   if (configured.startsWith('https://') || configured.startsWith('http://')) {
     return configured;
   }
-  const host = req.headers.get('host');
-  const protocol = req.headers.get('x-forwarded-proto') || 'https';
-  if (!host) return 'https://buildatlas.net';
-  return `${protocol}://${host}`;
+  return 'https://buildatlas.net';
 }
 
 const CONFIRMATION_TTL_DAYS = 7;
