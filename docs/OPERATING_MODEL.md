@@ -19,14 +19,16 @@ If this file conflicts with an older doc, use this file plus the linked source s
 Use this priority order when debugging drift:
 
 1. Runtime code and scripts:
-   - `infrastructure/vm-cron/**`
-   - `apps/api/**`
-   - `apps/web/**`
+  - `infrastructure/vm-cron/**`
+  - `infrastructure/kubernetes/pipelines-*.yaml`
+  - `apps/api/**`
+  - `apps/web/**`
 2. Schedules/workflow definitions:
-   - `infrastructure/vm-cron/crontab`
-   - `.github/workflows/*.yml`
+  - `infrastructure/vm-cron/crontab`
+  - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
+  - `.github/workflows/*.yml`
 3. Operational memory and invariants:
-   - `AGENTS.md`
+  - `AGENTS.md`
 4. Human-friendly summaries:
    - `docs/README.md`
    - `docs/claude/*.md`
@@ -42,7 +44,8 @@ Use this priority order when debugging drift:
 | API backend | AKS (`startup-investments-api`) | Front Door-routed | Core API, admin routes, data access |
 | Primary data store | Azure Postgres Flexible Server | Private | Application and pipeline state |
 | Cache (optional) | Azure Redis | Internal | API response caching |
-| Automation control plane | Azure VM cron (`vm-buildatlas-cron`) | Internal | Primary scheduled jobs and deploy automation |
+| Pipeline automation | AKS CronJobs (`buildatlas-pipelines`) | Internal | Primary scheduled jobs (news/events/digests/briefs/benchmarks) |
+| Deploy + VM-only automation | Azure VM cron (`vm-buildatlas-cron`) | Internal | Deploy orchestration, keep-alive, blob sync, crawl-frontier, Slack summaries |
 | Image build/registry | Azure Container Registry | Internal | Remote image builds for web/api |
 | Dataset ingress | Azure Blob Storage | Internal | Source of `apps/web/data/**` sync jobs |
 
@@ -82,7 +85,20 @@ Do not break these:
 
 ## 5) Control Planes and Deploy Surfaces
 
-### Primary control plane: VM cron
+### Primary pipeline control plane: AKS CronJobs
+
+Pipelines are deployed into AKS as CronJobs to avoid VM availability issues:
+
+- Manifests:
+  - `infrastructure/kubernetes/pipelines-configmap.yaml`
+  - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
+- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:latest` (`infrastructure/pipelines/Dockerfile`)
+- Secrets/config:
+  - `Secret/buildatlas-pipelines-secrets` (keys are ENV var names so pods use `envFrom`)
+  - `ConfigMap/buildatlas-pipelines-config` (non-secret runtime toggles)
+- Deploy workflow: `.github/workflows/ops-pipelines-deploy.yml`
+
+### Deploy/orchestration control plane: VM cron
 
 `infrastructure/vm-cron/deploy.sh` (`code-update` job) is the default release orchestrator.
 
@@ -122,6 +138,7 @@ Do not break these:
 | VM cron jobs | `/etc/buildatlas/.env` | Loaded by `runner.sh` |
 | API pods | Kubernetes secret `startup-investments-secrets` | Refreshed in `backend-deploy.sh` |
 | AKS ops CronJobs | Kubernetes secret `buildatlas-ops-secrets` | Ops-only scheduled tasks (keep isolated from API secrets) |
+| AKS pipelines CronJobs | Kubernetes secret `buildatlas-pipelines-secrets` + configmap `buildatlas-pipelines-config` | Pipeline runtime env + toggles |
 | App Service web | App settings | Set/updated in `frontend-deploy.sh` |
 | GitHub workflows | Repository secrets/variables | Backup and selected active automations |
 
@@ -172,7 +189,25 @@ Some ops tasks run as AKS CronJobs to avoid VM availability issues.
   - One-off run:
     - `kubectl create job -n default --from=cronjob/posthog-usage-summary posthog-usage-summary-manual-<id>`
 
+## 7.2) AKS Pipelines CronJobs
+
+Pipeline jobs that do not depend on VM state (no Azure CLI, no git working tree, no local cursors)
+run in AKS as CronJobs.
+
+- Manifests:
+  - `infrastructure/kubernetes/pipelines-configmap.yaml`
+  - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
+- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:latest` (VM layout under `/opt/buildatlas/...` to reuse scripts)
+- Runner semantics: uses `infrastructure/vm-cron/lib/runner.sh` for locks/timeouts + Slack lifecycle notifications.
+- VM duplicate-run prevention:
+  - Set `BUILDATLAS_VM_CRON_DISABLED_JOBS=<comma-separated job names>` in `/etc/buildatlas/.env`
+  - `runner.sh` exits early with `SKIP:` for disabled jobs.
+
 ## 8) Cron Schedule Inventory (UTC)
+
+Note: the same job names appear in both the VM crontab and AKS CronJobs manifests.
+After AKS cutover, the VM schedule should be treated as fallback-only and disabled via
+`BUILDATLAS_VM_CRON_DISABLED_JOBS` to prevent duplicate runs.
 
 ### Scheduled jobs
 

@@ -1,0 +1,1126 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: news-ingest
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: news-ingest
+spec:
+  schedule: "15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1920
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: news-ingest
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - news-ingest
+                - "30"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-ingest.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: news-digest
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: news-digest
+spec:
+  schedule: "45 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1020
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: news-digest
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - news-digest
+                - "15"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-digest.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: event-processor
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: event-processor
+spec:
+  schedule: "5,20,35,50 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: event-processor
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - event-processor
+                - "10"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/event-processor.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: deep-research
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: deep-research
+spec:
+  schedule: "12,27,42,57 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1320
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: deep-research
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - deep-research
+                - "20"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-research.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: onboarding-alerts
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: onboarding-alerts
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 420
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: onboarding-alerts
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - onboarding-alerts
+                - "5"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/onboarding-alerts.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "512Mi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: research-topics
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: research-topics
+spec:
+  schedule: "40 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: research-topics
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - research-topics
+                - "10"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/research-topics.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: x-trends
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: x-trends
+spec:
+  schedule: "28 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1320
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: x-trends
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - x-trends
+                - "20"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-trends.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: x-post-generate
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: x-post-generate
+spec:
+  schedule: "35 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: x-post-generate
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - x-post-generate
+                - "10"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-post-generate.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: x-post-publish
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: x-post-publish
+spec:
+  schedule: "55 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: x-post-publish
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - x-post-publish
+                - "10"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-post-publish.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: x-post-metrics
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: x-post-metrics
+spec:
+  schedule: "20 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: x-post-metrics
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - x-post-metrics
+                - "10"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-post-metrics.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: weekly-brief
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: weekly-brief
+spec:
+  schedule: "0 6 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1320
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: weekly-brief
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - weekly-brief
+                - "20"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/weekly-brief.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: monthly-brief
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: monthly-brief
+spec:
+  schedule: "0 6 1 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1320
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: monthly-brief
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - monthly-brief
+                - "20"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/monthly-brief.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: embed-backfill
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: embed-backfill
+spec:
+  schedule: "25 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1020
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: embed-backfill
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - embed-backfill
+                - "15"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/embed-backfill.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: signal-aggregate
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: signal-aggregate
+spec:
+  schedule: "30 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: signal-aggregate
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - signal-aggregate
+                - "10"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/signal-aggregate.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: delta-generate
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: delta-generate
+spec:
+  schedule: "38 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1020
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: delta-generate
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - delta-generate
+                - "15"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/delta-generate.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: generate-alerts
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: generate-alerts
+spec:
+  schedule: "48 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1020
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: generate-alerts
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - generate-alerts
+                - "15"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/generate-alerts.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: generate-weekly-digest
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: generate-weekly-digest
+spec:
+  schedule: "35 6 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1020
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: generate-weekly-digest
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - generate-weekly-digest
+                - "15"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/generate-weekly-digest.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: deep-dive-generate
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: deep-dive-generate
+spec:
+  schedule: "15 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 2820
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: deep-dive-generate
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - deep-dive-generate
+                - "45"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-dive-generate.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "2Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dealbook-brief
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: dealbook-brief
+spec:
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1020
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: dealbook-brief
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - dealbook-brief
+                - "15"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/dealbook-brief.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: neighbors-benchmarks
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: neighbors-benchmarks
+spec:
+  schedule: "0 7 * * 4"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 3720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: neighbors-benchmarks
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - neighbors-benchmarks
+                - "60"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/neighbors-benchmarks.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: "2Gi"
+                limits:
+                  cpu: "4"
+                  memory: "8Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: compute-benchmarks
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: compute-benchmarks
+spec:
+  schedule: "0 4 2 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1920
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: compute-benchmarks
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - compute-benchmarks
+                - "30"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/compute-benchmarks.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: compute-investor-dna
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: compute-investor-dna
+spec:
+  schedule: "0 5 2 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1920
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: compute-investor-dna
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - compute-investor-dna
+                - "30"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/compute-investor-dna.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: digest-qa
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: digest-qa
+spec:
+  schedule: "50 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: digest-qa
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
+              imagePullPolicy: Always
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - digest-qa
+                - "10"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/digest-qa.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "1Gi"
+

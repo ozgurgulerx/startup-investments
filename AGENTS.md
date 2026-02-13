@@ -81,8 +81,8 @@ Important headers/invariants:
     - `signal_polls`, `signal_poll_votes`
     - `shared_watchlists`, `shared_watchlist_members`, `shared_watchlist_items`
     - `user_notification_preferences`
-  - VM migration runner must include `062_community_features.sql` in both `news` and `startups` sets
-    (`infrastructure/vm-cron/jobs/apply-migrations.sh`) so community features are available regardless
+  - Migration runner must include `062_community_features.sql` in both `news` and `startups` sets
+    (`scripts/apply_migrations.py`, invoked by `infrastructure/vm-cron/jobs/apply-migrations.sh`) so community features are available regardless
     of which periodic pipeline applies migrations first.
   - Community UI surface is the Signal Deep Dive `Community` tab:
     - `apps/web/app/(app)/signals/[id]/community-tab.tsx`
@@ -103,7 +103,19 @@ Important headers/invariants:
 
 ## CI/CD Workflows (Source of Truth)
 
-Primary automation is now **VM cron** (cost control) and GitHub Actions workflows are kept as **manual backups**.
+Primary scheduled automation is now split:
+- **AKS CronJobs** for pipeline jobs (news/events/digests/briefs/benchmarks) to avoid VM availability issues.
+- **VM cron** for deploy orchestration + VM-only tasks (keep-alive, blob sync, crawl-frontier, release reconciliation, Slack summary, etc).
+GitHub Actions workflows remain **manual/backup** (except dispatch receivers / watchdogs).
+
+AKS pipelines CronJobs:
+- Manifests:
+  - `infrastructure/kubernetes/pipelines-configmap.yaml`
+  - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
+- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:latest` (from `infrastructure/pipelines/Dockerfile`)
+- Secret: `Secret/buildatlas-pipelines-secrets` (keys are ENV var names so pods can use `envFrom`)
+- Deploy workflow: `.github/workflows/ops-pipelines-deploy.yml`
+- VM cutover guardrail: set `BUILDATLAS_VM_CRON_DISABLED_JOBS` in `/etc/buildatlas/.env` (enforced by `infrastructure/vm-cron/lib/runner.sh`)
 
 VM cron runner:
 - Config: `infrastructure/vm-cron/crontab`
@@ -161,7 +173,9 @@ VM cron runner:
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
 - VM repo safety: run git operations as `buildatlas` (avoid `sudo git ...`). If `deploy.sh` fails to stash/pull with `Cannot save the current status`, it is often due to root-owned `.git/refs/stash` or other `.git/**` paths; fix with `sudo chown -R buildatlas:buildatlas /opt/buildatlas/startup-analysis/.git`. Consider `git config core.filemode false` on the VM to avoid local `chmod +x` making the repo perpetually dirty.
-- DB migration safety: `apply-migrations.sh` serializes DDL via a lock file (defaults to `$REPO_DIR/.tmp/db-migrations.lock`, configurable via `BUILDATLAS_MIGRATIONS_LOCK_FILE` + `BUILDATLAS_MIGRATIONS_LOCK_WAIT_SECONDS`) and retries transient DDL deadlocks/lock timeouts to avoid spurious cron failures.
+- DB migration safety:
+  - `infrastructure/vm-cron/jobs/apply-migrations.sh` provides a VM-local `flock` lock (defaults to `$REPO_DIR/.tmp/db-migrations.lock`, configurable via `BUILDATLAS_MIGRATIONS_LOCK_FILE` + `BUILDATLAS_MIGRATIONS_LOCK_WAIT_SECONDS`).
+  - `scripts/apply_migrations.py` is the single source of truth for migration sets and enforces a Postgres advisory lock + transient DDL retry (works across VM + AKS CronJobs).
 - VM access (for manual deploy/debug):
   - Preferred: `./infrastructure/vm-cron/ssh-update-ip.sh`
     - Auto-discovers the VM’s NIC/subnet NSGs and creates/updates an `AllowSSH` rule to your current public IP, then SSHs into the VM.
@@ -259,7 +273,7 @@ News:
   - Migration: `database/migrations/050_signal_deep_dives.sql`
   - VM job: `infrastructure/vm-cron/jobs/deep-dive-generate.sh` (runs daily at `05:15 UTC` via cron).
   - Deployment invariant:
-    - `050_signal_deep_dives.sql` must be included in VM migration sets used by news pipelines (`news`, `news-digest`) in `infrastructure/vm-cron/jobs/apply-migrations.sh`.
+    - `050_signal_deep_dives.sql` must be included in migration sets used by news pipelines (`news`, `news-digest`) in `scripts/apply_migrations.py`.
     - `deep-dive-generate.sh` runs migration preflight (`apply-migrations.sh news`) before computing occurrences/generating deep dives.
   - Runtime degradation behavior:
     - If deep-dive tables are unavailable, backend deep-dive endpoints should return empty payloads (not crash) so `/signals/[id]` can show "No deep dive available yet" instead of failing hard.
@@ -285,7 +299,7 @@ News:
   - Runtime: `packages/analysis/src/automation/memory_gate.py` (zero-LLM; regex + DB lookups)
   - Ingest integration: `packages/analysis/src/automation/news_ingest.py` runs the memory gate after clustering and persists results after cluster IDs are created.
   - Deployment invariant:
-    - VM cron `news-ingest` runs `apply-migrations.sh news`; ensure `023_memory_system.sql` is included in the `news` migration set (see `infrastructure/vm-cron/jobs/apply-migrations.sh`).
+    - VM cron `news-ingest` runs `apply-migrations.sh news`; ensure `023_memory_system.sql` is included in the `news` migration set (see `scripts/apply_migrations.py`).
     - If the migration is not applied, the pipeline will log `[memory_gate] Load failed (tables may not exist yet)` and skip memory persistence (graceful degradation).
   - One-time rollout (prod VM):
     - Apply migrations (after code update): `infrastructure/vm-cron/jobs/apply-migrations.sh news`

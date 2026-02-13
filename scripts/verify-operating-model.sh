@@ -73,3 +73,8 @@ if [ -n "$MISSING_FROM_DOC" ] || [ -n "$EXTRA_IN_DOC" ]; then
 fi
 
 echo "OK: docs/OPERATING_MODEL.md cron inventory matches infrastructure/vm-cron/crontab"
+
+# Optional: ensure AKS pipelines CronJobs stay aligned with the VM schedule/timeout.
+if [ -f "$ROOT_DIR/infrastructure/kubernetes/pipelines-cronjobs.yaml" ]; then
+  python3 "$ROOT_DIR/scripts/verify_pipelines_cronjobs.py"
+fi

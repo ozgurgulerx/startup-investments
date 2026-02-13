@@ -16,11 +16,11 @@ TIMEOUT_MIN="${2:?}"
 SCRIPT_PATH="${3:?}"
 shift 3
 
-LOG_DIR="/var/log/buildatlas"
+LOG_DIR="${BUILDATLAS_LOG_DIR:-/var/log/buildatlas}"
 LOG_FILE="$LOG_DIR/$JOB_NAME.log"
 LOCK_FILE="/tmp/buildatlas-$JOB_NAME.lock"
-REPO_DIR="/opt/buildatlas/startup-analysis"
-VENV_DIR="/opt/buildatlas/venv"
+REPO_DIR="${REPO_DIR:-/opt/buildatlas/startup-analysis}"
+VENV_DIR="${VENV_DIR:-/opt/buildatlas/venv}"
 ENV_FILE_PRIMARY="/etc/buildatlas/.env"
 ENV_FILE_FALLBACK="$REPO_DIR/.env"
 DEFAULT_SLACK_SUCCESS_JOBS="news-ingest,news-digest,frontend-deploy,backend-deploy,functions-deploy,code-update,sync-data,crawl-frontier"
@@ -75,6 +75,12 @@ list_contains_job() {
         *,"$JOB_NAME",*) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+is_disabled() {
+    # Allow disabling jobs without editing the installed crontab.
+    # Useful for AKS cutovers where the VM may still run the cron schedule.
+    list_contains_job "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"
 }
 
 should_notify_success() {
@@ -197,8 +203,14 @@ if [ -z "${GITHUB_REPOSITORY:-}" ]; then
     export GITHUB_REPOSITORY
 fi
 
+# If the job is disabled, log a skip and exit cleanly.
+if is_disabled; then
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] SKIP: $JOB_NAME disabled via BUILDATLAS_DISABLED_JOBS/BUILDATLAS_VM_CRON_DISABLED_JOBS" >> "$LOG_FILE"
+    exit 0
+fi
+
 # Export VM-specific context (used by slack_notify.py and slack_daily_summary.py)
-export BUILDATLAS_RUNNER="vm-cron"
+export BUILDATLAS_RUNNER="${BUILDATLAS_RUNNER:-vm-cron}"
 export BUILDATLAS_JOB="$JOB_NAME"
 export BUILDATLAS_LOG="$LOG_FILE"
 export PATH="$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
@@ -239,9 +251,13 @@ fi
 # Track duration (used in Slack notifications)
 START_TS="$(date +%s)"
 
-# Run the job with timeout
+# Run the job with timeout.
+#
+# Important: we strip NUL bytes from stdout/stderr before appending to the log.
+# Some upstream tooling can emit occasional NULs which makes grep treat logs as
+# binary ("binary file matches") and breaks freshness monitors (heartbeat).
 cd "$REPO_DIR"
-timeout "${TIMEOUT_MIN}m" bash "$SCRIPT_PATH" "$@" >> "$LOG_FILE" 2>&1
+timeout "${TIMEOUT_MIN}m" bash "$SCRIPT_PATH" "$@" 2>&1 | tr -d '\000' | tee -a "$LOG_FILE"
 EXIT_CODE=$?
 DURATION_SEC="$(( $(date +%s) - START_TS ))"
 ENDED_AT_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"

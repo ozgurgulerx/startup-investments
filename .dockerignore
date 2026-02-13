@@ -24,6 +24,14 @@
 # Analysis package (for analysis Dockerfile)
 !packages/analysis/
 
+# Ops + pipeline automation (AKS CronJobs, shared migration runner, Slack notify, etc.)
+!scripts/
+!database/migrations/
+!infrastructure/ops/
+!infrastructure/pipelines/
+!infrastructure/vm-cron/
+!infrastructure/kubernetes/
+
 # Re-exclude build artifacts and large/sensitive files
 apps/web/.next/
 apps/web/node_modules/

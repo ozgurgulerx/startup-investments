@@ -1,0 +1,184 @@
+name: Deploy Pipelines CronJobs (AKS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      disable_vm_cron:
+        description: "After deploying CronJobs, disable the same jobs on the VM via az vm run-command (prevents duplicate runs)."
+        required: false
+        default: "false"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_NAME: aistartuptr
+  AKS_CLUSTER_NAME: aks-aistartuptr
+  AKS_RESOURCE_GROUP: aistartuptr
+  IMAGE_NAME: buildatlas-pipelines
+  NAMESPACE: default
+  VM_NAME: vm-buildatlas-cron
+  VM_RESOURCE_GROUP: aistartuptr
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          API_URL: ${{ secrets.API_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+        run: |
+          for key in DATABASE_URL SLACK_WEBHOOK_URL RESEND_API_KEY API_URL ADMIN_KEY AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing required secret: $key"
+              exit 1
+            fi
+          done
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push pipelines image
+        run: |
+          docker build -f infrastructure/pipelines/Dockerfile -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker tag ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure AKS is running
+        shell: bash
+        run: |
+          state="$(az aks show -g "${{ env.AKS_RESOURCE_GROUP }}" -n "${{ env.AKS_CLUSTER_NAME }}" --query "powerState.code" -o tsv 2>/dev/null || echo "UNKNOWN")"
+          echo "AKS power state: $state"
+
+          if [ "$state" = "Stopped" ]; then
+            echo "AKS is stopped, starting..."
+            az aks start -g "${{ env.AKS_RESOURCE_GROUP }}" -n "${{ env.AKS_CLUSTER_NAME }}"
+          fi
+
+          for i in {1..60}; do
+            state="$(az aks show -g "${{ env.AKS_RESOURCE_GROUP }}" -n "${{ env.AKS_CLUSTER_NAME }}" --query "powerState.code" -o tsv 2>/dev/null || echo "UNKNOWN")"
+            if [ "$state" = "Running" ]; then
+              echo "AKS is Running."
+              exit 0
+            fi
+            echo "Waiting for AKS to be Running (attempt=$i, state=$state)..."
+            sleep 10
+          done
+
+          echo "::error::AKS did not reach Running state (state=$state)"
+          exit 1
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      - name: Apply pipelines config
+        run: |
+          kubectl apply -n "${{ env.NAMESPACE }}" -f infrastructure/kubernetes/pipelines-configmap.yaml
+
+      - name: Create/Update pipelines secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          API_URL: ${{ secrets.API_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NEWS_DIGEST_FROM_EMAIL: ${{ secrets.NEWS_DIGEST_FROM_EMAIL }}
+          NEWS_DIGEST_REPLY_TO: ${{ secrets.NEWS_DIGEST_REPLY_TO }}
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+        run: |
+          args=(
+            "--from-literal=DATABASE_URL=${DATABASE_URL}"
+            "--from-literal=SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}"
+            "--from-literal=API_URL=${API_URL}"
+            "--from-literal=API_KEY=${API_KEY}"
+            "--from-literal=ADMIN_KEY=${ADMIN_KEY}"
+            "--from-literal=RESEND_API_KEY=${RESEND_API_KEY}"
+            "--from-literal=NEWS_DIGEST_FROM_EMAIL=${NEWS_DIGEST_FROM_EMAIL}"
+            "--from-literal=NEWS_DIGEST_REPLY_TO=${NEWS_DIGEST_REPLY_TO}"
+            "--from-literal=PUBLIC_BASE_URL=${PUBLIC_BASE_URL}"
+            "--from-literal=AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}"
+            "--from-literal=AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}"
+            "--from-literal=AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT}"
+            "--from-literal=AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small"
+            "--from-literal=OPENAI_API_KEY=${OPENAI_API_KEY}"
+            "--from-literal=AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}"
+            # Optional X/Twitter creds (empty by default)
+            "--from-literal=X_API_BEARER_TOKEN="
+            "--from-literal=X_API_KEY="
+            "--from-literal=X_API_SECRET="
+            "--from-literal=X_ACCESS_TOKEN="
+            "--from-literal=X_ACCESS_TOKEN_SECRET="
+          )
+
+          kubectl create secret generic buildatlas-pipelines-secrets \
+            --namespace "${{ env.NAMESPACE }}" \
+            "${args[@]}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy pipelines CronJobs
+        run: |
+          kubectl apply -n "${{ env.NAMESPACE }}" -f infrastructure/kubernetes/pipelines-cronjobs.yaml
+
+      - name: Run a few CronJobs once (verification)
+        run: |
+          jobs=(event-processor onboarding-alerts dealbook-brief)
+          for cj in "${jobs[@]}"; do
+            job="${cj}-manual-${{ github.run_id }}"
+            echo "Running CronJob/$cj as Job/$job..."
+            kubectl create job -n "${{ env.NAMESPACE }}" --from=cronjob/"$cj" "$job"
+            kubectl wait -n "${{ env.NAMESPACE }}" --for=condition=complete "job/$job" --timeout=300s
+            kubectl logs -n "${{ env.NAMESPACE }}" "job/$job" --all-containers=true
+          done
+
+      - name: Disable migrated jobs on VM (optional)
+        if: ${{ inputs.disable_vm_cron == 'true' }}
+        shell: bash
+        run: |
+          disabled="news-ingest,news-digest,event-processor,deep-research,onboarding-alerts,research-topics,x-trends,x-post-generate,x-post-publish,x-post-metrics,signal-aggregate,delta-generate,generate-alerts,generate-weekly-digest,deep-dive-generate,embed-backfill,weekly-brief,monthly-brief,neighbors-benchmarks,compute-benchmarks,compute-investor-dna,digest-qa,dealbook-brief"
+
+          az vm run-command invoke \
+            -g "${{ env.VM_RESOURCE_GROUP }}" \
+            -n "${{ env.VM_NAME }}" \
+            --command-id RunShellScript \
+            --scripts "set -euo pipefail; f=/etc/buildatlas/.env; key=BUILDATLAS_VM_CRON_DISABLED_JOBS; val='${disabled}'; sudo mkdir -p /etc/buildatlas; sudo touch \"${f}\"; sudo chmod 600 \"${f}\"; if sudo grep -q \"^${key}=\" \"${f}\"; then sudo sed -i \"s/^${key}=.*/${key}=${val}/\" \"${f}\"; else echo \"${key}=${val}\" | sudo tee -a \"${f}\" >/dev/null; fi" \
+            --query "value[0].message" -o tsv
+

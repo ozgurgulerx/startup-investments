@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buildatlas-pipelines-config
+  namespace: default
+data:
+  # Identify runtime in Slack context and logs.
+  BUILDATLAS_RUNNER: "aks-cronjob"
+
+  # News ingest LLM enrichment (defaults are OFF in code; set explicitly for parity with VM).
+  NEWS_LLM_ENRICHMENT: "true"
+  NEWS_LLM_MAX_CLUSTERS: "200"
+  NEWS_LLM_CONCURRENCY: "8"
+  NEWS_LLM_MODEL: "gpt-5-nano"
+  INTEL_FIRST_PROMPT: "true"
+
+  # X/Twitter trends + posting (safe defaults; will still skip if credentials missing).
+  X_TRENDS_ENABLED: "true"
+  X_TRENDS_MAX_QUERIES_PER_RUN: "4"
+  X_TRENDS_MAX_PAGES_PER_QUERY: "2"
+  X_TRENDS_PAGE_SIZE: "50"
+  X_TRENDS_LOOKBACK_HOURS: "24"
+
+  X_POSTING_ENABLED: "false"
+  X_MAX_POSTS_PER_DAY: "3"
+  X_MIN_POST_INTERVAL_MINUTES: "120"
+  X_POST_MAX_ATTEMPTS: "3"
+  X_POST_DEDUPE_DAYS: "7"
+  X_POST_GENERATE_REGION: "all"
+  X_POST_GENERATE_MAX_ITEMS: "6"
+  X_POST_PUBLISH_MAX_ITEMS: "5"
+  X_POST_METRICS_DAYS_BACK: "7"
+  X_POST_METRICS_MAX_POSTS: "100"
+
+  # Event processor / onboarding / deep research.
+  EVENT_PROCESSOR_BATCH_SIZE: "100"
+  DEEP_RESEARCH_MIN_EVENT_CONFIDENCE: "0.55"
+  DEEP_RESEARCH_MIN_CRAWL_SUCCESS_RATE: "0.20"
+
+  DEEP_RESEARCH_ENABLED: "true"
+  DEEP_RESEARCH_BATCH_SIZE: "8"
+  DEEP_RESEARCH_MAX_CONCURRENT: "3"
+  DEEP_RESEARCH_MAX_ITEMS_PER_RUN: "8"
+  DEEP_RESEARCH_MAX_DAILY_USD: "15"
+  DEEP_RESEARCH_MAX_MONTHLY_USD: "300"
+
+  ONBOARDING_ALERTS_ENABLED: "true"
+  ONBOARDING_ALERTS_BATCH_SIZE: "25"
+
+  # Watchlist intelligence alerts.
+  ALERT_NARRATIVES_ENABLED: "false"
+

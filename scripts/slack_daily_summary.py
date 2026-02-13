@@ -356,13 +356,42 @@ class CronJobHealth:
     overdue: bool
 
 
+def _parse_disabled_jobs(raw: str) -> set[str] | None:
+    """
+    Parse a comma-separated job list.
+
+    Returns:
+      - None: "all" (everything disabled)
+      - set(): empty/none/off
+      - set(job_names)
+    """
+    s = (raw or "").strip()
+    if not s:
+        return set()
+    s = "".join(ch for ch in s if not ch.isspace())
+    if s in ("off", "none", "0"):
+        return set()
+    if s == "all":
+        return None
+    return {p for p in s.split(",") if p}
+
+
 def _cron_job_health(log_dir: str = "/var/log/buildatlas") -> list[CronJobHealth]:
     """Parse VM cron job logs to determine health of each job."""
     results: list[CronJobHealth] = []
     now = datetime.now(timezone.utc)
     log_path = Path(log_dir)
 
+    disabled_raw = os.environ.get("BUILDATLAS_VM_CRON_DISABLED_JOBS") or os.environ.get("BUILDATLAS_DISABLED_JOBS") or ""
+    disabled = _parse_disabled_jobs(disabled_raw)
+
     for job_name, max_interval_min in VM_CRON_JOBS.items():
+        if disabled is None:
+            # "all" disabled
+            continue
+        if job_name in disabled:
+            continue
+
         log_file = log_path / f"{job_name}.log"
         if not log_file.exists():
             results.append(CronJobHealth(job_name, "UNKNOWN", None, None, False))
