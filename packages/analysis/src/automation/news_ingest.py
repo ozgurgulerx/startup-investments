@@ -407,6 +407,7 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("wired", "WIRED", "rss", "https://www.wired.com/feed/rss", credibility_weight=0.80),
     SourceDefinition("sifted", "Sifted", "rss", "https://sifted.eu/feed", credibility_weight=0.78),
     SourceDefinition("crunchbase_news", "Crunchbase News", "rss", "https://news.crunchbase.com/feed/", credibility_weight=0.85),
+    SourceDefinition("semianalysis", "SemiAnalysis", "rss", "https://semianalysis.com/feed/", credibility_weight=0.90, language="en", lookback_hours_override=168),
     SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", region="turkey", credibility_weight=0.74),
     SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", region="turkey", credibility_weight=0.70),
     # Turkey: API sources (Turkish language queries via existing API keys)

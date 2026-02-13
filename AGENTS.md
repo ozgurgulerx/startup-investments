@@ -288,6 +288,8 @@ News:
   - `infrastructure/vm-cron/jobs/news-ingest.sh`
   - `infrastructure/vm-cron/jobs/news-digest.sh`
   - `news-digest.sh` now posts per-run delivery totals to Slack (`sent/skipped/failed` for global+turkey).
+- Default sources are defined in `packages/analysis/src/automation/news_ingest.py` (`DEFAULT_SOURCES`).
+  - SemiAnalysis is ingested via RSS as `source_key=semianalysis` (`https://semianalysis.com/feed/`).
 - X/Twitter trend + posting automation:
   - Migration: `database/migrations/061_x_social_automation.sql`
   - Trend sources are now first-class in news ingest:

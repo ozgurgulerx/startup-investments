@@ -45,6 +45,18 @@ def test_is_likely_content_url_filters_listing_paths():
     assert is_likely_content_url("https://acme.com/updates/product-v2") is True
 
 
+def test_semianalysis_source_in_default_sources():
+    source_map = {s.source_key: s for s in DEFAULT_SOURCES}
+    assert "semianalysis" in source_map
+    src = source_map["semianalysis"]
+    assert src.region == "global"
+    assert src.fetch_mode == "rss"
+    assert src.source_type == "rss"
+    assert src.base_url == "https://semianalysis.com/feed/"
+    assert src.language == "en"
+    assert src.lookback_hours_override == 168
+
+
 def test_turkey_relevance_excludes_domain_purchase_false_ai_positive():
     # Example: "ai.com domain bought" is not AI startup intelligence.
     item = NormalizedNewsItem(
