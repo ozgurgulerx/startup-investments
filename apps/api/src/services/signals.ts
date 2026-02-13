@@ -77,6 +77,7 @@ interface RecommendationFeatures {
   memory_contradiction_count: number;
   memory_avg_composite: number;
   domain_follow_count: number;
+  domain_pref_weight: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -595,6 +596,7 @@ export function makeSignalsService(pool: Pool) {
       memory_contradiction_count: 0,
       memory_avg_composite: 0,
       domain_follow_count: 0,
+      domain_pref_weight: 0,
     };
   }
 
@@ -679,11 +681,37 @@ export function makeSignalsService(pool: Pool) {
       + Math.min(features.memory_publish_like_count, 8) * 0.8
       + Math.max(0, features.memory_avg_composite) * 1.8
       + Math.min(features.domain_follow_count, 6) * 0.55
+      + Math.max(-5, Math.min(features.domain_pref_weight, 5)) * 0.9
       + signal.impact * 2.4
       + signal.conviction * 1.7
       + signal.momentum * 1.5
       - Math.min(features.memory_contradiction_count, 5) * 1.25
     );
+  }
+
+  async function getDomainPreferenceMap(params: {
+    userId: string;
+    region: NewsRegion;
+  }): Promise<Map<string, number>> {
+    try {
+      const result = await pool.query<{ domain: string; weight: number }>(
+        `SELECT domain, weight::int
+         FROM user_signal_domain_prefs
+         WHERE user_id = $1::uuid
+           AND region = $2`,
+        [params.userId, params.region],
+      );
+      const prefs = new Map<string, number>();
+      for (const row of result.rows) {
+        const domain = String(row.domain || '').trim();
+        if (!domain) continue;
+        prefs.set(domain, Number(row.weight || 0));
+      }
+      return prefs;
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return new Map();
+      throw error;
+    }
   }
 
   async function getDomainFollowCountMap(params: {
@@ -853,12 +881,17 @@ export function makeSignalsService(pool: Pool) {
       userId: params.userId,
       region: params.region,
     });
+    const domainPrefs = await getDomainPreferenceMap({
+      userId: params.userId,
+      region: params.region,
+    });
     for (const row of params.rows) {
       const signalId = String(row.id || '').trim();
       const domain = String(row.domain || '').trim();
       if (!signalId || !domain) continue;
       const current = featureMap.get(signalId) || defaultRecommendationFeatures(Number(row.overlap_count || 0));
       current.domain_follow_count = Number(domainFollowCounts.get(domain) || 0);
+      current.domain_pref_weight = Number(domainPrefs.get(domain) || 0);
       featureMap.set(signalId, current);
     }
 
@@ -943,34 +976,71 @@ export function makeSignalsService(pool: Pool) {
     const seen = new Set<string>();
 
     try {
-      const watchlistResult = await pool.query(
-        `WITH watchlist_startups AS (
-           SELECT DISTINCT startup_id
-           FROM user_watchlists
-           WHERE user_id = $1::uuid
-         ),
-         scored AS (
-           SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
-                  s.conviction, s.momentum, s.impact, s.adoption_velocity,
-                  s.status, s.evidence_count, s.unique_company_count,
-                  s.first_seen_at, s.last_evidence_at, s.metadata_json,
-                  COUNT(DISTINCT se.startup_id)::int AS overlap_count
-           FROM signals s
-           JOIN signal_evidence se ON se.signal_id = s.id
-           JOIN watchlist_startups ws ON ws.startup_id = se.startup_id
-           LEFT JOIN user_signal_follows usf
-             ON usf.user_id = $1::uuid AND usf.signal_id = s.id
-           WHERE s.region = $2
-             AND s.status != 'decaying'
-             AND usf.signal_id IS NULL
-           GROUP BY s.id
-         )
-         SELECT *
-         FROM scored
-         ORDER BY overlap_count DESC, impact DESC, conviction DESC, momentum DESC
-         LIMIT $3`,
-        [params.userId, region, candidateLimit],
-      );
+      let watchlistResult: { rows: any[] };
+      try {
+        watchlistResult = await pool.query(
+          `WITH watchlist_startups AS (
+             SELECT DISTINCT startup_id
+             FROM user_watchlists
+             WHERE user_id = $1::uuid
+           ),
+           scored AS (
+             SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
+                    s.conviction, s.momentum, s.impact, s.adoption_velocity,
+                    s.status, s.evidence_count, s.unique_company_count,
+                    s.first_seen_at, s.last_evidence_at, s.metadata_json,
+                    COUNT(DISTINCT se.startup_id)::int AS overlap_count
+             FROM signals s
+             JOIN signal_evidence se ON se.signal_id = s.id
+             JOIN watchlist_startups ws ON ws.startup_id = se.startup_id
+             LEFT JOIN user_signal_follows usf
+               ON usf.user_id = $1::uuid AND usf.signal_id = s.id
+             LEFT JOIN user_signal_reco_dismissals usd
+               ON usd.user_id = $1::uuid AND usd.signal_id = s.id
+             WHERE s.region = $2
+               AND s.status != 'decaying'
+               AND usf.signal_id IS NULL
+               AND usd.signal_id IS NULL
+             GROUP BY s.id
+           )
+           SELECT *
+           FROM scored
+           ORDER BY overlap_count DESC, impact DESC, conviction DESC, momentum DESC
+           LIMIT $3`,
+          [params.userId, region, candidateLimit],
+        );
+      } catch (innerError) {
+        // If the dismissals table isn't migrated yet, retry without it.
+        if (!isMissingNewsSchemaError(innerError)) throw innerError;
+        watchlistResult = await pool.query(
+          `WITH watchlist_startups AS (
+             SELECT DISTINCT startup_id
+             FROM user_watchlists
+             WHERE user_id = $1::uuid
+           ),
+           scored AS (
+             SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
+                    s.conviction, s.momentum, s.impact, s.adoption_velocity,
+                    s.status, s.evidence_count, s.unique_company_count,
+                    s.first_seen_at, s.last_evidence_at, s.metadata_json,
+                    COUNT(DISTINCT se.startup_id)::int AS overlap_count
+             FROM signals s
+             JOIN signal_evidence se ON se.signal_id = s.id
+             JOIN watchlist_startups ws ON ws.startup_id = se.startup_id
+             LEFT JOIN user_signal_follows usf
+               ON usf.user_id = $1::uuid AND usf.signal_id = s.id
+             WHERE s.region = $2
+               AND s.status != 'decaying'
+               AND usf.signal_id IS NULL
+             GROUP BY s.id
+           )
+           SELECT *
+           FROM scored
+           ORDER BY overlap_count DESC, impact DESC, conviction DESC, momentum DESC
+           LIMIT $3`,
+          [params.userId, region, candidateLimit],
+        );
+      }
 
       const ranked = await rankRecommendationRows({
         rows: watchlistResult.rows,
@@ -995,25 +1065,53 @@ export function makeSignalsService(pool: Pool) {
       const excludeIds = Array.from(seen);
       try {
         const fallbackCandidateLimit = Math.min(48, Math.max(remaining * 4, 12));
-        const fallbackResult = await pool.query(
-          `SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
-                  s.conviction, s.momentum, s.impact, s.adoption_velocity,
-                  s.status, s.evidence_count, s.unique_company_count,
-                  s.first_seen_at, s.last_evidence_at, s.metadata_json
-           FROM signals s
-           LEFT JOIN user_signal_follows usf
-             ON usf.user_id = $1::uuid AND usf.signal_id = s.id
-           WHERE s.region = $2
-             AND s.status != 'decaying'
-             AND usf.signal_id IS NULL
-             AND (
-               COALESCE(array_length($3::text[], 1), 0) = 0
-               OR s.id::text <> ALL($3::text[])
-             )
-           ORDER BY s.impact DESC, s.conviction DESC, s.momentum DESC
-           LIMIT $4`,
-          [params.userId, region, excludeIds, fallbackCandidateLimit],
-        );
+        let fallbackResult: { rows: any[] };
+        try {
+          fallbackResult = await pool.query(
+            `SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
+                    s.conviction, s.momentum, s.impact, s.adoption_velocity,
+                    s.status, s.evidence_count, s.unique_company_count,
+                    s.first_seen_at, s.last_evidence_at, s.metadata_json
+             FROM signals s
+             LEFT JOIN user_signal_follows usf
+               ON usf.user_id = $1::uuid AND usf.signal_id = s.id
+             LEFT JOIN user_signal_reco_dismissals usd
+               ON usd.user_id = $1::uuid AND usd.signal_id = s.id
+             WHERE s.region = $2
+               AND s.status != 'decaying'
+               AND usf.signal_id IS NULL
+               AND usd.signal_id IS NULL
+               AND (
+                 COALESCE(array_length($3::text[], 1), 0) = 0
+                 OR s.id::text <> ALL($3::text[])
+               )
+             ORDER BY s.impact DESC, s.conviction DESC, s.momentum DESC
+             LIMIT $4`,
+            [params.userId, region, excludeIds, fallbackCandidateLimit],
+          );
+        } catch (innerError) {
+          // If the dismissals table isn't migrated yet, retry without it.
+          if (!isMissingNewsSchemaError(innerError)) throw innerError;
+          fallbackResult = await pool.query(
+            `SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
+                    s.conviction, s.momentum, s.impact, s.adoption_velocity,
+                    s.status, s.evidence_count, s.unique_company_count,
+                    s.first_seen_at, s.last_evidence_at, s.metadata_json
+             FROM signals s
+             LEFT JOIN user_signal_follows usf
+               ON usf.user_id = $1::uuid AND usf.signal_id = s.id
+             WHERE s.region = $2
+               AND s.status != 'decaying'
+               AND usf.signal_id IS NULL
+               AND (
+                 COALESCE(array_length($3::text[], 1), 0) = 0
+                 OR s.id::text <> ALL($3::text[])
+               )
+             ORDER BY s.impact DESC, s.conviction DESC, s.momentum DESC
+             LIMIT $4`,
+            [params.userId, region, excludeIds, fallbackCandidateLimit],
+          );
+        }
 
         const rankedFallback = await rankRecommendationRows({
           rows: fallbackResult.rows,
@@ -1039,6 +1137,58 @@ export function makeSignalsService(pool: Pool) {
       algorithm_version: SIGNALS_RECOMMENDER_ALGORITHM_VERSION,
       recommendations,
     };
+  }
+
+  async function submitRecommendationFeedback(params: {
+    userId: string;
+    feedback_type: 'not_relevant' | 'more_like_this' | 'less_from_domain';
+    signal_id?: string;
+    domain?: string;
+    region?: string;
+  }): Promise<{ success: boolean }> {
+    const region = normalizeRegion(params.region);
+    const signalId = String(params.signal_id || '').trim();
+    const domain = String(params.domain || '').trim();
+
+    try {
+      if (params.feedback_type === 'not_relevant') {
+        if (!signalId) return { success: false };
+        await pool.query(
+          `INSERT INTO user_signal_reco_dismissals (user_id, signal_id, dismissed_at)
+           VALUES ($1::uuid, $2::uuid, NOW())
+           ON CONFLICT (user_id, signal_id) DO UPDATE SET dismissed_at = NOW()`,
+          [params.userId, signalId],
+        );
+        return { success: true };
+      }
+
+      const delta = params.feedback_type === 'less_from_domain' ? -1 : 1;
+      if (!domain) return { success: false };
+
+      await pool.query(
+        `INSERT INTO user_signal_domain_prefs (user_id, region, domain, weight, updated_at)
+         VALUES ($1::uuid, $2, $3, $4, NOW())
+         ON CONFLICT (user_id, region, domain) DO UPDATE
+         SET weight = LEAST(5, GREATEST(-5, user_signal_domain_prefs.weight + EXCLUDED.weight)),
+             updated_at = NOW()`,
+        [params.userId, region, domain, delta],
+      );
+
+      // If the user asked for less from this domain, also dismiss the current item (if provided).
+      if (params.feedback_type === 'less_from_domain' && signalId) {
+        await pool.query(
+          `INSERT INTO user_signal_reco_dismissals (user_id, signal_id, dismissed_at)
+           VALUES ($1::uuid, $2::uuid, NOW())
+           ON CONFLICT (user_id, signal_id) DO UPDATE SET dismissed_at = NOW()`,
+          [params.userId, signalId],
+        );
+      }
+
+      return { success: true };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return { success: false };
+      throw error;
+    }
   }
 
   async function getSignalUpdates(params: {
@@ -1314,6 +1464,7 @@ export function makeSignalsService(pool: Pool) {
     toggleSignalFollow,
     getUserSignalFollows,
     getSignalRecommendations,
+    submitRecommendationFeedback,
     getSignalUpdates,
     markSignalsSeen,
     getStartupNeighbors,

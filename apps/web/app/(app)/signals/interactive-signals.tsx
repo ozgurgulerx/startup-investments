@@ -991,6 +991,22 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       is_authenticated: true,
     });
 
+    // Best-effort persistence (server-side auth + API key); UI remains responsive even if this fails.
+    void fetch('/api/signals/recommendations/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        feedback_type: feedbackType,
+        signal_id: rec.signal.id,
+        domain: rec.signal.domain,
+        region: region || 'global',
+        position,
+        reason_type: rec.reason_type || 'watchlist_overlap',
+        request_id: requestId,
+        algorithm_version: algorithmVersion,
+      }),
+    }).catch(() => null);
+
     if (feedbackType === 'not_relevant') {
       setHiddenRecommendationIds(prev => {
         const next = new Set(prev);

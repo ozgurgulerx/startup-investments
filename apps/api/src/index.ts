@@ -2505,6 +2505,40 @@ app.get('/api/v1/signals/recommendations', async (req, res) => {
 });
 
 // NO CACHE — user-specific endpoint
+// POST /api/v1/signals/recommendations/feedback — Record user feedback (dismissals + domain prefs)
+// MUST be registered before /api/v1/signals/:id
+app.post('/api/v1/signals/recommendations/feedback', async (req, res) => {
+  try {
+    const userId = req.body?.user_id as string;
+    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      return res.status(400).json({ error: 'Invalid user_id (must be UUID)' });
+    }
+
+    const feedbackType = String(req.body?.feedback_type || '').trim();
+    const allowedFeedbackTypes = ['not_relevant', 'more_like_this', 'less_from_domain'] as const;
+    if (!allowedFeedbackTypes.includes(feedbackType as (typeof allowedFeedbackTypes)[number])) {
+      return res.status(400).json({ error: 'Invalid feedback_type' });
+    }
+
+    const signalId = req.body?.signal_id as string | undefined;
+    const domain = req.body?.domain as string | undefined;
+    const region = req.body?.region as string | undefined;
+
+    const result = await signalsService.submitRecommendationFeedback({
+      userId,
+      feedback_type: feedbackType as (typeof allowedFeedbackTypes)[number],
+      signal_id: signalId,
+      domain,
+      region,
+    });
+    res.json({ success: Boolean(result?.success) });
+  } catch (error) {
+    console.error('Error submitting signal recommendation feedback:', error);
+    return res.status(500).json({ error: 'Failed to submit feedback' });
+  }
+});
+
+// NO CACHE — user-specific endpoint
 // GET /api/v1/signals/updates — Count new/changed signals since timestamp
 // MUST be registered before /api/v1/signals/:id
 app.get('/api/v1/signals/updates', async (req, res) => {

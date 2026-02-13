@@ -104,6 +104,8 @@ SETS = {
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
         "062_community_features.sql",
+        # Signals recommendations feedback persistence (dismissals + domain preferences)
+        "066_signals_reco_feedback.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
@@ -138,6 +140,8 @@ SETS = {
         "050_signal_deep_dives.sql",
         # Delta events (movers/changefeed) + watchlist intelligence tables
         "051_delta_events.sql",
+        # Signals recommendations feedback persistence (dismissals + domain preferences)
+        "066_signals_reco_feedback.sql",
         # Per-user movers feed state (unread counts + mark-as-seen)
         "052_user_feed_state.sql",
         "055_watchlist_intelligence.sql",
