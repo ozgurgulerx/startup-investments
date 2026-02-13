@@ -25,6 +25,8 @@ FRONTEND_URL="${RELEASE_RECONCILE_FRONTEND_URL:-${PUBLIC_BASE_URL:-https://build
 API_HEALTH_URL="${RELEASE_RECONCILE_API_HEALTH_URL:-${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/health}"
 ALERT_AFTER_MINUTES="${RELEASE_RECONCILE_ALERT_AFTER_MINUTES:-20}"
 REMINDER_MINUTES="${RELEASE_RECONCILE_REMINDER_MINUTES:-60}"
+FRONTEND_CHANGE_REGEX='^(apps/web/|packages/shared/)'
+BACKEND_CHANGE_REGEX='^(apps/api/|packages/shared/|infrastructure/kubernetes/)'
 
 derive_github_repository() {
     local origin=""
@@ -122,6 +124,24 @@ pending_commit_count() {
     git -C "$REPO_DIR" rev-list --count "${live_sha}..${DESIRED_REF}" 2>/dev/null || echo ""
 }
 
+component_changes_required() {
+    local live_sha="${1:-}"
+    local path_regex="${2:-}"
+    if [ -z "$live_sha" ]; then
+        echo "true"
+        return 0
+    fi
+    if ! git -C "$REPO_DIR" cat-file -e "${live_sha}^{commit}" 2>/dev/null; then
+        echo "true"
+        return 0
+    fi
+    if git -C "$REPO_DIR" diff --name-only "${live_sha}..${DESIRED_REF}" 2>/dev/null | grep -Eq "${path_regex}"; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
 build_context_json() {
     CTX_BRANCH="$BRANCH" \
     CTX_DESIRED="$DESIRED_SHA" \
@@ -130,6 +150,10 @@ build_context_json() {
     CTX_BACKEND="$BACKEND_LIVE_SHA" \
     CTX_FRONTEND_SYNC="$FRONTEND_IN_SYNC" \
     CTX_BACKEND_SYNC="$BACKEND_IN_SYNC" \
+    CTX_FRONTEND_REQUIRED="$FRONTEND_REQUIRED_CHANGE" \
+    CTX_BACKEND_REQUIRED="$BACKEND_REQUIRED_CHANGE" \
+    CTX_FRONTEND_EFFECTIVE_SYNC="$FRONTEND_EFFECTIVE_SYNC" \
+    CTX_BACKEND_EFFECTIVE_SYNC="$BACKEND_EFFECTIVE_SYNC" \
     CTX_FRONTEND_AGE="$FRONTEND_AGE_MIN" \
     CTX_BACKEND_AGE="$BACKEND_AGE_MIN" \
     CTX_FRONTEND_PENDING="$FRONTEND_PENDING_COMMITS" \
@@ -148,6 +172,10 @@ payload = {
     "backend_live_sha": os.environ.get("CTX_BACKEND", ""),
     "frontend_in_sync": os.environ.get("CTX_FRONTEND_SYNC", ""),
     "backend_in_sync": os.environ.get("CTX_BACKEND_SYNC", ""),
+    "frontend_required_change": os.environ.get("CTX_FRONTEND_REQUIRED", ""),
+    "backend_required_change": os.environ.get("CTX_BACKEND_REQUIRED", ""),
+    "frontend_effective_sync": os.environ.get("CTX_FRONTEND_EFFECTIVE_SYNC", ""),
+    "backend_effective_sync": os.environ.get("CTX_BACKEND_EFFECTIVE_SYNC", ""),
     "frontend_mismatch_age_min": os.environ.get("CTX_FRONTEND_AGE", ""),
     "backend_mismatch_age_min": os.environ.get("CTX_BACKEND_AGE", ""),
     "frontend_pending_commits": os.environ.get("CTX_FRONTEND_PENDING", ""),
@@ -162,11 +190,21 @@ PY
 format_component_line() {
     local label="$1"
     local live_sha="$2"
-    local in_sync="$3"
+    local effective_sync="$3"
     local pending="$4"
     local age="$5"
+    local required_change="$6"
+    local raw_in_sync="$7"
 
-    if [ "$in_sync" = "true" ]; then
+    if [ "$effective_sync" = "true" ]; then
+        if [ "$raw_in_sync" = "true" ]; then
+            echo "- *${label}:* \`${live_sha:-unknown}\` (in sync)"
+            return 0
+        fi
+        if [ "$required_change" = "false" ]; then
+            echo "- *${label}:* \`${live_sha:-unknown}\` (no pending ${label,,} changes)"
+            return 0
+        fi
         echo "- *${label}:* \`${live_sha:-unknown}\` (in sync)"
         return 0
     fi
@@ -234,17 +272,35 @@ if sha_matches "$DESIRED_FULL_SHA" "$BACKEND_LIVE_SHA"; then
     BACKEND_IN_SYNC="true"
 fi
 
+FRONTEND_REQUIRED_CHANGE="true"
+BACKEND_REQUIRED_CHANGE="true"
+if [ "$FRONTEND_IN_SYNC" != "true" ]; then
+    FRONTEND_REQUIRED_CHANGE="$(component_changes_required "$FRONTEND_LIVE_SHA" "$FRONTEND_CHANGE_REGEX")"
+fi
+if [ "$BACKEND_IN_SYNC" != "true" ]; then
+    BACKEND_REQUIRED_CHANGE="$(component_changes_required "$BACKEND_LIVE_SHA" "$BACKEND_CHANGE_REGEX")"
+fi
+
+FRONTEND_EFFECTIVE_SYNC="$FRONTEND_IN_SYNC"
+BACKEND_EFFECTIVE_SYNC="$BACKEND_IN_SYNC"
+if [ "$FRONTEND_IN_SYNC" != "true" ] && [ "$FRONTEND_REQUIRED_CHANGE" = "false" ]; then
+    FRONTEND_EFFECTIVE_SYNC="true"
+fi
+if [ "$BACKEND_IN_SYNC" != "true" ] && [ "$BACKEND_REQUIRED_CHANGE" = "false" ]; then
+    BACKEND_EFFECTIVE_SYNC="true"
+fi
+
 # If desired SHA changed, reset mismatch ages for currently-behind components.
 if [ -n "${STATE_DESIRED_FULL_SHA:-}" ] && [ "$STATE_DESIRED_FULL_SHA" != "$DESIRED_FULL_SHA" ]; then
-    if [ "$FRONTEND_IN_SYNC" != "true" ]; then
+    if [ "$FRONTEND_EFFECTIVE_SYNC" != "true" ]; then
         FRONTEND_MISMATCH_SINCE="$NOW_EPOCH"
     fi
-    if [ "$BACKEND_IN_SYNC" != "true" ]; then
+    if [ "$BACKEND_EFFECTIVE_SYNC" != "true" ]; then
         BACKEND_MISMATCH_SINCE="$NOW_EPOCH"
     fi
 fi
 
-if [ "$FRONTEND_IN_SYNC" = "true" ]; then
+if [ "$FRONTEND_EFFECTIVE_SYNC" = "true" ]; then
     FRONTEND_MISMATCH_SINCE=""
 else
     if [ -z "${FRONTEND_MISMATCH_SINCE:-}" ]; then
@@ -252,7 +308,7 @@ else
     fi
 fi
 
-if [ "$BACKEND_IN_SYNC" = "true" ]; then
+if [ "$BACKEND_EFFECTIVE_SYNC" = "true" ]; then
     BACKEND_MISMATCH_SINCE=""
 else
     if [ -z "${BACKEND_MISMATCH_SINCE:-}" ]; then
@@ -271,6 +327,12 @@ fi
 
 FRONTEND_PENDING_COMMITS="$(pending_commit_count "$FRONTEND_LIVE_SHA")"
 BACKEND_PENDING_COMMITS="$(pending_commit_count "$BACKEND_LIVE_SHA")"
+if [ "$FRONTEND_REQUIRED_CHANGE" != "true" ]; then
+    FRONTEND_PENDING_COMMITS="0"
+fi
+if [ "$BACKEND_REQUIRED_CHANGE" != "true" ]; then
+    BACKEND_PENDING_COMMITS="0"
+fi
 
 REPO="${GITHUB_REPOSITORY:-}"
 if [ -z "$REPO" ]; then
@@ -278,13 +340,15 @@ if [ -z "$REPO" ]; then
 fi
 
 PENDING_COMPONENTS=0
-if [ "$FRONTEND_IN_SYNC" != "true" ]; then PENDING_COMPONENTS=$((PENDING_COMPONENTS + 1)); fi
-if [ "$BACKEND_IN_SYNC" != "true" ]; then PENDING_COMPONENTS=$((PENDING_COMPONENTS + 1)); fi
+if [ "$FRONTEND_EFFECTIVE_SYNC" != "true" ]; then PENDING_COMPONENTS=$((PENDING_COMPONENTS + 1)); fi
+if [ "$BACKEND_EFFECTIVE_SYNC" != "true" ]; then PENDING_COMPONENTS=$((PENDING_COMPONENTS + 1)); fi
 
 FRONTEND_SYNC_BOOL="$(normalize_bool "$FRONTEND_IN_SYNC")"
 BACKEND_SYNC_BOOL="$(normalize_bool "$BACKEND_IN_SYNC")"
+FRONTEND_EFFECTIVE_SYNC_BOOL="$(normalize_bool "$FRONTEND_EFFECTIVE_SYNC")"
+BACKEND_EFFECTIVE_SYNC_BOOL="$(normalize_bool "$BACKEND_EFFECTIVE_SYNC")"
 
-STATUS_KEY="${DESIRED_SHA}|${FRONTEND_LIVE_SHA:-unknown}|${BACKEND_LIVE_SHA:-unknown}|${FRONTEND_SYNC_BOOL}|${BACKEND_SYNC_BOOL}"
+STATUS_KEY="${DESIRED_SHA}|${FRONTEND_LIVE_SHA:-unknown}|${BACKEND_LIVE_SHA:-unknown}|${FRONTEND_EFFECTIVE_SYNC_BOOL}|${BACKEND_EFFECTIVE_SYNC_BOOL}|${FRONTEND_REQUIRED_CHANGE}|${BACKEND_REQUIRED_CHANGE}"
 NEEDS_POST="false"
 
 if [ "$STATUS_KEY" != "${LAST_STATUS_KEY:-}" ]; then
@@ -319,8 +383,8 @@ if [ "$NEEDS_POST" = "true" ]; then
 
     BODY_LINES=()
     BODY_LINES+=("*Desired (${BRANCH}):* \`${DESIRED_SHA}\`")
-    BODY_LINES+=("$(format_component_line "Frontend" "$FRONTEND_LIVE_SHA" "$FRONTEND_SYNC_BOOL" "$FRONTEND_PENDING_COMMITS" "$FRONTEND_AGE_MIN")")
-    BODY_LINES+=("$(format_component_line "Backend" "$BACKEND_LIVE_SHA" "$BACKEND_SYNC_BOOL" "$BACKEND_PENDING_COMMITS" "$BACKEND_AGE_MIN")")
+    BODY_LINES+=("$(format_component_line "Frontend" "$FRONTEND_LIVE_SHA" "$FRONTEND_EFFECTIVE_SYNC_BOOL" "$FRONTEND_PENDING_COMMITS" "$FRONTEND_AGE_MIN" "$FRONTEND_REQUIRED_CHANGE" "$FRONTEND_SYNC_BOOL")")
+    BODY_LINES+=("$(format_component_line "Backend" "$BACKEND_LIVE_SHA" "$BACKEND_EFFECTIVE_SYNC_BOOL" "$BACKEND_PENDING_COMMITS" "$BACKEND_AGE_MIN" "$BACKEND_REQUIRED_CHANGE" "$BACKEND_SYNC_BOOL")")
     BODY_LINES+=("")
     BODY_LINES+=("*Frontend URL:* ${FRONTEND_URL}")
     BODY_LINES+=("*API health URL:* ${API_HEALTH_URL}")
