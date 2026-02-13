@@ -50,8 +50,11 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           # PostHog Analytics
-          NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+          # Prefer the Project API key (phc_...) if configured; POSTHOG_KEY is legacy/back-compat.
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY || secrets.POSTHOG_KEY }}
           NEXT_PUBLIC_POSTHOG_HOST: https://us.i.posthog.com
+          # Microsoft Clarity (public project id, not a secret)
+          NEXT_PUBLIC_CLARITY_PROJECT_ID: ${{ vars.CLARITY_PROJECT_ID || secrets.CLARITY_PROJECT_ID }}
 
       - name: Prepare deployment package
         run: |
@@ -233,8 +236,9 @@ jobs:
               { "name": "RESEND_API_KEY", "value": "${{ secrets.RESEND_API_KEY }}", "slotSetting": false },
               { "name": "NEWS_DIGEST_FROM_EMAIL", "value": "${{ secrets.NEWS_DIGEST_FROM_EMAIL }}", "slotSetting": false },
               { "name": "NEWS_DIGEST_REPLY_TO", "value": "${{ secrets.NEWS_DIGEST_REPLY_TO }}", "slotSetting": false },
-              { "name": "NEXT_PUBLIC_POSTHOG_KEY", "value": "${{ secrets.POSTHOG_KEY }}", "slotSetting": false },
-              { "name": "NEXT_PUBLIC_POSTHOG_HOST", "value": "https://us.i.posthog.com", "slotSetting": false }
+              { "name": "NEXT_PUBLIC_POSTHOG_KEY", "value": "${{ secrets.POSTHOG_PROJECT_API_KEY || secrets.POSTHOG_KEY }}", "slotSetting": false },
+              { "name": "NEXT_PUBLIC_POSTHOG_HOST", "value": "https://us.i.posthog.com", "slotSetting": false },
+              { "name": "NEXT_PUBLIC_CLARITY_PROJECT_ID", "value": "${{ vars.CLARITY_PROJECT_ID || secrets.CLARITY_PROJECT_ID }}", "slotSetting": false }
             ]
 
       - name: Deploy to Azure Web App

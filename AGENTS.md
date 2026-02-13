@@ -94,6 +94,12 @@ Important headers/invariants:
   - Recommendation reason types exposed to web:
     `watchlist_overlap`, `graph_investor_overlap`, `memory_momentum`, `high_impact_fallback`.
   - Degradation rule: if graph/memory tables are unavailable, recommender must still return results (impact-based fallback), not fail the endpoint.
+  - Feedback persistence (lightweight personalization):
+    - Migration: `database/migrations/066_signals_reco_feedback.sql`
+    - Tables:
+      - `user_signal_reco_dismissals` hides signals from future recommendations (per-user, per-signal).
+      - `user_signal_domain_prefs` stores per-user per-region domain weights used as a ranking nudge.
+    - Backend endpoint: `POST /api/v1/signals/recommendations/feedback` is used by the web UI.
 
 ## CI/CD Workflows (Source of Truth)
 
@@ -590,6 +596,10 @@ Frontend deploy (`frontend-deploy.yml`):
 - `RESEND_API_KEY`: used by web to send subscription confirmation emails (double opt-in).
 - `NEWS_DIGEST_FROM_EMAIL`, `NEWS_DIGEST_REPLY_TO`: used by web confirmation emails and digest sender.
 - `PUBLIC_BASE_URL`: used to build absolute confirm/unsubscribe links in emails.
+- PostHog (browser ingestion):
+  - Preferred: `POSTHOG_PROJECT_API_KEY` (`phc_...`) (this is what gets embedded into the frontend bundle).
+  - Back-compat: `POSTHOG_KEY` (if you use this, it must also be `phc_...`; never put a `phx_...` personal key in the browser).
+- Microsoft Clarity (public project id): `CLARITY_PROJECT_ID` (repo variable recommended; or a secret if you prefer).
 - `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, etc.
 
 Azure OIDC (Actions variables):
