@@ -3900,7 +3900,13 @@ app.get('/api/v1/onboarding/context-template', async (req, res) => {
   };
 
   const endpointPath = '/api/admin/v1/onboarding/context';
-  const apiBase = `${req.protocol}://${req.get('host')}`.replace(/\/+$/, '');
+  // Prefer an explicit public base (Front Door) to avoid returning an origin IP
+  // that would fail Front Door header enforcement when users run the curl command.
+  const apiBase = (
+    process.env.API_URL
+    || process.env.NEXT_PUBLIC_API_URL
+    || 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net'
+  ).replace(/\/+$/, '');
   const curlCommand = [
     `curl -X POST "${apiBase}${endpointPath}" \\`,
     `  -H "Content-Type: application/json" \\`,
