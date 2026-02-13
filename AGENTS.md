@@ -154,7 +154,7 @@ VM cron runner:
     - Deploy: `.github/workflows/ops-posthog-usage-deploy.yml` (manual `workflow_dispatch`)
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
-- DB migration safety: `apply-migrations.sh` serializes DDL via `/tmp/buildatlas-db-migrations.lock` (configurable via `BUILDATLAS_MIGRATIONS_LOCK_FILE` + `BUILDATLAS_MIGRATIONS_LOCK_WAIT_SECONDS`) to avoid cron-induced deadlocks when multiple jobs start together.
+- DB migration safety: `apply-migrations.sh` serializes DDL via a lock file (defaults to `$REPO_DIR/.tmp/db-migrations.lock`, configurable via `BUILDATLAS_MIGRATIONS_LOCK_FILE` + `BUILDATLAS_MIGRATIONS_LOCK_WAIT_SECONDS`) to avoid cron-induced deadlocks when multiple jobs start together.
 - VM access (for manual deploy/debug):
   - Preferred: `./infrastructure/vm-cron/ssh-update-ip.sh`
     - Auto-discovers the VM’s NIC/subnet NSGs and creates/updates an `AllowSSH` rule to your current public IP, then SSHs into the VM.
