@@ -9,8 +9,8 @@
 set -euo pipefail
 
 REPO_DIR="/opt/buildatlas/startup-analysis"
-FUNCTIONAPP_NAME="${AZURE_FUNCTIONAPP_NAME:-buildatlas-functions}"
-FUNCTIONS_RESOURCE_GROUP="${AZURE_FUNCTIONS_RESOURCE_GROUP:-aistartuptr}"
+FUNCTIONAPP_NAME="${AZURE_FUNCTIONAPP_NAME:-}"
+FUNCTIONS_RESOURCE_GROUP="${AZURE_FUNCTIONS_RESOURCE_GROUP:-}"
 FUNCTIONS_PACKAGE_PATH="$REPO_DIR/infrastructure/azure-functions"
 TEMP_DIR="$(mktemp -d /tmp/buildatlas-functions-deploy.XXXXXX)"
 ZIP_PATH="$TEMP_DIR/functions-deploy.zip"
@@ -22,6 +22,11 @@ trap cleanup EXIT
 
 echo "=== Functions Deploy ==="
 echo "  Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+if [ -z "$FUNCTIONAPP_NAME" ]; then
+  echo "  SKIP: AZURE_FUNCTIONAPP_NAME is not set; functions deploy is disabled."
+  exit 0
+fi
+
 echo "  Function app: $FUNCTIONAPP_NAME"
 
 auth_az() {
@@ -41,6 +46,25 @@ fi
 
 if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
   az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none || true
+fi
+
+if [ -z "$FUNCTIONS_RESOURCE_GROUP" ]; then
+  FUNCTIONS_RESOURCE_GROUP="$(az resource list \
+    --name "$FUNCTIONAPP_NAME" \
+    --resource-type Microsoft.Web/sites \
+    --query '[0].resourceGroup' \
+    -o tsv 2>/dev/null || true)"
+fi
+
+if [ -z "$FUNCTIONS_RESOURCE_GROUP" ]; then
+  echo "ERROR: Could not resolve resource group for function app '$FUNCTIONAPP_NAME'."
+  echo "Set AZURE_FUNCTIONS_RESOURCE_GROUP in /etc/buildatlas/.env on the VM."
+  exit 2
+fi
+
+if ! az functionapp show --resource-group "$FUNCTIONS_RESOURCE_GROUP" --name "$FUNCTIONAPP_NAME" --query name -o tsv >/dev/null 2>&1; then
+  echo "ERROR: Function app '$FUNCTIONAPP_NAME' was not found in resource group '$FUNCTIONS_RESOURCE_GROUP'."
+  exit 3
 fi
 
 if [ "${SKIP_PULL:-}" != "1" ]; then
