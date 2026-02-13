@@ -288,10 +288,13 @@ News:
     - Queue dedupe key prevents repeated posting of the same cluster/link.
 - Signal deep dives:
   - Migration: `database/migrations/050_signal_deep_dives.sql`
-  - VM job: `infrastructure/vm-cron/jobs/deep-dive-generate.sh` (runs daily at `05:15 UTC` via cron).
+  - VM jobs:
+    - `infrastructure/vm-cron/jobs/deep-dive-generate.sh` (daily at `05:15 UTC`): full pipeline for a rotating set of top signals (occurrences → moves → synthesis).
+    - `infrastructure/vm-cron/jobs/deep-dive-catchup.sh` (every 4 hours at `:58 UTC`): backfills **missing** deep dives (coverage-first, trend-only synthesis) so the UI doesn't stay empty.
   - Deployment invariant:
     - `050_signal_deep_dives.sql` must be included in migration sets used by news pipelines (`news`, `news-digest`) in `scripts/apply_migrations.py`.
     - `deep-dive-generate.sh` runs migration preflight (`apply-migrations.sh news`) before computing occurrences/generating deep dives.
+    - `deep-dive-catchup.sh` also runs the same migration preflight before backfill.
   - Runtime degradation behavior:
     - If deep-dive tables are unavailable, backend deep-dive endpoints should return empty payloads (not crash) so `/signals/[id]` can show "No deep dive available yet" instead of failing hard.
   - Coverage behavior (important for "empty deep dive" debugging):
@@ -299,6 +302,9 @@ News:
     - If a signal cannot produce a per-startup sample set (e.g., evidence is mostly `startup_id=NULL` or too sparse), the pipeline falls back to a **trend-only deep dive** synthesized from recent `signal_evidence` rows.
       - These deep dives may have `sample_count=0` and should be treated as "trend-level" (no startup case studies/watchlist unless startups are explicitly linked).
     - Backend `GET /api/v1/signals/:id/deep-dive` includes best-effort `meta` diagnostics (`startups_eligible`, `unlinked_evidence_count`, `occurrences_total`, `latest_status`) to help explain why a deep dive is missing.
+  - Deep research integration (best-effort):
+    - Deep-dive synthesis prompts may include the latest completed `deep_research_queue.research_output.analysis` for a small subset of linked startups.
+    - Catchup job can enqueue deep research (`reason='signal_deep_dive'`) for top linked startups; spend is still capped by the deep research consumer env gates (`DEEP_RESEARCH_*`).
 - Daily brief + LLM enrichment (news):
   - Controlled by `NEWS_LLM_ENRICHMENT=true` (and optional `NEWS_LLM_DAILY_BRIEF=true`) in `/etc/buildatlas/.env`.
   - Intel headline mode is controlled by `INTEL_FIRST_PROMPT=true` (recommended ON in prod VM). When enabled, cards prefer `news_clusters.ba_title`/`ba_bullets`/`why_it_matters`.
