@@ -170,7 +170,7 @@ def _posthog_scalar(host: str, project_id: str, token: str, hogql: str) -> int:
 
 
 def _posthog_metrics(host: str, project_id: str, token: str) -> dict[str, Any]:
-    return {
+    metrics = {
         "pageviews": _posthog_scalar(
             host,
             project_id,
@@ -195,7 +195,42 @@ def _posthog_metrics(host: str, project_id: str, token: str) -> dict[str, Any]:
             token,
             "SELECT count() FROM events WHERE event = 'watchlist_add' AND timestamp >= now() - INTERVAL 1 DAY",
         ),
+        "subscription_submit": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count() FROM events WHERE event = 'subscription_submit' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
+        "subscription_submit_success": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count() FROM events WHERE event = 'subscription_submit_success' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
+        "subscription_submit_error": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count() FROM events WHERE event = 'subscription_submit_error' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
+        "subscription_confirmed": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count() FROM events WHERE event = 'subscription_confirmed' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
+        "subscription_unsubscribed": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count() FROM events WHERE event = 'subscription_unsubscribed' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
     }
+    submit = _as_int(metrics.get("subscription_submit")) or 0
+    submit_success = _as_int(metrics.get("subscription_submit_success")) or 0
+    if submit > 0:
+        metrics["subscription_submit_success_rate"] = round((submit_success / submit) * 100, 1)
+    return metrics
 
 
 def _github_api_get(url: str, token: str) -> dict[str, Any]:
@@ -832,6 +867,18 @@ def main() -> int:
         if "pageviews" in site_metrics:
             body_lines.append(
                 f"- pageviews={site_metrics.get('pageviews')} unique_visitors={site_metrics.get('unique_visitors')} sessions_started={site_metrics.get('sessions_started')} watchlist_add={site_metrics.get('watchlist_add')}"
+            )
+        if "subscription_submit" in site_metrics:
+            conv_suffix = ""
+            if "subscription_submit_success_rate" in site_metrics:
+                conv_suffix = f" success_rate={site_metrics.get('subscription_submit_success_rate')}%"
+            body_lines.append(
+                "- subscriptions: "
+                f"submit={site_metrics.get('subscription_submit')} "
+                f"submit_success={site_metrics.get('subscription_submit_success')} "
+                f"submit_error={site_metrics.get('subscription_submit_error')} "
+                f"confirmed={site_metrics.get('subscription_confirmed')} "
+                f"unsubscribed={site_metrics.get('subscription_unsubscribed')}{conv_suffix}"
             )
         if "site_metrics_info" in site_metrics:
             body_lines.append(f"- Info: {site_metrics.get('site_metrics_info')}")
