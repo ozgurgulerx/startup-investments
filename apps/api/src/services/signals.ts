@@ -1869,8 +1869,63 @@ export function makeSignalsService(pool: Pool) {
       );
 
       let state = stateResult.rows[0];
+      const mapBenchRows = (rows: any[]) => rows.map(r => ({
+        cohort_key: r.cohort_key,
+        cohort_type: r.cohort_type,
+        metric: r.metric,
+        cohort_size: r.cohort_size,
+        p10: r.p10 != null ? Number(r.p10) : null,
+        p25: r.p25 != null ? Number(r.p25) : null,
+        p50: r.p50 != null ? Number(r.p50) : null,
+        p75: r.p75 != null ? Number(r.p75) : null,
+        p90: r.p90 != null ? Number(r.p90) : null,
+        mean: r.mean != null ? Number(r.mean) : null,
+        stddev: r.stddev != null ? Number(r.stddev) : null,
+        period: r.period,
+      }));
+
       if (!state) {
-        return { startup_values: {}, benchmarks: [], cohort_keys: [] };
+        // Fallback for startups without a state snapshot yet (common in global):
+        // return at least the all:all cohort benchmarks so the UI isn't empty.
+        const startupOnlyResult = await pool.query(
+          `SELECT s.money_raised_usd
+           FROM startups s
+           WHERE s.id = $1::uuid
+             AND s.dataset_region = $2
+           LIMIT 1`,
+          [startupId, region],
+        );
+        const moneyRaisedUsd = startupOnlyResult.rows[0]?.money_raised_usd;
+
+        const latestBenchPeriodResult = await pool.query(
+          `SELECT MAX(period) AS period FROM cohort_benchmarks WHERE region = $1`,
+          [region],
+        );
+        const latestBenchPeriod = latestBenchPeriodResult.rows[0]?.period as string | undefined;
+        if (!latestBenchPeriod) {
+          return { startup_values: {}, benchmarks: [], cohort_keys: [] };
+        }
+
+        const cohortKeys = ['all:all'];
+        const benchResult = await pool.query(
+          `SELECT * FROM cohort_benchmarks
+           WHERE cohort_key = ANY($1)
+             AND region = $2
+             AND period = $3
+           ORDER BY cohort_type, metric`,
+          [cohortKeys, region, latestBenchPeriod],
+        );
+
+        return {
+          startup_values: {
+            funding_total_usd: moneyRaisedUsd != null ? Number(moneyRaisedUsd) : null,
+            confidence_score: null,
+            engineering_quality_score: null,
+            pattern_count: 0,
+          },
+          benchmarks: mapBenchRows(benchResult.rows),
+          cohort_keys: cohortKeys,
+        };
       }
 
       let resolvedPeriod: string | undefined = period || state.analysis_period;
@@ -1949,20 +2004,7 @@ export function makeSignalsService(pool: Pool) {
 
       return {
         startup_values: startupValues,
-        benchmarks: benchResult.rows.map(r => ({
-          cohort_key: r.cohort_key,
-          cohort_type: r.cohort_type,
-          metric: r.metric,
-          cohort_size: r.cohort_size,
-          p10: r.p10 != null ? Number(r.p10) : null,
-          p25: r.p25 != null ? Number(r.p25) : null,
-          p50: r.p50 != null ? Number(r.p50) : null,
-          p75: r.p75 != null ? Number(r.p75) : null,
-          p90: r.p90 != null ? Number(r.p90) : null,
-          mean: r.mean != null ? Number(r.mean) : null,
-          stddev: r.stddev != null ? Number(r.stddev) : null,
-          period: r.period,
-        })),
+        benchmarks: mapBenchRows(benchResult.rows),
         cohort_keys: cohortKeys,
       };
     } catch (error) {
