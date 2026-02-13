@@ -11,6 +11,12 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Error fetching landscape cluster:', error);
     const status = error instanceof APIError ? error.status : 500;
-    return NextResponse.json({ error: 'Failed to fetch landscape cluster' }, { status });
+    const message =
+      error instanceof APIError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Failed to fetch landscape cluster';
+    return NextResponse.json({ error: message }, { status });
   }
 }

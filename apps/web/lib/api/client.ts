@@ -69,8 +69,22 @@ export async function fetchFromAPI<T>(
     });
 
     if (!response.ok) {
+      // Prefer backend-provided `{ error: string }` message when available.
+      let backendMessage: string | null = null;
+      try {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const body = await response.json().catch(() => null);
+          if (body && typeof body === 'object' && !Array.isArray(body)) {
+            const msg = (body as any).error;
+            if (typeof msg === 'string' && msg.trim()) backendMessage = msg.trim();
+          }
+        }
+      } catch {
+        // Ignore parse errors; fall back to status text.
+      }
       throw new APIError(
-        `API request failed: ${response.statusText}`,
+        backendMessage || `API request failed: ${response.statusText}`,
         response.status,
         response.statusText
       );
