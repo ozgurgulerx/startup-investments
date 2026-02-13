@@ -24,6 +24,7 @@ import os
 import sys
 import urllib.parse
 import urllib.request
+import urllib.error
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -556,10 +557,102 @@ def _slack_post(webhook_url: str, payload: dict[str, Any]) -> None:
             raise RuntimeError(f"Slack webhook returned HTTP {resp.status}")
 
 
+def _parse_email_list(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    tokens = re.split(r"[,\n;]+", raw)
+    recipients: list[str] = []
+    for token in tokens:
+        email = token.strip()
+        if not email:
+            continue
+        recipients.append(email)
+    # preserve input order but dedupe
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for email in recipients:
+        key = email.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(email)
+    return deduped
+
+
+def _slack_to_plain_text(line: str) -> str:
+    text = line.replace("`", "").replace("*", "")
+    # Convert Slack links like <https://example|open> into "open: https://example"
+    text = re.sub(r"<([^|>]+)\|([^>]+)>", r"\2: \1", text)
+    return text
+
+
+def _build_plain_report(
+    *,
+    title: str,
+    status_emoji: str,
+    body_lines: list[str],
+    repo: str,
+) -> str:
+    runner = "vm-cron" if _IS_VM else "github-actions"
+    lines = [
+        f"{status_emoji} {title}",
+        "",
+    ]
+    lines.extend(_slack_to_plain_text(line) for line in body_lines)
+    lines.extend(
+        [
+            "",
+            f"Repo: {repo}",
+            f"Runner: {runner}",
+            f"At: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _send_email_via_resend(
+    *,
+    api_key: str,
+    from_email: str,
+    to_emails: list[str],
+    subject: str,
+    text_body: str,
+) -> None:
+    payload = {
+        "from": from_email,
+        "to": to_emails,
+        "subject": subject,
+        "text": text_body,
+    }
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json; charset=utf-8",
+            "Accept": "application/json",
+            "User-Agent": "buildatlas-slack-summary",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                raise RuntimeError(f"resend returned HTTP {resp.status}")
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            body = ""
+        raise RuntimeError(f"resend_http_{e.code}:{body[:200]}") from e
+
+
 def main() -> int:
     # Back-compat: some environments use SLACK_WEBHOOK instead of SLACK_WEBHOOK_URL.
     webhook_url = _env("SLACK_WEBHOOK_URL") or _env("SLACK_WEBHOOK")
-    if not webhook_url:
+    metrics_email_to_raw = _env("METRICS_REPORT_EMAIL_TO")
+    if not webhook_url and not metrics_email_to_raw:
         return 0
 
     repo = _env("GITHUB_REPOSITORY")
@@ -568,6 +661,15 @@ def main() -> int:
     posthog_host = _env("POSTHOG_HOST") or _env("NEXT_PUBLIC_POSTHOG_HOST") or "https://us.i.posthog.com"
     posthog_project_id = _env("POSTHOG_PROJECT_ID")
     posthog_api_key = _env("POSTHOG_PERSONAL_API_KEY") or _env("POSTHOG_API_KEY")
+    resend_api_key = _env("RESEND_API_KEY")
+    metrics_email_from = (
+        _env("METRICS_REPORT_EMAIL_FROM")
+        or _env("NEWS_DIGEST_FROM_EMAIL")
+        or "Build Atlas <news@buildatlas.net>"
+    )
+    subject_prefix = (_env("METRICS_REPORT_EMAIL_SUBJECT_PREFIX") or "").strip()
+    if subject_prefix and not subject_prefix.endswith(" "):
+        subject_prefix += " "
 
     if not repo or not token:
         sys.stderr.write("Missing required env: GITHUB_REPOSITORY or GITHUB_TOKEN\n")
@@ -713,6 +815,40 @@ def main() -> int:
         if "site_metrics_error" in site_metrics:
             body_lines.append(f"- Site metrics error: `{site_metrics.get('site_metrics_error')}`")
 
+    email_status_line: str | None = None
+    metrics_recipients = _parse_email_list(metrics_email_to_raw)
+    if metrics_email_to_raw is not None:
+        if not metrics_recipients:
+            email_status_line = "Metrics email skipped: no valid `METRICS_REPORT_EMAIL_TO` recipients parsed."
+        elif not resend_api_key:
+            email_status_line = "Metrics email skipped: `RESEND_API_KEY` is not configured."
+        else:
+            try:
+                subject = (
+                    f"{subject_prefix}{title} — {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+                )
+                plain_report = _build_plain_report(
+                    title=title,
+                    status_emoji=status_emoji,
+                    body_lines=body_lines,
+                    repo=repo,
+                )
+                _send_email_via_resend(
+                    api_key=resend_api_key,
+                    from_email=metrics_email_from,
+                    to_emails=metrics_recipients,
+                    subject=subject,
+                    text_body=plain_report,
+                )
+                email_status_line = f"Metrics email sent ({len(metrics_recipients)} recipient(s))."
+            except Exception as e:
+                email_status_line = f"Metrics email failed (best-effort): `{e}`"
+
+    if email_status_line:
+        body_lines.append("")
+        body_lines.append("*Email delivery*")
+        body_lines.append(f"- {email_status_line}")
+
     blocks = [
         {"type": "header", "text": {"type": "plain_text", "text": f"{status_emoji} {title}", "emoji": True}},
         {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(body_lines)}},
@@ -724,7 +860,8 @@ def main() -> int:
         },
     ]
 
-    _slack_post(webhook_url, {"blocks": blocks})
+    if webhook_url:
+        _slack_post(webhook_url, {"blocks": blocks})
     return 0
 
 

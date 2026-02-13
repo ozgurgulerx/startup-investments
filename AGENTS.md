@@ -73,6 +73,11 @@ VM cron runner:
     delivery totals by region.
   - Optional site-usage block comes from PostHog when `POSTHOG_PROJECT_ID` + (`POSTHOG_PERSONAL_API_KEY` or
     `POSTHOG_API_KEY`) are set on the VM (`POSTHOG_HOST` defaults to `NEXT_PUBLIC_POSTHOG_HOST` / `us.i.posthog.com`).
+  - Optional daily metrics email runs from the same job (`scripts/slack_daily_summary.py`) via Resend:
+    - `METRICS_REPORT_EMAIL_TO` (comma-separated recipients) enables email send.
+    - `METRICS_REPORT_EMAIL_FROM` overrides sender (defaults to `NEWS_DIGEST_FROM_EMAIL`).
+    - `METRICS_REPORT_EMAIL_SUBJECT_PREFIX` prepends email subject.
+    - Delivery is best-effort: Slack summary still posts if email send fails.
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
 - VM access (for manual deploy/debug):
