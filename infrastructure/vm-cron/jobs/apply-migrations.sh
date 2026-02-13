@@ -10,6 +10,16 @@ MIGRATION_SET="${1:-all}"
 
 echo "Applying migrations (set: $MIGRATION_SET)..."
 
+# Serialize DB migrations across cron jobs to avoid DDL deadlocks when multiple
+# pipelines start at the same time (e.g. news-ingest + event-processor).
+MIGRATIONS_LOCK_FILE="${BUILDATLAS_MIGRATIONS_LOCK_FILE:-/tmp/buildatlas-db-migrations.lock}"
+MIGRATIONS_LOCK_WAIT_SECONDS="${BUILDATLAS_MIGRATIONS_LOCK_WAIT_SECONDS:-300}"
+exec 210>"$MIGRATIONS_LOCK_FILE"
+if ! flock -w "$MIGRATIONS_LOCK_WAIT_SECONDS" 210; then
+    echo "SKIP: migrations lock busy ($MIGRATIONS_LOCK_FILE); another job may be applying migrations."
+    exit 0
+fi
+
 "$VENV_DIR/bin/python" << PYEOF
 import asyncio
 import os
