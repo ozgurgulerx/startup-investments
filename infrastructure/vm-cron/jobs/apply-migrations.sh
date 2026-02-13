@@ -60,11 +60,14 @@ SETS = {
         "046_startup_merge_infrastructure.sql",
         # Extend scoring_method CHECK to include editorial_postgate
         "047_editorial_scoring_method.sql",
+        # End-to-end onboarding activation (attempt telemetry + deep_research_queue hardening)
+        "058_onboarding_pipeline_activation.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
         "016_crawl_replay_and_policy_feedback.sql",
         "043_startup_refresh_jobs.sql",
+        "058_onboarding_pipeline_activation.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -94,6 +97,7 @@ SETS = {
         "022_startup_dataset_region.sql",
         # Startup merge infrastructure — adds onboarding_status (used by memory_gate.py)
         "046_startup_merge_infrastructure.sql",
+        "058_onboarding_pipeline_activation.sql",
     ],
     "performance": [
         "015_performance_indexes.sql",

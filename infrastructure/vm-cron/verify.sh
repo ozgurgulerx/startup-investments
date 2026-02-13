@@ -86,6 +86,8 @@ else
     REQUIRED=(
       "runner.sh keep-alive"
       "runner.sh news-ingest"
+      "runner.sh event-processor"
+      "runner.sh deep-research"
       "runner.sh crawl-frontier"
       "runner.sh news-digest"
       "runner.sh slack-summary"

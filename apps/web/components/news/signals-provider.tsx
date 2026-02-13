@@ -33,6 +33,19 @@ export function SignalsProvider({ clusterIds, initialUpvoteCounts, children }: S
   const [upvoteCounts, setUpvoteCounts] = useState<Record<string, number>>(initialUpvoteCounts || {});
   const lastFetchedKeyRef = useRef<string>('');
 
+  // Refs for synchronous reads/writes inside the stable toggle callback
+  const actionMapRef = useRef(actionMap);
+  actionMapRef.current = actionMap;
+  const upvoteCountsRef = useRef(upvoteCounts);
+  upvoteCountsRef.current = upvoteCounts;
+
+  // Re-sync upvote counts when server data changes (e.g. edition refresh)
+  useEffect(() => {
+    const nextCounts = initialUpvoteCounts || {};
+    upvoteCountsRef.current = nextCounts;
+    setUpvoteCounts(nextCounts);
+  }, [initialUpvoteCounts]);
+
   // Batch fetch user's signals when cluster IDs change
   useEffect(() => {
     if (clusterIds.length === 0) return;
@@ -66,21 +79,30 @@ export function SignalsProvider({ clusterIds, initialUpvoteCounts, children }: S
 
   const toggle = useCallback(
     async (clusterId: string, action: SignalActionType): Promise<{ active: boolean; upvote_count: number }> => {
+      const currentActions = actionMapRef.current[clusterId] || [];
+      const wasActive = currentActions.includes(action);
+      const optimisticActions = wasActive
+        ? currentActions.filter((a) => a !== action)
+        : [...currentActions, action];
+
+      actionMapRef.current = {
+        ...actionMapRef.current,
+        [clusterId]: optimisticActions,
+      };
+
       // Optimistic update
-      setActionMap((prev) => {
-        const current = prev[clusterId] || [];
-        const has = current.includes(action);
-        const next = has ? current.filter((a) => a !== action) : [...current, action];
-        return { ...prev, [clusterId]: next };
-      });
+      setActionMap((prev) => ({ ...prev, [clusterId]: optimisticActions }));
 
       if (action === 'upvote') {
-        const currentActions = actionMap[clusterId] || [];
-        const wasActive = currentActions.includes('upvote');
-        setUpvoteCounts((prev) => ({
-          ...prev,
-          [clusterId]: Math.max(0, (prev[clusterId] ?? 0) + (wasActive ? -1 : 1)),
-        }));
+        const optimisticCount = Math.max(
+          0,
+          (upvoteCountsRef.current[clusterId] ?? 0) + (wasActive ? -1 : 1)
+        );
+        upvoteCountsRef.current = {
+          ...upvoteCountsRef.current,
+          [clusterId]: optimisticCount,
+        };
+        setUpvoteCounts((prev) => ({ ...prev, [clusterId]: optimisticCount }));
       }
 
       try {
@@ -97,31 +119,51 @@ export function SignalsProvider({ clusterIds, initialUpvoteCounts, children }: S
         setActionMap((prev) => {
           const current = prev[clusterId] || [];
           const without = current.filter((a) => a !== action);
-          return { ...prev, [clusterId]: result.active ? [...without, action] : without };
+          const nextActions = result.active ? [...without, action] : without;
+          actionMapRef.current = {
+            ...actionMapRef.current,
+            [clusterId]: nextActions,
+          };
+          return { ...prev, [clusterId]: nextActions };
         });
+        upvoteCountsRef.current = {
+          ...upvoteCountsRef.current,
+          [clusterId]: result.upvote_count,
+        };
         setUpvoteCounts((prev) => ({ ...prev, [clusterId]: result.upvote_count }));
 
         return result;
       } catch {
+        const current = actionMapRef.current[clusterId] || [];
+        const has = current.includes(action);
+        const revertedActions = has
+          ? current.filter((a) => a !== action)
+          : [...current, action];
+        actionMapRef.current = {
+          ...actionMapRef.current,
+          [clusterId]: revertedActions,
+        };
+
         // Revert optimistic action map
-        setActionMap((prev) => {
-          const current = prev[clusterId] || [];
-          const has = current.includes(action);
-          const reverted = has ? current.filter((a) => a !== action) : [...current, action];
-          return { ...prev, [clusterId]: reverted };
-        });
+        setActionMap((prev) => ({ ...prev, [clusterId]: revertedActions }));
+
         // Revert optimistic upvote count
         if (action === 'upvote') {
-          const wasActive = (actionMap[clusterId] || []).includes('upvote');
-          setUpvoteCounts((prev) => ({
-            ...prev,
-            [clusterId]: Math.max(0, (prev[clusterId] ?? 0) + (wasActive ? 1 : -1)),
-          }));
+          const revertCount = Math.max(
+            0,
+            (upvoteCountsRef.current[clusterId] ?? 0) + (has ? -1 : 1)
+          );
+          upvoteCountsRef.current = {
+            ...upvoteCountsRef.current,
+            [clusterId]: revertCount,
+          };
+          setUpvoteCounts((prev) => ({ ...prev, [clusterId]: revertCount }));
         }
-        return { active: false, upvote_count: upvoteCounts[clusterId] ?? 0 };
+
+        return { active: false, upvote_count: upvoteCountsRef.current[clusterId] ?? 0 };
       }
     },
-    [actionMap, upvoteCounts]
+    []
   );
 
   return (

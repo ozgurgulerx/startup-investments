@@ -195,14 +195,30 @@ export function BriefingClient({ initialData, availablePeriods }: BriefingClient
 
   // Sync data when URL changes (e.g., browser back/forward)
   useEffect(() => {
-    if (validPeriod !== data.period && !isLoading) {
-      fetchBriefingData(validPeriod).then(setData).catch(console.error);
-    }
+    if (validPeriod === data.period || isLoading) return;
+
+    const currentFetchId = ++fetchIdRef.current;
+    let cancelled = false;
+
+    fetchBriefingData(validPeriod)
+      .then((newData) => {
+        if (cancelled) return;
+        if (currentFetchId !== fetchIdRef.current) return;
+        setData(newData);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('Failed to sync briefing from URL:', error);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [validPeriod, data.period, isLoading, fetchBriefingData]);
 
   // Get display month
-  const displayMonth = formatMonthLabel(data.period).replace(' ', ' ').toLowerCase();
-  const [monthName, year] = displayMonth.split(' ');
+  const displayMonth = formatMonthLabel(data.period).toLowerCase();
 
   return (
     <>

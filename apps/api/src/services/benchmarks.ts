@@ -110,6 +110,12 @@ export function makeBenchmarksService(pool: Pool) {
     const { startup_id, region = 'global', period } = params;
 
     // Get startup's data + percentile ranks
+    const snapshotConditions = ['ss.startup_id = $1::uuid', 's.dataset_region = $2'];
+    const snapshotValues: any[] = [startup_id, region];
+    if (period) {
+      snapshotConditions.push('ss.analysis_period = $3');
+      snapshotValues.push(period);
+    }
     const snapshotResult = await pool.query(
       `SELECT ss.funding_stage, ss.vertical, ss.build_patterns,
               ss.confidence_score, ss.engineering_quality_score,
@@ -117,11 +123,10 @@ export function makeBenchmarksService(pool: Pool) {
               s.money_raised_usd, s.employee_count
        FROM startup_state_snapshot ss
        JOIN startups s ON s.id = ss.startup_id
-       WHERE ss.startup_id = $1::uuid
-         AND s.dataset_region = $2
+       WHERE ${snapshotConditions.join(' AND ')}
        ORDER BY ss.analysis_period DESC
        LIMIT 1`,
-      [startup_id, region],
+      snapshotValues,
     );
 
     if (!snapshotResult.rows[0]) {
@@ -157,14 +162,19 @@ export function makeBenchmarksService(pool: Pool) {
       return { startup_values, percentile_ranks, benchmarks: [], cohort_keys };
     }
 
+    const benchConditions = ['cohort_key = ANY($1)', 'region = $2'];
+    const benchValues: any[] = [cohort_keys, region];
+    if (period) {
+      benchConditions.push(`period = $3`);
+      benchValues.push(period);
+    }
     const benchResult = await pool.query(
       `SELECT cohort_key, cohort_type, metric, cohort_size,
               p10, p25, p50, p75, p90, mean, stddev, period
        FROM cohort_benchmarks
-       WHERE cohort_key = ANY($1)
-         AND region = $2
+       WHERE ${benchConditions.join(' AND ')}
        ORDER BY period DESC, cohort_size DESC`,
-      [cohort_keys, region],
+      benchValues,
     );
 
     return {

@@ -697,6 +697,111 @@ _ONBOARD_DENY_PATTERNS = [
     re.compile(r'^(the|a|an)\s', re.I),     # articles
 ]
 
+_ONBOARD_DOMAIN_DENYLIST = {
+    # News/media/community domains that should never become startup websites.
+    "techcrunch.com", "venturebeat.com", "wired.com", "sifted.eu", "crunchbase.com",
+    "webrazzi.com", "egirisim.com", "news.ycombinator.com", "hnrss.org", "reddit.com",
+    "lobste.rs", "producthunt.com", "entrepreneur.com", "inc.com", "fastcompany.com",
+    "tech.eu", "mashable.com", "hackernoon.com", "ycombinator.com", "strictlyvc.com",
+    "prnewswire.com", "businesswire.com", "dev.to", "huggingface.co", "github.com",
+    "amazon.com",
+}
+
+
+def _root_domain_label(domain: str) -> str:
+    """Return the left-most registrable domain label (e.g. acme from acme.ai)."""
+    if not domain:
+        return ""
+    return domain.split(".")[0].strip().lower()
+
+
+def _tokenize_slug(slug: str) -> List[str]:
+    return [t for t in slug.split("-") if len(t) >= 3]
+
+
+def _infer_startup_website(entity_name: str, cluster: Optional["StoryCluster"]) -> Optional[str]:
+    """Infer a likely startup website from cluster member URLs.
+
+    Heuristic:
+    - Skip known publisher/community domains.
+    - Prefer explicit startup-owned payload hints.
+    - Else match domain label with entity slug/tokens.
+    """
+    if not cluster:
+        return None
+
+    entity_slug = _slugify(entity_name)
+    if not entity_slug:
+        return None
+    slug_tokens = _tokenize_slug(entity_slug)
+
+    for member in getattr(cluster, "members", []) or []:
+        source_key = str(getattr(member, "source_key", "") or "")
+        payload = getattr(member, "payload", None) or {}
+
+        # Strong hint from startup-owned feeds where payload includes startup slug.
+        payload_slug = str(payload.get("startup_slug") or "").strip().lower()
+        if source_key == "startup_owned_feeds" and payload_slug and payload_slug == entity_slug:
+            for raw_url in (getattr(member, "canonical_url", None), getattr(member, "url", None)):
+                dom = _publisher_domain(str(raw_url or ""))
+                if dom and dom not in _ONBOARD_DOMAIN_DENYLIST:
+                    return f"https://{dom}"
+
+        for raw_url in (getattr(member, "canonical_url", None), getattr(member, "url", None)):
+            url = str(raw_url or "").strip()
+            if not url:
+                continue
+            dom = _publisher_domain(url)
+            if not dom or dom in _ONBOARD_DOMAIN_DENYLIST:
+                continue
+
+            label = _root_domain_label(dom)
+            if not label:
+                continue
+
+            # Exact/near-exact label match wins immediately.
+            if label == entity_slug or label.startswith(entity_slug) or entity_slug.startswith(label):
+                return f"https://{dom}"
+
+            # Fallback token overlap (e.g. "acme-ai" ↔ "acme").
+            if slug_tokens and any(tok in label for tok in slug_tokens):
+                return f"https://{dom}"
+
+    return None
+
+
+async def _record_onboarding_attempt(
+    conn: "asyncpg.Connection",
+    *,
+    startup_id: Optional[str],
+    entity_name: str,
+    region: str,
+    stage: str,
+    success: bool,
+    reason: str = "",
+    metadata: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Best-effort onboarding attempt telemetry (non-fatal when table is absent)."""
+    try:
+        await conn.execute(
+            """
+            INSERT INTO startup_onboarding_attempts (
+                startup_id, entity_name, region, stage, success, reason, metadata_json
+            )
+            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb)
+            """,
+            startup_id,
+            entity_name,
+            region,
+            stage,
+            success,
+            reason or "",
+            json.dumps(metadata or {}),
+        )
+    except Exception:
+        # Table may not exist yet; onboarding should proceed.
+        return
+
 
 async def onboard_unknown_startups(
     conn: "asyncpg.Connection",
@@ -799,11 +904,15 @@ async def onboard_unknown_startups(
             continue
 
         region = evt.region or "global"
+        cluster_key = evt.metadata.get("cluster_key")
+        cluster = cluster_by_key.get(cluster_key) if cluster_key else None
+        inferred_website = _infer_startup_website(entity_name, cluster)
 
         try:
-            existing = await conn.fetchval(
-                """SELECT id FROM startups
+            existing = await conn.fetchrow(
+                """SELECT id::text AS id, website FROM startups
                    WHERE dataset_region = $3
+                     AND COALESCE(onboarding_status, 'verified') != 'merged'
                      AND (LOWER(name) = $1 OR slug = $2)
                    LIMIT 1""",
                 name_lower,
@@ -811,10 +920,25 @@ async def onboard_unknown_startups(
                 region,
             )
             if existing:
+                existing_id = str(existing["id"])
                 # Link the orphan events to this existing startup
                 for e in events:
                     if e.entity_name and e.entity_name.lower().strip() == name_lower and not e.startup_id:
-                        e.startup_id = str(existing)
+                        e.startup_id = existing_id
+                # If this startup exists as a stub without website, fill website when inferred.
+                existing_website = str(existing.get("website") or "").strip()
+                if inferred_website and not existing_website:
+                    await conn.execute(
+                        """
+                        UPDATE startups
+                        SET website = $2,
+                            updated_at = NOW()
+                        WHERE id = $1::uuid
+                          AND (website IS NULL OR TRIM(website) = '')
+                        """,
+                        existing_id,
+                        inferred_website,
+                    )
                 _skip("existing_startup")
                 continue
         except Exception:
@@ -825,20 +949,33 @@ async def onboard_unknown_startups(
 
         try:
             new_id = await conn.fetchval(
-                """INSERT INTO startups (name, slug, dataset_region, description, period)
-                   VALUES ($1, $2, $3, $4, to_char(CURRENT_DATE, 'YYYY-MM'))
+                """INSERT INTO startups (
+                       name, slug, dataset_region, description, website, onboarding_status, period
+                   )
+                   VALUES ($1, $2, $3, $4, $5, 'stub', to_char(CURRENT_DATE, 'YYYY-MM'))
                    ON CONFLICT (dataset_region, slug) DO NOTHING
                    RETURNING id::text""",
                 entity_name,
                 slug,
                 region,
                 "Auto-discovered from news events. Pending analysis.",
+                inferred_website,
             )
             if not new_id:
                 continue  # Slug collision
 
             created += 1
             logger.info("Onboarded stub startup '%s' (id=%s) from event", entity_name, new_id)
+            await _record_onboarding_attempt(
+                conn,
+                startup_id=new_id,
+                entity_name=entity_name,
+                region=region,
+                stage="stub_inserted",
+                success=True,
+                reason="news_unlinked_entity",
+                metadata={"website_inferred": bool(inferred_website), "website": inferred_website or ""},
+            )
 
             # Backfill startup_id on all events for this entity
             for e in events:
@@ -861,10 +998,20 @@ async def onboard_unknown_startups(
                 from ..crawl_runtime.refresh_jobs import enqueue_refresh_job
                 await enqueue_refresh_job(conn, new_id, "news_onboard")
             except Exception:
-                pass  # refresh_jobs may not exist yet
+                    pass  # refresh_jobs may not exist yet
 
         except Exception:
             logger.warning("Failed to onboard startup '%s'", entity_name, exc_info=True)
+            await _record_onboarding_attempt(
+                conn,
+                startup_id=None,
+                entity_name=entity_name,
+                region=region,
+                stage="stub_inserted",
+                success=False,
+                reason="insert_failed",
+                metadata={"website_inferred": bool(inferred_website)},
+            )
 
     if skipped_reasons:
         logger.info("Onboarding skipped: %s", skipped_reasons)

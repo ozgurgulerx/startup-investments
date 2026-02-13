@@ -49,15 +49,16 @@ export function makeInvestorsService(pool: Pool) {
   }): Promise<InvestorDNA | null> {
     const { investorId, scope = 'global', window = 12 } = params;
 
-    // Get latest mix entry
+    // Get mix entries within the specified window (months)
     const mixResult = await pool.query(
       `SELECT ipm.*, i.name AS investor_name, i.type AS investor_type
        FROM investor_pattern_mix ipm
        JOIN investors i ON i.id = ipm.investor_id
        WHERE ipm.investor_id = $1::uuid AND ipm.scope = $2
+         AND ipm.month >= to_char(NOW() - ($3 || ' months')::interval, 'YYYY-MM')
        ORDER BY ipm.month DESC
        LIMIT 1`,
-      [investorId, scope],
+      [investorId, scope, window],
     );
 
     if (!mixResult.rows[0]) return null;

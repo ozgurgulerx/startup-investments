@@ -74,6 +74,7 @@ class DatabaseConnection:
                 e.id, e.startup_id, e.event_type, e.event_source,
                 e.event_title, e.event_url, e.event_content,
                 e.event_date, e.detected_at,
+                e.confidence, e.metadata_json,
                 s.name as startup_name, s.website as startup_website
             FROM startup_events e
             LEFT JOIN startups s ON e.startup_id = s.id
@@ -169,6 +170,19 @@ class DatabaseConnection:
             WHERE id = $1
         """, item_id, datetime.now(timezone.utc),
              json.dumps(research_output), tokens_used, cost_usd)
+        # Promote qualifying stub startups once research completes successfully.
+        await self.execute("""
+            UPDATE startups s
+            SET onboarding_status = 'verified',
+                updated_at = NOW()
+            FROM deep_research_queue q
+            WHERE q.id = $1::uuid
+              AND q.startup_id = s.id
+              AND COALESCE(s.onboarding_status, 'verified') = 'stub'
+              AND s.website IS NOT NULL
+              AND TRIM(s.website) <> ''
+              AND s.last_crawl_at IS NOT NULL
+        """, item_id)
 
     async def fail_research_item(self, item_id: str, error_message: str):
         """Mark a research item as failed."""
@@ -199,19 +213,70 @@ class DatabaseConnection:
         reason: str,
         priority: int = 5,
         research_depth: str = "standard",
-        focus_areas: Optional[List[str]] = None
+        focus_areas: Optional[List[str]] = None,
+        require_crawled: bool = True,
     ) -> str:
-        """Add a startup to the research queue."""
+        """Add a startup to the research queue.
+
+        Conservative-by-default gating:
+        - excludes merged/rejected startups
+        - requires website
+        - requires at least one crawl (last_crawl_at) unless disabled
+        """
         import json
         item_id = await self.fetchval("""
-            INSERT INTO deep_research_queue
-                (startup_id, priority, reason, research_depth, focus_areas)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO deep_research_queue (startup_id, priority, reason, research_depth, focus_areas)
+            SELECT s.id, $2, $3, $4, $5
+            FROM startups s
+            WHERE s.id = $1::uuid
+              AND COALESCE(s.onboarding_status, 'verified') NOT IN ('merged', 'rejected')
+              AND s.website IS NOT NULL
+              AND TRIM(s.website) <> ''
+              AND ($6::boolean = FALSE OR s.last_crawl_at IS NOT NULL)
             ON CONFLICT DO NOTHING
             RETURNING id
         """, startup_id, priority, reason, research_depth,
-             json.dumps(focus_areas) if focus_areas else None)
+             json.dumps(focus_areas) if focus_areas else None, require_crawled)
         return str(item_id) if item_id else None
+
+    async def get_research_spend(self) -> Dict[str, float]:
+        """Return completed deep-research spend for current UTC day/month."""
+        row = await self.fetchrow(
+            """
+            SELECT
+                COALESCE(SUM(cost_usd) FILTER (
+                    WHERE completed_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
+                ), 0)::float8 AS daily_usd,
+                COALESCE(SUM(cost_usd) FILTER (
+                    WHERE completed_at >= date_trunc('month', NOW() AT TIME ZONE 'UTC')
+                ), 0)::float8 AS monthly_usd
+            FROM deep_research_queue
+            WHERE status = 'completed'
+            """
+        )
+        if not row:
+            return {"daily_usd": 0.0, "monthly_usd": 0.0}
+        return {
+            "daily_usd": float(row.get("daily_usd") or 0.0),
+            "monthly_usd": float(row.get("monthly_usd") or 0.0),
+        }
+
+    async def get_startup_research_snapshot(self, startup_id: str) -> Optional[Dict[str, Any]]:
+        """Get minimal startup state used for research queue gating."""
+        row = await self.fetchrow(
+            """
+            SELECT
+                id::text AS id,
+                COALESCE(onboarding_status, 'verified') AS onboarding_status,
+                website,
+                last_crawl_at,
+                COALESCE(crawl_success_rate, 0)::float8 AS crawl_success_rate
+            FROM startups
+            WHERE id = $1::uuid
+            """,
+            startup_id,
+        )
+        return dict(row) if row else None
 
     # =========================================================================
     # Startup Operations

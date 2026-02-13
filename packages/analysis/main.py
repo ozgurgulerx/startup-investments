@@ -604,6 +604,63 @@ def process_refresh_jobs(
         console.print(f"[bold red]Errors:[/bold red] {errors}")
 
 
+@app.command("process-events")
+def process_events(
+    batch_size: int = typer.Option(50, "--batch-size", "-b", help="Max startup events to process per run"),
+):
+    """Process unprocessed startup events and enqueue eligible deep-research jobs."""
+    from src.automation.event_processor import run_event_processor
+
+    try:
+        results = asyncio.run(run_event_processor(batch_size=max(1, int(batch_size))))
+    except Exception as exc:
+        console.print(f"[red]Event processing failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    processed = len(results)
+    success = sum(1 for r in results if r.success)
+    queued = sum(1 for r in results if r.triggered_reanalysis)
+    console.print(Panel.fit(
+        "[bold blue]Event Processor Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Events processed:[/bold] {processed}")
+    console.print(f"[bold]Successful:[/bold] {success}")
+    console.print(f"[bold]Research-triggering events:[/bold] {queued}")
+
+
+@app.command("consume-deep-research")
+def consume_deep_research(
+    batch_size: int = typer.Option(10, "--batch-size", "-b", help="Max queue items to process per run"),
+    max_concurrent: int = typer.Option(3, "--max-concurrent", "-c", help="Max concurrent LLM calls"),
+):
+    """Process deep_research_queue with conservative budget controls."""
+    from src.automation.deep_research_consumer import run_consumer
+
+    try:
+        results = asyncio.run(
+            run_consumer(
+                batch_size=max(1, int(batch_size)),
+                max_concurrent=max(1, int(max_concurrent)),
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]Deep research consumer failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    success = sum(1 for r in results if r.success)
+    failed = sum(1 for r in results if not r.success)
+    total_cost = sum(float(r.cost_usd or 0.0) for r in results)
+    console.print(Panel.fit(
+        "[bold blue]Deep Research Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Items processed:[/bold] {len(results)}")
+    console.print(f"[bold]Success:[/bold] {success}")
+    console.print(f"[bold]Failed:[/bold] {failed}")
+    console.print(f"[bold]Cost (run):[/bold] ${total_cost:.4f}")
+
+
 @app.command("ingest-news")
 def ingest_news(
     lookback_hours: int = typer.Option(48, "--lookback-hours", help="How far back to collect stories"),

@@ -388,7 +388,7 @@ export const occurrencesQuerySchema = z.object({
 });
 
 export const movesQuerySchema = z.object({
-  startup_id: optionalTrimmedString(50),
+  startup_id: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
 });
 
@@ -412,7 +412,7 @@ export const moversFeedQuerySchema = z.object({
   delta_type: deltaType.optional(),
   domain: optionalTrimmedString(50),
   sector: sectorParam,
-  startup_id: optionalTrimmedString(50),
+  startup_id: z.string().uuid().optional(),
   period: optionalTrimmedString(10),
   min_magnitude: z.coerce.number().min(0).max(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),

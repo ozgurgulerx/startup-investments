@@ -100,6 +100,8 @@ done
 FRESHNESS_JOBS=(
     "keep-alive:40:always"
     "news-ingest:150:always"
+    "event-processor:60:always"
+    "deep-research:90:always"
     "crawl-frontier:90:always"
     "news-digest:3000:always"
     "sync-data:90:always"

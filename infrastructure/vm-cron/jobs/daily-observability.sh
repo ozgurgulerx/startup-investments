@@ -1,11 +1,12 @@
 #!/bin/bash
 # daily-observability.sh — Daily pipeline quality metrics posted to Slack.
 #
-# Reports 4 SLO metrics:
+# Reports 5 SLO metrics:
 #   1. Event→Crawl latency (p50/p90): time from event detection to first crawl
 #   2. Refresh effectiveness: % completed jobs with urls_boosted > 0
 #   3. Linking quality: % events with startup_id, % with participants[]
 #   4. Embedding coverage: unembedded count, last-24h embedded, coverage %
+#   5. Onboarding funnel + deep-research spend caps
 #
 # Run via: runner.sh daily-observability 10 .../jobs/daily-observability.sh
 set -uo pipefail
@@ -145,6 +146,53 @@ EMB_PCT=$(echo "$EMBEDDING" | cut -d'|' -f4 | tr -d ' ')
 echo "  unembedded: ${EMB_UNEMBEDDED}  embedded_last_24h: ${EMB_LAST24H}  coverage: ${EMB_PCT}%"
 
 # ---------------------------------------------------------------------------
+# Metric 5: Onboarding funnel + deep-research spend
+# ---------------------------------------------------------------------------
+echo ""
+echo "[5/5] Onboarding funnel + research spend..."
+
+ONBOARDING=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
+SELECT
+    COUNT(*) FILTER (WHERE COALESCE(onboarding_status, 'verified') = 'stub') AS stubs,
+    COUNT(*) FILTER (WHERE COALESCE(onboarding_status, 'verified') = 'verified') AS verified,
+    COUNT(*) FILTER (WHERE COALESCE(onboarding_status, 'verified') = 'rejected') AS rejected,
+    COUNT(*) FILTER (
+        WHERE COALESCE(onboarding_status, 'verified') = 'stub'
+          AND created_at > NOW() - INTERVAL '24 hours'
+    ) AS stubs_24h,
+    COUNT(*) FILTER (
+        WHERE COALESCE(onboarding_status, 'verified') = 'verified'
+          AND updated_at > NOW() - INTERVAL '24 hours'
+    ) AS verified_24h
+FROM startups;
+SQL
+)
+
+ONB_STUBS=$(echo "$ONBOARDING" | cut -d'|' -f1 | tr -d ' ')
+ONB_VERIFIED=$(echo "$ONBOARDING" | cut -d'|' -f2 | tr -d ' ')
+ONB_REJECTED=$(echo "$ONBOARDING" | cut -d'|' -f3 | tr -d ' ')
+ONB_STUBS_24H=$(echo "$ONBOARDING" | cut -d'|' -f4 | tr -d ' ')
+ONB_VERIFIED_24H=$(echo "$ONBOARDING" | cut -d'|' -f5 | tr -d ' ')
+
+SPEND=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
+SELECT
+    COALESCE(SUM(cost_usd) FILTER (
+        WHERE completed_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
+    ), 0),
+    COALESCE(SUM(cost_usd) FILTER (
+        WHERE completed_at >= date_trunc('month', NOW() AT TIME ZONE 'UTC')
+    ), 0)
+FROM deep_research_queue
+WHERE status = 'completed';
+SQL
+)
+
+SPEND_DAILY=$(echo "$SPEND" | cut -d'|' -f1 | tr -d ' ')
+SPEND_MONTHLY=$(echo "$SPEND" | cut -d'|' -f2 | tr -d ' ')
+echo "  stubs: ${ONB_STUBS} (24h +${ONB_STUBS_24H})  verified: ${ONB_VERIFIED} (24h +${ONB_VERIFIED_24H})  rejected: ${ONB_REJECTED}"
+echo "  deep-research spend: daily=\$${SPEND_DAILY} monthly=\$${SPEND_MONTHLY}"
+
+# ---------------------------------------------------------------------------
 # Build Slack message
 # ---------------------------------------------------------------------------
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
@@ -157,6 +205,9 @@ fi
 if [ "$LATENCY_P50" = "-1" ] && [ "$REFRESH_TOTAL" = "0" ] && [ "$LINK_TOTAL" = "0" ]; then
     STATUS="warning"
 fi
+if [ "${ONB_STUBS_24H:-0}" -gt 0 ] 2>/dev/null && [ "${ONB_VERIFIED_24H:-0}" -eq 0 ] 2>/dev/null; then
+    STATUS="warning"
+fi
 
 BODY="*Event \u2192 Crawl Latency (7d)*"$'\n'
 BODY="${BODY}p50: ${LATENCY_P50}h  \u2022  p90: ${LATENCY_P90}h  (n=${LATENCY_N})"$'\n\n'
@@ -167,6 +218,9 @@ BODY="${BODY}${LINK_LINKED}/${LINK_TOTAL} events linked to startup (${LINK_PCT}%
 BODY="${BODY}${LINK_PARTICIPANTS} events with multi-party participants"$'\n\n'
 BODY="${BODY}*Embedding Coverage*"$'\n'
 BODY="${BODY}unembedded: ${EMB_UNEMBEDDED}  \u2022  last 24h: ${EMB_LAST24H}  \u2022  coverage: ${EMB_PCT}%"$'\n\n'
+BODY="${BODY}*Onboarding Funnel / Research Spend*"$'\n'
+BODY="${BODY}stubs: ${ONB_STUBS} (24h +${ONB_STUBS_24H})  \u2022  verified: ${ONB_VERIFIED} (24h +${ONB_VERIFIED_24H})  \u2022  rejected: ${ONB_REJECTED}"$'\n'
+BODY="${BODY}deep-research spend: daily=\$${SPEND_DAILY}  \u2022  monthly=\$${SPEND_MONTHLY}"$'\n\n'
 BODY="${BODY}_${TIMESTAMP}_"
 
 echo ""

@@ -4,7 +4,15 @@ A full-stack platform for tracking and analyzing AI startup investments, featuri
 
 **Live Site:** [buildatlas.net](https://buildatlas.net)
 
+## Operator Docs (Read Before Infra/Deploy Changes)
+
+- Canonical operating model: `docs/OPERATING_MODEL.md`
+- Docs index: `docs/README.md`
+- Guardrails and invariants: `AGENTS.md`
+
 ## Architecture
+
+Operational source of truth for deployment/cron/pipeline behavior: `docs/OPERATING_MODEL.md`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐

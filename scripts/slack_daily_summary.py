@@ -61,6 +61,8 @@ ALL_WORKFLOWS = CICD_WORKFLOWS + [
 VM_CRON_JOBS = {
     "keep-alive": 20,
     "news-ingest": 75,
+    "event-processor": 30,
+    "deep-research": 45,
     "crawl-frontier": 45,
     "news-digest": 1500,     # daily
     "slack-summary": 1500,   # daily (this script itself)

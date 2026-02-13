@@ -103,6 +103,10 @@ def populate_analysis_data(conn, period: str, analyses: dict, *, region: str):
                     money_raised_usd = %s,
                     funding_stage = %s,
                     uses_genai = %s,
+                    onboarding_status = CASE
+                        WHEN COALESCE(onboarding_status, 'verified') = 'stub' THEN 'verified'
+                        ELSE onboarding_status
+                    END,
                     updated_at = NOW()
                 WHERE dataset_region = %s AND slug = %s
                 RETURNING id
@@ -130,6 +134,10 @@ def populate_analysis_data(conn, period: str, analyses: dict, *, region: str):
                         money_raised_usd = %s,
                         funding_stage = %s,
                         uses_genai = %s,
+                        onboarding_status = CASE
+                            WHEN COALESCE(onboarding_status, 'verified') = 'stub' THEN 'verified'
+                            ELSE onboarding_status
+                        END,
                         updated_at = NOW()
                     WHERE dataset_region = %s AND LOWER(name) = LOWER(%s)
                     RETURNING id
@@ -249,6 +257,10 @@ def populate_from_csv(conn, period: str, *, region: str):
                         money_raised_usd = %s,
                         funding_stage = %s,
                         uses_genai = %s,
+                        onboarding_status = CASE
+                            WHEN COALESCE(onboarding_status, 'verified') = 'stub' THEN 'verified'
+                            ELSE onboarding_status
+                        END,
                         updated_at = NOW()
                     WHERE dataset_region = %s AND (slug = %s OR LOWER(name) = LOWER(%s))
                     RETURNING id

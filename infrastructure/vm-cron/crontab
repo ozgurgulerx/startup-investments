@@ -15,6 +15,14 @@ MAILTO=""
 # === News Ingest (hourly at :15) ===
 15 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-ingest 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-ingest.sh
 
+# === Event Processor (every 15 min, staggered) ===
+# Processes startup_events and enqueues eligible deep-research jobs.
+5,20,35,50 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh event-processor 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/event-processor.sh
+
+# === Deep Research Consumer (every 15 min, staggered) ===
+# Consumes deep_research_queue with strict budget caps.
+12,27,42,57 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh deep-research 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-research.sh
+
 # === Crawl Frontier Worker (every 30 min) ===
 0,30 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh crawl-frontier 25 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/crawl-frontier.sh
 

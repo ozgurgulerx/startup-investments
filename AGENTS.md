@@ -174,6 +174,37 @@ News:
       - `SELECT COUNT(*) FROM news_item_extractions;`
       - `SELECT COUNT(*) FROM news_entity_facts WHERE is_current = TRUE;`
 
+- News-driven startup onboarding (active):
+  - Ingest hook: `packages/analysis/src/automation/news_ingest.py` calls `onboard_unknown_startups(...)` for unlinked startup entities.
+  - Stub creation behavior:
+    - Inserts startup rows with `onboarding_status='stub'` (not immediately visible in Dealbook/company API).
+    - Attempts website inference from cluster evidence URLs and stores inferred website when confidence is sufficient.
+    - Writes attempt telemetry to `startup_onboarding_attempts` (migration: `database/migrations/058_onboarding_pipeline_activation.sql`).
+  - Event/crawl/research chain:
+    - `onboard_unknown_startups` enqueues refresh jobs (`reason='news_onboard'`) → `crawl-frontier` processes them.
+    - VM cron `event-processor` runs `main.py process-events` (gated enqueue to `deep_research_queue`).
+    - VM cron `deep-research` runs `main.py consume-deep-research` (Azure chat-based worker).
+  - Deep research budget gates (VM env):
+    - `DEEP_RESEARCH_ENABLED`
+    - `DEEP_RESEARCH_MAX_DAILY_USD`
+    - `DEEP_RESEARCH_MAX_MONTHLY_USD`
+    - `DEEP_RESEARCH_MAX_ITEMS_PER_RUN`
+    - `DEEP_RESEARCH_MIN_EVENT_CONFIDENCE`
+    - `DEEP_RESEARCH_MIN_CRAWL_SUCCESS_RATE`
+  - Visibility invariant:
+    - Backend `GET /api/v1/dealbook`, `GET /api/v1/dealbook/filters`, and `GET /api/v1/companies/:slug` are **verified-only** (`onboarding_status='verified'`).
+    - `merged`/`stub`/`rejected` startups are excluded from those surfaces.
+  - Promotion to verified:
+    - On successful deep-research completion, stub startups with website + successful crawl are promoted to `verified`.
+    - `sync-startups-to-db.py` and `populate-analysis-data.py` also promote `stub -> verified` for curated/analysis-backed records.
+  - Quick checks:
+    - Stub/verified counts:
+      - `SELECT onboarding_status, COUNT(*) FROM startups GROUP BY onboarding_status ORDER BY onboarding_status;`
+    - New onboarding attempts:
+      - `SELECT attempted_at, entity_name, region, stage, success, reason FROM startup_onboarding_attempts ORDER BY attempted_at DESC LIMIT 20;`
+    - Deep research spend caps:
+      - `SELECT COALESCE(SUM(cost_usd) FILTER (WHERE completed_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')),0) AS daily_usd, COALESCE(SUM(cost_usd) FILTER (WHERE completed_at >= date_trunc('month', NOW() AT TIME ZONE 'UTC')),0) AS monthly_usd FROM deep_research_queue WHERE status='completed';`
+
 ## Startups: Vertical Taxonomy + Dealbook Filters
 
 We store startup "vertical/subvertical" in two forms:

@@ -54,6 +54,10 @@ class DeepResearchConsumer:
         self.db = db or DatabaseConnection()
         self.max_concurrent = max_concurrent
         self.max_retries = max_retries
+        self.enabled = self._env_bool("DEEP_RESEARCH_ENABLED", True)
+        self.max_daily_usd = self._env_float("DEEP_RESEARCH_MAX_DAILY_USD", 15.0)
+        self.max_monthly_usd = self._env_float("DEEP_RESEARCH_MAX_MONTHLY_USD", 300.0)
+        self.max_items_per_run = max(1, self._env_int("DEEP_RESEARCH_MAX_ITEMS_PER_RUN", 8))
 
         # Initialize OpenAI client
         self.client = AsyncAzureOpenAI(
@@ -64,9 +68,53 @@ class DeepResearchConsumer:
         # Azure uses deployment names; prefer *_DEPLOYMENT_NAME but keep legacy var.
         self.model = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5-nano")
 
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        raw = str(os.getenv(name, "") or "").strip().lower()
+        if not raw:
+            return default
+        return raw in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _env_int(name: str, default: int) -> int:
+        raw = str(os.getenv(name, "") or "").strip()
+        if not raw:
+            return default
+        try:
+            return int(raw)
+        except Exception:
+            return default
+
+    @staticmethod
+    def _env_float(name: str, default: float) -> float:
+        raw = str(os.getenv(name, "") or "").strip()
+        if not raw:
+            return default
+        try:
+            return float(raw)
+        except Exception:
+            return default
+
+    async def _budget_state(self) -> Dict[str, float]:
+        spend = await self.db.get_research_spend()
+        daily = float(spend.get("daily_usd") or 0.0)
+        monthly = float(spend.get("monthly_usd") or 0.0)
+        return {
+            "daily_usd": daily,
+            "monthly_usd": monthly,
+            "daily_remaining": self.max_daily_usd - daily,
+            "monthly_remaining": self.max_monthly_usd - monthly,
+        }
+
+    def _budget_allows_processing(self, budget: Dict[str, float]) -> bool:
+        return budget["daily_remaining"] > 0 and budget["monthly_remaining"] > 0
+
     async def process_queue(self, batch_size: int = 10) -> List[ResearchResult]:
         """Process a batch of research items from the queue."""
         results = []
+        if not self.enabled:
+            logger.info("Deep research consumer disabled (DEEP_RESEARCH_ENABLED=false)")
+            return results
 
         try:
             await self.db.connect()
@@ -74,35 +122,43 @@ class DeepResearchConsumer:
             # Reclaim items stuck in 'processing' for >30 minutes (crash recovery)
             await self._reclaim_stale_items(stale_minutes=30)
 
+            budget = await self._budget_state()
+            if not self._budget_allows_processing(budget):
+                logger.warning(
+                    "Deep research budget reached (daily=%.4f/%.4f monthly=%.4f/%.4f); skipping run",
+                    budget["daily_usd"], self.max_daily_usd,
+                    budget["monthly_usd"], self.max_monthly_usd,
+                )
+                return results
+
             # Get pending items
-            items = await self.db.get_pending_research_items(limit=batch_size)
+            effective_batch = min(max(1, int(batch_size)), self.max_items_per_run)
+            items = await self.db.get_pending_research_items(limit=effective_batch)
             logger.info(f"Found {len(items)} pending research items")
 
             if not items:
                 return results
 
-            # Process with concurrency control
-            semaphore = asyncio.Semaphore(self.max_concurrent)
-
-            async def process_with_semaphore(item: Dict[str, Any]) -> ResearchResult:
-                async with semaphore:
-                    return await self._process_item(item)
-
-            tasks = [process_with_semaphore(item) for item in items]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            # Convert exceptions to error results
             processed_results = []
-            for item, result in zip(items, results):
-                if isinstance(result, Exception):
-                    processed_results.append(ResearchResult(
-                        startup_id=item["startup_id"],
+            for item in items:
+                budget = await self._budget_state()
+                if not self._budget_allows_processing(budget):
+                    logger.warning(
+                        "Stopping run due to budget cap (daily=%.4f/%.4f monthly=%.4f/%.4f)",
+                        budget["daily_usd"], self.max_daily_usd,
+                        budget["monthly_usd"], self.max_monthly_usd,
+                    )
+                    break
+                try:
+                    result = await self._process_item(item)
+                except Exception as exc:
+                    result = ResearchResult(
+                        startup_id=str(item.get("startup_id") or ""),
                         startup_name=item.get("startup_name", "Unknown"),
                         success=False,
-                        error=str(result)
-                    ))
-                else:
-                    processed_results.append(result)
+                        error=str(exc),
+                    )
+                processed_results.append(result)
 
             return processed_results
 
@@ -119,10 +175,10 @@ class DeepResearchConsumer:
             result = await self.db.execute("""
                 UPDATE deep_research_queue
                 SET status = 'pending',
-                    claimed_at = NULL,
+                    started_at = NULL,
                     retry_count = COALESCE(retry_count, 0) + 1
                 WHERE status = 'processing'
-                  AND claimed_at < NOW() - INTERVAL '1 minute' * $1
+                  AND started_at < NOW() - INTERVAL '1 minute' * $1
                   AND COALESCE(retry_count, 0) < $2
             """, stale_minutes, self.max_retries)
             # Log if items were reclaimed (result is the command tag like "UPDATE 2")

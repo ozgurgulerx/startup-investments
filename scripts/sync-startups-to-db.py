@@ -258,6 +258,10 @@ def main() -> int:
                           continent = EXCLUDED.continent,
                           industry = EXCLUDED.industry,
                           stage = EXCLUDED.stage,
+                          onboarding_status = CASE
+                            WHEN COALESCE(startups.onboarding_status, 'verified') = 'merged' THEN startups.onboarding_status
+                            ELSE 'verified'
+                          END,
                           updated_at = NOW()
                         RETURNING id, slug, (xmax = 0) AS inserted
                         """,

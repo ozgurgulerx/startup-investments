@@ -6,21 +6,36 @@ based on event_type, triggering re-analysis when needed.
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional, Callable
-from datetime import datetime, timezone
+import os
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
-from enum import Enum
 
 from .db import DatabaseConnection
 
 logger = logging.getLogger(__name__)
 
 
-class EventType(str, Enum):
-    FUNDING_NEWS = "funding_news"
-    WEBSITE_CHANGE = "website_change"
-    HACKERNEWS_MENTION = "hackernews_mention"
-    JOB_POSTING = "job_posting"
+HIGH_IMPACT_EVENT_TYPES = {
+    "cap_funding_raised",
+    "cap_acquisition_announced",
+    "prod_launched",
+    "prod_major_update",
+    "org_key_hire",
+    # Legacy
+    "funding_news",
+}
+
+MEDIUM_IMPACT_EVENT_TYPES = {
+    "arch_pattern_adopted",
+    "gtm_enterprise_tier_launched",
+    "gtm_channel_launched",
+    "gtm_open_source_strategy",
+    "gtm_vertical_expansion",
+    # Legacy
+    "website_change",
+    "hackernews_mention",
+    "job_posting",
+}
 
 
 @dataclass
@@ -36,7 +51,7 @@ class ProcessingResult:
 
 
 class StartupEventProcessor:
-    """Processes startup events and routes to appropriate handlers."""
+    """Processes startup events and enqueues gated deep-research jobs."""
 
     def __init__(
         self,
@@ -45,14 +60,8 @@ class StartupEventProcessor:
     ):
         self.db = db or DatabaseConnection()
         self.auto_enqueue_research = auto_enqueue_research
-
-        # Event handlers registry
-        self._handlers: Dict[str, Callable] = {
-            EventType.FUNDING_NEWS: self._handle_funding_news,
-            EventType.WEBSITE_CHANGE: self._handle_website_change,
-            EventType.HACKERNEWS_MENTION: self._handle_hackernews_mention,
-            EventType.JOB_POSTING: self._handle_job_posting,
-        }
+        self.min_event_confidence = float(os.getenv("DEEP_RESEARCH_MIN_EVENT_CONFIDENCE", "0.55"))
+        self.min_crawl_success_rate = float(os.getenv("DEEP_RESEARCH_MIN_CRAWL_SUCCESS_RATE", "0.20"))
 
     async def process_events(self, batch_size: int = 50) -> List[ProcessingResult]:
         """Process a batch of unprocessed events."""
@@ -77,40 +86,35 @@ class StartupEventProcessor:
     async def _process_event(self, event: Dict[str, Any]) -> ProcessingResult:
         """Process a single event."""
         event_id = str(event["id"])
-        event_type = event["event_type"]
+        event_type = str(event.get("event_type") or "")
         startup_name = event.get("startup_name")
         startup_id = event.get("startup_id")
+        confidence = event.get("confidence")
 
         logger.info(f"Processing event {event_id}: {event_type} for {startup_name or 'unknown startup'}")
 
         try:
-            # Get handler for event type
-            handler = self._handlers.get(event_type)
-
-            if not handler:
-                logger.warning(f"No handler for event type: {event_type}")
-                await self.db.mark_event_processed(event_id, triggered_reanalysis=False)
-                return ProcessingResult(
-                    event_id=event_id,
-                    event_type=event_type,
-                    startup_name=startup_name,
-                    success=True,
-                    action_taken="no_handler",
-                    triggered_reanalysis=False
-                )
-
-            # Execute handler
-            action_taken, should_reanalyze = await handler(event)
+            action_taken, should_reanalyze = self._route_event(event_type)
 
             # Enqueue for deep research if needed
             analysis_id = None
             if should_reanalyze and self.auto_enqueue_research and startup_id:
-                analysis_id = await self._enqueue_for_research(
-                    startup_id=startup_id,
-                    reason=event_type,
-                    priority=self._get_priority_for_event(event_type)
+                eligible = await self._eligible_for_research(
+                    startup_id=str(startup_id),
+                    confidence=confidence,
                 )
-                logger.info(f"Enqueued {startup_name} for research (reason: {event_type})")
+                if eligible:
+                    analysis_id = await self._enqueue_for_research(
+                        startup_id=str(startup_id),
+                        reason=event_type,
+                        priority=self._get_priority_for_event(event_type)
+                    )
+                    if analysis_id:
+                        logger.info("Enqueued %s for research (reason=%s)", startup_name, event_type)
+                    else:
+                        action_taken = f"{action_taken}|already_queued_or_not_eligible"
+                else:
+                    action_taken = f"{action_taken}|gated"
 
             # Mark event as processed
             await self.db.mark_event_processed(
@@ -161,103 +165,59 @@ class StartupEventProcessor:
                 error=str(e)
             )
 
-    async def _handle_funding_news(self, event: Dict[str, Any]) -> tuple[str, bool]:
-        """Handle funding news events - high priority, always re-analyze."""
-        event_title = event.get("event_title", "")
-        event_content = event.get("event_content", "")
+    def _route_event(self, event_type: str) -> tuple[str, bool]:
+        """Map event type to processing action + whether research should be considered."""
+        if event_type in HIGH_IMPACT_EVENT_TYPES:
+            return "high_impact_event", True
+        if event_type in MEDIUM_IMPACT_EVENT_TYPES:
+            return "medium_impact_event", True
+        if event_type.startswith(("cap_", "prod_", "gtm_", "arch_", "org_")):
+            return "typed_signal_event", True
+        return "logged_only", False
 
-        # Log the funding event details
-        logger.info(f"Funding news detected: {event_title}")
-
-        # Funding events always trigger re-analysis
-        return "funding_detected", True
-
-    async def _handle_website_change(self, event: Dict[str, Any]) -> tuple[str, bool]:
-        """Handle website change events - re-analyze only if significant.
-
-        Significance heuristics:
-        - Sites that rarely change (change_rate < 0.3) are more notable when they do
-        - Sites unchanged for 3+ consecutive checks are more notable
-        - Content containing key signals (launch, pivot, product, partnership) is notable
-        """
-        startup_id = event.get("startup_id")
-        significant = False
-
-        # Try DB-based significance check
+    async def _eligible_for_research(self, startup_id: str, confidence: Any) -> bool:
+        """Apply conservative queue gates before adding deep-research workload."""
         try:
-            if startup_id:
-                stats = await self.db.fetchrow("""
-                    SELECT change_rate, consecutive_unchanged
-                    FROM startups
-                    WHERE id = $1
-                """, startup_id)
+            conf = float(confidence) if confidence is not None else 0.0
+        except Exception:
+            conf = 0.0
+        if conf and conf < self.min_event_confidence:
+            return False
 
-                if stats:
-                    change_rate = stats.get("change_rate") or 0.5
-                    consecutive_unchanged = stats.get("consecutive_unchanged") or 0
+        snapshot = await self.db.get_startup_research_snapshot(startup_id)
+        if not snapshot:
+            return False
 
-                    # Stable site changed → significant
-                    if change_rate < 0.3:
-                        significant = True
-                    # Long-unchanged site changed → significant
-                    elif consecutive_unchanged >= 3:
-                        significant = True
-        except Exception as e:
-            logger.debug(f"Could not check change stats for {startup_id}: {e}")
+        status = str(snapshot.get("onboarding_status") or "verified")
+        if status in {"merged", "rejected"}:
+            return False
 
-        # Content-based significance check (fallback / supplemental)
-        if not significant:
-            event_content = (event.get("event_content") or "").lower()
-            signal_keywords = ("launch", "pivot", "rebrand", "product", "partnership", "acquisition", "hiring")
-            if any(kw in event_content for kw in signal_keywords):
-                significant = True
+        website = str(snapshot.get("website") or "").strip()
+        if not website:
+            return False
 
-        if significant:
-            logger.info(f"Significant website change detected for {event.get('startup_name')}")
-            return "website_change_significant", True
-        else:
-            logger.debug(f"Minor website change for {event.get('startup_name')}, skipping re-analysis")
-            return "website_change_minor", False
+        # For stubs, require at least one crawl before spending research budget.
+        if status == "stub" and not snapshot.get("last_crawl_at"):
+            return False
 
-    async def _handle_hackernews_mention(self, event: Dict[str, Any]) -> tuple[str, bool]:
-        """Handle HackerNews mention events - re-analyze if high engagement."""
-        event_url = event.get("event_url", "")
-        event_content = event.get("event_content", "")
+        try:
+            csr = float(snapshot.get("crawl_success_rate") or 0.0)
+        except Exception:
+            csr = 0.0
+        if status == "stub" and csr > 0 and csr < self.min_crawl_success_rate:
+            return False
 
-        # Check for high engagement signals in content
-        # This would ideally parse the HN data for points/comments
-        high_engagement = "points" in event_content.lower() or "comments" in event_content.lower()
-
-        if high_engagement:
-            logger.info(f"High engagement HN mention for {event.get('startup_name')}")
-            return "hackernews_high_engagement", True
-        else:
-            return "hackernews_mention_logged", False
-
-    async def _handle_job_posting(self, event: Dict[str, Any]) -> tuple[str, bool]:
-        """Handle job posting events - re-analyze for tech stack updates."""
-        event_content = event.get("event_content", "")
-
-        # Job postings can reveal tech stack changes
-        # Re-analyze if it mentions interesting tech
-        tech_keywords = ["llm", "gpt", "claude", "vector", "embeddings", "ml", "ai"]
-        mentions_tech = any(kw in event_content.lower() for kw in tech_keywords)
-
-        if mentions_tech:
-            logger.info(f"Tech-focused job posting detected for {event.get('startup_name')}")
-            return "job_posting_tech", True
-        else:
-            return "job_posting_logged", False
+        return True
 
     def _get_priority_for_event(self, event_type: str) -> int:
         """Get research queue priority based on event type."""
-        priorities = {
-            EventType.FUNDING_NEWS: 1,      # Highest priority
-            EventType.WEBSITE_CHANGE: 3,
-            EventType.HACKERNEWS_MENTION: 4,
-            EventType.JOB_POSTING: 5,
-        }
-        return priorities.get(event_type, 5)
+        if event_type in {"cap_funding_raised", "cap_acquisition_announced", "funding_news"}:
+            return 1
+        if event_type in {"prod_launched", "prod_major_update", "org_key_hire"}:
+            return 2
+        if event_type.startswith(("gtm_", "arch_")):
+            return 3
+        return 5
 
     async def _enqueue_for_research(
         self,
@@ -267,10 +227,16 @@ class StartupEventProcessor:
     ) -> Optional[str]:
         """Enqueue a startup for deep research."""
         # Determine research depth based on reason
-        if reason == EventType.FUNDING_NEWS:
+        if reason in {"cap_funding_raised", "cap_acquisition_announced", "funding_news"}:
             depth = "standard"
-            focus = ["funding_impact", "market_position", "growth_signals"]
-        elif reason == EventType.WEBSITE_CHANGE:
+            focus = ["funding_impact", "market_position", "growth_signals", "capital_structure"]
+        elif reason.startswith("arch_"):
+            depth = "quick"
+            focus = ["technical_architecture", "moat_assessment"]
+        elif reason.startswith("gtm_"):
+            depth = "quick"
+            focus = ["go_to_market", "pricing", "distribution"]
+        elif reason in {"prod_launched", "prod_major_update", "website_change"}:
             depth = "quick"
             focus = ["product_changes", "messaging_updates"]
         else:
@@ -282,7 +248,8 @@ class StartupEventProcessor:
             reason=reason,
             priority=priority,
             research_depth=depth,
-            focus_areas=focus
+            focus_areas=focus,
+            require_crawled=True,
         )
 
 

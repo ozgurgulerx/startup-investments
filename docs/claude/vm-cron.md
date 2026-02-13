@@ -1,67 +1,74 @@
-# VM Cron Infrastructure
+# VM Cron Operations (Current)
 
-All scheduled jobs and deployments run on `vm-buildatlas-cron` (B2s, UK South, `aistartuptr` RG).
+Canonical reference: `docs/OPERATING_MODEL.md`
 
-## SSH Access
+This file is a quick VM operations guide for day-to-day debugging.
 
-```bash
-ssh buildatlas@20.90.104.162
-```
+## Access
 
-**SSH unreachable? Fix NSG rules immediately — do NOT waste time troubleshooting.**
-Azure periodically clears the NSG SSH rules (JIT expiry). Run these two commands to restore access:
-```bash
-MY_IP=$(curl -s https://ifconfig.me)
-az network nsg rule create --nsg-name vm-buildatlas-cronNSG --resource-group aistartuptr --name AllowSSH --priority 100 --access Allow --direction Inbound --protocol Tcp --destination-port-ranges 22 --source-address-prefixes $MY_IP -o none
-az network nsg rule create --nsg-name "vm-buildatlas-cronVNET-vm-buildatlas-cronSubnet-nsg-uksouth" --resource-group aistartuptr --name AllowSSH --priority 100 --access Allow --direction Inbound --protocol Tcp --destination-port-ranges 22 --source-address-prefixes $MY_IP -o none
-```
-Both the NIC-level and subnet-level NSGs need the rule — one alone is not enough.
-
-## How It Works
-
-- `runner.sh` wrapper: sources `/etc/buildatlas/.env`, flock locking, timeout, logging to `/var/log/buildatlas/`, Slack on failure
-- Code updates every 15 min (`deploy.sh`, staggered at :07/:22/:37/:52): pulls latest, auto-triggers backend/frontend deploys if `apps/api/**` or `apps/web/**` changed
-- `sync-data.sh` triggers `frontend-deploy.sh` after pushing data changes
-
-## Scheduled Cron Jobs (all UTC)
-
-| Job | Schedule | What it does |
-|-----|----------|-------------|
-| `keep-alive` | Every 15 min | PostgreSQL + AKS + API + Frontend health checks |
-| `news-ingest` | Hourly :15 | Fetch + LLM-enrich news articles |
-| `crawl-frontier` | Every 30 min | Crawl frontier URLs |
-| `signal-aggregate` | Every 4 hours :30 | Aggregate events into signals, score, lifecycle |
-| `news-digest` | Hourly :45 | Send email digests (timezone-aware, 08:45 local) |
-| `health-report` | Every 4 hours :45 | Infrastructure health summary to Slack (8 checks) |
-| `daily-observability` | Daily 09:00 UTC | Pipeline quality SLO report (latency, refresh, linking) |
-| `slack-summary` | Daily 14:00 | Ops summary to Slack |
-| `sync-data` | 30 min all days | Blob sync → DB sync → logo extraction → git push → frontend deploy |
-| `code-update` | Every 15 min (staggered) | git pull → conditional backend/frontend deploy |
-| `heartbeat` | Every 5 min | VM health (disk, memory, cron, stale locks) |
-
-## Deploy Jobs (triggered, not scheduled)
-
-| Job | Trigger | What it does |
-|-----|---------|-------------|
-| `frontend-deploy` | sync-data or code-update (web changes) or manual | Next.js Docker build via ACR, `az webapp deploy` |
-| `backend-deploy` | code-update (api changes) or manual | `az acr build` (remote), K8s secret update, `kubectl apply` |
-
-## Manual Deploy Commands
+Preferred access path:
 
 ```bash
-# Frontend (local — no SSH needed, just `az login`)
-./scripts/deploy-frontend.sh              # Build + deploy + smoke check (~7 min)
-./scripts/deploy-frontend.sh --no-smoke   # Skip smoke check
-./scripts/deploy-frontend.sh --restart    # Just restart App Service (no build)
-./scripts/deploy-frontend.sh --via-vm     # Trigger on VM via az run-command (no SSH)
-
-# Frontend (on VM via SSH)
-runner.sh frontend-deploy 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/frontend-deploy.sh
-
-# Backend (on VM via SSH)
-runner.sh backend-deploy 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/backend-deploy.sh
+./infrastructure/vm-cron/ssh-update-ip.sh
 ```
 
-## Key Files
+This script updates NSG rules for your current IP and then SSHs to the VM.
 
-`infrastructure/vm-cron/` — `setup.sh`, `deploy.sh`, `lib/runner.sh`, `jobs/*.sh`, `monitoring/heartbeat.sh`, `.env.example`
+## Core Files
+
+- `infrastructure/vm-cron/crontab` (schedule source of truth)
+- `infrastructure/vm-cron/lib/runner.sh` (timeouts, locks, env sourcing, logs, Slack)
+- `infrastructure/vm-cron/deploy.sh` (git pull + conditional deploys)
+- `infrastructure/vm-cron/jobs/*.sh` (job implementations)
+- `infrastructure/vm-cron/monitoring/heartbeat.sh` (VM self-health)
+
+## Operational Behavior
+
+- Times are UTC.
+- Most jobs run via `runner.sh`.
+- Logs go to `/var/log/buildatlas/<job>.log`.
+- Per-job lock files prevent overlap: `/tmp/buildatlas-<job>.lock`.
+- Git operations are serialized via `/tmp/buildatlas-git.lock`.
+
+## High-impact Jobs
+
+- `keep-alive`: keeps Postgres/AKS/API/frontend reachable.
+- `code-update`: pulls latest code and triggers deploys.
+- `sync-data`: blob sync -> DB sync -> commit/push -> frontend deploy.
+- `news-ingest` and `news-digest`: news publication and subscriber delivery.
+- `release-reconciler` + `heartbeat`: drift/staleness detection.
+
+For full schedule and timeouts, see `infrastructure/vm-cron/crontab`.
+
+## Verify Health Quickly
+
+```bash
+# VM cron sanity
+infrastructure/vm-cron/verify.sh
+
+# Recent logs
+tail -n 80 /var/log/buildatlas/keep-alive.log
+tail -n 80 /var/log/buildatlas/code-update.log
+tail -n 80 /var/log/buildatlas/frontend-deploy.log
+tail -n 80 /var/log/buildatlas/backend-deploy.log
+```
+
+## Manual Job Runs
+
+```bash
+# Generic pattern
+/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh <job-name> <timeout-min> <script-path>
+
+# Example: run keep-alive
+/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
+  keep-alive 20 \
+  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/keep-alive.sh
+```
+
+## Failure Triage
+
+1. Check if cron daemon is active.
+2. Check lock files for stale jobs.
+3. Check heartbeat log for overdue-job alerts.
+4. Check the target job log.
+5. If deployment related, check `frontend-deploy.log` / `backend-deploy.log` and rerun via `runner.sh`.
