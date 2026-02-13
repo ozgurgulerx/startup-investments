@@ -509,25 +509,23 @@ class ScrapyPlaywrightRuntime:
                 capture_id=capture_id,
             )
 
+        missing = 0
         for canonical, _item in leased_by_canonical.items():
             if canonical not in seen_leased:
+                missing += 1
                 # Spider failed to emit this URL; retry with backoff.
                 await self.frontier.requeue_failed(canonical, backoff_seconds=300)
-                await self._log_crawl_attempt(
-                    startup_slug=startup_slug,
-                    doc={
-                        "url": canonical,
-                        "canonical_url": canonical,
-                        "page_type": classify_page_type(canonical),
-                        "status_code": 0,
-                        "content_type": "html",
-                        "fetch_method": "runtime_missing_output",
-                        "response_time_ms": 0,
-                        "error_message": "spider returned no document for leased URL",
-                    },
-                    error_category="transient",
-                    capture_id=None,
-                )
+
+        # If the spider has an errback wired correctly, missing should be rare.
+        # Do not spam crawl_logs with synthetic failures; it breaks run telemetry.
+        if missing > 0:
+            logger.warning(
+                "Spider returned no document for %d/%d leased URLs (startup=%s domain=%s)",
+                missing,
+                len(leased_by_canonical),
+                startup_slug,
+                policy.domain,
+            )
 
         if discovered:
             await self.frontier.enqueue_urls(startup_slug, discovered)

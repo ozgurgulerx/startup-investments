@@ -132,6 +132,23 @@ if [ -z "${API_KEY:-}" ]; then
     fi
 fi
 
+# Resolve ADMIN_KEY: try env, then fall back to existing App Service setting
+SKIP_ADMIN_KEY_UPDATE=0
+if [ -z "${ADMIN_KEY:-}" ]; then
+    EXISTING_ADMIN_KEY="$(az webapp config appsettings list \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$WEBAPP_NAME" \
+        --query "[?name=='ADMIN_KEY'].value | [0]" \
+        -o tsv 2>/dev/null || true)"
+    if [ -n "${EXISTING_ADMIN_KEY:-}" ] && [ "${EXISTING_ADMIN_KEY:-}" != "null" ]; then
+        export ADMIN_KEY="$EXISTING_ADMIN_KEY"
+        echo "  Loaded ADMIN_KEY from existing App Service settings."
+    else
+        echo "  WARNING: ADMIN_KEY not available. Preserving existing setting."
+        SKIP_ADMIN_KEY_UPDATE=1
+    fi
+fi
+
 SETTINGS=(
     "NODE_ENV=production"
     "WEBSITES_PORT=8080"
@@ -164,6 +181,7 @@ SETTINGS+=("NEXT_PUBLIC_POSTHOG_CAPTURE_EXCEPTIONS=${POSTHOG_CAPTURE_EXCEPTIONS:
 SETTINGS+=("NEXT_PUBLIC_POSTHOG_REPLAY_SAMPLE_RATE=${POSTHOG_REPLAY_SAMPLE_RATE:-0.03}")
 if [ -n "${CLARITY_PROJECT_ID:-}" ]; then SETTINGS+=("NEXT_PUBLIC_CLARITY_PROJECT_ID=${CLARITY_PROJECT_ID}"); fi
 if [ "$SKIP_API_KEY_UPDATE" -eq 0 ] && [ -n "${API_KEY:-}" ]; then SETTINGS+=("API_KEY=${API_KEY}"); fi
+if [ "$SKIP_ADMIN_KEY_UPDATE" -eq 0 ] && [ -n "${ADMIN_KEY:-}" ]; then SETTINGS+=("ADMIN_KEY=${ADMIN_KEY}"); fi
 
 az webapp config appsettings set \
     --resource-group "$RESOURCE_GROUP" \

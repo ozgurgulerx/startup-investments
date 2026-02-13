@@ -10,9 +10,13 @@ const API_BASE_URL =
 // GET /api/monitoring?type=sources|frontier
 // Proxies to Express admin endpoints with server-side keys
 export async function GET(req: NextRequest) {
-  const adminKey = process.env.ADMIN_KEY || process.env.API_KEY;
+  const apiKey = (process.env.API_KEY || '').trim();
+  const adminKey = (process.env.ADMIN_KEY || '').trim();
+  if (!apiKey) {
+    return NextResponse.json({ error: 'API_KEY not configured' }, { status: 500 });
+  }
   if (!adminKey) {
-    return NextResponse.json({ error: 'Admin key not configured' }, { status: 500 });
+    return NextResponse.json({ error: 'ADMIN_KEY not configured' }, { status: 500 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest) {
     const response = await fetch(`${API_BASE_URL}/api/admin/monitoring/${type}`, {
       headers: {
         'X-Admin-Key': adminKey,
-        'X-API-Key': adminKey,
+        'X-API-Key': apiKey,
       },
       cache: 'no-store',
       signal: AbortSignal.timeout(15000),

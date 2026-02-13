@@ -59,6 +59,8 @@ Important headers/invariants:
 
 - Do not expose `API_KEY` or `ADMIN_KEY` to the browser.
   - Web uses `process.env.API_KEY` only in Server Components / API routes.
+- Web admin proxy routes must send distinct auth headers:
+  - `apps/web/app/api/monitoring/route.ts` and `apps/web/app/api/editorial/route.ts` call backend admin endpoints and must forward `X-API-Key: API_KEY` and `X-Admin-Key: ADMIN_KEY` (these may differ).
 - Keep `/health` cheap and reachable (Front Door probe + diagnostics).
 - Keep the API deployable when AKS is running:
   - `backend-deploy.yml` must be able to connect to the AKS control plane.
@@ -136,6 +138,8 @@ VM cron runner:
 - One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
+  - `runner.sh` strips NUL bytes (`\000`) from job stdout/stderr before appending to logs so log-scanners don't treat them as binary.
+  - `heartbeat.sh` scans logs in text mode (`grep -a`) so occasional NUL bytes won't break freshness detection.
   - Product surface canary:
     - `product-canary` runs every 30 minutes (`17,47 * * * *`) and validates:
       - brief snapshot schema (includes `verticalLandscape` + `capitalGraph`),
@@ -631,6 +635,7 @@ Backend deploy (`backend-deploy.yml`):
 Frontend deploy (`frontend-deploy.yml`):
 - `DATABASE_URL`: used by web app for auth/data (server-side).
 - `API_KEY`: used by web server-side requests to backend.
+- `ADMIN_KEY`: used by web server-only proxies to backend admin endpoints (e.g. `/api/monitoring`, `/api/editorial`).
 - `RESEND_API_KEY`: used by web to send subscription confirmation emails (double opt-in).
 - `NEWS_DIGEST_FROM_EMAIL`, `NEWS_DIGEST_REPLY_TO`: used by web confirmation emails and digest sender.
 - `PUBLIC_BASE_URL`: used to build absolute confirm/unsubscribe links in emails.

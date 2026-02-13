@@ -169,6 +169,7 @@ class StartupSpider(scrapy.Spider):
                 callback=self.parse,
                 headers=headers,
                 meta=meta,
+                errback=self.errback,
                 dont_filter=True,
             )
 
@@ -188,6 +189,7 @@ class StartupSpider(scrapy.Spider):
         last_modified: Optional[str] = None,
         blocked_detected: bool = False,
         js_shell_detected: bool = False,
+        error_message: Optional[str] = None,
         request_headers: Optional[Dict[str, str]] = None,
         response_headers: Optional[Dict[str, str]] = None,
         raw_body: str = "",
@@ -224,6 +226,7 @@ class StartupSpider(scrapy.Spider):
                 "quality_score": quality_score,
                 "blocked_detected": blocked_detected,
                 "js_shell_detected": js_shell_detected,
+                "error_message": error_message,
                 "proxy_tier": proxy_tier,
                 "provider": provider,
                 "raw_capture": {
@@ -236,6 +239,41 @@ class StartupSpider(scrapy.Spider):
                 "crawled_at": datetime.now(timezone.utc).isoformat(),
                 "discovered_at": datetime.now(timezone.utc).isoformat(),
             }
+        )
+
+    def errback(self, failure):  # pragma: no cover - twisted transport paths
+        request = getattr(failure, "request", None)
+        url = str(getattr(request, "url", "") or "")
+        meta = getattr(request, "meta", {}) or {}
+
+        rendered = bool(meta.get("rendered"))
+        proxy_tier = str(meta.get("proxy_tier") or "none")
+        page_type = meta.get("seed_page_type") or classify_page_type(url)
+
+        err_type = getattr(getattr(failure, "type", None), "__name__", None) or failure.__class__.__name__
+        err_msg = str(getattr(failure, "value", None) or failure)
+        error_message = f"{err_type}: {err_msg}".strip()
+        if len(error_message) > 1000:
+            error_message = error_message[:997] + "..."
+
+        self._record_doc(
+            url=url,
+            status=599,
+            html="",
+            clean_text="",
+            clean_markdown="",
+            fetch_method="browser" if rendered else "http",
+            response_time_ms=0,
+            page_type=page_type,
+            content_type="html",
+            blocked_detected=False,
+            js_shell_detected=bool(meta.get("escalated_js_shell", False)),
+            error_message=error_message,
+            request_headers=headers_to_dict(getattr(request, "headers", {})) if request else {},
+            response_headers={},
+            raw_body="",
+            raw_body_encoding="utf-8",
+            proxy_tier=proxy_tier,
         )
 
     def parse(self, response: scrapy.http.Response):
@@ -302,6 +340,7 @@ class StartupSpider(scrapy.Spider):
                 url=response.url,
                 callback=self.parse,
                 meta=meta,
+                errback=self.errback,
                 dont_filter=True,
             )
             return
@@ -348,7 +387,7 @@ class StartupSpider(scrapy.Spider):
             self.seen.add(canonical)
             meta = self._build_meta(rendered=self.force_render, proxy_tier=self.default_proxy_tier)
             meta["seed_page_type"] = classify_page_type(canonical)
-            yield scrapy.Request(url=abs_url, callback=self.parse, meta=meta)
+            yield scrapy.Request(url=abs_url, callback=self.parse, meta=meta, errback=self.errback)
 
     def closed(self, reason: str):  # pragma: no cover - scrapy callback
         out = Path(self.output_path)

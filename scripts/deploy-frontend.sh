@@ -146,10 +146,14 @@ az webapp config set \
     --output none
 
 # Ensure storage mount is disabled
+SETTINGS=("WEBSITES_ENABLE_APP_SERVICE_STORAGE=false" "NEXT_PUBLIC_BUILD_SHA=$COMMIT_SHA")
+if [ -n "${API_KEY:-}" ]; then SETTINGS+=("API_KEY=${API_KEY}"); fi
+if [ -n "${ADMIN_KEY:-}" ]; then SETTINGS+=("ADMIN_KEY=${ADMIN_KEY}"); fi
+
 az webapp config appsettings set \
     --resource-group "$RESOURCE_GROUP" \
     --name "$WEBAPP_NAME" \
-    --settings "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false" "NEXT_PUBLIC_BUILD_SHA=$COMMIT_SHA" \
+    --settings "${SETTINGS[@]}" \
     --output none
 
 echo "  Container config updated."

@@ -133,7 +133,10 @@ for entry in "${FRESHNESS_JOBS[@]}"; do
     [ -f "$JOB_LOG" ] || continue
 
     # Find last completion timestamp (SUCCESS, FAILED, or TIMEOUT — any means it ran)
-    LAST_LINE=$(grep -E '^\[.*UTC\] (SUCCESS|FAILED|TIMEOUT):' "$JOB_LOG" | tail -1)
+    #
+    # Treat logs as text even if they contain accidental NUL bytes; otherwise grep
+    # prints "binary file matches" and we fail to parse last-run timestamps.
+    LAST_LINE=$(grep -aE '^\[.*UTC\] (SUCCESS|FAILED|TIMEOUT):' "$JOB_LOG" 2>/dev/null | tail -1)
     if [ -z "$LAST_LINE" ]; then
         continue  # No runs recorded yet, skip
     fi
