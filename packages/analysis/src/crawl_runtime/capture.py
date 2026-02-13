@@ -83,13 +83,16 @@ class RawCaptureRecorder:
         # Fail-open behavior: if blob auth is broken, keep crawl metadata flowing
         # and suppress repeated noisy upload errors for the rest of the worker run.
         last_error = str(getattr(self.blob_client, "last_error", "") or "")
-        if last_error and any(
-            token in last_error
+        err = last_error.lower()
+        if err and any(
+            token in err
             for token in (
-                "AuthorizationFailure",
-                "AuthorizationPermissionMismatch",
-                "AuthenticationFailed",
-                "KeyBasedAuthenticationNotPermitted",
+                "authorizationfailure",
+                "authorizationpermissionmismatch",
+                "authenticationfailed",
+                "keybasedauthenticationnotpermitted",
+                "not authorized",
+                "this request is not authorized",
             )
         ):
             if not self._blob_upload_disabled:

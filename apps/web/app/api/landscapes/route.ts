@@ -11,6 +11,12 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Error fetching landscapes:', error);
     const status = error instanceof APIError ? error.status : 500;
-    return NextResponse.json([], { status });
+    const message =
+      error instanceof APIError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Failed to fetch landscapes';
+    return NextResponse.json({ error: message }, { status });
   }
 }

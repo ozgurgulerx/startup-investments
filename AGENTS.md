@@ -59,6 +59,8 @@ Important headers/invariants:
 
 - Do not expose `API_KEY` or `ADMIN_KEY` to the browser.
   - Web uses `process.env.API_KEY` only in Server Components / API routes.
+- Web admin proxy routes must send distinct auth headers:
+  - `apps/web/app/api/monitoring/route.ts` and `apps/web/app/api/editorial/route.ts` call backend admin endpoints and must forward `X-API-Key: API_KEY` and `X-Admin-Key: ADMIN_KEY` (these may differ).
 - Keep `/health` cheap and reachable (Front Door probe + diagnostics).
 - Keep the API deployable when AKS is running:
   - `backend-deploy.yml` must be able to connect to the AKS control plane.
@@ -100,6 +102,20 @@ Important headers/invariants:
       - `user_signal_reco_dismissals` hides signals from future recommendations (per-user, per-signal).
       - `user_signal_domain_prefs` stores per-user per-region domain weights used as a ranking nudge.
     - Backend endpoint: `POST /api/v1/signals/recommendations/feedback` is used by the web UI.
+  - Signals relevance bundle + relevance sort (information relevance MVP):
+    - Backend endpoint: `GET /api/v1/signals/:id/relevance`
+      returns `{ relevant_rounds, related_patterns, related_signals }` scoped to the signal's region (default window: 90d).
+    - Backend list sort: `GET /api/v1/signals?sort=relevance` blends impact+conviction+momentum and (when provided)
+      applies `user_signal_domain_prefs` + excludes `user_signal_reco_dismissals`.
+    - Web proxies:
+      - `apps/web/app/api/signals/[id]/relevance/route.ts`
+      - `apps/web/app/api/signals/route.ts` (attaches `user_id` from session only for `sort=relevance`)
+    - UI surfaces:
+      - Signal inspector shows a compact "Relevance" section (rounds + patterns).
+      - Signal deep dive adds a `Relevance` tab with the full bundle.
+  - CI guardrail:
+    - `.github/workflows/web-ci.yml` runs Playwright smoke tests to prevent regressions in Signals deep-dive links
+      (especially `?region=turkey` propagation) and the web proxy for `GET /api/signals/:id/relevance`.
 
 ## CI/CD Workflows (Source of Truth)
 
@@ -114,6 +130,14 @@ AKS pipelines CronJobs:
   - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
 - Image: `aistartuptr.azurecr.io/buildatlas-pipelines:latest` (from `infrastructure/pipelines/Dockerfile`)
 - Secret: `Secret/buildatlas-pipelines-secrets` (keys are ENV var names so pods can use `envFrom`)
+  - Important: `kubectl create secret --from-env-file` does **not** parse shell quoting. If you feed lines like
+    `AZURE_OPENAI_ENDPOINT="https://.../"`, the pods will literally see quotes and Azure OpenAI calls will fail.
+    Ensure values are unquoted in the secret (especially `AZURE_OPENAI_ENDPOINT`).
+  - Azure OpenAI auth: production OpenAI account has `disableLocalAuth=true` (AAD only). By default, pods use the
+    AKS **kubelet identity**. It must have the `Cognitive Services OpenAI User` role on the OpenAI account scope, or
+    GPT-5 `responses.*` calls will fail with `PermissionDenied` (missing `.../responses/write`).
+    - Kubelet object id: `AZURE_CLI_DISABLE_LOGFILE=1 az aks show -g aistartuptr -n aks-aistartuptr --query identityProfile.kubeletidentity.objectId -o tsv`
+    - Account scope: `/subscriptions/.../resourceGroups/rg-openai/providers/Microsoft.CognitiveServices/accounts/aoai-ep-swedencentral02`
 - Deploy workflow: `.github/workflows/ops-pipelines-deploy.yml`
 - VM cutover guardrail: set `BUILDATLAS_VM_CRON_DISABLED_JOBS` in `/etc/buildatlas/.env` (enforced by `infrastructure/vm-cron/lib/runner.sh`)
 
@@ -125,6 +149,15 @@ VM cron runner:
 - One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
+  - `runner.sh` strips NUL bytes (`\000`) from job stdout/stderr before appending to logs so log-scanners don't treat them as binary.
+  - `heartbeat.sh` scans logs in text mode (`grep -a`) so occasional NUL bytes won't break freshness detection.
+  - Product surface canary:
+    - `product-canary` runs every 30 minutes (`17,47 * * * *`) and validates:
+      - brief snapshot schema (includes `verticalLandscape` + `capitalGraph`),
+      - landscapes surfaces (`/api/v1/landscapes` + `/api/v1/landscapes/cluster`) (global must return data; Turkey warn-only),
+      - Investor DNA screener (`/api/v1/investors/screener`) (warn if empty),
+      - deep dives have at least one `ready` item (`/api/v1/deep-dives`).
+    - State file: `/var/lib/buildatlas/product-canary.state` (fallback: `$REPO_DIR/.tmp/product-canary.state`).
   - `crawl-frontier` runs every 30 minutes with a **40 minute** runner timeout (`runner.sh crawl-frontier 40 ...`) to avoid recurring timeout kills during large frontier seeding windows.
   - `crawl-frontier` now uses **chunked resumable seeding**:
     - full reseed is not attempted on every cycle,
@@ -133,7 +166,12 @@ VM cron runner:
     - worker execution still proceeds if seed chunk fails/times out.
   - Frontier telemetry:
     - Each frontier URL crawl attempt is persisted to `crawl_logs` (with `canonical_url`, `fetch_method`, `proxy_tier`, `error_category`, and optional `capture_id`) so `/api/admin/monitoring/frontier` can report 24h success/error rates.
+    - `/api/admin/monitoring/frontier` computes `runs24h` from frontier-related `crawl_logs` (canonical URLs present in `crawl_frontier_urls`) and excludes synthetic `fetch_method=runtime_missing_output` rows.
     - If `crawl_logs` is empty (older deployments), monitoring falls back to `crawl_frontier_urls.last_*` fields as an approximation.
+  - API runtime telemetry (admin-only):
+    - Middleware: `apps/api/src/monitoring/runtime_metrics.ts` records rolling per-minute request counts/status/latency buckets.
+    - Admin endpoint: `/api/admin/monitoring/runtime?window_min=10` returns a snapshot plus DB pool stats (`getPoolStats()`).
+    - VM `infrastructure/vm-cron/monitoring/heartbeat.sh` and `infrastructure/vm-cron/jobs/health-report.sh` consume this endpoint for SLO-style alerting.
   - Raw captures (WARC-lite):
     - `crawl_raw_captures` stores envelope metadata for replay and optionally uploads the compressed body to Blob Storage under `crawl-snapshots/raw-captures/...`.
     - If Blob upload auth is misconfigured (e.g., `AuthorizationFailure`), the worker **fail-opens**: it disables further blob uploads for that run (to avoid log spam) and continues recording DB metadata with `body_blob_path=NULL`.
@@ -271,10 +309,13 @@ News:
     - Queue dedupe key prevents repeated posting of the same cluster/link.
 - Signal deep dives:
   - Migration: `database/migrations/050_signal_deep_dives.sql`
-  - VM job: `infrastructure/vm-cron/jobs/deep-dive-generate.sh` (runs daily at `05:15 UTC` via cron).
+  - VM jobs:
+    - `infrastructure/vm-cron/jobs/deep-dive-generate.sh` (daily at `05:15 UTC`): full pipeline for a rotating set of top signals (occurrences → moves → synthesis).
+    - `infrastructure/vm-cron/jobs/deep-dive-catchup.sh` (every 4 hours at `:58 UTC`): backfills **missing** deep dives (coverage-first, trend-only synthesis) so the UI doesn't stay empty.
   - Deployment invariant:
     - `050_signal_deep_dives.sql` must be included in migration sets used by news pipelines (`news`, `news-digest`) in `scripts/apply_migrations.py`.
     - `deep-dive-generate.sh` runs migration preflight (`apply-migrations.sh news`) before computing occurrences/generating deep dives.
+    - `deep-dive-catchup.sh` also runs the same migration preflight before backfill.
   - Runtime degradation behavior:
     - If deep-dive tables are unavailable, backend deep-dive endpoints should return empty payloads (not crash) so `/signals/[id]` can show "No deep dive available yet" instead of failing hard.
   - Coverage behavior (important for "empty deep dive" debugging):
@@ -282,6 +323,9 @@ News:
     - If a signal cannot produce a per-startup sample set (e.g., evidence is mostly `startup_id=NULL` or too sparse), the pipeline falls back to a **trend-only deep dive** synthesized from recent `signal_evidence` rows.
       - These deep dives may have `sample_count=0` and should be treated as "trend-level" (no startup case studies/watchlist unless startups are explicitly linked).
     - Backend `GET /api/v1/signals/:id/deep-dive` includes best-effort `meta` diagnostics (`startups_eligible`, `unlinked_evidence_count`, `occurrences_total`, `latest_status`) to help explain why a deep dive is missing.
+  - Deep research integration (best-effort):
+    - Deep-dive synthesis prompts may include the latest completed `deep_research_queue.research_output.analysis` for a small subset of linked startups.
+    - Catchup job can enqueue deep research (`reason='signal_deep_dive'`) for top linked startups; spend is still capped by the deep research consumer env gates (`DEEP_RESEARCH_*`).
 - Daily brief + LLM enrichment (news):
   - Controlled by `NEWS_LLM_ENRICHMENT=true` (and optional `NEWS_LLM_DAILY_BRIEF=true`) in `/etc/buildatlas/.env`.
   - Intel headline mode is controlled by `INTEL_FIRST_PROMPT=true` (recommended ON in prod VM). When enabled, cards prefer `news_clusters.ba_title`/`ba_bullets`/`why_it_matters`.
@@ -341,6 +385,8 @@ News:
     - `DEEP_RESEARCH_MIN_CRAWL_SUCCESS_RATE`
     - `ONBOARDING_ALERTS_ENABLED`
     - `ONBOARDING_ALERTS_BATCH_SIZE`
+    - `ONBOARD_SINGLE_SOURCE_TRUST_MIN` (allow trusted single-source funding clusters to create stub startups when entity type is unknown)
+    - `ONBOARD_SINGLE_SOURCE_ALLOWLIST` (comma-separated publisher domain allowlist for single-source funding onboarding)
   - Visibility invariant:
     - Backend `GET /api/v1/dealbook`, `GET /api/v1/dealbook/filters`, and `GET /api/v1/companies/:slug` are **verified-only** (`onboarding_status='verified'`).
     - `merged`/`stub`/`rejected` startups are excluded from those surfaces.
@@ -608,6 +654,7 @@ Backend deploy (`backend-deploy.yml`):
 Frontend deploy (`frontend-deploy.yml`):
 - `DATABASE_URL`: used by web app for auth/data (server-side).
 - `API_KEY`: used by web server-side requests to backend.
+- `ADMIN_KEY`: used by web server-only proxies to backend admin endpoints (e.g. `/api/monitoring`, `/api/editorial`).
 - `RESEND_API_KEY`: used by web to send subscription confirmation emails (double opt-in).
 - `NEWS_DIGEST_FROM_EMAIL`, `NEWS_DIGEST_REPLY_TO`: used by web confirmation emails and digest sender.
 - `PUBLIC_BASE_URL`: used to build absolute confirm/unsubscribe links in emails.

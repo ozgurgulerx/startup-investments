@@ -13,10 +13,11 @@ before embedding. Follows the global-then-turkey pattern.
 from __future__ import annotations
 
 import json
+import os
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 from .onboarding_trace import emit_trace
@@ -387,8 +388,21 @@ async def persist_events(
 
     inserted = 0
     inserted_events: List[Tuple[str, str, str]] = []
+
     for evt in events:
         registry_id = registry.get(evt.event_type)
+
+        event_date = evt.event_date
+        # asyncpg can raise AmbiguousParameterError if the same SQL statement is
+        # executed with different inferred types (e.g., date vs timestamptz). Ensure
+        # we always bind a timestamptz-compatible datetime.
+        if isinstance(event_date, date) and not isinstance(event_date, datetime):
+            # Some callers may provide a date; normalize to UTC midnight.
+            event_date = datetime.combine(event_date, datetime.min.time(), tzinfo=timezone.utc)
+        elif isinstance(event_date, datetime) and event_date.tzinfo is None:
+            # Persist in UTC for deterministic effective_date derivation.
+            event_date = event_date.replace(tzinfo=timezone.utc)
+
         try:
             row = await conn.fetchrow(
                 """INSERT INTO startup_events
@@ -397,7 +411,7 @@ async def persist_events(
                         metadata_json, cluster_id, region, event_key,
                         event_date, effective_date)
                    VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
-                           $12, COALESCE($12::date, CURRENT_DATE))
+                           $12::timestamptz, COALESCE(($12::timestamptz)::date, CURRENT_DATE))
                    ON CONFLICT (cluster_id, startup_id, event_type, event_key)
                        WHERE cluster_id IS NOT NULL DO NOTHING
                    RETURNING id""",
@@ -412,17 +426,21 @@ async def persist_events(
                 evt.cluster_id,
                 evt.region,
                 evt.event_key,
-                evt.event_date,
+                event_date,
             )
             if row is not None:
                 inserted += 1
                 if evt.startup_id:
                     inserted_events.append((str(row["id"]), evt.startup_id, evt.event_type))
         except Exception:
-            logger.warning("Failed to persist event %s for cluster %s", evt.event_type, evt.cluster_id, exc_info=True)
+            logger.warning(
+                "Failed to persist event %s for cluster %s",
+                evt.event_type,
+                evt.cluster_id,
+                exc_info=True,
+            )
 
     return inserted, inserted_events
-
 
 async def enqueue_refresh_for_events(
     conn: "asyncpg.Connection",
@@ -1206,6 +1224,34 @@ async def onboard_unknown_startups(
 
     created = 0
     skipped_reasons: Dict[str, int] = {}
+    allowed_single_source = 0
+    allowed_single_source_by_trust = 0
+    allowed_single_source_by_allowlist = 0
+
+    # Funding onboarding: allow trusted single-source clusters even when entity type is unknown.
+    try:
+        trust_min = float((os.getenv("ONBOARD_SINGLE_SOURCE_TRUST_MIN", "0.60") or "0.60").strip())
+    except Exception:
+        trust_min = 0.60
+    trust_min = max(0.0, min(1.0, trust_min))
+
+    allowlist_raw = (os.getenv("ONBOARD_SINGLE_SOURCE_ALLOWLIST", "") or "").strip()
+    allowlist_domains: set[str] = set()
+    if allowlist_raw:
+        for raw in allowlist_raw.split(","):
+            d = (raw or "").strip().lower()
+            if not d:
+                continue
+            # Accept either bare domains ("tech.eu") or URLs ("https://tech.eu/...").
+            if "://" in d:
+                try:
+                    host = urlparse(d).hostname or ""
+                    d = host.lower()
+                except Exception:
+                    pass
+            d = d.removeprefix("www.").split("/")[0].split(":")[0].strip()
+            if d:
+                allowlist_domains.add(d)
 
     def _skip(reason: str) -> None:
         skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
@@ -1234,13 +1280,36 @@ async def onboard_unknown_startups(
 
         if entity_type != "company":
             # Unknown type → require multi-source confirmation
+            # Exception: funding events can onboard from trusted single-source clusters.
             cluster_key = evt.metadata.get("cluster_key")
             cluster = cluster_by_key.get(cluster_key) if cluster_key else None
             if cluster:
                 stats = cluster_source_stats(cluster)
                 if not stats["multi_source_confirmed"]:
-                    _skip("single_source")
-                    continue
+                    # Single source: allow only for funding when trust_score is high enough
+                    # (or the publisher domain is explicitly allowlisted).
+                    is_funding = (
+                        evt.event_type == "cap_funding_raised"
+                        or str(getattr(cluster, "story_type", "") or "").strip().lower() == "funding"
+                        or str(evt.metadata.get("story_type") or "").strip().lower() == "funding"
+                    )
+                    if not is_funding:
+                        _skip("single_source")
+                        continue
+
+                    trust_score = float(getattr(cluster, "trust_score", 0.0) or 0.0)
+                    publisher_domains = set(stats.get("publisher_domains") or set())
+                    allowlisted = bool(allowlist_domains and any(d in allowlist_domains for d in publisher_domains))
+
+                    if allowlisted:
+                        allowed_single_source += 1
+                        allowed_single_source_by_allowlist += 1
+                    elif trust_score >= trust_min:
+                        allowed_single_source += 1
+                        allowed_single_source_by_trust += 1
+                    else:
+                        _skip("single_source_low_trust")
+                        continue
             else:
                 # No cluster found → cannot verify sources → skip
                 _skip("no_cluster")
@@ -1417,6 +1486,25 @@ async def onboard_unknown_startups(
 
     if skipped_reasons:
         logger.info("Onboarding skipped: %s", skipped_reasons)
+    logger.info(
+        "Onboarding summary: candidates=%d created=%d allowed_single_source=%d (trust=%d allowlist=%d) trust_min=%.2f",
+        len(seen_names),
+        created,
+        allowed_single_source,
+        allowed_single_source_by_trust,
+        allowed_single_source_by_allowlist,
+        trust_min,
+    )
+    try:
+        region_label = (events[0].region if events else "global") or "global"
+    except Exception:
+        region_label = "global"
+    print(
+        f"[onboard:{region_label}] summary: candidates={len(seen_names)} created={created} "
+        f"allowed_single_source={allowed_single_source} (trust={allowed_single_source_by_trust} "
+        f"allowlist={allowed_single_source_by_allowlist}) trust_min={trust_min:.2f} "
+        f"skipped={skipped_reasons or {}}"
+    )
     if created:
         logger.info("Onboarded %d new stub startups from unlinked events", created)
 

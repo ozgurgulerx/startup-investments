@@ -29,6 +29,33 @@ export BUILDATLAS_LOG="/var/log/buildatlas/heartbeat.log"
 
 mkdir -p "$(dirname "$BUILDATLAS_LOG")"
 
+list_contains_job() {
+    local job="${1:-}"
+    local raw="${2:-}"
+
+    raw="$(echo "$raw" | tr -d '[:space:]')"
+
+    if [ -z "$raw" ] || [ -z "$job" ]; then
+        return 1
+    fi
+    if [ "$raw" = "off" ] || [ "$raw" = "none" ] || [ "$raw" = "0" ]; then
+        return 1
+    fi
+    if [ "$raw" = "all" ]; then
+        return 0
+    fi
+
+    case ",$raw," in
+        *,"$job",*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+is_job_disabled() {
+    local job="${1:-}"
+    list_contains_job "$job" "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "$job" "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"
+}
+
 derive_github_repository() {
     local origin=""
     origin="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)"
@@ -104,10 +131,17 @@ FRESHNESS_JOBS=(
     "deep-research:90:always"
     "onboarding-alerts:30:always"
     "crawl-frontier:90:always"
+    "signal-aggregate:540:always"
+    "delta-generate:540:always"
+    "generate-alerts:540:always"
+    "deep-dive-generate:1800:always"
+    "deep-dive-catchup:540:always"
+    "daily-observability:1800:always"
     "news-digest:3000:always"
     "sync-data:90:always"
     "code-update:800:always"
     "release-reconciler:30:always"
+    "product-canary:90:always"
     "health-report:600:always"
 )
 
@@ -121,6 +155,12 @@ HOUR=$(date -u +%-H)
 for entry in "${FRESHNESS_JOBS[@]}"; do
     IFS=: read -r JOB OVERDUE_MIN SCHEDULE <<< "$entry"
 
+    # If the job is intentionally disabled, don't alert on staleness.
+    if is_job_disabled "$JOB"; then
+        rm -f "$STALE_ALERT_DIR/$JOB"
+        continue
+    fi
+
     # Skip schedule-restricted jobs outside their window
     if [ "$SCHEDULE" = "weekday_business" ]; then
         if [ "$DOW" -gt 5 ] || [ "$HOUR" -lt 8 ] || [ "$HOUR" -ge 21 ]; then
@@ -132,7 +172,10 @@ for entry in "${FRESHNESS_JOBS[@]}"; do
     [ -f "$JOB_LOG" ] || continue
 
     # Find last completion timestamp (SUCCESS, FAILED, or TIMEOUT — any means it ran)
-    LAST_LINE=$(grep -E '^\[.*UTC\] (SUCCESS|FAILED|TIMEOUT):' "$JOB_LOG" | tail -1)
+    #
+    # Treat logs as text even if they contain accidental NUL bytes; otherwise grep
+    # prints "binary file matches" and we fail to parse last-run timestamps.
+    LAST_LINE=$(grep -aE '^\[.*UTC\] (SUCCESS|FAILED|TIMEOUT):' "$JOB_LOG" 2>/dev/null | tail -1)
     if [ -z "$LAST_LINE" ]; then
         continue  # No runs recorded yet, skip
     fi
@@ -169,6 +212,91 @@ for entry in "${FRESHNESS_JOBS[@]}"; do
         rm -f "$STALE_ALERT_DIR/$JOB"
     fi
 done
+
+# ---------------------------------------------------------------------------
+# API runtime SLO checks — alert on rolling-window 5xx/p95 and DB pool pressure.
+# Dedup: once per hour per condition key.
+# ---------------------------------------------------------------------------
+SLO_ALERT_DIR="/tmp/buildatlas-slo-alerts"
+mkdir -p "$SLO_ALERT_DIR"
+
+maybe_slo_alert() {
+    local key="$1"
+    local line="$2"
+    local sentinel="$SLO_ALERT_DIR/$key"
+
+    if [ -f "$sentinel" ]; then
+        local age
+        age=$(( NOW_TS - $(stat -c %Y "$sentinel" 2>/dev/null || echo "$NOW_TS") ))
+        if [ "$age" -lt 3600 ]; then
+            return 0
+        fi
+    fi
+
+    touch "$sentinel" 2>/dev/null || true
+    ALERT=true
+    ALERT_LINES+=("$line")
+}
+
+clear_slo_sentinels() {
+    rm -f "$SLO_ALERT_DIR"/api-runtime-* 2>/dev/null || true
+}
+
+API_BASE_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}"
+RUNTIME_URL="${API_BASE_URL}/api/admin/monitoring/runtime?window_min=10"
+
+if [ -z "${API_KEY:-}" ]; then
+    maybe_slo_alert "api-runtime-no-api-key" "- API runtime SLO check skipped: API_KEY missing"
+else
+    RUNTIME_JSON=$(curl -sf \
+        -H "X-API-Key: ${API_KEY}" \
+        -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY}}" \
+        "$RUNTIME_URL" 2>/dev/null || echo "")
+
+    if [ -z "$RUNTIME_JSON" ]; then
+        maybe_slo_alert "api-runtime-unreachable" "- API runtime SLO check unreachable"
+    else
+        PARSED=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+except Exception:
+    print('error')
+    raise SystemExit(0)
+
+req = d.get('requests') or {}
+status = req.get('status') or {}
+pool = d.get('pool') or {}
+
+total = int(req.get('total') or 0)
+err5xx = int(status.get('5xx') or 0)
+p95 = int(req.get('p95_ms') or 0)
+waiting = int(pool.get('waitingCount') or 0)
+rate = (err5xx * 100.0 / total) if total > 0 else 0.0
+
+sev = 'ok'
+if rate >= 5.0 or p95 >= 5000 or waiting >= 10:
+    sev = 'fail'
+elif rate >= 2.0 or p95 >= 2000 or waiting > 0:
+    sev = 'warn'
+
+print(f\"{sev}|{total}|{err5xx}|{rate:.2f}|{p95}|{waiting}\")
+" <<< "$RUNTIME_JSON" 2>/dev/null || echo "error")
+
+        if [ "$PARSED" = "error" ]; then
+            maybe_slo_alert "api-runtime-parse-error" "- API runtime SLO check parse error"
+        else
+            IFS='|' read -r SEV TOTAL ERR5XX RATE P95 WAITING <<< "$PARSED"
+            if [ "$SEV" = "ok" ]; then
+                clear_slo_sentinels
+            else
+                maybe_slo_alert \
+                    "api-runtime-${SEV}" \
+                    "- API runtime SLO ${SEV}: 5xx_rate=${RATE}% p95=${P95}ms waiting=${WAITING} (total=${TOTAL}, window=10m)"
+            fi
+        fi
+    fi
+fi
 
 # Send alert if needed
 if [ "$ALERT" = true ]; then

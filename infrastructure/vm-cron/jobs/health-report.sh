@@ -23,6 +23,7 @@ WEBAPP_RG="rg-startup-analysis"
 HEALTH_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/health"
 MONITOR_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/api/admin/monitoring/sources"
 FRONTIER_MONITOR_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/api/admin/monitoring/frontier"
+RUNTIME_MONITOR_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/api/admin/monitoring/runtime?window_min=10"
 FRONTEND_URL="https://buildatlas.net"
 
 echo "=== Infrastructure Health Report ==="
@@ -58,7 +59,7 @@ add_section "Infrastructure"
 
 # --- 1. PostgreSQL ---
 echo ""
-echo "[1/10] PostgreSQL..."
+echo "[1/12] PostgreSQL..."
 PG_STATE=$(az postgres flexible-server show \
     --resource-group "$PG_RG" \
     --name "$PG_SERVER" \
@@ -72,7 +73,7 @@ fi
 
 # --- 2. AKS ---
 echo ""
-echo "[2/10] AKS..."
+echo "[2/12] AKS..."
 AKS_POWER=$(az aks show \
     --resource-group "$AKS_RG" \
     --name "$AKS_NAME" \
@@ -92,7 +93,7 @@ fi
 
 # --- 3. Redis ---
 echo ""
-echo "[3/10] Redis..."
+echo "[3/12] Redis..."
 REDIS_STATE=$(az redis show \
     --resource-group "$REDIS_RG" \
     --name "$REDIS_NAME" \
@@ -106,7 +107,7 @@ fi
 
 # --- 4. App Service ---
 echo ""
-echo "[4/10] App Service..."
+echo "[4/12] App Service..."
 WEBAPP_STATE=$(az webapp show \
     --resource-group "$WEBAPP_RG" \
     --name "$WEBAPP_NAME" \
@@ -120,7 +121,7 @@ fi
 
 # --- 5. API health endpoint ---
 echo ""
-echo "[5/10] API health..."
+echo "[5/12] API health..."
 API_START=$(date +%s%N)
 API_HTTP=$(curl -s -o /tmp/ba-health-resp.json -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
 API_END=$(date +%s%N)
@@ -133,9 +134,65 @@ else
 fi
 rm -f /tmp/ba-health-resp.json
 
-# --- 6. Frontend ---
+# --- 6. API runtime SLOs (rolling window) ---
 echo ""
-echo "[6/10] Frontend..."
+echo "[6/12] API runtime (10m)..."
+RUNTIME_JSON=$(curl -sf \
+    -H "X-API-Key: ${API_KEY:-}" \
+    -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY:-}}" \
+    "$RUNTIME_MONITOR_URL" 2>/dev/null || echo "")
+
+if [ -n "$RUNTIME_JSON" ]; then
+    RUNTIME_INFO=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+except Exception:
+    print('error')
+    raise SystemExit(0)
+
+req = d.get('requests') or {}
+status = req.get('status') or {}
+pool = d.get('pool') or {}
+
+total = int(req.get('total') or 0)
+err5xx = int(status.get('5xx') or 0)
+p95 = int(req.get('p95_ms') or 0)
+p99 = int(req.get('p99_ms') or 0)
+waiting = int(pool.get('waitingCount') or 0)
+rate = (err5xx * 100.0 / total) if total > 0 else 0.0
+
+sev = 'ok'
+if rate >= 5.0 or p95 >= 5000 or waiting >= 10:
+    sev = 'fail'
+elif rate >= 2.0 or p95 >= 2000 or waiting > 0:
+    sev = 'warn'
+
+print(f\"{sev}|{total}|{err5xx}|{rate:.2f}|{p95}|{p99}|{waiting}\")
+" <<< "$RUNTIME_JSON" 2>/dev/null || echo "error")
+
+    if [ "$RUNTIME_INFO" != "error" ]; then
+        IFS='|' read -r SEV TOTAL ERR5XX RATE P95 P99 WAITING <<< "$RUNTIME_INFO"
+        echo "  total=${TOTAL} 5xx=${ERR5XX} (${RATE}%) p95=${P95}ms p99=${P99}ms waiting=${WAITING}"
+        if [ "$SEV" = "fail" ]; then
+            add_fail "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
+        elif [ "$SEV" = "warn" ]; then
+            add_warn "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
+        else
+            add_ok "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
+        fi
+    else
+        echo "  Could not parse runtime monitoring response"
+        add_warn "API runtime: parse error"
+    fi
+else
+    echo "  Runtime monitoring API unreachable"
+    add_warn "API runtime: unreachable"
+fi
+
+# --- 7. Frontend ---
+echo ""
+echo "[7/12] Frontend..."
 FE_START=$(date +%s%N)
 FE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" 2>/dev/null || echo "000")
 FE_END=$(date +%s%N)
@@ -152,9 +209,9 @@ fi
 # =========================================================================
 add_section "VM Resources"
 
-# --- 7. VM disk ---
+# --- 8. VM disk ---
 echo ""
-echo "[7/10] VM disk..."
+echo "[8/12] VM disk..."
 DISK_PCT=$(df / 2>/dev/null | tail -1 | awk '{print $5}' | tr -d '%' || echo "?")
 echo "  Disk usage: ${DISK_PCT}%"
 if [ "$DISK_PCT" != "?" ] && [ "$DISK_PCT" -lt 85 ] 2>/dev/null; then
@@ -165,9 +222,9 @@ else
     add_warn "Disk: unknown"
 fi
 
-# --- 8. VM memory ---
+# --- 9. VM memory ---
 echo ""
-echo "[8/10] VM memory..."
+echo "[9/12] VM memory..."
 FREE_MB=$(free -m 2>/dev/null | awk '/Mem:/ {print $7}' || echo "?")
 TOTAL_MB=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}' || echo "?")
 if [ "$FREE_MB" != "?" ] && [ "$TOTAL_MB" != "?" ] && [ "$TOTAL_MB" -gt 0 ] 2>/dev/null; then
@@ -189,7 +246,7 @@ fi
 add_section "News Pipeline"
 
 echo ""
-echo "[9/10] News pipeline..."
+echo "[10/12] News pipeline..."
 MONITOR_JSON=$(curl -sf \
     -H "X-API-Key: ${API_KEY:-}" \
     -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY:-}}" \
@@ -340,7 +397,7 @@ fi
 add_section "Crawler Frontier"
 
 echo ""
-echo "[10/11] Frontier..."
+echo "[11/12] Frontier..."
 
 FRONTIER_JSON=$(curl -sf \
     -H "X-API-Key: ${API_KEY:-}" \
@@ -437,7 +494,7 @@ fi
 add_section "Cron Jobs (last 4h)"
 
 echo ""
-echo "[11/11] Cron jobs..."
+echo "[12/12] Cron jobs..."
 
 # job_name:expected_interval_minutes
 CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 onboarding-alerts:5 crawl-frontier:30 sync-data:30 news-digest:60 signal-aggregate:240 delta-generate:240 generate-alerts:240 code-update:15"

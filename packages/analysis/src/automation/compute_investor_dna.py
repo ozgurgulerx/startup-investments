@@ -252,22 +252,22 @@ class InvestorDNAEngine:
                     )
                     SELECT
                       CASE
-                        WHEN funding_round_id <> '' THEN funding_round_id
-                        ELSE (startup_id::text || ':' || round_type || ':' || edge_date::text)
+                        WHEN edges.funding_round_id <> '' THEN edges.funding_round_id
+                        ELSE (edges.startup_id::text || ':' || edges.round_type || ':' || edges.edge_date::text)
                       END AS round_id,
-                      startup_id,
-                      round_type,
-                      amount_usd,
-                      investor_id,
-                      is_lead,
+                      edges.startup_id,
+                      edges.round_type,
+                      edges.amount_usd,
+                      edges.investor_id,
+                      edges.is_lead,
                       ss.funding_stage,
                       ss.build_patterns
                     FROM edges
                     LEFT JOIN startup_state_snapshot ss
                       ON ss.startup_id = edges.startup_id
                      AND ss.analysis_period = $1
-                    WHERE edge_date >= ($1 || '-01')::date
-                      AND edge_date < (($1 || '-01')::date + INTERVAL '1 month')
+                    WHERE edges.edge_date >= ($1 || '-01')::date
+                      AND edges.edge_date < (($1 || '-01')::date + INTERVAL '1 month')
                     """,
                     period,
                     scope,

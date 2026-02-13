@@ -17,9 +17,13 @@ const API_BASE_URL =
 // PUT  /api/editorial?path=rules/:id (body: update payload)
 
 async function proxyRequest(req: NextRequest, method: string) {
-  const adminKey = process.env.ADMIN_KEY || process.env.API_KEY;
+  const apiKey = (process.env.API_KEY || '').trim();
+  const adminKey = (process.env.ADMIN_KEY || '').trim();
+  if (!apiKey) {
+    return NextResponse.json({ error: 'API_KEY not configured' }, { status: 500 });
+  }
   if (!adminKey) {
-    return NextResponse.json({ error: 'Admin key not configured' }, { status: 500 });
+    return NextResponse.json({ error: 'ADMIN_KEY not configured' }, { status: 500 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -38,7 +42,7 @@ async function proxyRequest(req: NextRequest, method: string) {
       method,
       headers: {
         'X-Admin-Key': adminKey,
-        'X-API-Key': adminKey,
+        'X-API-Key': apiKey,
         'Content-Type': 'application/json',
       },
       cache: 'no-store',

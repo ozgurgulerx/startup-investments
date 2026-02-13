@@ -96,6 +96,11 @@ Pipelines are deployed into AKS as CronJobs to avoid VM availability issues:
 - Secrets/config:
   - `Secret/buildatlas-pipelines-secrets` (keys are ENV var names so pods use `envFrom`)
   - `ConfigMap/buildatlas-pipelines-config` (non-secret runtime toggles)
+  - Note: `kubectl create secret --from-env-file` does **not** parse shell quoting. Do not include surrounding quotes
+    in secret values (e.g. `AZURE_OPENAI_ENDPOINT` must be `https://.../`, not `"https://.../"`), or Azure OpenAI
+    calls will fail.
+  - Azure OpenAI is AAD-only in production (`disableLocalAuth=true`). Pipelines must run with an identity that has the
+    `Cognitive Services OpenAI User` role on the Azure OpenAI account scope (AKS defaults to the kubelet identity).
 - Deploy workflow: `.github/workflows/ops-pipelines-deploy.yml`
 
 ### Deploy/orchestration control plane: VM cron
@@ -169,7 +174,7 @@ Git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock`.
 
 - Job logs: `/var/log/buildatlas/*.log`
 - VM health telemetry: `/var/log/buildatlas/heartbeat.log`
-- Drift/availability alerts: heartbeat + release reconciler + health report + Slack dispatch.
+- Drift/availability alerts: heartbeat + release reconciler + health report + product canary + Slack dispatch.
 
 ## 7.1) AKS Ops CronJobs
 
@@ -233,11 +238,13 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `delta-generate` | `38 */4 * * *` | 15 | `infrastructure/vm-cron/jobs/delta-generate.sh` |
 | `generate-alerts` | `48 */4 * * *` | 15 | `infrastructure/vm-cron/jobs/generate-alerts.sh` |
 | `deep-dive-generate` | `15 5 * * *` | 45 | `infrastructure/vm-cron/jobs/deep-dive-generate.sh` |
+| `deep-dive-catchup` | `58 */4 * * *` | 30 | `infrastructure/vm-cron/jobs/deep-dive-catchup.sh` |
 | `dealbook-brief` | `0 4 * * *` | 15 | `infrastructure/vm-cron/jobs/dealbook-brief.sh` |
 | `neighbors-benchmarks` | `0 7 * * 4` | 60 | `infrastructure/vm-cron/jobs/neighbors-benchmarks.sh` |
 | `compute-benchmarks` | `0 4 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-benchmarks.sh` |
 | `compute-investor-dna` | `0 5 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-investor-dna.sh` |
 | `digest-qa` | `50 * * * *` | 10 | `infrastructure/vm-cron/jobs/digest-qa.sh` |
+| `product-canary` | `17,47 * * * *` | 5 | `infrastructure/vm-cron/jobs/product-canary.sh` |
 | `health-report` | `45 0,4,8,12,16,20 * * *` | 10 | `infrastructure/vm-cron/jobs/health-report.sh` |
 | `daily-observability` | `0 9 * * *` | 10 | `infrastructure/vm-cron/jobs/daily-observability.sh` |
 | `slack-summary` | `0 */3 * * *` | 10 | `infrastructure/vm-cron/jobs/slack-summary.sh` |
@@ -319,17 +326,20 @@ Key risk controls:
 Entry points:
 - `infrastructure/vm-cron/jobs/signal-aggregate.sh`
 - `infrastructure/vm-cron/jobs/deep-dive-generate.sh`
+- `infrastructure/vm-cron/jobs/deep-dive-catchup.sh`
 
 Flow:
 1. Aggregate events into signals on the 4-hour cadence.
-2. Apply migrations (`apply-migrations.sh news`) before deep-dive generation.
-3. Compute per-startup occurrences.
-4. Generate/update deep-dive documents and diffs.
+2. `deep-dive-catchup` backfills **missing** deep dives (coverage-first, trend-only synthesis) so `/signals/[id]` isn't empty.
+3. Apply migrations (`apply-migrations.sh news`) before deep-dive generation.
+4. Compute per-startup occurrences (deterministic).
+5. `deep-dive-generate` upgrades a rotating set of top signals (moves + synthesis) and writes version diffs.
 
 Key risk controls:
 - migration preflight in `deep-dive-generate.sh`,
 - graceful API degradation when deep-dive tables are unavailable,
 - dedicated daily job timeout budget (45 minutes).
+- catchup job is bounded (`--limit`) and enqueues a small, capped number of startups; deep research spend is capped by `DEEP_RESEARCH_*` envs in the consumer.
 
 ### D) Dataset sync pipeline
 

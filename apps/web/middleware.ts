@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PROTECTED_ROUTES = ['/watchlist'];
+const PROTECTED_ROUTES = ['/watchlist', '/monitoring', '/api/monitoring', '/api/editorial'];
 
 function hasSessionCookie(req: NextRequest): boolean {
   return Boolean(
@@ -21,6 +21,9 @@ export default function middleware(req: NextRequest) {
   );
 
   if (isProtectedRoute && !isAuthenticated) {
+    if (path.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const loginUrl = new URL('/login', req.nextUrl.origin);
     loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
@@ -30,5 +33,10 @@ export default function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/watchlist/:path*'],
+  matcher: [
+    '/watchlist/:path*',
+    '/monitoring/:path*',
+    '/api/monitoring/:path*',
+    '/api/editorial/:path*',
+  ],
 };

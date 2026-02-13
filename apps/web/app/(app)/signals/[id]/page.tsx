@@ -59,13 +59,13 @@ async function DeepDiveContent({ id }: { id: string }) {
       if (meta?.schema_missing) {
         reasons.push('Deep-dive schema is not available yet (migration pending).');
       }
-      if (signal.status === 'candidate') {
-        reasons.push('Deep dives are only generated for Emerging / Accelerating / Established signals.');
+      if (signal.status === 'decaying') {
+        reasons.push('Deep dives are not generated for Decaying signals.');
+      } else {
+        reasons.push('Deep dives are backfilled every 4 hours at :58 UTC (coverage-first), and upgraded daily at 05:15 UTC for top signals.');
       }
       if (startupsEligible < 2) {
-        reasons.push(`This signal currently has ${startupsEligible} startups with enough linked evidence (need at least 2).`);
-      } else {
-        reasons.push('Deep dives are generated daily at 05:15 UTC for a rotating set of top signals by conviction.');
+        reasons.push(`This signal currently has ${startupsEligible} startups with enough linked evidence; deep dive may be trend-level and Explorer may be sparse.`);
       }
       if (unlinkedEvidence > 0) {
         reasons.push(`${unlinkedEvidence} evidence items are not linked to a startup yet (trend-level evidence).`);

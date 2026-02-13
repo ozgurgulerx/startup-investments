@@ -95,6 +95,7 @@ else
       "runner.sh x-post-generate"
       "runner.sh x-post-publish"
       "runner.sh x-post-metrics"
+      "runner.sh product-canary"
       "runner.sh slack-summary"
       "runner.sh release-reconciler"
       "runner.sh sync-data"

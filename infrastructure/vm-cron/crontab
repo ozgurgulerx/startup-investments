@@ -79,6 +79,10 @@ MAILTO=""
 # Computes occurrences and generates signal deep dives (moves + synthesis)
 15 5 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh deep-dive-generate 45 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-dive-generate.sh
 
+# === Deep Dive Catchup (every 4 hours at :58 UTC) ===
+# Backfills missing deep dives so all non-decaying signals have coverage content.
+58 */4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh deep-dive-catchup 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-dive-catchup.sh
+
 # === Dealbook Living Brief (daily 04:00 UTC / 07:00 Istanbul) ===
 # Generates fresh brief snapshots for each region
 0 4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh dealbook-brief 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/dealbook-brief.sh
@@ -95,6 +99,10 @@ MAILTO=""
 # === Digest QA Preview (hourly at :50) ===
 # Sends merged global+turkey digest to QA email for iterative review
 50 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh digest-qa 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/digest-qa.sh
+
+# === Product Canary (every 30 min) ===
+# Verifies brief schema + Investor DNA + deep dives; posts Slack only on state changes/reminders.
+17,47 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh product-canary 5 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/product-canary.sh
 
 # === Infrastructure Health Report (every 4 hours at :45) ===
 # Posts a concise all-systems status to Slack (6 reports/day)

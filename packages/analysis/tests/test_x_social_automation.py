@@ -96,7 +96,8 @@ def test_fetch_recent_search_items_normalizes(monkeypatch):
 
     monkeypatch.setenv("X_TRENDS_ENABLED", "true")
     monkeypatch.setenv("X_API_BEARER_TOKEN", "bearer")
-    monkeypatch.setattr("src.automation.x_client.XClient.search_recent", _fake_search_recent)
+    # Patch the method on the class directly (avoids lazy __getattr__ exports on src.automation).
+    monkeypatch.setattr(XClient, "search_recent", _fake_search_recent)
 
     async def _run():
         async with httpx.AsyncClient() as client:

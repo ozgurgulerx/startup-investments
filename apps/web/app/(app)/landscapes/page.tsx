@@ -59,6 +59,29 @@ function TreemapContent(props: any) {
   );
 }
 
+async function extractErrorMessage(res: Response): Promise<string | null> {
+  try {
+    const text = (await res.text()).trim();
+    if (!text) return null;
+
+    // Prefer `{ error: string }` JSON bodies from our API proxy routes.
+    try {
+      const json = JSON.parse(text);
+      if (json && typeof json === 'object' && !Array.isArray(json)) {
+        const msg = (json as any).error;
+        if (typeof msg === 'string' && msg.trim()) return msg.trim();
+      }
+      // If it's an array/object without an error field, don't show it to users.
+      return null;
+    } catch {
+      // Non-JSON responses: fall back to plain text if it looks meaningful.
+      return text;
+    }
+  } catch {
+    return null;
+  }
+}
+
 export default function LandscapesPage() {
   const { region } = useRegion();
   const [nodes, setNodes] = useState<TreemapNode[]>([]);
@@ -84,7 +107,8 @@ export default function LandscapesPage() {
           setNodes(await res.json());
         } else {
           setNodes([]);
-          setLoadError(`Failed to load landscapes (HTTP ${res.status})`);
+          const msg = await extractErrorMessage(res);
+          setLoadError(msg ? `${msg} (HTTP ${res.status})` : `Failed to load landscapes (HTTP ${res.status})`);
         }
       } catch (err) {
         console.error('Failed to load landscapes:', err);
@@ -116,7 +140,8 @@ export default function LandscapesPage() {
         } else if (res.status === 404) {
           setDetailError('No details available for this pattern.');
         } else {
-          setDetailError(`Failed to load details (HTTP ${res.status})`);
+          const msg = await extractErrorMessage(res);
+          setDetailError(msg ? `${msg} (HTTP ${res.status})` : `Failed to load details (HTTP ${res.status})`);
         }
       } catch (err) {
         console.error('Failed to load cluster detail:', err);

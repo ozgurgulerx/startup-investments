@@ -33,7 +33,8 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        # Playwright is a devDependency for web CI; frontend deploy does not need browser downloads.
+        run: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 pnpm install
 
       - name: Clear Next.js cache
         run: rm -rf apps/web/.next
@@ -232,6 +233,7 @@ jobs:
               { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "false", "slotSetting": false },
               { "name": "NEXT_PUBLIC_API_URL", "value": "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net", "slotSetting": false },
               { "name": "API_KEY", "value": "${{ secrets.API_KEY }}", "slotSetting": false },
+              { "name": "ADMIN_KEY", "value": "${{ secrets.ADMIN_KEY }}", "slotSetting": false },
               { "name": "PUBLIC_BASE_URL", "value": "${{ secrets.PUBLIC_BASE_URL }}", "slotSetting": false },
               { "name": "RESEND_API_KEY", "value": "${{ secrets.RESEND_API_KEY }}", "slotSetting": false },
               { "name": "NEWS_DIGEST_FROM_EMAIL", "value": "${{ secrets.NEWS_DIGEST_FROM_EMAIL }}", "slotSetting": false },

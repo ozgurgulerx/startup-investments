@@ -374,6 +374,23 @@ _VALUATION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Funding title → primary company extraction (when NER/entities are noisy)
+_FUNDING_TITLE_STRIP_PREFIX_RE = re.compile(r"^(funding|financing|investment|round)\s*[:\-]\s*", re.IGNORECASE)
+_FUNDING_TITLE_STARTUP_NAME_RE = re.compile(
+    r"\b(?i:start-?up)\s+([A-Z][A-Za-z0-9&+.'\\-]*(?:\s+[A-Z0-9][A-Za-z0-9&+.'\\-]*){0,4})\b"
+)
+_FUNDING_TITLE_AMOUNT_FOR_RE = re.compile(
+    r"\$\s*[\d,.]+\s*(?:million|billion|mn|bn|m|b|k|[MBK])\b\s+(?:for|to|into)\s+"
+    r"([A-Z][A-Za-z0-9&+.'\\-]*(?:\s+[A-Z0-9][A-Za-z0-9&+.'\\-]*){0,4})\b",
+    re.IGNORECASE,
+)
+_FUNDING_TITLE_VERB_RE = re.compile(
+    r"^(.{2,120}?)\s+(?:raises|raised|secures|secured|lands|landed|closes|closed|"
+    r"nabs|nabbed|bags|bagged|snags|snagged|gets|got|picks\s+up|picked\s+up|"
+    r"announces|announced)\b",
+    re.IGNORECASE,
+)
+
 # M&A patterns
 _ACQUIRED_RE = re.compile(
     r"(?:acquires?|acquired|acquisition\s+of|to\s+acquire)\s+([A-Z][A-Za-z\s&]+?)(?:\s+for|\s+in|\.|,|$)",
@@ -476,6 +493,9 @@ class FactExtractor:
         primary_entity = entities[0] if entities else None
 
         if story_type == "funding":
+            extracted = self._extract_primary_company_from_funding_title(title)
+            if extracted:
+                primary_entity = extracted
             claims.extend(self._extract_funding(text, primary_entity))
         elif story_type == "mna":
             claims.extend(self._extract_mna(text, primary_entity))
@@ -493,6 +513,74 @@ class FactExtractor:
             claims.extend(self._extract_turkish(text, primary_entity, story_type))
 
         return claims
+
+    def _extract_primary_company_from_funding_title(self, title: str) -> Optional[str]:
+        """Best-effort company name extraction for funding headlines.
+
+        This is used when `entities[0]` is noisy (e.g. investor/person captured first),
+        to avoid onboarding + event attribution drifting to the wrong entity.
+        """
+        t = (title or "").strip()
+        if not t:
+            return None
+
+        t = _FUNDING_TITLE_STRIP_PREFIX_RE.sub("", t).strip()
+
+        # "startup <Name>" anywhere in the title (covers investor-first headlines).
+        m = _FUNDING_TITLE_STARTUP_NAME_RE.search(t)
+        if m:
+            cand = (m.group(1) or "").strip().strip("\"'“”‘’()[]{}.,:; ")
+            cand = re.sub(r"[’']s$", "", cand).strip()
+            if cand and not re.fullmatch(r"[A-Z]{1,3}", cand):
+                return cand
+
+        # "$10M for Acme ..." style
+        m = _FUNDING_TITLE_AMOUNT_FOR_RE.search(t)
+        if m:
+            cand = (m.group(1) or "").strip().strip("\"'“”‘’()[]{}.,:; ")
+            cand = re.sub(r"[’']s$", "", cand).strip()
+            if cand and not re.fullmatch(r"[A-Z]{1,3}", cand):
+                return cand
+
+        # "Acme raises $10M ..." (or "... secures/lands/closes ...") style
+        m = _FUNDING_TITLE_VERB_RE.search(t)
+        if not m:
+            return None
+
+        prefix = (m.group(1) or "").strip().strip("\"'“”‘’()[]{}.,:; ")
+        if not prefix:
+            return None
+
+        lower = prefix.lower()
+        for kw in ("startup", "company", "firm", "platform", "app"):
+            idx = lower.rfind(kw + " ")
+            if idx != -1:
+                tail = prefix[idx + len(kw) + 1 :].strip()
+                if tail:
+                    prefix = tail
+                    lower = prefix.lower()
+                break
+
+        tokens = [tok.strip("\"'“”‘’()[]{}.,:; ") for tok in re.split(r"\s+", prefix) if tok.strip()]
+        # Drop common headline descriptors so we prefer the actual company token(s).
+        tokens = [t for t in tokens if not re.search(r"-(backed|led|based)$", t.lower())]
+        while tokens and tokens[0].lower() in ("the", "a", "an"):
+            tokens = tokens[1:]
+        if not tokens:
+            return None
+
+        # Prefer the last few tokens when titles start with descriptors ("AI startup ...").
+        if len(tokens) > 6:
+            tokens = tokens[-4:]
+
+        cand = " ".join(tokens).strip()
+        cand = re.sub(r"[’']s$", "", cand).strip()
+        if not cand or cand.lower() in {"startup", "company", "firm", "platform", "app"}:
+            return None
+        if re.fullmatch(r"[A-Z]{1,3}", cand):
+            return None
+
+        return cand
 
     def _extract_funding(self, text: str, entity: Optional[str]) -> List[ExtractedClaim]:
         claims: List[ExtractedClaim] = []

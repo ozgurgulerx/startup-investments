@@ -17,6 +17,10 @@ RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
 WORKDIR /app
 
+# CI/e2e uses Playwright, but production web builds do not need browser binaries.
+# Prevent the Playwright postinstall hook from downloading Chromium/WebKit/Firefox during ACR builds.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 # Copy only files needed for dependency resolution (maximizes layer caching)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json apps/web/package.json
