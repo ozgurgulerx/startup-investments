@@ -6,6 +6,9 @@ set -euo pipefail
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"
 
+# Apply database migrations
+bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" benchmarks
+
 echo "=== Compute Extended Benchmarks ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 

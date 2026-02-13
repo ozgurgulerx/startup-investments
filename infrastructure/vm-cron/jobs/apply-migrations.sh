@@ -1,7 +1,7 @@
 #!/bin/bash
 # apply-migrations.sh — Shared database migration runner.
 # Usage: apply-migrations.sh <migration-set>
-# Sets: news, crawl, news-digest, startups, performance, research, all
+# Sets: news, crawl, news-digest, startups, performance, research, benchmarks, all
 set -uo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"
@@ -103,6 +103,12 @@ SETS = {
     "research": [
         "012_daily_news.sql",
         "032_topic_research.sql",
+    ],
+    "benchmarks": [
+        "039_startup_state_snapshot.sql",
+        "053_neighbors_benchmarks.sql",
+        "054_investor_dna.sql",
+        "056_benchmark_percentile_ranks.sql",
     ],
 }
 
