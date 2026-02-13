@@ -6,6 +6,8 @@ Includes:
 - Recent workflow run outcomes (GitHub Actions API — CI/CD workflows only)
 - VM cron job health (when running on VM, parses /var/log/buildatlas/ logs)
 - Core product metrics from Postgres (news editions, ingestion runs, digest deliveries, LLM enrichment coverage)
+- Subscription lifecycle + segment metrics (region / digest frequency / newly confirmed emails)
+- Optional site usage metrics from PostHog (when server API credentials are configured)
 
 No third-party deps for HTTP (stdlib); uses asyncpg for DB (already in analysis requirements).
 
@@ -77,6 +79,116 @@ def _env(name: str, default: str | None = None) -> str | None:
     if v is None or v.strip() == "":
         return default
     return v
+
+
+def _as_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        try:
+            return int(float(s))
+        except ValueError:
+            return None
+    return None
+
+
+def _mask_email(email: str) -> str:
+    e = (email or "").strip()
+    if "@" not in e:
+        return (e[:2] + "***") if e else ""
+    local, domain = e.split("@", 1)
+    if len(local) <= 1:
+        masked_local = "*"
+    elif len(local) == 2:
+        masked_local = local[0] + "*"
+    else:
+        masked_local = local[:2] + ("*" * (len(local) - 2))
+    return f"{masked_local}@{domain}"
+
+
+def _posthog_query(host: str, project_id: str, token: str, hogql: str) -> dict[str, Any]:
+    host = host.strip().rstrip("/")
+    if not host.startswith("http://") and not host.startswith("https://"):
+        host = "https://" + host
+    url = f"{host}/api/projects/{project_id}/query/"
+    payload = json.dumps({"query": {"kind": "HogQLQuery", "query": hogql}}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json; charset=utf-8",
+            "Accept": "application/json",
+            "User-Agent": "buildatlas-slack-summary",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        body = resp.read().decode("utf-8")
+        return json.loads(body)
+
+
+def _posthog_scalar(host: str, project_id: str, token: str, hogql: str) -> int:
+    data = _posthog_query(host, project_id, token, hogql)
+    rows = data.get("results")
+    if not isinstance(rows, list) or not rows:
+        raise RuntimeError("unexpected PostHog response: missing results")
+
+    first = rows[0]
+    raw: Any
+    if isinstance(first, list):
+        if not first:
+            raise RuntimeError("unexpected PostHog response: empty row")
+        raw = first[0]
+    elif isinstance(first, dict):
+        if not first:
+            raise RuntimeError("unexpected PostHog response: empty object row")
+        raw = next(iter(first.values()))
+    else:
+        raw = first
+
+    value = _as_int(raw)
+    if value is None:
+        raise RuntimeError("unexpected PostHog response: non-numeric scalar")
+    return value
+
+
+def _posthog_metrics(host: str, project_id: str, token: str) -> dict[str, Any]:
+    return {
+        "pageviews": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count() FROM events WHERE event = '$pageview' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
+        "unique_visitors": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count(DISTINCT distinct_id) FROM events WHERE event = '$pageview' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
+        "sessions_started": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count() FROM events WHERE event = '$session_start' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
+        "watchlist_add": _posthog_scalar(
+            host,
+            project_id,
+            token,
+            "SELECT count() FROM events WHERE event = 'watchlist_add' AND timestamp >= now() - INTERVAL 1 DAY",
+        ),
+    }
 
 
 def _github_api_get(url: str, token: str) -> dict[str, Any]:
@@ -317,6 +429,115 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
                 "total": int(subs["total"]),
             }
 
+        warnings: list[str] = []
+
+        try:
+            subs_24h = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') AS created,
+                  COUNT(*) FILTER (WHERE confirmed_at >= NOW() - INTERVAL '24 hours') AS confirmed,
+                  COUNT(*) FILTER (
+                    WHERE status = 'unsubscribed'
+                      AND updated_at >= NOW() - INTERVAL '24 hours'
+                  ) AS unsubscribed
+                FROM news_email_subscriptions
+                """
+            )
+            if subs_24h:
+                metrics["subscriptions_24h"] = {
+                    "created": int(subs_24h["created"]),
+                    "confirmed": int(subs_24h["confirmed"]),
+                    "unsubscribed": int(subs_24h["unsubscribed"]),
+                }
+        except Exception as e:
+            warnings.append(f"subscriptions_24h unavailable: {e}")
+
+        try:
+            sub_segments = await conn.fetch(
+                """
+                SELECT
+                  region,
+                  COALESCE(NULLIF(digest_frequency, ''), 'daily') AS digest_frequency,
+                  COUNT(*) FILTER (WHERE status = 'active') AS active,
+                  COUNT(*) FILTER (WHERE status = 'pending_confirmation') AS pending_confirmation,
+                  COUNT(*) FILTER (WHERE status = 'unsubscribed') AS unsubscribed,
+                  COUNT(*) FILTER (WHERE status = 'bounced') AS bounced
+                FROM news_email_subscriptions
+                GROUP BY region, COALESCE(NULLIF(digest_frequency, ''), 'daily')
+                ORDER BY region ASC, digest_frequency ASC
+                """
+            )
+            metrics["subscription_segments"] = [
+                {
+                    "region": str(r["region"]),
+                    "digest_frequency": str(r["digest_frequency"]),
+                    "active": int(r["active"]),
+                    "pending_confirmation": int(r["pending_confirmation"]),
+                    "unsubscribed": int(r["unsubscribed"]),
+                    "bounced": int(r["bounced"]),
+                }
+                for r in sub_segments
+            ]
+        except Exception as e:
+            warnings.append(f"subscription_segments unavailable: {e}")
+
+        try:
+            confirmed_rows = await conn.fetch(
+                """
+                SELECT
+                  email,
+                  region,
+                  COALESCE(NULLIF(digest_frequency, ''), 'daily') AS digest_frequency
+                FROM news_email_subscriptions
+                WHERE confirmed_at >= NOW() - INTERVAL '24 hours'
+                ORDER BY confirmed_at DESC
+                LIMIT 8
+                """
+            )
+            metrics["confirmed_subscribers_24h"] = [
+                {
+                    "email_masked": _mask_email(str(r["email"])),
+                    "region": str(r["region"]),
+                    "digest_frequency": str(r["digest_frequency"]),
+                }
+                for r in confirmed_rows
+            ]
+        except Exception as e:
+            warnings.append(f"confirmed_subscribers_24h unavailable: {e}")
+
+        try:
+            digest_by_region = await conn.fetch(
+                """
+                SELECT
+                  s.region,
+                  COUNT(*) FILTER (WHERE d.status='sent') AS sent,
+                  COUNT(*) FILTER (WHERE d.status='failed') AS failed,
+                  COUNT(*) FILTER (WHERE d.status='skipped') AS skipped,
+                  COUNT(*) AS total
+                FROM news_digest_deliveries d
+                JOIN news_email_subscriptions s ON s.id = d.subscription_id
+                WHERE d.sent_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY s.region
+                ORDER BY s.region ASC
+                """
+            )
+            metrics["digest_24h_by_region"] = [
+                {
+                    "region": str(r["region"]),
+                    "sent": int(r["sent"]),
+                    "failed": int(r["failed"]),
+                    "skipped": int(r["skipped"]),
+                    "total": int(r["total"]),
+                }
+                for r in digest_by_region
+            ]
+        except Exception as e:
+            warnings.append(f"digest_24h_by_region unavailable: {e}")
+
+        if warnings:
+            metrics["db_metrics_warnings"] = warnings[:3]
+
         return metrics
     finally:
         await conn.close()
@@ -344,6 +565,9 @@ def main() -> int:
     repo = _env("GITHUB_REPOSITORY")
     token = _env("GITHUB_TOKEN")
     database_url = _env("DATABASE_URL")
+    posthog_host = _env("POSTHOG_HOST") or _env("NEXT_PUBLIC_POSTHOG_HOST") or "https://us.i.posthog.com"
+    posthog_project_id = _env("POSTHOG_PROJECT_ID")
+    posthog_api_key = _env("POSTHOG_PERSONAL_API_KEY") or _env("POSTHOG_API_KEY")
 
     if not repo or not token:
         sys.stderr.write("Missing required env: GITHUB_REPOSITORY or GITHUB_TOKEN\n")
@@ -367,6 +591,19 @@ def main() -> int:
             metrics = asyncio.run(_db_metrics(database_url))
         except Exception as e:
             metrics = {"db_metrics_error": str(e)}
+
+    site_metrics: dict[str, Any] = {}
+    if posthog_project_id and posthog_api_key:
+        try:
+            site_metrics = _posthog_metrics(posthog_host, posthog_project_id, posthog_api_key)
+        except Exception as e:
+            site_metrics = {"site_metrics_error": str(e)}
+    elif _env("NEXT_PUBLIC_POSTHOG_KEY"):
+        site_metrics = {
+            "site_metrics_info": (
+                "PostHog client key is configured, but POSTHOG_PROJECT_ID/POSTHOG_PERSONAL_API_KEY are missing"
+            )
+        }
 
     # VM cron job health (only when running on VM)
     cron_health: list[CronJobHealth] = []
@@ -421,13 +658,60 @@ def main() -> int:
         if "subscriptions" in metrics:
             s = metrics["subscriptions"]
             body_lines.append(f"- Subscriptions: active={s.get('active')} total={s.get('total')}")
+        if "subscriptions_24h" in metrics:
+            s24 = metrics["subscriptions_24h"]
+            body_lines.append(
+                f"- Subscription lifecycle (24h): created={s24.get('created')} confirmed={s24.get('confirmed')} unsubscribed={s24.get('unsubscribed')}"
+            )
+        if "subscription_segments" in metrics:
+            segs = metrics["subscription_segments"]
+            if segs:
+                parts = [
+                    f"{seg.get('region')}/{seg.get('digest_frequency')}: active={seg.get('active')} pending={seg.get('pending_confirmation')}"
+                    for seg in segs
+                ]
+                body_lines.append(f"- Subscription segments: {'; '.join(parts)}")
+        if "confirmed_subscribers_24h" in metrics:
+            confirmed = metrics["confirmed_subscribers_24h"]
+            if confirmed:
+                people = [
+                    f"{c.get('email_masked')} ({c.get('region')}/{c.get('digest_frequency')})"
+                    for c in confirmed
+                ]
+                body_lines.append(f"- Newly confirmed subscribers (24h): {', '.join(people)}")
+            else:
+                body_lines.append("- Newly confirmed subscribers (24h): none")
+        if "digest_24h_by_region" in metrics:
+            rows = metrics["digest_24h_by_region"]
+            if rows:
+                parts = [
+                    f"{r.get('region')}: sent={r.get('sent')} failed={r.get('failed')} skipped={r.get('skipped')}"
+                    for r in rows
+                ]
+                body_lines.append(f"- Digest by region (24h): {'; '.join(parts)}")
         if "llm_24h" in metrics:
             l = metrics["llm_24h"]
             body_lines.append(
                 f"- LLM (24h clusters): llm_summary={l.get('with_llm_summary')}/{l.get('total')} • builder_takeaway={l.get('with_builder_takeaway')}/{l.get('total')}"
             )
+        if "db_metrics_warnings" in metrics:
+            warns = metrics["db_metrics_warnings"]
+            if warns:
+                body_lines.append(f"- DB metrics warnings: {'; '.join(str(w) for w in warns)}")
         if "db_metrics_error" in metrics:
             body_lines.append(f"- DB metrics error: `{metrics.get('db_metrics_error')}`")
+
+    if site_metrics:
+        body_lines.append("")
+        body_lines.append("*Site usage (PostHog, 24h)*")
+        if "pageviews" in site_metrics:
+            body_lines.append(
+                f"- pageviews={site_metrics.get('pageviews')} unique_visitors={site_metrics.get('unique_visitors')} sessions_started={site_metrics.get('sessions_started')} watchlist_add={site_metrics.get('watchlist_add')}"
+            )
+        if "site_metrics_info" in site_metrics:
+            body_lines.append(f"- Info: {site_metrics.get('site_metrics_info')}")
+        if "site_metrics_error" in site_metrics:
+            body_lines.append(f"- Site metrics error: `{site_metrics.get('site_metrics_error')}`")
 
     blocks = [
         {"type": "header", "text": {"type": "plain_text", "text": f"{status_emoji} {title}", "emoji": True}},

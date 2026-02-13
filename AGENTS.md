@@ -68,6 +68,11 @@ VM cron runner:
 - One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
+  - Daily `slack-summary` now includes subscription lifecycle metrics (created/confirmed/unsubscribed in 24h),
+    segment breakdown (`region` × `digest_frequency`), masked newly-confirmed subscriber emails, and digest
+    delivery totals by region.
+  - Optional site-usage block comes from PostHog when `POSTHOG_PROJECT_ID` + (`POSTHOG_PERSONAL_API_KEY` or
+    `POSTHOG_API_KEY`) are set on the VM (`POSTHOG_HOST` defaults to `NEXT_PUBLIC_POSTHOG_HOST` / `us.i.posthog.com`).
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
 - VM access (for manual deploy/debug):
