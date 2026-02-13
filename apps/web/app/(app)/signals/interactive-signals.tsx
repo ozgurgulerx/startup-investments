@@ -48,7 +48,7 @@ interface SignalRecommendation {
   signal: SignalItem;
   overlap_count: number;
   reason: string;
-  reason_type?: 'watchlist_overlap' | 'high_impact_fallback';
+  reason_type?: 'watchlist_overlap' | 'graph_investor_overlap' | 'memory_momentum' | 'high_impact_fallback';
 }
 
 interface SignalRecommendationsResponse {
@@ -104,7 +104,7 @@ const DOMAIN_LABELS_TR: Record<string, string> = {
 };
 
 const STATUS_ORDER = ['accelerating', 'emerging', 'candidate', 'established', 'decaying'] as const;
-const RECOMMENDATION_ALGO_FALLBACK = 'signals_v1_overlap_impact';
+const RECOMMENDATION_ALGO_FALLBACK = 'signals_v2_graph_memory';
 const RECOMMENDATION_SURFACE = 'signals';
 
 const SORT_OPTIONS = [
@@ -565,6 +565,12 @@ function getRecommendationReasonTag(params: {
   }
   if (params.reasonType === 'high_impact_fallback') {
     return params.isTR ? 'Bolgende yuksek etki' : 'High impact in your region';
+  }
+  if (params.reasonType === 'graph_investor_overlap') {
+    return params.isTR ? 'Yatirimci grafi eslesmesi' : 'Investor graph match';
+  }
+  if (params.reasonType === 'memory_momentum') {
+    return params.isTR ? 'Hafiza momentumu' : 'Memory momentum';
   }
   return params.isTR ? 'Senin icin onerildi' : 'Recommended for you';
 }

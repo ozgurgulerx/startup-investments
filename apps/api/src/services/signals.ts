@@ -57,7 +57,7 @@ export interface SignalRecommendation {
   signal: SignalRow;
   overlap_count: number;
   reason: string;
-  reason_type: 'watchlist_overlap' | 'high_impact_fallback';
+  reason_type: 'watchlist_overlap' | 'graph_investor_overlap' | 'memory_momentum' | 'high_impact_fallback';
 }
 
 export interface SignalRecommendationsResponse {
@@ -67,7 +67,17 @@ export interface SignalRecommendationsResponse {
 }
 
 type NewsRegion = 'global' | 'turkey';
-const SIGNALS_RECOMMENDER_ALGORITHM_VERSION = 'signals_v1_overlap_impact';
+const SIGNALS_RECOMMENDER_ALGORITHM_VERSION = 'signals_v2_graph_memory';
+
+interface RecommendationFeatures {
+  overlap_count: number;
+  graph_shared_investor_count: number;
+  graph_connected_startup_count: number;
+  memory_publish_like_count: number;
+  memory_contradiction_count: number;
+  memory_avg_composite: number;
+  domain_follow_count: number;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -576,6 +586,349 @@ export function makeSignalsService(pool: Pool) {
     }
   }
 
+  function defaultRecommendationFeatures(overlapCount = 0): RecommendationFeatures {
+    return {
+      overlap_count: overlapCount,
+      graph_shared_investor_count: 0,
+      graph_connected_startup_count: 0,
+      memory_publish_like_count: 0,
+      memory_contradiction_count: 0,
+      memory_avg_composite: 0,
+      domain_follow_count: 0,
+    };
+  }
+
+  function buildRecommendationReason(features: RecommendationFeatures): {
+    overlap_count: number;
+    reason: string;
+    reason_type: SignalRecommendation['reason_type'];
+  } {
+    const overlap = Math.max(0, Number(features.overlap_count || 0));
+    const sharedInvestors = Math.max(0, Number(features.graph_shared_investor_count || 0));
+    const connectedStartups = Math.max(0, Number(features.graph_connected_startup_count || 0));
+    const memoryPublishLike = Math.max(0, Number(features.memory_publish_like_count || 0));
+    const memoryContradictions = Math.max(0, Number(features.memory_contradiction_count || 0));
+    const memoryComposite = Number.isFinite(features.memory_avg_composite)
+      ? Number(features.memory_avg_composite)
+      : 0;
+
+    if (overlap > 0) {
+      const parts = [
+        `Matches ${overlap} tracked ${overlap === 1 ? 'company' : 'companies'}`,
+      ];
+      if (sharedInvestors > 0) {
+        parts.push(`shares ${sharedInvestors} investor${sharedInvestors === 1 ? '' : 's'} in your capital graph`);
+      }
+      if (memoryPublishLike > 0) {
+        parts.push(`${memoryPublishLike} memory-backed cluster${memoryPublishLike === 1 ? '' : 's'} support this trend`);
+      }
+      if (memoryContradictions > 0) {
+        parts.push(`${memoryContradictions} contradiction flag${memoryContradictions === 1 ? '' : 's'} worth monitoring`);
+      }
+      return {
+        overlap_count: overlap,
+        reason: parts.join('; '),
+        reason_type: 'watchlist_overlap',
+      };
+    }
+
+    if (sharedInvestors > 0) {
+      const parts = [
+        `Connected via ${sharedInvestors} shared investor${sharedInvestors === 1 ? '' : 's'} in your portfolio graph`,
+      ];
+      if (connectedStartups > 0) {
+        parts.push(`across ${connectedStartups} startup${connectedStartups === 1 ? '' : 's'} linked to this signal`);
+      }
+      if (memoryPublishLike > 0) {
+        parts.push(`${memoryPublishLike} publish/watchlist memory clusters reinforce it`);
+      }
+      return {
+        overlap_count: overlap,
+        reason: parts.join('; '),
+        reason_type: 'graph_investor_overlap',
+      };
+    }
+
+    if (memoryPublishLike > 0 || memoryComposite >= 0.62) {
+      const parts = [
+        `Memory momentum: ${memoryPublishLike} high-quality cluster${memoryPublishLike === 1 ? '' : 's'} scored publish/watchlist`,
+      ];
+      parts.push(`composite strength ${memoryComposite.toFixed(2)}`);
+      if (memoryContradictions > 0) {
+        parts.push(`${memoryContradictions} contradiction flag${memoryContradictions === 1 ? '' : 's'} to validate`);
+      }
+      return {
+        overlap_count: overlap,
+        reason: parts.join('; '),
+        reason_type: 'memory_momentum',
+      };
+    }
+
+    return {
+      overlap_count: overlap,
+      reason: 'High-impact signal in your selected region',
+      reason_type: 'high_impact_fallback',
+    };
+  }
+
+  function computeRecommendationScore(signal: SignalRow, features: RecommendationFeatures): number {
+    return (
+      Math.min(features.overlap_count, 8) * 3.4
+      + Math.min(features.graph_shared_investor_count, 8) * 1.6
+      + Math.min(features.graph_connected_startup_count, 8) * 0.9
+      + Math.min(features.memory_publish_like_count, 8) * 0.8
+      + Math.max(0, features.memory_avg_composite) * 1.8
+      + Math.min(features.domain_follow_count, 6) * 0.55
+      + signal.impact * 2.4
+      + signal.conviction * 1.7
+      + signal.momentum * 1.5
+      - Math.min(features.memory_contradiction_count, 5) * 1.25
+    );
+  }
+
+  async function getDomainFollowCountMap(params: {
+    userId: string;
+    region: NewsRegion;
+  }): Promise<Map<string, number>> {
+    try {
+      const result = await pool.query<{ domain: string; follow_count: number }>(
+        `SELECT s.domain, COUNT(*)::int AS follow_count
+         FROM user_signal_follows usf
+         JOIN signals s ON s.id = usf.signal_id
+         WHERE usf.user_id = $1::uuid
+           AND s.region = $2
+         GROUP BY s.domain`,
+        [params.userId, params.region],
+      );
+      const domainCounts = new Map<string, number>();
+      for (const row of result.rows) {
+        const domain = String(row.domain || '').trim();
+        if (!domain) continue;
+        domainCounts.set(domain, Number(row.follow_count || 0));
+      }
+      return domainCounts;
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return new Map();
+      throw error;
+    }
+  }
+
+  async function getGraphFeatureMap(params: {
+    userId: string;
+    region: NewsRegion;
+    signalIds: string[];
+  }): Promise<Map<string, Pick<RecommendationFeatures, 'graph_shared_investor_count' | 'graph_connected_startup_count'>>> {
+    const { userId, region, signalIds } = params;
+    if (signalIds.length === 0) return new Map();
+    try {
+      const result = await pool.query<{
+        signal_id: string;
+        shared_investor_count: number;
+        connected_startup_count: number;
+      }>(
+        `WITH watchlist_startups AS (
+           SELECT DISTINCT startup_id
+           FROM user_watchlists
+           WHERE user_id = $1::uuid
+         ),
+         watchlist_investors AS (
+           SELECT DISTINCT e.src_id AS investor_id
+           FROM capital_graph_edges e
+           JOIN watchlist_startups ws ON ws.startup_id = e.dst_id
+           WHERE e.src_type = 'investor'
+             AND e.dst_type = 'startup'
+             AND e.edge_type = 'LEADS_ROUND'
+             AND e.region = $2
+             AND e.valid_from <= NOW()::date
+             AND (e.valid_to IS NULL OR e.valid_to >= NOW()::date)
+         ),
+         signal_startups AS (
+           SELECT DISTINCT se.signal_id, se.startup_id
+           FROM signal_evidence se
+           WHERE se.signal_id = ANY($3::uuid[])
+             AND se.startup_id IS NOT NULL
+         ),
+         signal_graph_edges AS (
+           SELECT ss.signal_id, e.src_id AS investor_id, e.dst_id AS startup_id
+           FROM signal_startups ss
+           JOIN capital_graph_edges e
+             ON e.dst_id = ss.startup_id
+            AND e.src_type = 'investor'
+            AND e.dst_type = 'startup'
+            AND e.edge_type = 'LEADS_ROUND'
+            AND e.region = $2
+            AND e.valid_from <= NOW()::date
+            AND (e.valid_to IS NULL OR e.valid_to >= NOW()::date)
+         )
+         SELECT sge.signal_id::text AS signal_id,
+                COUNT(DISTINCT CASE WHEN wi.investor_id IS NOT NULL THEN sge.investor_id END)::int AS shared_investor_count,
+                COUNT(DISTINCT CASE WHEN wi.investor_id IS NOT NULL THEN sge.startup_id END)::int AS connected_startup_count
+         FROM signal_graph_edges sge
+         LEFT JOIN watchlist_investors wi ON wi.investor_id = sge.investor_id
+         GROUP BY sge.signal_id`,
+        [userId, region, signalIds],
+      );
+      const featureMap = new Map<string, Pick<RecommendationFeatures, 'graph_shared_investor_count' | 'graph_connected_startup_count'>>();
+      for (const row of result.rows) {
+        const signalId = String(row.signal_id || '').trim();
+        if (!signalId) continue;
+        featureMap.set(signalId, {
+          graph_shared_investor_count: Number(row.shared_investor_count || 0),
+          graph_connected_startup_count: Number(row.connected_startup_count || 0),
+        });
+      }
+      return featureMap;
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return new Map();
+      throw error;
+    }
+  }
+
+  async function getMemoryFeatureMap(params: {
+    region: NewsRegion;
+    signalIds: string[];
+  }): Promise<Map<string, Pick<RecommendationFeatures, 'memory_publish_like_count' | 'memory_contradiction_count' | 'memory_avg_composite'>>> {
+    const { region, signalIds } = params;
+    if (signalIds.length === 0) return new Map();
+    try {
+      const result = await pool.query<{
+        signal_id: string;
+        publish_like_count: number;
+        contradiction_count: number;
+        avg_composite: number;
+      }>(
+        `WITH signal_clusters AS (
+           SELECT DISTINCT se.signal_id, se.cluster_id
+           FROM signal_evidence se
+           WHERE se.signal_id = ANY($1::uuid[])
+             AND se.cluster_id IS NOT NULL
+         )
+         SELECT sc.signal_id::text AS signal_id,
+                COUNT(*) FILTER (WHERE d.decision IN ('publish', 'borderline', 'watchlist'))::int AS publish_like_count,
+                COUNT(*) FILTER (WHERE COALESCE(d.has_contradiction, FALSE))::int AS contradiction_count,
+                COALESCE(AVG(COALESCE(d.score_composite, 0)), 0)::float AS avg_composite
+         FROM signal_clusters sc
+         LEFT JOIN news_item_decisions d
+           ON d.cluster_id = sc.cluster_id
+          AND d.region = $2
+         GROUP BY sc.signal_id`,
+        [signalIds, region],
+      );
+      const featureMap = new Map<string, Pick<RecommendationFeatures, 'memory_publish_like_count' | 'memory_contradiction_count' | 'memory_avg_composite'>>();
+      for (const row of result.rows) {
+        const signalId = String(row.signal_id || '').trim();
+        if (!signalId) continue;
+        featureMap.set(signalId, {
+          memory_publish_like_count: Number(row.publish_like_count || 0),
+          memory_contradiction_count: Number(row.contradiction_count || 0),
+          memory_avg_composite: Number(row.avg_composite || 0),
+        });
+      }
+      return featureMap;
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return new Map();
+      throw error;
+    }
+  }
+
+  async function buildRecommendationFeatureMap(params: {
+    rows: any[];
+    userId: string;
+    region: NewsRegion;
+  }): Promise<Map<string, RecommendationFeatures>> {
+    const signalIds = Array.from(new Set(params.rows.map((row) => String(row.id || '').trim()).filter(Boolean)));
+    const featureMap = new Map<string, RecommendationFeatures>();
+
+    for (const row of params.rows) {
+      const signalId = String(row.id || '').trim();
+      if (!signalId) continue;
+      featureMap.set(signalId, defaultRecommendationFeatures(Number(row.overlap_count || 0)));
+    }
+
+    if (signalIds.length === 0) {
+      return featureMap;
+    }
+
+    const domainFollowCounts = await getDomainFollowCountMap({
+      userId: params.userId,
+      region: params.region,
+    });
+    for (const row of params.rows) {
+      const signalId = String(row.id || '').trim();
+      const domain = String(row.domain || '').trim();
+      if (!signalId || !domain) continue;
+      const current = featureMap.get(signalId) || defaultRecommendationFeatures(Number(row.overlap_count || 0));
+      current.domain_follow_count = Number(domainFollowCounts.get(domain) || 0);
+      featureMap.set(signalId, current);
+    }
+
+    const [graphFeatures, memoryFeatures] = await Promise.all([
+      getGraphFeatureMap({
+        userId: params.userId,
+        region: params.region,
+        signalIds,
+      }),
+      getMemoryFeatureMap({
+        region: params.region,
+        signalIds,
+      }),
+    ]);
+
+    for (const signalId of signalIds) {
+      const current = featureMap.get(signalId) || defaultRecommendationFeatures();
+      const graph = graphFeatures.get(signalId);
+      const memory = memoryFeatures.get(signalId);
+      if (graph) {
+        current.graph_shared_investor_count = Number(graph.graph_shared_investor_count || 0);
+        current.graph_connected_startup_count = Number(graph.graph_connected_startup_count || 0);
+      }
+      if (memory) {
+        current.memory_publish_like_count = Number(memory.memory_publish_like_count || 0);
+        current.memory_contradiction_count = Number(memory.memory_contradiction_count || 0);
+        current.memory_avg_composite = Number(memory.memory_avg_composite || 0);
+      }
+      featureMap.set(signalId, current);
+    }
+
+    return featureMap;
+  }
+
+  async function rankRecommendationRows(params: {
+    rows: any[];
+    userId: string;
+    region: NewsRegion;
+  }): Promise<Array<{ score: number; recommendation: SignalRecommendation }>> {
+    if (params.rows.length === 0) return [];
+
+    const featureMap = await buildRecommendationFeatureMap(params);
+    const scored: Array<{ score: number; recommendation: SignalRecommendation }> = [];
+
+    for (const row of params.rows) {
+      const signal = rowToSignal(row);
+      const features = featureMap.get(signal.id) || defaultRecommendationFeatures(Number(row.overlap_count || 0));
+      const reason = buildRecommendationReason(features);
+      const recommendation: SignalRecommendation = {
+        signal,
+        overlap_count: reason.overlap_count,
+        reason: reason.reason,
+        reason_type: reason.reason_type,
+      };
+      scored.push({
+        score: computeRecommendationScore(signal, features),
+        recommendation,
+      });
+    }
+
+    scored.sort((a, b) => (
+      b.score - a.score
+      || b.recommendation.signal.impact - a.recommendation.signal.impact
+      || b.recommendation.signal.conviction - a.recommendation.signal.conviction
+      || b.recommendation.signal.momentum - a.recommendation.signal.momentum
+    ));
+
+    return scored;
+  }
+
   async function getSignalRecommendations(params: {
     userId: string;
     region?: string;
@@ -584,6 +937,7 @@ export function makeSignalsService(pool: Pool) {
     const region = normalizeRegion(params.region);
     const limit = Math.min(12, Math.max(1, params.limit || 6));
     const requestId = randomUUID();
+    const candidateLimit = Math.min(48, Math.max(limit * 4, 16));
 
     const recommendations: SignalRecommendation[] = [];
     const seen = new Set<string>();
@@ -615,22 +969,20 @@ export function makeSignalsService(pool: Pool) {
          FROM scored
          ORDER BY overlap_count DESC, impact DESC, conviction DESC, momentum DESC
          LIMIT $3`,
-        [params.userId, region, limit],
+        [params.userId, region, candidateLimit],
       );
 
-      for (const row of watchlistResult.rows) {
-        const signal = rowToSignal(row);
-        if (seen.has(signal.id)) continue;
-        seen.add(signal.id);
-        const overlapCount = Number(row.overlap_count ?? 0);
-        recommendations.push({
-          signal,
-          overlap_count: overlapCount,
-          reason: overlapCount > 0
-            ? `Matches ${overlapCount} tracked ${overlapCount === 1 ? 'company' : 'companies'}`
-            : 'High relevance to your tracked companies',
-          reason_type: 'watchlist_overlap',
-        });
+      const ranked = await rankRecommendationRows({
+        rows: watchlistResult.rows,
+        userId: params.userId,
+        region,
+      });
+      for (const candidate of ranked) {
+        const signalId = candidate.recommendation.signal.id;
+        if (seen.has(signalId)) continue;
+        seen.add(signalId);
+        recommendations.push(candidate.recommendation);
+        if (recommendations.length >= limit) break;
       }
     } catch (error) {
       if (!isMissingNewsSchemaError(error)) {
@@ -642,6 +994,7 @@ export function makeSignalsService(pool: Pool) {
       const remaining = limit - recommendations.length;
       const excludeIds = Array.from(seen);
       try {
+        const fallbackCandidateLimit = Math.min(48, Math.max(remaining * 4, 12));
         const fallbackResult = await pool.query(
           `SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
                   s.conviction, s.momentum, s.impact, s.adoption_velocity,
@@ -659,19 +1012,20 @@ export function makeSignalsService(pool: Pool) {
              )
            ORDER BY s.impact DESC, s.conviction DESC, s.momentum DESC
            LIMIT $4`,
-          [params.userId, region, excludeIds, remaining],
+          [params.userId, region, excludeIds, fallbackCandidateLimit],
         );
 
-        for (const row of fallbackResult.rows) {
-          const signal = rowToSignal(row);
-          if (seen.has(signal.id)) continue;
-          seen.add(signal.id);
-          recommendations.push({
-            signal,
-            overlap_count: 0,
-            reason: 'High-impact signal in your selected region',
-            reason_type: 'high_impact_fallback',
-          });
+        const rankedFallback = await rankRecommendationRows({
+          rows: fallbackResult.rows,
+          userId: params.userId,
+          region,
+        });
+        for (const candidate of rankedFallback) {
+          const signalId = candidate.recommendation.signal.id;
+          if (seen.has(signalId)) continue;
+          seen.add(signalId);
+          recommendations.push(candidate.recommendation);
+          if (recommendations.length >= limit) break;
         }
       } catch (error) {
         if (!isMissingNewsSchemaError(error)) {

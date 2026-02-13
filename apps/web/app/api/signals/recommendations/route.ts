@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { fetchFromAPI } from '@/lib/api/client';
 
 export const dynamic = 'force-dynamic';
-const RECOMMENDATION_ALGO_FALLBACK = 'signals_v1_overlap_impact';
+const RECOMMENDATION_ALGO_FALLBACK = 'signals_v2_graph_memory';
 
 function buildFallbackRequestId(): string {
   return `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

@@ -86,6 +86,12 @@ Important headers/invariants:
     - `apps/web/app/(app)/signals/[id]/community-tab.tsx`
   - Notification hygiene preferences are enforced at web API boundary in:
     - `apps/web/app/api/alerts/route.ts` (filters muted delta types and low-severity alerts).
+- Signals recommendation invariants:
+  - Backend recommender (`apps/api/src/services/signals.ts`) is now `signals_v2_graph_memory`:
+    watchlist overlap + capital graph overlap (`capital_graph_edges`) + memory-gate strength (`news_item_decisions`).
+  - Recommendation reason types exposed to web:
+    `watchlist_overlap`, `graph_investor_overlap`, `memory_momentum`, `high_impact_fallback`.
+  - Degradation rule: if graph/memory tables are unavailable, recommender must still return results (impact-based fallback), not fail the endpoint.
 
 ## CI/CD Workflows (Source of Truth)
 
