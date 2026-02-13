@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS x_post_queue (
     source_type TEXT NOT NULL DEFAULT 'news_cluster'
         CHECK (source_type IN ('news_cluster', 'signal', 'manual')),
     source_cluster_id UUID REFERENCES news_clusters(id) ON DELETE SET NULL,
-    source_signal_id UUID REFERENCES startup_signals(id) ON DELETE SET NULL,
+    source_signal_id UUID,
     source_url TEXT,
     dedupe_key TEXT NOT NULL,
     post_text TEXT NOT NULL,
@@ -61,6 +61,45 @@ CREATE TABLE IF NOT EXISTS x_post_queue (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- migration 036 introduced `signals` as the canonical table.
+-- keep compatibility with legacy installs that may still have `startup_signals`.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'signals'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            WHERE c.conname = 'fk_x_post_queue_source_signal'
+              AND t.relname = 'x_post_queue'
+        ) THEN
+            ALTER TABLE x_post_queue
+                ADD CONSTRAINT fk_x_post_queue_source_signal
+                FOREIGN KEY (source_signal_id) REFERENCES signals(id) ON DELETE SET NULL;
+        END IF;
+    ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'startup_signals'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            WHERE c.conname = 'fk_x_post_queue_source_signal'
+              AND t.relname = 'x_post_queue'
+        ) THEN
+            ALTER TABLE x_post_queue
+                ADD CONSTRAINT fk_x_post_queue_source_signal
+                FOREIGN KEY (source_signal_id) REFERENCES startup_signals(id) ON DELETE SET NULL;
+        END IF;
+    END IF;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_x_post_queue_dedupe_key
     ON x_post_queue (dedupe_key);
