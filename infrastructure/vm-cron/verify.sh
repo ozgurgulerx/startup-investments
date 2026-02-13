@@ -86,10 +86,14 @@ else
     REQUIRED=(
       "runner.sh keep-alive"
       "runner.sh news-ingest"
+      "runner.sh x-trends"
       "runner.sh event-processor"
       "runner.sh deep-research"
       "runner.sh crawl-frontier"
       "runner.sh news-digest"
+      "runner.sh x-post-generate"
+      "runner.sh x-post-publish"
+      "runner.sh x-post-metrics"
       "runner.sh slack-summary"
       "runner.sh release-reconciler"
       "runner.sh sync-data"
@@ -117,6 +121,22 @@ else
     fi
   fi
 fi
+
+echo ""
+
+# --- Triggered (not scheduled) deploy scripts ---
+TRIGGERED_SCRIPTS=(
+  "jobs/frontend-deploy.sh"
+  "jobs/backend-deploy.sh"
+  "jobs/functions-deploy.sh"
+)
+for rel in "${TRIGGERED_SCRIPTS[@]}"; do
+  if [ -x "$REPO_DIR/infrastructure/vm-cron/$rel" ]; then
+    ok "triggered script present: $rel"
+  else
+    bad "triggered script missing/not executable: $rel"
+  fi
+done
 
 echo ""
 

@@ -40,7 +40,7 @@ export function ImpactBox({ item, compact, region = 'global', viewMode }: Impact
     const mode = viewMode === 'investor' ? 'compact'
       : viewMode === 'builder' ? 'full'
       : baseMode;
-    const header = frameLabel(frame);
+    const header = frameLabel(frame, region);
 
     return (
       <div className={`group/brief rounded-md border border-accent-info/25 bg-accent-info/10 px-2.5 py-2 transition-all duration-200 ${compact ? 'mt-2' : 'mt-3'}`}>

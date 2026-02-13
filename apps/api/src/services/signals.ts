@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { randomUUID } from 'crypto';
 import { findSector, sectorFilterForStartups } from '../shared/sectors';
 
 // ---------------------------------------------------------------------------
@@ -52,7 +53,21 @@ export interface SignalRow {
   };
 }
 
+export interface SignalRecommendation {
+  signal: SignalRow;
+  overlap_count: number;
+  reason: string;
+  reason_type: 'watchlist_overlap' | 'high_impact_fallback';
+}
+
+export interface SignalRecommendationsResponse {
+  request_id: string;
+  algorithm_version: string;
+  recommendations: SignalRecommendation[];
+}
+
 type NewsRegion = 'global' | 'turkey';
+const SIGNALS_RECOMMENDER_ALGORITHM_VERSION = 'signals_v1_overlap_impact';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -561,6 +576,117 @@ export function makeSignalsService(pool: Pool) {
     }
   }
 
+  async function getSignalRecommendations(params: {
+    userId: string;
+    region?: string;
+    limit?: number;
+  }): Promise<SignalRecommendationsResponse> {
+    const region = normalizeRegion(params.region);
+    const limit = Math.min(12, Math.max(1, params.limit || 6));
+    const requestId = randomUUID();
+
+    const recommendations: SignalRecommendation[] = [];
+    const seen = new Set<string>();
+
+    try {
+      const watchlistResult = await pool.query(
+        `WITH watchlist_startups AS (
+           SELECT DISTINCT startup_id
+           FROM user_watchlists
+           WHERE user_id = $1::uuid
+         ),
+         scored AS (
+           SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
+                  s.conviction, s.momentum, s.impact, s.adoption_velocity,
+                  s.status, s.evidence_count, s.unique_company_count,
+                  s.first_seen_at, s.last_evidence_at, s.metadata_json,
+                  COUNT(DISTINCT se.startup_id)::int AS overlap_count
+           FROM signals s
+           JOIN signal_evidence se ON se.signal_id = s.id
+           JOIN watchlist_startups ws ON ws.startup_id = se.startup_id
+           LEFT JOIN user_signal_follows usf
+             ON usf.user_id = $1::uuid AND usf.signal_id = s.id
+           WHERE s.region = $2
+             AND s.status != 'decaying'
+             AND usf.signal_id IS NULL
+           GROUP BY s.id
+         )
+         SELECT *
+         FROM scored
+         ORDER BY overlap_count DESC, impact DESC, conviction DESC, momentum DESC
+         LIMIT $3`,
+        [params.userId, region, limit],
+      );
+
+      for (const row of watchlistResult.rows) {
+        const signal = rowToSignal(row);
+        if (seen.has(signal.id)) continue;
+        seen.add(signal.id);
+        const overlapCount = Number(row.overlap_count ?? 0);
+        recommendations.push({
+          signal,
+          overlap_count: overlapCount,
+          reason: overlapCount > 0
+            ? `Matches ${overlapCount} tracked ${overlapCount === 1 ? 'company' : 'companies'}`
+            : 'High relevance to your tracked companies',
+          reason_type: 'watchlist_overlap',
+        });
+      }
+    } catch (error) {
+      if (!isMissingNewsSchemaError(error)) {
+        throw error;
+      }
+    }
+
+    if (recommendations.length < limit) {
+      const remaining = limit - recommendations.length;
+      const excludeIds = Array.from(seen);
+      try {
+        const fallbackResult = await pool.query(
+          `SELECT s.id::text, s.domain, s.cluster_name, s.claim, s.region,
+                  s.conviction, s.momentum, s.impact, s.adoption_velocity,
+                  s.status, s.evidence_count, s.unique_company_count,
+                  s.first_seen_at, s.last_evidence_at, s.metadata_json
+           FROM signals s
+           LEFT JOIN user_signal_follows usf
+             ON usf.user_id = $1::uuid AND usf.signal_id = s.id
+           WHERE s.region = $2
+             AND s.status != 'decaying'
+             AND usf.signal_id IS NULL
+             AND (
+               COALESCE(array_length($3::text[], 1), 0) = 0
+               OR s.id::text <> ALL($3::text[])
+             )
+           ORDER BY s.impact DESC, s.conviction DESC, s.momentum DESC
+           LIMIT $4`,
+          [params.userId, region, excludeIds, remaining],
+        );
+
+        for (const row of fallbackResult.rows) {
+          const signal = rowToSignal(row);
+          if (seen.has(signal.id)) continue;
+          seen.add(signal.id);
+          recommendations.push({
+            signal,
+            overlap_count: 0,
+            reason: 'High-impact signal in your selected region',
+            reason_type: 'high_impact_fallback',
+          });
+        }
+      } catch (error) {
+        if (!isMissingNewsSchemaError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    return {
+      request_id: requestId,
+      algorithm_version: SIGNALS_RECOMMENDER_ALGORITHM_VERSION,
+      recommendations,
+    };
+  }
+
   async function getSignalUpdates(params: {
     since: string;
     region?: string;
@@ -778,6 +904,7 @@ export function makeSignalsService(pool: Pool) {
     getSimilarCompanies,
     toggleSignalFollow,
     getUserSignalFollows,
+    getSignalRecommendations,
     getSignalUpdates,
     markSignalsSeen,
     getStartupNeighbors,

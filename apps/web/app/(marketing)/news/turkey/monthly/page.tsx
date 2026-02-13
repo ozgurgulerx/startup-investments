@@ -18,10 +18,10 @@ export default async function TurkeyMonthlyBriefPage() {
         <NewsNav activeRegion="turkey" activePeriod="monthly" />
         <div className="flex flex-1 items-center justify-center px-6">
           <div className="max-w-md rounded-2xl border border-border/40 bg-card/60 p-10 text-center">
-            <p className="label-xs text-accent-info">Turkey Monthly Brief</p>
-            <h1 className="mt-3 text-3xl font-light tracking-tight text-foreground">No monthly brief available</h1>
+            <p className="label-xs text-accent-info">Turkiye Aylik Bulten</p>
+            <h1 className="mt-3 text-3xl font-light tracking-tight text-foreground">Aylik bulten henuz yok</h1>
             <p className="mt-4 text-sm text-muted-foreground">
-              Monthly briefs are generated on the 1st of each month. Check back soon.
+              Aylik bultenler her ayin 1&apos;inde uretilir. Kisa sure sonra tekrar kontrol edin.
             </p>
           </div>
         </div>

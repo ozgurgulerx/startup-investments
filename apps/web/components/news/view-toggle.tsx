@@ -5,6 +5,7 @@ export type ViewMode = 'strategy' | 'investor' | 'builder';
 interface ViewToggleProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
+  region?: 'global' | 'turkey';
 }
 
 const MODES: Array<{ value: ViewMode; label: string }> = [
@@ -13,7 +14,10 @@ const MODES: Array<{ value: ViewMode; label: string }> = [
   { value: 'builder', label: 'Builder' },
 ];
 
-export function ViewToggle({ viewMode, onViewModeChange }: ViewToggleProps) {
+export function ViewToggle({ viewMode, onViewModeChange, region = 'global' }: ViewToggleProps) {
+  const labels = region === 'turkey'
+    ? { strategy: 'Strateji', investor: 'Yatirimci', builder: 'Kurucu' }
+    : { strategy: 'Strategy', investor: 'Investor', builder: 'Builder' };
   return (
     <div className="flex items-center gap-1">
       {MODES.map((m) => (
@@ -28,7 +32,7 @@ export function ViewToggle({ viewMode, onViewModeChange }: ViewToggleProps) {
             }
           `}
         >
-          {m.label}
+          {labels[m.value]}
         </button>
       ))}
     </div>

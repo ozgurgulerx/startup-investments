@@ -9,22 +9,14 @@ import { NewsSubscriptionCard } from './news-subscription-card';
 import { SignalsProvider } from './signals-provider';
 import { ReactionBar } from './reaction-bar';
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function formatDateRange(start: string, end: string) {
+function formatDateRange(start: string, end: string, locale = 'en-US') {
   const s = new Date(start + 'T00:00:00');
   const e = new Date(end + 'T00:00:00');
   const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
   if (sameMonth) {
-    return `${s.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} – ${e.getDate()}, ${e.getFullYear()}`;
+    return `${s.toLocaleDateString(locale, { month: 'long', day: 'numeric' })} – ${e.getDate()}, ${e.getFullYear()}`;
   }
-  return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  return `${s.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} – ${e.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' })}`;
 }
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
@@ -45,11 +37,52 @@ export function PeriodicBriefView({
   region: 'global' | 'turkey';
   archive?: PeriodicBriefSummary[];
 }) {
+  const isTR = region === 'turkey';
+  const locale = isTR ? 'tr-TR' : 'en-US';
+  const l = isTR
+    ? {
+      weekly: 'Haftalik',
+      monthly: 'Aylik',
+      regionLabel: 'Turkiye',
+      signals: 'sinyal',
+      generated: 'Uretim',
+      statsSignals: 'Sinyaller',
+      fundingTracked: 'Izlenen yatirim',
+      newEntities: 'Yeni varlik',
+      topTopic: 'One cikan konu',
+      execSummary: 'Yonetici Ozeti',
+      trendAnalysis: 'Trend Analizi',
+      highlights: 'One Cikanlar',
+      builderLessons: 'Kurucu Dersleri',
+      outlook: 'Gorunum',
+      topics: 'Konular',
+      storyTypes: 'Haber Turleri',
+      keyEntities: 'Ana Varliklar',
+    }
+    : {
+      weekly: 'Weekly',
+      monthly: 'Monthly',
+      regionLabel: 'Global',
+      signals: 'signals',
+      generated: 'Generated',
+      statsSignals: 'Signals',
+      fundingTracked: 'Funding tracked',
+      newEntities: 'New entities',
+      topTopic: 'Top topic',
+      execSummary: 'Executive Summary',
+      trendAnalysis: 'Trend Analysis',
+      highlights: 'Highlights',
+      builderLessons: 'Builder Lessons',
+      outlook: 'Outlook',
+      topics: 'Topics',
+      storyTypes: 'Story Types',
+      keyEntities: 'Key Entities',
+    };
   const stats = brief.stats;
   const narrative = brief.narrative;
-  const periodLabel = brief.period_type === 'weekly' ? 'Weekly' : 'Monthly';
-  const dateRange = formatDateRange(brief.period_start, brief.period_end);
-  const regionLabel = region === 'turkey' ? 'Turkey' : 'Global';
+  const periodLabel = brief.period_type === 'weekly' ? l.weekly : l.monthly;
+  const dateRange = formatDateRange(brief.period_start, brief.period_end, locale);
+  const regionLabel = l.regionLabel;
 
   const topStories = stats.top_stories || [];
   const topTopics = stats.top_topics || [];
@@ -75,29 +108,29 @@ export function PeriodicBriefView({
           {brief.title || `${regionLabel} ${periodLabel} — ${dateRange}`}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {dateRange} · {brief.story_count} signals
-          {brief.generated_at ? ` · Generated ${new Date(brief.generated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
+          {dateRange} · {brief.story_count} {l.signals}
+          {brief.generated_at ? ` · ${l.generated} ${new Date(brief.generated_at).toLocaleString(locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
         </p>
       </header>
 
       {/* Stats grid */}
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Signals" value={stats.total_stories || brief.story_count} />
+        <StatCard label={l.statsSignals} value={stats.total_stories || brief.story_count} />
         {fundingTotal != null && fundingTotal > 0 && fundingTotal < 1_000_000_000_000 ? (
-          <StatCard label="Funding tracked" value={formatCurrency(fundingTotal, true)} />
+          <StatCard label={l.fundingTracked} value={formatCurrency(fundingTotal, true)} />
         ) : null}
         {stats.new_entities_count != null ? (
-          <StatCard label="New entities" value={stats.new_entities_count} />
+          <StatCard label={l.newEntities} value={stats.new_entities_count} />
         ) : null}
         {topTopics.length > 0 ? (
-          <StatCard label="Top topic" value={topTopics[0].topic} />
+          <StatCard label={l.topTopic} value={topTopics[0].topic} />
         ) : null}
       </div>
 
       {/* Executive summary */}
       {narrative.executive_summary ? (
         <section className="mb-8 rounded-2xl border border-accent-info/20 bg-gradient-to-br from-accent-info/8 via-card/80 to-card/50 p-6">
-          <p className="label-xs text-accent-info">Executive Summary</p>
+          <p className="label-xs text-accent-info">{l.execSummary}</p>
           <p className="mt-3 text-base leading-relaxed text-foreground/90">
             {narrative.executive_summary}
           </p>
@@ -109,7 +142,7 @@ export function PeriodicBriefView({
         {/* Trend analysis */}
         {narrative.trend_analysis ? (
           <section className="rounded-xl border border-border/30 bg-card/50 p-5">
-            <p className="label-xs text-accent">Trend Analysis</p>
+            <p className="label-xs text-accent">{l.trendAnalysis}</p>
             <p className="mt-3 text-sm leading-relaxed text-foreground/85">
               {narrative.trend_analysis}
             </p>
@@ -119,7 +152,7 @@ export function PeriodicBriefView({
         {/* Top stories */}
         {topStories.length > 0 ? (
           <section className="rounded-xl border border-border/30 bg-card/50 p-5">
-            <p className="label-xs text-accent">Highlights</p>
+            <p className="label-xs text-accent">{l.highlights}</p>
             <ul className="mt-3 space-y-2">
               {topStories.slice(0, 8).map((story, idx) => (
                 <li key={idx} className="flex items-start gap-2.5 text-sm text-foreground/85">
@@ -133,7 +166,7 @@ export function PeriodicBriefView({
                     </span>
                     {story.cluster_id && (
                       <div className="mt-1">
-                        <ReactionBar clusterId={story.cluster_id} compact />
+                        <ReactionBar clusterId={story.cluster_id} compact region={region} />
                       </div>
                     )}
                   </div>
@@ -147,7 +180,7 @@ export function PeriodicBriefView({
       {/* Builder lessons */}
       {narrative.builder_lessons ? (
         <section className="mb-8 rounded-xl border border-border/30 bg-card/50 p-5">
-          <p className="label-xs text-accent">Builder Lessons</p>
+          <p className="label-xs text-accent">{l.builderLessons}</p>
           <p className="mt-3 text-sm leading-relaxed text-foreground/85 whitespace-pre-line">
             {narrative.builder_lessons}
           </p>
@@ -157,7 +190,7 @@ export function PeriodicBriefView({
       {/* Outlook */}
       {narrative.outlook ? (
         <section className="mb-8 rounded-xl border border-border/30 bg-card/50 p-5">
-          <p className="label-xs text-accent-info">Outlook</p>
+          <p className="label-xs text-accent-info">{l.outlook}</p>
           <p className="mt-3 text-sm leading-relaxed text-foreground/85">
             {narrative.outlook}
           </p>
@@ -169,7 +202,7 @@ export function PeriodicBriefView({
         <div className="mb-8 grid gap-6 lg:grid-cols-2">
           {topTopics.length > 0 ? (
             <section className="rounded-xl border border-border/30 bg-card/50 p-5">
-              <p className="label-xs text-muted-foreground">Topics</p>
+              <p className="label-xs text-muted-foreground">{l.topics}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {topTopics.map((t) => (
                   <span
@@ -185,7 +218,7 @@ export function PeriodicBriefView({
 
           {Object.keys(storyTypes).length > 0 ? (
             <section className="rounded-xl border border-border/30 bg-card/50 p-5">
-              <p className="label-xs text-muted-foreground">Story Types</p>
+              <p className="label-xs text-muted-foreground">{l.storyTypes}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {Object.entries(storyTypes).sort((a, b) => b[1] - a[1]).map(([type, cnt]) => (
                   <span
@@ -204,7 +237,7 @@ export function PeriodicBriefView({
       {/* Entity names */}
       {brief.top_entity_names.length > 0 ? (
         <section className="mb-8 rounded-xl border border-border/30 bg-card/50 p-5">
-          <p className="label-xs text-muted-foreground">Key Entities</p>
+          <p className="label-xs text-muted-foreground">{l.keyEntities}</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {brief.top_entity_names.map((name) => (
               <span
@@ -226,7 +259,7 @@ export function PeriodicBriefView({
       {/* Archive links */}
       {archive && archive.length > 1 ? (
         <section className="rounded-xl border border-border/30 bg-card/50 p-5">
-          <p className="label-xs text-muted-foreground">Past {periodLabel} Briefs</p>
+          <p className="label-xs text-muted-foreground">{isTR ? `Gecmis ${periodLabel} Bultenler` : `Past ${periodLabel} Briefs`}</p>
           <ul className="mt-3 space-y-1.5">
             {archive.filter((a) => a.period_start !== brief.period_start).slice(0, 12).map((a) => (
               <li key={a.id}>
@@ -234,8 +267,8 @@ export function PeriodicBriefView({
                   href={`${archiveBasePath}/${a.period_start}`}
                   className="text-sm text-foreground/80 hover:text-accent transition-colors"
                 >
-                  {formatDateRange(a.period_start, a.period_end)}
-                  <span className="ml-2 text-muted-foreground">({a.story_count} signals)</span>
+                  {formatDateRange(a.period_start, a.period_end, locale)}
+                  <span className="ml-2 text-muted-foreground">({a.story_count} {l.signals})</span>
                 </Link>
               </li>
             ))}

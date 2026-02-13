@@ -12,6 +12,7 @@ import { normalizeStageKey } from '@/lib/utils';
 import { useRegion, type Region } from '@/lib/region-context';
 import { X } from 'lucide-react';
 import Link from 'next/link';
+import { trackEvent } from '@/lib/posthog';
 
 /**
  * Resolve a URL slug value (e.g. "series_a") to the canonical display name
@@ -21,6 +22,15 @@ function resolveToCanonical(urlValue: string, availableOptions: string[]): strin
   const normalized = normalizeStageKey(urlValue);
   const match = availableOptions.find(opt => normalizeStageKey(opt) === normalized);
   return match || urlValue;
+}
+
+function countActiveCriteria(query: FilterQuery): number {
+  return Object.keys(query).reduce((count, key) => {
+    const value = query[key as keyof FilterQuery];
+    if (value === undefined) return count;
+    if (Array.isArray(value)) return count + (value.length > 0 ? 1 : 0);
+    return count + 1;
+  }, 0);
 }
 
 interface UrlFilters {
@@ -240,11 +250,18 @@ export function InteractiveDealbook({
 
       const data = await response.json();
       setSavedFilters(prev => [...prev, data.filter]);
+      trackEvent('saved_filter_create', {
+        filter_id: data.filter?.id,
+        filter_name: name,
+        alerts_enabled: alertsEnabled,
+        active_criteria_count: countActiveCriteria(query),
+        region,
+      });
     } catch (error) {
       console.error('Error saving filter:', error);
       throw error;
     }
-  }, []);
+  }, [region]);
 
   const handleFilterDelete = useCallback(async (filterId: string) => {
     try {
@@ -255,11 +272,15 @@ export function InteractiveDealbook({
       if (!response.ok) throw new Error('Failed to delete filter');
 
       setSavedFilters(prev => prev.filter(f => f.id !== filterId));
+      trackEvent('saved_filter_delete', {
+        filter_id: filterId,
+        region,
+      });
     } catch (error) {
       console.error('Error deleting filter:', error);
       throw error;
     }
-  }, []);
+  }, [region]);
 
   const handleFilterToggleAlerts = useCallback(async (filterId: string, enabled: boolean) => {
     try {
@@ -274,11 +295,16 @@ export function InteractiveDealbook({
       setSavedFilters(prev =>
         prev.map(f => (f.id === filterId ? { ...f, alertsEnabled: enabled } : f))
       );
+      trackEvent('saved_filter_alert_toggle', {
+        filter_id: filterId,
+        alerts_enabled: enabled,
+        region,
+      });
     } catch (error) {
       console.error('Error updating filter:', error);
       throw error;
     }
-  }, []);
+  }, [region]);
 
   const isFiltered = hasUrlFilters || Object.keys(activeQuery).some(
     key => {

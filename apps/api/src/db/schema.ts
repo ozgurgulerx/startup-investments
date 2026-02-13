@@ -95,6 +95,100 @@ export const investments = pgTable('investments', {
   uniqueInvestment: uniqueIndex('unique_investment').on(table.fundingRoundId, table.investorId),
 }));
 
+// Founders table
+export const founders = pgTable('founders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  fullName: text('full_name').notNull(),
+  slug: text('slug'),
+  linkedinUrl: text('linkedin_url'),
+  xUrl: text('x_url'),
+  website: text('website'),
+  bio: text('bio'),
+  primaryCountry: text('primary_country'),
+  source: text('source').notNull().default('manual'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueFounderSlug: uniqueIndex('uq_founders_slug').on(table.slug),
+  uniqueFounderLinkedin: uniqueIndex('uq_founders_linkedin_url').on(table.linkedinUrl),
+  uniqueFounderXUrl: uniqueIndex('uq_founders_x_url').on(table.xUrl),
+  founderNameIdx: index('idx_founders_name_norm').on(table.fullName),
+}));
+
+// Founder aliases
+export const founderAliases = pgTable('founder_aliases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  founderId: uuid('founder_id').notNull().references(() => founders.id, { onDelete: 'cascade' }),
+  alias: text('alias').notNull(),
+  aliasType: text('alias_type').notNull().default('name_variant'),
+  source: text('source').notNull().default('manual'),
+  confidence: decimal('confidence', { precision: 5, scale: 4 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueFounderAlias: uniqueIndex('uq_founder_aliases_alias_norm').on(table.alias),
+  founderAliasFounderIdx: index('idx_founder_aliases_founder').on(table.founderId),
+}));
+
+// Investor aliases
+export const investorAliases = pgTable('investor_aliases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  investorId: uuid('investor_id').notNull().references(() => investors.id, { onDelete: 'cascade' }),
+  alias: text('alias').notNull(),
+  aliasType: text('alias_type').notNull().default('name_variant'),
+  source: text('source').notNull().default('manual'),
+  confidence: decimal('confidence', { precision: 5, scale: 4 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueInvestorAlias: uniqueIndex('uq_investor_aliases_alias_norm').on(table.alias),
+  investorAliasInvestorIdx: index('idx_investor_aliases_investor').on(table.investorId),
+}));
+
+// Startup-founder links
+export const startupFounders = pgTable('startup_founders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  startupId: uuid('startup_id').notNull().references(() => startups.id, { onDelete: 'cascade' }),
+  founderId: uuid('founder_id').notNull().references(() => founders.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default(''),
+  isCurrent: boolean('is_current').notNull().default(true),
+  startDate: date('start_date'),
+  endDate: date('end_date'),
+  ownershipPct: decimal('ownership_pct', { precision: 5, scale: 2 }),
+  source: text('source').notNull().default('manual'),
+  confidence: decimal('confidence', { precision: 5, scale: 4 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueStartupFounderRole: uniqueIndex('uq_startup_founders_unique').on(table.startupId, table.founderId, table.role),
+  startupFoundersStartupIdx: index('idx_startup_founders_startup').on(table.startupId),
+  startupFoundersFounderIdx: index('idx_startup_founders_founder').on(table.founderId),
+}));
+
+// Canonical graph edges for investors/startups/founders/funding_rounds
+export const capitalGraphEdges = pgTable('capital_graph_edges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  srcType: text('src_type').notNull(),
+  srcId: uuid('src_id').notNull(),
+  edgeType: text('edge_type').notNull(),
+  dstType: text('dst_type').notNull(),
+  dstId: uuid('dst_id').notNull(),
+  region: text('region').notNull().default('global'),
+  attrsJson: jsonb('attrs_json').notNull().default({}),
+  source: text('source').notNull().default('manual'),
+  sourceRef: text('source_ref'),
+  confidence: decimal('confidence', { precision: 5, scale: 4 }),
+  createdBy: text('created_by'),
+  validFrom: date('valid_from').notNull().default('1900-01-01'),
+  validTo: date('valid_to').notNull().default('9999-12-31'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniqueGraphEdgeIdentity: uniqueIndex('uq_capital_graph_edges_identity')
+    .on(table.srcType, table.srcId, table.edgeType, table.dstType, table.dstId, table.region, table.validFrom, table.validTo),
+  graphSrcActiveIdx: index('idx_capital_graph_src_active').on(table.srcType, table.srcId, table.region, table.edgeType),
+  graphDstActiveIdx: index('idx_capital_graph_dst_active').on(table.dstType, table.dstId, table.region, table.edgeType),
+  graphEdgeTypeIdx: index('idx_capital_graph_edge_type').on(table.edgeType, table.region),
+}));
+
 // Newsletters table
 export const newsletters = pgTable('newsletters', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -319,6 +413,7 @@ export const startupsRelations = relations(startups, ({ many }) => ({
   crawlLogs: many(crawlLogs),
   snapshots: many(startupSnapshots),
   investorLinks: many(investorStartupLinks),
+  founderLinks: many(startupFounders),
   competitorsFrom: many(competitorLinks, { relationName: 'competitorFrom' }),
   competitorsTo: many(competitorLinks, { relationName: 'competitorTo' }),
   deepResearchQueue: many(deepResearchQueue),
@@ -336,6 +431,7 @@ export const fundingRoundsRelations = relations(fundingRounds, ({ one, many }) =
 export const investorsRelations = relations(investors, ({ many }) => ({
   investments: many(investments),
   startupLinks: many(investorStartupLinks),
+  aliases: many(investorAliases),
 }));
 
 export const investmentsRelations = relations(investments, ({ one }) => ({
@@ -346,6 +442,36 @@ export const investmentsRelations = relations(investments, ({ one }) => ({
   investor: one(investors, {
     fields: [investments.investorId],
     references: [investors.id],
+  }),
+}));
+
+export const foundersRelations = relations(founders, ({ many }) => ({
+  aliases: many(founderAliases),
+  startupLinks: many(startupFounders),
+}));
+
+export const founderAliasesRelations = relations(founderAliases, ({ one }) => ({
+  founder: one(founders, {
+    fields: [founderAliases.founderId],
+    references: [founders.id],
+  }),
+}));
+
+export const investorAliasesRelations = relations(investorAliases, ({ one }) => ({
+  investor: one(investors, {
+    fields: [investorAliases.investorId],
+    references: [investors.id],
+  }),
+}));
+
+export const startupFoundersRelations = relations(startupFounders, ({ one }) => ({
+  startup: one(startups, {
+    fields: [startupFounders.startupId],
+    references: [startups.id],
+  }),
+  founder: one(founders, {
+    fields: [startupFounders.founderId],
+    references: [founders.id],
   }),
 }));
 

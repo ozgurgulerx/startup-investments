@@ -8,6 +8,7 @@ interface KpiStripProps {
   crossSourceCount: number;
   totalEntities: number;
   totalClusters: number;
+  region?: 'global' | 'turkey';
 }
 
 const compactCountFormatter = new Intl.NumberFormat('en-US', {
@@ -20,7 +21,38 @@ function formatCompactCount(value: number): string {
   return compactCountFormatter.format(value);
 }
 
-export function KpiStrip({ totalStories, crossSourceCount, totalEntities, totalClusters }: KpiStripProps) {
+export function KpiStrip({
+  totalStories,
+  crossSourceCount,
+  totalEntities,
+  totalClusters,
+  region = 'global',
+}: KpiStripProps) {
+  const l = region === 'turkey'
+    ? {
+      items: 'Oge',
+      corroborated: 'Dogrulanmis',
+      signals: 'Sinyal',
+      entities: 'Varlik',
+      expand: 'Istatistikleri genislet',
+      collapse: 'Istatistikleri daralt',
+      coveredBySources: '2+ kaynakla desteklenen oge sayisi',
+      currentViewItems: 'Filtrelenmis gorunumdeki oge sayisi',
+      clusterCount: 'Yayindaki benzersiz hikaye kumesi (gosterilmeyenler dahil)',
+      uniqueEntities: 'Bu gorunumdeki benzersiz varlik sayisi',
+    }
+    : {
+      items: 'Items',
+      corroborated: 'Corroborated',
+      signals: 'Signals',
+      entities: 'Entities',
+      expand: 'Expand feed stats',
+      collapse: 'Collapse feed stats',
+      coveredBySources: 'Items covered by 2+ sources',
+      currentViewItems: 'Items in the current filtered feed view',
+      clusterCount: 'Deduped story clusters detected for the edition (includes clusters not shown)',
+      uniqueEntities: 'Unique named entities mentioned in this feed view',
+    };
   const [collapsed, setCollapsed] = useState(false);
 
   if (collapsed) {
@@ -29,13 +61,13 @@ export function KpiStrip({ totalStories, crossSourceCount, totalEntities, totalC
         type="button"
         onClick={() => setCollapsed(false)}
         className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-        title="Expand feed stats"
+        title={l.expand}
       >
         <ChevronDown className="h-3 w-3" />
-        <span className="tabular-nums">{totalStories} items</span>
+        <span className="tabular-nums">{totalStories} {l.items.toLowerCase()}</span>
         <span className="opacity-50">|</span>
-        <span className="tabular-nums" title="Items covered by 2+ sources">
-          {crossSourceCount} corroborated
+        <span className="tabular-nums" title={l.coveredBySources}>
+          {crossSourceCount} {l.corroborated.toLowerCase()}
         </span>
       </button>
     );
@@ -45,29 +77,29 @@ export function KpiStrip({ totalStories, crossSourceCount, totalEntities, totalC
     <div className="flex items-center gap-4">
       <div className="flex items-center gap-4 text-[11px]">
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground" title="Items in the current filtered feed view">
-            Items
+          <span className="text-muted-foreground" title={l.currentViewItems}>
+            {l.items}
           </span>
           <span className="text-foreground font-medium tabular-nums">{totalStories}</span>
         </div>
         <span className="text-border">|</span>
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground" title="Items covered by 2+ sources in this view">
-            Corroborated
+          <span className="text-muted-foreground" title={l.coveredBySources}>
+            {l.corroborated}
           </span>
           <span className="text-foreground font-medium tabular-nums">{crossSourceCount}</span>
         </div>
         <span className="text-border">|</span>
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground" title="Deduped story clusters detected for the edition (includes clusters not shown)">
-            Signals
+          <span className="text-muted-foreground" title={l.clusterCount}>
+            {l.signals}
           </span>
           <span className="text-foreground font-medium tabular-nums">{formatCompactCount(totalClusters)}</span>
         </div>
         <span className="text-border">|</span>
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground" title="Unique named entities mentioned in this feed view">
-            Entities
+          <span className="text-muted-foreground" title={l.uniqueEntities}>
+            {l.entities}
           </span>
           <span className="text-foreground font-medium tabular-nums">{formatCompactCount(totalEntities)}</span>
         </div>
@@ -76,7 +108,7 @@ export function KpiStrip({ totalStories, crossSourceCount, totalEntities, totalC
         type="button"
         onClick={() => setCollapsed(true)}
         className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-        title="Collapse feed stats"
+        title={l.collapse}
       >
         <ChevronUp className="h-3 w-3" />
       </button>

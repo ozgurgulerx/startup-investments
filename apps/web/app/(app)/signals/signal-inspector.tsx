@@ -47,6 +47,14 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }>
   decaying: { bg: 'bg-destructive/10', text: 'text-destructive', label: 'Decaying' },
 };
 
+const STATUS_LABELS_TR: Record<string, string> = {
+  candidate: 'Aday',
+  emerging: 'Yukselen',
+  accelerating: 'Hizlanan',
+  established: 'Yerlesik',
+  decaying: 'Zayiflayan',
+};
+
 const DOMAIN_LABELS: Record<string, string> = {
   architecture: 'Architecture',
   gtm: 'GTM',
@@ -71,6 +79,13 @@ const EVIDENCE_TYPE_LABELS: Record<string, string> = {
   cluster: 'Cluster',
   crawl_diff: 'Crawl',
   manual: 'Manual',
+};
+
+const EVIDENCE_TYPE_LABELS_TR: Record<string, string> = {
+  news: 'Haber',
+  cluster: 'Kume',
+  crawl_diff: 'Tarama',
+  manual: 'Manuel',
 };
 
 function MetricBadge({
@@ -174,12 +189,13 @@ export function InspectorSkeleton() {
 // Empty state
 // ---------------------------------------------------------------------------
 
-export function InspectorEmpty() {
+export function InspectorEmpty({ region = 'global' }: { region?: 'global' | 'turkey' }) {
+  const emptyLabel = region === 'turkey' ? 'Incelemek icin bir sinyal secin' : 'Select a signal to inspect';
   return (
     <div className="flex items-center justify-center h-full text-center p-8">
       <div>
         <BarChart3 className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground/60">Select a signal to inspect</p>
+        <p className="text-sm text-muted-foreground/60">{emptyLabel}</p>
       </div>
     </div>
   );
@@ -194,9 +210,46 @@ interface SignalInspectorProps {
   listSignal?: SignalItem;
   allSignals?: SignalItem[];
   onSelectSignal?: (id: string) => void;
+  region?: 'global' | 'turkey';
 }
 
-export function SignalInspector({ signalId, listSignal, allSignals = [], onSelectSignal }: SignalInspectorProps) {
+export function SignalInspector({
+  signalId,
+  listSignal,
+  allSignals = [],
+  onSelectSignal,
+  region = 'global',
+}: SignalInspectorProps) {
+  const isTR = region === 'turkey';
+  const l = isTR
+    ? {
+      conviction: 'Guven',
+      momentum: 'Momentum',
+      impact: 'Etki',
+      velocity: 'Hiz',
+      evidence: 'kanit',
+      company: 'sirket',
+      companies: 'sirket',
+      deepDive: 'Derin Inceleme',
+      deepDiveMeta: 'Tam analiz · Vaka calismalari · Karsi kanitlar',
+      recentEvidence: 'Son Kanitlar',
+      moreEvidence: 'derin incelemede daha fazla kanit',
+      relatedSignals: 'Ilgili Sinyaller',
+    }
+    : {
+      conviction: 'Conviction',
+      momentum: 'Momentum',
+      impact: 'Impact',
+      velocity: 'Velocity',
+      evidence: 'evidence',
+      company: 'company',
+      companies: 'companies',
+      deepDive: 'Deep Dive',
+      deepDiveMeta: 'Full analysis · Case studies · Counterevidence',
+      recentEvidence: 'Recent Evidence',
+      moreEvidence: 'more evidence items in deep dive',
+      relatedSignals: 'Related Signals',
+    };
   const [detail, setDetail] = useState<SignalDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -225,7 +278,9 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
   if (!signal) return <InspectorEmpty />;
 
   const style = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
-  const domainLabel = DOMAIN_LABELS[signal.domain] || signal.domain;
+  const domainLabel = (isTR
+    ? { architecture: 'Mimari', gtm: 'GTM', capital: 'Sermaye', org: 'Organizasyon', product: 'Urun' }
+    : DOMAIN_LABELS)[signal.domain] || signal.domain;
   const evidence = detail?.evidence || [];
   const related = detail?.related || [];
   const stageContext = detail?.stage_context || signal.stage_context;
@@ -236,14 +291,14 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
       <div>
         <div className="flex items-center gap-2 mb-3">
           <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${style.bg} ${style.text}`}>
-            {style.label}
+            {isTR ? (STATUS_LABELS_TR[signal.status] || style.label) : style.label}
           </span>
           <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
             {domainLabel}
           </span>
           <span className="text-[10px] text-muted-foreground/40 ml-auto flex items-center gap-1">
             <Clock className="w-2.5 h-2.5" />
-            {timeAgo(signal.first_seen_at)}
+            {timeAgo(signal.first_seen_at, region)}
           </span>
         </div>
         <h2 className="text-base font-medium text-foreground leading-snug">
@@ -258,26 +313,26 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
 
       {/* Metrics */}
       <div className="grid grid-cols-2 gap-3">
-        <MetricBadge label="Conviction" value={signal.conviction} format="percent" />
+        <MetricBadge label={l.conviction} value={signal.conviction} format="percent" />
         <MetricBadge
-          label="Momentum"
+          label={l.momentum}
           value={signal.momentum}
           format="delta"
           icon={signal.momentum > 0 ? TrendingUp : signal.momentum < 0 ? TrendingDown : Activity}
         />
-        <MetricBadge label="Impact" value={signal.impact} format="percent" />
-        <MetricBadge label="Velocity" value={signal.adoption_velocity} format="delta" />
+        <MetricBadge label={l.impact} value={signal.impact} format="percent" />
+        <MetricBadge label={l.velocity} value={signal.adoption_velocity} format="delta" />
       </div>
 
       {/* Counts */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <BarChart3 className="w-3 h-3" />
-          {signal.evidence_count} evidence
+          {signal.evidence_count} {l.evidence}
         </span>
         <span className="flex items-center gap-1.5">
           <Users className="w-3 h-3" />
-          {signal.unique_company_count} {signal.unique_company_count === 1 ? 'company' : 'companies'}
+          {signal.unique_company_count} {signal.unique_company_count === 1 ? l.company : l.companies}
         </span>
       </div>
 
@@ -287,9 +342,9 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
         className="flex items-center gap-3 px-3 py-3 rounded-lg border border-border/30 hover:border-accent-info/30 hover:bg-muted/10 transition-colors group"
       >
         <div className="flex-1 min-w-0">
-          <span className="text-sm text-foreground block">Deep Dive</span>
+          <span className="text-sm text-foreground block">{l.deepDive}</span>
           <span className="text-[10px] text-muted-foreground/60 block mt-0.5">
-            Full analysis · Case studies · Counterevidence
+            {l.deepDiveMeta}
           </span>
         </div>
         <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-accent-info transition-colors shrink-0" />
@@ -309,17 +364,17 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
           <div className="h-px bg-border/20" />
           <div>
             <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-              Recent Evidence
+              {l.recentEvidence}
             </span>
             <div className="mt-2 space-y-3">
               {evidence.slice(0, 3).map(ev => (
                 <div key={ev.id} className="text-sm">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-muted/30 text-muted-foreground">
-                      {EVIDENCE_TYPE_LABELS[ev.evidence_type] || ev.evidence_type}
+                      {(isTR ? EVIDENCE_TYPE_LABELS_TR : EVIDENCE_TYPE_LABELS)[ev.evidence_type] || ev.evidence_type}
                     </span>
                     <span className="text-[10px] text-muted-foreground/50">
-                      {timeAgo(ev.created_at)}
+                      {timeAgo(ev.created_at, region)}
                     </span>
                     {ev.startup_slug && (
                       <Link
@@ -345,7 +400,7 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
               ))}
               {evidence.length > 3 && (
                 <p className="text-[10px] text-muted-foreground/50 pt-1">
-                  {evidence.length - 3} more evidence items in deep dive
+                  {evidence.length - 3} {l.moreEvidence}
                 </p>
               )}
             </div>
@@ -359,7 +414,7 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
           <div className="h-px bg-border/20" />
           <div>
             <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-              Related Signals
+              {l.relatedSignals}
             </span>
             <div className="mt-2 space-y-2">
               {related.slice(0, 4).map(rel => {
@@ -372,7 +427,7 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`px-1.5 py-0.5 text-[9px] font-medium rounded-full ${relStyle.bg} ${relStyle.text}`}>
-                        {relStyle.label}
+                        {isTR ? (STATUS_LABELS_TR[rel.status] || relStyle.label) : relStyle.label}
                       </span>
                       <span className="text-[10px] text-muted-foreground/50 tabular-nums">
                         {(rel.conviction * 100).toFixed(0)}%

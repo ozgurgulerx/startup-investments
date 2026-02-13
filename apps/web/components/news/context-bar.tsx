@@ -9,6 +9,17 @@ interface ContextBarProps {
 }
 
 export function ContextBar({ item, region = 'global' }: ContextBarProps) {
+  const l = region === 'turkey'
+    ? {
+      companyDossier: 'Sirket dosyasi',
+      searchDossiers: 'Dosyalarda ara',
+      related: 'Ilgili',
+    }
+    : {
+      companyDossier: 'Company dossier',
+      searchDossiers: 'Search dossiers',
+      related: 'Related',
+    };
   const slug = item.primary_company_slug;
   const firstEntity = item.entity_links?.[0]?.entity_name || item.entities?.[0];
   const firstTopic = item.topic_tags?.[0];
@@ -26,7 +37,7 @@ export function ContextBar({ item, region = 'global' }: ContextBarProps) {
           onClick={(e) => e.stopPropagation()}
           className="hover:text-accent-info transition-colors"
         >
-          Company dossier &rarr;
+          {l.companyDossier} &rarr;
         </Link>
       ) : firstEntity ? (
         <Link
@@ -34,7 +45,7 @@ export function ContextBar({ item, region = 'global' }: ContextBarProps) {
           onClick={(e) => e.stopPropagation()}
           className="hover:text-accent-info transition-colors"
         >
-          Search dossiers &rarr;
+          {l.searchDossiers} &rarr;
         </Link>
       ) : null}
 
@@ -44,7 +55,7 @@ export function ContextBar({ item, region = 'global' }: ContextBarProps) {
           onClick={(e) => e.stopPropagation()}
           className="hover:text-accent-info transition-colors"
         >
-          Related: {firstTopic} &rarr;
+          {l.related}: {firstTopic} &rarr;
         </Link>
       )}
     </div>

@@ -68,6 +68,15 @@ export function validateBriefSnapshot(
     errors.push('patternLandscape is not an array');
   }
 
+  // verticalLandscape exists and has expected arrays
+  if (
+    !snapshot.verticalLandscape ||
+    !Array.isArray(snapshot.verticalLandscape.topVerticals) ||
+    !Array.isArray(snapshot.verticalLandscape.topSubVerticals)
+  ) {
+    errors.push('verticalLandscape is invalid');
+  }
+
   // topDeals is an array
   if (!Array.isArray(snapshot.topDeals)) {
     errors.push('topDeals is not an array');

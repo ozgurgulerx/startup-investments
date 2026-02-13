@@ -9,10 +9,14 @@ interface ReactionBarProps {
   clusterId: string;
   compact?: boolean;
   onHide?: (clusterId: string) => void;
+  region?: 'global' | 'turkey';
 }
 
-export function ReactionBar({ clusterId, compact, onHide }: ReactionBarProps) {
+export function ReactionBar({ clusterId, compact, onHide, region = 'global' }: ReactionBarProps) {
   const signals = useSignalsOptional();
+  const l = region === 'turkey'
+    ? { useful: 'Faydali', save: 'Kaydet', hide: 'Gizle', notUseful: 'Faydali degil' }
+    : { useful: 'Useful', save: 'Save', hide: 'Hide', notUseful: 'Not useful' };
   const handleClick = useCallback(
     (e: React.MouseEvent, action: SignalActionType) => {
       e.stopPropagation();
@@ -43,7 +47,7 @@ export function ReactionBar({ clusterId, compact, onHide }: ReactionBarProps) {
       <button
         type="button"
         onClick={(e) => handleClick(e, 'upvote')}
-        title="Useful"
+        title={l.useful}
         className={`${btnBase} ${
           actions.includes('upvote')
             ? 'border-accent-info/40 bg-accent-info/15 text-accent-info'
@@ -60,7 +64,7 @@ export function ReactionBar({ clusterId, compact, onHide }: ReactionBarProps) {
       <button
         type="button"
         onClick={(e) => handleClick(e, 'save')}
-        title="Save"
+        title={l.save}
         className={`${btnBase} ${
           actions.includes('save')
             ? 'border-accent/40 bg-accent/15 text-accent'
@@ -74,7 +78,7 @@ export function ReactionBar({ clusterId, compact, onHide }: ReactionBarProps) {
       <button
         type="button"
         onClick={(e) => handleClick(e, 'hide')}
-        title="Hide"
+        title={l.hide}
         className={`${btnBase} ${
           actions.includes('hide')
             ? 'border-warning/40 bg-warning/15 text-warning'
@@ -88,7 +92,7 @@ export function ReactionBar({ clusterId, compact, onHide }: ReactionBarProps) {
       <button
         type="button"
         onClick={(e) => handleClick(e, 'not_useful')}
-        title="Not useful"
+        title={l.notUseful}
         className={`${btnBase} ${
           actions.includes('not_useful')
             ? 'border-delta/40 bg-delta/15 text-delta'

@@ -4,16 +4,17 @@ import { safeDate } from '@/lib/safe-date';
  * Human-friendly relative time label for news items.
  * Uses safeDate() for Safari-compatible date parsing.
  */
-export function timeAgo(iso: string): string {
+export function timeAgo(iso: string, region: 'global' | 'turkey' = 'global'): string {
   const now = Date.now();
   const then = safeDate(iso).getTime();
-  if (then === 0) return 'just now';
+  const justNow = region === 'turkey' ? 'az once' : 'just now';
+  if (then === 0) return justNow;
   const diff = Math.max(0, now - then);
   const hours = Math.floor(diff / (1000 * 60 * 60));
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 1) return justNow;
+  if (hours < 24) return region === 'turkey' ? `${hours} sa once` : `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return region === 'turkey' ? `${days} g once` : `${days}d ago`;
 }
 
 /** Shared story-type → color token map. */
@@ -31,6 +32,33 @@ export function storyTypeBadgeClass(storyType: string): string {
   return `border-${c.border}/30 bg-${c.bg}/10 text-${c.text}`;
 }
 
+const STORY_TYPE_LABELS_EN: Record<string, string> = {
+  funding: 'Funding',
+  mna: 'M&A',
+  regulation: 'Regulation',
+  launch: 'Launch',
+  news: 'News',
+  analysis: 'Analysis',
+  opinion: 'Opinion',
+};
+
+const STORY_TYPE_LABELS_TR: Record<string, string> = {
+  funding: 'Yatirim',
+  mna: 'Satinalma',
+  regulation: 'Regulasyon',
+  launch: 'Lansman',
+  news: 'Haber',
+  analysis: 'Analiz',
+  opinion: 'Gorus',
+};
+
+export function storyTypeLabel(storyType: string, region: 'global' | 'turkey' = 'global'): string {
+  const key = (storyType || '').toLowerCase();
+  if (!key) return region === 'turkey' ? 'Haber' : 'News';
+  const labels = region === 'turkey' ? STORY_TYPE_LABELS_TR : STORY_TYPE_LABELS_EN;
+  return labels[key] || storyType;
+}
+
 /** Card-level gradient tint for story type (used in NewsCard grid). */
 export function storyTypeToneClass(storyType: string): string {
   const c = STORY_TYPE_COLORS[(storyType || '').toLowerCase()];
@@ -43,7 +71,7 @@ export function aiSignalLabel(score: number): string {
   return `AI ${Math.round(score * 100)}%`;
 }
 
-const FRAME_LABELS: Record<string, string> = {
+const FRAME_LABELS_EN: Record<string, string> = {
   UNDERWRITING_TAKE: 'Underwriting Take',
   ADOPTION_PLAY: 'Adoption Play',
   COST_CURVE: 'Cost Curve',
@@ -60,8 +88,26 @@ const FRAME_LABELS: Record<string, string> = {
   EARLY_SIGNAL: 'Early Signal',
 };
 
-export function frameLabel(frame: string): string {
-  return FRAME_LABELS[frame] || 'Why It Matters';
+const FRAME_LABELS_TR: Record<string, string> = {
+  UNDERWRITING_TAKE: 'Yatirim Tezi',
+  ADOPTION_PLAY: 'Benimseme Hamlesi',
+  COST_CURVE: 'Maliyet Egirisi',
+  LATENCY_LEVER: 'Gecikme Kaldiraci',
+  BENCHMARK_TRAP: 'Benchmark Tuzagi',
+  DATA_MOAT: 'Veri Hendegi',
+  PROCUREMENT_WEDGE: 'Satin Alma Kamasi',
+  REGULATORY_CONSTRAINT: 'Regulasyon Siniri',
+  ATTACK_SURFACE: 'Saldiri Yuzeyi',
+  CONSOLIDATION_SIGNAL: 'Konsolidasyon Sinyali',
+  HIRING_SIGNAL: 'Ise Alim Sinyali',
+  PLATFORM_SHIFT: 'Platform Kaymasi',
+  GO_TO_MARKET_EDGE: 'GTM Avantaji',
+  EARLY_SIGNAL: 'Erken Sinyal',
+};
+
+export function frameLabel(frame: string, region: 'global' | 'turkey' = 'global'): string {
+  if (region === 'turkey') return FRAME_LABELS_TR[frame] || 'Neden Onemli';
+  return FRAME_LABELS_EN[frame] || 'Why It Matters';
 }
 
 export type ImpactDisplayMode = 'full' | 'compact' | 'early_signal';

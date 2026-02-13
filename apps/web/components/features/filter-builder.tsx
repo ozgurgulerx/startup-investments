@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input } from '
 import { X, Plus, Bell, BellOff, Save, Trash2, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import type { FilterQuery } from '@/lib/data/filtering';
+import { trackEvent } from '@/lib/posthog';
 
 /**
  * Saved filter structure
@@ -376,6 +377,11 @@ export function FilterBuilder({
   const loadFilter = useCallback((filter: SavedFilter) => {
     setQuery(filter.query);
     onFilterApply(filter.query);
+    trackEvent('saved_filter_use', {
+      filter_id: filter.id,
+      filter_name: filter.name,
+      alerts_enabled: filter.alertsEnabled,
+    });
   }, [onFilterApply]);
 
   const taxonomyLabelFor = useCallback((id: string | undefined) => {

@@ -23,6 +23,31 @@ export interface BriefSnapshotDeltas {
   stageShifts: Array<{ stage: string; prevPct: number; currPct: number; deltaPp: number }>;
 }
 
+export interface BriefVerticalLandscape {
+  topVerticals: Array<{
+    id: string;
+    label: string;
+    startupCount: number;
+    dealCount: number;
+    totalFunding: number;
+    pctOfFunding: number;
+    prevPctOfFunding?: number;
+    deltaPp?: number;
+  }>;
+  topSubVerticals: Array<{
+    id: string;
+    label: string;
+    verticalId: string;
+    verticalLabel: string;
+    startupCount: number;
+    dealCount: number;
+    totalFunding: number;
+    pctOfFunding: number;
+    prevPctOfFunding?: number;
+    deltaPp?: number;
+  }>;
+}
+
 export interface BriefNewsContext {
   clusters: Array<{
     id: string;
@@ -92,8 +117,9 @@ export interface BriefSnapshot {
 
   // Deterministic sections
   patternLandscape: Array<{ pattern: string; prevalencePct: number; startupCount: number; signal: string }>;
+  verticalLandscape: BriefVerticalLandscape;
   fundingByStage: Array<{ stage: string; amount: number; pct: number; deals: number }>;
-  topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string }>;
+  topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string; vertical?: string; subVertical?: string }>;
   geography: Array<{ region: string; deals: number; totalFunding: number; avgDeal: number }>;
   investors: {
     mostActive: Array<{ name: string; deals: number; totalDeployed: number }>;
@@ -105,6 +131,8 @@ export interface BriefSnapshot {
     amount: number;
     stage: string;
     location: string;
+    vertical?: string;
+    subVertical?: string;
     whyThisMatters: string;
     buildPatterns: string[];
     risk: string;

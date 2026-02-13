@@ -43,6 +43,7 @@ function withRegionHref(href: string, region: string): string {
 
 // Cache for fetched briefs (keyed by region+period)
 const briefCache = new Map<string, MonthlyBrief>();
+const snapshotCache = new Map<string, BriefSnapshot>();
 
 export function IntelligenceBrief({
   initialBrief,
@@ -65,6 +66,10 @@ export function IntelligenceBrief({
   const [brief, setBrief] = useState<MonthlyBrief>(() => {
     briefCache.set(briefCacheKey(regionKey, initialBrief.monthKey), initialBrief);
     return initialBrief;
+  });
+  const [snapshotData, setSnapshotData] = useState<BriefSnapshot | undefined>(() => {
+    if (snapshot) snapshotCache.set(briefCacheKey(regionKey, initialBrief.monthKey), snapshot);
+    return snapshot;
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -98,6 +103,7 @@ export function IntelligenceBrief({
         const key = briefCacheKey(regionKey, newPeriod);
         if (briefCache.has(key)) {
           setBrief(briefCache.get(key)!);
+          setSnapshotData(snapshotCache.get(key));
         } else {
           // Try new snapshot API first, fall back to legacy
           const params = new URLSearchParams();
@@ -113,7 +119,9 @@ export function IntelligenceBrief({
                 const { snapshotToMonthlyBrief: convert } = await import('@/lib/types/monthly-brief');
                 const converted = convert(snapData);
                 briefCache.set(key, converted);
+                snapshotCache.set(key, snapData);
                 setBrief(converted);
+                setSnapshotData(snapData);
                 fetched = true;
               }
             }
@@ -128,6 +136,7 @@ export function IntelligenceBrief({
               const data = await response.json();
               briefCache.set(key, data);
               setBrief(data);
+              setSnapshotData(undefined);
             }
           }
         }
@@ -151,6 +160,7 @@ export function IntelligenceBrief({
         const key = briefCacheKey(regionKey, validPeriod);
         if (briefCache.has(key)) {
           if (!cancelled) setBrief(briefCache.get(key)!);
+          if (!cancelled) setSnapshotData(snapshotCache.get(key));
           return;
         }
         // Try new snapshot API first, fall back to legacy
@@ -166,7 +176,9 @@ export function IntelligenceBrief({
               const { snapshotToMonthlyBrief: convert } = await import('@/lib/types/monthly-brief');
               const converted = convert(snapData);
               briefCache.set(key, converted);
+              snapshotCache.set(key, snapData);
               if (!cancelled) setBrief(converted);
+              if (!cancelled) setSnapshotData(snapData);
               fetched = true;
             }
           }
@@ -181,6 +193,7 @@ export function IntelligenceBrief({
             const data = await response.json();
             briefCache.set(key, data);
             if (!cancelled) setBrief(data);
+            if (!cancelled) setSnapshotData(undefined);
           }
         }
       } catch (error) {
@@ -197,7 +210,7 @@ export function IntelligenceBrief({
   }, [validPeriod, brief.monthKey, regionKey]);
 
   const fadeClass = isLoading ? 'opacity-60' : 'opacity-100';
-  const periodDeltas = snapshot?.deltas ?? null;
+  const periodDeltas = snapshotData?.deltas ?? null;
 
   return (
     <div className={`space-y-12 transition-opacity duration-150 ${fadeClass}`}>
@@ -213,13 +226,13 @@ export function IntelligenceBrief({
       <ExecutiveSummary summary={brief.executiveSummary} />
 
       {/* Signals behind this brief */}
-      {snapshot?.topSignals && snapshot.topSignals.length > 0 && (
-        <SignalsBehindBrief signals={snapshot.topSignals} region={regionKey} />
+      {snapshotData?.topSignals && snapshotData.topSignals.length > 0 && (
+        <SignalsBehindBrief signals={snapshotData.topSignals} region={regionKey} />
       )}
 
       {/* Builder Actions */}
-      {snapshot?.builderActions && snapshot.builderActions.length > 0 && (
-        <BuilderActionsSection actions={snapshot.builderActions} region={regionKey} />
+      {snapshotData?.builderActions && snapshotData.builderActions.length > 0 && (
+        <BuilderActionsSection actions={snapshotData.builderActions} region={regionKey} />
       )}
 
       {/* By the Numbers */}
@@ -231,6 +244,16 @@ export function IntelligenceBrief({
       {/* Pattern Landscape */}
       <PatternLandscape patterns={brief.patternLandscape} region={regionKey} patternShifts={periodDeltas?.patternShifts} />
 
+      {/* Vertical / Subvertical Landscape */}
+      {brief.verticalLandscape && (
+        <VerticalLandscapeSection
+          landscape={brief.verticalLandscape}
+          deals={brief.topDeals}
+          signals={snapshotData?.topSignals || []}
+          region={regionKey}
+        />
+      )}
+
       {/* Market Landscape - Funding by Stage */}
       <FundingByStageSection stages={brief.fundingByStage} stageShifts={periodDeltas?.stageShifts} />
 
@@ -238,8 +261,8 @@ export function IntelligenceBrief({
       <TopDealsSection deals={brief.topDeals} region={regionKey} />
 
       {/* In the News (when snapshot has news context) */}
-      {snapshot?.newsContext && snapshot.newsContext.clusters.length > 0 && (
-        <NewsContextSection clusters={snapshot.newsContext.clusters} region={regionKey} />
+      {snapshotData?.newsContext && snapshotData.newsContext.clusters.length > 0 && (
+        <NewsContextSection clusters={snapshotData.newsContext.clusters} region={regionKey} />
       )}
 
       {/* Geographic Intelligence */}
@@ -568,6 +591,167 @@ function PatternLandscape({
   );
 }
 
+function VerticalLandscapeSection({
+  landscape,
+  deals,
+  signals,
+  region,
+}: {
+  landscape: NonNullable<MonthlyBrief['verticalLandscape']>;
+  deals: MonthlyBrief['topDeals'];
+  signals: SignalRef[];
+  region: string;
+}) {
+  const topVerticals = landscape?.topVerticals || [];
+  const topSubVerticals = landscape?.topSubVerticals || [];
+  const hasVerticalShift = topVerticals.some((item) => typeof item.deltaPp === 'number' && Math.abs(item.deltaPp) > 0);
+  const hasSubVerticalShift = topSubVerticals.some((item) => typeof item.deltaPp === 'number' && Math.abs(item.deltaPp) > 0);
+
+  function norm(value?: string): string {
+    return (value || '').trim().toLowerCase();
+  }
+
+  const representativeRows = topVerticals.slice(0, 3).map((vertical) => {
+    const representativeDeal = deals.find((deal) => norm(deal.vertical) === norm(vertical.label));
+    const relatedSignals = representativeDeal
+      ? signals.filter((signal) => signal.linkedSlugs.includes(representativeDeal.slug)).slice(0, 2)
+      : [];
+    return { vertical, representativeDeal, relatedSignals };
+  }).filter((row) => row.representativeDeal);
+
+  if (topVerticals.length === 0 && topSubVerticals.length === 0) return null;
+
+  return (
+    <section className="section">
+      <div className="section-header">
+        <span className="section-title">Vertical Landscape</span>
+        <Link href={withRegionHref('/dealbook', region)} className="section-link">
+          Explore sectors
+        </Link>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div>
+          <h4 className="text-sm font-medium text-foreground mb-3">Top Verticals</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/30">
+                  <th className="text-left py-2 text-muted-foreground font-medium">Vertical</th>
+                  <th className="text-right py-2 text-muted-foreground font-medium">Funding</th>
+                  <th className="text-right py-2 text-muted-foreground font-medium hidden md:table-cell">Share</th>
+                  {hasVerticalShift && (
+                    <th className="text-right py-2 text-muted-foreground font-medium hidden md:table-cell">Shift</th>
+                  )}
+                  <th className="text-right py-2 text-muted-foreground font-medium hidden md:table-cell">Startups</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topVerticals.slice(0, 8).map((item) => (
+                  <tr key={item.id} className="border-b border-border/20">
+                    <td className="py-2">
+                      <Link
+                        href={withRegionHref(`/dealbook?verticalId=${encodeURIComponent(item.id)}`, region)}
+                        className="font-medium hover:text-accent-info transition-colors"
+                      >
+                        {item.label}
+                      </Link>
+                    </td>
+                    <td className="text-right tabular-nums">{formatCurrency(item.totalFunding, true)}</td>
+                    <td className="text-right tabular-nums hidden md:table-cell">{item.pctOfFunding}%</td>
+                    {hasVerticalShift && (
+                      <td className="text-right hidden md:table-cell">
+                        <DeltaCell value={item.deltaPp ?? null} suffix="pp" />
+                      </td>
+                    )}
+                    <td className="text-right tabular-nums hidden md:table-cell">{item.startupCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-medium text-foreground mb-3">Top Subverticals</h4>
+          <div className="space-y-2">
+            {topSubVerticals.slice(0, 8).map((item) => (
+              <Link
+                key={`${item.verticalId}:${item.id}`}
+                href={withRegionHref(`/dealbook?verticalId=${encodeURIComponent(item.verticalId)}&subVerticalId=${encodeURIComponent(item.id)}`, region)}
+                className="block p-3 border border-border/30 rounded-lg hover:border-accent-info/35 hover:bg-muted/20 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{item.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{item.verticalLabel}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm tabular-nums">{formatCurrency(item.totalFunding, true)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.pctOfFunding}% share
+                      {hasSubVerticalShift && item.deltaPp ? ` (${item.deltaPp > 0 ? '+' : ''}${item.deltaPp}pp)` : ''}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {representativeRows.length > 0 && (
+        <div className="mt-6">
+          <h4 className="text-sm font-medium text-foreground mb-3">Representative Deals & Signals</h4>
+          <div className="grid md:grid-cols-3 gap-4">
+            {representativeRows.map(({ vertical, representativeDeal, relatedSignals }) => (
+              <div key={vertical.id} className="p-4 border border-border/30 rounded-lg bg-muted/20">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-xs uppercase tracking-wider text-accent-info">{vertical.label}</p>
+                  <p className="text-[10px] text-muted-foreground">{vertical.pctOfFunding}% share</p>
+                </div>
+                {representativeDeal && (
+                  <div className="mb-2">
+                    <Link
+                      href={withRegionHref(
+                        representativeDeal.slug
+                          ? `/company/${representativeDeal.slug}`
+                          : `/dealbook?search=${encodeURIComponent(representativeDeal.company)}`,
+                        region
+                      )}
+                      className="text-sm font-medium hover:text-accent-info transition-colors"
+                    >
+                      {representativeDeal.company}
+                    </Link>
+                    <p className="text-xs text-muted-foreground">
+                      {formatCurrency(representativeDeal.amount, true)} {representativeDeal.stage}
+                    </p>
+                  </div>
+                )}
+                {relatedSignals.length > 0 ? (
+                  <div className="space-y-1">
+                    {relatedSignals.map((signal) => (
+                      <Link
+                        key={signal.clusterId}
+                        href={withRegionHref(`/news?story=${signal.clusterId}`, region)}
+                        className="block text-xs text-muted-foreground hover:text-accent-info transition-colors truncate"
+                      >
+                        {signal.title}
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground/70">No linked signals in top set.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function FundingByStageSection({
   stages,
   stageShifts,
@@ -650,6 +834,9 @@ function TopDealsSection({ deals, region }: { deals: MonthlyBrief['topDeals']; r
               <th className="text-left py-2 pl-4 text-muted-foreground font-medium hidden lg:table-cell">
                 Location
               </th>
+              <th className="text-left py-2 pl-4 text-muted-foreground font-medium hidden xl:table-cell">
+                Vertical
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -672,6 +859,16 @@ function TopDealsSection({ deals, region }: { deals: MonthlyBrief['topDeals']; r
                 </td>
                 <td className="pl-4 text-muted-foreground hidden lg:table-cell">
                   {deal.location}
+                </td>
+                <td className="pl-4 text-muted-foreground hidden xl:table-cell">
+                  {deal.vertical ? (
+                    <span>
+                      {deal.vertical}
+                      {deal.subVertical ? <span className="text-muted-foreground/70"> / {deal.subVertical}</span> : null}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground/50">—</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -890,6 +1087,16 @@ function SpotlightSection({
           <span className="text-sm text-muted-foreground">
             {spotlight.location}
           </span>
+          {spotlight.vertical && (
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-accent-info/25 bg-accent-info/10 text-accent-info">
+              {spotlight.vertical}
+            </span>
+          )}
+          {spotlight.subVertical && (
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-border/40 bg-muted/30 text-muted-foreground">
+              {spotlight.subVertical}
+            </span>
+          )}
         </div>
 
         <p className="text-sm text-muted-foreground mb-4">

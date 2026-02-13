@@ -24,6 +24,7 @@ interface CommandBarProps {
   showViewToggle?: boolean;
   hideLowTrust?: boolean;
   onHideLowTrustChange?: (value: boolean) => void;
+  region?: 'global' | 'turkey';
 }
 
 function PillButton({
@@ -67,8 +68,30 @@ export function CommandBar({
   showViewToggle,
   hideLowTrust,
   onHideLowTrustChange,
+  region = 'global',
 }: CommandBarProps) {
   const [showTopics, setShowTopics] = useState(false);
+  const l = region === 'turkey'
+    ? {
+      searchPlaceholder: 'Sinyal ara...',
+      impact: 'Etki',
+      latest: 'En yeni',
+      trust: 'Guven',
+      signal: 'Sinyal',
+      all: 'Tum',
+      highTrust: 'Yuksek guven',
+      topics: 'Konular',
+    }
+    : {
+      searchPlaceholder: 'Search signals...',
+      impact: 'Impact',
+      latest: 'Latest',
+      trust: 'Trust',
+      signal: 'Signal',
+      all: 'All',
+      highTrust: 'High trust',
+      topics: 'Topics',
+    };
 
   return (
     <div className="sticky top-14 z-20 border-b border-border/30 bg-background/95 backdrop-blur-md">
@@ -79,7 +102,7 @@ export function CommandBar({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search signals..."
+            placeholder={l.searchPlaceholder}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full h-7 pl-8 pr-3 text-xs bg-muted/25 border border-border/40 rounded-md
@@ -95,16 +118,16 @@ export function CommandBar({
         {/* Sort */}
         <div className="flex items-center gap-1">
           <PillButton active={sortMode === 'impact'} onClick={() => onSortChange('impact')}>
-            Impact
+            {l.impact}
           </PillButton>
           <PillButton active={sortMode === 'latest'} onClick={() => onSortChange('latest')}>
-            Latest
+            {l.latest}
           </PillButton>
           <PillButton active={sortMode === 'trust'} onClick={() => onSortChange('trust')}>
-            Trust
+            {l.trust}
           </PillButton>
           <PillButton active={sortMode === 'signal'} onClick={() => onSortChange('signal')}>
-            Signal
+            {l.signal}
           </PillButton>
         </div>
 
@@ -115,7 +138,7 @@ export function CommandBar({
         <div className="flex items-center gap-1">
           {(['6h', '24h', '7d', 'all'] as TimeWindow[]).map((tw) => (
             <PillButton key={tw} active={timeWindow === tw} onClick={() => onTimeWindowChange(tw)}>
-              {tw === 'all' ? 'All' : tw}
+              {tw === 'all' ? l.all : tw}
             </PillButton>
           ))}
         </div>
@@ -135,7 +158,7 @@ export function CommandBar({
               `}
             >
               <ShieldCheck className="h-3 w-3" />
-              High trust
+              {l.highTrust}
             </button>
           </>
         )}
@@ -144,7 +167,7 @@ export function CommandBar({
         {showViewToggle && viewMode && onViewModeChange && (
           <>
             <div className="h-4 w-px bg-border/40" />
-            <ViewToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
+            <ViewToggle viewMode={viewMode} onViewModeChange={onViewModeChange} region={region} />
           </>
         )}
 
@@ -163,7 +186,7 @@ export function CommandBar({
           `}
         >
           <SlidersHorizontal className="h-3 w-3" />
-          {activeTopic === 'all' ? 'Topics' : activeTopic}
+          {activeTopic === 'all' ? l.topics : activeTopic}
         </button>
       </PageContainer>
 
@@ -173,7 +196,7 @@ export function CommandBar({
           <PageContainer className="py-2">
             <div className="flex min-w-max items-center gap-1.5">
               <PillButton active={activeTopic === 'all'} onClick={() => { onTopicChange('all'); setShowTopics(false); }}>
-                All
+                {l.all}
               </PillButton>
               {topics.slice(0, 12).map((t) => (
                 <PillButton

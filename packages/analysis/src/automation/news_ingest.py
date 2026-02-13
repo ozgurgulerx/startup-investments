@@ -345,7 +345,7 @@ class SourceDefinition:
     source_type: str
     base_url: str
     region: str = "global"  # global|turkey
-    fetch_mode: str = "rss"  # rss|api|crawler
+    fetch_mode: str = "rss"  # rss|api|crawler|digest_rss|x_recent_search
     credibility_weight: float = 0.65
     legal_mode: str = "headline_snippet"
     language: str = ""  # override auto-detection (e.g. "en" for English Turkey sources)
@@ -448,6 +448,8 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("hackernews_api", "Hacker News API", "api", "https://hacker-news.firebaseio.com/v0", fetch_mode="api", credibility_weight=0.88),
     SourceDefinition("newsapi", "NewsAPI", "api", "https://newsapi.org/v2/everything", fetch_mode="api", credibility_weight=0.67),
     SourceDefinition("gnews", "GNews", "api", "https://gnews.io/api/v4/search", fetch_mode="api", credibility_weight=0.66),
+    SourceDefinition("x_recent_search_global", "X Recent Search (Global)", "api", "https://api.x.com/2/tweets/search/recent", fetch_mode="x_recent_search", credibility_weight=0.64),
+    SourceDefinition("x_recent_search_turkey", "X Recent Search (Turkey)", "api", "https://api.x.com/2/tweets/search/recent", region="turkey", fetch_mode="x_recent_search", credibility_weight=0.65, language="tr"),
     # Diff-based sources (daily snapshots + deltas), fetched from the hourly job.
     SourceDefinition("github_trending_ai", "GitHub Trending AI (Search)", "api", "github://search/repositories", fetch_mode="api", credibility_weight=0.70),
     SourceDefinition("amazon_new_releases_ai", "Amazon New Releases (AI Books)", "community", "amazon://new-releases", fetch_mode="api", credibility_weight=0.55),
@@ -2991,6 +2993,31 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
+    async def _fetch_x_recent_search(
+        self,
+        client: httpx.AsyncClient,
+        source: SourceDefinition,
+        lookback_hours: int,
+    ) -> List[NormalizedNewsItem]:
+        from .x_trends import fetch_recent_search_items
+
+        items, stats = await fetch_recent_search_items(
+            client=client,
+            source=source,
+            lookback_hours=lookback_hours,
+            max_items=self.max_per_source,
+        )
+        if stats.queries_attempted > 0:
+            print(
+                f"[x-trends] {source.source_key}: "
+                f"queries={stats.queries_attempted} "
+                f"pages={stats.pages_fetched} "
+                f"fetched={stats.tweets_fetched} "
+                f"kept={stats.tweets_kept} "
+                f"errors={stats.errors}"
+            )
+        return items[: self.max_per_source]
+
     async def _fetch_frontier_candidates(self, conn: asyncpg.Connection, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
         rows = await conn.fetch(
@@ -3369,6 +3396,8 @@ class DailyNewsIngestor:
                         items = await self._fetch_newsapi_turkey(client, source, source_lookback)
                     elif source.source_key == "gnews_turkey":
                         items = await self._fetch_gnews_turkey(client, source, source_lookback)
+                    elif source.fetch_mode == "x_recent_search":
+                        items = await self._fetch_x_recent_search(client, source, source_lookback)
                     elif source.source_key == "startup_owned_feeds":
                         items = await self._fetch_startup_owned_sources(conn, client, source, source_lookback)
                     elif source.source_key == "vc_turkey_blogs":
@@ -5409,25 +5438,44 @@ class DailyNewsIngestor:
         clusters: Sequence[StoryCluster],
         cluster_ids: Dict[str, str],
         region: str = "global",
-    ) -> int:
+    ) -> Dict[str, Any]:
         """Extract structured events from clusters and persist to startup_events.
 
         Uses the EventExtractor to convert memory gate outputs (claims, patterns,
         GTM tags) into typed events with event_registry linkage. Zero LLM cost.
         Also enqueues refresh jobs for startups with qualifying events.
         """
+        stats: Dict[str, Any] = {
+            "extracted": 0,
+            "persisted": 0,
+            "funding_rounds_upserted": 0,
+            "onboarded_startups": 0,
+            "graph": {
+                "events_considered": 0,
+                "investors_created": 0,
+                "edges_upserted": 0,
+                "skipped": 0,
+            },
+        }
         try:
-            from .event_extractor import EventExtractor, persist_events, enqueue_refresh_for_events
+            from .event_extractor import (
+                EventExtractor,
+                enqueue_refresh_for_events,
+                persist_events,
+                upsert_capital_graph_from_events,
+                upsert_funding_from_events,
+                onboard_unknown_startups,
+            )
         except ImportError:
             print("[news-ingest] event_extractor module not available, skipping event extraction")
-            return 0
+            return stats
 
         try:
             extractor = EventExtractor()
             await extractor.load(conn)
         except Exception as exc:
             print(f"[news-ingest] Failed to load EventExtractor (event_registry table may not exist): {exc}")
-            return 0
+            return stats
 
         all_events = []
         for cluster in clusters:
@@ -5436,24 +5484,41 @@ class DailyNewsIngestor:
             all_events.extend(events)
 
         if not all_events:
-            return 0
+            return stats
+
+        stats["extracted"] = len(all_events)
 
         inserted, inserted_events = await persist_events(conn, all_events, extractor._registry)
+        stats["persisted"] = inserted
         print(f"[events:{region}] Extracted {len(all_events)} events from {len(clusters)} clusters, persisted {inserted}")
 
         # Upsert funding rounds from high-confidence funding events
         try:
-            from .event_extractor import upsert_funding_from_events
             funding_inserted = await upsert_funding_from_events(conn, all_events)
+            stats["funding_rounds_upserted"] = funding_inserted
             if funding_inserted:
                 print(f"[funding:{region}] Upserted {funding_inserted} funding rounds from events")
         except Exception as exc:
             print(f"[news-ingest] Failed to upsert funding rounds from events: {exc}")
 
+        # Sync investor/startup graph edges from funding events (can be disabled).
+        graph_sync_enabled = os.getenv("NEWS_GRAPH_SYNC_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+        if graph_sync_enabled:
+            try:
+                graph_stats = await upsert_capital_graph_from_events(conn, all_events)
+                stats["graph"] = graph_stats
+                if int(graph_stats.get("edges_upserted") or 0) > 0:
+                    print(
+                        f"[graph:{region}] Upserted {graph_stats.get('edges_upserted')} investor->startup edges "
+                        f"(investors_created={graph_stats.get('investors_created')})"
+                    )
+            except Exception as exc:
+                print(f"[news-ingest] Failed to sync capital graph from events: {exc}")
+
         # Onboard unknown startups from unlinked entity mentions
         try:
-            from .event_extractor import onboard_unknown_startups
             onboarded = await onboard_unknown_startups(conn, all_events, clusters)
+            stats["onboarded_startups"] = onboarded
             if onboarded:
                 print(f"[onboard:{region}] Created {onboarded} stub startups from unlinked events")
         except Exception as exc:
@@ -5466,7 +5531,21 @@ class DailyNewsIngestor:
         except Exception as exc:
             print(f"[news-ingest] Failed to enqueue refresh jobs (table may not exist yet): {exc}")
 
-        return inserted
+        return stats
+
+    async def _refresh_capital_graph_views(self, conn: "asyncpg.Connection") -> bool:
+        """Refresh graph materialized views when graph sync writes new edges."""
+        try:
+            fn_exists = await conn.fetchval(
+                "SELECT to_regprocedure('refresh_capital_graph_views()') IS NOT NULL"
+            )
+            if not fn_exists:
+                return False
+            await conn.execute("SELECT refresh_capital_graph_views()")
+            return True
+        except Exception as exc:
+            print(f"[graph] Failed to refresh graph materialized views: {exc}")
+            return False
 
     async def _enqueue_hot_topic_research(
         self,
@@ -6318,9 +6397,19 @@ class DailyNewsIngestor:
                 # --- Extract structured events from clusters ---
                 events_global = await self._extract_events(conn, non_dropped_global, cluster_ids_global, region="global")
                 events_turkey = await self._extract_events(conn, non_dropped_turkey, cluster_ids_turkey, region="turkey")
-                event_extraction_total = events_global + events_turkey
+                event_extraction_total = int(events_global.get("persisted") or 0) + int(events_turkey.get("persisted") or 0)
                 if event_extraction_total > 0:
-                    print(f"[events] extracted {events_global} global + {events_turkey} turkey structured events")
+                    print(
+                        f"[events] extracted {int(events_global.get('persisted') or 0)} global + "
+                        f"{int(events_turkey.get('persisted') or 0)} turkey structured events"
+                    )
+
+                graph_edges_upserted = int(events_global.get("graph", {}).get("edges_upserted") or 0) + int(
+                    events_turkey.get("graph", {}).get("edges_upserted") or 0
+                )
+                graph_views_refreshed = False
+                if graph_edges_upserted > 0:
+                    graph_views_refreshed = await self._refresh_capital_graph_views(conn)
 
                 # --- Enqueue hot topics for async research ---
                 research_enqueued = await self._enqueue_hot_topic_research(
@@ -6404,6 +6493,13 @@ class DailyNewsIngestor:
                     "editorial": editorial_stats,
                     "embedding": embed_stats,
                     "related_clusters_populated": related_count,
+                    "events": {
+                        "global": events_global,
+                        "turkey": events_turkey,
+                        "persisted_total": event_extraction_total,
+                        "graph_edges_upserted_total": graph_edges_upserted,
+                        "graph_views_refreshed": graph_views_refreshed,
+                    },
                     "research_enqueued": research_enqueued + research_enqueued_tr,
                 }
 

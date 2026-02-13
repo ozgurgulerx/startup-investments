@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useWatchlist } from '@/lib/watchlist';
 import { Bookmark, Loader2, X, Bell, Settings, FileText, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { trackEvent } from '@/lib/posthog';
 
 type Tab = 'alerts' | 'subscriptions' | 'digest';
 
@@ -17,6 +17,11 @@ interface UserAlert {
   magnitude: number | null;
   startup_name: string | null;
   startup_slug: string | null;
+  explain?: {
+    summary: string;
+    drivers: string[];
+    confidence: 'low' | 'medium' | 'high';
+  } | null;
   narrative: {
     one_liner?: string;
     why_it_matters?: string[];
@@ -81,16 +86,30 @@ export default function WatchlistPage() {
   const [loading, setLoading] = useState(true);
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
   const [alertFilter, setAlertFilter] = useState<'unread' | 'all'>('unread');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const trackedDigestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
+      setLoadError(null);
       try {
         const [alertsRes, subsRes, digestRes] = await Promise.all([
           fetch(`/api/alerts?status=${alertFilter}&limit=50`).catch(() => null),
           fetch('/api/subscriptions').catch(() => null),
           fetch('/api/alerts/digest').catch(() => null),
         ]);
+
+        const responses = [alertsRes, subsRes, digestRes];
+        if (responses.some((res) => res?.status === 401)) {
+          setLoadError('Your session expired. Sign in again to load personalized intelligence.');
+        } else if (responses.some((res) => res && !res.ok)) {
+          setLoadError('Some watchlist modules are temporarily unavailable. You can retry.');
+        } else if (responses.some((res) => res == null)) {
+          setLoadError('Network error while loading watchlist intelligence. You can retry.');
+        }
+
         if (alertsRes?.ok) {
           const data = await alertsRes.json();
           setAlerts(data.alerts || []);
@@ -106,21 +125,34 @@ export default function WatchlistPage() {
         }
       } catch (err) {
         console.error('Failed to load watchlist data:', err);
+        setLoadError('Failed to load watchlist intelligence. You can retry.');
       } finally {
         setLoading(false);
       }
     }
     loadData();
-  }, [alertFilter]);
+  }, [alertFilter, reloadKey]);
 
   const handleMarkRead = async (alertId: string) => {
     try {
-      await fetch(`/api/alerts/${alertId}`, {
+      const res = await fetch(`/api/alerts/${alertId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'read' }),
       });
-      setAlerts(prev => prev.filter(a => a.id !== alertId));
+
+      if (!res.ok) return;
+
+      setAlerts(prev => {
+        if (alertFilter === 'unread') {
+          return prev.filter(a => a.id !== alertId);
+        }
+        return prev.map(a => (a.id === alertId ? { ...a, status: 'read' } : a));
+      });
+      if (alertFilter === 'unread') {
+        setAlertsTotal(prev => Math.max(0, prev - 1));
+      }
+      trackEvent('alert_mark_read', { alert_id: alertId });
     } catch { /* ignore */ }
   };
 
@@ -128,23 +160,40 @@ export default function WatchlistPage() {
     const ids = alerts.filter(a => a.status === 'unread').map(a => a.id);
     if (ids.length === 0) return;
     try {
-      await fetch('/api/alerts/batch', {
+      const res = await fetch('/api/alerts/batch', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids, status: 'read' }),
       });
-      setAlerts(prev => prev.filter(a => a.status !== 'unread'));
+
+      if (!res.ok) return;
+
+      if (alertFilter === 'unread') {
+        setAlerts([]);
+        setAlertsTotal(0);
+      } else {
+        setAlerts(prev => prev.map(a => ({ ...a, status: 'read' })));
+      }
+      trackEvent('alert_mark_all_read', { count: ids.length });
     } catch { /* ignore */ }
   };
 
   const toggleExpanded = (id: string) => {
     setExpandedAlerts(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        trackEvent('alert_open', { alert_id: id });
+      }
       return next;
     });
   };
+
+  const handleRetry = useCallback(() => {
+    setReloadKey(prev => prev + 1);
+  }, []);
 
   const watchlistItems = watchlist?.items || [];
   const groupedSubs = useMemo(() => {
@@ -155,6 +204,20 @@ export default function WatchlistPage() {
     }
     return groups;
   }, [subscriptions]);
+  const hasObjectSubscriptions = subscriptions.length > 0;
+
+  useEffect(() => {
+    if (activeTab !== 'digest' || !digest?.id) return;
+    if (trackedDigestIdRef.current === digest.id) return;
+
+    trackedDigestIdRef.current = digest.id;
+    trackEvent('digest_open', {
+      digest_id: digest.id,
+      alert_count: digest.alert_count,
+      period_start: digest.period_start,
+      period_end: digest.period_end,
+    });
+  }, [activeTab, digest]);
 
   if (watchlistLoading) {
     return (
@@ -228,6 +291,19 @@ export default function WatchlistPage() {
         ))}
       </div>
 
+      {loadError && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
+          <p className="text-xs text-muted-foreground">{loadError}</p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="text-xs text-accent-info hover:text-accent-info/80"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -295,12 +371,33 @@ export default function WatchlistPage() {
                         )}
                       </div>
                     </div>
-                    {expandedAlerts.has(alert.id) && alert.narrative && (
+                    {expandedAlerts.has(alert.id) && (alert.narrative || alert.explain) && (
                       <div className="mt-3 pt-3 border-t border-border/20 space-y-2">
-                        {alert.narrative.one_liner && (
+                        {alert.explain && (
+                          <div className="space-y-1.5">
+                            <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                              Why you got this
+                            </h4>
+                            <p className="text-xs text-foreground/80">{alert.explain.summary}</p>
+                            {alert.explain.drivers.length > 0 && (
+                              <ul className="space-y-0.5">
+                                {alert.explain.drivers.map((driver, i) => (
+                                  <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                                    <span className="text-accent-info shrink-0">-</span>
+                                    {driver}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <span className="inline-flex px-1.5 py-0.5 text-[10px] rounded bg-muted/20 text-muted-foreground uppercase tracking-wider">
+                              {alert.explain.confidence} confidence
+                            </span>
+                          </div>
+                        )}
+                        {alert.narrative?.one_liner && (
                           <p className="text-xs text-foreground/80">{alert.narrative.one_liner}</p>
                         )}
-                        {alert.narrative.why_it_matters && alert.narrative.why_it_matters.length > 0 && (
+                        {alert.narrative?.why_it_matters && alert.narrative.why_it_matters.length > 0 && (
                           <div>
                             <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Why it matters</h4>
                             <ul className="space-y-0.5">
@@ -313,7 +410,7 @@ export default function WatchlistPage() {
                             </ul>
                           </div>
                         )}
-                        {alert.narrative.links && alert.narrative.links.length > 0 && (
+                        {alert.narrative?.links && alert.narrative.links.length > 0 && (
                           <div className="flex flex-wrap gap-2 pt-1">
                             {alert.narrative.links.map((link, i) => (
                               <Link key={i} href={link.url} className="text-[10px] text-accent-info hover:underline">
@@ -383,6 +480,23 @@ export default function WatchlistPage() {
                   </div>
                 </div>
               ))}
+
+              {!hasObjectSubscriptions && watchlistItems.length === 0 && (
+                <div className="rounded-lg border border-border/30 p-4 text-sm text-muted-foreground">
+                  <p>No active subscriptions yet.</p>
+                  <p className="mt-1">
+                    Start by following a signal in{' '}
+                    <Link href="/signals" className="text-accent-info hover:underline">
+                      Signal Intelligence
+                    </Link>{' '}
+                    or adding companies from{' '}
+                    <Link href="/dealbook" className="text-accent-info hover:underline">
+                      Dealbook
+                    </Link>
+                    .
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -396,6 +510,7 @@ export default function WatchlistPage() {
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       <span>{digest.period_start} to {digest.period_end}</span>
                       <span>{digest.alert_count} alerts</span>
+                      <span>Generated {new Date(digest.created_at).toLocaleString()}</span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-3">{digest.summary}</p>
                   </div>

@@ -33,12 +33,24 @@ cd "$REPO_DIR/packages/analysis"
 # Step 1: Check for changes
 echo "Checking blob storage for changes..."
 SYNC_CHECK_LOG="/tmp/sync-changes.txt"
-"$VENV_DIR/bin/python" -m src.sync.blob_sync --check --target "$REPO_DIR/apps/web/data" > "$SYNC_CHECK_LOG" 2>&1
+SYNC_CHECK_RC=0
+"$VENV_DIR/bin/python" -m src.sync.blob_sync --check --target "$REPO_DIR/apps/web/data" > "$SYNC_CHECK_LOG" 2>&1 || SYNC_CHECK_RC=$?
 cat "$SYNC_CHECK_LOG"
 
-ADDED=$(grep "Added:" "$SYNC_CHECK_LOG" 2>/dev/null | awk '{print $2}' || echo "0")
-MODIFIED=$(grep "Modified:" "$SYNC_CHECK_LOG" 2>/dev/null | awk '{print $2}' || echo "0")
-TOTAL=$((ADDED + MODIFIED))
+if [ "$SYNC_CHECK_RC" -eq 2 ]; then
+    echo "WARN: Blob storage auth failed (exit code 2). Change detection is degraded."
+    echo "      Fix: assign Storage Blob Data Reader to VM managed identity on buildatlasstorage."
+    BLOB_DEGRADED=1
+    TOTAL=0
+elif [ "$SYNC_CHECK_RC" -ne 0 ]; then
+    echo "ERROR: blob_sync --check failed with exit code $SYNC_CHECK_RC"
+    exit 1
+else
+    BLOB_DEGRADED=0
+    ADDED=$(grep "Added:" "$SYNC_CHECK_LOG" 2>/dev/null | awk '{print $2}' || echo "0")
+    MODIFIED=$(grep "Modified:" "$SYNC_CHECK_LOG" 2>/dev/null | awk '{print $2}' || echo "0")
+    TOTAL=$((ADDED + MODIFIED))
+fi
 
 if [ "$TOTAL" -eq 0 ]; then
     # Even if blob data hasn't changed, the DB can lag (e.g. after VM upgrades or missed runs).
@@ -93,7 +105,11 @@ if [ "$TOTAL" -eq 0 ]; then
         fi
     fi
 
-    echo "No changes detected. Done."
+    if [ "${BLOB_DEGRADED:-0}" -eq 1 ]; then
+        echo "WARN: No blob changes detected (blob auth degraded — results may be stale)."
+    else
+        echo "No changes detected. Done."
+    fi
     exit 0
 fi
 

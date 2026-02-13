@@ -38,6 +38,31 @@ interface BriefSnapshotDeltas {
   stageShifts: Array<{ stage: string; prevPct: number; currPct: number; deltaPp: number }>;
 }
 
+interface BriefVerticalLandscape {
+  topVerticals: Array<{
+    id: string;
+    label: string;
+    startupCount: number;
+    dealCount: number;
+    totalFunding: number;
+    pctOfFunding: number;
+    prevPctOfFunding?: number;
+    deltaPp?: number;
+  }>;
+  topSubVerticals: Array<{
+    id: string;
+    label: string;
+    verticalId: string;
+    verticalLabel: string;
+    startupCount: number;
+    dealCount: number;
+    totalFunding: number;
+    pctOfFunding: number;
+    prevPctOfFunding?: number;
+    deltaPp?: number;
+  }>;
+}
+
 interface BriefNewsContext {
   clusters: Array<{
     id: string; title: string; summary: string; storyType: string;
@@ -97,8 +122,9 @@ export interface BriefSnapshot {
   whatWatching: string[];
   builderActions: BuilderAction[];
   patternLandscape: Array<{ pattern: string; prevalencePct: number; startupCount: number; signal: string }>;
+  verticalLandscape: BriefVerticalLandscape;
   fundingByStage: Array<{ stage: string; amount: number; pct: number; deals: number }>;
-  topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string }>;
+  topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string; vertical?: string; subVertical?: string }>;
   geography: Array<{ region: string; deals: number; totalFunding: number; avgDeal: number }>;
   investors: {
     mostActive: Array<{ name: string; deals: number; totalDeployed: number }>;
@@ -106,6 +132,7 @@ export interface BriefSnapshot {
   };
   spotlight?: {
     company: string; slug: string; amount: number; stage: string; location: string;
+    vertical?: string; subVertical?: string;
     whyThisMatters: string; buildPatterns: string[]; risk: string; builderTakeaway: string;
   };
   methodology: { bullets: string[] };
@@ -161,7 +188,7 @@ interface GenerateEditionResult {
   validationErrors?: string[];
 }
 
-const PROMPT_VERSION = 'brief-v2';
+const PROMPT_VERSION = 'brief-v3';
 
 /** Recursively sort object keys for stable JSON serialization */
 function sortKeysDeep(obj: any): any {
@@ -475,7 +502,15 @@ export function makeBriefService(pool: Pool) {
         COALESCE(s.slug, '') AS slug,
         fr.amount_usd AS amount,
         fr.round_type AS stage,
-        COALESCE(s.headquarters_city || ', ' || s.headquarters_country, s.headquarters_country, '') AS location
+        COALESCE(s.headquarters_city || ', ' || s.headquarters_country, s.headquarters_country, '') AS location,
+        COALESCE(
+          NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label', ''),
+          NULLIF(s.analysis_data->>'vertical', '')
+        ) AS vertical,
+        COALESCE(
+          NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label', ''),
+          NULLIF(s.analysis_data->>'sub_vertical', '')
+        ) AS sub_vertical
       FROM funding_rounds fr
       INNER JOIN startups s ON fr.startup_id = s.id
       WHERE s.dataset_region = $1 AND s.period = $2 AND fr.amount_usd > 0
@@ -487,9 +522,11 @@ export function makeBriefService(pool: Pool) {
       rank: i + 1,
       company: r.company,
       slug: r.slug,
-      amount: parseInt(r.amount_usd) || 0,
+      amount: parseInt(r.amount) || parseInt(r.amount_usd) || 0,
       stage: r.stage || 'Unknown',
       location: r.location || '',
+      vertical: r.vertical || undefined,
+      subVertical: r.sub_vertical || undefined,
     }));
   }
 
@@ -618,6 +655,178 @@ export function makeBriefService(pool: Pool) {
   }
 
   // --------------------------------------------------------------------------
+  // Vertical landscape (taxonomy-first with legacy fallback)
+  // --------------------------------------------------------------------------
+
+  async function loadVerticalLandscapeSnapshot(region: string, periodKey: string): Promise<BriefVerticalLandscape> {
+    const topVerticalsResult = await pool.query(`
+      WITH classified AS (
+        SELECT
+          s.id AS startup_id,
+          COALESCE(
+            NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id', ''),
+            NULLIF(regexp_replace(lower(COALESCE(s.analysis_data->>'vertical', '')), '[^a-z0-9]+', '_', 'g'), ''),
+            'unknown'
+          ) AS vertical_id,
+          COALESCE(
+            NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label', ''),
+            NULLIF(s.analysis_data->>'vertical', ''),
+            'Unknown'
+          ) AS vertical_label
+        FROM startups s
+        WHERE s.dataset_region = $1 AND s.period = $2
+      ),
+      agg AS (
+        SELECT
+          c.vertical_id AS id,
+          c.vertical_label AS label,
+          COUNT(DISTINCT c.startup_id)::int AS startup_count,
+          COUNT(fr.id)::int AS deal_count,
+          COALESCE(SUM(fr.amount_usd), 0)::bigint AS total_funding
+        FROM classified c
+        LEFT JOIN funding_rounds fr
+          ON fr.startup_id = c.startup_id
+          AND fr.amount_usd > 0
+        GROUP BY c.vertical_id, c.vertical_label
+      )
+      SELECT
+        id,
+        label,
+        startup_count,
+        deal_count,
+        total_funding,
+        CASE
+          WHEN SUM(total_funding) OVER () > 0
+            THEN ROUND((total_funding::numeric / SUM(total_funding) OVER ()) * 100)::int
+          ELSE 0
+        END AS pct_of_funding
+      FROM agg
+      ORDER BY total_funding DESC, startup_count DESC, label ASC
+      LIMIT 8
+    `, [region, periodKey]);
+
+    const topSubVerticalsResult = await pool.query(`
+      WITH classified AS (
+        SELECT
+          s.id AS startup_id,
+          COALESCE(
+            NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id', ''),
+            NULLIF(regexp_replace(lower(COALESCE(s.analysis_data->>'vertical', '')), '[^a-z0-9]+', '_', 'g'), ''),
+            'unknown'
+          ) AS vertical_id,
+          COALESCE(
+            NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label', ''),
+            NULLIF(s.analysis_data->>'vertical', ''),
+            'Unknown'
+          ) AS vertical_label,
+          COALESCE(
+            NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id', ''),
+            NULLIF(regexp_replace(lower(COALESCE(s.analysis_data->>'sub_vertical', '')), '[^a-z0-9]+', '_', 'g'), ''),
+            ''
+          ) AS sub_vertical_id,
+          COALESCE(
+            NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label', ''),
+            NULLIF(s.analysis_data->>'sub_vertical', ''),
+            ''
+          ) AS sub_vertical_label
+        FROM startups s
+        WHERE s.dataset_region = $1 AND s.period = $2
+      ),
+      agg AS (
+        SELECT
+          c.sub_vertical_id AS id,
+          c.sub_vertical_label AS label,
+          c.vertical_id,
+          c.vertical_label,
+          COUNT(DISTINCT c.startup_id)::int AS startup_count,
+          COUNT(fr.id)::int AS deal_count,
+          COALESCE(SUM(fr.amount_usd), 0)::bigint AS total_funding
+        FROM classified c
+        LEFT JOIN funding_rounds fr
+          ON fr.startup_id = c.startup_id
+          AND fr.amount_usd > 0
+        WHERE c.sub_vertical_id <> '' AND c.sub_vertical_label <> ''
+        GROUP BY c.sub_vertical_id, c.sub_vertical_label, c.vertical_id, c.vertical_label
+      )
+      SELECT
+        id,
+        label,
+        vertical_id,
+        vertical_label,
+        startup_count,
+        deal_count,
+        total_funding,
+        CASE
+          WHEN SUM(total_funding) OVER () > 0
+            THEN ROUND((total_funding::numeric / SUM(total_funding) OVER ()) * 100)::int
+          ELSE 0
+        END AS pct_of_funding
+      FROM agg
+      ORDER BY total_funding DESC, startup_count DESC, label ASC
+      LIMIT 12
+    `, [region, periodKey]);
+
+    return {
+      topVerticals: topVerticalsResult.rows.map((r) => ({
+        id: r.id || 'unknown',
+        label: r.label || 'Unknown',
+        startupCount: parseInt(r.startup_count) || 0,
+        dealCount: parseInt(r.deal_count) || 0,
+        totalFunding: parseInt(r.total_funding) || 0,
+        pctOfFunding: parseInt(r.pct_of_funding) || 0,
+      })),
+      topSubVerticals: topSubVerticalsResult.rows.map((r) => ({
+        id: r.id || '',
+        label: r.label || '',
+        verticalId: r.vertical_id || 'unknown',
+        verticalLabel: r.vertical_label || 'Unknown',
+        startupCount: parseInt(r.startup_count) || 0,
+        dealCount: parseInt(r.deal_count) || 0,
+        totalFunding: parseInt(r.total_funding) || 0,
+        pctOfFunding: parseInt(r.pct_of_funding) || 0,
+      })),
+    };
+  }
+
+  async function computeVerticalLandscape(
+    region: string,
+    periodKey: string,
+    prevPeriodKey?: string,
+  ): Promise<BriefVerticalLandscape> {
+    const [current, prev] = await Promise.all([
+      loadVerticalLandscapeSnapshot(region, periodKey),
+      prevPeriodKey
+        ? loadVerticalLandscapeSnapshot(region, prevPeriodKey)
+        : Promise.resolve({ topVerticals: [], topSubVerticals: [] } as BriefVerticalLandscape),
+    ]);
+
+    const prevVerticalById = new Map(prev.topVerticals.map((v) => [v.id, v.pctOfFunding]));
+    const prevSubVerticalById = new Map(
+      prev.topSubVerticals.map((sv) => [`${sv.verticalId}:${sv.id}`, sv.pctOfFunding]),
+    );
+
+    return {
+      topVerticals: current.topVerticals.map((v) => {
+        const prevPct = prevVerticalById.get(v.id) || 0;
+        return {
+          ...v,
+          prevPctOfFunding: prevPct,
+          deltaPp: v.pctOfFunding - prevPct,
+        };
+      }),
+      topSubVerticals: current.topSubVerticals.map((sv) => {
+        const key = `${sv.verticalId}:${sv.id}`;
+        const prevPct = prevSubVerticalById.get(key) || 0;
+        return {
+          ...sv,
+          prevPctOfFunding: prevPct,
+          deltaPp: sv.pctOfFunding - prevPct,
+        };
+      }),
+    };
+  }
+
+  // --------------------------------------------------------------------------
   // Spotlight (highest-funded startup with analysis)
   // --------------------------------------------------------------------------
 
@@ -629,6 +838,14 @@ export function makeBriefService(pool: Pool) {
         fr.amount_usd AS amount,
         fr.round_type AS stage,
         COALESCE(s.headquarters_city || ', ' || s.headquarters_country, s.headquarters_country, '') AS location,
+        COALESCE(
+          NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label', ''),
+          NULLIF(s.analysis_data->>'vertical', '')
+        ) AS vertical,
+        COALESCE(
+          NULLIF(s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label', ''),
+          NULLIF(s.analysis_data->>'sub_vertical', '')
+        ) AS sub_vertical,
         s.analysis_data
       FROM funding_rounds fr
       INNER JOIN startups s ON fr.startup_id = s.id
@@ -650,10 +867,12 @@ export function makeBriefService(pool: Pool) {
     return {
       company: row.company,
       slug: row.slug,
-      amount: parseInt(row.amount_usd) || 0,
+      amount: parseInt(row.amount) || parseInt(row.amount_usd) || 0,
       stage: row.stage || 'Unknown',
       location: row.location || '',
-      whyThisMatters: analysis?.contrarian_analysis?.honest_take || `${row.company} secured ${formatM(parseInt(row.amount_usd))} in ${row.stage || 'funding'}, making it the largest deal this period.`,
+      vertical: row.vertical || undefined,
+      subVertical: row.sub_vertical || undefined,
+      whyThisMatters: analysis?.contrarian_analysis?.honest_take || `${row.company} secured ${formatM(parseInt(row.amount) || parseInt(row.amount_usd) || 0)} in ${row.stage || 'funding'}, making it the largest deal this period.`,
       buildPatterns: patterns,
       risk: analysis?.contrarian_analysis?.bull_case_flaw || 'Execution risk in a competitive market.',
       builderTakeaway: analysis?.builder_takeaways?.[0]?.insight || `Watch how ${row.company} scales its core technology advantage.`,
@@ -873,6 +1092,7 @@ export function makeBriefService(pool: Pool) {
     deltas: BriefSnapshotDeltas | null,
     revisionDeltas: BriefSnapshotDeltas | null,
     region: string,
+    verticalLandscape?: BriefVerticalLandscape,
   ): BuilderAction[] {
     const candidates: BuilderAction[] = [];
 
@@ -978,7 +1198,42 @@ export function makeBriefService(pool: Pool) {
     }
     candidates.push(...patternActions);
 
-    // 3. Delta-driven actions (up to 1)
+    // 3. Vertical-driven actions (up to 2)
+    const verticalActions: BuilderAction[] = [];
+    for (const v of (verticalLandscape?.topVerticals || [])) {
+      if (verticalActions.length >= 2) break;
+
+      const deltaPp = v.deltaPp || 0;
+      let actionText: string | null = null;
+      let rationale = '';
+
+      if (v.pctOfFunding >= 35) {
+        actionText = `Prioritize GTM depth in ${v.label} — it captured ${v.pctOfFunding}% of funding this period.`;
+        rationale = 'Funding concentration indicates where budgets and urgency are strongest right now.';
+      } else if (deltaPp >= 8) {
+        actionText = `${v.label} share jumped ${deltaPp}pp — validate positioning for that segment before incumbents reprice distribution.`;
+        rationale = 'Fast share gains usually precede crowded entry and rising customer acquisition costs.';
+      } else if (deltaPp <= -8) {
+        actionText = `${v.label} share fell ${Math.abs(deltaPp)}pp — stress-test demand assumptions before committing roadmap capacity.`;
+        rationale = 'Large negative share shifts can signal spending pullbacks or preference rotation.';
+      }
+
+      if (actionText) {
+        verticalActions.push({
+          action: actionText,
+          rationale,
+          refs: [{
+            refType: 'pattern',
+            refId: `vertical:${v.id}`,
+            label: v.label,
+            url: regionUrl(`/dealbook?verticalId=${encodeURIComponent(v.id)}`),
+          }],
+        });
+      }
+    }
+    candidates.push(...verticalActions);
+
+    // 4. Delta-driven actions (up to 1)
     if (deltas) {
       let deltaAction: BuilderAction | null = null;
       const fundingPct = deltas.totalFunding?.pct;
@@ -1030,6 +1285,7 @@ export function makeBriefService(pool: Pool) {
     deltas: BriefSnapshotDeltas | null,
     newsContext: BriefNewsContext | null,
     topSignals: SignalRef[],
+    verticalLandscape: BriefVerticalLandscape,
     periodLabel: string,
     revisionDeltas?: BriefSnapshotDeltas | null,
     draftActions?: BuilderAction[],
@@ -1048,11 +1304,11 @@ export function makeBriefService(pool: Pool) {
 
     if (!endpoint || !deployment) {
       console.log('Brief: LLM not configured, using template generation');
-      return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas, draftActions);
+      return generateTemplateSections(metrics, deltas, verticalLandscape, periodLabel, revisionDeltas, draftActions);
     }
 
     try {
-      const prompt = buildLLMPrompt(metrics, deltas, newsContext, topSignals, periodLabel, revisionDeltas, draftActions);
+      const prompt = buildLLMPrompt(metrics, deltas, newsContext, topSignals, verticalLandscape, periodLabel, revisionDeltas, draftActions);
 
       // Build request — try API key first, fall back to managed identity
       const apiKey = process.env.AZURE_OPENAI_API_KEY;
@@ -1070,7 +1326,7 @@ export function makeBriefService(pool: Pool) {
           headers['Authorization'] = `Bearer ${token.token}`;
         } catch {
           console.log('Brief: Cannot get Azure credential, using template generation');
-          return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas);
+          return generateTemplateSections(metrics, deltas, verticalLandscape, periodLabel, revisionDeltas, draftActions);
         }
       }
 
@@ -1092,13 +1348,13 @@ export function makeBriefService(pool: Pool) {
 
       if (!response.ok) {
         console.warn(`Brief: LLM call failed (${response.status}), using template`);
-        return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas, draftActions);
+        return generateTemplateSections(metrics, deltas, verticalLandscape, periodLabel, revisionDeltas, draftActions);
       }
 
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content;
       if (!content) {
-        return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas, draftActions);
+        return generateTemplateSections(metrics, deltas, verticalLandscape, periodLabel, revisionDeltas, draftActions);
       }
 
       const parsed = JSON.parse(content);
@@ -1130,7 +1386,7 @@ export function makeBriefService(pool: Pool) {
       };
     } catch (err) {
       console.warn('Brief: LLM generation error:', (err as Error).message);
-      return generateTemplateSections(metrics, deltas, periodLabel, revisionDeltas, draftActions);
+      return generateTemplateSections(metrics, deltas, verticalLandscape, periodLabel, revisionDeltas, draftActions);
     }
   }
 
@@ -1139,6 +1395,7 @@ export function makeBriefService(pool: Pool) {
     deltas: BriefSnapshotDeltas | null,
     newsContext: BriefNewsContext | null,
     topSignals: SignalRef[],
+    verticalLandscape: BriefVerticalLandscape,
     periodLabel: string,
     revisionDeltas?: BriefSnapshotDeltas | null,
     draftActions?: BuilderAction[],
@@ -1188,6 +1445,26 @@ Metrics:
       prompt += `\n(Reference these signals in executive_summary and builder_lessons where relevant.)`;
     }
 
+    if (verticalLandscape.topVerticals.length > 0) {
+      prompt += `\n\nVertical concentration (by funding):`;
+      verticalLandscape.topVerticals.slice(0, 5).forEach(v => {
+        const deltaSuffix = v.deltaPp && v.deltaPp !== 0
+          ? `, ${v.deltaPp > 0 ? '+' : ''}${v.deltaPp}pp vs prev`
+          : '';
+        prompt += `\n- ${v.label}: $${(v.totalFunding / 1_000_000).toFixed(0)}M (${v.pctOfFunding}% of funding, ${v.startupCount} startups${deltaSuffix})`;
+      });
+    }
+
+    if (verticalLandscape.topSubVerticals.length > 0) {
+      prompt += `\n\nTop sub-verticals (by funding):`;
+      verticalLandscape.topSubVerticals.slice(0, 5).forEach(sv => {
+        const deltaSuffix = sv.deltaPp && sv.deltaPp !== 0
+          ? `, ${sv.deltaPp > 0 ? '+' : ''}${sv.deltaPp}pp vs prev`
+          : '';
+        prompt += `\n- ${sv.label} (${sv.verticalLabel}): $${(sv.totalFunding / 1_000_000).toFixed(0)}M (${sv.pctOfFunding}%${deltaSuffix})`;
+      });
+    }
+
     if (draftActions && draftActions.length > 0) {
       prompt += `\n\nDraft builder actions (rewrite to be crisper, 18-22 words, imperative voice, preserve meaning):`;
       draftActions.forEach((a, i) => {
@@ -1222,6 +1499,7 @@ Rules:
   function generateTemplateSections(
     metrics: BriefSnapshotMetrics,
     deltas: BriefSnapshotDeltas | null,
+    verticalLandscape: BriefVerticalLandscape,
     periodLabel: string,
     revisionDeltas?: BriefSnapshotDeltas | null,
     draftActions?: BuilderAction[],
@@ -1262,7 +1540,8 @@ Rules:
     }
 
     const topPattern = metrics.topPatterns[0];
-    const executiveSummary = `${periodLabel} saw ${formatM(metrics.totalFunding)} deployed across ${metrics.dealCount} deals. The average deal size was ${formatM(metrics.avgDeal)}, with ${metrics.largestDeal.company} leading at ${formatM(metrics.largestDeal.amount)}. GenAI adoption stands at ${metrics.genaiAdoptionRate}%.${topPattern ? ` ${topPattern.pattern} remains the dominant build pattern at ${topPattern.prevalencePct}% prevalence.` : ''}`;
+    const topVertical = verticalLandscape.topVerticals[0];
+    const executiveSummary = `${periodLabel} saw ${formatM(metrics.totalFunding)} deployed across ${metrics.dealCount} deals. The average deal size was ${formatM(metrics.avgDeal)}, with ${metrics.largestDeal.company} leading at ${formatM(metrics.largestDeal.amount)}. GenAI adoption stands at ${metrics.genaiAdoptionRate}%.${topPattern ? ` ${topPattern.pattern} remains the dominant build pattern at ${topPattern.prevalencePct}% prevalence.` : ''}${topVertical ? ` ${topVertical.label} captured ${topVertical.pctOfFunding}% of funding.` : ''}`;
 
     const theme = {
       name: topPattern ? `The ${topPattern.pattern} Era` : 'AI Ecosystem Update',
@@ -1270,6 +1549,9 @@ Rules:
         `${metrics.dealCount} deals totaling ${formatM(metrics.totalFunding)} in funding`,
         `GenAI adoption at ${metrics.genaiAdoptionRate}% across analyzed startups`,
         topPattern ? `${topPattern.pattern} leads at ${topPattern.prevalencePct}% prevalence` : 'Diverse pattern adoption across the ecosystem',
+        topVertical
+          ? `${topVertical.label} leads sector funding with ${topVertical.pctOfFunding}% share${topVertical.deltaPp ? ` (${topVertical.deltaPp > 0 ? '+' : ''}${topVertical.deltaPp}pp vs prev)` : ''}`
+          : 'Sector funding remains broadly distributed',
         `Median deal size: ${formatM(metrics.medianDeal)}`,
       ],
     };
@@ -1416,6 +1698,7 @@ Rules:
       builderActions: Array.isArray(content.builder_actions) ? content.builder_actions : [],
 
       patternLandscape: computed.patternLandscape || [],
+      verticalLandscape: computed.verticalLandscape || { topVerticals: [], topSubVerticals: [] },
       fundingByStage: computed.fundingByStage || [],
       topDeals: computed.topDeals || [],
       geography: computed.geography || [],
@@ -1449,13 +1732,14 @@ Rules:
     );
 
     // 1. Compute all deterministic data in parallel
-    const [metrics, prevMetrics, topDeals, geography, investorsData, patternLandscape, spotlight, newsContext, signalResult] = await Promise.all([
+    const [metrics, prevMetrics, topDeals, geography, investorsData, patternLandscape, verticalLandscape, spotlight, newsContext, signalResult] = await Promise.all([
       computeMetrics(region, periodKey, periodType, periodStart, periodEnd),
       computeMetrics(region, bounds.prevPeriodKey, periodType, bounds.prevPeriodStart, bounds.prevPeriodEnd),
       computeTopDeals(region, periodKey),
       computeGeography(region, periodKey),
       computeInvestors(region, periodKey),
       computePatternLandscape(region, periodKey),
+      computeVerticalLandscape(region, periodKey, bounds.prevPeriodKey),
       computeSpotlight(region, periodKey),
       computeNewsContext(region, periodKey),
       selectTopSignals(region, periodKey),
@@ -1538,8 +1822,8 @@ Rules:
       client.release();
 
       // 4. Draft builder actions (deterministic), then generate LLM sections
-      const draftActions = draftBuilderActions(topSignals, patternLandscape, deltas, revisionDeltas, region);
-      const llmSections = await generateLLMSections(metrics, deltas, newsContext, topSignals, periodLabel, revisionDeltas, draftActions);
+      const draftActions = draftBuilderActions(topSignals, patternLandscape, deltas, revisionDeltas, region, verticalLandscape);
+      const llmSections = await generateLLMSections(metrics, deltas, newsContext, topSignals, verticalLandscape, periodLabel, revisionDeltas, draftActions);
 
       const contentSections = {
         title: `${periodLabel} Intelligence Brief`,
@@ -1562,6 +1846,7 @@ Rules:
         geography,
         investors: investorsData,
         patternLandscape,
+        verticalLandscape,
         fundingByStage,
         spotlight,
         newsContext,

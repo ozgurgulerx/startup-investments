@@ -1950,6 +1950,72 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  async function mergeAnonSignals(params: {
+    user_id: string;
+    anon_id: string;
+  }): Promise<{ merged_count: number; conflict_count: number; total_anon_rows: number }> {
+    const { user_id, anon_id } = params;
+    if (!user_id || !anon_id) {
+      return { merged_count: 0, conflict_count: 0, total_anon_rows: 0 };
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const totalResult = await client.query(
+        `SELECT COUNT(*)::int AS cnt
+         FROM news_item_signals
+         WHERE anon_id = $1`,
+        [anon_id],
+      );
+      const totalAnonRows = Number(totalResult.rows[0]?.cnt ?? 0);
+
+      if (totalAnonRows === 0) {
+        await client.query('COMMIT');
+        return { merged_count: 0, conflict_count: 0, total_anon_rows: 0 };
+      }
+
+      const mergeResult = await client.query(
+        `WITH merged AS (
+           UPDATE news_item_signals nis
+           SET user_id = $1::uuid,
+               anon_id = NULL
+           WHERE nis.anon_id = $2
+             AND NOT EXISTS (
+               SELECT 1
+               FROM news_item_signals existing
+               WHERE existing.cluster_id = nis.cluster_id
+                 AND existing.action_type = nis.action_type
+                 AND existing.user_id = $1::uuid
+             )
+           RETURNING nis.id
+         )
+         SELECT COUNT(*)::int AS merged_count
+         FROM merged`,
+        [user_id, anon_id],
+      );
+
+      const mergedCount = Number(mergeResult.rows[0]?.merged_count ?? 0);
+      const conflictCount = Math.max(0, totalAnonRows - mergedCount);
+
+      await client.query('COMMIT');
+      return {
+        merged_count: mergedCount,
+        conflict_count: conflictCount,
+        total_anon_rows: totalAnonRows,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (isMissingNewsSchemaError(error)) {
+        return { merged_count: 0, conflict_count: 0, total_anon_rows: 0 };
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async function getUserSignals(params: {
     cluster_ids: string[];
     user_id?: string;
@@ -1997,6 +2063,7 @@ export function makeNewsService(pool: Pool) {
     getCompanySignals,
     getCompanyTimeline,
     toggleSignal,
+    mergeAnonSignals,
     getUserSignals,
   };
 }

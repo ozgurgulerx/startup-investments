@@ -11,6 +11,16 @@ Goals:
 
 Last verified: 2026-02-13
 
+## Documentation Source of Truth
+
+Before changing deploy/ops/schedule behavior, read in this order:
+- `docs/OPERATING_MODEL.md` (canonical operating model)
+- `docs/CHANGE_CONTROL.md` (release/change checklist)
+- `infrastructure/vm-cron/crontab` (actual schedule)
+
+When cron schedules change, update docs in the same commit and run:
+- `./scripts/verify-operating-model.sh`
+
 ## Repo Map
 
 - `apps/web`: Next.js 14 App Router frontend (Azure App Service, Next standalone build).
@@ -39,6 +49,8 @@ Important headers/invariants:
 - API in production enforces auth:
   - `x-api-key` must match `API_KEY` for `/api/*` (except health and logo).
   - `x-admin-key` must match `ADMIN_KEY` for `/api/admin/*`.
+  - Watchlist intelligence endpoints (`/api/v1/subscriptions`, `/api/v1/alerts*`) also require
+    `x-user-id` (UUID) per request to scope results to a single user.
 - Health endpoints are intentionally public:
   - `/health`, `/healthz`, `/readyz` are not API-key protected.
   - `/health`, `/healthz`, `/readyz` include `build_sha` for release reconciliation.
@@ -55,6 +67,25 @@ Important headers/invariants:
 - News email subscriptions are **double opt-in**:
   - New signups are stored as `pending_confirmation` and must be activated via the emailed confirmation link.
   - Unsubscribe is token-based (`GET /api/news/subscriptions?token=...`); do not add raw email-based unsubscribe endpoints.
+- Web watchlist-intelligence API proxies must forward identity:
+  - `apps/web/app/api/subscriptions/route.ts` and `apps/web/app/api/alerts/**` resolve NextAuth session and pass
+    `X-User-Id` to backend; missing this causes 401s and empty watchlist intelligence UI.
+- News reaction identity precedence:
+  - `apps/web/app/api/news/signals/**` uses `user_id` when signed in; anonymous users use `ba_anon_id` cookie fallback.
+- Community feature migration + routing invariants:
+  - Migration `database/migrations/062_community_features.sql` introduces:
+    - `users.reputation_points`, `users.trust_level`
+    - `signal_thread_posts`, `signal_thread_votes`
+    - `signal_polls`, `signal_poll_votes`
+    - `shared_watchlists`, `shared_watchlist_members`, `shared_watchlist_items`
+    - `user_notification_preferences`
+  - VM migration runner must include `062_community_features.sql` in both `news` and `startups` sets
+    (`infrastructure/vm-cron/jobs/apply-migrations.sh`) so community features are available regardless
+    of which periodic pipeline applies migrations first.
+  - Community UI surface is the Signal Deep Dive `Community` tab:
+    - `apps/web/app/(app)/signals/[id]/community-tab.tsx`
+  - Notification hygiene preferences are enforced at web API boundary in:
+    - `apps/web/app/api/alerts/route.ts` (filters muted delta types and low-severity alerts).
 
 ## CI/CD Workflows (Source of Truth)
 
@@ -68,6 +99,7 @@ VM cron runner:
 - One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
+  - `crawl-frontier` runs every 30 minutes with a **40 minute** runner timeout (`runner.sh crawl-frontier 40 ...`) to avoid recurring timeout kills during large frontier seeding windows.
   - Daily `slack-summary` now includes subscription lifecycle metrics (created/confirmed/unsubscribed in 24h),
     segment breakdown (`region` × `digest_frequency`), masked newly-confirmed subscriber emails, and digest
     delivery totals by region.
@@ -78,6 +110,7 @@ VM cron runner:
     - `METRICS_REPORT_EMAIL_FROM` overrides sender (defaults to `NEWS_DIGEST_FROM_EMAIL`).
     - `METRICS_REPORT_EMAIL_SUBJECT_PREFIX` prepends email subject.
     - Delivery is best-effort: Slack summary still posts if email send fails.
+  - Schedule: `slack-summary` runs every 3 hours at minute `:00` UTC (`0 */3 * * *`).
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
 - VM access (for manual deploy/debug):
@@ -92,14 +125,14 @@ VM cron runner:
 - Slack notifications:
   - Set `SLACK_WEBHOOK_URL` (or legacy `SLACK_WEBHOOK`) in `/etc/buildatlas/.env`.
   - Optional success notifications for selected jobs via `SLACK_NOTIFY_SUCCESS_JOBS` (see `infrastructure/vm-cron/.env.example`). In production we typically keep this as a high-signal subset (often excluding `keep-alive` / `crawl-frontier`) to avoid spam; add them if you want “continuous” Slack pings.
-  - Optional start notifications via `SLACK_NOTIFY_START_JOBS` (default: `frontend-deploy,backend-deploy,sync-data,code-update,news-digest`).
+  - Optional start notifications via `SLACK_NOTIFY_START_JOBS` (default: `frontend-deploy,backend-deploy,functions-deploy,sync-data,code-update,news-digest`).
   - Runner sends structured context (`event_type`, `phase`, `run_id`, `job`, `sha`, `duration_sec`, `exit_code`, `log`) in `SLACK_CONTEXT_JSON`.
-  - GitHub push notifications:
-    - Each push to `main` posts a Slack message via `.github/workflows/slack-commit-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
-    - Opt-out per commit: include `[skip slack]` (or `[no-slack]`) in the commit message.
-  - VM fallback when GitHub Actions is blocked:
+  - Commit notifications (primary path):
     - VM cron job `slack-commit-notify` (see `infrastructure/vm-cron/jobs/slack-commit-notify.sh`) polls `origin/main` and posts Slack notifications.
     - Cursor file is stored under `/var/lib/buildatlas/slack-commit-notify.main.last` (or `$REPO_DIR/.tmp` fallback).
+  - GitHub Actions backup:
+    - `.github/workflows/slack-commit-notify.yml` is manual backup only (`workflow_dispatch`).
+    - Opt-out per commit: include `[skip slack]` (or `[no-slack]`) in the commit message.
   - If you **don't** want Slack webhooks on the VM, `scripts/slack_notify.py` can fall back to GitHub `repository_dispatch`:
     - Requires `GITHUB_TOKEN` + `GITHUB_REPOSITORY` on the VM.
     - GitHub workflow handler: `.github/workflows/vm-cron-slack-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
@@ -128,6 +161,12 @@ Backend:
     - Missing secrets (`ADMIN_KEY`, etc).
     - AKS control plane unreachable if the cluster is stopped.
 
+Functions:
+- `.github/workflows/functions-deploy.yml`
+  - Manual backup only (`workflow_dispatch`).
+  - VM fallback job: `infrastructure/vm-cron/jobs/functions-deploy.sh` (zip deploy + health check).
+  - Auto-triggered by VM `code-update` when `infrastructure/azure-functions/**` or `packages/analysis/**` changes.
+
 Uptime automation:
 - `.github/workflows/keep-aks-running.yml`
   - Intent: keep Postgres + AKS running, then verify API health.
@@ -144,6 +183,37 @@ News:
   - `infrastructure/vm-cron/jobs/news-ingest.sh`
   - `infrastructure/vm-cron/jobs/news-digest.sh`
   - `news-digest.sh` now posts per-run delivery totals to Slack (`sent/skipped/failed` for global+turkey).
+- X/Twitter trend + posting automation:
+  - Migration: `database/migrations/061_x_social_automation.sql`
+  - Trend sources are now first-class in news ingest:
+    - `x_recent_search_global`
+    - `x_recent_search_turkey`
+  - Runtime modules:
+    - `packages/analysis/src/automation/x_client.py` (X API search/post/metrics)
+    - `packages/analysis/src/automation/x_trends.py` (query-pack based trend fetch)
+    - `packages/analysis/src/automation/x_posting.py` (queue + publish + metrics sync)
+  - CLI commands:
+    - `python main.py ingest-x-trends --lookback-hours 24`
+    - `python main.py generate-x-posts --region all --max-items 6`
+    - `python main.py publish-x-posts --max-items 5`
+    - `python main.py sync-x-post-metrics --days-back 7 --max-posts 100`
+  - VM jobs:
+    - `infrastructure/vm-cron/jobs/x-trends.sh`
+    - `infrastructure/vm-cron/jobs/x-post-generate.sh`
+    - `infrastructure/vm-cron/jobs/x-post-publish.sh`
+    - `infrastructure/vm-cron/jobs/x-post-metrics.sh`
+  - Safety invariants:
+    - Set `X_POSTING_ENABLED=true` only after credentials + dry-runs are validated.
+    - Posting pipeline enforces daily cap (`X_MAX_POSTS_PER_DAY`) and spacing (`X_MIN_POST_INTERVAL_MINUTES`).
+    - Queue dedupe key prevents repeated posting of the same cluster/link.
+- Signal deep dives:
+  - Migration: `database/migrations/050_signal_deep_dives.sql`
+  - VM job: `infrastructure/vm-cron/jobs/deep-dive-generate.sh` (runs daily at `05:15 UTC` via cron).
+  - Deployment invariant:
+    - `050_signal_deep_dives.sql` must be included in VM migration sets used by news pipelines (`news`, `news-digest`) in `infrastructure/vm-cron/jobs/apply-migrations.sh`.
+    - `deep-dive-generate.sh` runs migration preflight (`apply-migrations.sh news`) before computing occurrences/generating deep dives.
+  - Runtime degradation behavior:
+    - If deep-dive tables are unavailable, backend deep-dive endpoints should return empty payloads (not crash) so `/signals/[id]` can show "No deep dive available yet" instead of failing hard.
 - Daily brief + LLM enrichment (news):
   - Controlled by `NEWS_LLM_ENRICHMENT=true` (and optional `NEWS_LLM_DAILY_BRIEF=true`) in `/etc/buildatlas/.env`.
   - "Why It Matters" under each news story card comes from `news_clusters.builder_takeaway` (server-fetched via backend `/api/v1/news`). If `builder_takeaway` is empty/NULL, the UI will not render that block.
@@ -224,6 +294,11 @@ Backend API support:
 - Dealbook list endpoint supports both:
   - `vertical` (legacy exact-match, normalized)
   - `verticalId`, `subVerticalId`, `leafId` (taxonomy IDs; pulled from `analysis_data.vertical_taxonomy.primary.*`)
+- Brief snapshot generation (`apps/api/src/services/brief.ts`) now includes taxonomy-derived vertical context:
+  - `verticalLandscape.topVerticals` and `verticalLandscape.topSubVerticals` (funding/deal/startup mix)
+  - Each landscape item can include `prevPctOfFunding` and `deltaPp` (vs previous period)
+  - `topDeals[*].vertical/subVertical` and `spotlight.vertical/subVertical` for brief UI labeling
+  - Brief UI (`apps/web/components/features/intelligence-brief.tsx`) renders a vertical section with links into taxonomy filters and representative deals/signals cards.
 
 Materialization step (required for DB-driven filters):
 - The analysis pipeline writes JSON files under `apps/web/data/<period>/output/analysis_store/base_analyses/*.json`.
@@ -239,6 +314,65 @@ Quick verification (run on the DB):
   - `SELECT COUNT(*) FROM startups WHERE analysis_data->'vertical_taxonomy' IS NOT NULL;`
 - Spot-check a company:
   - `SELECT slug, analysis_data->'vertical_taxonomy' FROM startups WHERE slug = '<slug>';`
+
+## Capital Graph (Investors + Founders)
+
+New schema (migration set: `startups` + `benchmarks`):
+- `database/migrations/059_capital_graph_founders.sql`
+  - `founders`, `founder_aliases`, `startup_founders`, `investor_aliases`, `capital_graph_edges`
+  - Materialized views:
+    - `mv_investor_portfolio_current`
+    - `mv_startup_investors_current`
+  - Refresh function: `SELECT refresh_capital_graph_views();`
+- `database/migrations/060_graph_extension_optional.sql`
+  - Attempts `CREATE EXTENSION age`; continues safely if unavailable.
+
+Storage model/invariants:
+- Entities are canonical (`investors`, `founders`) with alias tables for identity resolution.
+- Graph edges live in `capital_graph_edges` with region partition (`global`/`turkey`), provenance (`source`, `source_ref`, `created_by`), and date validity (`valid_from`, `valid_to`).
+- Active edges are represented by `valid_to='9999-12-31'`.
+- Graph extension is optional; SQL edge tables are the production fallback.
+
+Backend API (new):
+- Public:
+  - `GET /api/v1/investors/:id/network`
+  - `GET /api/v1/startups/:id/investors`
+  - `GET /api/v1/startups/:id/founders`
+  - `GET /api/v1/founders/:id`
+- Admin (`x-admin-key` required):
+  - `POST /api/admin/v1/investors/upsert`
+  - `POST /api/admin/v1/founders/upsert`
+  - `POST /api/admin/v1/graph-edges/upsert`
+  - `POST /api/admin/v1/graph-edges/bulk`
+
+Manual curation workflow:
+- CLI sync script: `scripts/sync-capital-graph-to-db.py`
+  - Supports CSV ingestion for investors/founders/edges/startup-founder links.
+  - Flags: `--investors-csv`, `--founders-csv`, `--edges-csv`, `--startup-founders-csv`, `--region`, `--refresh-views`, `--dry-run`.
+  - Uses direct Postgres upserts and alias-based resolution for non-UUID keys.
+- XLSX bootstrap helper (startups.watch):
+  - `scripts/extract-startups-watch-founders.py --xlsx <path> --region turkey|global|all --out-dir <dir>`
+  - Outputs:
+    - `founders.csv`
+    - `edges.csv` (`founder --FOUNDED--> startup`)
+    - `startup_founders.csv`
+
+Automated news-driven updates (active):
+- `packages/analysis/src/automation/news_ingest.py` now syncs graph edges during event extraction.
+- Funding events with `lead_investor` are mapped into:
+  - Investor upsert (stub investor if missing, type=`unknown`).
+  - `capital_graph_edges` edge: `investor --LEADS_ROUND--> startup` (region-aware, source=`news_event`).
+- Materialized views refresh automatically once per ingest run when new graph edges are upserted.
+- Feature flag: set `NEWS_GRAPH_SYNC_ENABLED=false` to disable graph sync without disabling news ingest.
+
+Quick checks:
+- Graph tables exist:
+  - `SELECT to_regclass('public.capital_graph_edges'), to_regclass('public.founders'), to_regclass('public.startup_founders');`
+- Materialized views populated:
+  - `SELECT COUNT(*) FROM mv_investor_portfolio_current;`
+  - `SELECT COUNT(*) FROM mv_startup_investors_current;`
+- Extension status (optional):
+  - `SELECT extname FROM pg_extension WHERE extname='age';`
 
 ### News Regions (Global vs Turkey)
 
@@ -338,6 +472,19 @@ Operational notes:
 - If you rotate `API_KEY`/`ADMIN_KEY`, you must update both:
   - GitHub secrets (for workflows)
   - AKS secret (via backend deploy) and/or App Service settings (web)
+- X/Twitter automation secrets/env (VM):
+  - Required for trend ingest: `X_API_BEARER_TOKEN`
+  - Required for posting: `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
+  - Feature gates / guardrails:
+    - `X_TRENDS_ENABLED`
+    - `X_POSTING_ENABLED`
+    - `X_MAX_POSTS_PER_DAY`
+    - `X_MIN_POST_INTERVAL_MINUTES`
+    - `X_POST_MAX_ATTEMPTS`
+    - `X_POST_DEDUPE_DAYS`
+  - Optional tuning:
+    - `X_TRENDS_QUERY_PACK` (JSON string or file path with `global`/`turkey` queries)
+    - `X_TRENDS_MAX_QUERIES_PER_RUN`, `X_TRENDS_MAX_PAGES_PER_QUERY`, `X_TRENDS_PAGE_SIZE`
 
 ## Regions & Datasets (Global vs Turkey)
 

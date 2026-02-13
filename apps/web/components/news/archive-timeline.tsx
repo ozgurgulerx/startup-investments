@@ -13,20 +13,20 @@ interface ArchiveTimelineProps {
   hrefPrefix?: string;
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, locale: string): string {
   const parsed = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('en-US', {
+  return parsed.toLocaleDateString(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   });
 }
 
-function formatMonthHeader(yearMonth: string): string {
+function formatMonthHeader(yearMonth: string, locale: string): string {
   const [year, month] = yearMonth.split('-');
   const date = new Date(Number(year), Number(month) - 1, 1);
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return date.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
 }
 
 function storyTypeDot(type: string): string {
@@ -38,9 +38,14 @@ function storyTypeDot(type: string): string {
   return 'bg-muted-foreground/40';
 }
 
-function storyTypeLabel(type: string): string {
+function storyTypeLabel(type: string, region: 'global' | 'turkey'): string {
   const t = (type || '').toLowerCase();
-  if (t === 'mna') return 'M&A';
+  if (t === 'mna') return region === 'turkey' ? 'Satinalma' : 'M&A';
+  if (region === 'turkey') {
+    if (t === 'funding') return 'Yatirim';
+    if (t === 'regulation') return 'Regulasyon';
+    if (t === 'launch') return 'Lansman';
+  }
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
@@ -60,6 +65,27 @@ export function ArchiveTimeline({
   region = 'global',
   hrefPrefix = '/news',
 }: ArchiveTimelineProps) {
+  const isTR = region === 'turkey';
+  const locale = isTR ? 'tr-TR' : 'en-US';
+  const l = isTR
+    ? {
+      noPastEditions: 'Henuz gecmis baski yok.',
+      edition: 'baski',
+      editions: 'baski',
+      signals: 'sinyal',
+      top: 'ust',
+      loading: 'Yukleniyor...',
+      loadOlder: 'Daha eski baskilari yukle',
+    }
+    : {
+      noPastEditions: 'No past editions available yet.',
+      edition: 'edition',
+      editions: 'editions',
+      signals: 'signals',
+      top: 'top',
+      loading: 'Loading...',
+      loadOlder: 'Load Older Editions',
+    };
   const [items, setItems] = useState<NewsArchiveDay[]>(initialItems);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialItems.length >= pageSize);
@@ -86,7 +112,7 @@ export function ArchiveTimeline({
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-border/40 bg-card/60 px-6 py-16 text-center">
         <Calendar className="mb-3 h-8 w-8 text-muted-foreground/40" />
-        <p className="text-sm text-muted-foreground">No past editions available yet.</p>
+        <p className="text-sm text-muted-foreground">{l.noPastEditions}</p>
       </div>
     );
   }
@@ -98,11 +124,11 @@ export function ArchiveTimeline({
           {/* Month header */}
           <div className="mb-3 flex items-center gap-3">
             <h2 className="text-sm font-medium tracking-tight text-foreground">
-              {formatMonthHeader(group.month)}
+              {formatMonthHeader(group.month, locale)}
             </h2>
             <div className="h-px flex-1 bg-border/30" />
             <span className="text-[10px] text-muted-foreground/60 tabular-nums">
-              {group.entries.length} {group.entries.length === 1 ? 'edition' : 'editions'}
+              {group.entries.length} {group.entries.length === 1 ? l.edition : l.editions}
             </span>
           </div>
 
@@ -130,10 +156,10 @@ export function ArchiveTimeline({
                     {/* Top row: date + stats */}
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-medium text-foreground group-hover:text-accent-info transition-colors">
-                        {formatDate(entry.edition_date)}
+                        {formatDate(entry.edition_date, locale)}
                       </span>
                       <span className="text-[10px] text-muted-foreground/60 tabular-nums">
-                        {entry.total_clusters} signals · {entry.top_story_count} top
+                        {entry.total_clusters} {l.signals} · {entry.top_story_count} {l.top}
                       </span>
                     </div>
 
@@ -165,7 +191,7 @@ export function ArchiveTimeline({
                               <span key={type} className="flex items-center gap-1">
                                 <span className={`h-1.5 w-1.5 rounded-full ${storyTypeDot(type)}`} />
                                 <span className="text-[10px] text-muted-foreground/60">
-                                  {storyTypeLabel(type)}
+                                  {storyTypeLabel(type, region)}
                                 </span>
                               </span>
                             ))}
@@ -190,17 +216,17 @@ export function ArchiveTimeline({
             disabled={loadingMore}
             className="inline-flex items-center gap-2 rounded-lg border border-border/50 px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:border-accent-info/35 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loadingMore ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-3 w-3" />
-                Load Older Editions
-              </>
-            )}
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {l.loading}
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3" />
+                    {l.loadOlder}
+                  </>
+                )}
           </button>
         </div>
       ) : null}

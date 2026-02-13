@@ -9,6 +9,24 @@ interface HowItWorksTabProps {
 }
 
 export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
+  const isTR = signal.region === 'turkey';
+  const l = isTR
+    ? {
+      measures: 'Bu sinyal neyi olcer',
+      whyMatters: 'Neden onemli',
+      thresholds: 'Aksiyon Esikleri',
+      archetypes: 'Arketipler',
+      risk: 'Risk',
+      timeHorizon: 'Zaman ufku',
+    }
+    : {
+      measures: 'What This Signal Measures',
+      whyMatters: 'Why It Matters',
+      thresholds: 'Action Thresholds',
+      archetypes: 'Archetypes',
+      risk: 'Risk',
+      timeHorizon: 'Time horizon',
+    };
   return (
     <div className="space-y-8 max-w-3xl">
       {/* Mechanism */}
@@ -17,7 +35,7 @@ export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
           <div className="flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground/60 font-medium">
-              What This Signal Measures
+              {l.measures}
             </h3>
           </div>
           <div className="text-sm text-foreground/90 leading-relaxed whitespace-pre-line">
@@ -32,7 +50,7 @@ export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
           <div className="flex items-center gap-2">
             <Target className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground/60 font-medium">
-              Why It Matters
+              {l.whyMatters}
             </h3>
           </div>
           <p className="text-sm text-foreground/90 leading-relaxed">
@@ -47,7 +65,7 @@ export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
           <div className="flex items-center gap-2">
             <Gauge className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground/60 font-medium">
-              Action Thresholds
+              {l.thresholds}
             </h3>
           </div>
           <div className="space-y-2">
@@ -79,7 +97,7 @@ export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
       {content.patterns && content.patterns.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-xs uppercase tracking-wider text-muted-foreground/60 font-medium">
-            Archetypes
+            {l.archetypes}
           </h3>
           <div className="space-y-3">
             {content.patterns.map((pattern, i) => (
@@ -118,7 +136,7 @@ export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground/60 font-medium">
-              Risk
+              {l.risk}
             </h3>
           </div>
           <p className="text-sm text-foreground/90 leading-relaxed">
@@ -126,7 +144,7 @@ export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
           </p>
           {signal.explain.time_horizon && (
             <p className="text-xs text-muted-foreground">
-              Time horizon: {signal.explain.time_horizon}
+              {l.timeHorizon}: {signal.explain.time_horizon}
             </p>
           )}
         </section>

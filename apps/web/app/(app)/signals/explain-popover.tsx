@@ -6,15 +6,39 @@ import type { SignalExplain } from '@/lib/api/client';
 
 interface ExplainPopoverProps {
   explain: SignalExplain;
+  region?: 'global' | 'turkey';
 }
 
-export function ExplainPopover({ explain }: ExplainPopoverProps) {
+export function ExplainPopover({ explain, region = 'global' }: ExplainPopoverProps) {
+  const l = region === 'turkey'
+    ? {
+      trigger: 'Sinyal aciklamasi',
+      title: 'Sinyal Aciklamasi',
+      whatMeans: 'Ne anlatir',
+      whyMatters: 'Neden onemli',
+      examples: 'Tipik ornekler',
+      whereSeen: 'Nerede gorduk',
+      horizon: 'Ufuk',
+      risk: 'Risk',
+      close: 'Kapat',
+    }
+    : {
+      trigger: 'Signal explanation',
+      title: 'Signal Explained',
+      whatMeans: 'What this means',
+      whyMatters: 'Why it matters',
+      examples: 'Typical examples',
+      whereSeen: 'Where we saw it',
+      horizon: 'Horizon',
+      risk: 'Risk',
+      close: 'Close',
+    };
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
         <button
           className="p-1 rounded hover:bg-muted/30 transition-colors"
-          aria-label="Signal explanation"
+          aria-label={l.trigger}
         >
           <Info className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" />
         </button>
@@ -29,10 +53,10 @@ export function ExplainPopover({ explain }: ExplainPopoverProps) {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">
-              Signal Explained
+              {l.title}
             </span>
             <Popover.Close asChild>
-              <button className="p-0.5 rounded hover:bg-muted/30" aria-label="Close">
+              <button className="p-0.5 rounded hover:bg-muted/30" aria-label={l.close}>
                 <X className="w-3.5 h-3.5 text-muted-foreground/40" />
               </button>
             </Popover.Close>
@@ -42,7 +66,7 @@ export function ExplainPopover({ explain }: ExplainPopoverProps) {
             {/* What this means */}
             <div>
               <span className="text-[10px] font-medium text-accent-info uppercase tracking-wider">
-                What this means
+                {l.whatMeans}
               </span>
               <p className="text-xs text-foreground/80 mt-1 leading-relaxed">
                 {explain.definition}
@@ -52,7 +76,7 @@ export function ExplainPopover({ explain }: ExplainPopoverProps) {
             {/* Why it matters */}
             <div>
               <span className="text-[10px] font-medium text-accent-info uppercase tracking-wider">
-                Why it matters
+                {l.whyMatters}
               </span>
               <p className="text-xs text-foreground/80 mt-1 leading-relaxed">
                 {explain.why}
@@ -63,7 +87,7 @@ export function ExplainPopover({ explain }: ExplainPopoverProps) {
             {explain.examples.length > 0 && (
               <div>
                 <span className="text-[10px] font-medium text-accent-info uppercase tracking-wider">
-                  Typical examples
+                  {l.examples}
                 </span>
                 <ul className="mt-1 space-y-0.5">
                   {explain.examples.slice(0, 3).map((ex, i) => (
@@ -80,7 +104,7 @@ export function ExplainPopover({ explain }: ExplainPopoverProps) {
             {explain.top_evidence.length > 0 && (
               <div>
                 <span className="text-[10px] font-medium text-accent-info uppercase tracking-wider">
-                  Where we saw it
+                  {l.whereSeen}
                 </span>
                 <div className="mt-1 space-y-1.5">
                   {explain.top_evidence.slice(0, 3).map((ev, i) => (
@@ -101,10 +125,10 @@ export function ExplainPopover({ explain }: ExplainPopoverProps) {
             {(explain.risk || explain.time_horizon) && (
               <div className="pt-2 border-t border-border/20 flex items-center gap-3 text-[10px] text-muted-foreground/60">
                 {explain.time_horizon && (
-                  <span>Horizon: {explain.time_horizon}</span>
+                  <span>{l.horizon}: {explain.time_horizon}</span>
                 )}
                 {explain.risk && (
-                  <span className="line-clamp-1">Risk: {explain.risk}</span>
+                  <span className="line-clamp-1">{l.risk}: {explain.risk}</span>
                 )}
               </div>
             )}

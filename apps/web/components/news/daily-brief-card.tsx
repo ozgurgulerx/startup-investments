@@ -17,6 +17,25 @@ const PEEK_HEIGHT = 40;
 
 export function DailyBriefCard({ brief, onDismiss, region = 'global' }: DailyBriefCardProps) {
   const isTR = region === 'turkey';
+  const l = isTR
+    ? {
+      todayBriefing: "Gunun Ozeti",
+      highlights: 'one cikan',
+      updated: 'Guncellendi',
+      minimize: 'Ozeti kucult',
+      dismiss: 'Ozeti kapat',
+      showLess: 'Daha az goster',
+      readMore: 'Devamını oku',
+    }
+    : {
+      todayBriefing: "Today's Briefing",
+      highlights: 'highlights',
+      updated: 'Updated',
+      minimize: 'Minimize briefing',
+      dismiss: 'Dismiss briefing',
+      showLess: 'Show less',
+      readMore: 'Read more',
+    };
   const [expanded, setExpanded] = useState(false);
   const [autoMinimized, setAutoMinimized] = useState(false);
   const [userExpanded, setUserExpanded] = useState(false);
@@ -103,7 +122,7 @@ export function DailyBriefCard({ brief, onDismiss, region = 'global' }: DailyBri
       >
         <div className="flex items-center gap-3 min-w-0">
           <p className="label-xs text-accent-info flex-shrink-0 whitespace-nowrap">
-            {isTR ? 'Günün Özeti' : 'Today\u0027s Briefing'}
+            {l.todayBriefing}
           </p>
           {isMinimized ? (
             <p className="truncate text-sm font-light text-foreground/60">
@@ -111,9 +130,9 @@ export function DailyBriefCard({ brief, onDismiss, region = 'global' }: DailyBri
             </p>
           ) : (updatedTime || brief.cluster_count) ? (
             <p className="text-[10px] text-muted-foreground/60">
-              {brief.cluster_count ? `${brief.cluster_count} ${isTR ? 'öne çıkan' : 'highlights'}` : null}
+              {brief.cluster_count ? `${brief.cluster_count} ${l.highlights}` : null}
               {brief.cluster_count && updatedTime ? ' · ' : null}
-              {updatedTime ? `${isTR ? 'Güncellendi' : 'Updated'} ${updatedTime}` : null}
+              {updatedTime ? `${l.updated} ${updatedTime}` : null}
             </p>
           ) : null}
         </div>
@@ -121,7 +140,7 @@ export function DailyBriefCard({ brief, onDismiss, region = 'global' }: DailyBri
         <div className="flex items-center gap-2 flex-shrink-0">
           {isMinimized && brief.cluster_count ? (
             <span className="hidden sm:inline text-[10px] text-muted-foreground/60">
-              {brief.cluster_count} {isTR ? 'öne çıkan' : 'highlights'}
+              {brief.cluster_count} {l.highlights}
             </span>
           ) : null}
           {isMinimized ? (
@@ -131,7 +150,7 @@ export function DailyBriefCard({ brief, onDismiss, region = 'global' }: DailyBri
             <button
               onClick={(e) => { e.stopPropagation(); handleMinimize(); }}
               className="rounded p-0.5 text-muted-foreground/40 transition-colors hover:text-muted-foreground"
-              aria-label="Minimize briefing"
+              aria-label={l.minimize}
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
@@ -139,7 +158,7 @@ export function DailyBriefCard({ brief, onDismiss, region = 'global' }: DailyBri
           <button
             onClick={(e) => { e.stopPropagation(); onDismiss(); }}
             className="rounded p-0.5 text-muted-foreground/40 transition-colors hover:text-muted-foreground"
-            aria-label="Dismiss briefing"
+            aria-label={l.dismiss}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -192,9 +211,9 @@ export function DailyBriefCard({ brief, onDismiss, region = 'global' }: DailyBri
               className="flex flex-shrink-0 items-center gap-1 text-[11px] text-accent-info/70 transition-colors hover:text-accent-info"
             >
               {expanded ? (
-                <>{isTR ? 'Daha az göster' : 'Show less'} <ChevronUp className="h-3 w-3" /></>
+                <>{l.showLess} <ChevronUp className="h-3 w-3" /></>
               ) : (
-                <>{isTR ? 'Devamını oku' : 'Read more'} <ChevronDown className="h-3 w-3" /></>
+                <>{l.readMore} <ChevronDown className="h-3 w-3" /></>
               )}
             </button>
           ) : null}

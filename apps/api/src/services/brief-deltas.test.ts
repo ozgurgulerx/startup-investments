@@ -453,6 +453,10 @@ describe('validateBriefSnapshot', () => {
         refs: [{ refType: 'signal', refId: 'c-1', label: 'Test', url: '/news?story=c-1' }],
       }],
       patternLandscape: [{ pattern: 'RAG', prevalencePct: 50, startupCount: 15, signal: 'Dominant' }],
+      verticalLandscape: {
+        topVerticals: [{ id: 'ai_infra', label: 'AI Infrastructure', startupCount: 8, dealCount: 10, totalFunding: 45_000_000, pctOfFunding: 45, prevPctOfFunding: 36, deltaPp: 9 }],
+        topSubVerticals: [{ id: 'llm_platforms', label: 'LLM Platforms', verticalId: 'ai_infra', verticalLabel: 'AI Infrastructure', startupCount: 5, dealCount: 6, totalFunding: 28_000_000, pctOfFunding: 28, prevPctOfFunding: 18, deltaPp: 10 }],
+      },
       fundingByStage: [{ stage: 'Seed', amount: 20_000_000, pct: 20, deals: 25 }],
       topDeals: [{ rank: 1, company: 'Test', slug: 'test', amount: 20_000_000, stage: 'Series A', location: 'US' }],
       geography: [{ region: 'North America', deals: 30, totalFunding: 60_000_000, avgDeal: 2_000_000 }],

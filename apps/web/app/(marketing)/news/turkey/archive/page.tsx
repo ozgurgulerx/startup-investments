@@ -15,18 +15,18 @@ export default async function TurkeyNewsArchivePage() {
       <div className="mx-auto w-full max-w-3xl px-6 py-8">
         {/* Header */}
         <div className="mb-8">
-          <p className="label-xs text-accent-info">Daily Editions</p>
-          <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">Archive</h1>
+          <p className="label-xs text-accent-info">Gunluk Baskilar</p>
+          <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">Arsiv</h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground leading-relaxed">
-            Browse past Turkey daily editions to see how the local startup ecosystem evolved.
-            Each entry links to the full edition with all stories and analysis.
+            Yerel girisim ekosisteminin nasil degistigini gormek icin gecmis Turkiye gunluk baskilarina goz atin.
+            Her kayit, tum haber ve analizleri iceren tam baskiya baglanir.
           </p>
           <div className="mt-4">
             <Link
               href="/news/turkey"
               className="inline-flex items-center gap-1 text-sm text-accent-info hover:text-accent-info/80 transition-colors"
             >
-              Back to live feed
+              Canli akisa don
             </Link>
           </div>
         </div>

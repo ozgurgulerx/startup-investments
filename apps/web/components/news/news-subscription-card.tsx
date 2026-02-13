@@ -9,6 +9,7 @@ interface NewsSubscriptionCardProps {
 }
 
 export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubscriptionCardProps) {
+  const isTR = region === 'turkey';
   const [email, setEmail] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState('');
   const [builderFocus, setBuilderFocus] = useState(true);
@@ -65,7 +66,7 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
       setSubscribedBoth(includeOtherRegion);
       setSubmittedEmail(email);
       setStatus(body.already_confirmed ? 'already' : 'done');
-      setMessage(body.message || 'Check your inbox to confirm');
+      setMessage(body.message || l.checkInbox);
       setEmail('');
     } catch (error) {
       setStatus('error');
@@ -75,38 +76,71 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
 
   const regionLabel = region === 'turkey' ? 'Turkey' : 'Global';
   const otherRegionLabel = region === 'turkey' ? 'Global' : 'Turkey';
+  const l = region === 'turkey'
+    ? {
+      checkInbox: 'Onay icin e-postanizi kontrol edin',
+      sentConfirm: 'onay linki gonderildi.',
+      clickActivate: 'Tiklarsaniz su bulten aktif olur',
+      separateEmails: 'Her bulten icin ayri onay e-postasi alacaksiniz.',
+      didNotReceive: 'Gelmedi mi? Spam kutusunu kontrol edin veya',
+      tryAgain: 'tekrar deneyin',
+      alreadySubscribed: 'Zaten abonesiniz',
+      alreadyReceiving: 'adresi su bulteni zaten aliyor',
+      title: 'En yuksek etkili sinyalleri alin',
+      subtitle: 'Her gun, kaynaklar arasi dogrulama ve kisa bir ozetle siralanmis bulten gondeririz.',
+      subscribe: 'Abone ol',
+      subscribing: 'Abone olunuyor...',
+      prioritizeBuilder: 'Bultende urun odakli cikarsamalari one cikar',
+      includeOtherRegion: 'Ayrica Global girisim bultenini al',
+    }
+    : {
+      checkInbox: 'Check your inbox to confirm',
+      sentConfirm: 'We sent a confirmation link to',
+      clickActivate: 'Click it to activate your',
+      separateEmails: "You'll receive separate confirmation emails for each digest.",
+      didNotReceive: "Didn't receive it? Check your spam folder or",
+      tryAgain: 'try again',
+      alreadySubscribed: "You're already subscribed",
+      alreadyReceiving: 'is already receiving the',
+      title: 'Get top signals ranked by impact',
+      subtitle: 'Each day we send a ranked digest with cross-source corroboration and a short takeaway.',
+      subscribe: 'Subscribe',
+      subscribing: 'Subscribing...',
+      prioritizeBuilder: 'Prioritize builder-focused takeaways in digest',
+      includeOtherRegion: 'Include Turkey ecosystem signals',
+    };
 
   // Show confirmation success state
   if (status === 'done') {
     const digestLabel = subscribedBoth
-      ? `${regionLabel} + ${otherRegionLabel} Signal Feed digests`
-      : `${regionLabel} Signal Feed digest`;
+      ? `${regionLabel} + ${otherRegionLabel} ${isTR ? 'Sinyal Akisi bultenleri' : 'Signal Feed digests'}`
+      : `${regionLabel} ${isTR ? 'Sinyal Akisi bulteni' : 'Signal Feed digest'}`;
 
     return (
       <section className={`rounded-2xl border border-success/25 bg-gradient-to-br from-success/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
         <div className="flex items-start gap-3">
           <Mail className="mt-0.5 h-5 w-5 text-success shrink-0" />
           <div>
-            <h3 className="text-base font-medium tracking-tight text-foreground">Check your inbox to confirm</h3>
+            <h3 className="text-base font-medium tracking-tight text-foreground">{l.checkInbox}</h3>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              We sent a confirmation link to <span className="text-foreground">{submittedEmail}</span>. Click it to activate your {digestLabel}.
+              {l.sentConfirm} <span className="text-foreground">{submittedEmail}</span>. {l.clickActivate} {digestLabel}.
             </p>
             {subscribedBoth ? (
               <p className="mt-1.5 text-xs text-muted-foreground/80">
-                You&apos;ll receive separate confirmation emails for each digest.
+                {l.separateEmails}
               </p>
             ) : null}
             {message ? (
               <p className="mt-2 text-xs text-muted-foreground/80">{message}</p>
             ) : null}
             <p className="mt-3 text-xs text-muted-foreground/70">
-              Didn&apos;t receive it? Check your spam folder or{' '}
+              {l.didNotReceive}{' '}
               <button
                 type="button"
                 onClick={() => { setStatus('idle'); setMessage(''); setSubscribedBoth(false); }}
                 className="text-accent-info hover:text-accent-info/80 underline underline-offset-2"
               >
-                try again
+                {l.tryAgain}
               </button>.
             </p>
           </div>
@@ -122,9 +156,9 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
         <div className="flex items-start gap-3">
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-success shrink-0" />
           <div>
-            <h3 className="text-base font-medium tracking-tight text-foreground">You&apos;re already subscribed</h3>
+            <h3 className="text-base font-medium tracking-tight text-foreground">{l.alreadySubscribed}</h3>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              <span className="text-foreground">{submittedEmail}</span> is already receiving the {regionLabel} Signal Feed digest.
+              <span className="text-foreground">{submittedEmail}</span> {l.alreadyReceiving} {regionLabel} {isTR ? 'Sinyal Akisi bulteni' : 'Signal Feed digest'}.
             </p>
           </div>
         </div>
@@ -135,11 +169,11 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
   return (
     <section className={`rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
       <p className="label-xs text-accent-info">
-        {region === 'turkey' ? 'Turkey Signal Feed' : 'Daily Radar Digest'}
+        {region === 'turkey' ? 'Turkiye Sinyal Akisi' : 'Daily Radar Digest'}
       </p>
-      <h3 className="mt-2 text-xl font-medium tracking-tight text-foreground">Get top signals ranked by impact</h3>
+      <h3 className="mt-2 text-xl font-medium tracking-tight text-foreground">{l.title}</h3>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-        Each day we send a ranked digest with cross-source corroboration and a short takeaway.
+        {l.subtitle}
       </p>
 
       <form className="mt-4 flex flex-col gap-3 md:flex-row md:items-center" onSubmit={onSubmit}>
@@ -156,7 +190,7 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
           disabled={status === 'saving'}
           className="inline-flex h-10 items-center justify-center rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {status === 'saving' ? 'Subscribing...' : 'Subscribe'}
+          {status === 'saving' ? l.subscribing : l.subscribe}
         </button>
       </form>
 
@@ -168,7 +202,7 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
             onChange={(event) => setBuilderFocus(event.target.checked)}
             className="h-3.5 w-3.5 rounded border-border/60 bg-background/80"
           />
-          Prioritize builder-focused takeaways in digest
+          {l.prioritizeBuilder}
         </label>
         <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -177,9 +211,7 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
             onChange={(event) => setIncludeOtherRegion(event.target.checked)}
             className="h-3.5 w-3.5 rounded border-border/60 bg-background/80"
           />
-          {region === 'turkey'
-            ? 'Also receive the Global startup digest'
-            : 'Include Turkey ecosystem signals'}
+          {l.includeOtherRegion}
         </label>
       </div>
 

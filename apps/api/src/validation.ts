@@ -165,6 +165,11 @@ export const newsSignalBatchSchema = z.object({
   { message: 'Exactly one of user_id or anon_id must be provided' }
 );
 
+export const newsSignalMergeSchema = z.object({
+  user_id: z.string().uuid(),
+  anon_id: z.string().min(1).max(100),
+});
+
 // =============================================================================
 // Admin / POST schemas
 // =============================================================================
@@ -498,6 +503,70 @@ export const investorPortfolioQuerySchema = z.object({
   scope: z.enum(['global', 'turkey']).default('global'),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const investorNetworkQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+  depth: z.coerce.number().int().min(1).max(2).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+export const startupInvestorsQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const startupFoundersQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+});
+
+const aliasArraySchema = z.array(z.string().min(1).max(255)).max(200).optional().default([]);
+
+export const investorUpsertSchema = z.object({
+  name: z.string().min(1).max(255),
+  type: optionalTrimmedString(50),
+  website: optionalTrimmedString(1000),
+  headquarters_country: optionalTrimmedString(100),
+  aliases: aliasArraySchema,
+  source: optionalTrimmedString(100).default('manual'),
+  confidence: z.coerce.number().min(0).max(1).optional(),
+});
+
+export const founderUpsertSchema = z.object({
+  full_name: z.string().min(1).max(255),
+  slug: optionalTrimmedString(255),
+  linkedin_url: optionalTrimmedString(1000),
+  x_url: optionalTrimmedString(1000),
+  website: optionalTrimmedString(1000),
+  bio: optionalTrimmedString(5000),
+  primary_country: optionalTrimmedString(100),
+  aliases: aliasArraySchema,
+  source: optionalTrimmedString(100).default('manual'),
+  confidence: z.coerce.number().min(0).max(1).optional(),
+});
+
+export const graphEdgeUpsertSchema = z.object({
+  src_type: z.enum(['investor', 'startup', 'founder', 'funding_round']),
+  src_id: z.string().uuid(),
+  edge_type: z.string().min(1).max(120),
+  dst_type: z.enum(['investor', 'startup', 'founder', 'funding_round']),
+  dst_id: z.string().uuid(),
+  region: z.enum(['global', 'turkey']).default('global'),
+  attrs_json: z.record(z.unknown()).optional().default({}),
+  source: optionalTrimmedString(100).default('manual'),
+  source_ref: optionalTrimmedString(1000),
+  confidence: z.coerce.number().min(0).max(1).optional(),
+  created_by: optionalTrimmedString(255),
+  valid_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().default('1900-01-01'),
+  valid_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().default('9999-12-31'),
+}).refine((data) => !(data.src_type === data.dst_type && data.src_id === data.dst_id), {
+  message: 'Self-loop edges are not allowed',
+});
+
+export const graphEdgesBulkUpsertSchema = z.object({
+  edges: z.array(graphEdgeUpsertSchema).min(1).max(5000),
+  refresh_views: z.boolean().optional().default(true),
 });
 
 // =============================================================================

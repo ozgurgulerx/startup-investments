@@ -5,6 +5,7 @@
 export type {
   BriefSnapshotMetrics,
   BriefSnapshotDeltas,
+  BriefVerticalLandscape,
   BriefNewsContext,
   SignalRef,
   BuilderAction,
@@ -153,6 +154,41 @@ export interface TeamAnalysis {
   team_strengths: string[];
   team_red_flags: string[];
   team_confidence?: number;
+}
+
+export interface FounderEntity {
+  id: string;
+  full_name: string;
+  slug?: string | null;
+  linkedin_url?: string | null;
+  x_url?: string | null;
+  website?: string | null;
+  bio?: string | null;
+  primary_country?: string | null;
+  source?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InvestorAlias {
+  id?: string;
+  investor_id?: string;
+  alias: string;
+  alias_type?: string;
+  source?: string;
+  confidence?: number | null;
+  created_at?: string;
+}
+
+export interface StartupFounderLink {
+  founder_id: string;
+  role?: string | null;
+  is_current?: boolean;
+  start_date?: string | null;
+  end_date?: string | null;
+  ownership_pct?: number | null;
+  confidence?: number | null;
+  source?: string | null;
 }
 
 export interface PricingModel {
@@ -612,6 +648,52 @@ export interface PeriodInfo {
 export interface PeriodsResponse {
   periods: PeriodInfo[];
   current: string;
+}
+
+export interface GraphNode {
+  id: string;
+  type: 'investor' | 'startup' | 'founder' | 'funding_round';
+  name: string;
+  slug?: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface GraphEdge {
+  id: string;
+  src_id: string;
+  dst_id: string;
+  edge_type: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface InvestorNetworkResponse {
+  investor_id: string;
+  scope: 'global' | 'turkey';
+  depth: number;
+  graph_extension: {
+    enabled: boolean;
+    name: string;
+    available: boolean;
+  };
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface StartupInvestorsResponse {
+  startup_id: string;
+  scope: 'global' | 'turkey';
+  source: 'capital_graph_edges' | 'legacy_investments';
+  total: number;
+  investors: Array<{
+    investor_id: string;
+    name: string;
+    type?: string | null;
+    relationship_type: string;
+    is_lead: boolean;
+    amount_usd?: number | null;
+    round_type?: string | null;
+    announced_date?: string | null;
+  }>;
 }
 
 // -----------------------------------------------------------------------------

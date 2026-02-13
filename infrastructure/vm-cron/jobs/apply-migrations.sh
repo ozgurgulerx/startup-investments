@@ -26,6 +26,8 @@ SETS = {
         "012_daily_news.sql",
         "013_news_digest_and_llm_enrichment.sql",
         "014_news_llm_scoring_and_classification.sql",
+        # Per-source health stats used by ingest + monitoring (total_fetches, failures, alerts)
+        "031_source_health_monitoring.sql",
         # Regional editions (number may vary across branches; apply whichever exists)
         "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
@@ -52,6 +54,10 @@ SETS = {
         "038_fix_signal_dedupe.sql",
         # Signal deep dives (occurrences, moves, deep dive versions, diffs)
         "050_signal_deep_dives.sql",
+        # Funding rounds enrichment source marker used by event extractor (source='news_event')
+        "044_funding_source.sql",
+        # Intel-first enrichment fields on news_clusters (ba_title, ba_bullets, etc.)
+        "057_intel_first_enrichment.sql",
         # Event key discriminator — allows multiple events of same type per cluster
         "042_event_key_discriminator.sql",
         # Event-driven refresh jobs — boost frontier priority for startups with news events
@@ -64,6 +70,10 @@ SETS = {
         "047_editorial_scoring_method.sql",
         # End-to-end onboarding activation (attempt telemetry + deep_research_queue hardening)
         "058_onboarding_pipeline_activation.sql",
+        # X/Twitter trend intelligence + automated posting queue
+        "061_x_social_automation.sql",
+        # Community features (threads, polls, shared watchlists, notification hygiene)
+        "062_community_features.sql",
     ],
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
@@ -75,6 +85,7 @@ SETS = {
         "012_daily_news.sql",
         "013_news_digest_and_llm_enrichment.sql",
         "014_news_llm_scoring_and_classification.sql",
+        "031_source_health_monitoring.sql",
         "019_news_editions_by_region.sql",
         "020_news_editions_by_region.sql",
         "030_news_clusters_by_region.sql",
@@ -88,10 +99,17 @@ SETS = {
         "027_subscriber_timezone.sql",
         # Signal deep dives (occurrences, moves, deep dive versions, diffs)
         "050_signal_deep_dives.sql",
+        "044_funding_source.sql",
+        # Intel-first enrichment fields on news_clusters (ba_title, ba_bullets, etc.)
+        "057_intel_first_enrichment.sql",
         # Event timeline effective_date column
         "043_effective_date.sql",
         # Extend scoring_method CHECK to include editorial_postgate
         "047_editorial_scoring_method.sql",
+        # X/Twitter trend intelligence + automated posting queue
+        "061_x_social_automation.sql",
+        # Community features (threads, polls, shared watchlists, notification hygiene)
+        "062_community_features.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",
@@ -102,6 +120,12 @@ SETS = {
         # Startup merge infrastructure — adds onboarding_status (used by memory_gate.py)
         "046_startup_merge_infrastructure.sql",
         "058_onboarding_pipeline_activation.sql",
+        # Capital graph + founder normalization
+        "059_capital_graph_founders.sql",
+        # Optional graph extension (AGE) with graceful fallback
+        "060_graph_extension_optional.sql",
+        # Community features (threads, polls, shared watchlists, notification hygiene)
+        "062_community_features.sql",
     ],
     "performance": [
         "015_performance_indexes.sql",
@@ -117,6 +141,8 @@ SETS = {
         "053_neighbors_benchmarks.sql",
         "054_investor_dna.sql",
         "056_benchmark_percentile_ranks.sql",
+        "059_capital_graph_founders.sql",
+        "060_graph_extension_optional.sql",
     ],
 }
 

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { SignalActionType } from '@startup-intelligence/shared';
+import { trackEvent } from '@/lib/posthog';
 
 interface SignalsContextValue {
   getActions: (clusterId: string) => SignalActionType[];
@@ -131,6 +132,12 @@ export function SignalsProvider({ clusterIds, initialUpvoteCounts, children }: S
           [clusterId]: result.upvote_count,
         };
         setUpvoteCounts((prev) => ({ ...prev, [clusterId]: result.upvote_count }));
+        trackEvent('news_signal_action', {
+          cluster_id: clusterId,
+          action_type: action,
+          active: result.active,
+          upvote_count: result.upvote_count,
+        });
 
         return result;
       } catch {
@@ -159,6 +166,11 @@ export function SignalsProvider({ clusterIds, initialUpvoteCounts, children }: S
           };
           setUpvoteCounts((prev) => ({ ...prev, [clusterId]: revertCount }));
         }
+
+        trackEvent('news_signal_action_failed', {
+          cluster_id: clusterId,
+          action_type: action,
+        });
 
         return { active: false, upvote_count: upvoteCountsRef.current[clusterId] ?? 0 };
       }

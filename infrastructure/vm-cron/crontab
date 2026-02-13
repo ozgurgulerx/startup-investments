@@ -15,6 +15,10 @@ MAILTO=""
 # === News Ingest (hourly at :15) ===
 15 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-ingest 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-ingest.sh
 
+# === X Trend Ingest (hourly at :28) ===
+# Pulls recent X/Twitter trend signals and runs clustering via ingest-x-trends.
+28 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh x-trends 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-trends.sh
+
 # === Event Processor (every 15 min, staggered) ===
 # Processes startup_events and enqueues eligible deep-research jobs.
 5,20,35,50 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh event-processor 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/event-processor.sh
@@ -24,7 +28,7 @@ MAILTO=""
 12,27,42,57 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh deep-research 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-research.sh
 
 # === Crawl Frontier Worker (every 30 min) ===
-0,30 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh crawl-frontier 25 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/crawl-frontier.sh
+0,30 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh crawl-frontier 40 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/crawl-frontier.sh
 
 # === Topic Research (hourly at :40, 25 min after news-ingest) ===
 # Processes hot topic research queue: web search + LLM synthesis
@@ -34,6 +38,15 @@ MAILTO=""
 # Sends to subscribers whose local time is 08:xx. Each run only delivers to
 # the timezone batch that matches; duplicates are prevented by delivery table.
 45 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-digest 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-digest.sh
+
+# === X Post Candidate Generation (every 4h at :35) ===
+35 */4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh x-post-generate 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-post-generate.sh
+
+# === X Post Publish (hourly at :55) ===
+55 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh x-post-publish 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-post-publish.sh
+
+# === X Post Metrics Sync (every 6h at :20) ===
+20 */6 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh x-post-metrics 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-post-metrics.sh
 
 # === Weekly Brief (Monday 06:00 UTC) ===
 0 6 * * 1 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh weekly-brief 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/weekly-brief.sh
@@ -98,6 +111,11 @@ MAILTO=""
 # === Backend Deploy (triggered by code-update or manually) ===
 # Not scheduled — called by deploy.sh when apps/api/** changes, or run manually:
 #   /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh backend-deploy 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/backend-deploy.sh
+
+# === Functions Deploy (triggered by code-update or manually) ===
+# Not scheduled — called by deploy.sh when infrastructure/azure-functions/** or
+# packages/analysis/** changes, or run manually:
+#   /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh functions-deploy 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/functions-deploy.sh
 
 # === Code Update (every 15 min, staggered) ===
 # Runs git pull + conditional deploys. Staggered to avoid colliding with :00/:15/:30/:45 jobs.

@@ -21,9 +21,34 @@ interface EvidenceDrawerProps {
   onOpenChange: (open: boolean) => void;
   signalId: string;
   signalClaim: string;
+  region?: 'global' | 'turkey';
 }
 
-export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: EvidenceDrawerProps) {
+export function EvidenceDrawer({
+  open,
+  onOpenChange,
+  signalId,
+  signalClaim,
+  region = 'global',
+}: EvidenceDrawerProps) {
+  const isTR = region === 'turkey';
+  const l = isTR
+    ? {
+      evidence: 'Kanit',
+      items: 'oge',
+      noEvidence: 'Kanit bulunamadi',
+      loading: 'Yukleniyor...',
+      loadMore: 'Daha fazla yukle',
+      remaining: 'kalan',
+    }
+    : {
+      evidence: 'Evidence',
+      items: 'items',
+      noEvidence: 'No evidence items found',
+      loading: 'Loading...',
+      loadMore: 'Load more',
+      remaining: 'remaining',
+    };
   const [evidence, setEvidence] = useState<SignalEvidence[]>([]);
   const [evidenceTotal, setEvidenceTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -78,7 +103,7 @@ export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: Ev
     <Sheet open={open} onOpenChange={onOpenChange} side="right" className="w-[380px] max-w-[90vw]">
       <SheetHeader onClose={() => onOpenChange(false)}>
         <span className="text-sm">
-          Evidence{evidenceTotal > 0 && ` (${evidenceTotal} items)`}
+          {l.evidence}{evidenceTotal > 0 && ` (${evidenceTotal} ${l.items})`}
         </span>
       </SheetHeader>
       <SheetContent>
@@ -98,7 +123,7 @@ export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: Ev
           </div>
         ) : evidence.length === 0 ? (
           <p className="text-xs text-muted-foreground/60 text-center py-8">
-            No evidence items found
+            {l.noEvidence}
           </p>
         ) : (
           <div className="space-y-2">
@@ -111,7 +136,7 @@ export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: Ev
                       {ev.evidence_type}
                     </span>
                     <span className="text-[10px] text-muted-foreground/50">
-                      {timeAgo(ev.created_at)}
+                      {timeAgo(ev.created_at, region)}
                     </span>
                     {ev.startup_slug && (
                       <Link
@@ -143,7 +168,7 @@ export function EvidenceDrawer({ open, onOpenChange, signalId, signalClaim }: Ev
                 disabled={loadingMore}
                 className="w-full py-2 text-[11px] text-accent-info hover:text-accent-info/80 transition-colors disabled:opacity-50"
               >
-                {loadingMore ? 'Loading...' : `Load more (${evidenceTotal - evidence.length} remaining)`}
+                {loadingMore ? l.loading : `${l.loadMore} (${evidenceTotal - evidence.length} ${l.remaining})`}
               </button>
             )}
           </div>

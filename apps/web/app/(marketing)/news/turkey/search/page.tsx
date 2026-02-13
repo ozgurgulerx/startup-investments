@@ -10,17 +10,17 @@ export default function TurkeyNewsSearchPage() {
       <NewsNav activeRegion="turkey" activePeriod="daily" />
       <div className="mx-auto w-full max-w-3xl px-6 py-8">
         <div className="mb-8">
-          <p className="label-xs text-accent-info">Turkey News Intelligence</p>
-          <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">Search</h1>
+          <p className="label-xs text-accent-info">Turkiye Haber Istihbarati</p>
+          <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">Ara</h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground leading-relaxed">
-            Search across all Turkey news coverage. Filter by story type, date range, or topic.
+            Tum Turkiye haber kapsaminda arayin. Haber tipi, tarih araligi veya konuya gore filtreleyin.
           </p>
           <div className="mt-4">
             <Link
               href="/news/turkey"
               className="inline-flex items-center gap-1 text-sm text-accent-info hover:text-accent-info/80 transition-colors"
             >
-              Back to live feed
+              Canli akisa don
             </Link>
           </div>
         </div>

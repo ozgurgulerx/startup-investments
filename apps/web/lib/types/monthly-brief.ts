@@ -44,6 +44,32 @@ export interface MonthlyBrief {
     signal: string; // One-line insight (LLM generated)
   }>;
 
+  // Vertical / Subvertical Landscape
+  verticalLandscape?: {
+    topVerticals: Array<{
+      id: string;
+      label: string;
+      startupCount: number;
+      dealCount: number;
+      totalFunding: number;
+      pctOfFunding: number;
+      prevPctOfFunding?: number;
+      deltaPp?: number;
+    }>;
+    topSubVerticals: Array<{
+      id: string;
+      label: string;
+      verticalId: string;
+      verticalLabel: string;
+      startupCount: number;
+      dealCount: number;
+      totalFunding: number;
+      pctOfFunding: number;
+      prevPctOfFunding?: number;
+      deltaPp?: number;
+    }>;
+  };
+
   // Funding by Stage
   fundingByStage: Array<{
     stage: string;
@@ -61,6 +87,7 @@ export interface MonthlyBrief {
     stage: string;
     location: string;
     vertical?: string;
+    subVertical?: string;
   }>;
 
   // Geographic Distribution
@@ -112,6 +139,7 @@ export interface MonthlyBrief {
     stage: string;
     location: string;
     vertical: string;
+    subVertical?: string;
     whyThisMatters: string;
     technicalBet?: string;
     buildPatterns: string[];
@@ -165,8 +193,32 @@ export function snapshotToMonthlyBrief(snapshot: {
   executiveSummary: string;
   theme: { name: string; summaryBullets: string[] };
   patternLandscape: Array<{ pattern: string; prevalencePct: number; startupCount: number; signal: string }>;
+  verticalLandscape?: {
+    topVerticals: Array<{
+      id: string;
+      label: string;
+      startupCount: number;
+      dealCount: number;
+      totalFunding: number;
+      pctOfFunding: number;
+      prevPctOfFunding?: number;
+      deltaPp?: number;
+    }>;
+    topSubVerticals: Array<{
+      id: string;
+      label: string;
+      verticalId: string;
+      verticalLabel: string;
+      startupCount: number;
+      dealCount: number;
+      totalFunding: number;
+      pctOfFunding: number;
+      prevPctOfFunding?: number;
+      deltaPp?: number;
+    }>;
+  };
   fundingByStage: Array<{ stage: string; amount: number; pct: number; deals: number }>;
-  topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string }>;
+  topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string; vertical?: string; subVertical?: string }>;
   geography: Array<{ region: string; deals: number; totalFunding: number; avgDeal: number }>;
   investors: {
     mostActive: Array<{ name: string; deals: number; totalDeployed: number }>;
@@ -174,6 +226,7 @@ export function snapshotToMonthlyBrief(snapshot: {
   };
   spotlight?: {
     company: string; slug: string; amount: number; stage: string; location: string;
+    vertical?: string; subVertical?: string;
     whyThisMatters: string; buildPatterns: string[]; risk: string; builderTakeaway: string;
   };
   builderLessons: Array<{ title: string; text: string; howToApply?: string }>;
@@ -198,6 +251,7 @@ export function snapshotToMonthlyBrief(snapshot: {
     },
     theme: snapshot.theme,
     patternLandscape: snapshot.patternLandscape,
+    verticalLandscape: snapshot.verticalLandscape || { topVerticals: [], topSubVerticals: [] },
     fundingByStage: snapshot.fundingByStage,
     topDeals: snapshot.topDeals,
     geography: snapshot.geography,
@@ -209,7 +263,8 @@ export function snapshotToMonthlyBrief(snapshot: {
     },
     spotlight: snapshot.spotlight ? {
       ...snapshot.spotlight,
-      vertical: '',
+      vertical: snapshot.spotlight.vertical || 'Unknown',
+      subVertical: snapshot.spotlight.subVertical,
     } : undefined,
     builderLessons: snapshot.builderLessons,
     whatWatching: snapshot.whatWatching,

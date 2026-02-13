@@ -19,6 +19,7 @@ Use this index to find the right source of truth quickly.
 | `docs/claude/vm-cron.md` | VM cron operation/troubleshooting quick reference |
 | `docs/claude/news-pipeline.md` | News ingest and digest pipeline details |
 | `docs/claude/database-sync.md` | Startup/data sync pipeline details |
+| `docs/recommender-kpi-experiment-plan.md` | Recommendation KPI framework, dashboard spec, and A/B rollout plan |
 
 ## Validation Tools
 

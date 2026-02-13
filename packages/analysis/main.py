@@ -793,6 +793,137 @@ def test_ainews(
     console.print(f"[bold green]Total items extracted: {total}[/bold green]")
 
 
+@app.command("ingest-x-trends")
+def ingest_x_trends(
+    lookback_hours: int = typer.Option(24, "--lookback-hours", help="How far back to search X"),
+    edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD"),
+    rebuild_only: bool = typer.Option(False, "--rebuild-only", help="Skip source fetch and rebuild from existing items"),
+):
+    """Run ingestion with X trend sources enabled.
+
+    This command uses the same news pipeline and enables X sources via env flag.
+    """
+    from src.automation.news_ingest import run_news_ingestion
+
+    prev = os.environ.get("X_TRENDS_ENABLED")
+    os.environ["X_TRENDS_ENABLED"] = "true"
+    try:
+        result = asyncio.run(
+            run_news_ingestion(
+                lookback_hours=max(1, int(lookback_hours)),
+                edition_date=edition_date,
+                rebuild_only=bool(rebuild_only),
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]X trends ingest failed:[/red] {exc}")
+        raise typer.Exit(1)
+    finally:
+        if prev is None:
+            os.environ.pop("X_TRENDS_ENABLED", None)
+        else:
+            os.environ["X_TRENDS_ENABLED"] = prev
+
+    console.print(Panel.fit(
+        "[bold blue]X Trends Ingestion Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Run ID:[/bold] {result.get('run_id')}")
+    console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
+    console.print(f"[bold]Items fetched:[/bold] {result.get('items_fetched', 0)}")
+    console.print(f"[bold]Items kept:[/bold] {result.get('items_kept', 0)}")
+    console.print(f"[bold]Clusters built:[/bold] {result.get('clusters_built', 0)}")
+    if result.get("errors"):
+        console.print(f"[yellow]Warnings:[/yellow] {len(result['errors'])}")
+
+
+@app.command("generate-x-posts")
+def generate_x_posts(
+    region: str = typer.Option("all", "--region", help="global|turkey|all"),
+    max_items: int = typer.Option(6, "--max-items", help="Maximum queued posts"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview candidates without writing queue"),
+):
+    """Generate X post candidates from latest news clusters and queue them."""
+    from src.automation.x_posting import run_generate_x_posts
+
+    try:
+        result = run_generate_x_posts(region=region, max_items=max_items, dry_run=dry_run)
+    except Exception as exc:
+        console.print(f"[red]Generate X posts failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Generate X Posts[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Dry run:[/bold] {bool(result.get('dry_run', False))}")
+    console.print(f"[bold]Candidates:[/bold] {result.get('candidates', 0)}")
+    console.print(f"[bold]Queued:[/bold] {result.get('queued', 0)}")
+    console.print(f"[bold]Skipped:[/bold] {result.get('skipped', 0)}")
+    for row in result.get("regions", []):
+        console.print(
+            f"  - {row.get('region')}: candidates={row.get('candidates', 0)} "
+            f"queued={row.get('queued', 0)} skipped={row.get('skipped', 0)}"
+        )
+
+
+@app.command("publish-x-posts")
+def publish_x_posts(
+    max_items: int = typer.Option(5, "--max-items", help="Maximum posts to attempt"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Simulate publishing"),
+):
+    """Publish queued X posts with caps/cooldowns."""
+    from src.automation.x_posting import run_publish_x_posts
+
+    try:
+        result = run_publish_x_posts(max_items=max_items, dry_run=dry_run)
+    except Exception as exc:
+        console.print(f"[red]Publish X posts failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Publish X Posts[/bold blue]",
+        border_style="blue"
+    ))
+    if result.get("skipped_disabled"):
+        console.print("[yellow]Posting skipped: X_POSTING_ENABLED=false[/yellow]")
+        return
+    console.print(f"[bold]Considered:[/bold] {result.get('considered', 0)}")
+    console.print(f"[bold]Published:[/bold] {result.get('published', 0)}")
+    console.print(f"[bold]Failed:[/bold] {result.get('failed', 0)}")
+    console.print(f"[bold]Skipped by cap/cooldown:[/bold] {result.get('skipped_cap', 0)}")
+    if "daily_cap" in result:
+        console.print(
+            f"[bold]Daily cap:[/bold] {result.get('daily_cap')} "
+            f"(published_before={result.get('published_today_before', 0)})"
+        )
+
+
+@app.command("sync-x-post-metrics")
+def sync_x_post_metrics(
+    days_back: int = typer.Option(7, "--days-back", help="How many days of published posts to scan"),
+    max_posts: int = typer.Option(100, "--max-posts", help="Maximum posts to sync"),
+):
+    """Sync X post engagement metrics into x_post_metrics_daily."""
+    from src.automation.x_posting import run_sync_x_post_metrics
+
+    try:
+        result = run_sync_x_post_metrics(days_back=days_back, max_posts=max_posts)
+    except Exception as exc:
+        console.print(f"[red]Sync X post metrics failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Sync X Post Metrics[/bold blue]",
+        border_style="blue"
+    ))
+    if result.get("skipped"):
+        console.print(f"[yellow]Skipped:[/yellow] {result.get('skipped')}")
+    console.print(f"[bold]Synced:[/bold] {result.get('synced', 0)}")
+    if "requested" in result:
+        console.print(f"[bold]Requested:[/bold] {result.get('requested', 0)}")
+
+
 @app.command("send-news-digest")
 def send_news_digest(
     edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD (defaults to latest ready edition)"),

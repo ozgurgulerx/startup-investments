@@ -27,6 +27,7 @@ import {
   newsBriefArchiveQuerySchema,
   newsSignalToggleSchema,
   newsSignalBatchSchema,
+  newsSignalMergeSchema,
   editorialActionSchema,
   editorialRuleCreateSchema,
   editorialRuleUpdateSchema,
@@ -58,6 +59,13 @@ import {
   investorDnaQuerySchema,
   investorScreenerQuerySchema,
   investorPortfolioQuerySchema,
+  investorNetworkQuerySchema,
+  startupInvestorsQuerySchema,
+  startupFoundersQuerySchema,
+  investorUpsertSchema,
+  founderUpsertSchema,
+  graphEdgeUpsertSchema,
+  graphEdgesBulkUpsertSchema,
   landscapesQuerySchema,
   landscapesClusterQuerySchema,
   sectorsQuerySchema,
@@ -2277,6 +2285,26 @@ app.get('/api/v1/signals/follows', async (req, res) => {
 });
 
 // NO CACHE — user-specific endpoint
+// GET /api/v1/signals/recommendations — Recommend signals to follow
+// MUST be registered before /api/v1/signals/:id
+app.get('/api/v1/signals/recommendations', async (req, res) => {
+  try {
+    const userId = req.query.user_id as string;
+    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      return res.status(400).json({ error: 'Invalid user_id (must be UUID)' });
+    }
+    const region = req.query.region as string | undefined;
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 12) : 6;
+    const result = await signalsService.getSignalRecommendations({ userId, region, limit });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching signal recommendations:', error);
+    return res.status(500).json({ error: 'Failed to fetch signal recommendations' });
+  }
+});
+
+// NO CACHE — user-specific endpoint
 // GET /api/v1/signals/updates — Count new/changed signals since timestamp
 // MUST be registered before /api/v1/signals/:id
 app.get('/api/v1/signals/updates', async (req, res) => {
@@ -2993,6 +3021,248 @@ app.get('/api/v1/investors/:id/portfolio', async (req, res) => {
   }
 });
 
+app.post('/api/v1/news/signals/merge', async (req, res) => {
+  try {
+    const parsed = newsSignalMergeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    const { user_id, anon_id } = parsed.data;
+    const result = await newsService.mergeAnonSignals({ user_id, anon_id });
+    return res.json(result);
+  } catch (error) {
+    console.error('Error merging news signals:', error);
+    return res.status(500).json({ error: 'Failed to merge signals' });
+  }
+});
+
+app.get('/api/v1/investors/:id/network', async (req, res) => {
+  try {
+    const investorId = String(req.params.id || '').trim();
+    if (!investorId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(investorId)) {
+      return res.status(400).json({ error: 'Invalid investor ID (must be UUID)' });
+    }
+    const parsed = investorNetworkQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const cacheKey = `investors:network:${investorId}:${parsed.data.scope}:${parsed.data.depth}:${parsed.data.limit}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await investorsService.getNetwork({ investorId, ...parsed.data });
+    if (!result) {
+      return res.status(404).json({ error: 'Investor not found' });
+    }
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching investor network:', error);
+    return res.status(500).json({ error: 'Failed to fetch investor network' });
+  }
+});
+
+app.get('/api/v1/startups/:id/investors', async (req, res) => {
+  try {
+    const startupId = String(req.params.id || '').trim();
+    if (!startupId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(startupId)) {
+      return res.status(400).json({ error: 'Invalid startup ID (must be UUID)' });
+    }
+    const parsed = startupInvestorsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const cacheKey = `startups:investors:${startupId}:${parsed.data.scope}:${parsed.data.limit}:${parsed.data.offset}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await investorsService.getStartupInvestors({
+      startupId,
+      scope: parsed.data.scope,
+      limit: parsed.data.limit,
+      offset: parsed.data.offset,
+    });
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching startup investors:', error);
+    return res.status(500).json({ error: 'Failed to fetch startup investors' });
+  }
+});
+
+app.get('/api/v1/startups/:id/founders', async (req, res) => {
+  try {
+    const startupId = String(req.params.id || '').trim();
+    if (!startupId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(startupId)) {
+      return res.status(400).json({ error: 'Invalid startup ID (must be UUID)' });
+    }
+
+    const parsed = startupFoundersQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    let normalizedRows: { rows: any[] } = { rows: [] };
+    try {
+      normalizedRows = await pool.query(
+        `SELECT
+            f.id::text AS founder_id,
+            f.full_name,
+            f.slug,
+            f.linkedin_url,
+            f.x_url,
+            f.website,
+            f.bio,
+            f.primary_country,
+            sf.role,
+            sf.is_current,
+            sf.start_date::text,
+            sf.end_date::text,
+            sf.ownership_pct,
+            sf.confidence,
+            sf.source
+         FROM startup_founders sf
+         JOIN founders f ON f.id = sf.founder_id
+         JOIN startups s ON s.id = sf.startup_id
+         WHERE sf.startup_id = $1::uuid
+           AND s.dataset_region = $2
+         ORDER BY sf.is_current DESC, sf.created_at ASC`,
+        [startupId, parsed.data.scope],
+      );
+    } catch (error: any) {
+      if (error?.code !== '42P01') throw error;
+    }
+
+    if (normalizedRows.rows.length > 0) {
+      return res.json({
+        startup_id: startupId,
+        scope: parsed.data.scope,
+        source: 'normalized',
+        founders: normalizedRows.rows,
+      });
+    }
+
+    const fallback = await pool.query(
+      `SELECT analysis_data
+       FROM startups
+       WHERE id = $1::uuid
+         AND dataset_region = $2
+       LIMIT 1`,
+      [startupId, parsed.data.scope],
+    );
+
+    const analysisData = fallback.rows[0]?.analysis_data || {};
+    const founders = (analysisData?.team_analysis?.founders || []) as unknown[];
+
+    return res.json({
+      startup_id: startupId,
+      scope: parsed.data.scope,
+      source: 'analysis_data',
+      founders,
+    });
+  } catch (error) {
+    console.error('Error fetching startup founders:', error);
+    return res.status(500).json({ error: 'Failed to fetch startup founders' });
+  }
+});
+
+app.get('/api/v1/founders/:id', async (req, res) => {
+  try {
+    const founderId = String(req.params.id || '').trim();
+    if (!founderId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(founderId)) {
+      return res.status(400).json({ error: 'Invalid founder ID (must be UUID)' });
+    }
+
+    const parsed = startupFoundersQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    let founderResult: { rows: any[] };
+    try {
+      founderResult = await pool.query(
+        `SELECT
+            id::text,
+            full_name,
+            slug,
+            linkedin_url,
+            x_url,
+            website,
+            bio,
+            primary_country,
+            source,
+            created_at,
+            updated_at
+         FROM founders
+         WHERE id = $1::uuid
+         LIMIT 1`,
+        [founderId],
+      );
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return res.status(503).json({ error: 'Founder tables are not available yet. Apply migrations first.' });
+      }
+      throw error;
+    }
+
+    if (!founderResult.rows[0]) {
+      return res.status(404).json({ error: 'Founder not found' });
+    }
+
+    let startupsResult: { rows: any[] } = { rows: [] };
+    try {
+      startupsResult = await pool.query(
+        `SELECT
+            s.id::text AS startup_id,
+            s.name,
+            s.slug,
+            s.dataset_region,
+            sf.role,
+            sf.is_current,
+            sf.start_date::text,
+            sf.end_date::text,
+            sf.ownership_pct,
+            sf.confidence,
+            sf.source
+         FROM startup_founders sf
+         JOIN startups s ON s.id = sf.startup_id
+         WHERE sf.founder_id = $1::uuid
+           AND s.dataset_region = $2
+         ORDER BY sf.is_current DESC, sf.created_at ASC`,
+        [founderId, parsed.data.scope],
+      );
+    } catch (error: any) {
+      if (error?.code !== '42P01') throw error;
+    }
+
+    res.json({
+      founder: founderResult.rows[0],
+      scope: parsed.data.scope,
+      startups: startupsResult.rows,
+    });
+  } catch (error) {
+    console.error('Error fetching founder profile:', error);
+    return res.status(500).json({ error: 'Failed to fetch founder profile' });
+  }
+});
+
 // =============================================================================
 // CURATED SECTORS
 // =============================================================================
@@ -3394,6 +3664,341 @@ app.post('/api/v1/briefs/regenerate', async (req, res) => {
 // =============================================================================
 // Admin API - Logo Extraction & Data Sync
 // =============================================================================
+
+app.post('/api/admin/v1/investors/upsert', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  const parsed = investorUpsertSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+  }
+
+  const pgClient = await pool.connect();
+  try {
+    await pgClient.query('BEGIN');
+
+    const investorResult = await pgClient.query<{ id: string }>(
+      `INSERT INTO investors (name, type, website, headquarters_country)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (name)
+       DO UPDATE SET
+         type = COALESCE(EXCLUDED.type, investors.type),
+         website = COALESCE(EXCLUDED.website, investors.website),
+         headquarters_country = COALESCE(EXCLUDED.headquarters_country, investors.headquarters_country)
+       RETURNING id::text`,
+      [
+        parsed.data.name,
+        parsed.data.type || null,
+        parsed.data.website || null,
+        parsed.data.headquarters_country || null,
+      ],
+    );
+    const investorId = investorResult.rows[0]?.id;
+    if (!investorId) {
+      throw new Error('Failed to upsert investor');
+    }
+
+    const aliases = Array.from(new Set(parsed.data.aliases.map((a) => a.trim()).filter(Boolean)));
+    for (const alias of aliases) {
+      await pgClient.query(
+        `INSERT INTO investor_aliases (investor_id, alias, alias_type, source, confidence)
+         VALUES ($1::uuid, $2, 'name_variant', $3, $4)
+         ON CONFLICT ((lower(regexp_replace(trim(alias), '\\s+', ' ', 'g'))))
+         DO UPDATE SET
+           investor_id = EXCLUDED.investor_id,
+           source = EXCLUDED.source,
+           confidence = EXCLUDED.confidence`,
+        [investorId, alias, parsed.data.source || 'manual', parsed.data.confidence ?? null],
+      );
+    }
+
+    await pgClient.query('COMMIT');
+    res.json({
+      investor_id: investorId,
+      aliases_upserted: aliases.length,
+      source: parsed.data.source || 'manual',
+    });
+  } catch (error) {
+    await pgClient.query('ROLLBACK');
+    console.error('Error upserting investor:', error);
+    return res.status(500).json({ error: 'Failed to upsert investor' });
+  } finally {
+    pgClient.release();
+  }
+});
+
+app.post('/api/admin/v1/founders/upsert', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  const parsed = founderUpsertSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+  }
+
+  const pgClient = await pool.connect();
+  try {
+    await pgClient.query('BEGIN');
+
+    const existing = await pgClient.query<{ id: string }>(
+      `SELECT id::text
+       FROM founders
+       WHERE ($1::text IS NOT NULL AND linkedin_url = $1)
+          OR ($2::text IS NOT NULL AND x_url = $2)
+          OR ($3::text IS NOT NULL AND slug = $3)
+          OR lower(regexp_replace(trim(full_name), '\\s+', ' ', 'g')) = lower(regexp_replace(trim($4), '\\s+', ' ', 'g'))
+       ORDER BY
+         CASE
+           WHEN $1::text IS NOT NULL AND linkedin_url = $1 THEN 1
+           WHEN $2::text IS NOT NULL AND x_url = $2 THEN 2
+           WHEN $3::text IS NOT NULL AND slug = $3 THEN 3
+           ELSE 4
+         END ASC
+       LIMIT 1`,
+      [
+        parsed.data.linkedin_url || null,
+        parsed.data.x_url || null,
+        parsed.data.slug || null,
+        parsed.data.full_name,
+      ],
+    );
+
+    let founderId = existing.rows[0]?.id || null;
+    if (founderId) {
+      const updateResult = await pgClient.query<{ id: string }>(
+        `UPDATE founders
+         SET
+           full_name = $2,
+           slug = COALESCE($3, slug),
+           linkedin_url = COALESCE($4, linkedin_url),
+           x_url = COALESCE($5, x_url),
+           website = COALESCE($6, website),
+           bio = COALESCE($7, bio),
+           primary_country = COALESCE($8, primary_country),
+           source = COALESCE($9, source),
+           updated_at = NOW()
+         WHERE id = $1::uuid
+         RETURNING id::text`,
+        [
+          founderId,
+          parsed.data.full_name,
+          parsed.data.slug || null,
+          parsed.data.linkedin_url || null,
+          parsed.data.x_url || null,
+          parsed.data.website || null,
+          parsed.data.bio || null,
+          parsed.data.primary_country || null,
+          parsed.data.source || 'manual',
+        ],
+      );
+      founderId = updateResult.rows[0]?.id || founderId;
+    } else {
+      const insertResult = await pgClient.query<{ id: string }>(
+        `INSERT INTO founders
+          (full_name, slug, linkedin_url, x_url, website, bio, primary_country, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id::text`,
+        [
+          parsed.data.full_name,
+          parsed.data.slug || null,
+          parsed.data.linkedin_url || null,
+          parsed.data.x_url || null,
+          parsed.data.website || null,
+          parsed.data.bio || null,
+          parsed.data.primary_country || null,
+          parsed.data.source || 'manual',
+        ],
+      );
+      founderId = insertResult.rows[0]?.id || null;
+    }
+
+    if (!founderId) {
+      throw new Error('Failed to upsert founder');
+    }
+
+    const aliases = Array.from(new Set(parsed.data.aliases.map((a) => a.trim()).filter(Boolean)));
+    for (const alias of aliases) {
+      await pgClient.query(
+        `INSERT INTO founder_aliases (founder_id, alias, alias_type, source, confidence)
+         VALUES ($1::uuid, $2, 'name_variant', $3, $4)
+         ON CONFLICT ((lower(regexp_replace(trim(alias), '\\s+', ' ', 'g'))))
+         DO UPDATE SET
+           founder_id = EXCLUDED.founder_id,
+           source = EXCLUDED.source,
+           confidence = EXCLUDED.confidence`,
+        [founderId, alias, parsed.data.source || 'manual', parsed.data.confidence ?? null],
+      );
+    }
+
+    await pgClient.query('COMMIT');
+    res.json({
+      founder_id: founderId,
+      aliases_upserted: aliases.length,
+      source: parsed.data.source || 'manual',
+    });
+  } catch (error) {
+    await pgClient.query('ROLLBACK');
+    console.error('Error upserting founder:', error);
+    return res.status(500).json({ error: 'Failed to upsert founder' });
+  } finally {
+    pgClient.release();
+  }
+});
+
+app.post('/api/admin/v1/graph-edges/upsert', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  const parsed = graphEdgeUpsertSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+  }
+  if (parsed.data.valid_to < parsed.data.valid_from) {
+    return res.status(400).json({ error: 'valid_to must be greater than or equal to valid_from' });
+  }
+
+  const pgClient = await pool.connect();
+  try {
+    await pgClient.query('BEGIN');
+
+    const edge = await pgClient.query<{ id: string }>(
+      `INSERT INTO capital_graph_edges
+         (src_type, src_id, edge_type, dst_type, dst_id, region, attrs_json, source, source_ref, confidence, created_by, valid_from, valid_to)
+       VALUES ($1, $2::uuid, $3, $4, $5::uuid, $6, $7::jsonb, $8, $9, $10, $11, $12::date, $13::date)
+       ON CONFLICT (src_type, src_id, edge_type, dst_type, dst_id, region, valid_from, valid_to)
+       DO UPDATE SET
+         attrs_json = EXCLUDED.attrs_json,
+         source = EXCLUDED.source,
+         source_ref = EXCLUDED.source_ref,
+         confidence = EXCLUDED.confidence,
+         created_by = EXCLUDED.created_by,
+         updated_at = NOW()
+       RETURNING id::text`,
+      [
+        parsed.data.src_type,
+        parsed.data.src_id,
+        parsed.data.edge_type,
+        parsed.data.dst_type,
+        parsed.data.dst_id,
+        parsed.data.region,
+        JSON.stringify(parsed.data.attrs_json || {}),
+        parsed.data.source || 'manual',
+        parsed.data.source_ref || null,
+        parsed.data.confidence ?? null,
+        parsed.data.created_by || null,
+        parsed.data.valid_from,
+        parsed.data.valid_to,
+      ],
+    );
+
+    await pgClient.query('SELECT refresh_capital_graph_views()');
+    await pgClient.query('COMMIT');
+
+    res.json({
+      edge_id: edge.rows[0]?.id || null,
+      refreshed_views: true,
+    });
+  } catch (error) {
+    await pgClient.query('ROLLBACK');
+    console.error('Error upserting graph edge:', error);
+    return res.status(500).json({ error: 'Failed to upsert graph edge' });
+  } finally {
+    pgClient.release();
+  }
+});
+
+app.post('/api/admin/v1/graph-edges/bulk', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  const parsed = graphEdgesBulkUpsertSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+  }
+
+  for (const edge of parsed.data.edges) {
+    if (edge.valid_to < edge.valid_from) {
+      return res.status(400).json({
+        error: `Invalid date window for edge ${edge.src_type}:${edge.src_id} -> ${edge.dst_type}:${edge.dst_id}`,
+      });
+    }
+  }
+
+  const pgClient = await pool.connect();
+  try {
+    await pgClient.query('BEGIN');
+
+    let processed = 0;
+    for (const edge of parsed.data.edges) {
+      await pgClient.query(
+        `INSERT INTO capital_graph_edges
+           (src_type, src_id, edge_type, dst_type, dst_id, region, attrs_json, source, source_ref, confidence, created_by, valid_from, valid_to)
+         VALUES ($1, $2::uuid, $3, $4, $5::uuid, $6, $7::jsonb, $8, $9, $10, $11, $12::date, $13::date)
+         ON CONFLICT (src_type, src_id, edge_type, dst_type, dst_id, region, valid_from, valid_to)
+         DO UPDATE SET
+           attrs_json = EXCLUDED.attrs_json,
+           source = EXCLUDED.source,
+           source_ref = EXCLUDED.source_ref,
+           confidence = EXCLUDED.confidence,
+           created_by = EXCLUDED.created_by,
+           updated_at = NOW()`,
+        [
+          edge.src_type,
+          edge.src_id,
+          edge.edge_type,
+          edge.dst_type,
+          edge.dst_id,
+          edge.region,
+          JSON.stringify(edge.attrs_json || {}),
+          edge.source || 'manual',
+          edge.source_ref || null,
+          edge.confidence ?? null,
+          edge.created_by || null,
+          edge.valid_from,
+          edge.valid_to,
+        ],
+      );
+      processed += 1;
+    }
+
+    if (parsed.data.refresh_views) {
+      await pgClient.query('SELECT refresh_capital_graph_views()');
+    }
+
+    await pgClient.query('COMMIT');
+    res.json({
+      processed,
+      refreshed_views: parsed.data.refresh_views,
+    });
+  } catch (error) {
+    await pgClient.query('ROLLBACK');
+    console.error('Error bulk upserting graph edges:', error);
+    return res.status(500).json({ error: 'Failed to bulk upsert graph edges' });
+  } finally {
+    pgClient.release();
+  }
+});
 
 // Sync startups from CSV data (admin only)
 app.post('/api/admin/sync-startups', async (req, res) => {

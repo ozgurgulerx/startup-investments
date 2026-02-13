@@ -12,19 +12,30 @@ interface BriefPreviewData {
   executive_summary?: string;
 }
 
-function formatDateRange(start: string, end: string) {
+function formatDateRange(start: string, end: string, locale: string) {
   const s = new Date(start + 'T00:00:00');
   const e = new Date(end + 'T00:00:00');
   const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
   if (sameMonth) {
-    return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${e.getDate()}`;
+    return `${s.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} – ${e.getDate()}`;
   }
-  return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  return `${s.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} – ${e.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`;
 }
 
-function BriefCard({ brief, href }: { brief: BriefPreviewData; href: string }) {
-  const label = brief.period_type === 'weekly' ? 'Weekly' : 'Monthly';
-  const dateRange = formatDateRange(brief.period_start, brief.period_end);
+function BriefCard({
+  brief,
+  href,
+  region,
+}: {
+  brief: BriefPreviewData;
+  href: string;
+  region: 'global' | 'turkey';
+}) {
+  const isTR = region === 'turkey';
+  const label = brief.period_type === 'weekly'
+    ? (isTR ? 'Haftalik' : 'Weekly')
+    : (isTR ? 'Aylik' : 'Monthly');
+  const dateRange = formatDateRange(brief.period_start, brief.period_end, isTR ? 'tr-TR' : 'en-US');
   const Icon = brief.period_type === 'weekly' ? Calendar : TrendingUp;
 
   // Use first sentence of executive summary as teaser
@@ -42,7 +53,7 @@ function BriefCard({ brief, href }: { brief: BriefPreviewData; href: string }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-accent-info">{label} Brief</span>
+          <span className="text-[10px] uppercase tracking-wider text-accent-info">{label} {isTR ? 'Bulten' : 'Brief'}</span>
           <span className="text-[10px] text-muted-foreground">{dateRange}</span>
         </div>
         {teaser ? (
@@ -51,12 +62,12 @@ function BriefCard({ brief, href }: { brief: BriefPreviewData; href: string }) {
           </p>
         ) : (
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {brief.story_count} signals covered
+            {brief.story_count} {isTR ? 'sinyal kapsandi' : 'signals covered'}
           </p>
         )}
       </div>
       <span className="mt-1 shrink-0 text-[10px] text-muted-foreground/60 transition-colors group-hover:text-accent-info">
-        Read &rarr;
+        {isTR ? 'Oku' : 'Read'} &rarr;
       </span>
     </Link>
   );
@@ -77,12 +88,12 @@ export function PeriodicBriefPreview({ region, weeklyBrief, monthlyBrief }: Peri
     <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
       {weeklyBrief && (
         <div className="flex-1">
-          <BriefCard brief={weeklyBrief} href={`${basePath}/weekly`} />
+          <BriefCard brief={weeklyBrief} href={`${basePath}/weekly`} region={region} />
         </div>
       )}
       {monthlyBrief && (
         <div className="flex-1">
-          <BriefCard brief={monthlyBrief} href={`${basePath}/monthly`} />
+          <BriefCard brief={monthlyBrief} href={`${basePath}/monthly`} region={region} />
         </div>
       )}
     </div>

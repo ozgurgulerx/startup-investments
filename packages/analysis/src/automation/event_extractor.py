@@ -16,7 +16,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -609,6 +609,334 @@ async def upsert_funding_from_events(
         logger.info("Upserted %d funding rounds from %d candidate events", inserted, len(candidates))
 
     return inserted
+
+
+# ---------------------------------------------------------------------------
+# Capital graph sync from extracted news events
+# ---------------------------------------------------------------------------
+
+_GRAPH_ACTIVE_VALID_TO = date(9999, 12, 31)
+_INVESTOR_SPLIT_RE = re.compile(r"\s+(?:and|ve)\s+|\s+&\s+|,|;|/|\|", re.IGNORECASE)
+_INVESTOR_NAME_DENYLIST = {
+    "investor",
+    "investors",
+    "round",
+    "funding",
+    "series",
+    "seed",
+    "pre-seed",
+    "growth",
+    "bridge",
+}
+
+
+def _normalize_space(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip())
+
+
+def _split_investor_names(raw: str) -> List[str]:
+    """Split a lead-investor string into one or more investor names."""
+    cleaned = _normalize_space(raw)
+    if not cleaned:
+        return []
+
+    # Drop common trailing clauses that aren't part of investor names.
+    cleaned = re.sub(
+        r"\b(?:with participation from|with participation by|katılımıyla|katilimiyla)\b.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    ).strip(" ,.;")
+    if not cleaned:
+        return []
+
+    parts = _INVESTOR_SPLIT_RE.split(cleaned)
+    names: List[str] = []
+    seen: set = set()
+    for part in parts:
+        name = _normalize_space(part).strip(" ,.;")
+        if not name:
+            continue
+        lower = name.lower()
+        if lower in _INVESTOR_NAME_DENYLIST:
+            continue
+        if re.fullmatch(r"(series\s+[a-z]|pre-?seed|seed|growth|bridge)", lower):
+            continue
+        if len(name) < 2:
+            continue
+        if lower in seen:
+            continue
+        seen.add(lower)
+        names.append(name)
+    return names
+
+
+def _event_graph_attrs(evt: ExtractedEvent) -> Dict[str, Any]:
+    attrs: Dict[str, Any] = {
+        "event_type": evt.event_type,
+        "round_type": evt.metadata.get("round_type"),
+        "funding_amount": evt.metadata.get("funding_amount"),
+        "valuation": evt.metadata.get("valuation"),
+        "cluster_id": evt.cluster_id,
+        "cluster_key": evt.metadata.get("cluster_key"),
+        "event_date": evt.event_date.isoformat() if evt.event_date else None,
+        "snippet": (evt.snippet or "")[:280],
+    }
+    return {k: v for k, v in attrs.items() if v not in (None, "", [], {})}
+
+
+async def _capital_graph_tables_ready(conn: "asyncpg.Connection") -> Tuple[bool, bool]:
+    """Return (graph_ready, investor_aliases_ready)."""
+    row = await conn.fetchrow(
+        """
+        SELECT
+          to_regclass('public.capital_graph_edges') IS NOT NULL AS has_graph_edges,
+          to_regclass('public.investors') IS NOT NULL AS has_investors,
+          to_regclass('public.investor_aliases') IS NOT NULL AS has_investor_aliases
+        """
+    )
+    graph_ready = bool(row and row["has_graph_edges"] and row["has_investors"])
+    aliases_ready = bool(row and row["has_investor_aliases"])
+    return graph_ready, aliases_ready
+
+
+async def _resolve_or_create_investor_id(
+    conn: "asyncpg.Connection",
+    *,
+    investor_name: str,
+    region: str,
+    aliases_ready: bool,
+) -> Tuple[Optional[str], bool]:
+    """Resolve investor by name/alias; create if missing. Returns (id, created_now)."""
+    clean_name = _normalize_space(investor_name)
+    if not clean_name:
+        return None, False
+    name_norm = clean_name.lower()
+
+    if aliases_ready:
+        row = await conn.fetchrow(
+            """
+            SELECT i.id::text AS id
+            FROM investors i
+            LEFT JOIN investor_aliases ia ON ia.investor_id = i.id
+            WHERE lower(regexp_replace(trim(i.name), '\\s+', ' ', 'g')) = $1
+               OR lower(regexp_replace(trim(COALESCE(ia.alias, '')), '\\s+', ' ', 'g')) = $1
+            ORDER BY i.created_at ASC
+            LIMIT 1
+            """,
+            name_norm,
+        )
+    else:
+        row = await conn.fetchrow(
+            """
+            SELECT id::text AS id
+            FROM investors
+            WHERE lower(regexp_replace(trim(name), '\\s+', ' ', 'g')) = $1
+            ORDER BY created_at ASC
+            LIMIT 1
+            """,
+            name_norm,
+        )
+    if row:
+        return str(row["id"]), False
+
+    hq_country = "Turkey" if (region or "global") == "turkey" else None
+    inserted = await conn.fetchrow(
+        """
+        INSERT INTO investors (name, type, headquarters_country)
+        VALUES ($1, 'unknown', $2)
+        ON CONFLICT (name)
+        DO UPDATE SET
+          type = COALESCE(investors.type, EXCLUDED.type),
+          headquarters_country = COALESCE(investors.headquarters_country, EXCLUDED.headquarters_country)
+        RETURNING id::text AS id
+        """,
+        clean_name,
+        hq_country,
+    )
+    if inserted:
+        return str(inserted["id"]), True
+
+    # Fallback for race or case-variant duplicates.
+    existing = await conn.fetchrow(
+        """
+        SELECT id::text AS id
+        FROM investors
+        WHERE lower(regexp_replace(trim(name), '\\s+', ' ', 'g')) = $1
+        ORDER BY created_at ASC
+        LIMIT 1
+        """,
+        name_norm,
+    )
+    return (str(existing["id"]), False) if existing else (None, False)
+
+
+async def _upsert_investor_alias(
+    conn: "asyncpg.Connection",
+    *,
+    investor_id: str,
+    raw_name: str,
+    canonical_name: str,
+    confidence: float,
+    aliases_ready: bool,
+) -> None:
+    if not aliases_ready:
+        return
+    alias = _normalize_space(raw_name)
+    if not alias:
+        return
+    if alias.lower() == _normalize_space(canonical_name).lower():
+        return
+    await conn.execute(
+        """
+        INSERT INTO investor_aliases (investor_id, alias, alias_type, source, confidence)
+        VALUES ($1::uuid, $2, 'news_mention', 'news_event', $3)
+        ON CONFLICT ((lower(regexp_replace(trim(alias), '\\s+', ' ', 'g'))))
+        DO UPDATE SET
+          investor_id = EXCLUDED.investor_id,
+          source = EXCLUDED.source,
+          confidence = GREATEST(COALESCE(investor_aliases.confidence, 0), COALESCE(EXCLUDED.confidence, 0))
+        """,
+        investor_id,
+        alias,
+        max(0.0, min(1.0, float(confidence or 0.0))),
+    )
+
+
+async def upsert_capital_graph_from_events(
+    conn: "asyncpg.Connection",
+    events: List[ExtractedEvent],
+    confidence_threshold: float = 0.65,
+) -> Dict[str, int]:
+    """Write investor->startup funding edges into capital_graph_edges from news events."""
+    stats: Dict[str, int] = {
+        "events_considered": 0,
+        "investors_created": 0,
+        "edges_upserted": 0,
+        "skipped": 0,
+    }
+    if not events:
+        return stats
+
+    try:
+        graph_ready, aliases_ready = await _capital_graph_tables_ready(conn)
+    except Exception:
+        logger.warning("capital graph table check failed", exc_info=True)
+        return stats
+
+    if not graph_ready:
+        return stats
+
+    investor_cache: Dict[str, str] = {}
+    for evt in events:
+        if evt.event_type != "cap_funding_raised":
+            continue
+        if evt.confidence < confidence_threshold:
+            continue
+        if not evt.startup_id:
+            stats["skipped"] += 1
+            continue
+
+        stats["events_considered"] += 1
+        lead_raw = _normalize_space(str(evt.metadata.get("lead_investor") or ""))
+        if not lead_raw:
+            stats["skipped"] += 1
+            continue
+
+        investor_names = _split_investor_names(lead_raw)
+        if not investor_names:
+            stats["skipped"] += 1
+            continue
+
+        for investor_name in investor_names:
+            norm_key = investor_name.lower()
+            investor_id = investor_cache.get(norm_key)
+            created_now = False
+            if not investor_id:
+                try:
+                    investor_id, created_now = await _resolve_or_create_investor_id(
+                        conn,
+                        investor_name=investor_name,
+                        region=evt.region or "global",
+                        aliases_ready=aliases_ready,
+                    )
+                except Exception:
+                    logger.warning("Failed to resolve/create investor '%s'", investor_name, exc_info=True)
+                    stats["skipped"] += 1
+                    continue
+                if not investor_id:
+                    stats["skipped"] += 1
+                    continue
+                investor_cache[norm_key] = investor_id
+                if created_now:
+                    stats["investors_created"] += 1
+
+            try:
+                await _upsert_investor_alias(
+                    conn,
+                    investor_id=investor_id,
+                    raw_name=lead_raw,
+                    canonical_name=investor_name,
+                    confidence=evt.confidence,
+                    aliases_ready=aliases_ready,
+                )
+            except Exception:
+                # Alias writes are best-effort.
+                logger.debug("Failed to upsert investor alias '%s'", lead_raw, exc_info=True)
+
+            attrs = _event_graph_attrs(evt)
+            valid_from = evt.event_date.date() if evt.event_date else date.today()
+            source_ref = evt.cluster_id or str(evt.metadata.get("cluster_key") or "") or None
+
+            try:
+                await conn.execute(
+                    """
+                    INSERT INTO capital_graph_edges (
+                        src_type, src_id, edge_type, dst_type, dst_id, region,
+                        attrs_json, source, source_ref, confidence, created_by,
+                        valid_from, valid_to
+                    )
+                    VALUES (
+                        'investor', $1::uuid, 'LEADS_ROUND', 'startup', $2::uuid, $3,
+                        $4::jsonb, 'news_event', $5, $6, 'news_ingest',
+                        $7::date, $8::date
+                    )
+                    ON CONFLICT (src_type, src_id, edge_type, dst_type, dst_id, region, valid_from, valid_to)
+                    DO UPDATE SET
+                      attrs_json = capital_graph_edges.attrs_json || EXCLUDED.attrs_json,
+                      source = EXCLUDED.source,
+                      source_ref = COALESCE(EXCLUDED.source_ref, capital_graph_edges.source_ref),
+                      confidence = GREATEST(COALESCE(capital_graph_edges.confidence, 0), COALESCE(EXCLUDED.confidence, 0)),
+                      created_by = COALESCE(EXCLUDED.created_by, capital_graph_edges.created_by),
+                      updated_at = NOW()
+                    """,
+                    investor_id,
+                    evt.startup_id,
+                    evt.region or "global",
+                    json.dumps(attrs),
+                    source_ref,
+                    max(0.0, min(1.0, float(evt.confidence))),
+                    valid_from,
+                    _GRAPH_ACTIVE_VALID_TO,
+                )
+                stats["edges_upserted"] += 1
+            except Exception:
+                logger.warning(
+                    "Failed to upsert capital graph edge investor=%s startup=%s",
+                    investor_id,
+                    evt.startup_id,
+                    exc_info=True,
+                )
+                stats["skipped"] += 1
+
+    if stats["edges_upserted"]:
+        logger.info(
+            "Capital graph sync from events: edges=%d investors_created=%d considered=%d",
+            stats["edges_upserted"],
+            stats["investors_created"],
+            stats["events_considered"],
+        )
+    return stats
 
 
 # ---------------------------------------------------------------------------

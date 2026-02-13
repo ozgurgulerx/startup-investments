@@ -17,10 +17,10 @@ import { SignalsProvider } from './signals-provider';
 import { isDecisionCardsEnabled } from '@/lib/radar-flags';
 import type { ViewMode } from './view-toggle';
 
-function formatTimestamp(value: string): string {
+function formatTimestamp(value: string, region: 'global' | 'turkey'): string {
   const parsed = safeDate(value);
   if (parsed.getTime() === 0) return value;
-  return parsed.toLocaleString('en-US', {
+  return parsed.toLocaleString(region === 'turkey' ? 'tr-TR' : 'en-US', {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -56,6 +56,41 @@ interface InteractiveRadarProps {
 }
 
 export function InteractiveRadar({ initialEdition, initialTopics, isArchive, region = 'global', periodicBriefs }: InteractiveRadarProps) {
+  const l = region === 'turkey'
+    ? {
+      unsubscribed: 'Abonelikten ciktiniz. Artik ozet e-postasi almayacaksiniz.',
+      unsubscribedInvalid: 'Abonelikten cikis linki gecersiz veya zaten kullanildi.',
+      confirmed: 'Abonelik onaylandi. Artik abonesiniz.',
+      alreadyConfirmed: 'Zaten onayli. Abonelik aktif.',
+      confirmExpired: 'Onay linki suresi dolmus veya gecersiz. Yeni link icin tekrar abone olun.',
+      dismiss: 'Kapat',
+      newReadySingle: 'yeni sinyal hazir.',
+      newReadyPlural: 'yeni sinyal hazir.',
+      editionUpdated: 'Bulten guncellendi.',
+      refreshFeed: 'Akisi yenile',
+      showBriefing: 'Ozeti goster',
+      live: 'Canli',
+      updated: 'Guncellendi',
+      updateReady: 'guncelleme hazir',
+      noSignals: 'Filtrelerinize uygun sinyal bulunamadi.',
+    }
+    : {
+      unsubscribed: 'Unsubscribed. You will no longer receive digest emails.',
+      unsubscribedInvalid: 'Unsubscribe link was invalid or already used.',
+      confirmed: 'Subscription confirmed. You are now subscribed.',
+      alreadyConfirmed: 'Already confirmed. You are subscribed.',
+      confirmExpired: 'Confirmation link expired or invalid. Subscribe again to receive a new link.',
+      dismiss: 'Dismiss',
+      newReadySingle: 'new signal ready.',
+      newReadyPlural: 'new signals ready.',
+      editionUpdated: 'Edition updated.',
+      refreshFeed: 'Refresh feed',
+      showBriefing: 'Show briefing',
+      live: 'Live',
+      updated: 'Updated',
+      updateReady: 'update ready',
+      noSignals: 'No signals match your filters.',
+    };
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get('story') || null;
@@ -373,19 +408,19 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 
   const statusBanner = (() => {
     if (unsubscribed === '1') {
-      return { tone: 'success' as const, text: 'Unsubscribed. You will no longer receive digest emails.' };
+      return { tone: 'success' as const, text: l.unsubscribed };
     }
     if (unsubscribed === '0') {
-      return { tone: 'warn' as const, text: 'Unsubscribe link was invalid or already used.' };
+      return { tone: 'warn' as const, text: l.unsubscribedInvalid };
     }
     if (confirmed === '1') {
-      return { tone: 'success' as const, text: 'Subscription confirmed. You are now subscribed.' };
+      return { tone: 'success' as const, text: l.confirmed };
     }
     if (confirmed === 'already') {
-      return { tone: 'success' as const, text: 'Already confirmed. You are subscribed.' };
+      return { tone: 'success' as const, text: l.alreadyConfirmed };
     }
     if (confirmed === 'expired') {
-      return { tone: 'warn' as const, text: 'Confirmation link expired or invalid. Subscribe again to receive a new link.' };
+      return { tone: 'warn' as const, text: l.confirmExpired };
     }
     return null;
   })();
@@ -415,7 +450,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                 onClick={dismissStatusBanner}
                 className="inline-flex items-center rounded-full border border-border/40 px-3 py-1 text-xs uppercase tracking-wider text-muted-foreground hover:bg-muted/20 hover:text-foreground"
               >
-                Dismiss
+                {l.dismiss}
               </button>
             </div>
 	          </div>
@@ -428,11 +463,11 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 	          <div className="rounded-xl border border-accent-info/35 bg-accent-info/10 px-4 py-2.5 text-sm text-foreground">
 	            <div className="flex flex-wrap items-center justify-between gap-3">
 	              <div className="flex items-center gap-2">
-	                <Sparkles className="h-4 w-4 text-accent-info" />
+                <Sparkles className="h-4 w-4 text-accent-info" />
                 {newSignalCount > 0 ? (
-                  <span><strong>{newSignalCount}</strong> new {newSignalCount === 1 ? 'signal' : 'signals'} ready.</span>
+                  <span><strong>{newSignalCount}</strong> {newSignalCount === 1 ? l.newReadySingle : l.newReadyPlural}</span>
                 ) : (
-                  <span>Edition updated.</span>
+                  <span>{l.editionUpdated}</span>
                 )}
               </div>
               <button
@@ -460,7 +495,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                 }}
                 className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs uppercase tracking-wider text-accent hover:bg-accent/15"
               >
-                Refresh feed
+                {l.refreshFeed}
                 <ArrowUpRight className="h-3 w-3" />
 	              </button>
 	            </div>
@@ -485,6 +520,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         showViewToggle={decisionCardsEnabled}
         hideLowTrust={hideLowTrust}
         onHideLowTrustChange={setHideLowTrust}
+        region={region}
       />
 
 	      {/* KPI Strip + status */}
@@ -495,6 +531,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
 	            crossSourceCount={crossSourceCount}
 	            totalEntities={totalEntities}
             totalClusters={edition.stats.total_clusters}
+            region={region}
           />
           <div className="flex items-center gap-2">
             {briefDismissed && edition.brief && activeTopic === 'all' && !searchQuery.trim() && (
@@ -503,17 +540,17 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
                 className="inline-flex items-center gap-1 text-[10px] text-accent-info/60 transition-colors hover:text-accent-info"
               >
                 <Newspaper className="h-3 w-3" />
-                Show briefing
+                {l.showBriefing}
               </button>
             )}
             <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
               <Activity className="h-3 w-3 text-success" />
-              Live
+              {l.live}
             </span>
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
               <RefreshCcw className={`h-3 w-3 ${isPolling ? 'animate-spin text-accent-info' : ''}`} />
-              Updated {formatTimestamp(edition.generated_at)}
-              {pendingEdition ? <span className="text-accent-info/70">· update ready</span> : null}
+              {l.updated} {formatTimestamp(edition.generated_at, region)}
+              {pendingEdition ? <span className="text-accent-info/70">· {l.updateReady}</span> : null}
 	            </span>
 	          </div>
 	        </PageContainer>
@@ -566,7 +603,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
               </div>
             ) : (
               <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-                No signals match your filters.
+                {l.noSignals}
               </div>
             )}
 

@@ -61,10 +61,14 @@ ALL_WORKFLOWS = CICD_WORKFLOWS + [
 VM_CRON_JOBS = {
     "keep-alive": 20,
     "news-ingest": 75,
+    "x-trends": 90,
     "event-processor": 30,
     "deep-research": 45,
     "crawl-frontier": 45,
     "news-digest": 1500,     # daily
+    "x-post-generate": 300,
+    "x-post-publish": 180,
+    "x-post-metrics": 420,
     "slack-summary": 1500,   # daily (this script itself)
     "release-reconciler": 20,
     "sync-data": 45,
@@ -585,6 +589,69 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
         except Exception as e:
             warnings.append(f"digest_24h_by_region unavailable: {e}")
 
+        try:
+            x_posts = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE status = 'queued') AS queued,
+                  COUNT(*) FILTER (WHERE status = 'publishing') AS publishing,
+                  COUNT(*) FILTER (WHERE status = 'published' AND published_at >= NOW() - INTERVAL '24 hours') AS published_24h,
+                  COUNT(*) FILTER (WHERE status = 'failed' AND updated_at >= NOW() - INTERVAL '24 hours') AS failed_24h
+                FROM x_post_queue
+                """
+            )
+            if x_posts:
+                metrics["x_posts_24h"] = {
+                    "queued": int(x_posts["queued"]),
+                    "publishing": int(x_posts["publishing"]),
+                    "published_24h": int(x_posts["published_24h"]),
+                    "failed_24h": int(x_posts["failed_24h"]),
+                }
+        except Exception as e:
+            warnings.append(f"x_posts_24h unavailable: {e}")
+
+        try:
+            x_attempts = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE status = 'success') AS success,
+                  COUNT(*) FILTER (WHERE status = 'failed') AS failed
+                FROM x_post_attempts
+                WHERE attempted_at >= NOW() - INTERVAL '24 hours'
+                """
+            )
+            if x_attempts:
+                metrics["x_attempts_24h"] = {
+                    "success": int(x_attempts["success"]),
+                    "failed": int(x_attempts["failed"]),
+                }
+        except Exception as e:
+            warnings.append(f"x_attempts_24h unavailable: {e}")
+
+        try:
+            x_metrics = await conn.fetchrow(
+                """
+                SELECT
+                  COALESCE(SUM(impressions), 0) AS impressions,
+                  COALESCE(SUM(likes), 0) AS likes,
+                  COALESCE(SUM(replies), 0) AS replies,
+                  COALESCE(SUM(reposts), 0) AS reposts,
+                  COALESCE(SUM(url_clicks), 0) AS url_clicks
+                FROM x_post_metrics_daily
+                WHERE metric_date = CURRENT_DATE
+                """
+            )
+            if x_metrics:
+                metrics["x_metrics_today"] = {
+                    "impressions": int(x_metrics["impressions"]),
+                    "likes": int(x_metrics["likes"]),
+                    "replies": int(x_metrics["replies"]),
+                    "reposts": int(x_metrics["reposts"]),
+                    "url_clicks": int(x_metrics["url_clicks"]),
+                }
+        except Exception as e:
+            warnings.append(f"x_metrics_today unavailable: {e}")
+
         if warnings:
             metrics["db_metrics_warnings"] = warnings[:3]
 
@@ -849,6 +916,19 @@ def main() -> int:
                     for r in rows
                 ]
                 body_lines.append(f"- Digest by region (24h): {'; '.join(parts)}")
+        if "x_posts_24h" in metrics:
+            xq = metrics["x_posts_24h"]
+            body_lines.append(
+                f"- X queue: queued={xq.get('queued')} publishing={xq.get('publishing')} published_24h={xq.get('published_24h')} failed_24h={xq.get('failed_24h')}"
+            )
+        if "x_attempts_24h" in metrics:
+            xa = metrics["x_attempts_24h"]
+            body_lines.append(f"- X publish attempts (24h): success={xa.get('success')} failed={xa.get('failed')}")
+        if "x_metrics_today" in metrics:
+            xm = metrics["x_metrics_today"]
+            body_lines.append(
+                f"- X engagement (today): impressions={xm.get('impressions')} likes={xm.get('likes')} replies={xm.get('replies')} reposts={xm.get('reposts')} url_clicks={xm.get('url_clicks')}"
+            )
         if "llm_24h" in metrics:
             l = metrics["llm_24h"]
             body_lines.append(

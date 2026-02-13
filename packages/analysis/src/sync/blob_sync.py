@@ -394,6 +394,14 @@ def main():
         print("Set AZURE_STORAGE_CONNECTION_STRING environment variable")
         sys.exit(1)
 
+    # Verify blob storage is actually reachable (not just configured).
+    # blob_service returns None when all auth methods fail.
+    if sync_manager.storage_client.blob_service is None:
+        print("Error: Could not authenticate to Azure Blob Storage")
+        print("Check managed identity RBAC or AZURE_STORAGE_CONNECTION_STRING")
+        # Exit code 2 = auth/connectivity failure (distinguishable from general errors)
+        sys.exit(2)
+
     if args.check:
         print("\n[Sync] Checking for changes...")
         changes = sync_manager.check_for_changes()

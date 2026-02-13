@@ -19,10 +19,10 @@ function regionPath(region: 'global' | 'turkey', period: 'daily' | 'weekly' | 'm
   return `${base}/${period}`;
 }
 
-function formatEditionDate(value: string): string {
+function formatEditionDate(value: string, locale: string): string {
   const parsed = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('en-US', {
+  return parsed.toLocaleDateString(locale, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -32,7 +32,31 @@ function formatEditionDate(value: string): string {
 
 export function NewsNav({ activeRegion = 'global', activePeriod = 'daily', archiveDate, rightSlot }: NavProps) {
   const latestHref = activeRegion === 'turkey' ? '/news/turkey' : '/news';
-  const latestLabel = activeRegion === 'turkey' ? 'Latest Turkey Edition' : 'Latest Edition';
+  const isTR = activeRegion === 'turkey';
+  const locale = isTR ? 'tr-TR' : 'en-US';
+  const l = isTR
+    ? {
+      latestLabel: 'En yeni Turkiye baskisi',
+      methodology: 'Metodoloji',
+      global: 'Global',
+      turkey: 'Turkiye',
+      daily: 'Gunluk',
+      weekly: 'Haftalik',
+      monthly: 'Aylik',
+      search: 'Ara',
+      archive: 'Arsiv',
+    }
+    : {
+      latestLabel: 'Latest Edition',
+      methodology: 'Methodology',
+      global: 'Global',
+      turkey: 'Turkey',
+      daily: 'Daily',
+      weekly: 'Weekly',
+      monthly: 'Monthly',
+      search: 'Search',
+      archive: 'Archive',
+    };
 
   return (
     <nav className="sticky top-0 z-30 shrink-0 border-b border-border/30 bg-background/95 backdrop-blur-sm">
@@ -49,25 +73,25 @@ export function NewsNav({ activeRegion = 'global', activePeriod = 'daily', archi
         ) : (
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           {archiveDate && (
-            <span className="hidden sm:inline text-muted-foreground">{formatEditionDate(archiveDate)}</span>
+            <span className="hidden sm:inline text-muted-foreground">{formatEditionDate(archiveDate, locale)}</span>
           )}
 
           {!archiveDate && (
-            <Link href="/methodology" className="hidden sm:inline hover:text-foreground transition-colors">Methodology</Link>
+            <Link href="/methodology" className="hidden sm:inline hover:text-foreground transition-colors">{l.methodology}</Link>
           )}
 
           {/* Region toggle */}
           <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-border/40 bg-muted/15 p-0.5">
-            <Link href={regionPath('global', activePeriod, archiveDate)} className={activeRegion === 'global' ? activePill : inactivePill}>Global</Link>
-            <Link href={regionPath('turkey', activePeriod, archiveDate)} className={activeRegion === 'turkey' ? activePill : inactivePill}>Turkey</Link>
+            <Link href={regionPath('global', activePeriod, archiveDate)} className={activeRegion === 'global' ? activePill : inactivePill}>{l.global}</Link>
+            <Link href={regionPath('turkey', activePeriod, archiveDate)} className={activeRegion === 'turkey' ? activePill : inactivePill}>{l.turkey}</Link>
           </div>
 
           {/* Period toggle */}
           {!archiveDate && (
             <div className="flex items-center gap-1.5 rounded-full border border-border/40 bg-muted/15 p-0.5">
-              <Link href={regionPath(activeRegion, 'daily')} className={activePeriod === 'daily' ? activePill : inactivePill}>Daily</Link>
-              <Link href={regionPath(activeRegion, 'weekly')} className={activePeriod === 'weekly' ? activePill : inactivePill}>Weekly</Link>
-              <Link href={regionPath(activeRegion, 'monthly')} className={activePeriod === 'monthly' ? activePill : inactivePill}>Monthly</Link>
+              <Link href={regionPath(activeRegion, 'daily')} className={activePeriod === 'daily' ? activePill : inactivePill}>{l.daily}</Link>
+              <Link href={regionPath(activeRegion, 'weekly')} className={activePeriod === 'weekly' ? activePill : inactivePill}>{l.weekly}</Link>
+              <Link href={regionPath(activeRegion, 'monthly')} className={activePeriod === 'monthly' ? activePill : inactivePill}>{l.monthly}</Link>
             </div>
           )}
 
@@ -75,14 +99,14 @@ export function NewsNav({ activeRegion = 'global', activePeriod = 'daily', archi
             href={activeRegion === 'turkey' ? '/news/turkey/search' : '/news/search'}
             className={inactivePill}
           >
-            Search
+            {l.search}
           </Link>
 
           <Link
             href={activeRegion === 'turkey' ? '/news/turkey/archive' : '/news/archive'}
             className={inactivePill}
           >
-            Archive
+            {l.archive}
           </Link>
 
           {archiveDate && (
@@ -90,7 +114,7 @@ export function NewsNav({ activeRegion = 'global', activePeriod = 'daily', archi
               href={latestHref}
               className="rounded border border-border/50 px-3 py-1.5 text-foreground hover:bg-muted/30 transition-colors"
             >
-              {latestLabel}
+              {l.latestLabel}
             </Link>
           )}
         </div>

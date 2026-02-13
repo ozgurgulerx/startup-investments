@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import type { NewsItemCard, EvidenceItem } from '@startup-intelligence/shared';
-import { timeAgo, storyTypeBadgeClass, aiSignalLabel } from '@/lib/news-utils';
+import { timeAgo, storyTypeBadgeClass, aiSignalLabel, storyTypeLabel } from '@/lib/news-utils';
 import { safeHref } from '@/lib/url';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
@@ -23,6 +23,24 @@ interface StoryCardProps {
   region?: 'global' | 'turkey';
   viewMode?: ViewMode;
 }
+
+const EN_COPY = {
+  multiSource: 'Multi-source',
+  singleSource: 'Single-source',
+  whyItMatters: 'Why it matters',
+  openSource: 'Open source',
+  topImpact: 'Top Impact',
+  new: 'New',
+};
+
+const TR_COPY = {
+  multiSource: 'Coklu kaynak',
+  singleSource: 'Tek kaynak',
+  whyItMatters: 'Neden onemli',
+  openSource: 'Kaynagi ac',
+  topImpact: 'En yuksek etki',
+  new: 'Yeni',
+};
 
 /** Build fallback evidence from legacy sources + url fields when evidence_json is not yet populated. */
 function buildFallbackEvidence(item: NewsItemCard): EvidenceItem[] {
@@ -46,6 +64,7 @@ function buildFallbackEvidence(item: NewsItemCard): EvidenceItem[] {
 }
 
 export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global', viewMode }: StoryCardProps) {
+  const l = region === 'turkey' ? TR_COPY : EN_COPY;
   const typeBadge = storyTypeBadgeClass(item.story_type);
   const tags = item.topic_tags.slice(0, 2);
   const imageUrl = item.image_url && /^https?:\/\//i.test(item.image_url) ? item.image_url : null;
@@ -90,15 +109,15 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
       {/* A. Header row */}
       <div className="flex flex-wrap items-center gap-2">
         <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${typeBadge}`}>
-          {item.story_type || 'news'}
+          {storyTypeLabel(item.story_type, region)}
         </span>
-        <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
+        <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} region={region} />
         <span className="inline-flex rounded-full border border-border/30 bg-muted/15 px-2 py-0.5 text-[10px] text-muted-foreground">
-          {item.source_count >= 2 ? 'Multi-source' : 'Single-source'}
+          {item.source_count >= 2 ? l.multiSource : l.singleSource}
         </span>
         {isNew && (
           <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-success">
-            {region === 'turkey' ? 'Yeni' : 'New'}
+            {l.new}
           </span>
         )}
         {typeof item.llm_signal_score === 'number' && (
@@ -107,7 +126,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
           </span>
         )}
         <span className="text-[10px] text-muted-foreground/70 tabular-nums whitespace-nowrap">
-          {timeAgo(item.published_at)}
+          {timeAgo(item.published_at, region)}
         </span>
       </div>
 
@@ -137,7 +156,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
       {/* C. Why it matters */}
       {whyItMatters && (
         <div className="mt-2">
-          <span className="text-[10px] uppercase tracking-wider text-accent-info">Why it matters</span>
+          <span className="text-[10px] uppercase tracking-wider text-accent-info">{l.whyItMatters}</span>
           <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
             {whyItMatters}
           </p>
@@ -148,7 +167,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
       <ImpactBox item={item} compact region={region} viewMode={viewMode} />
 
       {/* E. Evidence expander */}
-      <EvidenceExpander evidence={evidence} />
+      <EvidenceExpander evidence={evidence} region={region} />
 
       {/* F. Open source CTA */}
       {safeHref(item.url) && (
@@ -161,7 +180,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
             className="inline-flex items-center gap-1 rounded-md border border-accent-info/30 bg-accent-info/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info hover:bg-accent-info/20 transition-colors"
           >
             <ExternalLink className="h-3 w-3" />
-            Open source
+            {l.openSource}
           </a>
         </div>
       )}
@@ -184,13 +203,14 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
       {viewMode && <ContextBar item={item} region={region} />}
 
       <div className="mt-3 pt-2 border-t border-border/20">
-        <ReactionBar clusterId={item.id} compact onHide={onHide} />
+        <ReactionBar clusterId={item.id} compact onHide={onHide} region={region} />
       </div>
     </div>
   );
 }
 
 export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global', viewMode }: StoryCardProps) {
+  const l = region === 'turkey' ? TR_COPY : EN_COPY;
   const typeBadge = storyTypeBadgeClass(item.story_type);
   const displayTitle = item.ba_title || item.title;
   const whyItMatters = item.why_it_matters || item.builder_takeaway;
@@ -216,19 +236,19 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
 
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-accent-info/15 text-accent-info border border-accent-info/25">
-          {region === 'turkey' ? 'En Onemli' : 'Top Impact'}
+          {l.topImpact}
         </span>
         {isNew && (
           <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-success/10 text-success border border-success/25">
-            {region === 'turkey' ? 'Yeni' : 'New'}
+            {l.new}
           </span>
         )}
-        <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
+        <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} region={region} />
         <span className="inline-flex rounded-full border border-border/30 bg-muted/15 px-2 py-0.5 text-[10px] text-muted-foreground">
-          {item.source_count >= 2 ? 'Multi-source' : 'Single-source'}
+          {item.source_count >= 2 ? l.multiSource : l.singleSource}
         </span>
         <span className={`hidden sm:inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${typeBadge}`}>
-          {item.story_type || 'news'}
+          {storyTypeLabel(item.story_type, region)}
         </span>
         {typeof item.llm_signal_score === 'number' && (
           <span className="ml-auto inline-flex rounded-full border border-accent-info/35 bg-accent-info/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent-info">
@@ -236,7 +256,7 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
           </span>
         )}
         <span className="text-[10px] text-muted-foreground/70 tabular-nums">
-          {timeAgo(item.published_at)}
+          {timeAgo(item.published_at, region)}
         </span>
       </div>
 
@@ -263,7 +283,7 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
 
       {whyItMatters && (
         <div className="mt-2">
-          <span className="text-[10px] uppercase tracking-wider text-accent-info">Why it matters</span>
+          <span className="text-[10px] uppercase tracking-wider text-accent-info">{l.whyItMatters}</span>
           <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
             {whyItMatters}
           </p>
@@ -272,7 +292,7 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
 
       <ImpactBox item={item} compact region={region} viewMode={viewMode} />
 
-      <EvidenceExpander evidence={evidence} />
+      <EvidenceExpander evidence={evidence} region={region} />
 
       {safeHref(item.url) && (
         <div className="mt-2">
@@ -284,7 +304,7 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
             className="inline-flex items-center gap-1 rounded-md border border-accent-info/30 bg-accent-info/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info hover:bg-accent-info/20 transition-colors"
           >
             <ExternalLink className="h-3 w-3" />
-            Open source
+            {l.openSource}
           </a>
         </div>
       )}
@@ -292,7 +312,7 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
       {viewMode && <ContextBar item={item} region={region} />}
 
       <div className="mt-3 pt-2 border-t border-border/20">
-        <ReactionBar clusterId={item.id} compact onHide={onHide} />
+        <ReactionBar clusterId={item.id} compact onHide={onHide} region={region} />
       </div>
     </div>
   );
