@@ -101,8 +101,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/
 # Copy public folder
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
-# Copy data directory for API-down fallback (exclude raw_content to save ~58MB)
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/data ./apps/web/data
+# Copy data directory for /library + API-down fallback.
+# NOTE: `DATA_PATH` defaults to `./data` at runtime (see apps/web/lib/data/index.ts + apps/web/next.config.js).
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/data ./data
 
 USER nextjs
 

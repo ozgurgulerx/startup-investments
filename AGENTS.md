@@ -253,6 +253,10 @@ Frontend:
 - `.github/workflows/frontend-deploy.yml`
   - Manual backup only (`workflow_dispatch`).
   - VM job: `infrastructure/vm-cron/jobs/frontend-deploy.sh` (deploys to App Service `buildatlas-web`).
+- Library datasets:
+  - `/library` reads file-based newsletters from `DATA_PATH` (default `./data`, see `apps/web/lib/data/index.ts`).
+  - `/library` only offers months that have newsletter markdown on disk (`output/comprehensive_newsletter.md` or `output/viral_newsletter.md`) to avoid API/data mismatches.
+  - Docker-based App Service deploy must include datasets at `/app/data` (see `apps/web/Dockerfile`).
 
 Backend:
 - `.github/workflows/backend-deploy.yml`

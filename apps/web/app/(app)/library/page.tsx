@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Card } from '@/components/ui';
-import { getNewsletterMarkdown, getAvailablePeriods, getMonthlyStats } from '@/lib/data';
+import { getNewsletterMarkdown, getAvailableNewsletterPeriods, getMonthlyStats } from '@/lib/data';
 import { formatPeriod } from '@/lib/utils';
 import { NewsletterRenderer } from '@/components/features';
 import { PeriodNav } from '@/components/ui/period-nav';
@@ -9,17 +9,29 @@ import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 const FALLBACK_PERIOD = '2026-01';
 
 async function LibraryContent({ selectedMonth, region }: { selectedMonth?: string; region?: string }) {
-  const periods = await getAvailablePeriods(region);
+  const periods = await getAvailableNewsletterPeriods(region);
   const latestPeriod = periods[0]?.period || FALLBACK_PERIOD;
-  const period = (selectedMonth && periods.some(p => p.period === selectedMonth))
+  let period = (selectedMonth && periods.some(p => p.period === selectedMonth))
     ? selectedMonth
     : latestPeriod;
   const availableMonths = periods.map(p => p.period);
 
-  const [markdown, stats] = await Promise.all([
-    getNewsletterMarkdown(period, region),
-    getMonthlyStats(period, region),
-  ]);
+  // Extra safety: if file reads fail (e.g. mis-synced deployments), fall back to the
+  // newest month that successfully loads markdown so /library never looks empty.
+  let markdown = await getNewsletterMarkdown(period, region);
+  if (!markdown && periods.length > 0) {
+    for (const p of periods) {
+      if (p.period === period) continue;
+      const next = await getNewsletterMarkdown(p.period, region);
+      if (next) {
+        period = p.period;
+        markdown = next;
+        break;
+      }
+    }
+  }
+
+  const stats = await getMonthlyStats(period, region);
 
   if (!markdown) {
     return (
@@ -34,7 +46,7 @@ async function LibraryContent({ selectedMonth, region }: { selectedMonth?: strin
         </div>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
-            <p className="text-muted-foreground">No newsletter available for this period.</p>
+            <p className="text-muted-foreground">No deep dives available for this period.</p>
             <p className="text-sm text-muted-foreground/60 mt-2">
               Check back later or select a different period.
             </p>

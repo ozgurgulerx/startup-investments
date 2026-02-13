@@ -30,6 +30,23 @@ function cacheKey(region: string | undefined, period: string): string {
   return `${normalizeDatasetRegion(region)}:${period}`;
 }
 
+async function hasNewsletterMarkdownForPeriod(period: string, region?: string): Promise<boolean> {
+  const dataPath = getDataPath(region);
+  const comprehensivePath = path.join(dataPath, period, 'output', 'comprehensive_newsletter.md');
+  try {
+    await fs.access(comprehensivePath);
+    return true;
+  } catch { /* noop */ }
+
+  const viralPath = path.join(dataPath, period, 'output', 'viral_newsletter.md');
+  try {
+    await fs.access(viralPath);
+    return true;
+  } catch { /* noop */ }
+
+  return false;
+}
+
 // In-memory cache for startups data (avoids re-reading 275 files on each page)
 const startupsCache = new Map<string, {
   data: StartupAnalysis[];
@@ -40,6 +57,12 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // In-memory cache for periods (keyed by region)
 const periodsCache = new Map<string, { data: PeriodInfo[]; timestamp: number }>();
 const PERIODS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// In-memory cache for newsletter-backed periods (keyed by region)
+// This intentionally ignores the API, because /library is file-backed and should
+// only offer months that actually have newsletter markdown on disk.
+const newsletterPeriodsCache = new Map<string, { data: PeriodInfo[]; timestamp: number }>();
+const NEWSLETTER_PERIODS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 // In-memory cache for monthly stats
 const statsCache = new Map<string, { data: MonthlyStats; timestamp: number }>();
@@ -128,8 +151,16 @@ export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]
     try {
       const periods = await api.getPeriods(regionKey);
       if (periods.length > 0) {
-        periodsCache.set(regionKey, { data: periods, timestamp: Date.now() });
-        return periods;
+        // The API currently treats `has_newsletter=true` for all periods, but /library
+        // is file-backed. Cross-check the on-disk dataset to prevent empty states.
+        const hydrated = await Promise.all(
+          periods.map(async (p) => ({
+            ...p,
+            has_newsletter: await hasNewsletterMarkdownForPeriod(p.period, regionKey),
+          }))
+        );
+        periodsCache.set(regionKey, { data: hydrated, timestamp: Date.now() });
+        return hydrated;
       }
     } catch (error) {
       console.error('API request failed for getAvailablePeriods, falling back to file-based periods:', error);
@@ -148,20 +179,21 @@ export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]
     // Load stats for all periods in parallel for better performance
     const periodsWithStats = await Promise.all(
       periodDirs.map(async (entry): Promise<PeriodInfo> => {
+        const hasNewsletter = await hasNewsletterMarkdownForPeriod(entry.name, regionKey);
         try {
           const stats = await getMonthlyStatsInternal(entry.name, region);
           return {
             period: entry.name,
             deal_count: stats.deal_summary.total_deals,
             total_funding: stats.deal_summary.total_funding_usd,
-            has_newsletter: true,
+            has_newsletter: hasNewsletter,
           };
         } catch {
           return {
             period: entry.name,
             deal_count: 0,
             total_funding: 0,
-            has_newsletter: false,
+            has_newsletter: hasNewsletter,
           };
         }
       })
@@ -176,6 +208,83 @@ export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]
     return sorted;
   } catch (error) {
     console.error('Error reading periods:', error);
+    return [];
+  }
+}
+
+/**
+ * Get available periods that actually have newsletter markdown on disk.
+ * Used by /library to avoid "latest month" mismatches between API periods and
+ * deployed data files.
+ */
+export async function getAvailableNewsletterPeriods(region?: string): Promise<PeriodInfo[]> {
+  const regionKey = normalizeDatasetRegion(region);
+
+  const cached = newsletterPeriodsCache.get(regionKey);
+  if (cached && Date.now() - cached.timestamp < NEWSLETTER_PERIODS_CACHE_TTL) {
+    return cached.data;
+  }
+
+  async function fileExists(filePath: string): Promise<boolean> {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function periodHasNewsletter(dataDir: string, period: string): Promise<boolean> {
+    const base = path.join(dataDir, period, 'output');
+    // Prefer comprehensive, fall back to viral (same as getNewsletterMarkdown()).
+    if (await fileExists(path.join(base, 'comprehensive_newsletter.md'))) return true;
+    if (await fileExists(path.join(base, 'viral_newsletter.md'))) return true;
+    return false;
+  }
+
+  async function readPeriodStats(dataDir: string, period: string): Promise<{
+    deal_count: number;
+    total_funding: number;
+  }> {
+    try {
+      const statsPath = path.join(dataDir, period, 'output', 'monthly_stats.json');
+      const content = await fs.readFile(statsPath, 'utf-8');
+      const stats = JSON.parse(content) as MonthlyStats;
+      return {
+        deal_count: stats?.deal_summary?.total_deals ?? 0,
+        total_funding: stats?.deal_summary?.total_funding_usd ?? 0,
+      };
+    } catch {
+      return { deal_count: 0, total_funding: 0 };
+    }
+  }
+
+  try {
+    const dataDir = getDataPath(region);
+    const entries = await fs.readdir(dataDir, { withFileTypes: true });
+
+    const periodDirs = entries.filter(
+      entry => entry.isDirectory() && /^\d{4}-\d{2}$/.test(entry.name)
+    );
+
+    const periods = await Promise.all(
+      periodDirs.map(async (entry): Promise<PeriodInfo | null> => {
+        const period = entry.name;
+        const has_newsletter = await periodHasNewsletter(dataDir, period);
+        if (!has_newsletter) return null;
+        const { deal_count, total_funding } = await readPeriodStats(dataDir, period);
+        return { period, deal_count, total_funding, has_newsletter };
+      })
+    );
+
+    const sorted = periods
+      .filter((p): p is PeriodInfo => Boolean(p))
+      .sort((a, b) => b.period.localeCompare(a.period));
+
+    newsletterPeriodsCache.set(regionKey, { data: sorted, timestamp: Date.now() });
+    return sorted;
+  } catch (error) {
+    console.error('Error reading newsletter periods:', error);
     return [];
   }
 }
