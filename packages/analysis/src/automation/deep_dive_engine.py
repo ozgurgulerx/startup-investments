@@ -9,6 +9,7 @@ Phases 3-6 of the deep dive pipeline:
 """
 
 import hashlib
+import inspect
 import json
 import logging
 import math
@@ -104,35 +105,84 @@ class EvidencePack:
 # Azure OpenAI client (reuses pattern from signal_engine.py)
 # ---------------------------------------------------------------------------
 
+_CACHED_LLM_CLIENT: Optional[Any] = None
+_CACHED_AAD_CREDENTIAL: Optional[Any] = None
+
+
 def _create_llm_client() -> Optional[Any]:
-    """Create Azure OpenAI async client for move extraction + synthesis."""
+    """Create (or reuse) Azure OpenAI async client for move extraction + synthesis."""
+    global _CACHED_LLM_CLIENT, _CACHED_AAD_CREDENTIAL
+    if _CACHED_LLM_CLIENT is not None:
+        return _CACHED_LLM_CLIENT
+
     endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
     if not endpoint:
         return None
+
     try:
         from openai import AsyncAzureOpenAI
+    except Exception:
+        return None
+
+    # Prefer AAD (async) for Azure OpenAI; fall back to API key if configured.
+    try:
+        from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
+        credential = DefaultAzureCredential()
+        token_provider = get_bearer_token_provider(
+            credential, "https://cognitiveservices.azure.com/.default"
+        )
+        client = AsyncAzureOpenAI(
+            azure_ad_token_provider=token_provider,
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+            azure_endpoint=endpoint,
+        )
+        _CACHED_AAD_CREDENTIAL = credential
+        _CACHED_LLM_CLIENT = client
+        return client
+    except Exception:
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        if not api_key:
+            return None
+        client = AsyncAzureOpenAI(
+            api_key=api_key,
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+            azure_endpoint=endpoint,
+        )
+        _CACHED_AAD_CREDENTIAL = None
+        _CACHED_LLM_CLIENT = client
+        return client
+
+
+async def close_llm_client() -> None:
+    """Close cached Azure credential/client to avoid aiohttp leak warnings at process exit."""
+    global _CACHED_LLM_CLIENT, _CACHED_AAD_CREDENTIAL
+    client = _CACHED_LLM_CLIENT
+    credential = _CACHED_AAD_CREDENTIAL
+    _CACHED_LLM_CLIENT = None
+    _CACHED_AAD_CREDENTIAL = None
+
+    # Best-effort close of OpenAI async client (httpx). Not all versions expose a close method.
+    if client is not None:
+        for attr in ("aclose", "close"):
+            fn = getattr(client, attr, None)
+            if not fn:
+                continue
+            try:
+                res = fn()
+                if inspect.isawaitable(res):
+                    await res
+                break
+            except Exception:
+                break
+
+    # Close Azure AAD credential (aiohttp session) if present.
+    if credential is not None:
         try:
-            from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
-            credential = DefaultAzureCredential()
-            token_provider = get_bearer_token_provider(
-                credential, "https://cognitiveservices.azure.com/.default"
-            )
-            return AsyncAzureOpenAI(
-                azure_ad_token_provider=token_provider,
-                api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
-                azure_endpoint=endpoint,
-            )
-        except ImportError:
-            api_key = os.getenv("AZURE_OPENAI_API_KEY")
-            if api_key:
-                return AsyncAzureOpenAI(
-                    api_key=api_key,
-                    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
-                    azure_endpoint=endpoint,
-                )
-    except ImportError:
-        pass
-    return None
+            res = credential.close()
+            if inspect.isawaitable(res):
+                await res
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -1748,6 +1798,10 @@ async def generate_deep_dives(
 
     finally:
         await conn.close()
+        try:
+            await close_llm_client()
+        except Exception:
+            pass
 
     logger.info("Deep dive generation complete: %s", stats)
     return stats
@@ -1904,6 +1958,10 @@ async def backfill_deep_dives(
 
     finally:
         await conn.close()
+        try:
+            await close_llm_client()
+        except Exception:
+            pass
 
     logger.info("Deep dive backfill complete: %s", stats)
     return stats
