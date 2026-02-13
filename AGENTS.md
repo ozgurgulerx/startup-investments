@@ -100,6 +100,7 @@ VM cron runner:
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
   - `crawl-frontier` runs every 30 minutes with a **40 minute** runner timeout (`runner.sh crawl-frontier 40 ...`) to avoid recurring timeout kills during large frontier seeding windows.
+  - `crawl-frontier` seed phase is capped at **20 minutes** in `infrastructure/vm-cron/jobs/crawl-frontier.sh`; on timeout it logs a warning and continues to the worker so the job can complete instead of failing hard.
   - Daily `slack-summary` now includes subscription lifecycle metrics (created/confirmed/unsubscribed in 24h),
     segment breakdown (`region` × `digest_frequency`), masked newly-confirmed subscriber emails, and digest
     delivery totals by region.
@@ -218,6 +219,8 @@ News:
     - If deep-dive tables are unavailable, backend deep-dive endpoints should return empty payloads (not crash) so `/signals/[id]` can show "No deep dive available yet" instead of failing hard.
 - Daily brief + LLM enrichment (news):
   - Controlled by `NEWS_LLM_ENRICHMENT=true` (and optional `NEWS_LLM_DAILY_BRIEF=true`) in `/etc/buildatlas/.env`.
+  - Intel headline mode is controlled by `INTEL_FIRST_PROMPT=true` (recommended ON in prod VM). When enabled, cards prefer `news_clusters.ba_title`/`ba_bullets`/`why_it_matters`.
+  - Intel mode runs with strict source-review validation: enrichment must return `reviewed_source_count` + `reviewed_source_urls` covering all cluster members, otherwise intel fields are rejected and previous DB values are preserved (`COALESCE` upsert behavior).
   - "Why It Matters" under each news story card comes from `news_clusters.builder_takeaway` (server-fetched via backend `/api/v1/news`). If `builder_takeaway` is empty/NULL, the UI will not render that block.
   - Implementation: `packages/analysis/src/automation/news_ingest.py` enriches clusters via Azure OpenAI; for GPT-5 deployments it prefers the Responses API (`responses.create` + strict JSON schema) and falls back to Chat Completions.
   - Production Azure OpenAI may have **key auth disabled**. Prefer AAD via managed identity (requires `azure-identity` in the venv and RBAC on the Azure OpenAI resource).
@@ -248,6 +251,7 @@ News:
 
 - News-driven startup onboarding (active):
   - Ingest hook: `packages/analysis/src/automation/news_ingest.py` calls `onboard_unknown_startups(...)` for unlinked startup entities.
+  - Ordering invariant: onboarding runs before funding-round + graph upserts inside `_extract_events(...)`, so newly discovered startups can be connected to funding events and investor graph edges in the same ingest run.
   - Stub creation behavior:
     - Inserts startup rows with `onboarding_status='stub'` (not immediately visible in Dealbook/company API).
     - Attempts website inference from cluster evidence URLs and stores inferred website when confidence is sufficient.
@@ -300,7 +304,10 @@ Backend API support:
   - `verticalLandscape.topVerticals` and `verticalLandscape.topSubVerticals` (funding/deal/startup mix)
   - Each landscape item can include `prevPctOfFunding` and `deltaPp` (vs previous period)
   - `topDeals[*].vertical/subVertical` and `spotlight.vertical/subVertical` for brief UI labeling
-  - Brief UI (`apps/web/components/features/intelligence-brief.tsx`) renders a vertical section with links into taxonomy filters and representative deals/signals cards.
+  - `capitalGraph` pulse block (connected investor/founder/startup counts + top connected investors/founders + period edge additions)
+  - Brief UI (`apps/web/components/features/intelligence-brief.tsx`) renders:
+    - a vertical section with links into taxonomy filters and representative deals/signals cards
+    - a `Capital Graph Pulse` section with links to `/capital?tab=investors` and investor dossiers
 
 Materialization step (required for DB-driven filters):
 - The analysis pipeline writes JSON files under `apps/web/data/<period>/output/analysis_store/base_analyses/*.json`.
@@ -364,8 +371,13 @@ Automated news-driven updates (active):
 - Funding events with `lead_investor` are mapped into:
   - Investor upsert (stub investor if missing, type=`unknown`).
   - `capital_graph_edges` edge: `investor --LEADS_ROUND--> startup` (region-aware, source=`news_event`).
+- Onboarding integration: unknown startups are onboarded first, then that same event batch is used for funding + graph sync.
 - Materialized views refresh automatically once per ingest run when new graph edges are upserted.
 - Feature flag: set `NEWS_GRAPH_SYNC_ENABLED=false` to disable graph sync without disabling news ingest.
+
+Bulk/CSV onboarding integration (active):
+- `scripts/sync-startups-to-db.py` projects CSV lead-investor data into `capital_graph_edges` (`investor --LEADS_ROUND--> startup`, source=`csv_sync`) and refreshes graph views when edges are written.
+- Admin fallback API `POST /api/admin/sync-startups` now runs the same graph projection step after funding upserts (used by `.github/workflows/sync-to-database.yml`).
 
 Quick checks:
 - Graph tables exist:
@@ -507,6 +519,7 @@ API behavior and performance implications:
 - The web app is **API-first** when configured (for both regions) and **falls back to files** when the API is unavailable or the DB is behind deployed datasets.
 - VM cron `sync-data` keeps Postgres in sync with disk datasets (when `DATABASE_URL` is set):
   - Upsert `startups` + `funding_rounds` from `apps/web/data/**/input/startups.csv` via `scripts/sync-startups-to-db.py` (direct Postgres; avoids Front Door timeouts on admin HTTP sync)
+  - The same CSV sync pass also upserts lead-investor graph edges into `capital_graph_edges` and refreshes materialized views when needed.
   - Populate `startups.analysis_data` from `analysis_store` via `scripts/populate-analysis-data.py --region ...`
 
 Quick checks:

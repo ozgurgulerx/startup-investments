@@ -6,6 +6,7 @@ export type {
   BriefSnapshotMetrics,
   BriefSnapshotDeltas,
   BriefVerticalLandscape,
+  BriefCapitalGraphPulse,
   BriefNewsContext,
   SignalRef,
   BuilderAction,

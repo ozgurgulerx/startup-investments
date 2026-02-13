@@ -63,6 +63,32 @@ interface BriefVerticalLandscape {
   }>;
 }
 
+interface BriefCapitalGraphPulse {
+  available: boolean;
+  nodes: {
+    investors: number;
+    founders: number;
+    startups: number;
+  };
+  edges: {
+    investorStartupActive: number;
+    founderStartupActive: number;
+    investorStartupAddedInPeriod: number;
+    founderStartupAddedInPeriod: number;
+  };
+  topInvestors: Array<{
+    id: string;
+    name: string;
+    startupCount: number;
+    leadEdgeCount: number;
+  }>;
+  topFounders: Array<{
+    id: string;
+    name: string;
+    startupCount: number;
+  }>;
+}
+
 interface BriefNewsContext {
   clusters: Array<{
     id: string; title: string; summary: string; storyType: string;
@@ -123,6 +149,7 @@ export interface BriefSnapshot {
   builderActions: BuilderAction[];
   patternLandscape: Array<{ pattern: string; prevalencePct: number; startupCount: number; signal: string }>;
   verticalLandscape: BriefVerticalLandscape;
+  capitalGraph: BriefCapitalGraphPulse;
   fundingByStage: Array<{ stage: string; amount: number; pct: number; deals: number }>;
   topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string; vertical?: string; subVertical?: string }>;
   geography: Array<{ region: string; deals: number; totalFunding: number; avgDeal: number }>;
@@ -605,6 +632,182 @@ export function makeBriefService(pool: Pool) {
         company: r.company,
       })),
     };
+  }
+
+  function emptyCapitalGraphPulse(): BriefCapitalGraphPulse {
+    return {
+      available: false,
+      nodes: { investors: 0, founders: 0, startups: 0 },
+      edges: {
+        investorStartupActive: 0,
+        founderStartupActive: 0,
+        investorStartupAddedInPeriod: 0,
+        founderStartupAddedInPeriod: 0,
+      },
+      topInvestors: [],
+      topFounders: [],
+    };
+  }
+
+  async function computeCapitalGraphPulse(
+    region: string,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<BriefSnapshot['capitalGraph']> {
+    const fallback = emptyCapitalGraphPulse();
+    try {
+      const existsResult = await pool.query<{
+        has_graph_edges: boolean;
+        has_startup_founders: boolean;
+        has_investors: boolean;
+        has_founders: boolean;
+      }>(`
+        SELECT
+          to_regclass('public.capital_graph_edges') IS NOT NULL AS has_graph_edges,
+          to_regclass('public.startup_founders') IS NOT NULL AS has_startup_founders,
+          to_regclass('public.investors') IS NOT NULL AS has_investors,
+          to_regclass('public.founders') IS NOT NULL AS has_founders
+      `);
+
+      const hasTables = Boolean(
+        existsResult.rows[0]?.has_graph_edges
+          && existsResult.rows[0]?.has_startup_founders
+          && existsResult.rows[0]?.has_investors
+          && existsResult.rows[0]?.has_founders,
+      );
+      if (!hasTables) return fallback;
+
+      const [countsResult, topInvestorsResult, topFoundersResult] = await Promise.all([
+        pool.query<{
+          investor_startup_active: string;
+          founder_startup_active: string;
+          investor_count: string;
+          founder_count: string;
+          startup_count: string;
+          investor_added_in_period: string;
+          founder_added_in_period: string;
+        }>(`
+          WITH investor_edges AS (
+            SELECT e.src_id AS investor_id, e.dst_id AS startup_id
+            FROM capital_graph_edges e
+            JOIN startups s ON s.id = e.dst_id
+            WHERE e.src_type = 'investor'
+              AND e.dst_type = 'startup'
+              AND e.region = $1
+              AND e.valid_to = DATE '9999-12-31'
+              AND s.dataset_region = $1
+          ),
+          founder_links AS (
+            SELECT sf.founder_id, sf.startup_id
+            FROM startup_founders sf
+            JOIN startups s ON s.id = sf.startup_id
+            WHERE s.dataset_region = $1
+              AND sf.is_current = TRUE
+          ),
+          connected_startups AS (
+            SELECT startup_id FROM investor_edges
+            UNION
+            SELECT startup_id FROM founder_links
+          )
+          SELECT
+            (SELECT COUNT(*) FROM investor_edges)::int AS investor_startup_active,
+            (SELECT COUNT(*) FROM founder_links)::int AS founder_startup_active,
+            (SELECT COUNT(DISTINCT investor_id) FROM investor_edges)::int AS investor_count,
+            (SELECT COUNT(DISTINCT founder_id) FROM founder_links)::int AS founder_count,
+            (SELECT COUNT(DISTINCT startup_id) FROM connected_startups)::int AS startup_count,
+            (
+              SELECT COUNT(*)::int
+              FROM capital_graph_edges e
+              JOIN startups s ON s.id = e.dst_id
+              WHERE e.src_type = 'investor'
+                AND e.dst_type = 'startup'
+                AND e.region = $1
+                AND e.valid_from >= $2::date
+                AND e.valid_from <= $3::date
+                AND s.dataset_region = $1
+            ) AS investor_added_in_period,
+            (
+              SELECT COUNT(*)::int
+              FROM startup_founders sf
+              JOIN startups s ON s.id = sf.startup_id
+              WHERE s.dataset_region = $1
+                AND sf.created_at::date >= $2::date
+                AND sf.created_at::date <= $3::date
+            ) AS founder_added_in_period
+        `, [region, periodStart, periodEnd]),
+        pool.query<{
+          id: string;
+          name: string;
+          startup_count: string;
+          lead_edge_count: string;
+        }>(`
+          SELECT
+            i.id::text AS id,
+            i.name,
+            COUNT(DISTINCT e.dst_id)::int AS startup_count,
+            COUNT(*) FILTER (WHERE e.edge_type = 'LEADS_ROUND')::int AS lead_edge_count
+          FROM capital_graph_edges e
+          JOIN investors i ON i.id = e.src_id
+          JOIN startups s ON s.id = e.dst_id
+          WHERE e.src_type = 'investor'
+            AND e.dst_type = 'startup'
+            AND e.region = $1
+            AND e.valid_to = DATE '9999-12-31'
+            AND s.dataset_region = $1
+          GROUP BY i.id, i.name
+          ORDER BY startup_count DESC, lead_edge_count DESC, i.name ASC
+          LIMIT 8
+        `, [region]),
+        pool.query<{
+          id: string;
+          name: string;
+          startup_count: string;
+        }>(`
+          SELECT
+            f.id::text AS id,
+            f.full_name AS name,
+            COUNT(DISTINCT sf.startup_id)::int AS startup_count
+          FROM startup_founders sf
+          JOIN founders f ON f.id = sf.founder_id
+          JOIN startups s ON s.id = sf.startup_id
+          WHERE s.dataset_region = $1
+            AND sf.is_current = TRUE
+          GROUP BY f.id, f.full_name
+          ORDER BY startup_count DESC, f.full_name ASC
+          LIMIT 8
+        `, [region]),
+      ]);
+
+      const counts = countsResult.rows[0] || ({} as any);
+      return {
+        available: true,
+        nodes: {
+          investors: parseInt(counts.investor_count) || 0,
+          founders: parseInt(counts.founder_count) || 0,
+          startups: parseInt(counts.startup_count) || 0,
+        },
+        edges: {
+          investorStartupActive: parseInt(counts.investor_startup_active) || 0,
+          founderStartupActive: parseInt(counts.founder_startup_active) || 0,
+          investorStartupAddedInPeriod: parseInt(counts.investor_added_in_period) || 0,
+          founderStartupAddedInPeriod: parseInt(counts.founder_added_in_period) || 0,
+        },
+        topInvestors: topInvestorsResult.rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          startupCount: parseInt(row.startup_count) || 0,
+          leadEdgeCount: parseInt(row.lead_edge_count) || 0,
+        })),
+        topFounders: topFoundersResult.rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          startupCount: parseInt(row.startup_count) || 0,
+        })),
+      };
+    } catch (err) {
+      console.warn('Brief: capital graph pulse query failed (tables may not exist):', (err as Error).message);
+      return fallback;
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -1620,6 +1823,7 @@ Rules:
     periodEnd: string;
     kind: string;
     metricsSnapshot: any;
+    capitalGraphSnapshot: any;
     promptVersion: string;
     signalsHash: string;
   }): string {
@@ -1699,6 +1903,7 @@ Rules:
 
       patternLandscape: computed.patternLandscape || [],
       verticalLandscape: computed.verticalLandscape || { topVerticals: [], topSubVerticals: [] },
+      capitalGraph: computed.capitalGraph || emptyCapitalGraphPulse(),
       fundingByStage: computed.fundingByStage || [],
       topDeals: computed.topDeals || [],
       geography: computed.geography || [],
@@ -1732,7 +1937,7 @@ Rules:
     );
 
     // 1. Compute all deterministic data in parallel
-    const [metrics, prevMetrics, topDeals, geography, investorsData, patternLandscape, verticalLandscape, spotlight, newsContext, signalResult] = await Promise.all([
+    const [metrics, prevMetrics, topDeals, geography, investorsData, patternLandscape, verticalLandscape, capitalGraph, spotlight, newsContext, signalResult] = await Promise.all([
       computeMetrics(region, periodKey, periodType, periodStart, periodEnd),
       computeMetrics(region, bounds.prevPeriodKey, periodType, bounds.prevPeriodStart, bounds.prevPeriodEnd),
       computeTopDeals(region, periodKey),
@@ -1740,6 +1945,7 @@ Rules:
       computeInvestors(region, periodKey),
       computePatternLandscape(region, periodKey),
       computeVerticalLandscape(region, periodKey, bounds.prevPeriodKey),
+      computeCapitalGraphPulse(region, periodStart, periodEnd),
       computeSpotlight(region, periodKey),
       computeNewsContext(region, periodKey),
       selectTopSignals(region, periodKey),
@@ -1758,7 +1964,9 @@ Rules:
     // 2. Compute input hash (deltas excluded — derived deterministically from metrics)
     const inputHash = computeInputHash({
       region, periodType, periodStart, periodEnd, kind,
-      metricsSnapshot, promptVersion: PROMPT_VERSION,
+      metricsSnapshot,
+      capitalGraphSnapshot: capitalGraph,
+      promptVersion: PROMPT_VERSION,
       signalsHash,
     });
 
@@ -1847,6 +2055,7 @@ Rules:
         investors: investorsData,
         patternLandscape,
         verticalLandscape,
+        capitalGraph,
         fundingByStage,
         spotlight,
         newsContext,
@@ -2168,6 +2377,7 @@ export function computeInputHashPure(inputs: {
   periodEnd: string;
   kind: string;
   metricsSnapshot: any;
+  capitalGraphSnapshot?: any;
   promptVersion: string;
   signalsHash: string;
 }): string {

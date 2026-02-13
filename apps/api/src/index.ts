@@ -4,6 +4,7 @@ import compression from 'compression';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import type { PoolClient } from 'pg';
 import { db, pool, testConnection, closePool, getPoolStats } from './db';
 import { startups, fundingRounds, investors } from './db/schema';
 import { eq, desc, sql, count, sum, and, gte, lte, ilike, or } from 'drizzle-orm';
@@ -221,6 +222,203 @@ function computedSlugExpr() {
     '',
     'g'
   )`;
+}
+
+const GRAPH_ACTIVE_VALID_TO = '9999-12-31';
+const LEAD_INVESTOR_SPLIT_RE = /\s+(?:and|ve)\s+|\s+&\s+|,|;|\/|\|/i;
+const LEAD_INVESTOR_DENYLIST = new Set([
+  'investor',
+  'investors',
+  'round',
+  'funding',
+  'series',
+  'seed',
+  'pre-seed',
+  'growth',
+  'bridge',
+]);
+
+function splitLeadInvestorNames(raw: string | null | undefined): string[] {
+  const cleaned = String(raw || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\b(?:with participation from|with participation by|katılımıyla|katilimiyla)\b.*$/i, '')
+    .trim()
+    .replace(/^[,.;\s]+|[,.;\s]+$/g, '');
+  if (!cleaned) return [];
+
+  const parts = cleaned.split(LEAD_INVESTOR_SPLIT_RE);
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const name = part.replace(/\s+/g, ' ').trim().replace(/^[,.;\s]+|[,.;\s]+$/g, '');
+    if (!name) continue;
+    const lower = name.toLowerCase();
+    if (LEAD_INVESTOR_DENYLIST.has(lower)) continue;
+    if (/^(series\s+[a-z]|pre-?seed|seed|growth|bridge)$/i.test(lower)) continue;
+    if (name.length < 2) continue;
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    names.push(name);
+  }
+  return names;
+}
+
+function normalizeAnnouncedDateToIso(raw: string | null | undefined): string | null {
+  const value = String(raw || '').trim();
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+interface AdminFundingGraphRow {
+  startupId: string;
+  roundType: string;
+  amountUsd: number | null;
+  announcedDate: string | null;
+  leadInvestors: string;
+}
+
+async function syncCapitalGraphFromFundingRows(
+  pgClient: PoolClient,
+  datasetRegion: 'global' | 'turkey',
+  rows: AdminFundingGraphRow[],
+): Promise<{
+  enabled: boolean;
+  investorsUpserted: number;
+  edgesUpserted: number;
+  viewsRefreshed: boolean;
+  candidateRows: number;
+}> {
+  const stats = {
+    enabled: false,
+    investorsUpserted: 0,
+    edgesUpserted: 0,
+    viewsRefreshed: false,
+    candidateRows: 0,
+  };
+  if (rows.length === 0) return stats;
+
+  const tableCheck = await pgClient.query<{
+    has_graph_edges: boolean;
+    has_investors: boolean;
+  }>(
+    `SELECT
+      to_regclass('public.capital_graph_edges') IS NOT NULL AS has_graph_edges,
+      to_regclass('public.investors') IS NOT NULL AS has_investors`,
+  );
+  const ready = Boolean(
+    tableCheck.rows[0]?.has_graph_edges && tableCheck.rows[0]?.has_investors,
+  );
+  if (!ready) return stats;
+  stats.enabled = true;
+
+  const candidateEdges: Array<{
+    startupId: string;
+    investorNorm: string;
+    roundType: string;
+    amountUsd: number | null;
+    announcedDateIso: string | null;
+    leadRaw: string;
+  }> = [];
+  const investorDisplayByNorm = new Map<string, string>();
+
+  for (const row of rows) {
+    const names = splitLeadInvestorNames(row.leadInvestors);
+    if (names.length === 0) continue;
+    stats.candidateRows += 1;
+    const announcedDateIso = normalizeAnnouncedDateToIso(row.announcedDate);
+    for (const name of names) {
+      const norm = name.toLowerCase();
+      investorDisplayByNorm.set(norm, name);
+      candidateEdges.push({
+        startupId: row.startupId,
+        investorNorm: norm,
+        roundType: row.roundType,
+        amountUsd: row.amountUsd,
+        announcedDateIso,
+        leadRaw: row.leadInvestors,
+      });
+    }
+  }
+
+  if (candidateEdges.length === 0) return stats;
+
+  const investorIdByNorm = new Map<string, string>();
+  const defaultCountry = datasetRegion === 'turkey' ? 'Turkey' : null;
+  for (const [norm, display] of investorDisplayByNorm.entries()) {
+    const investorResult = await pgClient.query<{ id: string; inserted: boolean }>(
+      `INSERT INTO investors (name, type, headquarters_country)
+       VALUES ($1, 'unknown', $2)
+       ON CONFLICT (name)
+       DO UPDATE SET
+         type = COALESCE(investors.type, EXCLUDED.type),
+         headquarters_country = COALESCE(investors.headquarters_country, EXCLUDED.headquarters_country)
+       RETURNING id::text, (xmax = 0) AS inserted`,
+      [display, defaultCountry],
+    );
+    const investorId = investorResult.rows[0]?.id;
+    if (!investorId) continue;
+    investorIdByNorm.set(norm, investorId);
+    if (Boolean(investorResult.rows[0]?.inserted)) {
+      stats.investorsUpserted += 1;
+    }
+  }
+
+  for (const edge of candidateEdges) {
+    const investorId = investorIdByNorm.get(edge.investorNorm);
+    if (!investorId) continue;
+    const validFrom = edge.announcedDateIso || new Date().toISOString().slice(0, 10);
+    const attrs = {
+      round_type: edge.roundType,
+      amount_usd: edge.amountUsd,
+      announced_date: edge.announcedDateIso,
+      lead_investor: edge.leadRaw,
+      source: 'admin_sync_csv',
+    };
+    await pgClient.query(
+      `INSERT INTO capital_graph_edges (
+         src_type, src_id, edge_type, dst_type, dst_id, region,
+         attrs_json, source, source_ref, confidence, created_by, valid_from, valid_to
+       )
+       VALUES (
+         'investor', $1::uuid, 'LEADS_ROUND', 'startup', $2::uuid, $3,
+         $4::jsonb, 'admin_sync_csv', $5, $6, 'admin-sync-startups', $7::date, $8::date
+       )
+       ON CONFLICT (src_type, src_id, edge_type, dst_type, dst_id, region, valid_from, valid_to)
+       DO UPDATE SET
+         attrs_json = capital_graph_edges.attrs_json || EXCLUDED.attrs_json,
+         source = EXCLUDED.source,
+         source_ref = COALESCE(EXCLUDED.source_ref, capital_graph_edges.source_ref),
+         confidence = GREATEST(COALESCE(capital_graph_edges.confidence, 0), COALESCE(EXCLUDED.confidence, 0)),
+         created_by = COALESCE(EXCLUDED.created_by, capital_graph_edges.created_by),
+         updated_at = NOW()`,
+      [
+        investorId,
+        edge.startupId,
+        datasetRegion,
+        JSON.stringify(Object.fromEntries(Object.entries(attrs).filter(([, value]) => value !== null && value !== ''))),
+        `admin-sync:${edge.roundType}:${validFrom}`,
+        0.85,
+        validFrom,
+        GRAPH_ACTIVE_VALID_TO,
+      ],
+    );
+    stats.edgesUpserted += 1;
+  }
+
+  if (stats.edgesUpserted > 0) {
+    const fnExists = await pgClient.query<{ ok: boolean }>(
+      `SELECT to_regprocedure('refresh_capital_graph_views()') IS NOT NULL AS ok`,
+    );
+    if (Boolean(fnExists.rows[0]?.ok)) {
+      await pgClient.query('SELECT refresh_capital_graph_views()');
+      stats.viewsRefreshed = true;
+    }
+  }
+
+  return stats;
 }
 
 // CORS configuration - allow frontend domains
@@ -4033,7 +4231,16 @@ app.post('/api/admin/sync-startups', async (req, res) => {
     inserted: 0,
     updated: 0,
     failed: [] as { name: string; error: string }[],
+    graph: {
+      enabled: false,
+      investorsUpserted: 0,
+      edgesUpserted: 0,
+      viewsRefreshed: false,
+      candidateRows: 0,
+      error: null as string | null,
+    },
   };
+  const graphFundingRows: AdminFundingGraphRow[] = [];
 
   // Pre-process all startups (validated by Zod schema)
   const parsed = startupData.map((startup) => {
@@ -4108,6 +4315,15 @@ app.post('/api/admin/sync-startups', async (req, res) => {
           const fundingAmount = parseFundingAmount(s.raw.amountUsd);
           fPlaceholders.push(`($${fIdx++}, $${fIdx++}, $${fIdx++}, $${fIdx++}, $${fIdx++})`);
           fParams.push(startupId, s.raw.roundType, fundingAmount, s.raw.announcedDate || null, s.raw.leadInvestors || null);
+          if (s.raw.leadInvestors) {
+            graphFundingRows.push({
+              startupId,
+              roundType: s.raw.roundType,
+              amountUsd: fundingAmount,
+              announcedDate: s.raw.announcedDate || null,
+              leadInvestors: s.raw.leadInvestors,
+            });
+          }
         }
         if (fPlaceholders.length > 0) {
           await pgClient.query(
@@ -4136,6 +4352,15 @@ app.post('/api/admin/sync-startups', async (req, res) => {
                 startupId: newStartup.id, roundType: s.raw.roundType,
                 amountUsd: fundingAmount, announcedDate: s.raw.announcedDate || null, leadInvestor: s.raw.leadInvestors || null,
               });
+              if (s.raw.leadInvestors) {
+                graphFundingRows.push({
+                  startupId: newStartup.id,
+                  roundType: s.raw.roundType,
+                  amountUsd: fundingAmount,
+                  announcedDate: s.raw.announcedDate || null,
+                  leadInvestors: s.raw.leadInvestors,
+                });
+              }
             }
           } catch (innerError) {
             results.failed.push({ name: s.name, error: String(innerError) });
@@ -4192,6 +4417,15 @@ app.post('/api/admin/sync-startups', async (req, res) => {
           const fundingAmount = parseFundingAmount(s.raw.amountUsd);
           fPlaceholders.push(`($${fIdx++}, $${fIdx++}, $${fIdx++}, $${fIdx++}, $${fIdx++})`);
           fParams.push(startupId, s.raw.roundType, fundingAmount, s.raw.announcedDate || null, s.raw.leadInvestors || null);
+          if (s.raw.leadInvestors) {
+            graphFundingRows.push({
+              startupId,
+              roundType: s.raw.roundType,
+              amountUsd: fundingAmount,
+              announcedDate: s.raw.announcedDate || null,
+              leadInvestors: s.raw.leadInvestors,
+            });
+          }
         }
         if (fPlaceholders.length > 0) {
           await pgClient.query(
@@ -4226,6 +4460,15 @@ app.post('/api/admin/sync-startups', async (req, res) => {
                   startupId: id, roundType: s.raw.roundType,
                   amountUsd: fundingAmount, announcedDate: s.raw.announcedDate || null, leadInvestor: s.raw.leadInvestors || null,
                 }).onConflictDoNothing();
+                if (s.raw.leadInvestors) {
+                  graphFundingRows.push({
+                    startupId: id,
+                    roundType: s.raw.roundType,
+                    amountUsd: fundingAmount,
+                    announcedDate: s.raw.announcedDate || null,
+                    leadInvestors: s.raw.leadInvestors,
+                  });
+                }
               }
             }
           } catch (innerError) {
@@ -4233,6 +4476,28 @@ app.post('/api/admin/sync-startups', async (req, res) => {
           }
         }
       }
+    }
+
+    try {
+      await pgClient.query('BEGIN');
+      const graphSync = await syncCapitalGraphFromFundingRows(pgClient, datasetRegion, graphFundingRows);
+      await pgClient.query('COMMIT');
+      results.graph = {
+        ...graphSync,
+        error: null,
+      };
+    } catch (graphError) {
+      await pgClient.query('ROLLBACK');
+      const message = String(graphError);
+      console.error('Capital graph sync failed after startup sync:', graphError);
+      results.graph = {
+        enabled: false,
+        investorsUpserted: 0,
+        edgesUpserted: 0,
+        viewsRefreshed: false,
+        candidateRows: 0,
+        error: message,
+      };
     }
   } finally {
     pgClient.release();

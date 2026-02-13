@@ -275,6 +275,11 @@ export function IntelligenceBrief({
       {/* Investor Intelligence */}
       <InvestorSection investors={brief.investors} />
 
+      {/* Capital Graph Pulse */}
+      {brief.capitalGraph?.available && (
+        <CapitalGraphSection graph={brief.capitalGraph} region={regionKey} />
+      )}
+
       {/* Featured Spotlight */}
       {brief.spotlight && <SpotlightSection spotlight={brief.spotlight} region={regionKey} />}
 
@@ -1049,6 +1054,87 @@ function InvestorSection({
                       {formatCurrency(inv.singleInvestment, true)}
                     </td>
                     <td className="pl-4 text-muted-foreground">{inv.company}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CapitalGraphSection({
+  graph,
+  region,
+}: {
+  graph: NonNullable<MonthlyBrief['capitalGraph']>;
+  region: string;
+}) {
+  return (
+    <section className="section">
+      <div className="section-header">
+        <span className="section-title">Capital Graph Pulse</span>
+        <Link href={withRegionHref('/capital?tab=investors', region)} className="section-link">
+          Explore network
+        </Link>
+      </div>
+
+      <div className="grid md:grid-cols-4 gap-3 mb-5">
+        <KpiCard label="Connected Investors" value={graph.nodes.investors.toLocaleString()} />
+        <KpiCard label="Connected Founders" value={graph.nodes.founders.toLocaleString()} />
+        <KpiCard label="Active Investor Edges" value={graph.edges.investorStartupActive.toLocaleString()} />
+        <KpiCard
+          label="Period Edge Adds"
+          value={(graph.edges.investorStartupAddedInPeriod + graph.edges.founderStartupAddedInPeriod).toLocaleString()}
+        />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <div>
+          <h4 className="text-sm font-medium text-foreground mb-3">Most Connected Investors</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/30">
+                  <th className="text-left py-2 text-muted-foreground font-medium">Investor</th>
+                  <th className="text-right py-2 text-muted-foreground font-medium">Startups</th>
+                  <th className="text-right py-2 text-muted-foreground font-medium">Lead Edges</th>
+                </tr>
+              </thead>
+              <tbody>
+                {graph.topInvestors.map((inv) => (
+                  <tr key={inv.id} className="border-b border-border/20">
+                    <td className="py-2 font-medium">
+                      <Link href={withRegionHref(`/investors/${inv.id}`, region)} className="hover:text-accent-info transition-colors">
+                        {inv.name}
+                      </Link>
+                    </td>
+                    <td className="text-right tabular-nums">{inv.startupCount}</td>
+                    <td className="text-right tabular-nums">{inv.leadEdgeCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-medium text-foreground mb-3">Most Connected Founders</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/30">
+                  <th className="text-left py-2 text-muted-foreground font-medium">Founder</th>
+                  <th className="text-right py-2 text-muted-foreground font-medium">Startups</th>
+                </tr>
+              </thead>
+              <tbody>
+                {graph.topFounders.map((founder) => (
+                  <tr key={founder.id} className="border-b border-border/20">
+                    <td className="py-2 font-medium">{founder.name}</td>
+                    <td className="text-right tabular-nums">{founder.startupCount}</td>
                   </tr>
                 ))}
               </tbody>

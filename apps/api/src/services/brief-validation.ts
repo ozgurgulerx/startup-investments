@@ -77,6 +77,15 @@ export function validateBriefSnapshot(
     errors.push('verticalLandscape is invalid');
   }
 
+  // capitalGraph exists and has expected top lists
+  if (
+    !snapshot.capitalGraph ||
+    !Array.isArray(snapshot.capitalGraph.topInvestors) ||
+    !Array.isArray(snapshot.capitalGraph.topFounders)
+  ) {
+    errors.push('capitalGraph is invalid');
+  }
+
   // topDeals is an array
   if (!Array.isArray(snapshot.topDeals)) {
     errors.push('topDeals is not an array');

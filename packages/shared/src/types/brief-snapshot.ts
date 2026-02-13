@@ -48,6 +48,32 @@ export interface BriefVerticalLandscape {
   }>;
 }
 
+export interface BriefCapitalGraphPulse {
+  available: boolean;
+  nodes: {
+    investors: number;
+    founders: number;
+    startups: number;
+  };
+  edges: {
+    investorStartupActive: number;
+    founderStartupActive: number;
+    investorStartupAddedInPeriod: number;
+    founderStartupAddedInPeriod: number;
+  };
+  topInvestors: Array<{
+    id: string;
+    name: string;
+    startupCount: number;
+    leadEdgeCount: number;
+  }>;
+  topFounders: Array<{
+    id: string;
+    name: string;
+    startupCount: number;
+  }>;
+}
+
 export interface BriefNewsContext {
   clusters: Array<{
     id: string;
@@ -118,6 +144,7 @@ export interface BriefSnapshot {
   // Deterministic sections
   patternLandscape: Array<{ pattern: string; prevalencePct: number; startupCount: number; signal: string }>;
   verticalLandscape: BriefVerticalLandscape;
+  capitalGraph: BriefCapitalGraphPulse;
   fundingByStage: Array<{ stage: string; amount: number; pct: number; deals: number }>;
   topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string; vertical?: string; subVertical?: string }>;
   geography: Array<{ region: string; deals: number; totalFunding: number; avgDeal: number }>;

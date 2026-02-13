@@ -18,7 +18,7 @@ import time
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
@@ -56,10 +56,17 @@ except Exception:  # pragma: no cover - optional import at module import time
     async_playwright = None
 
 # Intel-first enrichment prompt version — bump when prompt changes to invalidate cache
-ENRICHMENT_PROMPT_VERSION = "intel-v1"
+ENRICHMENT_PROMPT_VERSION = "intel-v2"
 
 # Feature gate: set INTEL_FIRST_PROMPT=true on the VM to enable the new intel-first LLM prompt
 INTEL_FIRST_PROMPT_ENABLED = os.getenv("INTEL_FIRST_PROMPT", "false").lower() in ("1", "true", "yes")
+
+INTEL_SOURCE_REVIEW_ERROR_CODES = {
+    "intel_source_review_count_missing",
+    "intel_source_review_count_mismatch",
+    "intel_source_review_urls_missing",
+    "intel_source_review_urls_mismatch",
+}
 
 TRACKING_PARAMS = {
     "utm_source",
@@ -615,8 +622,15 @@ def _compute_enrichment_hash(cluster: StoryCluster) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _validate_intel_fields(result: LLMEnrichmentResult, cluster_title: str = "", cluster_summary: str = "") -> None:
+def _validate_intel_fields(
+    result: LLMEnrichmentResult,
+    cluster_title: str = "",
+    cluster_summary: str = "",
+    member_titles: Optional[Sequence[str]] = None,
+) -> Optional[str]:
     """Enforce hard caps and validation rules on intel-first enrichment fields (mutates in place)."""
+    validation_error: Optional[str] = None
+
     # ba_title: hard cap 120 chars
     if result.ba_title:
         if len(result.ba_title) > 120:
@@ -656,6 +670,38 @@ def _validate_intel_fields(result: LLMEnrichmentResult, cluster_title: str = "",
             else:
                 cleaned.append(bullet)
         result.ba_bullets = cleaned
+
+    # Title anti-copy heuristic: reject intel fields when title mirrors source headlines.
+    if result.ba_title and member_titles:
+        ba_norm = normalize_text(result.ba_title).lower()
+        for ref_title in member_titles:
+            ref_norm = normalize_text(ref_title).lower()
+            if not ref_norm:
+                continue
+
+            # Catch exact or near-exact headline reuse.
+            if ba_norm == ref_norm or title_similarity(result.ba_title, ref_title) >= 0.86:
+                result.ba_title = None
+                result.ba_bullets = None
+                result.why_it_matters = None
+                validation_error = "intel_title_too_similar_source"
+                break
+
+            # Catch long substring overlap in either direction.
+            if len(ba_norm) >= 28 and ba_norm in ref_norm:
+                result.ba_title = None
+                result.ba_bullets = None
+                result.why_it_matters = None
+                validation_error = "intel_title_too_similar_source"
+                break
+            if len(ref_norm) >= 28 and ref_norm in ba_norm:
+                result.ba_title = None
+                result.ba_bullets = None
+                result.why_it_matters = None
+                validation_error = "intel_title_too_similar_source"
+                break
+
+    return validation_error
 
 
 def canonicalize_url(url: str) -> str:
@@ -1788,6 +1834,11 @@ class DailyNewsIngestor:
             "succeeded": 0,
             "failed": 0,
             "timeouts": 0,
+            "intel_attempted": 0,
+            "intel_accepted": 0,
+            "intel_rejected_validation": 0,
+            "intel_missing_source_proof": 0,
+            "intel_rejection_reasons": {},
             "latency_ms_p50": 0.0,
             "latency_ms_p95": 0.0,
             "latency_ms_avg": 0.0,
@@ -4385,6 +4436,32 @@ class DailyNewsIngestor:
             "JSON keys stay in English."
         ) if region == "turkey" else ""
 
+        ranked_members = sorted(
+            list(cluster.members),
+            key=lambda m: (m.source_weight, m.published_at),
+            reverse=True,
+        )
+        cluster_member_titles = [m.title for m in ranked_members if m.title]
+        source_rows: List[Dict[str, Any]] = []
+        expected_review_url_set: Set[str] = set()
+        for i, member in enumerate(ranked_members, start=1):
+            raw_url = (member.canonical_url or member.url or "").strip()
+            canonical_url = canonicalize_url(raw_url) if raw_url else ""
+            if canonical_url:
+                expected_review_url_set.add(canonical_url)
+            source_rows.append(
+                {
+                    "source_rank": i,
+                    "publisher": member.source_key,
+                    "source_weight": round(float(member.source_weight), 3),
+                    "published_at": member.published_at.isoformat() if member.published_at else None,
+                    "canonical_url": canonical_url or raw_url,
+                    "headline": _shorten_text(member.title or "", 140),
+                    "summary": _shorten_text(member.summary or "", 180),
+                }
+            )
+        expected_source_count = len(source_rows)
+
         if INTEL_FIRST_PROMPT_ENABLED:
             prompt = (
                 "You are BuildAtlas, a startup intelligence platform. "
@@ -4398,11 +4475,14 @@ class DailyNewsIngestor:
                 "CONSTRAINTS:\n"
                 "- The ba_title MUST be an analytical claim (intel headline), NOT a restated source headline. "
                 "Frame it as an implication, shift, or verification-oriented statement.\n"
+                "- You MUST review every item in sources[] before producing any intel fields.\n"
                 "- ba_bullets must be abstract claims about implications, not story narration.\n"
                 "- Quotes are DISALLOWED by default. If exactly one short quote (<=20 words) adds unique value, "
                 "set quote_allowed=true and provide quote_text + quote_source_url. Otherwise quote_allowed=false.\n"
                 "- Prefer verification-oriented framing: implications + what to check next.\n"
                 "- All text must be original paraphrase. Do not copy phrases >8 consecutive words from any source.\n"
+                "- Set reviewed_source_count to the exact number of sources you actually reviewed.\n"
+                "- Set reviewed_source_urls to the canonical_url values for ALL reviewed sources.\n"
                 + lang_instruction + "\n\n"
             )
         else:
@@ -4441,6 +4521,10 @@ class DailyNewsIngestor:
             "topic_tags": cluster.topic_tags[:6],
             "entities": cluster.entities[:6],
             "source_count": len(cluster.members),
+            "source_count_expected": expected_source_count,
+            "source_count_payload": expected_source_count,
+            "source_urls_expected": [row.get("canonical_url") for row in source_rows if row.get("canonical_url")],
+            "sources": source_rows,
             "rank_reason": cluster.rank_reason,
             "current_rank_score": cluster.rank_score,
             "current_trust_score": cluster.trust_score,
@@ -4632,12 +4716,28 @@ class DailyNewsIngestor:
             ba_bullets_raw = _pick(root, ["ba_bullets", "baBullets", "intel_bullets"])
             why_it_matters_raw = _pick(root, ["why_it_matters", "whyItMatters", "implication"])
             quote_allowed_raw = _pick(root, ["quote_allowed", "quoteAllowed"])
+            reviewed_source_count_raw = _pick(root, ["reviewed_source_count", "reviewedSourceCount"])
+            reviewed_source_urls_raw = _pick(root, ["reviewed_source_urls", "reviewedSourceUrls"])
 
             ba_title = _shorten_text(_coerce_text(ba_title_raw), 120) or None if ba_title_raw else None
             ba_bullets: Optional[List[str]] = None
             if isinstance(ba_bullets_raw, list):
                 ba_bullets = [_coerce_text(b) for b in ba_bullets_raw if _coerce_text(b)]
             why_it_matters = _shorten_text(_coerce_text(why_it_matters_raw), 160) or None if why_it_matters_raw else None
+
+            reviewed_source_count: Optional[int] = None
+            if reviewed_source_count_raw is not None and not isinstance(reviewed_source_count_raw, bool):
+                try:
+                    reviewed_source_count = max(0, int(reviewed_source_count_raw))
+                except (TypeError, ValueError):
+                    reviewed_source_count = None
+
+            reviewed_source_urls: List[str] = []
+            if isinstance(reviewed_source_urls_raw, list):
+                for value in reviewed_source_urls_raw:
+                    text = _coerce_text(value).strip()
+                    if text:
+                        reviewed_source_urls.append(text)
 
             # Quote validation: if quote_allowed but quote >20 words, disable it
             if quote_allowed_raw is True:
@@ -4659,8 +4759,48 @@ class DailyNewsIngestor:
                 ba_bullets=ba_bullets,
                 why_it_matters=why_it_matters,
             )
-            # Apply validation guardrails
-            _validate_intel_fields(result, cluster.title or "", cluster.summary or "")
+
+            def _validate_source_review_proof() -> Optional[str]:
+                if not INTEL_FIRST_PROMPT_ENABLED:
+                    return None
+                if expected_source_count <= 0:
+                    return None
+                if reviewed_source_count is None:
+                    return "intel_source_review_count_missing"
+                if reviewed_source_count != expected_source_count:
+                    return "intel_source_review_count_mismatch"
+                if not reviewed_source_urls:
+                    return "intel_source_review_urls_missing"
+
+                normalized_reviewed_urls: Set[str] = set()
+                for u in reviewed_source_urls:
+                    normalized = canonicalize_url(u)
+                    if normalized:
+                        normalized_reviewed_urls.add(normalized)
+
+                if expected_review_url_set and not expected_review_url_set.issubset(normalized_reviewed_urls):
+                    return "intel_source_review_urls_mismatch"
+                return None
+
+            # Apply validation guardrails (strictly block intel fields on proof/quality failures).
+            intel_error = _validate_source_review_proof()
+            if not intel_error:
+                intel_error = _validate_intel_fields(
+                    result,
+                    cluster.title or "",
+                    cluster.summary or "",
+                    member_titles=cluster_member_titles,
+                )
+            if intel_error:
+                result.ba_title = None
+                result.ba_bullets = None
+                result.why_it_matters = None
+                result.error_code = intel_error
+                if debug_llm:
+                    print(
+                        f"[news-ingest] intel validation rejected cluster "
+                        f"(region={region} cluster={cluster.cluster_key[:10]} reason={intel_error})"
+                    )
             return result
 
         last_error_code: Optional[str] = None
@@ -4698,12 +4838,30 @@ class DailyNewsIngestor:
                     json_schema_props["ba_title"] = {"type": "string", "maxLength": 120}
                     json_schema_props["ba_bullets"] = {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "string", "maxLength": 180}}
                     json_schema_props["why_it_matters"] = {"type": "string", "maxLength": 160}
+                    json_schema_props["reviewed_source_count"] = {"type": "integer", "minimum": 0}
+                    json_schema_props["reviewed_source_urls"] = {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 256,
+                        "items": {"type": "string", "minLength": 1, "maxLength": 600},
+                    }
                     json_schema_props["key_claims"] = {"type": "array", "maxItems": 4, "items": {"type": "string"}}
                     json_schema_props["entities"] = {"type": "array", "maxItems": 6, "items": {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}}, "required": ["name", "type"], "additionalProperties": False}}
                     json_schema_props["quote_allowed"] = {"type": "boolean"}
                     json_schema_props["quote_text"] = {"type": ["string", "null"]}
                     json_schema_props["quote_source_url"] = {"type": ["string", "null"]}
-                    json_schema_required.extend(["ba_title", "ba_bullets", "why_it_matters", "key_claims", "entities", "quote_allowed", "quote_text", "quote_source_url"])
+                    json_schema_required.extend([
+                        "ba_title",
+                        "ba_bullets",
+                        "why_it_matters",
+                        "reviewed_source_count",
+                        "reviewed_source_urls",
+                        "key_claims",
+                        "entities",
+                        "quote_allowed",
+                        "quote_text",
+                        "quote_source_url",
+                    ])
                 json_schema = {
                     "type": "object",
                     "additionalProperties": False,
@@ -4903,6 +5061,11 @@ class DailyNewsIngestor:
             "succeeded": 0,
             "failed": 0,
             "timeouts": 0,
+            "intel_attempted": 0,
+            "intel_accepted": 0,
+            "intel_rejected_validation": 0,
+            "intel_missing_source_proof": 0,
+            "intel_rejection_reasons": {},
             "latency_ms_p50": 0.0,
             "latency_ms_p95": 0.0,
             "latency_ms_avg": 0.0,
@@ -4938,6 +5101,7 @@ class DailyNewsIngestor:
         top_clusters = enrichment_candidates[:top_n]
         semaphore = asyncio.Semaphore(self.llm_concurrency)
         self._llm_metrics["attempted"] = int(top_n)
+        self._llm_metrics["intel_attempted"] = int(top_n) if INTEL_FIRST_PROMPT_ENABLED else 0
         self._llm_metrics["skipped_by_gating"] = int(skipped_by_gating)
         self._llm_metrics["skipped_by_signal"] = int(skipped_by_signal)
 
@@ -4954,6 +5118,10 @@ class DailyNewsIngestor:
         latencies_ms = [latency for _, _, latency in results]
         succeeded = 0
         timeout_count = 0
+        intel_accepted = 0
+        intel_rejected_validation = 0
+        intel_missing_source_proof = 0
+        intel_rejection_reasons: Dict[str, int] = {}
 
         for (cluster, llm_result, _) in results:
             llm_summary = llm_result.llm_summary
@@ -4995,10 +5163,18 @@ class DailyNewsIngestor:
             # Intel-first fields
             if llm_result.ba_title:
                 cluster.ba_title = llm_result.ba_title
+                if INTEL_FIRST_PROMPT_ENABLED:
+                    intel_accepted += 1
             if llm_result.ba_bullets:
                 cluster.ba_bullets = llm_result.ba_bullets
             if llm_result.why_it_matters:
                 cluster.why_it_matters = llm_result.why_it_matters
+
+            if INTEL_FIRST_PROMPT_ENABLED and llm_result.error_code and llm_result.error_code.startswith("intel_"):
+                intel_rejected_validation += 1
+                intel_rejection_reasons[llm_result.error_code] = intel_rejection_reasons.get(llm_result.error_code, 0) + 1
+                if llm_result.error_code in INTEL_SOURCE_REVIEW_ERROR_CODES:
+                    intel_missing_source_proof += 1
 
         # Build evidence and enrichment hash for ALL clusters (deterministic, zero LLM cost)
         for cluster in clusters:
@@ -5011,10 +5187,28 @@ class DailyNewsIngestor:
         self._llm_metrics["succeeded"] = int(succeeded)
         self._llm_metrics["failed"] = int(failed)
         self._llm_metrics["timeouts"] = int(timeout_count)
+        self._llm_metrics["intel_accepted"] = int(intel_accepted)
+        self._llm_metrics["intel_rejected_validation"] = int(intel_rejected_validation)
+        self._llm_metrics["intel_missing_source_proof"] = int(intel_missing_source_proof)
+        self._llm_metrics["intel_rejection_reasons"] = dict(
+            sorted(intel_rejection_reasons.items(), key=lambda kv: (-kv[1], kv[0]))
+        )
         if latencies_ms:
             self._llm_metrics["latency_ms_p50"] = round(_percentile(latencies_ms, 50), 2)
             self._llm_metrics["latency_ms_p95"] = round(_percentile(latencies_ms, 95), 2)
             self._llm_metrics["latency_ms_avg"] = round(sum(latencies_ms) / len(latencies_ms), 2)
+
+        if INTEL_FIRST_PROMPT_ENABLED and int(self._llm_metrics.get("intel_attempted") or 0) > 0:
+            reasons = self._llm_metrics.get("intel_rejection_reasons") or {}
+            reasons_text = ", ".join(f"{k}={v}" for k, v in reasons.items()) if reasons else "none"
+            print(
+                f"[news-ingest] intel validation ({region}): "
+                f"attempted={self._llm_metrics.get('intel_attempted')} "
+                f"accepted={self._llm_metrics.get('intel_accepted')} "
+                f"rejected={self._llm_metrics.get('intel_rejected_validation')} "
+                f"missing_source_proof={self._llm_metrics.get('intel_missing_source_proof')} "
+                f"reasons={reasons_text}"
+            )
 
         if isinstance(clusters, list):
             clusters.sort(key=lambda c: (c.rank_score, c.published_at), reverse=True)
@@ -5492,7 +5686,17 @@ class DailyNewsIngestor:
         stats["persisted"] = inserted
         print(f"[events:{region}] Extracted {len(all_events)} events from {len(clusters)} clusters, persisted {inserted}")
 
-        # Upsert funding rounds from high-confidence funding events
+        # Onboard unknown startups from unlinked entity mentions
+        try:
+            onboarded = await onboard_unknown_startups(conn, all_events, clusters)
+            stats["onboarded_startups"] = onboarded
+            if onboarded:
+                print(f"[onboard:{region}] Created {onboarded} stub startups from unlinked events")
+        except Exception as exc:
+            print(f"[news-ingest] Failed to onboard unknown startups: {exc}")
+
+        # Upsert funding rounds from high-confidence funding events.
+        # Runs after onboarding so newly discovered startups can receive rounds immediately.
         try:
             funding_inserted = await upsert_funding_from_events(conn, all_events)
             stats["funding_rounds_upserted"] = funding_inserted
@@ -5502,6 +5706,7 @@ class DailyNewsIngestor:
             print(f"[news-ingest] Failed to upsert funding rounds from events: {exc}")
 
         # Sync investor/startup graph edges from funding events (can be disabled).
+        # Runs after onboarding for the same reason as funding upsert.
         graph_sync_enabled = os.getenv("NEWS_GRAPH_SYNC_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
         if graph_sync_enabled:
             try:
@@ -5514,15 +5719,6 @@ class DailyNewsIngestor:
                     )
             except Exception as exc:
                 print(f"[news-ingest] Failed to sync capital graph from events: {exc}")
-
-        # Onboard unknown startups from unlinked entity mentions
-        try:
-            onboarded = await onboard_unknown_startups(conn, all_events, clusters)
-            stats["onboarded_startups"] = onboarded
-            if onboarded:
-                print(f"[onboard:{region}] Created {onboarded} stub startups from unlinked events")
-        except Exception as exc:
-            print(f"[news-ingest] Failed to onboard unknown startups: {exc}")
 
         # Enqueue refresh jobs for startups with qualifying events
         try:
@@ -6306,6 +6502,16 @@ class DailyNewsIngestor:
                     self._signal_aggregator = _sig_agg_global
                     # Merge LLM metrics from both regions
                     llm_metrics_turkey = dict(self._llm_metrics)
+                    merged_intel_reasons: Dict[str, int] = {}
+                    for source_map in [
+                        llm_metrics_global.get("intel_rejection_reasons") or {},
+                        llm_metrics_turkey.get("intel_rejection_reasons") or {},
+                    ]:
+                        if not isinstance(source_map, dict):
+                            continue
+                        for reason, count in source_map.items():
+                            key = str(reason)
+                            merged_intel_reasons[key] = merged_intel_reasons.get(key, 0) + int(count or 0)
                     self._llm_metrics = {
                         "enabled": llm_metrics_global.get("enabled", False),
                         "model": llm_metrics_global.get("model", ""),
@@ -6315,6 +6521,13 @@ class DailyNewsIngestor:
                         "succeeded": int(llm_metrics_global.get("succeeded", 0)) + int(llm_metrics_turkey.get("succeeded", 0)),
                         "failed": int(llm_metrics_global.get("failed", 0)) + int(llm_metrics_turkey.get("failed", 0)),
                         "timeouts": int(llm_metrics_global.get("timeouts", 0)) + int(llm_metrics_turkey.get("timeouts", 0)),
+                        "intel_attempted": int(llm_metrics_global.get("intel_attempted", 0)) + int(llm_metrics_turkey.get("intel_attempted", 0)),
+                        "intel_accepted": int(llm_metrics_global.get("intel_accepted", 0)) + int(llm_metrics_turkey.get("intel_accepted", 0)),
+                        "intel_rejected_validation": int(llm_metrics_global.get("intel_rejected_validation", 0)) + int(llm_metrics_turkey.get("intel_rejected_validation", 0)),
+                        "intel_missing_source_proof": int(llm_metrics_global.get("intel_missing_source_proof", 0)) + int(llm_metrics_turkey.get("intel_missing_source_proof", 0)),
+                        "intel_rejection_reasons": dict(
+                            sorted(merged_intel_reasons.items(), key=lambda kv: (-kv[1], kv[0]))
+                        ),
                         "skipped_by_gating": int(llm_metrics_global.get("skipped_by_gating", 0)) + int(llm_metrics_turkey.get("skipped_by_gating", 0)),
                         "skipped_by_signal": int(llm_metrics_global.get("skipped_by_signal", 0)) + int(llm_metrics_turkey.get("skipped_by_signal", 0)),
                         "latency_ms_p50": llm_metrics_global.get("latency_ms_p50", 0.0),

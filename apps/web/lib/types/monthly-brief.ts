@@ -131,6 +131,33 @@ export interface MonthlyBrief {
     }>;
   };
 
+  // Capital Graph pulse (optional; available on snapshot-backed briefs)
+  capitalGraph?: {
+    available: boolean;
+    nodes: {
+      investors: number;
+      founders: number;
+      startups: number;
+    };
+    edges: {
+      investorStartupActive: number;
+      founderStartupActive: number;
+      investorStartupAddedInPeriod: number;
+      founderStartupAddedInPeriod: number;
+    };
+    topInvestors: Array<{
+      id: string;
+      name: string;
+      startupCount: number;
+      leadEdgeCount: number;
+    }>;
+    topFounders: Array<{
+      id: string;
+      name: string;
+      startupCount: number;
+    }>;
+  };
+
   // Featured Spotlight (optional)
   spotlight?: {
     company: string;
@@ -217,6 +244,33 @@ export function snapshotToMonthlyBrief(snapshot: {
       deltaPp?: number;
     }>;
   };
+
+  // Capital Graph pulse (optional; available on snapshot-backed briefs)
+  capitalGraph?: {
+    available: boolean;
+    nodes: {
+      investors: number;
+      founders: number;
+      startups: number;
+    };
+    edges: {
+      investorStartupActive: number;
+      founderStartupActive: number;
+      investorStartupAddedInPeriod: number;
+      founderStartupAddedInPeriod: number;
+    };
+    topInvestors: Array<{
+      id: string;
+      name: string;
+      startupCount: number;
+      leadEdgeCount: number;
+    }>;
+    topFounders: Array<{
+      id: string;
+      name: string;
+      startupCount: number;
+    }>;
+  };
   fundingByStage: Array<{ stage: string; amount: number; pct: number; deals: number }>;
   topDeals: Array<{ rank: number; company: string; slug: string; amount: number; stage: string; location: string; vertical?: string; subVertical?: string }>;
   geography: Array<{ region: string; deals: number; totalFunding: number; avgDeal: number }>;
@@ -261,6 +315,7 @@ export function snapshotToMonthlyBrief(snapshot: {
       mostActive: snapshot.investors.mostActive.map(inv => ({ ...inv, notableBets: '' })),
       megaCheckWriters: snapshot.investors.megaCheckWriters,
     },
+    capitalGraph: snapshot.capitalGraph,
     spotlight: snapshot.spotlight ? {
       ...snapshot.spotlight,
       vertical: snapshot.spotlight.vertical || 'Unknown',
