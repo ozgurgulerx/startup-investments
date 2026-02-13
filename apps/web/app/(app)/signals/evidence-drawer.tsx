@@ -32,6 +32,7 @@ export function EvidenceDrawer({
   region = 'global',
 }: EvidenceDrawerProps) {
   const isTR = region === 'turkey';
+  const regionQS = region !== 'global' ? `?region=${encodeURIComponent(region)}` : '';
   const l = isTR
     ? {
       evidence: 'Kanit',
@@ -140,7 +141,7 @@ export function EvidenceDrawer({
                     </span>
                     {ev.startup_slug && (
                       <Link
-                        href={`/company/${ev.startup_slug}`}
+                        href={`/company/${ev.startup_slug}${regionQS}`}
                         className="text-[10px] text-accent-info hover:text-accent-info/80 ml-auto flex items-center gap-0.5"
                       >
                         {ev.startup_name}

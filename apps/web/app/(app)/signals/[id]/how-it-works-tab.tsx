@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { AlertTriangle, Target, Gauge, Lightbulb } from 'lucide-react';
 import type { SignalItem, DeepDiveContent } from '@/lib/api/client';
 
@@ -10,6 +11,7 @@ interface HowItWorksTabProps {
 
 export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
   const isTR = signal.region === 'turkey';
+  const regionQS = signal.region !== 'global' ? `?region=${encodeURIComponent(signal.region)}` : '';
   const l = isTR
     ? {
       measures: 'Bu sinyal neyi olcer',
@@ -114,13 +116,13 @@ export function HowItWorksTab({ content, signal }: HowItWorksTabProps) {
                 {pattern.startups.length > 0 && (
                   <div className="flex gap-1.5 mt-3 flex-wrap">
                     {pattern.startups.map((slug) => (
-                      <a
+                      <Link
                         key={slug}
-                        href={`/company/${slug}`}
+                        href={`/company/${slug}${regionQS}`}
                         className="text-[11px] px-2 py-0.5 rounded-full bg-muted/30 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {slug}
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 )}

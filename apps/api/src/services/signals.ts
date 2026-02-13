@@ -69,6 +69,44 @@ export interface SignalRecommendationsResponse {
 type NewsRegion = 'global' | 'turkey';
 const SIGNALS_RECOMMENDER_ALGORITHM_VERSION = 'signals_v2_graph_memory';
 
+interface SignalRelevanceRound {
+  funding_round_id: string;
+  startup_id: string;
+  startup_name: string;
+  startup_slug: string | null;
+  round_type: string;
+  amount_usd: number | null;
+  announced_date: string | null;
+  lead_investor: string | null;
+  occurrence_score: number;
+  score: number;
+  why: string[];
+}
+
+interface SignalRelevancePattern {
+  pattern: string;
+  count: number;
+  score: number;
+  why: string[];
+  example_startups: Array<{ slug: string; name: string }>;
+}
+
+interface SignalRelevanceRelatedSignal {
+  signal: SignalRow;
+  overlap_count: number;
+  score: number;
+  why: string[];
+}
+
+interface SignalRelevanceBundle {
+  signal_id: string;
+  region: NewsRegion;
+  window_days: number;
+  relevant_rounds: SignalRelevanceRound[];
+  related_patterns: SignalRelevancePattern[];
+  related_signals: SignalRelevanceRelatedSignal[];
+}
+
 interface RecommendationFeatures {
   overlap_count: number;
   graph_shared_investor_count: number;
@@ -159,6 +197,7 @@ export function makeSignalsService(pool: Pool) {
 
   async function getSignalsList(params: {
     region?: string;
+    userId?: string;
     status?: string;
     domain?: string;
     sector?: string;
@@ -169,17 +208,17 @@ export function makeSignalsService(pool: Pool) {
   }): Promise<{ signals: SignalRow[]; total: number }> {
     try {
       const region = normalizeRegion(params.region);
-      const conditions: string[] = ['region = $1'];
+      const conditions: string[] = ['signals.region = $1'];
       const values: any[] = [region];
       let idx = 2;
 
       if (params.status) {
-        conditions.push(`status = $${idx}`);
+        conditions.push(`signals.status = $${idx}`);
         values.push(params.status);
         idx++;
       }
       if (params.domain) {
-        conditions.push(`domain = $${idx}`);
+        conditions.push(`signals.domain = $${idx}`);
         values.push(params.domain);
         idx++;
       }
@@ -195,20 +234,119 @@ export function makeSignalsService(pool: Pool) {
         }
       }
       if (params.window) {
-        conditions.push(`last_evidence_at >= NOW() - INTERVAL '${params.window} days'`);
+        // params.window is validated at the route layer (7/30/90); keep it parameterized anyway.
+        conditions.push(`signals.last_evidence_at >= NOW() - ($${idx} * INTERVAL '1 day')`);
+        values.push(params.window);
+        idx++;
       }
 
       const where = conditions.join(' AND ');
+      const sort = String(params.sort || 'conviction').trim() || 'conviction';
+
+      // "Relevance" is a blended ranking + (optionally) user domain prefs.
+      // Keep it deterministic and cheap: no joins beyond user prefs (when provided).
+      const baseRelevanceExpr = `(0.45 * signals.impact + 0.35 * signals.conviction + 0.20 * signals.momentum)`;
+
+      const limit = Math.min(50, Math.max(1, params.limit || 20));
+      const offset = Math.max(0, params.offset || 0);
+
+      if (sort === 'relevance') {
+        // Anonymous/global relevance sort.
+        if (!params.userId) {
+          const countResult = await pool.query(
+            `SELECT COUNT(*) as cnt FROM signals WHERE ${where}`, values
+          );
+          const total = parseInt(countResult.rows[0]?.cnt || '0', 10);
+
+          const result = await pool.query(
+            `SELECT id::text, domain, cluster_name, claim, region,
+                    conviction, momentum, impact, adoption_velocity,
+                    status, evidence_count, unique_company_count,
+                    first_seen_at, last_evidence_at, metadata_json
+             FROM signals
+             WHERE ${where}
+             ORDER BY ${baseRelevanceExpr} DESC, impact DESC, conviction DESC, momentum DESC
+             LIMIT $${idx} OFFSET $${idx + 1}`,
+            [...values, limit, offset],
+          );
+          return { signals: result.rows.map(rowToSignal), total };
+        }
+
+        // User-personalized relevance sort: exclude dismissed signals + apply domain prefs.
+        const userId = params.userId;
+        const userIdx = idx;
+        const listLimitIdx = idx + 1;
+        const listOffsetIdx = idx + 2;
+        const userValues = [...values, userId];
+
+        const personalizedExpr = `(${baseRelevanceExpr} + COALESCE(usp.weight, 0) * 0.05)`;
+
+        try {
+          const countResult = await pool.query(
+            `SELECT COUNT(*) as cnt
+             FROM signals
+             WHERE ${where}
+               AND NOT EXISTS (
+                 SELECT 1 FROM user_signal_reco_dismissals usd
+                 WHERE usd.user_id = $${userIdx}::uuid
+                   AND usd.signal_id = signals.id
+               )`,
+            userValues,
+          );
+          const total = parseInt(countResult.rows[0]?.cnt || '0', 10);
+
+          const result = await pool.query(
+            `SELECT signals.id::text, signals.domain, signals.cluster_name, signals.claim, signals.region,
+                    signals.conviction, signals.momentum, signals.impact, signals.adoption_velocity,
+                    signals.status, signals.evidence_count, signals.unique_company_count,
+                    signals.first_seen_at, signals.last_evidence_at, signals.metadata_json
+             FROM signals
+             LEFT JOIN user_signal_domain_prefs usp
+               ON usp.user_id = $${userIdx}::uuid
+              AND usp.region = signals.region
+              AND usp.domain = signals.domain
+             WHERE ${where}
+               AND NOT EXISTS (
+                 SELECT 1 FROM user_signal_reco_dismissals usd
+                 WHERE usd.user_id = $${userIdx}::uuid
+                   AND usd.signal_id = signals.id
+               )
+             ORDER BY ${personalizedExpr} DESC, signals.impact DESC, signals.conviction DESC, signals.momentum DESC
+             LIMIT $${listLimitIdx} OFFSET $${listOffsetIdx}`,
+            [...userValues, limit, offset],
+          );
+          return { signals: result.rows.map(rowToSignal), total };
+        } catch (error) {
+          // If recommendation-feedback tables aren't migrated yet, degrade to global relevance.
+          if (!isMissingNewsSchemaError(error)) throw error;
+
+          const countResult = await pool.query(
+            `SELECT COUNT(*) as cnt FROM signals WHERE ${where}`, values
+          );
+          const total = parseInt(countResult.rows[0]?.cnt || '0', 10);
+
+          const result = await pool.query(
+            `SELECT id::text, domain, cluster_name, claim, region,
+                    conviction, momentum, impact, adoption_velocity,
+                    status, evidence_count, unique_company_count,
+                    first_seen_at, last_evidence_at, metadata_json
+             FROM signals
+             WHERE ${where}
+             ORDER BY ${baseRelevanceExpr} DESC, impact DESC, conviction DESC, momentum DESC
+             LIMIT $${idx} OFFSET $${idx + 1}`,
+            [...values, limit, offset],
+          );
+          return { signals: result.rows.map(rowToSignal), total };
+        }
+      }
+
       const sortCol = ({
         conviction: 'conviction DESC',
         momentum: 'momentum DESC',
         impact: 'impact DESC',
         created: 'first_seen_at DESC',
         novelty: 'first_seen_at DESC',
-      } as Record<string, string>)[params.sort || 'conviction'] || 'conviction DESC';
-
-      const limit = Math.min(50, Math.max(1, params.limit || 20));
-      const offset = Math.max(0, params.offset || 0);
+      } as Record<string, string>)[sort] || 'conviction DESC';
 
       const countResult = await pool.query(
         `SELECT COUNT(*) as cnt FROM signals WHERE ${where}`, values
@@ -232,6 +370,385 @@ export function makeSignalsService(pool: Pool) {
       if (isMissingNewsSchemaError(error)) return { signals: [], total: 0 };
       throw error;
     }
+  }
+
+  function clamp01(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(1, value));
+  }
+
+  function amountBoost(amountUsd: number | null): number {
+    if (!amountUsd || amountUsd <= 0) return 0;
+    if (amountUsd >= 100_000_000) return 1.0;
+    if (amountUsd >= 25_000_000) return 0.7;
+    if (amountUsd >= 10_000_000) return 0.55;
+    if (amountUsd >= 3_000_000) return 0.4;
+    return 0.25;
+  }
+
+  function isoDate(value: any): string | null {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    try {
+      const d = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toISOString();
+    } catch {
+      return null;
+    }
+  }
+
+  async function getSignalRelevanceBundle(params: {
+    signalId: string;
+    region?: string;
+    userId?: string;
+    windowDays?: number;
+    limit?: number;
+  }): Promise<SignalRelevanceBundle> {
+    const windowDays = Math.min(365, Math.max(7, params.windowDays ?? 90));
+    const limit = Math.min(25, Math.max(1, params.limit ?? 10));
+
+    let region = normalizeRegion(params.region);
+    try {
+      if (!params.region) {
+        const r = await pool.query<{ region: string }>(
+          `SELECT region FROM signals WHERE id = $1::uuid`,
+          [params.signalId],
+        );
+        if (r.rows[0]?.region) {
+          region = normalizeRegion(r.rows[0].region);
+        }
+      }
+    } catch (error) {
+      if (!isMissingNewsSchemaError(error)) throw error;
+      return {
+        signal_id: params.signalId,
+        region,
+        window_days: windowDays,
+        relevant_rounds: [],
+        related_patterns: [],
+        related_signals: [],
+      };
+    }
+
+    const startupScores = new Map<string, number>();
+    const startupSources = new Map<string, Set<string>>();
+
+    function markStartup(startupId: string, source: 'occurrence' | 'evidence', score?: number) {
+      const id = String(startupId || '').trim();
+      if (!id) return;
+      const current = startupScores.get(id) ?? 0;
+      if (score != null && Number.isFinite(score)) {
+        startupScores.set(id, Math.max(current, Number(score)));
+      } else if (!startupScores.has(id)) {
+        startupScores.set(id, current);
+      }
+      const sources = startupSources.get(id) || new Set<string>();
+      sources.add(source);
+      startupSources.set(id, sources);
+    }
+
+    try {
+      const occRes = await pool.query<{ startup_id: string; score: number }>(
+        `SELECT startup_id::text AS startup_id, score
+         FROM signal_occurrences
+         WHERE signal_id = $1::uuid
+         ORDER BY score DESC
+         LIMIT 20`,
+        [params.signalId],
+      );
+      for (const row of occRes.rows) {
+        markStartup(row.startup_id, 'occurrence', Number(row.score || 0));
+      }
+    } catch (error) {
+      if (!isMissingNewsSchemaError(error)) throw error;
+    }
+
+    try {
+      const evRes = await pool.query<{ startup_id: string }>(
+        `SELECT DISTINCT startup_id::text AS startup_id
+         FROM signal_evidence
+         WHERE signal_id = $1::uuid
+           AND startup_id IS NOT NULL
+         LIMIT 50`,
+        [params.signalId],
+      );
+      for (const row of evRes.rows) {
+        markStartup(row.startup_id, 'evidence');
+      }
+    } catch (error) {
+      if (!isMissingNewsSchemaError(error)) throw error;
+    }
+
+    const candidateStartupIds = Array.from(startupScores.keys());
+    if (candidateStartupIds.length === 0) {
+      return {
+        signal_id: params.signalId,
+        region,
+        window_days: windowDays,
+        relevant_rounds: [],
+        related_patterns: [],
+        related_signals: [],
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // Relevant funding rounds (last N days)
+    // -----------------------------------------------------------------------
+    let relevantRounds: SignalRelevanceRound[] = [];
+    try {
+      const maxRows = Math.min(250, Math.max(50, limit * 20));
+      const roundsRes = await pool.query<{
+        funding_round_id: string;
+        startup_id: string;
+        startup_name: string;
+        startup_slug: string | null;
+        round_type: string;
+        amount_usd: any;
+        announced_date: any;
+        lead_investor: string | null;
+        created_at: any;
+      }>(
+        `SELECT fr.id::text AS funding_round_id,
+                fr.startup_id::text AS startup_id,
+                s.name AS startup_name,
+                s.slug AS startup_slug,
+                fr.round_type,
+                fr.amount_usd,
+                fr.announced_date,
+                fr.lead_investor,
+                fr.created_at
+         FROM funding_rounds fr
+         JOIN startups s ON s.id = fr.startup_id
+         WHERE fr.startup_id = ANY($1::uuid[])
+           AND s.dataset_region = $2
+           AND COALESCE(fr.announced_date::timestamp, fr.created_at) >= NOW() - ($3 * INTERVAL '1 day')
+         ORDER BY COALESCE(fr.announced_date, fr.created_at::date) DESC NULLS LAST,
+                  fr.amount_usd DESC NULLS LAST
+         LIMIT $4`,
+        [candidateStartupIds, region, windowDays, maxRows],
+      );
+
+      const now = new Date();
+      const scored: SignalRelevanceRound[] = roundsRes.rows.map((row) => {
+        const amountUsd = row.amount_usd != null ? Number(row.amount_usd) : null;
+        const occurrenceScore = clamp01(Number(startupScores.get(String(row.startup_id)) || 0));
+        const effective = row.announced_date || row.created_at;
+        const effectiveDate = effective ? new Date(effective) : null;
+        const daysAgo = effectiveDate && !Number.isNaN(effectiveDate.getTime())
+          ? Math.max(0, Math.floor((now.getTime() - effectiveDate.getTime()) / 86_400_000))
+          : windowDays;
+        const recencyScore = clamp01(1 - daysAgo / windowDays);
+        const boost = amountBoost(amountUsd);
+        const score = occurrenceScore * 0.6 + recencyScore * 0.3 + boost * 0.1;
+
+        const why: string[] = [];
+        const sources = startupSources.get(String(row.startup_id)) || new Set<string>();
+        if (sources.size > 0) {
+          why.push(`Linked via ${Array.from(sources).join('+')}`);
+        }
+        if (occurrenceScore > 0) {
+          why.push(`High match score (${Math.round(occurrenceScore * 100)}%)`);
+        }
+        if (daysAgo <= 7) why.push('Very recent (7d)');
+        else why.push(`Recent (${windowDays}d window)`);
+        if (amountUsd != null && amountUsd > 0) {
+          if (amountUsd >= 100_000_000) why.push('Large round (100M+)');
+          else if (amountUsd >= 25_000_000) why.push('Large round (25M+)');
+        }
+
+        return {
+          funding_round_id: String(row.funding_round_id),
+          startup_id: String(row.startup_id),
+          startup_name: row.startup_name,
+          startup_slug: row.startup_slug || null,
+          round_type: row.round_type,
+          amount_usd: amountUsd,
+          announced_date: isoDate(row.announced_date),
+          lead_investor: row.lead_investor || null,
+          occurrence_score: occurrenceScore,
+          score,
+          why,
+        };
+      });
+
+      scored.sort((a, b) => (
+        b.score - a.score
+        || (b.announced_date || '').localeCompare(a.announced_date || '')
+        || (b.amount_usd || 0) - (a.amount_usd || 0)
+      ));
+      relevantRounds = scored.slice(0, limit);
+    } catch (error) {
+      if (!isMissingNewsSchemaError(error)) throw error;
+    }
+
+    // -----------------------------------------------------------------------
+    // Related patterns (from analysis_data build_patterns / discovered_patterns)
+    // -----------------------------------------------------------------------
+    let relatedPatterns: SignalRelevancePattern[] = [];
+    try {
+      const startupsRes = await pool.query<{
+        startup_id: string;
+        slug: string | null;
+        name: string;
+        analysis_data: any;
+      }>(
+        `SELECT id::text AS startup_id, slug, name, analysis_data
+         FROM startups
+         WHERE id = ANY($1::uuid[])
+           AND dataset_region = $2
+           AND analysis_data IS NOT NULL`,
+        [candidateStartupIds, region],
+      );
+
+      const totalStartups = Math.max(1, startupsRes.rows.length);
+      const counts = new Map<string, { count: number; examples: Array<{ slug: string; name: string }> }>();
+
+      for (const row of startupsRes.rows) {
+        const analysis = typeof row.analysis_data === 'string'
+          ? (() => { try { return JSON.parse(row.analysis_data); } catch { return null; } })()
+          : row.analysis_data;
+        if (!analysis || typeof analysis !== 'object') continue;
+
+        const perStartup = new Set<string>();
+        const buildPatterns = (analysis as any).build_patterns;
+        if (Array.isArray(buildPatterns)) {
+          for (const bp of buildPatterns) {
+            const name = String(bp?.name || '').trim();
+            if (name) perStartup.add(name);
+          }
+        }
+        const discovered = (analysis as any).discovered_patterns;
+        if (Array.isArray(discovered)) {
+          for (const dp of discovered) {
+            const name = String(dp?.pattern_name || dp?.name || '').trim();
+            if (name) perStartup.add(name);
+          }
+        }
+
+        if (perStartup.size === 0) continue;
+        for (const p of perStartup) {
+          const current = counts.get(p) || { count: 0, examples: [] };
+          current.count += 1;
+          if (row.slug && current.examples.length < 5) {
+            current.examples.push({ slug: row.slug, name: row.name });
+          }
+          counts.set(p, current);
+        }
+      }
+
+      const patterns = Array.from(counts.entries()).map(([pattern, data]) => {
+        const score = data.count / totalStartups;
+        return {
+          pattern,
+          count: data.count,
+          score,
+          why: [`Seen in ${data.count} of ${totalStartups} linked startups`],
+          example_startups: data.examples.slice(0, 3),
+        };
+      });
+
+      patterns.sort((a, b) => (
+        b.count - a.count
+        || b.score - a.score
+        || a.pattern.localeCompare(b.pattern)
+      ));
+      relatedPatterns = patterns.slice(0, Math.min(12, limit));
+    } catch (error) {
+      if (!isMissingNewsSchemaError(error)) throw error;
+    }
+
+    // -----------------------------------------------------------------------
+    // Related signals (evidence startup overlap)
+    // -----------------------------------------------------------------------
+    let relatedSignals: SignalRelevanceRelatedSignal[] = [];
+    try {
+      const overlapRes = await pool.query<{ signal_id: string; overlap_count: number }>(
+        `WITH candidate_startups AS (
+           SELECT unnest($2::uuid[]) AS startup_id
+         )
+         SELECT se.signal_id::text AS signal_id,
+                COUNT(DISTINCT se.startup_id)::int AS overlap_count
+         FROM signal_evidence se
+         JOIN candidate_startups cs ON cs.startup_id = se.startup_id
+         WHERE se.signal_id <> $1::uuid
+         GROUP BY se.signal_id
+         ORDER BY overlap_count DESC
+         LIMIT $3`,
+        [params.signalId, candidateStartupIds, Math.min(100, Math.max(20, limit * 10))],
+      );
+
+      const overlapMap = new Map<string, number>();
+      const otherSignalIds: string[] = [];
+      for (const row of overlapRes.rows) {
+        const id = String(row.signal_id || '').trim();
+        if (!id) continue;
+        otherSignalIds.push(id);
+        overlapMap.set(id, Number(row.overlap_count || 0));
+      }
+
+      if (otherSignalIds.length > 0) {
+        let dismissed = new Set<string>();
+        if (params.userId) {
+          try {
+            const dismissedRes = await pool.query<{ signal_id: string }>(
+              `SELECT signal_id::text AS signal_id
+               FROM user_signal_reco_dismissals
+               WHERE user_id = $1::uuid
+                 AND signal_id = ANY($2::uuid[])`,
+              [params.userId, otherSignalIds],
+            );
+            dismissed = new Set(dismissedRes.rows.map((r) => String(r.signal_id || '').trim()).filter(Boolean));
+          } catch (error) {
+            if (!isMissingNewsSchemaError(error)) throw error;
+          }
+        }
+
+        const signalsRes = await pool.query(
+          `SELECT id::text, domain, cluster_name, claim, region,
+                  conviction, momentum, impact, adoption_velocity,
+                  status, evidence_count, unique_company_count,
+                  first_seen_at, last_evidence_at, metadata_json
+           FROM signals
+           WHERE id = ANY($1::uuid[])
+             AND region = $2`,
+          [otherSignalIds, region],
+        );
+
+        const candidates: SignalRelevanceRelatedSignal[] = [];
+        for (const row of signalsRes.rows) {
+          const signal = rowToSignal(row);
+          if (dismissed.has(signal.id)) continue;
+          const overlapCount = Math.max(0, overlapMap.get(signal.id) || 0);
+          const score = overlapCount * 1.0 + signal.impact * 0.4 + signal.conviction * 0.25;
+          candidates.push({
+            signal,
+            overlap_count: overlapCount,
+            score,
+            why: [`Shares ${overlapCount} evidence-linked startups`],
+          });
+        }
+
+        candidates.sort((a, b) => (
+          b.overlap_count - a.overlap_count
+          || b.signal.impact - a.signal.impact
+          || b.signal.conviction - a.signal.conviction
+          || b.signal.momentum - a.signal.momentum
+        ));
+        relatedSignals = candidates.slice(0, limit);
+      }
+    } catch (error) {
+      if (!isMissingNewsSchemaError(error)) throw error;
+    }
+
+    return {
+      signal_id: params.signalId,
+      region,
+      window_days: windowDays,
+      relevant_rounds: relevantRounds,
+      related_patterns: relatedPatterns,
+      related_signals: relatedSignals,
+    };
   }
 
   async function getSignalDetail(params: {
@@ -1458,6 +1975,7 @@ export function makeSignalsService(pool: Pool) {
 
   return {
     getSignalsList,
+    getSignalRelevanceBundle,
     getSignalDetail,
     getSignalsSummary,
     getSimilarCompanies,

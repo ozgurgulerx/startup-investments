@@ -108,6 +108,7 @@ const RECOMMENDATION_ALGO_FALLBACK = 'signals_v2_graph_memory';
 const RECOMMENDATION_SURFACE = 'signals';
 
 const SORT_OPTIONS = [
+  { value: 'relevance', label: 'Relevance' },
   { value: 'momentum', label: 'Momentum' },
   { value: 'conviction', label: 'Conviction' },
   { value: 'impact', label: 'Impact' },
@@ -115,6 +116,7 @@ const SORT_OPTIONS = [
 ] as const;
 
 const SORT_OPTIONS_TR = [
+  { value: 'relevance', label: 'Ilgili' },
   { value: 'momentum', label: 'Momentum' },
   { value: 'conviction', label: 'Guven' },
   { value: 'impact', label: 'Etki' },
@@ -316,6 +318,7 @@ function SignalCard({
   isFollowing,
   onToggleFollow,
   isAuthenticated,
+  region,
   isTR,
 }: {
   signal: SignalItem;
@@ -325,11 +328,14 @@ function SignalCard({
   isFollowing?: boolean;
   onToggleFollow?: (id: string) => void;
   isAuthenticated?: boolean;
+  region?: string;
   isTR: boolean;
 }) {
   const style = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
   const domainLabel = (isTR ? DOMAIN_LABELS_TR : DOMAIN_LABELS)[signal.domain] || signal.domain;
   const statusLabel = isTR ? (STATUS_LABELS_TR[signal.status] || style.label) : style.label;
+  const regionKey = normalizeDatasetRegion(region);
+  const regionQS = regionKey !== 'global' ? `?region=${encodeURIComponent(regionKey)}` : '';
 
   const timeSinceFirstSeen = useMemo(() => {
     const first = new Date(signal.first_seen_at);
@@ -389,7 +395,7 @@ function SignalCard({
             <ExplainPopover explain={signal.explain} region={isTR ? 'turkey' : 'global'} />
           )}
           <Link
-            href={`/signals/${signal.id}`}
+            href={`/signals/${signal.id}${regionQS}`}
             className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground/60 hover:text-accent-info hover:bg-muted/20 transition-colors"
           >
             {isTR ? 'Derin inceleme' : 'Deep dive'} <ChevronRight className="w-3 h-3" />
@@ -458,6 +464,7 @@ function FilterBar({
   status,
   onStatusChange,
   stats,
+  isAuthenticated,
   isTR,
 }: {
   sort: SortKey;
@@ -467,9 +474,11 @@ function FilterBar({
   status: string | null;
   onStatusChange: (s: string | null) => void;
   stats: SignalsSummaryResponse['stats'];
+  isAuthenticated: boolean;
   isTR: boolean;
 }) {
-  const sortOptions = isTR ? SORT_OPTIONS_TR : SORT_OPTIONS;
+  const sortOptions = (isTR ? SORT_OPTIONS_TR : SORT_OPTIONS)
+    .filter((opt) => opt.value !== 'relevance' || isAuthenticated);
   const domainLabels = isTR ? DOMAIN_LABELS_TR : DOMAIN_LABELS;
   return (
     <div className="space-y-3 pb-4 border-b border-border/30">
@@ -1088,6 +1097,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
             status={status}
             onStatusChange={setStatus}
             stats={stats}
+            isAuthenticated={isAuthenticated}
             isTR={isTR}
           />
           <SectorFilter region={region} value={sector} onChange={setSector} />
@@ -1243,6 +1253,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
                       isFollowing={followedIds.has(signal.id)}
                       onToggleFollow={handleToggleFollow}
                       isAuthenticated={isAuthenticated}
+                      region={region}
                       isTR={isTR}
                     />
                   ))}

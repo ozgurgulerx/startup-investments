@@ -42,6 +42,7 @@ import {
   briefRegenerateSchema,
   signalsQuerySchema,
   signalsSummaryQuerySchema,
+  signalRelevanceQuerySchema,
   deepDiveVersionQuerySchema,
   occurrencesQuerySchema,
   movesQuerySchema,
@@ -2373,11 +2374,12 @@ app.get('/api/v1/signals', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
 
-    const { region, status, domain, sector, sort, window, limit, offset } = parsed.data;
+    const { region, user_id, status, domain, sector, sort, window, limit, offset } = parsed.data;
     const cacheKey = `signals:list:${region || 'global'}:${status || 'all'}:${domain || 'all'}:${sector || 'all'}:${sort}:${window || 'all'}:${limit}:${offset}`;
 
     const redis = await getRedisClient();
-    if (redis) {
+    // User-scoped list views should not be cached (dismissals/prefs make it user-specific).
+    if (redis && !user_id) {
       try {
         const cached = await redis.get(cacheKey);
         if (cached) {
@@ -2387,9 +2389,19 @@ app.get('/api/v1/signals', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await signalsService.getSignalsList({ region, status, domain, sector, sort, window, limit, offset });
+    const result = await signalsService.getSignalsList({
+      region,
+      userId: user_id || undefined,
+      status,
+      domain,
+      sector,
+      sort,
+      window,
+      limit,
+      offset,
+    });
 
-    if (redis) {
+    if (redis && !user_id) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
     }
     res.json(result);
@@ -2553,6 +2565,34 @@ app.get('/api/v1/signals/updates', async (req, res) => {
   } catch (error) {
     console.error('Error fetching signal updates:', error);
     return res.status(500).json({ error: 'Failed to fetch signal updates' });
+  }
+});
+
+// GET /api/v1/signals/:id/relevance — Evidence-overlap recommendations (rounds/patterns/similar signals)
+app.get('/api/v1/signals/:id/relevance', async (req, res) => {
+  try {
+    const signalId = req.params.id;
+    if (!signalId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(signalId)) {
+      return res.status(400).json({ error: 'Invalid signal ID' });
+    }
+
+    const parsed = signalRelevanceQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const { region, user_id, window_days, limit } = parsed.data;
+    const result = await signalsService.getSignalRelevanceBundle({
+      signalId,
+      region: region || undefined,
+      userId: user_id || undefined,
+      windowDays: window_days,
+      limit,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching signal relevance bundle:', error);
+    return res.status(500).json({ error: 'Failed to fetch signal relevance bundle' });
   }
 });
 

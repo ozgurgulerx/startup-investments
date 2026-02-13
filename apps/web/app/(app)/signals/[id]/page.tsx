@@ -46,6 +46,9 @@ async function DeepDiveContent({ id }: { id: string }) {
       const meta = data.meta || null;
       const statusStyle = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
       const domainLabel = DOMAIN_LABELS[signal.domain] || signal.domain;
+      const backHref = signal.region && signal.region !== 'global'
+        ? `/signals?region=${encodeURIComponent(signal.region)}`
+        : '/signals';
 
       const startupsEligible = meta?.startups_eligible ?? 0;
       const startupsWithEvidence = meta?.startups_with_evidence ?? signal.unique_company_count ?? 0;
@@ -78,7 +81,7 @@ async function DeepDiveContent({ id }: { id: string }) {
         <div className="max-w-6xl mx-auto py-10 space-y-8">
           <div className="space-y-4">
             <Link
-              href="/signals"
+              href={backHref}
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               Signals
@@ -138,7 +141,7 @@ async function DeepDiveContent({ id }: { id: string }) {
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium">
               Explorer
             </p>
-            <ExplorerTab signalId={signal.id} />
+            <ExplorerTab signalId={signal.id} region={signal.region as ('global' | 'turkey')} />
           </div>
         </div>
       );

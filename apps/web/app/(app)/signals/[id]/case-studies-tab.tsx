@@ -7,9 +7,10 @@ import { CaseStudyCard } from './case-study-card';
 interface CaseStudiesTabProps {
   content: DeepDiveContent;
   signalId: string;
+  region: 'global' | 'turkey';
 }
 
-export function CaseStudiesTab({ content, signalId }: CaseStudiesTabProps) {
+export function CaseStudiesTab({ content, signalId, region }: CaseStudiesTabProps) {
   const [moves, setMoves] = useState<MoveItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,6 +64,7 @@ export function CaseStudiesTab({ content, signalId }: CaseStudiesTabProps) {
             study={study}
             moves={movesBySlug[study.startup_slug] || []}
             loading={loading}
+            region={region}
           />
         ))}
       </div>

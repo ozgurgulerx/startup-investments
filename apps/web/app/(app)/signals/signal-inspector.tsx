@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { TrendingUp, TrendingDown, Activity, Users, BarChart3, Clock, ExternalLink, ChevronRight } from 'lucide-react';
 import type { SignalItem } from '@/lib/api/client';
 import { timeAgo } from '@/lib/news-utils';
+import { formatCurrency } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
 // Types for signal detail API response
@@ -33,6 +34,44 @@ export interface SignalDetailResponse {
     stage_acceleration: string | null;
     computed_at: string;
   } | null;
+}
+
+interface SignalRelevanceRound {
+  funding_round_id: string;
+  startup_id: string;
+  startup_name: string;
+  startup_slug: string | null;
+  round_type: string;
+  amount_usd: number | null;
+  announced_date: string | null;
+  lead_investor: string | null;
+  occurrence_score: number;
+  score: number;
+  why?: string[];
+}
+
+interface SignalRelevancePattern {
+  pattern: string;
+  count: number;
+  score: number;
+  why?: string[];
+  example_startups?: Array<{ slug: string; name: string }>;
+}
+
+interface SignalRelevanceRelatedSignal {
+  signal: SignalItem;
+  overlap_count: number;
+  score?: number;
+  why?: string[];
+}
+
+interface SignalRelevanceResponse {
+  signal_id: string;
+  region: 'global' | 'turkey';
+  window_days: number;
+  relevant_rounds: SignalRelevanceRound[];
+  related_patterns: SignalRelevancePattern[];
+  related_signals: SignalRelevanceRelatedSignal[];
 }
 
 // ---------------------------------------------------------------------------
@@ -237,6 +276,9 @@ export function SignalInspector({
       recentEvidence: 'Son Kanitlar',
       moreEvidence: 'derin incelemede daha fazla kanit',
       relatedSignals: 'Ilgili Sinyaller',
+      relevance: 'Ilgi',
+      relevantRounds: 'Ilgili Turlar',
+      relatedPatterns: 'Ilgili Patternler',
     }
     : {
       conviction: 'Conviction',
@@ -251,9 +293,13 @@ export function SignalInspector({
       recentEvidence: 'Recent Evidence',
       moreEvidence: 'more evidence items in deep dive',
       relatedSignals: 'Related Signals',
+      relevance: 'Relevance',
+      relevantRounds: 'Relevant Rounds',
+      relatedPatterns: 'Related Patterns',
     };
   const [detail, setDetail] = useState<SignalDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [relevance, setRelevance] = useState<SignalRelevanceResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -274,18 +320,41 @@ export function SignalInspector({
     return () => { cancelled = true; };
   }, [signalId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams();
+    params.set('window_days', '90');
+    params.set('limit', '8');
+    if (region) params.set('region', region);
+
+    fetch(`/api/signals/${signalId}/relevance?${params.toString()}`)
+      .then(r => r.json())
+      .then((data: SignalRelevanceResponse) => {
+        if (!cancelled) {
+          setRelevance(data && typeof data === 'object' ? data : null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setRelevance(null);
+      });
+
+    return () => { cancelled = true; };
+  }, [signalId, region]);
+
   if (loading) return <InspectorSkeleton />;
 
   const signal = detail?.signal || listSignal;
-  if (!signal) return <InspectorEmpty />;
+  if (!signal) return <InspectorEmpty region={region} />;
 
   const style = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
   const domainLabel = (isTR
     ? { architecture: 'Mimari', gtm: 'GTM', capital: 'Sermaye', org: 'Organizasyon', product: 'Urun' }
     : DOMAIN_LABELS)[signal.domain] || signal.domain;
   const evidence = detail?.evidence || [];
-  const related = detail?.related || [];
+  const relatedFromRelevance = relevance?.related_signals?.map((r) => r.signal).filter(Boolean) || [];
+  const related = relatedFromRelevance.length > 0 ? relatedFromRelevance : (detail?.related || []);
   const stageContext = detail?.stage_context || signal.stage_context;
+  const regionQS = region !== 'global' ? `?region=${encodeURIComponent(region)}` : '';
 
   return (
     <div className="p-5 space-y-6 overflow-y-auto">
@@ -340,7 +409,7 @@ export function SignalInspector({
 
       {/* Deep Dive CTA */}
       <Link
-        href={`/signals/${signal.id}`}
+        href={`/signals/${signal.id}${regionQS}`}
         className="flex items-center gap-3 px-3 py-3 rounded-lg border border-border/30 hover:border-accent-info/30 hover:bg-muted/10 transition-colors group"
       >
         <div className="flex-1 min-w-0">
@@ -380,7 +449,7 @@ export function SignalInspector({
                     </span>
                     {ev.startup_slug && (
                       <Link
-                        href={`/company/${ev.startup_slug}`}
+                        href={`/company/${ev.startup_slug}${regionQS}`}
                         className="text-[10px] text-accent-info hover:text-accent-info/80 ml-auto flex items-center gap-0.5"
                       >
                         {ev.startup_name}
@@ -406,6 +475,83 @@ export function SignalInspector({
                 </p>
               )}
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Relevance bundle */}
+      {(relevance?.relevant_rounds?.length || relevance?.related_patterns?.length) && (
+        <>
+          <div className="h-px bg-border/20" />
+          <div className="space-y-3">
+            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+              {l.relevance}
+            </span>
+
+            {relevance?.relevant_rounds?.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
+                  {l.relevantRounds}
+                </p>
+                <div className="space-y-2">
+                  {relevance.relevant_rounds.slice(0, 3).map((r) => (
+                    <div
+                      key={r.funding_round_id}
+                      className="p-2.5 rounded-lg border border-border/20 hover:border-border/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        {r.startup_slug ? (
+                          <Link
+                            href={`/company/${r.startup_slug}${regionQS}`}
+                            className="text-xs text-foreground hover:text-accent-info transition-colors font-medium truncate"
+                          >
+                            {r.startup_name}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-foreground font-medium truncate">{r.startup_name}</span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground/50 ml-auto tabular-nums">
+                          {r.announced_date ? timeAgo(r.announced_date, region) : ''}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/70">
+                        <span className="uppercase tracking-wider">{r.round_type}</span>
+                        {r.amount_usd != null && r.amount_usd > 0 && (
+                          <>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span className="tabular-nums">{formatCurrency(r.amount_usd, true)}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {relevance?.related_patterns?.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
+                  {l.relatedPatterns}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {relevance.related_patterns.slice(0, 6).map((p) => {
+                    const href = region !== 'global'
+                      ? `/dealbook?region=${encodeURIComponent(region)}&pattern=${encodeURIComponent(p.pattern)}`
+                      : `/dealbook?pattern=${encodeURIComponent(p.pattern)}`;
+                    return (
+                      <Link
+                        key={p.pattern}
+                        href={href}
+                        className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-accent-info/25 bg-accent-info/10 text-accent-info hover:bg-accent-info/15 transition-colors"
+                      >
+                        {p.pattern}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

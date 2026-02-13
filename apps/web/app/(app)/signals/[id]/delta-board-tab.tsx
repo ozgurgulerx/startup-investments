@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import type { SignalItem, DeepDiveContent } from '@/lib/api/client';
@@ -12,6 +13,7 @@ interface DeltaBoardTabProps {
 
 export function DeltaBoardTab({ signal, content, diff }: DeltaBoardTabProps) {
   const diffData = diff?.diff_json || {};
+  const regionQS = signal.region !== 'global' ? `?region=${encodeURIComponent(signal.region)}` : '';
 
   return (
     <div className="space-y-8">
@@ -66,12 +68,12 @@ export function DeltaBoardTab({ signal, content, diff }: DeltaBoardTabProps) {
               >
                 <TrendingUp className="w-4 h-4 text-accent-info mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <a
-                    href={`/company/${item.startup_slug}`}
+                  <Link
+                    href={`/company/${item.startup_slug}${regionQS}`}
                     className="text-sm font-medium text-foreground hover:text-accent-info transition-colors"
                   >
                     {item.startup_slug}
-                  </a>
+                  </Link>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {item.why}
                   </p>
@@ -103,13 +105,13 @@ export function DeltaBoardTab({ signal, content, diff }: DeltaBoardTabProps) {
                 {pattern.startups.length > 0 && (
                   <div className="flex gap-1 mt-2 flex-wrap">
                     {pattern.startups.slice(0, 3).map((slug) => (
-                      <a
+                      <Link
                         key={slug}
-                        href={`/company/${slug}`}
+                        href={`/company/${slug}${regionQS}`}
                         className="text-[10px] px-1.5 py-0.5 rounded bg-muted/30 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {slug}
-                      </a>
+                      </Link>
                     ))}
                     {pattern.startups.length > 3 && (
                       <span className="text-[10px] px-1.5 py-0.5 text-muted-foreground/60">

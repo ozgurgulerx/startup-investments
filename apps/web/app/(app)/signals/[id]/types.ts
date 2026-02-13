@@ -8,13 +8,14 @@ import type {
 
 export type { DeepDiveContent, DeepDiveResponse, OccurrenceItem, MoveItem, SignalItem };
 
-export type DeepDiveTab = 'delta' | 'mechanism' | 'cases' | 'explorer' | 'counter' | 'community';
+export type DeepDiveTab = 'delta' | 'mechanism' | 'cases' | 'explorer' | 'relevance' | 'counter' | 'community';
 
 export const TAB_CONFIG: Array<{ id: DeepDiveTab; label: string }> = [
   { id: 'delta', label: 'Delta Board' },
   { id: 'mechanism', label: 'How It Works' },
   { id: 'cases', label: 'Case Studies' },
   { id: 'explorer', label: 'Explorer' },
+  { id: 'relevance', label: 'Relevance' },
   { id: 'counter', label: 'Counterevidence' },
   { id: 'community', label: 'Community' },
 ];

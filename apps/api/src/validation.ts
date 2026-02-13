@@ -364,10 +364,11 @@ const signalDomain = z.enum(['architecture', 'gtm', 'capital', 'org', 'product']
 
 export const signalsQuerySchema = z.object({
   region: optionalTrimmedString(20),
+  user_id: z.string().uuid().optional(),
   status: signalStatus.optional(),
   domain: signalDomain.optional(),
   sector: sectorParam,
-  sort: z.enum(['conviction', 'momentum', 'impact', 'created', 'novelty']).optional().default('conviction'),
+  sort: z.enum(['conviction', 'momentum', 'impact', 'created', 'novelty', 'relevance']).optional().default('conviction'),
   window: z.coerce.number().int().refine(v => [7, 30, 90].includes(v)).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
@@ -377,6 +378,13 @@ export const signalsSummaryQuerySchema = z.object({
   region: optionalTrimmedString(20),
   sector: sectorParam,
   window: z.coerce.number().int().refine(v => [7, 30, 90].includes(v)).optional(),
+});
+
+export const signalRelevanceQuerySchema = z.object({
+  region: optionalTrimmedString(20).optional(),
+  user_id: z.string().uuid().optional(),
+  window_days: z.coerce.number().int().min(7).max(365).optional().default(90),
+  limit: z.coerce.number().int().min(1).max(25).optional().default(10),
 });
 
 // =============================================================================

@@ -10,9 +10,11 @@ interface CaseStudyCardProps {
   study: DeepDiveContent['case_studies'][number];
   moves: MoveItem[];
   loading: boolean;
+  region: 'global' | 'turkey';
 }
 
-export function CaseStudyCard({ rank, study, moves, loading }: CaseStudyCardProps) {
+export function CaseStudyCard({ rank, study, moves, loading, region }: CaseStudyCardProps) {
+  const regionQS = region !== 'global' ? `?region=${encodeURIComponent(region)}` : '';
   return (
     <div className="border border-border/30 rounded-lg bg-card overflow-hidden">
       {/* Header */}
@@ -22,14 +24,14 @@ export function CaseStudyCard({ rank, study, moves, loading }: CaseStudyCardProp
         </span>
         <div className="flex-1 min-w-0">
           <Link
-            href={`/company/${study.startup_slug}`}
+            href={`/company/${study.startup_slug}${regionQS}`}
             className="text-sm font-medium text-foreground hover:text-accent-info transition-colors"
           >
             {study.startup_name}
           </Link>
         </div>
         <Link
-          href={`/company/${study.startup_slug}`}
+          href={`/company/${study.startup_slug}${regionQS}`}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
         >
           View Company

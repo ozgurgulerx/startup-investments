@@ -10,13 +10,15 @@ import { STAGE_LABELS } from './types';
 
 interface ExplorerTabProps {
   signalId: string;
+  region: 'global' | 'turkey';
 }
 
-export function ExplorerTab({ signalId }: ExplorerTabProps) {
+export function ExplorerTab({ signalId, region }: ExplorerTabProps) {
   const [occurrences, setOccurrences] = useState<OccurrenceItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [stageFilter, setStageFilter] = useState<string | null>(null);
+  const regionQS = region !== 'global' ? `?region=${encodeURIComponent(region)}` : '';
 
   useEffect(() => {
     let cancelled = false;
@@ -187,7 +189,7 @@ export function ExplorerTab({ signalId }: ExplorerTabProps) {
             {/* Company info */}
             <div className="flex-1 min-w-0">
               <Link
-                href={`/company/${occ.startup_slug}`}
+                href={`/company/${occ.startup_slug}${regionQS}`}
                 className="text-sm text-foreground hover:text-accent-info transition-colors font-medium"
               >
                 {occ.startup_name}

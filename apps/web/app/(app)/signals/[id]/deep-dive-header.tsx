@@ -39,12 +39,15 @@ function MetricPill({ label, value, format }: {
 export function DeepDiveHeader({ signal, version, createdAt, diff, sampleCount }: DeepDiveHeaderProps) {
   const statusStyle = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
   const domainLabel = DOMAIN_LABELS[signal.domain] || signal.domain;
+  const backHref = signal.region && signal.region !== 'global'
+    ? `/signals?region=${encodeURIComponent(signal.region)}`
+    : '/signals';
 
   return (
     <div className="space-y-4">
       {/* Back link */}
       <Link
-        href="/signals"
+        href={backHref}
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="w-3 h-3" />
@@ -103,7 +106,7 @@ export function DeepDiveHeader({ signal, version, createdAt, diff, sampleCount }
         )}
 
         <span className="text-xs text-muted-foreground/60">
-          Generated {timeAgo(createdAt)}
+          Generated {timeAgo(createdAt, signal.region === 'turkey' ? 'turkey' : 'global')}
         </span>
       </div>
     </div>

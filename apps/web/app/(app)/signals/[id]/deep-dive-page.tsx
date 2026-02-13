@@ -9,6 +9,7 @@ import { DeltaBoardTab } from './delta-board-tab';
 import { HowItWorksTab } from './how-it-works-tab';
 import { CaseStudiesTab } from './case-studies-tab';
 import { ExplorerTab } from './explorer-tab';
+import { RelevanceTab } from './relevance-tab';
 import { CounterevienceTab } from './counterevidence-tab';
 import { CommunityTab } from './community-tab';
 
@@ -47,10 +48,14 @@ export function DeepDivePage({ data }: DeepDivePageProps) {
           <CaseStudiesTab
             content={content}
             signalId={signal.id}
+            region={signal.region as ('global' | 'turkey')}
           />
         )}
         {activeTab === 'explorer' && (
-          <ExplorerTab signalId={signal.id} />
+          <ExplorerTab signalId={signal.id} region={signal.region as ('global' | 'turkey')} />
+        )}
+        {activeTab === 'relevance' && (
+          <RelevanceTab signalId={signal.id} region={signal.region as ('global' | 'turkey')} />
         )}
         {activeTab === 'counter' && (
           <CounterevienceTab content={content} />
