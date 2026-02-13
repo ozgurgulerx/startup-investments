@@ -77,6 +77,10 @@ _IS_VM = bool(os.environ.get("BUILDATLAS_RUNNER") == "vm-cron")
 WORKFLOWS = CICD_WORKFLOWS if _IS_VM else ALL_WORKFLOWS
 
 
+class GitHubApiAuthError(Exception):
+    pass
+
+
 def _env(name: str, default: str | None = None) -> str | None:
     v = os.environ.get(name)
     if v is None or v.strip() == "":
@@ -205,9 +209,14 @@ def _github_api_get(url: str, token: str) -> dict[str, Any]:
         },
         method="GET",
     )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        payload = resp.read().decode("utf-8")
-        return json.loads(payload)
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            payload = resp.read().decode("utf-8")
+            return json.loads(payload)
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise GitHubApiAuthError(f"HTTP {e.code}") from e
+        raise
 
 
 @dataclass
@@ -245,6 +254,9 @@ def _workflow_runs(repo: str, token: str, since: datetime) -> list[WorkflowRunSu
         url = f"https://api.github.com/repos/{owner}/{name}/actions/workflows/{urllib.parse.quote(wf)}/runs?per_page=10"
         try:
             data = _github_api_get(url, token)
+        except GitHubApiAuthError:
+            # Global auth failure: caller should report CI status unavailable once.
+            raise
         except Exception as e:
             results.append(
                 WorkflowRunSummary(
@@ -673,12 +685,18 @@ def main() -> int:
     if subject_prefix and not subject_prefix.endswith(" "):
         subject_prefix += " "
 
-    if not repo or not token:
-        sys.stderr.write("Missing required env: GITHUB_REPOSITORY or GITHUB_TOKEN\n")
-        return 1
-
     since = _days_ago(24)
-    runs = _workflow_runs(repo, token, since)
+    runs: list[WorkflowRunSummary] = []
+    ci_status_note: str | None = None
+    if not repo or not token:
+        ci_status_note = "CI/CD workflow status unavailable: missing GITHUB_REPOSITORY or GITHUB_TOKEN"
+    else:
+        try:
+            runs = _workflow_runs(repo, token, since)
+        except GitHubApiAuthError:
+            ci_status_note = "CI/CD workflow status unavailable: GitHub API auth failed (401/403)"
+        except Exception as e:
+            ci_status_note = f"CI/CD workflow status unavailable: {e}"
 
     failures = [r for r in runs if (r.conclusion or "").lower() == "failure" or r.status == "error"]
     failure_lines = []
@@ -724,11 +742,14 @@ def main() -> int:
     body_lines.append(f"*Window:* last 24 hours (since {since.strftime('%Y-%m-%d %H:%M UTC')})")
 
     # GitHub Actions CI/CD status
-    body_lines.append(f"*CI/CD workflow failures:* {len(failures)}")
-    if failure_lines:
-        body_lines.append("")
-        body_lines.append("*CI/CD Failures*")
-        body_lines.extend(failure_lines)
+    if ci_status_note:
+        body_lines.append(f"*{ci_status_note}*")
+    else:
+        body_lines.append(f"*CI/CD workflow failures:* {len(failures)}")
+        if failure_lines:
+            body_lines.append("")
+            body_lines.append("*CI/CD Failures*")
+            body_lines.extend(failure_lines)
 
     # VM cron job status
     if _IS_VM and cron_health:
