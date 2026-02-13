@@ -87,7 +87,11 @@ PY
 fi
 
 STATUS="ok"
-declare -a FAIL_LINES WARN_LINES INFO_LINES
+# With `set -u`, empty-but-undeclared arrays can raise "unbound variable" on `${#arr[@]}`.
+# Initialize explicitly so output formatting is reliable even when no failures/warnings exist.
+FAIL_LINES=()
+WARN_LINES=()
+INFO_LINES=()
 
 set_status_fail() {
   STATUS="fail"
