@@ -130,6 +130,14 @@ AKS pipelines CronJobs:
   - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
 - Image: `aistartuptr.azurecr.io/buildatlas-pipelines:latest` (from `infrastructure/pipelines/Dockerfile`)
 - Secret: `Secret/buildatlas-pipelines-secrets` (keys are ENV var names so pods can use `envFrom`)
+  - Important: `kubectl create secret --from-env-file` does **not** parse shell quoting. If you feed lines like
+    `AZURE_OPENAI_ENDPOINT="https://.../"`, the pods will literally see quotes and Azure OpenAI calls will fail.
+    Ensure values are unquoted in the secret (especially `AZURE_OPENAI_ENDPOINT`).
+  - Azure OpenAI auth: production OpenAI account has `disableLocalAuth=true` (AAD only). By default, pods use the
+    AKS **kubelet identity**. It must have the `Cognitive Services OpenAI User` role on the OpenAI account scope, or
+    GPT-5 `responses.*` calls will fail with `PermissionDenied` (missing `.../responses/write`).
+    - Kubelet object id: `AZURE_CLI_DISABLE_LOGFILE=1 az aks show -g aistartuptr -n aks-aistartuptr --query identityProfile.kubeletidentity.objectId -o tsv`
+    - Account scope: `/subscriptions/.../resourceGroups/rg-openai/providers/Microsoft.CognitiveServices/accounts/aoai-ep-swedencentral02`
 - Deploy workflow: `.github/workflows/ops-pipelines-deploy.yml`
 - VM cutover guardrail: set `BUILDATLAS_VM_CRON_DISABLED_JOBS` in `/etc/buildatlas/.env` (enforced by `infrastructure/vm-cron/lib/runner.sh`)
 

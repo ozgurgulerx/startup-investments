@@ -96,6 +96,11 @@ Pipelines are deployed into AKS as CronJobs to avoid VM availability issues:
 - Secrets/config:
   - `Secret/buildatlas-pipelines-secrets` (keys are ENV var names so pods use `envFrom`)
   - `ConfigMap/buildatlas-pipelines-config` (non-secret runtime toggles)
+  - Note: `kubectl create secret --from-env-file` does **not** parse shell quoting. Do not include surrounding quotes
+    in secret values (e.g. `AZURE_OPENAI_ENDPOINT` must be `https://.../`, not `"https://.../"`), or Azure OpenAI
+    calls will fail.
+  - Azure OpenAI is AAD-only in production (`disableLocalAuth=true`). Pipelines must run with an identity that has the
+    `Cognitive Services OpenAI User` role on the Azure OpenAI account scope (AKS defaults to the kubelet identity).
 - Deploy workflow: `.github/workflows/ops-pipelines-deploy.yml`
 
 ### Deploy/orchestration control plane: VM cron
