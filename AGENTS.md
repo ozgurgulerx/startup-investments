@@ -100,6 +100,17 @@ Important headers/invariants:
       - `user_signal_reco_dismissals` hides signals from future recommendations (per-user, per-signal).
       - `user_signal_domain_prefs` stores per-user per-region domain weights used as a ranking nudge.
     - Backend endpoint: `POST /api/v1/signals/recommendations/feedback` is used by the web UI.
+  - Signals relevance bundle + relevance sort (information relevance MVP):
+    - Backend endpoint: `GET /api/v1/signals/:id/relevance`
+      returns `{ relevant_rounds, related_patterns, related_signals }` scoped to the signal's region (default window: 90d).
+    - Backend list sort: `GET /api/v1/signals?sort=relevance` blends impact+conviction+momentum and (when provided)
+      applies `user_signal_domain_prefs` + excludes `user_signal_reco_dismissals`.
+    - Web proxies:
+      - `apps/web/app/api/signals/[id]/relevance/route.ts`
+      - `apps/web/app/api/signals/route.ts` (attaches `user_id` from session only for `sort=relevance`)
+    - UI surfaces:
+      - Signal inspector shows a compact "Relevance" section (rounds + patterns).
+      - Signal deep dive adds a `Relevance` tab with the full bundle.
 
 ## CI/CD Workflows (Source of Truth)
 
