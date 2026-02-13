@@ -135,6 +135,7 @@ fi
 # Auto-trigger deploys in parallel if both changed
 DEPLOY_BACKEND=false
 DEPLOY_FRONTEND=false
+DEPLOY_FUNCTIONS=false
 
 if echo "$CHANGED_FILES" | grep -qE '^(apps/api/|packages/shared/|infrastructure/kubernetes/)'; then
     DEPLOY_BACKEND=true
@@ -142,9 +143,13 @@ fi
 if echo "$CHANGED_FILES" | grep -qE '^(apps/web/|packages/shared/)'; then
     DEPLOY_FRONTEND=true
 fi
+if echo "$CHANGED_FILES" | grep -qE '^(infrastructure/azure-functions/|packages/analysis/)'; then
+    DEPLOY_FUNCTIONS=true
+fi
 
 BACKEND_PID=""
 FRONTEND_PID=""
+FUNCTIONS_PID=""
 
 if [ "$DEPLOY_BACKEND" = "true" ]; then
     echo "Backend code changed. Triggering backend deploy..."
@@ -156,6 +161,12 @@ if [ "$DEPLOY_FRONTEND" = "true" ]; then
     echo "Frontend code changed. Triggering frontend deploy..."
     SKIP_PULL=1 "$RUNNER" frontend-deploy 25 "$JOBS_DIR/frontend-deploy.sh" &
     FRONTEND_PID=$!
+fi
+
+if [ "$DEPLOY_FUNCTIONS" = "true" ]; then
+    echo "Functions code changed. Triggering functions deploy..."
+    SKIP_PULL=1 "$RUNNER" functions-deploy 30 "$JOBS_DIR/functions-deploy.sh" &
+    FUNCTIONS_PID=$!
 fi
 
 # Wait for background deploys to finish
@@ -178,6 +189,17 @@ if [ -n "$FRONTEND_PID" ]; then
         echo "---- frontend-deploy log tail ----"
         tail -60 /var/log/buildatlas/frontend-deploy.log 2>/dev/null || true
         echo "---- end frontend-deploy log tail ----"
+        echo ""
+        DEPLOY_FAILED=true
+    fi
+fi
+if [ -n "$FUNCTIONS_PID" ]; then
+    if ! wait "$FUNCTIONS_PID"; then
+        echo "Functions deploy failed (pid $FUNCTIONS_PID)"
+        echo ""
+        echo "---- functions-deploy log tail ----"
+        tail -60 /var/log/buildatlas/functions-deploy.log 2>/dev/null || true
+        echo "---- end functions-deploy log tail ----"
         echo ""
         DEPLOY_FAILED=true
     fi

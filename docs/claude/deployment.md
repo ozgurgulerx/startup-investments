@@ -11,10 +11,10 @@ This file is a quick operational cheatsheet. If anything conflicts, use the cano
 |---|---|---|
 | Frontend (`apps/web`) | VM cron `infrastructure/vm-cron/jobs/frontend-deploy.sh` | `.github/workflows/frontend-deploy.yml` (`workflow_dispatch`) |
 | Backend (`apps/api`) | VM cron `infrastructure/vm-cron/jobs/backend-deploy.sh` | `.github/workflows/backend-deploy.yml` (`workflow_dispatch`) |
+| Functions (`infrastructure/azure-functions`) | VM cron `infrastructure/vm-cron/jobs/functions-deploy.sh` | `.github/workflows/functions-deploy.yml` (`workflow_dispatch`) |
 | Data refresh + web publish | VM cron `infrastructure/vm-cron/jobs/sync-data.sh` | `.github/workflows/sync-data.yml` |
 | News ingest | VM cron `infrastructure/vm-cron/jobs/news-ingest.sh` | `.github/workflows/news-ingest.yml` |
 | News digest | VM cron `infrastructure/vm-cron/jobs/news-digest.sh` | `.github/workflows/news-digest-daily.yml` |
-| Azure Functions | `.github/workflows/functions-deploy.yml` | same |
 
 ## VM-triggered Deploy Flow
 
@@ -62,6 +62,7 @@ curl -I https://buildatlas.net
 Logs:
 - `/var/log/buildatlas/backend-deploy.log`
 - `/var/log/buildatlas/frontend-deploy.log`
+- `/var/log/buildatlas/functions-deploy.log`
 
 ## Do Not Break
 

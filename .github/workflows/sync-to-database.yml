@@ -1,13 +1,8 @@
 name: Sync Data to Database
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'apps/web/data/**/input/startups.csv'
-      - 'apps/web/data/**/output/analysis_store/**'
-      - '.github/workflows/sync-to-database.yml'
+  # VM cron handles DB sync now (infrastructure/vm-cron/jobs/sync-data.sh)
+  # This workflow is kept as a manual backup only
   workflow_dispatch:
     inputs:
       period:

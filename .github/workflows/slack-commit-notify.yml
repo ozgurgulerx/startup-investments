@@ -1,8 +1,9 @@
 name: Slack Commit Notify
 
 on:
-  push:
-    branches: [main]
+  # VM cron handles commit notifications now (infrastructure/vm-cron/jobs/slack-commit-notify.sh)
+  # This workflow is kept as a manual backup only
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -82,4 +83,3 @@ jobs:
           
           subprocess.check_call([sys.executable, "scripts/slack_notify.py"])
           PY
-

@@ -91,6 +91,7 @@ Do not break these:
 - Triggers:
   - `backend-deploy.sh` for API/shared/k8s changes.
   - `frontend-deploy.sh` for web/shared changes.
+  - `functions-deploy.sh` for `infrastructure/azure-functions/**` and `packages/analysis/**` changes.
 - Applies migrations when migration files changed.
 
 ### Backup/manual control plane: GitHub Actions
@@ -106,9 +107,9 @@ Do not break these:
 | `sync-data.yml` | Manual/repository_dispatch backup |
 | `slack-daily-summary.yml` | Manual backup summary |
 | `crawl-frontier.yml` | Manual run (schedule disabled) |
-| `functions-deploy.yml` | Active workflow (`push` + manual) |
-| `sync-to-database.yml` | Active workflow (`push` + manual) |
-| `slack-commit-notify.yml` | Active on `main` push |
+| `functions-deploy.yml` | Manual backup deploy (VM `functions-deploy.sh` is primary) |
+| `sync-to-database.yml` | Manual backup only (VM `sync-data.sh` is primary) |
+| `slack-commit-notify.yml` | Manual backup only (VM `slack-commit-notify.sh` is primary) |
 | `vm-watchdog.yml` | Active scheduled VM safety net |
 | `vm-cron-slack-notify.yml` | Active dispatch receiver |
 
@@ -194,6 +195,7 @@ Git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock`.
 |---|---|
 | `frontend-deploy` | Called by `sync-data.sh`, `deploy.sh`, or manual runner invocation |
 | `backend-deploy` | Called by `deploy.sh` or manual runner invocation |
+| `functions-deploy` | Called by `deploy.sh` or manual runner invocation |
 
 ## 9) Pipeline Maps
 

@@ -1,13 +1,8 @@
 name: Deploy Azure Functions
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'infrastructure/azure-functions/**'
-      - 'packages/analysis/**'
-      - '.github/workflows/functions-deploy.yml'
+  # VM cron handles functions deploys now (infrastructure/vm-cron/jobs/functions-deploy.sh)
+  # This workflow is kept as a manual backup only
   workflow_dispatch:
 
 permissions:

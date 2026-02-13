@@ -23,8 +23,8 @@ REPO_DIR="/opt/buildatlas/startup-analysis"
 VENV_DIR="/opt/buildatlas/venv"
 ENV_FILE_PRIMARY="/etc/buildatlas/.env"
 ENV_FILE_FALLBACK="$REPO_DIR/.env"
-DEFAULT_SLACK_SUCCESS_JOBS="news-ingest,news-digest,frontend-deploy,backend-deploy,code-update,sync-data,crawl-frontier"
-DEFAULT_SLACK_START_JOBS="frontend-deploy,backend-deploy,sync-data,code-update,news-digest"
+DEFAULT_SLACK_SUCCESS_JOBS="news-ingest,news-digest,frontend-deploy,backend-deploy,functions-deploy,code-update,sync-data,crawl-frontier"
+DEFAULT_SLACK_START_JOBS="frontend-deploy,backend-deploy,functions-deploy,sync-data,code-update,news-digest"
 
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
@@ -118,6 +118,7 @@ slack_url_for_job() {
     case "$JOB_NAME" in
         frontend-deploy) echo "${PUBLIC_BASE_URL:-https://buildatlas.net}" ;;
         backend-deploy) echo "${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/health" ;;
+        functions-deploy) echo "https://${AZURE_FUNCTIONAPP_NAME:-buildatlas-functions}.azurewebsites.net/api/health" ;;
         *) echo "" ;;
     esac
 }
@@ -221,7 +222,7 @@ fi
 } >> "$LOG_FILE"
 
 # Optional start notification for high-signal jobs.
-if should_notify_start || [ "$JOB_NAME" = "frontend-deploy" ] || [ "$JOB_NAME" = "backend-deploy" ]; then
+if should_notify_start || [ "$JOB_NAME" = "frontend-deploy" ] || [ "$JOB_NAME" = "backend-deploy" ] || [ "$JOB_NAME" = "functions-deploy" ]; then
     send_slack_event \
         "start" \
         "info" \
@@ -250,7 +251,7 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] SUCCESS: $JOB_NAME" >> "$LOG_FILE"
 
     # Deploys are high-signal operational events; always notify on success.
-    if should_notify_success || [ "$JOB_NAME" = "frontend-deploy" ] || [ "$JOB_NAME" = "backend-deploy" ]; then
+    if should_notify_success || [ "$JOB_NAME" = "frontend-deploy" ] || [ "$JOB_NAME" = "backend-deploy" ] || [ "$JOB_NAME" = "functions-deploy" ]; then
         send_slack_event \
             "finish" \
             "success" \
