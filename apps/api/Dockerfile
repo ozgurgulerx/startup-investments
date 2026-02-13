@@ -22,7 +22,9 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/apps/api/node_modules ./node_modules
+# pnpm --filter installs produce workspace-aware symlinks that resolve against
+# /app/node_modules/.pnpm. Copy root node_modules so runtime deps resolve.
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/package.json ./package.json
 
