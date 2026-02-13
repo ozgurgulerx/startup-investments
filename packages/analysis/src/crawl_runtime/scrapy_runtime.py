@@ -286,7 +286,11 @@ class ScrapyPlaywrightRuntime:
         if not self.frontier.enabled or not getattr(self.frontier, "pool", None):
             return
 
-        canonical_url = canonicalize_url(doc.get("canonical_url") or doc.get("url") or "")
+        # Prefer the frontier lease canonical (stable queue key) when available,
+        # even if the request ultimately redirected to a different final URL.
+        canonical_url = canonicalize_url(
+            doc.get("frontier_canonical_url") or doc.get("canonical_url") or doc.get("url") or ""
+        )
         if not canonical_url:
             return
 
@@ -469,7 +473,9 @@ class ScrapyPlaywrightRuntime:
         discovered: List[str] = []
 
         for doc in docs:
-            canonical = canonicalize_url(doc.get("canonical_url") or doc.get("url") or "")
+            doc_canonical = canonicalize_url(doc.get("canonical_url") or doc.get("url") or "")
+            requested_canonical = canonicalize_url(doc.get("requested_url") or "")
+            canonical = doc_canonical or requested_canonical
             if not canonical:
                 continue
 
@@ -477,11 +483,25 @@ class ScrapyPlaywrightRuntime:
             status_code = int(doc.get("status_code") or 0)
             content_hash = doc.get("content_hash")
 
-            leased = leased_by_canonical.get(canonical)
+            lease_key: Optional[str] = None
+            leased = leased_by_canonical.get(doc_canonical) if doc_canonical else None
+            if leased is not None and doc_canonical:
+                lease_key = doc_canonical
+            elif requested_canonical:
+                leased = leased_by_canonical.get(requested_canonical)
+                if leased is not None:
+                    lease_key = requested_canonical
+
             if leased is None:
                 continue
 
-            seen_leased.add(canonical)
+            # Ensure the crawl attempt is attributed to the leased frontier URL
+            # even when the final response URL differs due to redirects.
+            if not lease_key:
+                continue
+
+            seen_leased.add(lease_key)
+            doc["frontier_canonical_url"] = lease_key
             changed = self._changed(leased.content_hash, status_code, content_hash)
             error_category = self._doc_error_category(doc)
             capture_id = await self.capture_recorder.save_from_doc(startup_slug=startup_slug, doc=doc)
@@ -494,7 +514,7 @@ class ScrapyPlaywrightRuntime:
             )
 
             await self.frontier.mark_crawled(
-                canonical_url=canonical,
+                canonical_url=lease_key,
                 status_code=status_code,
                 content_hash=content_hash,
                 etag=doc.get("etag"),

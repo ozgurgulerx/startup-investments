@@ -164,6 +164,9 @@ class StartupSpider(scrapy.Spider):
             render_required = bool(target.get("render_required", False) or self.force_render)
             meta = self._build_meta(rendered=render_required, proxy_tier=proxy_tier)
             meta["seed_page_type"] = page_type
+            # Preserve the original requested URL across redirects so the runtime can
+            # match spider output back to the leased frontier canonical.
+            meta["requested_url"] = url
             yield scrapy.Request(
                 url=url,
                 callback=self.parse,
@@ -177,6 +180,7 @@ class StartupSpider(scrapy.Spider):
         self,
         *,
         url: str,
+        requested_url: Optional[str] = None,
         status: int,
         html: str,
         clean_text: str,
@@ -209,6 +213,7 @@ class StartupSpider(scrapy.Spider):
         self.documents.append(
             {
                 "url": url,
+                "requested_url": requested_url,
                 "canonical_url": canonical,
                 "domain": extract_domain(canonical),
                 "page_type": page_type,
@@ -245,6 +250,7 @@ class StartupSpider(scrapy.Spider):
         request = getattr(failure, "request", None)
         url = str(getattr(request, "url", "") or "")
         meta = getattr(request, "meta", {}) or {}
+        requested_url = str(meta.get("requested_url") or url)
 
         rendered = bool(meta.get("rendered"))
         proxy_tier = str(meta.get("proxy_tier") or "none")
@@ -258,6 +264,7 @@ class StartupSpider(scrapy.Spider):
 
         self._record_doc(
             url=url,
+            requested_url=requested_url,
             status=599,
             html="",
             clean_text="",
@@ -281,12 +288,16 @@ class StartupSpider(scrapy.Spider):
         rendered = bool(response.meta.get("rendered"))
         proxy_tier = str(response.meta.get("proxy_tier") or "none")
         current_page_type = response.meta.get("seed_page_type") or classify_page_type(response.url)
+        requested_url = str(
+            response.meta.get("requested_url") or getattr(getattr(response, "request", None), "url", "") or ""
+        )
         request_headers = headers_to_dict(getattr(response.request, "headers", {}))
         response_headers = headers_to_dict(response.headers)
         try:
             if response.status == 304:
                 self._record_doc(
                     url=response.url,
+                    requested_url=requested_url,
                     status=response.status,
                     html="",
                     clean_text="",
@@ -310,6 +321,7 @@ class StartupSpider(scrapy.Spider):
                 clipped = body_bytes[:MAX_RAW_BODY_BYTES]
                 self._record_doc(
                     url=response.url,
+                    requested_url=requested_url,
                     status=response.status,
                     html="",
                     clean_text=text,
@@ -350,6 +362,7 @@ class StartupSpider(scrapy.Spider):
             clipped_html = html[:MAX_RAW_BODY_BYTES]
             self._record_doc(
                 url=response.url,
+                requested_url=requested_url,
                 status=response.status,
                 html=html,
                 clean_text=clean_text,
@@ -404,6 +417,7 @@ class StartupSpider(scrapy.Spider):
 
             self._record_doc(
                 url=str(getattr(response, "url", "") or ""),
+                requested_url=requested_url,
                 status=599,
                 html="",
                 clean_text="",
