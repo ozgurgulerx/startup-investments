@@ -27,6 +27,8 @@
 
 **LLM Model Policy:** All LLM calls MUST use `gpt-5-nano` via `AZURE_OPENAI_DEPLOYMENT_NAME` env var. Never hardcode model names.
 
+**Root package.json:** NEVER add `dependencies` or `devDependencies` to the root `package.json`. All deps belong in workspace packages (`apps/web`, `apps/api`, `packages/shared`). Root deps cause Docker build failures from lockfile mismatches.
+
 ### Key URLs
 
 | Service | URL |

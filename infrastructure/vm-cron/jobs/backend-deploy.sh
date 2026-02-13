@@ -54,15 +54,19 @@ echo "  All required vars present."
 echo ""
 echo "[2/6] Building Docker image on ACR..."
 
-# Copy pnpm lockfile into API build context (Dockerfile needs it for --frozen-lockfile)
-cp "$REPO_DIR/pnpm-lock.yaml" "$REPO_DIR/apps/api/pnpm-lock.yaml"
-trap 'rm -f "$REPO_DIR/apps/api/pnpm-lock.yaml"' EXIT
+# Guard: root package.json must not have runtime dependencies (they cause lockfile mismatches)
+if grep -qE '"dependencies"\s*:' "$REPO_DIR/package.json"; then
+    echo "ERROR: Root package.json has 'dependencies' — move them to the appropriate workspace package."
+    echo "  Root deps cause pnpm lockfile mismatches in Docker builds."
+    exit 1
+fi
 
 az acr build \
     --registry "$ACR_NAME" \
     --image "$IMAGE_NAME:$COMMIT_SHA" \
     --image "$IMAGE_NAME:latest" \
-    "$REPO_DIR/apps/api"
+    --file apps/api/Dockerfile \
+    "$REPO_DIR"
 
 echo "  Pushed: $FULL_IMAGE:$COMMIT_SHA"
 echo "  Pushed: $FULL_IMAGE:latest"

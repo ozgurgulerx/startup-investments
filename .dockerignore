@@ -1,7 +1,7 @@
-# .dockerignore — Used by apps/web/Dockerfile (build context = repo root).
-# Backend (apps/api/) uses its own .dockerignore in apps/api/.
+# .dockerignore — Used by both apps/web/Dockerfile and apps/api/Dockerfile
+# (both use repo root as build context).
 #
-# Whitelist approach: deny everything, then allow what the web build needs.
+# Whitelist approach: deny everything, then allow what the builds need.
 
 # Deny all
 *
@@ -15,6 +15,9 @@
 # Web app source + data
 !apps/web/
 
+# API app source
+!apps/api/
+
 # Shared workspace package
 !packages/shared/
 
@@ -27,6 +30,9 @@ apps/web/node_modules/
 apps/web/.env*
 apps/web/deploy/
 apps/web/deploy.zip
+apps/api/node_modules/
+apps/api/dist/
+apps/api/.env*
 packages/shared/node_modules/
 
 # Exclude raw_content (crawled HTML, ~58MB) — not needed at runtime

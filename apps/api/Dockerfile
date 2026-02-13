@@ -1,32 +1,30 @@
-# Build stage
+# Build stage — context must be repo root (for pnpm workspace lockfile resolution)
 FROM node:20-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
 WORKDIR /app
 
-# Copy package files + lockfile first — layer cached when only source changes
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# Copy workspace config + lockfile first (layer cached when only source changes)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/api/package.json apps/api/package.json
 
-# Copy source code and build
-COPY tsconfig.json ./
-COPY src/ ./src/
-RUN pnpm run build
+# Install API deps only
+RUN pnpm install --frozen-lockfile --filter @startup-investments/api
+
+# Copy API source and build
+COPY apps/api/tsconfig.json apps/api/tsconfig.json
+COPY apps/api/src/ apps/api/src/
+RUN cd apps/api && pnpm run build
 
 # Production stage
 FROM node:20-alpine AS production
 
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
-
 WORKDIR /app
 
-# Copy package files and install production dependencies only
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
-
-# Copy built files
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/apps/api/node_modules ./node_modules
+COPY --from=builder /app/apps/api/dist ./dist
+COPY --from=builder /app/apps/api/package.json ./package.json
 
 # Set environment
 ENV NODE_ENV=production
