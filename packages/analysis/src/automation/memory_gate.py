@@ -376,6 +376,9 @@ _VALUATION_RE = re.compile(
 
 # Funding title → primary company extraction (when NER/entities are noisy)
 _FUNDING_TITLE_STRIP_PREFIX_RE = re.compile(r"^(funding|financing|investment|round)\s*[:\-]\s*", re.IGNORECASE)
+_FUNDING_TITLE_STARTUP_NAME_RE = re.compile(
+    r"\b(?i:start-?up)\s+([A-Z][A-Za-z0-9&+.'\\-]*(?:\s+[A-Z0-9][A-Za-z0-9&+.'\\-]*){0,4})\b"
+)
 _FUNDING_TITLE_AMOUNT_FOR_RE = re.compile(
     r"\$\s*[\d,.]+\s*(?:million|billion|mn|bn|m|b|k|[MBK])\b\s+(?:for|to|into)\s+"
     r"([A-Z][A-Za-z0-9&+.'\\-]*(?:\s+[A-Z0-9][A-Za-z0-9&+.'\\-]*){0,4})\b",
@@ -523,11 +526,19 @@ class FactExtractor:
 
         t = _FUNDING_TITLE_STRIP_PREFIX_RE.sub("", t).strip()
 
+        # "startup <Name>" anywhere in the title (covers investor-first headlines).
+        m = _FUNDING_TITLE_STARTUP_NAME_RE.search(t)
+        if m:
+            cand = (m.group(1) or "").strip().strip("\"'“”‘’()[]{}.,:; ")
+            cand = re.sub(r"[’']s$", "", cand).strip()
+            if cand and not re.fullmatch(r"[A-Z]{1,3}", cand):
+                return cand
+
         # "$10M for Acme ..." style
         m = _FUNDING_TITLE_AMOUNT_FOR_RE.search(t)
         if m:
             cand = (m.group(1) or "").strip().strip("\"'“”‘’()[]{}.,:; ")
-            cand = re.sub(r"'s$", "", cand).strip()
+            cand = re.sub(r"[’']s$", "", cand).strip()
             if cand and not re.fullmatch(r"[A-Z]{1,3}", cand):
                 return cand
 
@@ -551,6 +562,8 @@ class FactExtractor:
                 break
 
         tokens = [tok.strip("\"'“”‘’()[]{}.,:; ") for tok in re.split(r"\s+", prefix) if tok.strip()]
+        # Drop common headline descriptors so we prefer the actual company token(s).
+        tokens = [t for t in tokens if not re.search(r"-(backed|led|based)$", t.lower())]
         while tokens and tokens[0].lower() in ("the", "a", "an"):
             tokens = tokens[1:]
         if not tokens:
@@ -561,7 +574,7 @@ class FactExtractor:
             tokens = tokens[-4:]
 
         cand = " ".join(tokens).strip()
-        cand = re.sub(r"'s$", "", cand).strip()
+        cand = re.sub(r"[’']s$", "", cand).strip()
         if not cand or cand.lower() in {"startup", "company", "firm", "platform", "app"}:
             return None
         if re.fullmatch(r"[A-Z]{1,3}", cand):

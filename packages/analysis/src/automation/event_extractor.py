@@ -1495,6 +1495,16 @@ async def onboard_unknown_startups(
         allowed_single_source_by_allowlist,
         trust_min,
     )
+    try:
+        region_label = (events[0].region if events else "global") or "global"
+    except Exception:
+        region_label = "global"
+    print(
+        f"[onboard:{region_label}] summary: candidates={len(seen_names)} created={created} "
+        f"allowed_single_source={allowed_single_source} (trust={allowed_single_source_by_trust} "
+        f"allowlist={allowed_single_source_by_allowlist}) trust_min={trust_min:.2f} "
+        f"skipped={skipped_reasons or {}}"
+    )
     if created:
         logger.info("Onboarded %d new stub startups from unlinked events", created)
 
