@@ -65,6 +65,8 @@ interface RecommendationFollowContext {
   recommendation_algorithm_version?: string;
 }
 
+type RecommendationFeedbackType = 'not_relevant' | 'more_like_this' | 'less_from_domain';
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -547,6 +549,26 @@ function ListSkeleton() {
   );
 }
 
+function getRecommendationReasonTag(params: {
+  reasonType?: SignalRecommendation['reason_type'];
+  overlapCount?: number;
+  isTR: boolean;
+}): string {
+  if (params.reasonType === 'watchlist_overlap') {
+    const overlap = Number(params.overlapCount || 0);
+    if (overlap > 0) {
+      return params.isTR
+        ? `Izleme listenle eslesme (${overlap})`
+        : `Watchlist match (${overlap})`;
+    }
+    return params.isTR ? 'Izleme listene benzer' : 'Watchlist-adjacent';
+  }
+  if (params.reasonType === 'high_impact_fallback') {
+    return params.isTR ? 'Bolgende yuksek etki' : 'High impact in your region';
+  }
+  return params.isTR ? 'Senin icin onerildi' : 'Recommended for you';
+}
+
 // ---------------------------------------------------------------------------
 // Dynamic signals view — two-pane layout
 // ---------------------------------------------------------------------------
@@ -561,7 +583,11 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       domains: 'alan',
       rising: 'sinyal yukseliste',
       recommended: 'Takip onerileri',
+      whyForYou: 'Neden senin icin',
       loadingRecommendations: 'Oneriler yukleniyor...',
+      notRelevant: 'Ilgili degil',
+      moreLikeThis: 'Buna benzer daha fazla',
+      lessFromDomain: 'Bu alandan daha az',
       noMatches: 'Filtrelere uyan sinyal yok',
       signalDetail: 'Sinyal Detayi',
     }
@@ -572,7 +598,11 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       domains: 'domains',
       rising: 'signals rising',
       recommended: 'Recommended to Follow',
+      whyForYou: 'Why this for you',
       loadingRecommendations: 'Loading recommendations...',
+      notRelevant: 'Not relevant',
+      moreLikeThis: 'More like this',
+      lessFromDomain: 'Less from this domain',
       noMatches: 'No signals match your filters',
       signalDetail: 'Signal Detail',
     };
@@ -623,6 +653,8 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const [recommendationRequestId, setRecommendationRequestId] = useState<string | null>(null);
   const [recommendationAlgorithmVersion, setRecommendationAlgorithmVersion] = useState<string>(RECOMMENDATION_ALGO_FALLBACK);
+  const [hiddenRecommendationIds, setHiddenRecommendationIds] = useState<Set<string>>(new Set());
+  const [domainRecommendationWeights, setDomainRecommendationWeights] = useState<Record<string, number>>({});
   const trackedRecommendationListViewsRef = useRef<Set<string>>(new Set());
   const trackedRecommendationImpressionsRef = useRef<Set<string>>(new Set());
 
@@ -855,8 +887,15 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   );
 
   const visibleRecommendations = useMemo(
-    () => recommendations.filter(rec => !followedIds.has(rec.signal.id)),
-    [recommendations, followedIds]
+    () => recommendations
+      .filter(rec => !followedIds.has(rec.signal.id) && !hiddenRecommendationIds.has(rec.signal.id))
+      .sort((a, b) => {
+        const weightA = domainRecommendationWeights[a.signal.domain] || 0;
+        const weightB = domainRecommendationWeights[b.signal.domain] || 0;
+        if (weightA !== weightB) return weightB - weightA;
+        return (b.overlap_count || 0) - (a.overlap_count || 0);
+      }),
+    [recommendations, followedIds, hiddenRecommendationIds, domainRecommendationWeights]
   );
   const displayedRecommendations = useMemo(
     () => visibleRecommendations.slice(0, 4),
@@ -924,6 +963,79 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
 
     handleSelectSignal(rec.signal.id);
   }, [handleSelectSignal, recommendationRequestId, recommendationAlgorithmVersion, region]);
+
+  const handleRecommendationFeedback = useCallback((
+    rec: SignalRecommendation,
+    position: number,
+    feedbackType: RecommendationFeedbackType,
+  ) => {
+    const requestId = recommendationRequestId || 'unknown';
+    const algorithmVersion = recommendationAlgorithmVersion || RECOMMENDATION_ALGO_FALLBACK;
+
+    trackEvent('reco_feedback_submitted', {
+      surface: RECOMMENDATION_SURFACE,
+      region: region || 'global',
+      item_type: 'signal',
+      item_id: rec.signal.id,
+      position,
+      reason_type: rec.reason_type || 'watchlist_overlap',
+      feedback_type: feedbackType,
+      request_id: requestId,
+      algorithm_version: algorithmVersion,
+      is_authenticated: true,
+    });
+
+    if (feedbackType === 'not_relevant') {
+      setHiddenRecommendationIds(prev => {
+        const next = new Set(prev);
+        next.add(rec.signal.id);
+        return next;
+      });
+      trackEvent('reco_item_dismissed', {
+        surface: RECOMMENDATION_SURFACE,
+        region: region || 'global',
+        item_type: 'signal',
+        item_id: rec.signal.id,
+        position,
+        reason_type: rec.reason_type || 'watchlist_overlap',
+        dismiss_reason: 'not_relevant',
+        request_id: requestId,
+        algorithm_version: algorithmVersion,
+        is_authenticated: true,
+      });
+      return;
+    }
+
+    if (feedbackType === 'less_from_domain') {
+      setDomainRecommendationWeights(prev => ({
+        ...prev,
+        [rec.signal.domain]: (prev[rec.signal.domain] || 0) - 1,
+      }));
+      setHiddenRecommendationIds(prev => {
+        const next = new Set(prev);
+        next.add(rec.signal.id);
+        return next;
+      });
+      trackEvent('reco_item_dismissed', {
+        surface: RECOMMENDATION_SURFACE,
+        region: region || 'global',
+        item_type: 'signal',
+        item_id: rec.signal.id,
+        position,
+        reason_type: rec.reason_type || 'watchlist_overlap',
+        dismiss_reason: 'less_from_domain',
+        request_id: requestId,
+        algorithm_version: algorithmVersion,
+        is_authenticated: true,
+      });
+      return;
+    }
+
+    setDomainRecommendationWeights(prev => ({
+      ...prev,
+      [rec.signal.domain]: (prev[rec.signal.domain] || 0) + 1,
+    }));
+  }, [recommendationRequestId, recommendationAlgorithmVersion, region]);
 
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -1004,6 +1116,18 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
                         isTR={isTR}
                       />
                     </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 text-[9px] rounded-full border border-accent-info/30 bg-accent-info/10 text-accent-info">
+                        {l.whyForYou}
+                      </span>
+                      <span className="px-1.5 py-0.5 text-[9px] rounded-full border border-border/40 text-muted-foreground">
+                        {getRecommendationReasonTag({
+                          reasonType: rec.reason_type,
+                          overlapCount: rec.overlap_count,
+                          isTR,
+                        })}
+                      </span>
+                    </div>
                     <p className="mt-1 text-[11px] text-muted-foreground">{rec.reason}</p>
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <span className={`px-1.5 py-0.5 text-[9px] rounded-full ${style.bg} ${style.text}`}>
@@ -1012,6 +1136,29 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
                       <span className="text-[9px] text-muted-foreground uppercase tracking-wider">
                         {(isTR ? DOMAIN_LABELS_TR : DOMAIN_LABELS)[rec.signal.domain] || domainLabel}
                       </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleRecommendationFeedback(rec, index + 1, 'not_relevant')}
+                        className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                      >
+                        {l.notRelevant}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRecommendationFeedback(rec, index + 1, 'more_like_this')}
+                        className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                      >
+                        {l.moreLikeThis}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRecommendationFeedback(rec, index + 1, 'less_from_domain')}
+                        className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                      >
+                        {l.lessFromDomain}
+                      </button>
                     </div>
                   </div>
                 );
