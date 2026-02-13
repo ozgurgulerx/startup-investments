@@ -29,6 +29,33 @@ export BUILDATLAS_LOG="/var/log/buildatlas/heartbeat.log"
 
 mkdir -p "$(dirname "$BUILDATLAS_LOG")"
 
+list_contains_job() {
+    local job="${1:-}"
+    local raw="${2:-}"
+
+    raw="$(echo "$raw" | tr -d '[:space:]')"
+
+    if [ -z "$raw" ] || [ -z "$job" ]; then
+        return 1
+    fi
+    if [ "$raw" = "off" ] || [ "$raw" = "none" ] || [ "$raw" = "0" ]; then
+        return 1
+    fi
+    if [ "$raw" = "all" ]; then
+        return 0
+    fi
+
+    case ",$raw," in
+        *,"$job",*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+is_job_disabled() {
+    local job="${1:-}"
+    list_contains_job "$job" "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "$job" "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"
+}
+
 derive_github_repository() {
     local origin=""
     origin="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)"
@@ -127,6 +154,12 @@ HOUR=$(date -u +%-H)
 
 for entry in "${FRESHNESS_JOBS[@]}"; do
     IFS=: read -r JOB OVERDUE_MIN SCHEDULE <<< "$entry"
+
+    # If the job is intentionally disabled, don't alert on staleness.
+    if is_job_disabled "$JOB"; then
+        rm -f "$STALE_ALERT_DIR/$JOB"
+        continue
+    fi
 
     # Skip schedule-restricted jobs outside their window
     if [ "$SCHEDULE" = "weekday_business" ]; then
