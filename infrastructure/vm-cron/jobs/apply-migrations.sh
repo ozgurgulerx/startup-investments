@@ -27,6 +27,7 @@ fi
 "$VENV_DIR/bin/python" << PYEOF
 import asyncio
 import os
+import random
 from pathlib import Path
 
 import asyncpg
@@ -113,6 +114,7 @@ SETS = {
         "043_startup_refresh_jobs.sql",
         "058_onboarding_pipeline_activation.sql",
         "063_onboarding_trace_and_context.sql",
+        "064_fix_onboarding_trace_dedupe_index.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -202,6 +204,26 @@ else:
 
 base = Path("$REPO_DIR/database/migrations")
 
+TRANSIENT_SQLSTATES = {
+    # 40P01: deadlock_detected
+    "40P01",
+    # 55P03: lock_not_available
+    "55P03",
+}
+
+
+def is_transient_ddl_error(exc: Exception) -> bool:
+    sqlstate = str(getattr(exc, "sqlstate", "") or "").strip()
+    if sqlstate in TRANSIENT_SQLSTATES:
+        return True
+    msg = str(exc).lower()
+    return (
+        "deadlock detected" in msg
+        or "could not obtain lock" in msg
+        or "canceling statement due to lock timeout" in msg
+    )
+
+
 async def run():
     conn = await asyncpg.connect(db_url)
     failed = []
@@ -211,8 +233,22 @@ async def run():
             if path.exists():
                 try:
                     sql = path.read_text(encoding="utf-8")
-                    await conn.execute(sql)
-                    print(f"  Applied: {filename}")
+                    # DDL can deadlock if another runner (e.g. GH Actions backup) is
+                    # applying migrations at the same time. Retry a few times with
+                    # backoff to avoid spurious cron failures.
+                    max_attempts = 5
+                    for attempt in range(1, max_attempts + 1):
+                        try:
+                            await conn.execute(sql)
+                            print(f"  Applied: {filename}")
+                            break
+                        except Exception as e:
+                            if is_transient_ddl_error(e) and attempt < max_attempts:
+                                delay = (0.5 * (2 ** (attempt - 1))) + (random.random() * 0.25)
+                                print(f"  RETRY: {filename} (attempt {attempt}/{max_attempts}) after {delay:.2f}s: {e}")
+                                await asyncio.sleep(delay)
+                                continue
+                            raise
                 except Exception as e:
                     print(f"  FAILED: {filename}: {e}")
                     failed.append(filename)

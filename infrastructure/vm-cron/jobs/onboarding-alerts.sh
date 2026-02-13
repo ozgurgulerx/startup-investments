@@ -18,7 +18,9 @@ if [ "$ENABLED" = "0" ] || [ "$ENABLED" = "false" ] || [ "$ENABLED" = "no" ] || 
 fi
 
 # Ensure trace/context tables exist.
-bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" news
+# Use the crawl migration set to avoid pulling in the full news DDL set on a
+# high-frequency (*/2min) job.
+bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" crawl
 
 cd "$REPO_DIR/packages/analysis"
 "$VENV_DIR/bin/python" main.py dispatch-onboarding-alerts --batch-size "$BATCH_SIZE"

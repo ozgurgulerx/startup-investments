@@ -282,7 +282,8 @@ elif [ $EXIT_CODE -eq 124 ]; then
         "$ENDED_AT_UTC"
 else
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] FAILED: $JOB_NAME (exit $EXIT_CODE)" >> "$LOG_FILE"
-    TAIL_OUTPUT=$(tail -15 "$LOG_FILE" 2>/dev/null | head -10 || echo "(no output)")
+    # Use the true tail so we don't cut off the actual error (tracebacks, etc).
+    TAIL_OUTPUT=$(tail -20 "$LOG_FILE" 2>/dev/null || echo "(no output)")
     send_slack_event \
         "finish" \
         "failure" \
