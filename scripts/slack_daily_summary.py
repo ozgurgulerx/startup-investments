@@ -64,6 +64,7 @@ VM_CRON_JOBS = {
     "x-trends": 90,
     "event-processor": 30,
     "deep-research": 45,
+    "onboarding-alerts": 20,
     "crawl-frontier": 45,
     "news-digest": 1500,     # daily
     "x-post-generate": 300,
@@ -418,7 +419,7 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
 
         run_row = await conn.fetchrow(
             """
-            SELECT started_at, completed_at, status, sources_attempted, items_fetched, items_kept, clusters_built
+            SELECT started_at, completed_at, status, sources_attempted, items_fetched, items_kept, clusters_built, stats_json
             FROM news_ingestion_runs
             ORDER BY started_at DESC
             LIMIT 1
@@ -434,6 +435,26 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
                 "items_kept": int(run_row["items_kept"]),
                 "clusters_built": int(run_row["clusters_built"]),
             }
+            try:
+                raw_stats = run_row.get("stats_json")
+                stats_obj: dict[str, Any]
+                if isinstance(raw_stats, dict):
+                    stats_obj = raw_stats
+                elif isinstance(raw_stats, str):
+                    stats_obj = json.loads(raw_stats)
+                else:
+                    stats_obj = {}
+                llm_stats = stats_obj.get("llm")
+                if isinstance(llm_stats, dict):
+                    metrics["last_ingest_llm"] = {
+                        "intel_attempted": int(llm_stats.get("intel_attempted") or 0),
+                        "intel_accepted": int(llm_stats.get("intel_accepted") or 0),
+                        "intel_rejected_validation": int(llm_stats.get("intel_rejected_validation") or 0),
+                        "intel_missing_source_proof": int(llm_stats.get("intel_missing_source_proof") or 0),
+                        "intel_rejection_reasons": llm_stats.get("intel_rejection_reasons") or {},
+                    }
+            except Exception as e:
+                warnings.append(f"last_ingest_llm unavailable: {e}")
 
         try:
             win_hours = BACKEND_ACTIVITY_WINDOW_HOURS
@@ -611,6 +632,56 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
                     "pending": int(queue_state["pending"]),
                     "processing": int(queue_state["processing"]),
                 }
+
+            trace_activity = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE occurred_at >= NOW() - ($1::text)::interval) AS traces_window,
+                  COUNT(*) FILTER (
+                    WHERE should_notify = TRUE
+                      AND occurred_at >= NOW() - ($1::text)::interval
+                  ) AS alerts_candidate_window,
+                  COUNT(*) FILTER (
+                    WHERE should_notify = TRUE
+                      AND notified_at >= NOW() - ($1::text)::interval
+                  ) AS alerts_sent_window,
+                  COUNT(*) FILTER (
+                    WHERE should_notify = TRUE
+                      AND notified_at IS NULL
+                  ) AS alerts_pending
+                FROM onboarding_trace_events
+                """,
+                recent_window,
+            )
+            if trace_activity:
+                metrics["backend_onboarding_trace"] = {
+                    "window_hours": int(win_hours),
+                    "traces_window": int(trace_activity["traces_window"]),
+                    "alerts_candidate_window": int(trace_activity["alerts_candidate_window"]),
+                    "alerts_sent_window": int(trace_activity["alerts_sent_window"]),
+                    "alerts_pending": int(trace_activity["alerts_pending"]),
+                }
+
+            context_activity = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE created_at >= NOW() - ($1::text)::interval) AS context_added,
+                  (
+                    SELECT COUNT(*)
+                    FROM deep_research_queue
+                    WHERE reason = 'human_context'
+                      AND queued_at >= NOW() - ($1::text)::interval
+                  ) AS human_requeued
+                FROM startup_onboarding_context
+                """,
+                recent_window,
+            )
+            if context_activity:
+                metrics["backend_onboarding_context"] = {
+                    "window_hours": int(win_hours),
+                    "context_added": int(context_activity["context_added"]),
+                    "human_requeued": int(context_activity["human_requeued"]),
+                }
         except Exception as e:
             warnings.append(f"backend_activity unavailable: {e}")
 
@@ -636,6 +707,7 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
             SELECT
               COUNT(*) FILTER (WHERE llm_summary IS NOT NULL AND btrim(llm_summary) <> '') AS with_llm_summary,
               COUNT(*) FILTER (WHERE builder_takeaway IS NOT NULL AND btrim(builder_takeaway) <> '') AS with_builder_takeaway,
+              COUNT(*) FILTER (WHERE ba_title IS NOT NULL AND btrim(ba_title) <> '') AS with_ba_title,
               COUNT(*) AS total
             FROM news_clusters
             WHERE published_at >= NOW() - INTERVAL '24 hours'
@@ -645,6 +717,7 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
             metrics["llm_24h"] = {
                 "with_llm_summary": int(llm["with_llm_summary"]),
                 "with_builder_takeaway": int(llm["with_builder_takeaway"]),
+                "with_ba_title": int(llm["with_ba_title"]),
                 "total": int(llm["total"]),
             }
 
@@ -1111,8 +1184,17 @@ def main() -> int:
         if "llm_24h" in metrics:
             l = metrics["llm_24h"]
             body_lines.append(
-                f"- LLM (24h clusters): llm_summary={l.get('with_llm_summary')}/{l.get('total')} • builder_takeaway={l.get('with_builder_takeaway')}/{l.get('total')}"
+                f"- LLM (24h clusters): llm_summary={l.get('with_llm_summary')}/{l.get('total')} • builder_takeaway={l.get('with_builder_takeaway')}/{l.get('total')} • ba_title={l.get('with_ba_title')}/{l.get('total')}"
             )
+        if "last_ingest_llm" in metrics:
+            il = metrics["last_ingest_llm"]
+            body_lines.append(
+                f"- Intel validation (last ingest): attempted={il.get('intel_attempted')} accepted={il.get('intel_accepted')} rejected={il.get('intel_rejected_validation')} missing_source_proof={il.get('intel_missing_source_proof')}"
+            )
+            reasons = il.get("intel_rejection_reasons") or {}
+            if isinstance(reasons, dict) and reasons:
+                reason_parts = [f"{k}={v}" for k, v in reasons.items()]
+                body_lines.append(f"- Intel rejection reasons: {', '.join(reason_parts)}")
         if "backend_ingest_activity" in metrics or "backend_news_updates" in metrics or "backend_onboarding_attempts" in metrics:
             window_hours = BACKEND_ACTIVITY_WINDOW_HOURS
             if "backend_ingest_activity" in metrics:
@@ -1157,6 +1239,16 @@ def main() -> int:
                 rq = metrics["backend_research_queue"]
                 body_lines.append(
                     f"- Deep research queue: queued={rq.get('queued')} started={rq.get('started')} completed={rq.get('completed')} failed={rq.get('failed')} pending={rq.get('pending')} processing={rq.get('processing')}"
+                )
+            if "backend_onboarding_trace" in metrics:
+                bt = metrics["backend_onboarding_trace"]
+                body_lines.append(
+                    f"- Onboarding traces: total={bt.get('traces_window')} alerts_candidate={bt.get('alerts_candidate_window')} alerts_sent={bt.get('alerts_sent_window')} alerts_pending={bt.get('alerts_pending')}"
+                )
+            if "backend_onboarding_context" in metrics:
+                bc = metrics["backend_onboarding_context"]
+                body_lines.append(
+                    f"- Human context: added={bc.get('context_added')} requeued={bc.get('human_requeued')}"
                 )
         if "db_metrics_warnings" in metrics:
             warns = metrics["db_metrics_warnings"]

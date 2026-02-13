@@ -561,12 +561,22 @@ def crawl_retention(
 @app.command("seed-frontier")
 def seed_frontier(
     limit: int = typer.Option(5000, "--limit", "-l", help="Max startups to read from database"),
+    cursor: str = typer.Option("", "--cursor", help="Cursor offset token from prior run"),
+    max_startups: int = typer.Option(0, "--max-startups", help="Stop after this many startups (0=unbounded)"),
+    max_seconds: float = typer.Option(0.0, "--max-seconds", help="Stop after this many seconds (0=unbounded)"),
 ):
     """Seed crawl frontier queue from startups table."""
     from src.crawl_runtime.seed_frontier import run_seed_frontier
 
     try:
-        result = asyncio.run(run_seed_frontier(limit=max(1, int(limit))))
+        result = asyncio.run(
+            run_seed_frontier(
+                limit=max(1, int(limit)),
+                cursor=cursor or None,
+                max_startups=max(0, int(max_startups)),
+                max_seconds=max(0.0, float(max_seconds)),
+            )
+        )
     except Exception as exc:
         console.print(f"[red]Frontier seed failed:[/red] {exc}")
         raise typer.Exit(1)
@@ -575,7 +585,11 @@ def seed_frontier(
         "[bold blue]Frontier Seed Summary[/bold blue]",
         border_style="blue"
     ))
+    console.print(f"[bold]Cursor:[/bold] {result.get('cursor', '0')}")
+    console.print(f"[bold]Next cursor:[/bold] {result.get('next_cursor') or 'none'}")
+    console.print(f"[bold]Exhausted:[/bold] {result.get('exhausted', False)}")
     console.print(f"[bold]Startups considered:[/bold] {result.get('startups_considered', 0)}")
+    console.print(f"[bold]Startups fetched:[/bold] {result.get('startups_fetched', 0)}")
     console.print(f"[bold]Startups seeded:[/bold] {result.get('startups_seeded', 0)}")
     console.print(f"[bold]URLs seeded:[/bold] {result.get('urls_seeded', 0)}")
 
@@ -659,6 +673,29 @@ def consume_deep_research(
     console.print(f"[bold]Success:[/bold] {success}")
     console.print(f"[bold]Failed:[/bold] {failed}")
     console.print(f"[bold]Cost (run):[/bold] ${total_cost:.4f}")
+
+
+@app.command("dispatch-onboarding-alerts")
+def dispatch_onboarding_alerts(
+    batch_size: int = typer.Option(25, "--batch-size", "-b", help="Max trace notifications to send"),
+):
+    """Dispatch pending onboarding/deep-research trace events to Slack."""
+    from src.automation.onboarding_alerts import run_dispatcher_sync
+
+    try:
+        stats = run_dispatcher_sync(batch_size=max(1, int(batch_size)))
+    except Exception as exc:
+        console.print(f"[red]Onboarding alert dispatch failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Onboarding Alert Dispatch Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Fetched:[/bold] {stats.get('fetched', 0)}")
+    console.print(f"[bold green]Sent:[/bold green] {stats.get('sent', 0)}")
+    console.print(f"[bold red]Failed:[/bold red] {stats.get('failed', 0)}")
+    console.print(f"[bold]Marked notified:[/bold] {stats.get('marked_notified', 0)}")
 
 
 @app.command("ingest-news")

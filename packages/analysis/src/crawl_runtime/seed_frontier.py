@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -73,6 +74,22 @@ def build_seed_urls(website: str, include_discovery_hints: bool = False) -> List
     return urls
 
 
+def parse_cursor(cursor: Optional[str]) -> int:
+    """Parse cursor token as a non-negative integer offset."""
+    if not cursor:
+        return 0
+    token = str(cursor).strip()
+    if token == "":
+        return 0
+    try:
+        value = int(token, 10)
+    except ValueError as exc:
+        raise ValueError(f"Invalid cursor '{cursor}': expected integer offset") from exc
+    if value < 0:
+        raise ValueError(f"Invalid cursor '{cursor}': offset must be >= 0")
+    return value
+
+
 class FrontierSeeder:
     """Seeds frontier queue from DB startups table."""
 
@@ -80,7 +97,7 @@ class FrontierSeeder:
         self.database_url = database_url or os.getenv("DATABASE_URL")
         self.frontier = frontier or UrlFrontierStore(self.database_url)
 
-    async def _fetch_startups(self, limit: int = 5000) -> List[StartupSeed]:
+    async def _fetch_startups(self, limit: int = 5000, offset: int = 0) -> List[StartupSeed]:
         if asyncpg is None:
             raise RuntimeError("asyncpg is required for frontier seeding")
         if not self.database_url:
@@ -96,8 +113,10 @@ class FrontierSeeder:
                   AND LENGTH(TRIM(website)) > 0
                 ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
                 LIMIT $1
+                OFFSET $2
                 """,
                 max(1, limit),
+                max(0, offset),
             )
         finally:
             await conn.close()
@@ -112,14 +131,31 @@ class FrontierSeeder:
 
         return seeds
 
-    async def seed(self, limit: int = 5000) -> Dict[str, Any]:
+    async def seed(
+        self,
+        limit: int = 5000,
+        cursor: Optional[str] = None,
+        max_startups: int = 0,
+        max_seconds: float = 0.0,
+    ) -> Dict[str, Any]:
         await self.frontier.connect()
 
-        startups = await self._fetch_startups(limit=limit)
+        offset = parse_cursor(cursor)
+        startups = await self._fetch_startups(limit=max(1, int(limit)), offset=offset)
         seeded_startups = 0
         seeded_urls = 0
+        startups_considered = 0
+        start = time.monotonic()
 
         for item in startups:
+            if max_startups > 0 and startups_considered >= max_startups:
+                break
+            # Always process at least one startup when a non-empty batch is fetched,
+            # otherwise an extremely low max_seconds value could stall cursor progress.
+            if max_seconds > 0 and startups_considered > 0 and (time.monotonic() - start) >= max_seconds:
+                break
+
+            startups_considered += 1
             urls = build_seed_urls(
                 item.website,
                 include_discovery_hints=settings.crawler.feed_discovery_enabled,
@@ -143,17 +179,35 @@ class FrontierSeeder:
             seeded_urls += count
             seeded_startups += 1
 
+        next_offset = offset + startups_considered
+        reached_batch_end = startups_considered == len(startups)
+        has_more = (not reached_batch_end) or (len(startups) >= max(1, int(limit)))
+
         return {
-            "startups_considered": len(startups),
+            "cursor": str(offset),
+            "next_cursor": str(next_offset) if has_more else None,
+            "exhausted": not has_more,
+            "startups_considered": startups_considered,
+            "startups_fetched": len(startups),
             "startups_seeded": seeded_startups,
             "urls_seeded": seeded_urls,
         }
 
 
-async def run_seed_frontier(limit: int = 5000) -> Dict[str, Any]:
+async def run_seed_frontier(
+    limit: int = 5000,
+    cursor: Optional[str] = None,
+    max_startups: int = 0,
+    max_seconds: float = 0.0,
+) -> Dict[str, Any]:
     seeder = FrontierSeeder()
     try:
-        result = await seeder.seed(limit=limit)
+        result = await seeder.seed(
+            limit=limit,
+            cursor=cursor,
+            max_startups=max_startups,
+            max_seconds=max_seconds,
+        )
     finally:
         await seeder.frontier.close()
     return result
@@ -162,12 +216,22 @@ async def run_seed_frontier(limit: int = 5000) -> Dict[str, Any]:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Seed crawl frontier from startups table")
     parser.add_argument("--limit", type=int, default=5000)
+    parser.add_argument("--cursor", type=str, default="")
+    parser.add_argument("--max-startups", type=int, default=0)
+    parser.add_argument("--max-seconds", type=float, default=0.0)
     return parser.parse_args()
 
 
 def main() -> int:
     args = _parse_args()
-    result = asyncio.run(run_seed_frontier(limit=args.limit))
+    result = asyncio.run(
+        run_seed_frontier(
+            limit=args.limit,
+            cursor=args.cursor or None,
+            max_startups=args.max_startups,
+            max_seconds=args.max_seconds,
+        )
+    )
     print(json.dumps(result, indent=2, default=str))
     return 0
 

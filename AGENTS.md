@@ -106,7 +106,17 @@ VM cron runner:
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
   - `crawl-frontier` runs every 30 minutes with a **40 minute** runner timeout (`runner.sh crawl-frontier 40 ...`) to avoid recurring timeout kills during large frontier seeding windows.
-  - `crawl-frontier` seed phase is capped at **20 minutes** in `infrastructure/vm-cron/jobs/crawl-frontier.sh`; on timeout it logs a warning and continues to the worker so the job can complete instead of failing hard.
+  - `crawl-frontier` now uses **chunked resumable seeding**:
+    - full reseed is not attempted on every cycle,
+    - seed runs on interval (`CRAWL_FRONTIER_SEED_INTERVAL_HOURS`, default 6h) or resume cursor,
+    - state files live under `/var/lib/buildatlas` (`crawl-frontier.seed.cursor`, `crawl-frontier.seed.last`),
+    - worker execution still proceeds if seed chunk fails/times out.
+  - Seed chunk controls are env-driven:
+    - `CRAWL_FRONTIER_SEED_LIMIT` (DB batch read, default 5000)
+    - `CRAWL_FRONTIER_SEED_MAX_STARTUPS` (per-run processed startups, default 500)
+    - `CRAWL_FRONTIER_SEED_MAX_SECONDS` (per-run seed budget, default 600)
+    - `CRAWL_FRONTIER_SEED_TIMEOUT_MIN` (wrapper timeout, default 20)
+    - optional force run: `CRAWL_FRONTIER_FORCE_SEED=true`
   - Daily `slack-summary` now includes subscription lifecycle metrics (created/confirmed/unsubscribed in 24h),
     segment breakdown (`region` × `digest_frequency`), masked newly-confirmed subscriber emails, and digest
     delivery totals by region.
@@ -266,6 +276,13 @@ News:
     - `onboard_unknown_startups` enqueues refresh jobs (`reason='news_onboard'`) → `crawl-frontier` processes them.
     - VM cron `event-processor` runs `main.py process-events` (gated enqueue to `deep_research_queue`).
     - VM cron `deep-research` runs `main.py consume-deep-research` (Azure chat-based worker).
+    - VM cron `onboarding-alerts` runs `main.py dispatch-onboarding-alerts` (near-real-time Slack notifications for actionable trace events).
+  - Trace + context tables (migration: `database/migrations/063_onboarding_trace_and_context.sql`):
+    - `onboarding_trace_events` stores onboarding/deep-research lifecycle events + Slack notification state.
+    - `startup_onboarding_context` stores operator-provided context used to enrich deep-research prompts.
+  - Slack follow-up path:
+    - Helper payload template: `GET /api/v1/onboarding/context-template`
+    - Context submit + optional requeue: `POST /api/admin/v1/onboarding/context` (`x-admin-key` required)
   - Deep research budget gates (VM env):
     - `DEEP_RESEARCH_ENABLED`
     - `DEEP_RESEARCH_MAX_DAILY_USD`
@@ -273,6 +290,8 @@ News:
     - `DEEP_RESEARCH_MAX_ITEMS_PER_RUN`
     - `DEEP_RESEARCH_MIN_EVENT_CONFIDENCE`
     - `DEEP_RESEARCH_MIN_CRAWL_SUCCESS_RATE`
+    - `ONBOARDING_ALERTS_ENABLED`
+    - `ONBOARDING_ALERTS_BATCH_SIZE`
   - Visibility invariant:
     - Backend `GET /api/v1/dealbook`, `GET /api/v1/dealbook/filters`, and `GET /api/v1/companies/:slug` are **verified-only** (`onboarding_status='verified'`).
     - `merged`/`stub`/`rejected` startups are excluded from those surfaces.
@@ -284,6 +303,10 @@ News:
       - `SELECT onboarding_status, COUNT(*) FROM startups GROUP BY onboarding_status ORDER BY onboarding_status;`
     - New onboarding attempts:
       - `SELECT attempted_at, entity_name, region, stage, success, reason FROM startup_onboarding_attempts ORDER BY attempted_at DESC LIMIT 20;`
+    - Trace events:
+      - `SELECT occurred_at, trace_type, stage, status, severity, reason_code, should_notify, notified_at FROM onboarding_trace_events ORDER BY occurred_at DESC LIMIT 30;`
+    - Human context additions:
+      - `SELECT created_at, startup_id, source, created_by FROM startup_onboarding_context ORDER BY created_at DESC LIMIT 20;`
     - Deep research spend caps:
       - `SELECT COALESCE(SUM(cost_usd) FILTER (WHERE completed_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')),0) AS daily_usd, COALESCE(SUM(cost_usd) FILTER (WHERE completed_at >= date_trunc('month', NOW() AT TIME ZONE 'UTC')),0) AS monthly_usd FROM deep_research_queue WHERE status='completed';`
 

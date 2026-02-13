@@ -164,7 +164,8 @@ Git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock`.
 | `x-trends` | `28 * * * *` | 20 | `infrastructure/vm-cron/jobs/x-trends.sh` |
 | `event-processor` | `5,20,35,50 * * * *` | 10 | `infrastructure/vm-cron/jobs/event-processor.sh` |
 | `deep-research` | `12,27,42,57 * * * *` | 20 | `infrastructure/vm-cron/jobs/deep-research.sh` |
-| `crawl-frontier` | `0,30 * * * *` | 25 | `infrastructure/vm-cron/jobs/crawl-frontier.sh` |
+| `onboarding-alerts` | `*/2 * * * *` | 5 | `infrastructure/vm-cron/jobs/onboarding-alerts.sh` |
+| `crawl-frontier` | `0,30 * * * *` | 40 | `infrastructure/vm-cron/jobs/crawl-frontier.sh` |
 | `research-topics` | `40 * * * *` | 10 | `infrastructure/vm-cron/jobs/research-topics.sh` |
 | `news-digest` | `45 * * * *` | 15 | `infrastructure/vm-cron/jobs/news-digest.sh` |
 | `x-post-generate` | `35 */4 * * *` | 10 | `infrastructure/vm-cron/jobs/x-post-generate.sh` |
@@ -221,16 +222,40 @@ Key risk controls:
 Entry points:
 - `infrastructure/vm-cron/jobs/event-processor.sh`
 - `infrastructure/vm-cron/jobs/deep-research.sh`
+- `infrastructure/vm-cron/jobs/onboarding-alerts.sh`
 
 Flow:
 1. Event processor consumes startup events and enqueues deep-research candidates.
 2. Deep-research consumer processes queue with budget/cap controls.
-3. Results inform onboarding and downstream insights.
+3. Actionable onboarding/deep-research trace events are dispatched to Slack.
+4. Operators can add manual context and optionally requeue deep research.
+5. Results inform onboarding and downstream insights.
 
 Key risk controls:
 - budget guard envs (`DEEP_RESEARCH_*`),
+- actionable trace dedupe/ack via `onboarding_trace_events`,
 - periodic observability report,
 - queue schema migrations applied before processing.
+
+### B2) Crawl frontier pipeline
+
+Entry point:
+- `infrastructure/vm-cron/jobs/crawl-frontier.sh`
+
+Flow:
+1. Apply crawl migrations.
+2. Process refresh jobs (`startup_refresh_jobs`) to boost priority for event-affected startups.
+3. Run **chunked frontier seed** only when needed:
+   - when forced (`CRAWL_FRONTIER_FORCE_SEED=true`),
+   - when resuming cursor state,
+   - or when interval elapsed (`CRAWL_FRONTIER_SEED_INTERVAL_HOURS`, default 6h).
+4. Persist/advance seed cursor in `/var/lib/buildatlas/crawl-frontier.seed.cursor`.
+5. Run frontier worker (`src.crawl_runtime.worker`) every cycle.
+
+Key risk controls:
+- seed is fail-open (worker still runs if seed fails/times out),
+- bounded seed chunk budgets (`CRAWL_FRONTIER_SEED_MAX_STARTUPS`, `CRAWL_FRONTIER_SEED_MAX_SECONDS`),
+- adaptive frontier lease/requeue behavior in runtime.
 
 ### C) Signal deep-dive pipeline
 

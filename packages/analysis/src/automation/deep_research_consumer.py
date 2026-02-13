@@ -16,6 +16,7 @@ import os
 from src.config import llm_kwargs
 
 from .db import DatabaseConnection
+from .onboarding_trace import classify_research_failure, emit_trace
 
 try:
     from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -147,6 +148,32 @@ class DeepResearchConsumer:
                 "Deep research consumer enabled but Azure client is unavailable "
                 "(set AZURE_OPENAI_ENDPOINT and either AAD identity or AZURE_OPENAI_API_KEY)"
             )
+            try:
+                await self.db.connect()
+                await emit_trace(
+                    self.db,
+                    startup_id=None,
+                    queue_item_id=None,
+                    trace_type="deep_research",
+                    stage="deep_research_failed_actionable",
+                    status="failure",
+                    severity="critical",
+                    reason_code="missing_openai_credentials",
+                    message="Deep research client unavailable due to missing Azure OpenAI credentials.",
+                    payload={
+                        "has_endpoint": bool(self.azure_openai_endpoint),
+                        "has_api_key": bool(self.azure_openai_api_key),
+                    },
+                    dedupe_key=f"deep_research_client_unavailable:{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H')}",
+                    should_notify=True,
+                )
+            except Exception:
+                logger.debug("Could not write deep research credential trace", exc_info=True)
+            finally:
+                try:
+                    await self.db.close()
+                except Exception:
+                    pass
             return results
 
         try:
@@ -241,8 +268,33 @@ class DeepResearchConsumer:
                     error="Could not claim item (already processing)"
                 )
 
+            await emit_trace(
+                self.db,
+                startup_id=startup_id,
+                queue_item_id=item_id,
+                trace_type="deep_research",
+                stage="deep_research_started",
+                status="info",
+                severity="info",
+                reason_code=str(item.get("reason") or ""),
+                message=f"Deep research started for {startup_name}",
+                payload={
+                    "startup_name": startup_name,
+                    "research_depth": item.get("research_depth", "standard"),
+                    "retry_count": int(item.get("retry_count") or 0),
+                },
+                dedupe_key=f"deep_research_started:{item_id}",
+                should_notify=False,
+            )
+
+            try:
+                context_entries = await self.db.get_recent_onboarding_context(startup_id, limit=5)
+            except Exception:
+                context_entries = []
+                logger.debug("Could not load onboarding context for %s", startup_id, exc_info=True)
+
             # Perform deep research
-            research_output, tokens_used = await self._perform_research(item)
+            research_output, tokens_used = await self._perform_research(item, context_entries=context_entries)
 
             # Calculate cost using model-specific pricing
             input_tokens = tokens_used.get("input", 0)
@@ -265,6 +317,26 @@ class DeepResearchConsumer:
             duration_ms = int((end_time - start_time).total_seconds() * 1000)
 
             logger.info(f"Completed research for {startup_name}: {input_tokens + output_tokens} tokens, ${cost_usd:.4f}")
+            await emit_trace(
+                self.db,
+                startup_id=startup_id,
+                queue_item_id=item_id,
+                trace_type="deep_research",
+                stage="deep_research_completed",
+                status="success",
+                severity="info",
+                reason_code=str(item.get("reason") or ""),
+                message=f"Deep research completed for {startup_name}",
+                payload={
+                    "startup_name": startup_name,
+                    "tokens_used": input_tokens + output_tokens,
+                    "cost_usd": round(cost_usd, 6),
+                    "duration_ms": duration_ms,
+                    "context_entries_used": len(context_entries),
+                },
+                dedupe_key=f"deep_research_completed:{item_id}",
+                should_notify=True,
+            )
 
             return ResearchResult(
                 startup_id=startup_id,
@@ -278,6 +350,12 @@ class DeepResearchConsumer:
 
         except Exception as e:
             logger.error(f"Error processing research for {startup_name}: {e}")
+            retry_count = int(item.get("retry_count") or 0)
+            classification = classify_research_failure(
+                str(e),
+                retry_count=retry_count,
+                max_retries=self.max_retries,
+            )
 
             # Mark as failed
             await self.db.fail_research_item(item_id, str(e))
@@ -287,6 +365,32 @@ class DeepResearchConsumer:
             if requeued:
                 logger.info(f"Requeued {startup_name} for retry")
 
+            stage = (
+                "deep_research_failed_actionable"
+                if classification.get("actionable")
+                else "deep_research_failed_non_actionable"
+            )
+            await emit_trace(
+                self.db,
+                startup_id=startup_id,
+                queue_item_id=item_id,
+                trace_type="deep_research",
+                stage=stage,
+                status="failure",
+                severity=str(classification.get("severity") or "warning"),
+                reason_code=str(classification.get("reason_code") or "generic_failure"),
+                message=f"Deep research failed for {startup_name}: {e}",
+                payload={
+                    "startup_name": startup_name,
+                    "error": str(e),
+                    "retry_count": retry_count,
+                    "max_retries": self.max_retries,
+                    "requeued": bool(requeued),
+                },
+                dedupe_key=f"deep_research_failed:{item_id}:{retry_count + 1}",
+                should_notify=bool(classification.get("actionable")),
+            )
+
             return ResearchResult(
                 startup_id=startup_id,
                 startup_name=startup_name,
@@ -294,7 +398,11 @@ class DeepResearchConsumer:
                 error=str(e)
             )
 
-    async def _perform_research(self, item: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, int]]:
+    async def _perform_research(
+        self,
+        item: Dict[str, Any],
+        context_entries: Optional[List[Dict[str, Any]]] = None,
+    ) -> tuple[Dict[str, Any], Dict[str, int]]:
         """Perform deep research analysis using LLM."""
         startup_name = item.get("startup_name", "Unknown")
         website = item.get("startup_website", "")
@@ -309,6 +417,10 @@ class DeepResearchConsumer:
             prompt = self._build_deep_prompt(startup_name, website, description, focus_areas)
         else:
             prompt = self._build_standard_prompt(startup_name, website, description, focus_areas)
+
+        context_block = self._build_human_context_block(context_entries or [])
+        if context_block:
+            prompt = f"{prompt}\n\n{context_block}"
 
         # Call LLM with timeout to prevent hung slots
         try:
@@ -338,11 +450,29 @@ class DeepResearchConsumer:
             "analysis": content,
             "depth": depth,
             "focus_areas": focus_areas,
+            "human_context_used": len(context_entries or []),
             "researched_at": datetime.now(timezone.utc).isoformat(),
             "model": self.model
         }
 
         return research_output, tokens
+
+    def _build_human_context_block(self, context_entries: List[Dict[str, Any]]) -> str:
+        if not context_entries:
+            return ""
+        lines: List[str] = [
+            "Operator-provided context (highest priority, most recent first):",
+        ]
+        for idx, row in enumerate(context_entries[:5], start=1):
+            text = str(row.get("context_text") or "").strip()
+            if not text:
+                continue
+            source = str(row.get("source") or "unknown")
+            lines.append(f"{idx}. [{source}] {text[:1200]}")
+        if len(lines) == 1:
+            return ""
+        lines.append("Use this context when it improves precision and clearly separate assumptions from facts.")
+        return "\n".join(lines)
 
     def _get_system_prompt(self) -> str:
         return """You are a startup analyst performing deep research on early-stage companies.

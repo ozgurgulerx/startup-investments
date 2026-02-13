@@ -70,6 +70,8 @@ SETS = {
         "047_editorial_scoring_method.sql",
         # End-to-end onboarding activation (attempt telemetry + deep_research_queue hardening)
         "058_onboarding_pipeline_activation.sql",
+        # Onboarding trace events + human context injection
+        "063_onboarding_trace_and_context.sql",
         # X/Twitter trend intelligence + automated posting queue
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
@@ -80,6 +82,7 @@ SETS = {
         "016_crawl_replay_and_policy_feedback.sql",
         "043_startup_refresh_jobs.sql",
         "058_onboarding_pipeline_activation.sql",
+        "063_onboarding_trace_and_context.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -120,6 +123,7 @@ SETS = {
         # Startup merge infrastructure — adds onboarding_status (used by memory_gate.py)
         "046_startup_merge_infrastructure.sql",
         "058_onboarding_pipeline_activation.sql",
+        "063_onboarding_trace_and_context.sql",
         # Capital graph + founder normalization
         "059_capital_graph_founders.sql",
         # Optional graph extension (AGE) with graceful fallback

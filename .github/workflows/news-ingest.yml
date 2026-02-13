@@ -114,6 +114,7 @@ jobs:
           NEWS_LLM_MAX_CLUSTERS: "24"
           NEWS_LLM_CONCURRENCY: "4"
           NEWS_LLM_MODEL: "gpt-4o-mini"
+          INTEL_FIRST_PROMPT: "true"
         run: |
           LOOKBACK="${{ github.event.inputs.lookback_hours || '48' }}"
           EDITION_DATE="${{ github.event.inputs.edition_date || '' }}"

@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
+from .onboarding_trace import emit_trace
 
 if TYPE_CHECKING:
     import asyncpg
@@ -920,6 +921,26 @@ async def upsert_capital_graph_from_events(
                     _GRAPH_ACTIVE_VALID_TO,
                 )
                 stats["edges_upserted"] += 1
+                await emit_trace(
+                    conn,
+                    startup_id=evt.startup_id,
+                    queue_item_id=None,
+                    trace_type="graph",
+                    stage="graph_edge_upserted",
+                    status="info",
+                    severity="info",
+                    reason_code="cap_funding_raised",
+                    message=f"Investor edge upserted for startup {evt.startup_id}",
+                    payload={
+                        "investor_id": investor_id,
+                        "event_type": evt.event_type,
+                        "region": evt.region or "global",
+                        "valid_from": str(valid_from),
+                        "lead_investor_raw": lead_raw,
+                    },
+                    dedupe_key=f"graph_edge_upserted:{investor_id}:{evt.startup_id}:{valid_from}",
+                    should_notify=False,
+                )
             except Exception:
                 logger.warning(
                     "Failed to upsert capital graph edge investor=%s startup=%s",
@@ -1267,6 +1288,20 @@ async def onboard_unknown_startups(
                         existing_id,
                         inferred_website,
                     )
+                await emit_trace(
+                    conn,
+                    startup_id=existing_id,
+                    queue_item_id=None,
+                    trace_type="onboarding",
+                    stage="existing_startup_matched",
+                    status="info",
+                    severity="info",
+                    reason_code="existing_startup",
+                    message=f"Matched unknown entity to existing startup: {entity_name}",
+                    payload={"region": region, "entity_name": entity_name, "slug": slug},
+                    dedupe_key=f"existing_startup_matched:{existing_id}:{slug}",
+                    should_notify=False,
+                )
                 _skip("existing_startup")
                 continue
         except Exception:
@@ -1294,6 +1329,26 @@ async def onboard_unknown_startups(
 
             created += 1
             logger.info("Onboarded stub startup '%s' (id=%s) from event", entity_name, new_id)
+            await emit_trace(
+                conn,
+                startup_id=new_id,
+                queue_item_id=None,
+                trace_type="onboarding",
+                stage="stub_created",
+                status="success",
+                severity="info",
+                reason_code="news_unlinked_entity",
+                message=f"Created stub startup from news entity: {entity_name}",
+                payload={
+                    "region": region,
+                    "entity_name": entity_name,
+                    "slug": slug,
+                    "website": inferred_website or "",
+                    "website_inferred": bool(inferred_website),
+                },
+                dedupe_key=f"stub_created:{new_id}",
+                should_notify=True,
+            )
             await _record_onboarding_attempt(
                 conn,
                 startup_id=new_id,
@@ -1330,6 +1385,25 @@ async def onboard_unknown_startups(
 
         except Exception:
             logger.warning("Failed to onboard startup '%s'", entity_name, exc_info=True)
+            await emit_trace(
+                conn,
+                startup_id=None,
+                queue_item_id=None,
+                trace_type="onboarding",
+                stage="stub_create_failed",
+                status="failure",
+                severity="warning",
+                reason_code="insert_failed",
+                message=f"Failed to create stub startup from entity: {entity_name}",
+                payload={
+                    "region": region,
+                    "entity_name": entity_name,
+                    "slug": slug,
+                    "website_inferred": bool(inferred_website),
+                },
+                dedupe_key=f"stub_create_failed:{region}:{slug}:{date.today().isoformat()}",
+                should_notify=True,
+            )
             await _record_onboarding_attempt(
                 conn,
                 startup_id=None,

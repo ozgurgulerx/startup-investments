@@ -89,6 +89,7 @@ else
       "runner.sh x-trends"
       "runner.sh event-processor"
       "runner.sh deep-research"
+      "runner.sh onboarding-alerts"
       "runner.sh crawl-frontier"
       "runner.sh news-digest"
       "runner.sh x-post-generate"

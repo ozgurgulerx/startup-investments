@@ -27,6 +27,10 @@ MAILTO=""
 # Consumes deep_research_queue with strict budget caps.
 12,27,42,57 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh deep-research 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-research.sh
 
+# === Onboarding Trace Alerts (every 2 min) ===
+# Dispatches actionable onboarding/deep-research trace events to Slack.
+*/2 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh onboarding-alerts 5 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/onboarding-alerts.sh
+
 # === Crawl Frontier Worker (every 30 min) ===
 0,30 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh crawl-frontier 40 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/crawl-frontier.sh
 

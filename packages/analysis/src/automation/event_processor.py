@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
 from .db import DatabaseConnection
+from .onboarding_trace import emit_trace
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,12 @@ MEDIUM_IMPACT_EVENT_TYPES = {
     "website_change",
     "hackernews_mention",
     "job_posting",
+}
+
+ACTIONABLE_ENQUEUE_BLOCK_REASONS = {
+    "startup_missing_website",
+    "startup_not_crawled_yet",
+    "startup_low_crawl_success",
 }
 
 
@@ -99,7 +106,21 @@ class StartupEventProcessor:
             # Enqueue for deep research if needed
             analysis_id = None
             if should_reanalyze and self.auto_enqueue_research and startup_id:
-                eligible = await self._eligible_for_research(
+                await emit_trace(
+                    self.db,
+                    startup_id=str(startup_id),
+                    queue_item_id=None,
+                    trace_type="onboarding",
+                    stage="research_enqueue_attempt",
+                    status="info",
+                    severity="info",
+                    reason_code=event_type,
+                    message=f"Evaluating deep-research enqueue for event {event_type}",
+                    payload={"event_id": event_id, "event_type": event_type, "confidence": confidence},
+                    dedupe_key=f"research_enqueue_attempt:{event_id}",
+                    should_notify=False,
+                )
+                eligible, gate_reason, gate_payload = await self._eligible_for_research(
                     startup_id=str(startup_id),
                     confidence=confidence,
                 )
@@ -111,10 +132,73 @@ class StartupEventProcessor:
                     )
                     if analysis_id:
                         logger.info("Enqueued %s for research (reason=%s)", startup_name, event_type)
+                        await emit_trace(
+                            self.db,
+                            startup_id=str(startup_id),
+                            queue_item_id=str(analysis_id),
+                            trace_type="onboarding",
+                            stage="research_enqueued",
+                            status="success",
+                            severity="info",
+                            reason_code=event_type,
+                            message=f"Deep research queued for {startup_name or startup_id}",
+                            payload={"event_id": event_id, "priority": self._get_priority_for_event(event_type)},
+                            dedupe_key=f"research_enqueued:{analysis_id}",
+                            should_notify=True,
+                        )
                     else:
                         action_taken = f"{action_taken}|already_queued_or_not_eligible"
+                        await emit_trace(
+                            self.db,
+                            startup_id=str(startup_id),
+                            queue_item_id=None,
+                            trace_type="onboarding",
+                            stage="research_enqueue_skipped",
+                            status="info",
+                            severity="info",
+                            reason_code="already_queued_or_not_eligible",
+                            message=f"Deep research enqueue skipped for {startup_name or startup_id}",
+                            payload={"event_id": event_id, "event_type": event_type},
+                            dedupe_key=f"research_enqueue_skipped:{event_id}",
+                            should_notify=False,
+                        )
                 else:
                     action_taken = f"{action_taken}|gated"
+                    reason = gate_reason or "gated"
+                    await emit_trace(
+                        self.db,
+                        startup_id=str(startup_id),
+                        queue_item_id=None,
+                        trace_type="onboarding",
+                        stage="research_enqueue_blocked",
+                        status="warning",
+                        severity="warning",
+                        reason_code=reason,
+                        message=f"Deep research enqueue blocked for {startup_name or startup_id}",
+                        payload={
+                            "event_id": event_id,
+                            "event_type": event_type,
+                            "gate_reason": reason,
+                            **(gate_payload or {}),
+                        },
+                        dedupe_key=f"research_enqueue_blocked:{event_id}:{reason}",
+                        should_notify=reason in ACTIONABLE_ENQUEUE_BLOCK_REASONS,
+                    )
+            elif should_reanalyze and self.auto_enqueue_research and not startup_id:
+                await emit_trace(
+                    self.db,
+                    startup_id=None,
+                    queue_item_id=None,
+                    trace_type="onboarding",
+                    stage="research_enqueue_blocked",
+                    status="warning",
+                    severity="warning",
+                    reason_code="missing_startup_id",
+                    message="Deep research enqueue blocked because startup_id is missing on event.",
+                    payload={"event_id": event_id, "event_type": event_type},
+                    dedupe_key=f"research_enqueue_blocked:{event_id}:missing_startup_id",
+                    should_notify=False,
+                )
 
             # Mark event as processed
             await self.db.mark_event_processed(
@@ -134,6 +218,20 @@ class StartupEventProcessor:
 
         except Exception as e:
             logger.error(f"Error processing event {event_id}: {e}")
+            await emit_trace(
+                self.db,
+                startup_id=str(startup_id) if startup_id else None,
+                queue_item_id=None,
+                trace_type="onboarding",
+                stage="event_processing_failed",
+                status="failure",
+                severity="warning",
+                reason_code="event_processor_exception",
+                message=f"Event processing failed for {event_type}: {e}",
+                payload={"event_id": event_id, "event_type": event_type},
+                dedupe_key=f"event_processing_failed:{event_id}",
+                should_notify=False,
+            )
 
             # Increment retry count instead of marking as permanently processed.
             # After 3 failures, mark as status='failed' for manual review.
@@ -175,39 +273,50 @@ class StartupEventProcessor:
             return "typed_signal_event", True
         return "logged_only", False
 
-    async def _eligible_for_research(self, startup_id: str, confidence: Any) -> bool:
+    async def _eligible_for_research(self, startup_id: str, confidence: Any) -> tuple[bool, str, Dict[str, Any]]:
         """Apply conservative queue gates before adding deep-research workload."""
         try:
             conf = float(confidence) if confidence is not None else 0.0
         except Exception:
             conf = 0.0
         if conf and conf < self.min_event_confidence:
-            return False
+            return False, "below_min_event_confidence", {
+                "confidence": conf,
+                "min_event_confidence": self.min_event_confidence,
+            }
 
         snapshot = await self.db.get_startup_research_snapshot(startup_id)
         if not snapshot:
-            return False
+            return False, "missing_startup_snapshot", {}
 
         status = str(snapshot.get("onboarding_status") or "verified")
         if status in {"merged", "rejected"}:
-            return False
+            return False, "status_ineligible", {"onboarding_status": status}
 
         website = str(snapshot.get("website") or "").strip()
         if not website:
-            return False
+            return False, "startup_missing_website", {"onboarding_status": status}
 
         # For stubs, require at least one crawl before spending research budget.
         if status == "stub" and not snapshot.get("last_crawl_at"):
-            return False
+            return False, "startup_not_crawled_yet", {"onboarding_status": status}
 
         try:
             csr = float(snapshot.get("crawl_success_rate") or 0.0)
         except Exception:
             csr = 0.0
         if status == "stub" and csr > 0 and csr < self.min_crawl_success_rate:
-            return False
+            return False, "startup_low_crawl_success", {
+                "onboarding_status": status,
+                "crawl_success_rate": csr,
+                "min_crawl_success_rate": self.min_crawl_success_rate,
+            }
 
-        return True
+        return True, "eligible", {
+            "onboarding_status": status,
+            "has_website": bool(website),
+            "crawl_success_rate": csr,
+        }
 
     def _get_priority_for_event(self, event_type: str) -> int:
         """Get research queue priority based on event type."""

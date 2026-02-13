@@ -102,6 +102,7 @@ FRESHNESS_JOBS=(
     "news-ingest:150:always"
     "event-processor:60:always"
     "deep-research:90:always"
+    "onboarding-alerts:30:always"
     "crawl-frontier:90:always"
     "news-digest:3000:always"
     "sync-data:90:always"

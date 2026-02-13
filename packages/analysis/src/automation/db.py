@@ -278,6 +278,75 @@ class DatabaseConnection:
         )
         return dict(row) if row else None
 
+    async def get_recent_onboarding_context(self, startup_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Get latest human-provided onboarding context for a startup."""
+        rows = await self.fetch(
+            """
+            SELECT
+                id::text AS id,
+                source,
+                context_text,
+                metadata_json,
+                created_by,
+                created_at
+            FROM startup_onboarding_context
+            WHERE startup_id = $1::uuid
+            ORDER BY created_at DESC
+            LIMIT $2
+            """,
+            startup_id,
+            max(1, int(limit)),
+        )
+        return [dict(r) for r in rows]
+
+    async def get_pending_onboarding_trace_notifications(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get trace events that should be sent to Slack and are not notified yet."""
+        rows = await self.fetch(
+            """
+            SELECT
+                e.id::text AS id,
+                e.startup_id::text AS startup_id,
+                e.queue_item_id::text AS queue_item_id,
+                e.trace_type,
+                e.stage,
+                e.status,
+                e.severity,
+                e.reason_code,
+                e.message,
+                e.payload_json,
+                e.occurred_at,
+                s.name AS startup_name,
+                s.slug AS startup_slug,
+                s.dataset_region AS startup_region
+            FROM onboarding_trace_events e
+            LEFT JOIN startups s ON s.id = e.startup_id
+            WHERE e.should_notify = TRUE
+              AND e.notified_at IS NULL
+            ORDER BY e.occurred_at ASC
+            LIMIT $1
+            """,
+            max(1, int(limit)),
+        )
+        return [dict(r) for r in rows]
+
+    async def mark_onboarding_trace_events_notified(self, event_ids: List[str]) -> int:
+        """Mark trace events as notified."""
+        clean_ids = [eid for eid in (event_ids or []) if eid]
+        if not clean_ids:
+            return 0
+        result = await self.execute(
+            """
+            UPDATE onboarding_trace_events
+            SET notified_at = NOW()
+            WHERE id = ANY($1::uuid[])
+            """,
+            clean_ids,
+        )
+        try:
+            return int(str(result).split()[-1])
+        except Exception:
+            return 0
+
     # =========================================================================
     # Startup Operations
     # =========================================================================

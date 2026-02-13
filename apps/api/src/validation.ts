@@ -569,6 +569,21 @@ export const graphEdgesBulkUpsertSchema = z.object({
   refresh_views: z.boolean().optional().default(true),
 });
 
+export const onboardingContextCreateSchema = z.object({
+  startupId: z.string().uuid(),
+  contextText: z.string().min(1).max(20000),
+  traceEventId: z.string().uuid().optional(),
+  source: z.enum(['admin', 'slack', 'api']).optional().default('admin'),
+  createdBy: optionalTrimmedString(255),
+  enqueueResearch: z.boolean().optional().default(true),
+  metadata: z.record(z.unknown()).optional().default({}),
+});
+
+export const onboardingContextTemplateQuerySchema = z.object({
+  startupId: z.string().uuid().optional(),
+  traceEventId: z.string().uuid().optional(),
+});
+
 // =============================================================================
 // PATTERN LANDSCAPES
 // =============================================================================

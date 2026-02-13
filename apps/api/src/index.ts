@@ -67,6 +67,8 @@ import {
   founderUpsertSchema,
   graphEdgeUpsertSchema,
   graphEdgesBulkUpsertSchema,
+  onboardingContextCreateSchema,
+  onboardingContextTemplateQuerySchema,
   landscapesQuerySchema,
   landscapesClusterQuerySchema,
   sectorsQuerySchema,
@@ -3859,9 +3861,236 @@ app.post('/api/v1/briefs/regenerate', async (req, res) => {
   }
 });
 
+app.get('/api/v1/onboarding/context-template', async (req, res) => {
+  const parsed = onboardingContextTemplateQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+  }
+
+  const startupId = parsed.data.startupId || '';
+  const traceEventId = parsed.data.traceEventId || '';
+  let startup: Record<string, unknown> | null = null;
+
+  if (startupId) {
+    try {
+      const startupResult = await pool.query(
+        `SELECT id::text AS id, name, slug, dataset_region, COALESCE(onboarding_status, 'verified') AS onboarding_status
+         FROM startups
+         WHERE id = $1::uuid
+         LIMIT 1`,
+        [startupId],
+      );
+      startup = startupResult.rows[0] || null;
+    } catch (error) {
+      console.warn('Could not load startup for onboarding context template:', error);
+    }
+  }
+
+  const payload = {
+    startupId: startupId || '<startup-uuid>',
+    contextText: 'Add your deep-research context here (facts, links, missing data, caveats).',
+    traceEventId: traceEventId || undefined,
+    source: 'slack',
+    createdBy: 'ops',
+    enqueueResearch: true,
+    metadata: {
+      source: 'slack_followup',
+      notes: 'Operator-supplied context',
+    },
+  };
+
+  const endpointPath = '/api/admin/v1/onboarding/context';
+  const publicBase = (process.env.PUBLIC_BASE_URL || 'https://buildatlas.net').replace(/\/+$/, '');
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || publicBase).replace(/\/+$/, '');
+  const curlCommand = [
+    `curl -X POST "${apiBase}${endpointPath}" \\`,
+    `  -H "Content-Type: application/json" \\`,
+    `  -H "X-Admin-Key: <ADMIN_KEY>" \\`,
+    `  -d '${JSON.stringify(payload)}'`,
+  ].join('\n');
+
+  return res.json({
+    startup,
+    endpoint: endpointPath,
+    method: 'POST',
+    required_headers: ['X-Admin-Key'],
+    sample_payload: payload,
+    curl_command: curlCommand,
+    notes: [
+      'Submit context to enrich deep research prompt context.',
+      'If enqueueResearch=true and no active queue item exists, startup is requeued.',
+    ],
+  });
+});
+
 // =============================================================================
 // Admin API - Logo Extraction & Data Sync
 // =============================================================================
+
+app.post('/api/admin/v1/onboarding/context', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  const parsed = onboardingContextCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+  }
+
+  const pgClient = await pool.connect();
+  try {
+    await pgClient.query('BEGIN');
+
+    const startupResult = await pgClient.query<{
+      id: string;
+      name: string;
+      slug: string | null;
+      dataset_region: 'global' | 'turkey';
+      onboarding_status: string;
+    }>(
+      `SELECT
+          id::text AS id,
+          name,
+          slug,
+          dataset_region,
+          COALESCE(onboarding_status, 'verified') AS onboarding_status
+       FROM startups
+       WHERE id = $1::uuid
+       LIMIT 1`,
+      [parsed.data.startupId],
+    );
+    const startup = startupResult.rows[0];
+    if (!startup) {
+      await pgClient.query('ROLLBACK');
+      return res.status(404).json({ error: 'Startup not found' });
+    }
+    if (['merged', 'rejected'].includes(String(startup.onboarding_status || ''))) {
+      await pgClient.query('ROLLBACK');
+      return res.status(400).json({ error: `Cannot add context for startup status=${startup.onboarding_status}` });
+    }
+
+    const contextInsert = await pgClient.query<{ id: string }>(
+      `INSERT INTO startup_onboarding_context (startup_id, source, context_text, metadata_json, created_by)
+       VALUES ($1::uuid, $2, $3, $4::jsonb, $5)
+       RETURNING id::text`,
+      [
+        parsed.data.startupId,
+        parsed.data.source || 'admin',
+        parsed.data.contextText,
+        JSON.stringify(parsed.data.metadata || {}),
+        parsed.data.createdBy || null,
+      ],
+    );
+    const contextId = contextInsert.rows[0]?.id;
+
+    try {
+      await pgClient.query(
+        `INSERT INTO startup_onboarding_attempts
+           (startup_id, entity_name, region, stage, success, reason, metadata_json)
+         VALUES
+           ($1::uuid, $2, $3, 'human_context_added', TRUE, 'manual_context', $4::jsonb)`,
+        [
+          parsed.data.startupId,
+          startup.name,
+          startup.dataset_region,
+          JSON.stringify({
+            trace_event_id: parsed.data.traceEventId || null,
+            source: parsed.data.source || 'admin',
+            enqueue_research: Boolean(parsed.data.enqueueResearch),
+          }),
+        ],
+      );
+    } catch (error) {
+      console.warn('Failed to persist startup_onboarding_attempts for manual context:', error);
+    }
+
+    try {
+      await pgClient.query(
+        `INSERT INTO onboarding_trace_events
+          (startup_id, queue_item_id, trace_type, stage, status, severity, reason_code, message, payload_json, dedupe_key, should_notify, notification_channel)
+         VALUES
+          ($1::uuid, NULL, 'context', 'human_context_added', 'success', 'info', 'manual_context', $2, $3::jsonb, $4, FALSE, 'slack')
+         ON CONFLICT (dedupe_key) DO NOTHING`,
+        [
+          parsed.data.startupId,
+          `Manual context added for ${startup.name}`,
+          JSON.stringify({
+            context_id: contextId,
+            trace_event_id: parsed.data.traceEventId || null,
+            source: parsed.data.source || 'admin',
+          }),
+          `human_context_added:${contextId || parsed.data.startupId}`,
+        ],
+      );
+    } catch (error) {
+      console.warn('Failed to persist onboarding trace for manual context:', error);
+    }
+
+    let queueItemId: string | null = null;
+    if (parsed.data.enqueueResearch) {
+      const queueResult = await pgClient.query<{ id: string }>(
+        `INSERT INTO deep_research_queue (startup_id, priority, reason, research_depth, focus_areas)
+         SELECT id, 2, 'human_context', 'standard', $2::jsonb
+         FROM startups
+         WHERE id = $1::uuid
+           AND COALESCE(onboarding_status, 'verified') NOT IN ('merged', 'rejected')
+         ON CONFLICT DO NOTHING
+         RETURNING id::text`,
+        [parsed.data.startupId, JSON.stringify(['manual_context'])],
+      );
+      queueItemId = queueResult.rows[0]?.id || null;
+
+      if (queueItemId) {
+        try {
+          await pgClient.query(
+            `INSERT INTO onboarding_trace_events
+              (startup_id, queue_item_id, trace_type, stage, status, severity, reason_code, message, payload_json, dedupe_key, should_notify, notification_channel)
+             VALUES
+              ($1::uuid, $2::uuid, 'onboarding', 'research_requeued_by_human', 'success', 'info', 'human_context', $3, $4::jsonb, $5, TRUE, 'slack')
+             ON CONFLICT (dedupe_key) DO NOTHING`,
+            [
+              parsed.data.startupId,
+              queueItemId,
+              `Deep research requeued by human context for ${startup.name}`,
+              JSON.stringify({
+                context_id: contextId,
+                source: parsed.data.source || 'admin',
+              }),
+              `research_requeued_by_human:${queueItemId}`,
+            ],
+          );
+        } catch (error) {
+          console.warn('Failed to persist onboarding trace for human requeue:', error);
+        }
+      }
+    }
+
+    await pgClient.query('COMMIT');
+    return res.json({
+      ok: true,
+      startup: {
+        id: startup.id,
+        name: startup.name,
+        slug: startup.slug,
+        region: startup.dataset_region,
+        onboarding_status: startup.onboarding_status,
+      },
+      context_id: contextId || null,
+      deep_research_queue_item_id: queueItemId,
+      requeued: Boolean(queueItemId),
+    });
+  } catch (error) {
+    await pgClient.query('ROLLBACK');
+    console.error('Error adding onboarding context:', error);
+    return res.status(500).json({ error: 'Failed to add onboarding context' });
+  } finally {
+    pgClient.release();
+  }
+});
 
 app.post('/api/admin/v1/investors/upsert', async (req, res) => {
   if (!ADMIN_KEY) {
@@ -4676,10 +4905,82 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
       const urlCountResult = await pgClient.query(`
         SELECT COUNT(*) AS total FROM crawl_frontier_urls
       `);
+      const queueStatsResult = await pgClient.query(`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (
+            WHERE leased_at IS NULL
+              AND available_at <= NOW()
+          )::int AS due,
+          COUNT(*) FILTER (WHERE leased_at IS NOT NULL)::int AS leased,
+          COUNT(*) FILTER (
+            WHERE leased_at IS NOT NULL
+              AND leased_at < NOW() - INTERVAL '30 minutes'
+          )::int AS stale_leases,
+          COALESCE(
+            PERCENTILE_CONT(0.5) WITHIN GROUP (
+              ORDER BY EXTRACT(EPOCH FROM (NOW() - available_at))
+            ) FILTER (
+              WHERE leased_at IS NULL
+                AND available_at <= NOW()
+            ),
+            0
+          )::float AS due_age_p50_seconds,
+          COALESCE(
+            PERCENTILE_CONT(0.95) WITHIN GROUP (
+              ORDER BY EXTRACT(EPOCH FROM (NOW() - available_at))
+            ) FILTER (
+              WHERE leased_at IS NULL
+                AND available_at <= NOW()
+            ),
+            0
+          )::float AS due_age_p95_seconds
+        FROM crawl_frontier_queue
+      `);
+      const runStatsResult = await pgClient.query(`
+        SELECT
+          COUNT(*)::int AS total_attempts,
+          COUNT(*) FILTER (WHERE status = 'success')::int AS success,
+          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+          COALESCE(
+            ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL), 1),
+            0
+          )::float AS avg_duration_ms,
+          COALESCE(
+            ROUND(
+              PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms)
+                FILTER (WHERE duration_ms IS NOT NULL),
+              1
+            ),
+            0
+          )::float AS p95_duration_ms,
+          COUNT(*) FILTER (WHERE http_status BETWEEN 200 AND 299)::int AS http_2xx,
+          COUNT(*) FILTER (WHERE http_status = 304)::int AS http_304,
+          COUNT(*) FILTER (WHERE http_status BETWEEN 400 AND 499)::int AS http_4xx,
+          COUNT(*) FILTER (WHERE http_status >= 500)::int AS http_5xx
+        FROM crawl_logs
+        WHERE COALESCE(crawl_started_at, created_at) >= NOW() - INTERVAL '24 hours'
+      `);
 
       const domains = domainsResult.rows;
       const blocked = domains.filter((d: any) => d.blocked);
       const highBlockRate = domains.filter((d: any) => !d.blocked && d.block_rate > 0.5);
+      const queueStatsRow = queueStatsResult.rows[0] || {};
+      const runStatsRow = runStatsResult.rows[0] || {};
+      const toInt = (value: unknown): number => {
+        const parsed = Number.parseInt(String(value ?? '0'), 10);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      const toFloat = (value: unknown): number => {
+        const parsed = Number.parseFloat(String(value ?? '0'));
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      const totalAttempts = toInt(runStatsRow.total_attempts);
+      const success = toInt(runStatsRow.success);
+      const failed = toInt(runStatsRow.failed);
+      const successRatePct = totalAttempts > 0
+        ? Number(((success / totalAttempts) * 100).toFixed(1))
+        : 0;
 
       res.json({
         summary: {
@@ -4687,6 +4988,35 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
           blocked: blocked.length,
           highBlockRate: highBlockRate.length,
           totalUrls: parseInt(urlCountResult.rows[0]?.total || '0', 10),
+          totalQueue: toInt(queueStatsRow.total),
+          dueQueue: toInt(queueStatsRow.due),
+          leasedQueue: toInt(queueStatsRow.leased),
+          staleLeases: toInt(queueStatsRow.stale_leases),
+          dueAgeP50Minutes: Number((toFloat(queueStatsRow.due_age_p50_seconds) / 60).toFixed(1)),
+          dueAgeP95Minutes: Number((toFloat(queueStatsRow.due_age_p95_seconds) / 60).toFixed(1)),
+          runSuccessRate24h: successRatePct,
+        },
+        queue: {
+          total: toInt(queueStatsRow.total),
+          due: toInt(queueStatsRow.due),
+          leased: toInt(queueStatsRow.leased),
+          staleLeases: toInt(queueStatsRow.stale_leases),
+          dueAgeP50Seconds: Number(toFloat(queueStatsRow.due_age_p50_seconds).toFixed(1)),
+          dueAgeP95Seconds: Number(toFloat(queueStatsRow.due_age_p95_seconds).toFixed(1)),
+        },
+        runs24h: {
+          totalAttempts,
+          success,
+          failed,
+          successRatePct,
+          avgDurationMs: Number(toFloat(runStatsRow.avg_duration_ms).toFixed(1)),
+          p95DurationMs: Number(toFloat(runStatsRow.p95_duration_ms).toFixed(1)),
+        },
+        http24h: {
+          status2xx: toInt(runStatsRow.http_2xx),
+          status304: toInt(runStatsRow.http_304),
+          status4xx: toInt(runStatsRow.http_4xx),
+          status5xx: toInt(runStatsRow.http_5xx),
         },
         domains,
       });

@@ -342,7 +342,7 @@ echo ""
 echo "[10/10] Cron jobs..."
 
 # job_name:expected_interval_minutes
-CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 crawl-frontier:30 sync-data:30 news-digest:60 code-update:15"
+CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 onboarding-alerts:5 crawl-frontier:30 sync-data:30 news-digest:60 code-update:15"
 NOW_EPOCH=$(date +%s)
 
 for job_entry in $CRON_JOBS; do

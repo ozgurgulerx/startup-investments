@@ -34,16 +34,16 @@ fi
 echo ""
 echo "[1/4] Event→Crawl latency..."
 
-LATENCY=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
+if LATENCY=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
 WITH event_crawl AS (
     SELECT
         se.id,
         se.startup_id,
         se.detected_at,
-        (SELECT MIN(cl.started_at)
+        (SELECT MIN(COALESCE(cl.crawl_started_at, cl.created_at))
          FROM crawl_logs cl
          WHERE cl.startup_id = se.startup_id
-           AND cl.started_at > se.detected_at
+           AND COALESCE(cl.crawl_started_at, cl.created_at) > se.detected_at
            AND cl.status = 'success'
         ) AS first_crawl_at
     FROM startup_events se
@@ -64,11 +64,17 @@ SELECT
     COUNT(*) AS sample_size
 FROM latencies;
 SQL
-)
+); then
+    LATENCY_P50=$(echo "$LATENCY" | cut -d'|' -f1 | tr -d ' ')
+    LATENCY_P90=$(echo "$LATENCY" | cut -d'|' -f2 | tr -d ' ')
+    LATENCY_N=$(echo "$LATENCY" | cut -d'|' -f3 | tr -d ' ')
+else
+    LATENCY_P50="-1"
+    LATENCY_P90="-1"
+    LATENCY_N="0"
+    echo "  WARNING: Event→Crawl latency query failed"
+fi
 
-LATENCY_P50=$(echo "$LATENCY" | cut -d'|' -f1 | tr -d ' ')
-LATENCY_P90=$(echo "$LATENCY" | cut -d'|' -f2 | tr -d ' ')
-LATENCY_N=$(echo "$LATENCY" | cut -d'|' -f3 | tr -d ' ')
 echo "  p50: ${LATENCY_P50}h  p90: ${LATENCY_P90}h  (n=${LATENCY_N})"
 
 # ---------------------------------------------------------------------------
