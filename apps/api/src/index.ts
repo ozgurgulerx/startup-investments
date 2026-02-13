@@ -92,6 +92,7 @@ import { makeInvestorsService } from './services/investors';
 import { makeLandscapesService } from './services/landscapes';
 import { CURATED_SECTORS, findSector, sectorFilterForStartups } from './shared/sectors';
 import { makeSubscriptionsService } from './services/subscriptions';
+import { runtimeMetricsMiddleware, getRuntimeMetricsSnapshot } from './monitoring/runtime_metrics';
 import {
   getRedisClient,
   closeRedisClient,
@@ -456,6 +457,10 @@ app.use(cors({
 }));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
+
+// Runtime request metrics (admin monitoring).
+// Must be before rate-limit / auth middleware to observe rejects as well.
+app.use(runtimeMetricsMiddleware());
 
 // Rate limiting
 const limiter = rateLimit({
@@ -4958,6 +4963,40 @@ app.get('/api/admin/monitoring/sources', async (req, res) => {
   }
 });
 
+app.get('/api/admin/monitoring/runtime', (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  const raw = Array.isArray(req.query.window_min) ? req.query.window_min[0] : req.query.window_min;
+  const parsed = Number(raw);
+  const windowMin = Number.isFinite(parsed) ? Math.max(1, Math.min(15, Math.floor(parsed))) : 10;
+
+  try {
+    const snapshot = getRuntimeMetricsSnapshot(windowMin);
+    const poolStats = getPoolStats();
+    res.json({
+      build_sha: API_BUILD_SHA,
+      ...snapshot,
+      pool: poolStats,
+    });
+  } catch (error) {
+    console.warn('Runtime monitoring snapshot failed:', error);
+    res.json({
+      build_sha: API_BUILD_SHA,
+      timestamp: new Date().toISOString(),
+      window_min: windowMin,
+      error: 'runtime monitoring unavailable',
+      requests: null,
+      pool: getPoolStats(),
+    });
+  }
+});
+
 app.get('/api/admin/monitoring/frontier', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
@@ -5049,35 +5088,73 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
             0
           )::float AS due_age_p95_seconds
         FROM crawl_frontier_queue
-      `);
-      let runMode: 'crawl_logs' | 'frontier_urls' = 'crawl_logs';
-      let runStatsResult = await pgClient.query(`
-        SELECT
-          COUNT(*)::int AS total_attempts,
-          COUNT(*) FILTER (WHERE status = 'success')::int AS success,
-          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
-          COUNT(*) FILTER (WHERE status = 'blocked')::int AS blocked,
-          COALESCE(
-            ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL), 1),
-            0
-          )::float AS avg_duration_ms,
-	          COALESCE(
-	            ROUND(
-	              (
-	                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms)
-	                  FILTER (WHERE duration_ms IS NOT NULL)
-	              )::numeric,
-	              1
-	            ),
-	            0
-	          )::float AS p95_duration_ms,
-          COUNT(*) FILTER (WHERE http_status BETWEEN 200 AND 299)::int AS http_2xx,
-          COUNT(*) FILTER (WHERE http_status = 304)::int AS http_304,
-          COUNT(*) FILTER (WHERE http_status BETWEEN 400 AND 499)::int AS http_4xx,
-          COUNT(*) FILTER (WHERE http_status >= 500)::int AS http_5xx
-        FROM crawl_logs
-        WHERE COALESCE(crawl_started_at, created_at) >= NOW() - INTERVAL '24 hours'
-      `);
+	      `);
+	      let runMode: 'crawl_logs' | 'frontier_urls' = 'crawl_logs';
+	      let runStatsResult: any;
+	      try {
+	        runStatsResult = await pgClient.query(`
+	          SELECT
+	            COUNT(*)::int AS total_attempts,
+	            COUNT(*) FILTER (WHERE cl.status = 'success')::int AS success,
+	            COUNT(*) FILTER (WHERE cl.status = 'failed')::int AS failed,
+	            COUNT(*) FILTER (WHERE cl.status = 'blocked')::int AS blocked,
+	            COALESCE(
+	              ROUND(AVG(cl.duration_ms) FILTER (WHERE cl.duration_ms IS NOT NULL), 1),
+	              0
+	            )::float AS avg_duration_ms,
+	            COALESCE(
+	              ROUND(
+	                (
+	                  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY cl.duration_ms)
+	                    FILTER (WHERE cl.duration_ms IS NOT NULL)
+	                )::numeric,
+	                1
+	              ),
+	              0
+	            )::float AS p95_duration_ms,
+	            COUNT(*) FILTER (WHERE cl.http_status BETWEEN 200 AND 299)::int AS http_2xx,
+	            COUNT(*) FILTER (WHERE cl.http_status = 304)::int AS http_304,
+	            COUNT(*) FILTER (WHERE cl.http_status BETWEEN 400 AND 499)::int AS http_4xx,
+	            COUNT(*) FILTER (WHERE cl.http_status >= 500)::int AS http_5xx
+	          FROM crawl_logs cl
+	          WHERE cl.created_at >= NOW() - INTERVAL '24 hours'
+	            AND cl.source_type IN ('website', 'docs')
+	            AND COALESCE(cl.fetch_method, '') <> 'runtime_missing_output'
+	            AND cl.canonical_url IS NOT NULL
+	            AND EXISTS (
+	              SELECT 1 FROM crawl_frontier_urls u WHERE u.canonical_url = cl.canonical_url
+	            )
+	        `);
+	      } catch (err) {
+	        console.warn('Frontier monitoring: crawl_logs frontier-only query failed, falling back:', err);
+	        runStatsResult = await pgClient.query(`
+	          SELECT
+	            COUNT(*)::int AS total_attempts,
+	            COUNT(*) FILTER (WHERE status = 'success')::int AS success,
+	            COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+	            COUNT(*) FILTER (WHERE status = 'blocked')::int AS blocked,
+	            COALESCE(
+	              ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL), 1),
+	              0
+	            )::float AS avg_duration_ms,
+	            COALESCE(
+	              ROUND(
+	                (
+	                  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms)
+	                    FILTER (WHERE duration_ms IS NOT NULL)
+	                )::numeric,
+	                1
+	              ),
+	              0
+	            )::float AS p95_duration_ms,
+	            COUNT(*) FILTER (WHERE http_status BETWEEN 200 AND 299)::int AS http_2xx,
+	            COUNT(*) FILTER (WHERE http_status = 304)::int AS http_304,
+	            COUNT(*) FILTER (WHERE http_status BETWEEN 400 AND 499)::int AS http_4xx,
+	            COUNT(*) FILTER (WHERE http_status >= 500)::int AS http_5xx
+	          FROM crawl_logs
+	          WHERE COALESCE(crawl_started_at, created_at) >= NOW() - INTERVAL '24 hours'
+	        `);
+	      }
       const runStatsRowRaw = runStatsResult.rows[0] || {};
       const runAttempts = Number.parseInt(String(runStatsRowRaw.total_attempts ?? '0'), 10) || 0;
       if (runAttempts === 0) {
