@@ -175,7 +175,7 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard & { _linke
     builder_takeaway_is_llm: builderTakeawayIsLlm,
     impact: (() => {
       if (!builderTakeawayIsLlm || !row.impact) return undefined;
-      const raw = safeJsonParse<Record<string, unknown>>(row.impact) ?? (typeof row.impact === 'object' ? row.impact : undefined);
+      const raw = safeJsonParse<Record<string, unknown>>(row.impact) ?? (typeof row.impact === 'object' ? row.impact as Record<string, unknown> : undefined);
       if (!raw?.frame || !raw?.kicker) return undefined;
       return {
         frame: String(raw.frame),
