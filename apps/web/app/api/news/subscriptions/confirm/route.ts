@@ -12,6 +12,7 @@ function baseUrlFromRequest(_req: NextRequest): string {
 }
 
 const CONFIRMATION_TTL_DAYS = 7;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // GET /api/news/subscriptions/confirm?token=<confirmation_token>
 export async function GET(req: NextRequest) {
@@ -20,6 +21,12 @@ export async function GET(req: NextRequest) {
     const token = searchParams.get('token');
     if (!token) {
       return NextResponse.json({ error: 'Missing confirmation token' }, { status: 400 });
+    }
+
+    if (!UUID_RE.test(token)) {
+      const url = new URL('/news', baseUrlFromRequest(req));
+      url.searchParams.set('confirmed', 'expired');
+      return NextResponse.redirect(url, { status: 302 });
     }
 
     // Activate the subscription if it's pending confirmation
