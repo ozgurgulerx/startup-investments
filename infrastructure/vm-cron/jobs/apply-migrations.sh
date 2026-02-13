@@ -55,10 +55,15 @@ SETS = {
         # Queryable state snapshots + architecture history (required by signal aggregation + delta generator)
         "039_startup_state_snapshot.sql",
         "040_architecture_history.sql",
+        # Signal follows + update stream (needed for signal updates feed + delta generator signal_spike detector)
+        "048_signal_follows_and_notifications.sql",
+        "049_signal_updates.sql",
         # Signal deep dives (occurrences, moves, deep dive versions, diffs)
         "050_signal_deep_dives.sql",
         # Delta events (movers/changefeed) + watchlist intelligence tables
         "051_delta_events.sql",
+        # Per-user movers feed state (unread counts + mark-as-seen)
+        "052_user_feed_state.sql",
         "055_watchlist_intelligence.sql",
         "065_watchlist_intelligence_dedupe.sql",
         # Funding rounds enrichment source marker used by event extractor (source='news_event')
@@ -112,10 +117,15 @@ SETS = {
         # Queryable state snapshots + architecture history (required by signal aggregation + delta generator)
         "039_startup_state_snapshot.sql",
         "040_architecture_history.sql",
+        # Signal follows + update stream (needed for signal updates feed + delta generator signal_spike detector)
+        "048_signal_follows_and_notifications.sql",
+        "049_signal_updates.sql",
         # Signal deep dives (occurrences, moves, deep dive versions, diffs)
         "050_signal_deep_dives.sql",
         # Delta events (movers/changefeed) + watchlist intelligence tables
         "051_delta_events.sql",
+        # Per-user movers feed state (unread counts + mark-as-seen)
+        "052_user_feed_state.sql",
         "055_watchlist_intelligence.sql",
         "065_watchlist_intelligence_dedupe.sql",
         "044_funding_source.sql",
