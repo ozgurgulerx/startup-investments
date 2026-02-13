@@ -252,6 +252,13 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
+  skip: (req) => {
+    // Skip rate limiting for authenticated server-to-server requests (e.g. frontend SSR).
+    // The frontend App Service shares a single IP, so all SSR requests would otherwise
+    // share one rate-limit bucket and get throttled quickly.
+    const key = req.headers['x-api-key'] as string | undefined;
+    return !!key && key === API_KEY;
+  },
 });
 
 // Apply rate limiting to API routes

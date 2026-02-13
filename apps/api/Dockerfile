@@ -1,25 +1,29 @@
 # Build stage
 FROM node:20-alpine AS builder
 
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+
 WORKDIR /app
 
-# Copy package files first — layer cached when only source changes
-COPY package*.json ./
-RUN npm install
+# Copy package files + lockfile first — layer cached when only source changes
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Copy source code and build
 COPY tsconfig.json ./
 COPY src/ ./src/
-RUN npm run build
+RUN pnpm run build
 
 # Production stage
 FROM node:20-alpine AS production
 
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+
 WORKDIR /app
 
-# Copy package files and install production dependencies
-COPY package*.json ./
-RUN npm install --production
+# Copy package files and install production dependencies only
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
 
 # Copy built files
 COPY --from=builder /app/dist ./dist

@@ -50,26 +50,14 @@ for KEY in DATABASE_URL API_KEY ADMIN_KEY FRONT_DOOR_ID; do
 done
 echo "  All required vars present."
 
-# If REDIS_URL is missing, try to preserve the currently deployed value so a deploy
-# doesn't accidentally disable caching by overwriting the secret with an empty string.
-if [ -z "${REDIS_URL:-}" ]; then
-    EXISTING_REDIS_URL_B64="$(kubectl get secret startup-investments-secrets -o jsonpath='{.data.redis-url}' 2>/dev/null || true)"
-    if [ -n "${EXISTING_REDIS_URL_B64:-}" ]; then
-        EXISTING_REDIS_URL="$(echo "$EXISTING_REDIS_URL_B64" | base64 --decode 2>/dev/null || true)"
-        if [ -n "${EXISTING_REDIS_URL:-}" ]; then
-            export REDIS_URL="$EXISTING_REDIS_URL"
-            echo "  Loaded REDIS_URL from existing Kubernetes secret."
-        fi
-    fi
-fi
-
-if [ -z "${REDIS_URL:-}" ]; then
-    echo "  WARNING: REDIS_URL is not set; Redis caching will be disabled."
-fi
-
 # --- Step 2: Build and push image via ACR ---
 echo ""
 echo "[2/6] Building Docker image on ACR..."
+
+# Copy pnpm lockfile into API build context (Dockerfile needs it for --frozen-lockfile)
+cp "$REPO_DIR/pnpm-lock.yaml" "$REPO_DIR/apps/api/pnpm-lock.yaml"
+trap 'rm -f "$REPO_DIR/apps/api/pnpm-lock.yaml"' EXIT
+
 az acr build \
     --registry "$ACR_NAME" \
     --image "$IMAGE_NAME:$COMMIT_SHA" \
@@ -110,6 +98,22 @@ fi
 
 # Refresh kubectl credentials
 az aks get-credentials -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --overwrite-existing
+
+# Preserve REDIS_URL from existing K8s secret if not in env (now that AKS is running)
+if [ -z "${REDIS_URL:-}" ]; then
+    EXISTING_REDIS_URL_B64="$(kubectl get secret startup-investments-secrets -o jsonpath='{.data.redis-url}' 2>/dev/null || true)"
+    if [ -n "${EXISTING_REDIS_URL_B64:-}" ]; then
+        EXISTING_REDIS_URL="$(echo "$EXISTING_REDIS_URL_B64" | base64 --decode 2>/dev/null || true)"
+        if [ -n "${EXISTING_REDIS_URL:-}" ]; then
+            export REDIS_URL="$EXISTING_REDIS_URL"
+            echo "  Loaded REDIS_URL from existing Kubernetes secret."
+        fi
+    fi
+fi
+
+if [ -z "${REDIS_URL:-}" ]; then
+    echo "  WARNING: REDIS_URL is not set; Redis caching will be disabled."
+fi
 
 # --- Step 4: Update K8s secret ---
 echo ""
@@ -156,13 +160,36 @@ for i in $(seq 1 20); do
 done
 
 if [ "$STATUS" != "200" ]; then
-    echo "WARNING: API health check did not return 200 (last status: $STATUS)"
+    echo "ERROR: API health check did not return 200 (last status: $STATUS)"
     if [ -n "$PREVIOUS_IMAGE" ]; then
         echo "  Attempting rollback to: $PREVIOUS_IMAGE"
         kubectl set image deployment/startup-investments-api api="$PREVIOUS_IMAGE"
-        kubectl rollout status deployment/startup-investments-api --timeout=120s || true
-        echo "  Rollback initiated. Check health manually."
+        if kubectl rollout status deployment/startup-investments-api --timeout=120s; then
+            echo "  Rollback deployment succeeded. Verifying health..."
+            ROLLBACK_OK=0
+            for i in $(seq 1 12); do
+                RSTATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")
+                if [ "$RSTATUS" = "200" ]; then
+                    ROLLBACK_OK=1
+                    echo "  Rollback health check passed."
+                    break
+                fi
+                echo "  Rollback health check attempt $i: status=$RSTATUS"
+                sleep 5
+            done
+            if [ "$ROLLBACK_OK" -ne 1 ]; then
+                echo "CRITICAL: Rollback deployed but health check failed (last status: $RSTATUS)"
+                echo "  Manual intervention required!"
+            fi
+        else
+            echo "CRITICAL: Rollback deployment failed!"
+            echo "  Manual intervention required!"
+        fi
+    else
+        echo "CRITICAL: No previous image available for rollback!"
+        echo "  Manual intervention required!"
     fi
+    exit 1
 fi
 
 echo ""
