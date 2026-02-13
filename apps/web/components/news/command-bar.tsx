@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, ShieldCheck } from 'lucide-react';
 import { PageContainer } from '@/components/layout/page-container';
 import { ViewToggle, type ViewMode } from './view-toggle';
 
-export type SortMode = 'impact' | 'latest';
+export type SortMode = 'impact' | 'latest' | 'trust' | 'signal';
 export type TimeWindow = '6h' | '24h' | '7d' | 'all';
 
 interface CommandBarProps {
@@ -22,6 +22,8 @@ interface CommandBarProps {
   viewMode?: ViewMode;
   onViewModeChange?: (mode: ViewMode) => void;
   showViewToggle?: boolean;
+  hideLowTrust?: boolean;
+  onHideLowTrustChange?: (value: boolean) => void;
 }
 
 function PillButton({
@@ -63,6 +65,8 @@ export function CommandBar({
   viewMode,
   onViewModeChange,
   showViewToggle,
+  hideLowTrust,
+  onHideLowTrustChange,
 }: CommandBarProps) {
   const [showTopics, setShowTopics] = useState(false);
 
@@ -96,6 +100,12 @@ export function CommandBar({
           <PillButton active={sortMode === 'latest'} onClick={() => onSortChange('latest')}>
             Latest
           </PillButton>
+          <PillButton active={sortMode === 'trust'} onClick={() => onSortChange('trust')}>
+            Trust
+          </PillButton>
+          <PillButton active={sortMode === 'signal'} onClick={() => onSortChange('signal')}>
+            Signal
+          </PillButton>
         </div>
 
         {/* Divider */}
@@ -109,6 +119,26 @@ export function CommandBar({
             </PillButton>
           ))}
         </div>
+
+        {/* Hide low-trust toggle */}
+        {onHideLowTrustChange && (
+          <>
+            <div className="h-4 w-px bg-border/40" />
+            <button
+              type="button"
+              onClick={() => onHideLowTrustChange(!hideLowTrust)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-wider transition-colors
+                ${hideLowTrust
+                  ? 'border-accent/55 bg-accent/15 text-accent'
+                  : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-accent/35 hover:text-foreground'
+                }
+              `}
+            >
+              <ShieldCheck className="h-3 w-3" />
+              High trust
+            </button>
+          </>
+        )}
 
         {/* View mode toggle (gated by feature flag) */}
         {showViewToggle && viewMode && onViewModeChange && (

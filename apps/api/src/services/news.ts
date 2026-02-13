@@ -2,6 +2,16 @@ import type { Pool } from 'pg';
 
 export type NewsRegion = 'global' | 'turkey';
 
+export interface EvidenceItem {
+  publisher: string;
+  url: string;
+  canonical_url?: string;
+  published_at?: string;
+  fetched_at?: string;
+  paywalled?: boolean;
+  author?: string;
+}
+
 export interface NewsItemCard {
   id: string;
   title: string;
@@ -39,6 +49,10 @@ export interface NewsItemCard {
   entity_links?: Array<{ entity_name: string; startup_slug: string | null; match_score: number }>;
   primary_company_slug?: string | null;
   delta_type?: string;
+  ba_title?: string;
+  ba_bullets?: string[];
+  why_it_matters?: string;
+  evidence?: EvidenceItem[];
 }
 
 export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';
@@ -183,6 +197,14 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard & { _linke
       ? toNumber(row.upvote_count)
       : undefined,
     delta_type: deriveDeltaType(storyType, topicTags),
+    ba_title: row.ba_title ? String(row.ba_title) : undefined,
+    ba_bullets: Array.isArray(row.ba_bullets) ? row.ba_bullets as string[] : (typeof row.ba_bullets === 'string' ? JSON.parse(row.ba_bullets) : undefined),
+    why_it_matters: row.why_it_matters ? String(row.why_it_matters) : undefined,
+    evidence: (() => {
+      if (!row.evidence_json) return undefined;
+      const raw = typeof row.evidence_json === 'string' ? JSON.parse(row.evidence_json) : row.evidence_json;
+      return Array.isArray(raw) ? raw as EvidenceItem[] : undefined;
+    })(),
     // Carry through raw linked_entities_json for enrichEntityLinks() post-processing
     _linked_entities_json: row.linked_entities_json ?? undefined,
   };
@@ -401,6 +423,10 @@ export function makeNewsService(pool: Pool) {
           c.llm_confidence_score,
           c.llm_topic_tags,
           c.llm_story_type,
+          c.ba_title,
+          c.ba_bullets,
+          c.why_it_matters,
+          c.evidence_json,
           to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
           c.story_type,
           c.topic_tags,
@@ -459,6 +485,10 @@ export function makeNewsService(pool: Pool) {
             c.llm_confidence_score,
             c.llm_topic_tags,
             c.llm_story_type,
+            c.ba_title,
+            c.ba_bullets,
+            c.why_it_matters,
+            c.evidence_json,
             to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
             c.story_type,
             c.topic_tags,
@@ -562,6 +592,10 @@ export function makeNewsService(pool: Pool) {
           c.llm_confidence_score,
           c.llm_topic_tags,
           c.llm_story_type,
+          c.ba_title,
+          c.ba_bullets,
+          c.why_it_matters,
+          c.evidence_json,
           to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
           c.story_type,
           c.topic_tags,
@@ -611,6 +645,10 @@ export function makeNewsService(pool: Pool) {
             c.llm_confidence_score,
             c.llm_topic_tags,
             c.llm_story_type,
+            c.ba_title,
+            c.ba_bullets,
+            c.why_it_matters,
+            c.evidence_json,
             to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
             c.story_type,
             c.topic_tags,

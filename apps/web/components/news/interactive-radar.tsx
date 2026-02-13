@@ -79,6 +79,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
   const [activeTopic, setActiveTopic] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+  const [hideLowTrust, setHideLowTrust] = useState(false);
 
   // Decision cards feature flag + view mode
   const [decisionCardsEnabled] = useState(() => isDecisionCardsEnabled());
@@ -220,6 +221,11 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
       items = items.filter((item) => !hiddenIds.has(item.id));
     }
 
+    // Hide low-trust filter
+    if (hideLowTrust) {
+      items = items.filter((item) => item.trust_score >= 0.4);
+    }
+
     // Time window filter
     if (timeWindow !== 'all') {
       const now = Date.now();
@@ -244,6 +250,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
       const q = searchQuery.toLowerCase();
       items = items.filter((item) =>
         item.title.toLowerCase().includes(q) ||
+        (item.ba_title || '').toLowerCase().includes(q) ||
         (item.summary || '').toLowerCase().includes(q) ||
         item.entities.some((e) => e.toLowerCase().includes(q))
       );
@@ -254,6 +261,10 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
       items.sort((a, b) =>
         safeDate(b.published_at).getTime() - safeDate(a.published_at).getTime()
       );
+    } else if (sortMode === 'trust') {
+      items.sort((a, b) => b.trust_score - a.trust_score);
+    } else if (sortMode === 'signal') {
+      items.sort((a, b) => (b.llm_signal_score ?? 0) - (a.llm_signal_score ?? 0));
     } else {
       items.sort((a, b) => {
         const impactA = a.rank_score * 0.72 + a.trust_score * 0.28;
@@ -263,7 +274,7 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
     }
 
     return items;
-  }, [edition.items, timeWindow, activeTopic, searchQuery, sortMode, hiddenIds]);
+  }, [edition.items, timeWindow, activeTopic, searchQuery, sortMode, hiddenIds, hideLowTrust]);
 
   const totalEntities = useMemo(() => {
     const set = new Set<string>();
@@ -472,6 +483,8 @@ export function InteractiveRadar({ initialEdition, initialTopics, isArchive, reg
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
         showViewToggle={decisionCardsEnabled}
+        hideLowTrust={hideLowTrust}
+        onHideLowTrustChange={setHideLowTrust}
       />
 
 	      {/* KPI Strip + status */}

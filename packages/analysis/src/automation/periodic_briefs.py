@@ -202,7 +202,7 @@ def _build_stats(
     top_stories = []
     for c in clusters[:10]:
         entry: Dict[str, Any] = {
-            "title": c["title"],
+            "title": c.get("ba_title") or c["title"],
             "summary": c.get("llm_summary") or c.get("summary") or "",
             "story_type": c.get("story_type", "news"),
             "rank_score": float(c.get("rank_score") or 0),
@@ -279,7 +279,7 @@ async def _generate_narrative(
         takeaway = c.get("builder_takeaway") or ""
         entities = ", ".join(c.get("entities") or [])
         cluster_summaries.append(
-            f"- [{c.get('story_type', 'news')}] {c['title']}"
+            f"- [{c.get('story_type', 'news')}] {c.get('ba_title') or c['title']}"
             + (f"\n  Summary: {summary}" if summary else "")
             + (f"\n  Builder insight: {takeaway}" if takeaway else "")
             + (f"\n  Entities: {entities}" if entities else "")

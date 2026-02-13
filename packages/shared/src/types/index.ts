@@ -638,6 +638,16 @@ export interface ImpactObject {
   validation?: string;
 }
 
+export interface EvidenceItem {
+  publisher: string;
+  url: string;
+  canonical_url?: string;
+  published_at?: string;
+  fetched_at?: string;
+  paywalled?: boolean;
+  author?: string;
+}
+
 export interface NewsItemCard {
   id: string;
   title: string;
@@ -668,6 +678,10 @@ export interface NewsItemCard {
   entity_links?: Array<{ entity_name: string; startup_slug: string | null; match_score: number }>;
   primary_company_slug?: string | null;
   delta_type?: string;
+  ba_title?: string;
+  ba_bullets?: string[];
+  why_it_matters?: string;
+  evidence?: EvidenceItem[];
 }
 
 export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';

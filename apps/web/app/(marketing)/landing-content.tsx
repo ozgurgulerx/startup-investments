@@ -408,6 +408,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
 	            <Link href="/news" className="hover:text-accent-info transition-colors">Radar</Link>
 	            <Link href="/brief" className="hover:text-accent-info transition-colors">Brief</Link>
 	            <Link href="/dealbook" className="hover:text-accent-info transition-colors">Dossiers</Link>
+	            <Link href="/attribution" className="hover:text-accent-info transition-colors">Attribution</Link>
 	            <Link href="/terms" className="hover:text-accent-info transition-colors">Terms</Link>
 	            <Link href="/privacy" className="hover:text-accent-info transition-colors">Privacy</Link>
 	            <Link href="/support" className="hover:text-accent-info transition-colors">Support</Link>

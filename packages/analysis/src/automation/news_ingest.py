@@ -55,6 +55,12 @@ try:
 except Exception:  # pragma: no cover - optional import at module import time
     async_playwright = None
 
+# Intel-first enrichment prompt version — bump when prompt changes to invalidate cache
+ENRICHMENT_PROMPT_VERSION = "intel-v1"
+
+# Feature gate: set INTEL_FIRST_PROMPT=true on the VM to enable the new intel-first LLM prompt
+INTEL_FIRST_PROMPT_ENABLED = os.getenv("INTEL_FIRST_PROMPT", "false").lower() in ("1", "true", "yes")
+
 TRACKING_PARAMS = {
     "utm_source",
     "utm_medium",
@@ -553,6 +559,13 @@ class StoryCluster:
     research_context: Optional[Dict[str, Any]] = None
     # Structured impact object (populated by LLM enrichment)
     impact: Optional[Dict[str, Any]] = None
+    # Intel-first enrichment fields
+    ba_title: Optional[str] = None
+    ba_bullets: Optional[List[str]] = None
+    why_it_matters: Optional[str] = None
+    evidence_json: Optional[List[Dict[str, Any]]] = None
+    enrichment_hash: Optional[str] = None
+    prompt_version: Optional[str] = None
 
 
 @dataclass
@@ -567,6 +580,80 @@ class LLMEnrichmentResult:
     impact: Optional[Dict[str, Any]] = None
     timed_out: bool = False
     error_code: Optional[str] = None
+    ba_title: Optional[str] = None
+    ba_bullets: Optional[List[str]] = None
+    why_it_matters: Optional[str] = None
+
+
+def _build_evidence_json(cluster: StoryCluster) -> List[Dict[str, Any]]:
+    """Build structured evidence from cluster members (deterministic, zero LLM cost)."""
+    evidence: List[Dict[str, Any]] = []
+    for member in cluster.members:
+        entry: Dict[str, Any] = {
+            "publisher": member.source_key,
+            "url": member.url,
+            "canonical_url": member.canonical_url,
+            "published_at": member.published_at.isoformat() if member.published_at else None,
+        }
+        if member.author:
+            entry["author"] = member.author
+        if member.payload:
+            if member.payload.get("fetched_at"):
+                entry["fetched_at"] = str(member.payload["fetched_at"])
+            if member.payload.get("paywalled"):
+                entry["paywalled"] = True
+        evidence.append(entry)
+    return evidence
+
+
+def _compute_enrichment_hash(cluster: StoryCluster) -> str:
+    """SHA-256 of sorted canonical URLs + lowercase title — used for LLM cache invalidation."""
+    urls = sorted(m.canonical_url for m in cluster.members if m.canonical_url)
+    raw = "|".join(urls) + "|" + (cluster.title or "").strip().lower()
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _validate_intel_fields(result: LLMEnrichmentResult, cluster_title: str = "", cluster_summary: str = "") -> None:
+    """Enforce hard caps and validation rules on intel-first enrichment fields (mutates in place)."""
+    # ba_title: hard cap 120 chars
+    if result.ba_title:
+        if len(result.ba_title) > 120:
+            result.ba_title = result.ba_title[:117] + "..."
+
+    # why_it_matters: hard cap 160 chars
+    if result.why_it_matters:
+        if len(result.why_it_matters) > 160:
+            result.why_it_matters = result.why_it_matters[:157] + "..."
+
+    # ba_bullets: max 4 items, each <=180 chars
+    if result.ba_bullets:
+        result.ba_bullets = result.ba_bullets[:4]
+        for i, bullet in enumerate(result.ba_bullets):
+            if len(bullet) > 180:
+                result.ba_bullets[i] = bullet[:177] + "..."
+
+        # Anti-copy heuristic: flag bullets with >40 char overlap with title/summary
+        ref_texts = [cluster_title.lower(), cluster_summary.lower()]
+        cleaned: List[str] = []
+        for bullet in result.ba_bullets:
+            bl = bullet.lower()
+            flagged = False
+            for ref in ref_texts:
+                if ref and len(ref) >= 40:
+                    # Check for 40-char substring match
+                    for start in range(0, len(bl) - 39):
+                        chunk = bl[start : start + 40]
+                        if chunk in ref:
+                            flagged = True
+                            break
+                if flagged:
+                    break
+            if flagged:
+                # Truncate overlapping bullet instead of removing
+                cleaned.append(bullet[:80] + "..." if len(bullet) > 80 else bullet)
+            else:
+                cleaned.append(bullet)
+        result.ba_bullets = cleaned
 
 
 def canonicalize_url(url: str) -> str:
@@ -4264,38 +4351,60 @@ class DailyNewsIngestor:
         lang_instruction = (
             "\n\nIMPORTANT: Write ALL output values (builder_takeaway, summary, "
             "impact.kicker, impact.builder_move, impact.investor_angle, impact.watchout, "
-            "impact.validation) in Turkish (Türkçe). "
+            "impact.validation, ba_title, ba_bullets, why_it_matters) in Turkish (Türkçe). "
             "Use native Turkish phrasing, not machine-translated English. "
             "JSON keys stay in English."
         ) if region == "turkey" else ""
 
-        prompt = (
-            "You are a startup intelligence analyst writing 1-sentence briefs that explain "
-            "why a news story matters — for both builders (technical founders, engineers) "
-            "and investors (VCs, angels). "
-            "The brief must reference the specific company or technology by name. "
-            "BAD: 'This funding round shows strong market interest.' (too generic) "
-            "GOOD: 'Cursor\\'s $100M raise at $2.5B validates AI-native IDEs as a category — "
-            "builders should watch lock-in risk; investors should note the 10x ARR multiple "
-            "setting valuation benchmarks.' "
-            "Return strict JSON with ALL of these keys (every key is REQUIRED): "
-            "builder_takeaway (2-3 sentences, specific), "
-            "summary (<=160 chars), "
-            "story_type (funding|launch|mna|regulation|hiring|news), "
-            "topic_tags (array of up to 6 lowercase tags), "
-            "signal_score (0-1), confidence_score (0-1), "
-            "impact (object with: "
-            "frame — pick ONE from: UNDERWRITING_TAKE, ADOPTION_PLAY, COST_CURVE, LATENCY_LEVER, "
-            "BENCHMARK_TRAP, DATA_MOAT, PROCUREMENT_WEDGE, REGULATORY_CONSTRAINT, ATTACK_SURFACE, "
-            "CONSOLIDATION_SIGNAL, HIRING_SIGNAL, PLATFORM_SHIFT, GO_TO_MARKET_EDGE, EARLY_SIGNAL; "
-            "kicker — <=48 char punchy headline for the impact box; "
-            "builder_move — <=120 char concrete next step for a technical founder; "
-            "investor_angle — <=120 char thesis-level insight for VCs; "
-            "watchout — OPTIONAL <=120 char risk or gotcha; "
-            "validation — OPTIONAL <=120 char how to verify the claim). "
-            "No prose outside JSON."
-            + lang_instruction
-        )
+        if INTEL_FIRST_PROMPT_ENABLED:
+            prompt = (
+                "You are BuildAtlas, a startup intelligence platform. "
+                "Produce structured intelligence from news clusters. Output JSON only. "
+                "Never copy source sentences — paraphrase aggressively. "
+                "Never reconstruct article structure. No multi-paragraph content."
+            )
+            user_prompt_prefix = (
+                "Analyze this cluster of related news sources about the same event/topic. "
+                "Create BuildAtlas intelligence with strict paraphrasing and citation-first behavior.\n\n"
+                "CONSTRAINTS:\n"
+                "- The ba_title MUST be an analytical claim (intel headline), NOT a restated source headline. "
+                "Frame it as an implication, shift, or verification-oriented statement.\n"
+                "- ba_bullets must be abstract claims about implications, not story narration.\n"
+                "- Quotes are DISALLOWED by default. If exactly one short quote (<=20 words) adds unique value, "
+                "set quote_allowed=true and provide quote_text + quote_source_url. Otherwise quote_allowed=false.\n"
+                "- Prefer verification-oriented framing: implications + what to check next.\n"
+                "- All text must be original paraphrase. Do not copy phrases >8 consecutive words from any source.\n"
+                + lang_instruction + "\n\n"
+            )
+        else:
+            prompt = (
+                "You are a startup intelligence analyst writing 1-sentence briefs that explain "
+                "why a news story matters — for both builders (technical founders, engineers) "
+                "and investors (VCs, angels). "
+                "The brief must reference the specific company or technology by name. "
+                "BAD: 'This funding round shows strong market interest.' (too generic) "
+                "GOOD: 'Cursor\\'s $100M raise at $2.5B validates AI-native IDEs as a category — "
+                "builders should watch lock-in risk; investors should note the 10x ARR multiple "
+                "setting valuation benchmarks.' "
+                "Return strict JSON with ALL of these keys (every key is REQUIRED): "
+                "builder_takeaway (2-3 sentences, specific), "
+                "summary (<=160 chars), "
+                "story_type (funding|launch|mna|regulation|hiring|news), "
+                "topic_tags (array of up to 6 lowercase tags), "
+                "signal_score (0-1), confidence_score (0-1), "
+                "impact (object with: "
+                "frame — pick ONE from: UNDERWRITING_TAKE, ADOPTION_PLAY, COST_CURVE, LATENCY_LEVER, "
+                "BENCHMARK_TRAP, DATA_MOAT, PROCUREMENT_WEDGE, REGULATORY_CONSTRAINT, ATTACK_SURFACE, "
+                "CONSOLIDATION_SIGNAL, HIRING_SIGNAL, PLATFORM_SHIFT, GO_TO_MARKET_EDGE, EARLY_SIGNAL; "
+                "kicker — <=48 char punchy headline for the impact box; "
+                "builder_move — <=120 char concrete next step for a technical founder; "
+                "investor_angle — <=120 char thesis-level insight for VCs; "
+                "watchout — OPTIONAL <=120 char risk or gotcha; "
+                "validation — OPTIONAL <=120 char how to verify the claim). "
+                "No prose outside JSON."
+                + lang_instruction
+            )
+            user_prompt_prefix = ""
         user_payload = {
             "title": cluster.title,
             "summary": cluster.summary,
@@ -4489,7 +4598,26 @@ class DailyNewsIngestor:
                     if override:
                         impact_obj["frame"] = override
 
-            return LLMEnrichmentResult(
+            # --- Intel-first fields (only populated when INTEL_FIRST_PROMPT is enabled) ---
+            ba_title_raw = _pick(root, ["ba_title", "baTitle", "intel_headline"])
+            ba_bullets_raw = _pick(root, ["ba_bullets", "baBullets", "intel_bullets"])
+            why_it_matters_raw = _pick(root, ["why_it_matters", "whyItMatters", "implication"])
+            quote_allowed_raw = _pick(root, ["quote_allowed", "quoteAllowed"])
+
+            ba_title = _shorten_text(_coerce_text(ba_title_raw), 120) or None if ba_title_raw else None
+            ba_bullets: Optional[List[str]] = None
+            if isinstance(ba_bullets_raw, list):
+                ba_bullets = [_coerce_text(b) for b in ba_bullets_raw if _coerce_text(b)]
+            why_it_matters = _shorten_text(_coerce_text(why_it_matters_raw), 160) or None if why_it_matters_raw else None
+
+            # Quote validation: if quote_allowed but quote >20 words, disable it
+            if quote_allowed_raw is True:
+                quote_text = _pick(root, ["quote_text", "quoteText"])
+                if isinstance(quote_text, str) and len(quote_text.split()) > 20:
+                    # Too long — suppress quote
+                    pass  # Don't store quote fields
+
+            result = LLMEnrichmentResult(
                 llm_summary,
                 builder_takeaway,
                 model_label,
@@ -4498,7 +4626,13 @@ class DailyNewsIngestor:
                 llm_topic_tags,
                 llm_story_type,
                 impact=impact_obj,
+                ba_title=ba_title,
+                ba_bullets=ba_bullets,
+                why_it_matters=why_it_matters,
             )
+            # Apply validation guardrails
+            _validate_intel_fields(result, cluster.title or "", cluster.summary or "")
+            return result
 
         last_error_code: Optional[str] = None
         if self.azure_client is not None:
@@ -4509,31 +4643,43 @@ class DailyNewsIngestor:
 
             # Prefer Responses API when available (more reliable for GPT-5 family and enables strict JSON schema).
             if hasattr(self.azure_client, "responses"):
+                json_schema_props: Dict[str, Any] = {
+                    "builder_takeaway": {"type": "string", "minLength": 1, "maxLength": 800},
+                    "summary": {"type": "string", "maxLength": 200},
+                    "story_type": {"type": "string", "enum": list(ALLOWED_STORY_TYPES)},
+                    "topic_tags": {"type": "array", "maxItems": 6, "items": {"type": "string", "maxLength": 32}},
+                    "signal_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "confidence_score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "impact": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "frame": {"type": "string", "enum": sorted(IMPACT_FRAMES)},
+                            "kicker": {"type": "string", "maxLength": 60},
+                            "builder_move": {"type": "string", "maxLength": 150},
+                            "investor_angle": {"type": "string", "maxLength": 150},
+                            "watchout": {"type": "string", "maxLength": 150},
+                            "validation": {"type": "string", "maxLength": 150},
+                        },
+                        "required": ["frame", "kicker", "builder_move", "investor_angle", "watchout", "validation"],
+                    },
+                }
+                json_schema_required = ["builder_takeaway", "summary", "story_type", "topic_tags", "signal_score", "confidence_score", "impact"]
+                if INTEL_FIRST_PROMPT_ENABLED:
+                    json_schema_props["ba_title"] = {"type": "string", "maxLength": 120}
+                    json_schema_props["ba_bullets"] = {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "string", "maxLength": 180}}
+                    json_schema_props["why_it_matters"] = {"type": "string", "maxLength": 160}
+                    json_schema_props["key_claims"] = {"type": "array", "maxItems": 4, "items": {"type": "string"}}
+                    json_schema_props["entities"] = {"type": "array", "maxItems": 6, "items": {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}}, "required": ["name", "type"], "additionalProperties": False}}
+                    json_schema_props["quote_allowed"] = {"type": "boolean"}
+                    json_schema_props["quote_text"] = {"type": ["string", "null"]}
+                    json_schema_props["quote_source_url"] = {"type": ["string", "null"]}
+                    json_schema_required.extend(["ba_title", "ba_bullets", "why_it_matters", "key_claims", "entities", "quote_allowed", "quote_text", "quote_source_url"])
                 json_schema = {
                     "type": "object",
                     "additionalProperties": False,
-                    "properties": {
-                        "builder_takeaway": {"type": "string", "minLength": 1, "maxLength": 800},
-                        "summary": {"type": "string", "maxLength": 200},
-                        "story_type": {"type": "string", "enum": list(ALLOWED_STORY_TYPES)},
-                        "topic_tags": {"type": "array", "maxItems": 6, "items": {"type": "string", "maxLength": 32}},
-                        "signal_score": {"type": "number", "minimum": 0, "maximum": 1},
-                        "confidence_score": {"type": "number", "minimum": 0, "maximum": 1},
-                        "impact": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "properties": {
-                                "frame": {"type": "string", "enum": sorted(IMPACT_FRAMES)},
-                                "kicker": {"type": "string", "maxLength": 60},
-                                "builder_move": {"type": "string", "maxLength": 150},
-                                "investor_angle": {"type": "string", "maxLength": 150},
-                                "watchout": {"type": "string", "maxLength": 150},
-                                "validation": {"type": "string", "maxLength": 150},
-                            },
-                            "required": ["frame", "kicker", "builder_move", "investor_angle", "watchout", "validation"],
-                        },
-                    },
-                    "required": ["builder_takeaway", "summary", "story_type", "topic_tags", "signal_score", "confidence_score", "impact"],
+                    "properties": json_schema_props,
+                    "required": json_schema_required,
                 }
                 for model_name in candidate_models:
                     try:
@@ -4541,7 +4687,7 @@ class DailyNewsIngestor:
                             "model": model_name,
                             "input": [
                                 {"role": "system", "content": prompt},
-                                {"role": "user", "content": json.dumps(user_payload)},
+                                {"role": "user", "content": user_prompt_prefix + json.dumps(user_payload)},
                             ],
                             # Keep ample budget for GPT-5 reasoning tokens while capping runaway costs.
                             "max_output_tokens": min(2048, _azure_token_budget(model_name, 500)),
@@ -4593,7 +4739,7 @@ class DailyNewsIngestor:
                         "model": model_name,
                         "messages": [
                             {"role": "system", "content": prompt},
-                            {"role": "user", "content": json.dumps(user_payload)},
+                            {"role": "user", "content": user_prompt_prefix + json.dumps(user_payload)},
                         ],
                     }
                     if _azure_supports_temperature(model_name):
@@ -4653,7 +4799,7 @@ class DailyNewsIngestor:
                             "response_format": {"type": "json_object"},
                             "messages": [
                                 {"role": "system", "content": prompt},
-                                {"role": "user", "content": json.dumps(user_payload)},
+                                {"role": "user", "content": user_prompt_prefix + json.dumps(user_payload)},
                             ],
                         },
                     )
@@ -4816,6 +4962,20 @@ class DailyNewsIngestor:
                 cluster.trust_score = max(0.0, min(1.0, cluster.trust_score * 0.8 + llm_confidence_score * 0.2))
             if cluster.llm_model and "llm-enriched" not in cluster.rank_reason:
                 cluster.rank_reason = f"{cluster.rank_reason}, llm-enriched"
+
+            # Intel-first fields
+            if llm_result.ba_title:
+                cluster.ba_title = llm_result.ba_title
+            if llm_result.ba_bullets:
+                cluster.ba_bullets = llm_result.ba_bullets
+            if llm_result.why_it_matters:
+                cluster.why_it_matters = llm_result.why_it_matters
+
+        # Build evidence and enrichment hash for ALL clusters (deterministic, zero LLM cost)
+        for cluster in clusters:
+            cluster.evidence_json = _build_evidence_json(cluster)
+            cluster.enrichment_hash = _compute_enrichment_hash(cluster)
+            cluster.prompt_version = ENRICHMENT_PROMPT_VERSION
 
         attempted = int(self._llm_metrics.get("attempted") or 0)
         failed = max(0, attempted - succeeded)
@@ -5353,9 +5513,11 @@ class DailyNewsIngestor:
                         canonical_url, title, summary, published_at, updated_at,
                         topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score,
                         builder_takeaway, llm_summary, llm_model, llm_signal_score, llm_confidence_score,
-                        llm_topic_tags, llm_story_type, impact
+                        llm_topic_tags, llm_story_type, impact,
+                        ba_title, ba_bullets, why_it_matters, evidence_json, enrichment_hash, prompt_version
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7::text[], $8::text[], $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::text[], $20, $21::jsonb)
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7::text[], $8::text[], $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::text[], $20, $21::jsonb,
+                            $22, $23::jsonb, $24, $25::jsonb, $26, $27)
                     ON CONFLICT (cluster_key, region) DO UPDATE
                     SET canonical_url = EXCLUDED.canonical_url,
                         title = EXCLUDED.title,
@@ -5394,7 +5556,13 @@ class DailyNewsIngestor:
                                 THEN news_clusters.llm_topic_tags
                             ELSE EXCLUDED.llm_topic_tags
                         END,
-                        llm_story_type = COALESCE(EXCLUDED.llm_story_type, news_clusters.llm_story_type)
+                        llm_story_type = COALESCE(EXCLUDED.llm_story_type, news_clusters.llm_story_type),
+                        ba_title = COALESCE(EXCLUDED.ba_title, news_clusters.ba_title),
+                        ba_bullets = COALESCE(EXCLUDED.ba_bullets, news_clusters.ba_bullets),
+                        why_it_matters = COALESCE(EXCLUDED.why_it_matters, news_clusters.why_it_matters),
+                        evidence_json = COALESCE(EXCLUDED.evidence_json, news_clusters.evidence_json),
+                        enrichment_hash = COALESCE(EXCLUDED.enrichment_hash, news_clusters.enrichment_hash),
+                        prompt_version = COALESCE(EXCLUDED.prompt_version, news_clusters.prompt_version)
                     RETURNING id::text
                     """,
                     cluster.cluster_key,
@@ -5418,6 +5586,12 @@ class DailyNewsIngestor:
                     cluster.llm_topic_tags,
                     cluster.llm_story_type,
                     json.dumps(cluster.impact) if cluster.impact else None,
+                    cluster.ba_title,
+                    json.dumps(cluster.ba_bullets) if cluster.ba_bullets else None,
+                    cluster.why_it_matters,
+                    json.dumps(cluster.evidence_json) if cluster.evidence_json else None,
+                    cluster.enrichment_hash,
+                    cluster.prompt_version,
                 )
             else:
                 cluster_id = await conn.fetchval(
@@ -5426,9 +5600,11 @@ class DailyNewsIngestor:
                         cluster_key, canonical_url, title, summary, published_at, updated_at,
                         topic_tags, entities, story_type, source_count, rank_score, rank_reason, trust_score,
                         builder_takeaway, llm_summary, llm_model, llm_signal_score, llm_confidence_score,
-                        llm_topic_tags, llm_story_type, impact
+                        llm_topic_tags, llm_story_type, impact,
+                        ba_title, ba_bullets, why_it_matters, evidence_json, enrichment_hash, prompt_version
                     )
-                    VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::text[], $19, $20::jsonb)
+                    VALUES ($1, $2, $3, $4, $5, NOW(), $6::text[], $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::text[], $19, $20::jsonb,
+                            $21, $22::jsonb, $23, $24::jsonb, $25, $26)
                     ON CONFLICT (cluster_key) DO UPDATE
                     SET canonical_url = EXCLUDED.canonical_url,
                         title = EXCLUDED.title,
@@ -5467,7 +5643,13 @@ class DailyNewsIngestor:
                                 THEN news_clusters.llm_topic_tags
                             ELSE EXCLUDED.llm_topic_tags
                         END,
-                        llm_story_type = COALESCE(EXCLUDED.llm_story_type, news_clusters.llm_story_type)
+                        llm_story_type = COALESCE(EXCLUDED.llm_story_type, news_clusters.llm_story_type),
+                        ba_title = COALESCE(EXCLUDED.ba_title, news_clusters.ba_title),
+                        ba_bullets = COALESCE(EXCLUDED.ba_bullets, news_clusters.ba_bullets),
+                        why_it_matters = COALESCE(EXCLUDED.why_it_matters, news_clusters.why_it_matters),
+                        evidence_json = COALESCE(EXCLUDED.evidence_json, news_clusters.evidence_json),
+                        enrichment_hash = COALESCE(EXCLUDED.enrichment_hash, news_clusters.enrichment_hash),
+                        prompt_version = COALESCE(EXCLUDED.prompt_version, news_clusters.prompt_version)
                     RETURNING id::text
                     """,
                     cluster.cluster_key,
@@ -5490,6 +5672,12 @@ class DailyNewsIngestor:
                     cluster.llm_topic_tags,
                     cluster.llm_story_type,
                     json.dumps(cluster.impact) if cluster.impact else None,
+                    cluster.ba_title,
+                    json.dumps(cluster.ba_bullets) if cluster.ba_bullets else None,
+                    cluster.why_it_matters,
+                    json.dumps(cluster.evidence_json) if cluster.evidence_json else None,
+                    cluster.enrichment_hash,
+                    cluster.prompt_version,
                 )
             if not cluster_id:
                 continue

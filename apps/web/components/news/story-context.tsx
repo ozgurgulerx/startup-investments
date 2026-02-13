@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { ExternalLink, X } from 'lucide-react';
-import type { NewsItemCard } from '@startup-intelligence/shared';
+import type { NewsItemCard, EvidenceItem } from '@startup-intelligence/shared';
 import { timeAgo, aiSignalLabel } from '@/lib/news-utils';
 import { safeHref } from '@/lib/url';
 import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
 import { ImpactBox } from './impact-box';
+import { EvidenceExpander } from './evidence-expander';
 
 interface StoryContextProps {
   item: NewsItemCard;
@@ -16,8 +17,33 @@ interface StoryContextProps {
   region?: 'global' | 'turkey';
 }
 
+function buildFallbackEvidence(item: NewsItemCard): EvidenceItem[] {
+  const evidence: EvidenceItem[] = [];
+  if (item.sources && item.sources.length > 0) {
+    for (const source of item.sources) {
+      evidence.push({
+        publisher: source,
+        url: source === item.primary_source ? item.url : '',
+        published_at: item.published_at,
+      });
+    }
+  } else if (item.primary_source) {
+    evidence.push({
+      publisher: item.primary_source,
+      url: item.url,
+      published_at: item.published_at,
+    });
+  }
+  return evidence;
+}
+
 export function StoryContext({ item, onClose, relatedSignals, region = 'global' }: StoryContextProps) {
   const summary = item.llm_summary || item.summary;
+  const displayTitle = item.ba_title || item.title;
+  const whyItMatters = item.why_it_matters || item.builder_takeaway;
+  const evidence = item.evidence && item.evidence.length > 0
+    ? item.evidence
+    : buildFallbackEvidence(item);
 
   return (
     <div className="h-full flex flex-col">
@@ -33,7 +59,7 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
               className="inline-flex items-center gap-1 rounded-md border border-accent-info/30 bg-accent-info/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info hover:bg-accent-info/20 transition-colors"
             >
               <ExternalLink className="h-3 w-3" />
-              Read
+              Open source
             </a>
           )}
           <button
@@ -51,10 +77,19 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
         {/* Title */}
         <div>
           <h3 className="text-base font-medium leading-snug tracking-tight text-foreground">
-            {item.title}
+            {displayTitle}
           </h3>
+          {/* Show original publisher headline when ba_title differs */}
+          {item.ba_title && item.ba_title !== item.title && (
+            <p className="mt-1 text-[10px] text-muted-foreground/50">
+              Source headline: {item.title}
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} />
+            <span className="inline-flex rounded-full border border-border/30 bg-muted/15 px-2 py-0.5 text-[10px] text-muted-foreground">
+              {item.source_count >= 2 ? 'Multi-source' : 'Single-source'}
+            </span>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               {item.story_type || 'news'}
             </span>
@@ -64,11 +99,31 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
           </div>
         </div>
 
-        {/* Summary */}
-        {summary && (
+        {/* Summary — ba_bullets or paragraph */}
+        {item.ba_bullets && item.ba_bullets.length > 0 ? (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Key Points</p>
+            <ul className="space-y-1">
+              {item.ba_bullets.map((bullet, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-xs text-foreground/90 leading-relaxed">
+                  <span className="mt-1.5 inline-block h-1 w-1 rounded-full bg-muted-foreground/40 flex-shrink-0" />
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : summary ? (
           <div>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Summary</p>
             <p className="text-xs text-foreground/90 leading-relaxed">{summary}</p>
+          </div>
+        ) : null}
+
+        {/* Why it matters */}
+        {whyItMatters && (
+          <div className="rounded-lg border border-accent-info/20 bg-accent-info/5 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-accent-info mb-1.5">Why it matters</p>
+            <p className="text-xs text-foreground/90 leading-relaxed">{whyItMatters}</p>
           </div>
         )}
 
@@ -85,30 +140,13 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
           </div>
         )}
 
-        {/* Why it matters */}
+        {/* Impact */}
         <ImpactBox item={item} region={region} />
 
-        {/* Source stack */}
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-            Sources ({item.source_count})
-          </p>
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-foreground">{item.primary_source}</span>
-              <span className="text-[9px] uppercase tracking-wider text-accent-info px-1.5 py-0.5 rounded bg-accent-info/10 border border-accent-info/20">Primary</span>
-            </div>
-            {item.sources
-              .filter((s) => s !== item.primary_source)
-              .map((source) => (
-                <div key={source} className="text-xs text-muted-foreground">
-                  {source}
-                </div>
-              ))}
-          </div>
-        </div>
+        {/* Evidence */}
+        <EvidenceExpander evidence={evidence} defaultCollapsed={false} />
 
-        {/* Entities → links */}
+        {/* Entities */}
         {item.entities.length > 0 && (
           <div>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Entities</p>
@@ -154,7 +192,7 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
             <div className="space-y-2">
               {relatedSignals.map((related) => (
                 <p key={related.id} className="text-xs text-muted-foreground leading-snug">
-                  <span className="text-foreground">{related.title}</span>
+                  <span className="text-foreground">{related.ba_title || related.title}</span>
                   <span className="opacity-60 ml-1">({related.source_count} src)</span>
                 </p>
               ))}

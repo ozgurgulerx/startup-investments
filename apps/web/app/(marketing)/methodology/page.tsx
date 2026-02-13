@@ -184,6 +184,17 @@ export default function MethodologyPage() {
               </p>
             </section>
 
+            {/* Trust scores & corroboration */}
+            <section>
+              <h2 className="headline-md mb-4">Trust scores &amp; source corroboration</h2>
+              <p className="body-md">
+                Each story cluster displays a trust score derived from source reliability, cross-source
+                agreement, and evidence quality. Multi-source clusters — where two or more independent
+                publishers report the same event — receive a higher trust score than single-source items.
+                Use the &ldquo;High trust&rdquo; filter on the Radar to surface only well-corroborated stories.
+              </p>
+            </section>
+
             {/* Transparency */}
             <section>
               <h2 className="headline-md mb-4">Transparency: show your work</h2>
