@@ -16,7 +16,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 from .onboarding_trace import emit_trace
@@ -387,8 +387,21 @@ async def persist_events(
 
     inserted = 0
     inserted_events: List[Tuple[str, str, str]] = []
+
     for evt in events:
         registry_id = registry.get(evt.event_type)
+
+        event_date = evt.event_date
+        # asyncpg can raise AmbiguousParameterError if the same SQL statement is
+        # executed with different inferred types (e.g., date vs timestamptz). Ensure
+        # we always bind a timestamptz-compatible datetime.
+        if isinstance(event_date, date) and not isinstance(event_date, datetime):
+            # Some callers may provide a date; normalize to UTC midnight.
+            event_date = datetime.combine(event_date, datetime.min.time(), tzinfo=timezone.utc)
+        elif isinstance(event_date, datetime) and event_date.tzinfo is None:
+            # Persist in UTC for deterministic effective_date derivation.
+            event_date = event_date.replace(tzinfo=timezone.utc)
+
         try:
             row = await conn.fetchrow(
                 """INSERT INTO startup_events
@@ -397,7 +410,7 @@ async def persist_events(
                         metadata_json, cluster_id, region, event_key,
                         event_date, effective_date)
                    VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
-                           $12, COALESCE($12::date, CURRENT_DATE))
+                           $12::timestamptz, COALESCE($12::date, CURRENT_DATE))
                    ON CONFLICT (cluster_id, startup_id, event_type, event_key)
                        WHERE cluster_id IS NOT NULL DO NOTHING
                    RETURNING id""",
@@ -412,17 +425,21 @@ async def persist_events(
                 evt.cluster_id,
                 evt.region,
                 evt.event_key,
-                evt.event_date,
+                event_date,
             )
             if row is not None:
                 inserted += 1
                 if evt.startup_id:
                     inserted_events.append((str(row["id"]), evt.startup_id, evt.event_type))
         except Exception:
-            logger.warning("Failed to persist event %s for cluster %s", evt.event_type, evt.cluster_id, exc_info=True)
+            logger.warning(
+                "Failed to persist event %s for cluster %s",
+                evt.event_type,
+                evt.cluster_id,
+                exc_info=True,
+            )
 
     return inserted, inserted_events
-
 
 async def enqueue_refresh_for_events(
     conn: "asyncpg.Connection",

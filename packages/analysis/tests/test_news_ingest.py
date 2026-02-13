@@ -483,9 +483,9 @@ def test_turkey_vc_blog_urls_non_empty_and_valid():
 
 
 def test_total_turkey_sources_count():
-    """After adding 4 RSS + 1 crawler, total Turkey sources should be 14."""
+    """Total Turkey sources should match DEFAULT_SOURCES (incl. X recent search)."""
     turkey = [s for s in DEFAULT_SOURCES if s.region == "turkey"]
-    assert len(turkey) == 14
+    assert len(turkey) == 15
 
 
 # --- Turkey nexus filter tests ---
