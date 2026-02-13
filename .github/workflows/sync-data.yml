@@ -153,7 +153,8 @@ jobs:
 
       - name: Install dependencies
         if: steps.check_changes.outputs.has_changes == 'true' && env.skip_build != 'true'
-        run: pnpm install
+        # Playwright is a devDependency for web CI; sync-data does not need browser downloads.
+        run: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 pnpm install
 
       - name: Clear Next.js cache
         if: steps.check_changes.outputs.has_changes == 'true' && env.skip_build != 'true'

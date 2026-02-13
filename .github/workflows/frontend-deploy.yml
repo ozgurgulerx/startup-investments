@@ -33,7 +33,8 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        # Playwright is a devDependency for web CI; frontend deploy does not need browser downloads.
+        run: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 pnpm install
 
       - name: Clear Next.js cache
         run: rm -rf apps/web/.next

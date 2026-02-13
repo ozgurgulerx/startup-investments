@@ -127,7 +127,7 @@ importers:
         version: 0.312.0(react@18.3.1)
       next:
         specifier: 14.2.35
-        version: 14.2.35(@opentelemetry/api@1.9.0)(react-dom@18.3.1)(react@18.3.1)
+        version: 14.2.35(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@18.3.1)(react@18.3.1)
       next-auth:
         specifier: 5.0.0-beta.30
         version: 5.0.0-beta.30(next@14.2.35)(react@18.3.1)
@@ -162,6 +162,9 @@ importers:
       '@azure/static-web-apps-cli':
         specifier: ^2.0.7
         version: 2.0.7
+      '@playwright/test':
+        specifier: ^1.41.2
+        version: 1.58.2
       '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
@@ -2501,6 +2504,13 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
+
+  /@playwright/test@1.58.2:
+    resolution: {integrity: sha512-akea+6bHYBBfA9uQqSYmlJXn61cTa+jbO87xVLCWbTqbWadRVmhxlXATaOjOgcBaWU4ePo0wB41KMFv3o35IXA==}
+    engines: {node: '>=18'}
+    hasBin: true
+    dependencies:
+      playwright: 1.58.2
 
   /@pnpm/config.env-replace@1.1.0:
     resolution: {integrity: sha512-htyl8TWnKL7K/ESFa1oW2UB5lVDxuF5DpM7tBi6Hu2LNL3mWkIzNLG6N4zoCUP1lCKNxWy/3iu8mS8MvToGd6w==}
@@ -6856,6 +6866,13 @@ packages:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
     dev: true
 
+  /fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+    requiresBuild: true
+    optional: true
+
   /fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -8672,7 +8689,7 @@ packages:
         optional: true
     dependencies:
       '@auth/core': 0.41.0
-      next: 14.2.35(@opentelemetry/api@1.9.0)(react-dom@18.3.1)(react@18.3.1)
+      next: 14.2.35(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@18.3.1)(react@18.3.1)
       react: 18.3.1
     dev: false
 
@@ -8680,7 +8697,7 @@ packages:
     resolution: {integrity: sha512-CXdUiJembsNjuToQvxayPZF9Vqht7hewsvy2sOWafLvi2awflj9mOC6bHIg50orX8IJvWKY9wYQ/zB2kogPslQ==}
     dev: true
 
-  /next@14.2.35(@opentelemetry/api@1.9.0)(react-dom@18.3.1)(react@18.3.1):
+  /next@14.2.35(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@18.3.1)(react@18.3.1):
     resolution: {integrity: sha512-KhYd2Hjt/O1/1aZVX3dCwGXM1QmOV4eNM2UTacK5gipDdPN/oHHK/4oVGy7X8GMfPMsUTUEmGlsy0EY1YGAkig==}
     engines: {node: '>=18.17.0'}
     hasBin: true
@@ -8700,6 +8717,7 @@ packages:
     dependencies:
       '@next/env': 14.2.35
       '@opentelemetry/api': 1.9.0
+      '@playwright/test': 1.58.2
       '@swc/helpers': 0.5.5
       busboy: 1.6.0
       caniuse-lite: 1.0.30001766
@@ -9192,6 +9210,20 @@ packages:
       mlly: 1.8.0
       pathe: 2.0.3
     dev: true
+
+  /playwright-core@1.58.2:
+    resolution: {integrity: sha512-yZkEtftgwS8CsfYo7nm0KE8jsvm6i/PTgVtB8DL726wNf6H2IMsDuxCpJj59KDaxCtSnrWan2AeDqM7JBaultg==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  /playwright@1.58.2:
+    resolution: {integrity: sha512-vA30H8Nvkq/cPBnNw4Q8TWz1EJyqgpuinBcHET0YVJVFldr8JDNiU9LaWAE1KqSkRYazuaBhTpB5ZzShOezQ6A==}
+    engines: {node: '>=18'}
+    hasBin: true
+    dependencies:
+      playwright-core: 1.58.2
+    optionalDependencies:
+      fsevents: 2.3.2
 
   /possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}

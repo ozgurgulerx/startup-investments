@@ -113,6 +113,9 @@ Important headers/invariants:
     - UI surfaces:
       - Signal inspector shows a compact "Relevance" section (rounds + patterns).
       - Signal deep dive adds a `Relevance` tab with the full bundle.
+  - CI guardrail:
+    - `.github/workflows/web-ci.yml` runs Playwright smoke tests to prevent regressions in Signals deep-dive links
+      (especially `?region=turkey` propagation) and the web proxy for `GET /api/signals/:id/relevance`.
 
 ## CI/CD Workflows (Source of Truth)
 

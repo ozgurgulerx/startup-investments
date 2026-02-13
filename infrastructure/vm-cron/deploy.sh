@@ -95,7 +95,8 @@ fi
 # Update Node deps if lockfile changed
 if echo "$CHANGED_FILES" | grep -q 'pnpm-lock.yaml'; then
     echo "Node deps changed. Running pnpm install..."
-    cd "$REPO_DIR" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+    # Playwright is used in CI; the VM should not download browser binaries during dependency installs.
+    cd "$REPO_DIR" && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 pnpm install --frozen-lockfile 2>/dev/null || PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 pnpm install
 fi
 
 # Reinstall crontab if changed
