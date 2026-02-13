@@ -32,26 +32,33 @@ const COLORS = [
 ];
 
 function formatUsd(v: number): string {
-  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
-  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
-  if (v >= 1e3) return `$${(v / 1e3).toFixed(0)}K`;
-  return `$${v.toFixed(0)}`;
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : 0;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
 }
 
 function TreemapContent(props: any) {
-  const { x, y, width, height, name, count, funding, index } = props;
+  const { x, y, width, height, name, count, funding, index, depth } = props;
+  // Recharts always renders an artificial root node (depth 0) without our custom fields.
+  // Skip it to avoid "undefined.toFixed" crashes and prevent a full-size overlay tile.
+  if (depth === 0) return null;
   if (width < 40 || height < 30) return null;
   const color = COLORS[index % COLORS.length];
+  const safeName = typeof name === 'string' ? name : '';
+  const safeCount = typeof count === 'number' && Number.isFinite(count) ? count : 0;
+  const safeFunding = typeof funding === 'number' && Number.isFinite(funding) ? funding : 0;
   return (
     <g>
       <rect x={x} y={y} width={width} height={height} fill={color} opacity={0.25} stroke="var(--border)" strokeWidth={1} rx={2} />
       {width > 60 && height > 40 && (
         <>
           <text x={x + 6} y={y + 16} fill="var(--foreground)" fontSize={11} fontWeight={500}>
-            {name?.length > width / 7 ? name.slice(0, Math.floor(width / 7)) + '...' : name}
+            {safeName.length > width / 7 ? safeName.slice(0, Math.floor(width / 7)) + '...' : safeName}
           </text>
           <text x={x + 6} y={y + 30} fill="var(--muted-foreground)" fontSize={9}>
-            {count} startups · {formatUsd(funding)}
+            {safeCount} startups · {formatUsd(safeFunding)}
           </text>
         </>
       )}
