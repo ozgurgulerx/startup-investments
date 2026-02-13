@@ -2958,7 +2958,7 @@ app.get('/api/v1/companies/:slug/neighbors', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const cacheKey = `neighbors:${slug}:${parsed.data.period || 'latest'}:${parsed.data.limit}`;
+    const cacheKey = `neighbors:${parsed.data.region}:${slug}:${parsed.data.period || 'latest'}:${parsed.data.limit}`;
     const redis = await getRedisClient();
     if (redis) {
       try {
@@ -2972,8 +2972,8 @@ app.get('/api/v1/companies/:slug/neighbors', async (req, res) => {
 
     // Resolve slug to startup ID
     const startupResult = await pool.query(
-      `SELECT id FROM startups WHERE slug = $1 LIMIT 1`,
-      [slug],
+      `SELECT id FROM startups WHERE slug = $1 AND dataset_region = $2 LIMIT 1`,
+      [slug, parsed.data.region],
     );
     if (!startupResult.rows[0]) {
       return res.status(404).json({ error: 'Startup not found' });
@@ -3005,7 +3005,7 @@ app.get('/api/v1/companies/:slug/benchmarks', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const cacheKey = `benchmarks:${slug}:${parsed.data.period || 'latest'}`;
+    const cacheKey = `benchmarks:${parsed.data.region}:${slug}:${parsed.data.period || 'latest'}`;
     const redis = await getRedisClient();
     if (redis) {
       try {
@@ -3019,8 +3019,8 @@ app.get('/api/v1/companies/:slug/benchmarks', async (req, res) => {
 
     // Resolve slug to startup ID
     const startupResult = await pool.query(
-      `SELECT id FROM startups WHERE slug = $1 LIMIT 1`,
-      [slug],
+      `SELECT id FROM startups WHERE slug = $1 AND dataset_region = $2 LIMIT 1`,
+      [slug, parsed.data.region],
     );
     if (!startupResult.rows[0]) {
       return res.status(404).json({ error: 'Startup not found' });
@@ -3030,6 +3030,7 @@ app.get('/api/v1/companies/:slug/benchmarks', async (req, res) => {
     const result = await signalsService.getStartupBenchmarks({
       startupId,
       period: parsed.data.period,
+      region: parsed.data.region,
     });
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }

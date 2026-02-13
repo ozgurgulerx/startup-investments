@@ -38,10 +38,12 @@ export default function InvestorsPage() {
   const [sort, setSort] = useState('deal_count');
   const [patternFilter, setPatternFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
+      setError(null);
       try {
         const params = new URLSearchParams({ sort, scope: region });
         if (patternFilter) params.set('pattern', patternFilter);
@@ -50,9 +52,16 @@ export default function InvestorsPage() {
           const data = await res.json();
           setInvestors(data.investors || []);
           setTotal(data.total || 0);
+        } else {
+          setInvestors([]);
+          setTotal(0);
+          setError(`Failed to load investor screener (${res.status})`);
         }
       } catch (err) {
         console.error('Failed to load investors:', err);
+        setInvestors([]);
+        setTotal(0);
+        setError('Failed to load investor screener');
       } finally {
         setLoading(false);
       }
@@ -99,6 +108,10 @@ export default function InvestorsPage() {
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        </div>
+      ) : error ? (
+        <div className="text-center py-16 text-sm text-muted-foreground">
+          {error}
         </div>
       ) : (
         <div className="space-y-2">

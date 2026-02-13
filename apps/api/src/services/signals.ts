@@ -1180,50 +1180,105 @@ export function makeSignalsService(pool: Pool) {
   async function getStartupBenchmarks(params: {
     startupId: string;
     period?: string;
+    region?: string;
   }): Promise<{ startup_values: Record<string, number | null>; benchmarks: any[]; cohort_keys: string[] }> {
     const { startupId, period } = params;
+    const region = normalizeRegion(params.region);
     try {
       // Get startup's own values from state snapshot
+      const explicitPeriod = Boolean(period);
       const stateResult = await pool.query(
-        `SELECT ss.funding_stage, ss.vertical, ss.confidence_score,
+        `SELECT ss.analysis_period, ss.funding_stage, ss.vertical, ss.confidence_score,
                 ss.engineering_quality_score, ss.build_patterns,
                 s.money_raised_usd
          FROM startup_state_snapshot ss
          JOIN startups s ON s.id = ss.startup_id
          WHERE ss.startup_id = $1::uuid
-         ${period ? 'AND ss.analysis_period = $2' : ''}
-         ORDER BY ss.snapshot_at DESC LIMIT 1`,
-        period ? [startupId, period] : [startupId],
+           AND s.dataset_region = $2
+         ${period ? 'AND ss.analysis_period = $3' : ''}
+         ORDER BY ss.analysis_period DESC, ss.snapshot_at DESC
+         LIMIT 1`,
+        period ? [startupId, region, period] : [startupId, region],
       );
 
-      const state = stateResult.rows[0];
+      let state = stateResult.rows[0];
       if (!state) {
         return { startup_values: {}, benchmarks: [], cohort_keys: [] };
       }
 
-      const startupValues: Record<string, number | null> = {
-        funding_total_usd: state.money_raised_usd ? Number(state.money_raised_usd) : null,
-        confidence_score: state.confidence_score != null ? Number(state.confidence_score) : null,
-        engineering_quality_score: state.engineering_quality_score != null ? Number(state.engineering_quality_score) : null,
-        pattern_count: state.build_patterns ? state.build_patterns.length : 0,
-      };
-
-      // Determine relevant cohort keys
-      const cohortKeys: string[] = ['all:all'];
-      if (state.funding_stage) cohortKeys.push(`stage:${state.funding_stage}`);
-      if (state.vertical) cohortKeys.push(`vertical:${state.vertical}`);
-      if (state.funding_stage && state.vertical) {
-        cohortKeys.push(`stage_vertical:${state.funding_stage}:${state.vertical}`);
+      let resolvedPeriod: string | undefined = period || state.analysis_period;
+      if (!resolvedPeriod) {
+        return { startup_values: {}, benchmarks: [], cohort_keys: [] };
       }
 
-      // Fetch benchmarks for those cohorts
-      const benchResult = await pool.query(
-        `SELECT * FROM cohort_benchmarks
-         WHERE cohort_key = ANY($1)
-         ${period ? 'AND period = $2' : ''}
-         ORDER BY cohort_type, metric`,
-        period ? [cohortKeys, period] : [cohortKeys],
-      );
+      const buildPayloadFromState = (row: any) => {
+        const startupValues: Record<string, number | null> = {
+          funding_total_usd: row.money_raised_usd ? Number(row.money_raised_usd) : null,
+          confidence_score: row.confidence_score != null ? Number(row.confidence_score) : null,
+          engineering_quality_score: row.engineering_quality_score != null ? Number(row.engineering_quality_score) : null,
+          pattern_count: row.build_patterns ? row.build_patterns.length : 0,
+        };
+
+        // Determine relevant cohort keys
+        const cohortKeys: string[] = ['all:all'];
+        if (row.funding_stage) cohortKeys.push(`stage:${row.funding_stage}`);
+        if (row.vertical) cohortKeys.push(`vertical:${row.vertical}`);
+        if (row.funding_stage && row.vertical) {
+          cohortKeys.push(`stage_vertical:${row.funding_stage}:${row.vertical}`);
+        }
+
+        return { startupValues, cohortKeys };
+      };
+
+      const queryBenchmarksFor = async (cohortKeys: string[], benchPeriod: string) => {
+        return pool.query(
+          `SELECT * FROM cohort_benchmarks
+           WHERE cohort_key = ANY($1)
+             AND region = $2
+             AND period = $3
+           ORDER BY cohort_type, metric`,
+          [cohortKeys, region, benchPeriod],
+        );
+      };
+
+      let { startupValues, cohortKeys } = buildPayloadFromState(state);
+      let benchResult = await queryBenchmarksFor(cohortKeys, resolvedPeriod);
+
+      // If benchmarks lag behind snapshots (e.g. early in a new period), fall back to latest available benchmarks
+      // so the UI doesn't go empty.
+      if (!explicitPeriod && benchResult.rows.length === 0) {
+        const latestBenchPeriodResult = await pool.query(
+          `SELECT MAX(period) AS period FROM cohort_benchmarks WHERE region = $1`,
+          [region],
+        );
+        const latestBenchPeriod = latestBenchPeriodResult.rows[0]?.period as string | undefined;
+        if (latestBenchPeriod && latestBenchPeriod !== resolvedPeriod) {
+          // Prefer a snapshot from the same period as the benchmarks if available.
+          const fallbackStateResult = await pool.query(
+            `SELECT ss.analysis_period, ss.funding_stage, ss.vertical, ss.confidence_score,
+                    ss.engineering_quality_score, ss.build_patterns,
+                    s.money_raised_usd
+             FROM startup_state_snapshot ss
+             JOIN startups s ON s.id = ss.startup_id
+             WHERE ss.startup_id = $1::uuid
+               AND s.dataset_region = $2
+               AND ss.analysis_period = $3
+             ORDER BY ss.snapshot_at DESC
+             LIMIT 1`,
+            [startupId, region, latestBenchPeriod],
+          );
+          const fallbackState = fallbackStateResult.rows[0];
+          if (fallbackState) {
+            state = fallbackState;
+            resolvedPeriod = latestBenchPeriod;
+            ({ startupValues, cohortKeys } = buildPayloadFromState(state));
+          } else {
+            resolvedPeriod = latestBenchPeriod;
+          }
+
+          benchResult = await queryBenchmarksFor(cohortKeys, resolvedPeriod);
+        }
+      }
 
       return {
         startup_values: startupValues,

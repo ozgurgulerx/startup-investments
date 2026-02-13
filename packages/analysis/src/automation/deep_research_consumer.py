@@ -6,12 +6,17 @@ performing LLM-based deep analysis of startups.
 
 import asyncio
 import logging
+import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
-from openai import AsyncAzureOpenAI
-import os
+try:
+    from openai import AsyncAzureOpenAI
+    _OPENAI_IMPORT_ERROR: Optional[str] = None
+except Exception as exc:  # pragma: no cover - optional dependency in some environments
+    AsyncAzureOpenAI = None  # type: ignore[assignment]
+    _OPENAI_IMPORT_ERROR = str(exc)
 
 from src.config import llm_kwargs
 
@@ -144,10 +149,26 @@ class DeepResearchConsumer:
             logger.info("Deep research consumer disabled (DEEP_RESEARCH_ENABLED=false)")
             return results
         if self.client is None:
-            logger.warning(
-                "Deep research consumer enabled but Azure client is unavailable "
-                "(set AZURE_OPENAI_ENDPOINT and either AAD identity or AZURE_OPENAI_API_KEY)"
-            )
+            if AsyncAzureOpenAI is None:
+                logger.warning(
+                    "Deep research consumer enabled but python `openai` package is unavailable "
+                    "(reinstall packages/analysis/requirements.txt). openai_import_error=%s",
+                    _OPENAI_IMPORT_ERROR,
+                )
+                reason_code = "missing_openai_library"
+                trace_message = "Deep research client unavailable because python `openai` package is missing."
+                extra_payload = {"openai_import_error": _OPENAI_IMPORT_ERROR}
+            else:
+                logger.warning(
+                    "Deep research consumer enabled but Azure client is unavailable "
+                    "(set AZURE_OPENAI_ENDPOINT and either AAD identity or AZURE_OPENAI_API_KEY)"
+                )
+                reason_code = "missing_openai_credentials"
+                trace_message = "Deep research client unavailable due to missing Azure OpenAI credentials."
+                extra_payload = {
+                    "has_endpoint": bool(self.azure_openai_endpoint),
+                    "has_api_key": bool(self.azure_openai_api_key),
+                }
             try:
                 await self.db.connect()
                 await emit_trace(
@@ -158,12 +179,9 @@ class DeepResearchConsumer:
                     stage="deep_research_failed_actionable",
                     status="failure",
                     severity="critical",
-                    reason_code="missing_openai_credentials",
-                    message="Deep research client unavailable due to missing Azure OpenAI credentials.",
-                    payload={
-                        "has_endpoint": bool(self.azure_openai_endpoint),
-                        "has_api_key": bool(self.azure_openai_api_key),
-                    },
+                    reason_code=reason_code,
+                    message=trace_message,
+                    payload=extra_payload,
                     dedupe_key=f"deep_research_client_unavailable:{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H')}",
                     should_notify=True,
                 )

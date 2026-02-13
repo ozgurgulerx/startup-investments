@@ -43,7 +43,10 @@ class InvestorDNAEngine:
         month_date = date.fromisoformat(f"{period}-01")
         logger.info("Computing investor DNA: period=%s scope=%s", period, scope)
 
-        # Load funding rounds + investments + patterns for the period
+        # Load investor funding activity + patterns for the period.
+        #
+        # Canonical source is capital_graph_edges (investor -> startup edges) because our
+        # primary pipelines populate the capital graph, not the legacy investments table.
         rounds_data = await self._load_period_data(period, scope)
         if not rounds_data:
             logger.warning("No funding data for period=%s scope=%s", period, scope)
@@ -194,7 +197,91 @@ class InvestorDNAEngine:
         return stats
 
     async def _load_period_data(self, period: str, scope: str) -> List[dict]:
-        """Load funding rounds with investor and pattern data for a period."""
+        """Load funding rounds with investor and pattern data for a period.
+
+        Prefers capital_graph_edges (canonical) and falls back to legacy investments join.
+        """
+        # Prefer graph-backed investor edges (populated by CSV sync + news ingest).
+        try:
+            has_graph = await self.conn.fetchval(
+                "SELECT to_regclass('public.capital_graph_edges') IS NOT NULL"
+            )
+        except Exception:
+            has_graph = False
+
+        if has_graph:
+            try:
+                rows = await self.conn.fetch(
+                    """
+                    WITH edges AS (
+                      SELECT
+                        COALESCE(
+                          NULLIF(e.attrs_json->>'announced_date', '')::date,
+                          e.valid_from
+                        ) AS edge_date,
+                        e.dst_id AS startup_id,
+                        e.src_id AS investor_id,
+                        COALESCE(
+                          NULLIF(e.attrs_json->>'round_type', ''),
+                          fr.round_type,
+                          e.edge_type
+                        ) AS round_type,
+                        COALESCE(
+                          NULLIF(e.attrs_json->>'amount_usd', '')::numeric,
+                          fr.amount_usd
+                        ) AS amount_usd,
+                        TRUE AS is_lead,
+                        COALESCE(fr.id::text, '') AS funding_round_id
+                      FROM capital_graph_edges e
+                      JOIN startups s ON s.id = e.dst_id
+                      LEFT JOIN funding_rounds fr
+                        ON fr.startup_id = e.dst_id
+                       AND fr.announced_date = COALESCE(
+                            NULLIF(e.attrs_json->>'announced_date', '')::date,
+                            e.valid_from
+                          )
+                       AND (
+                            NULLIF(e.attrs_json->>'round_type', '') IS NULL
+                            OR lower(fr.round_type) = lower(NULLIF(e.attrs_json->>'round_type', ''))
+                          )
+                      WHERE e.src_type = 'investor'
+                        AND e.dst_type = 'startup'
+                        AND e.region = $2
+                        AND e.valid_to = DATE '9999-12-31'
+                        AND s.dataset_region = $2
+                    )
+                    SELECT
+                      CASE
+                        WHEN funding_round_id <> '' THEN funding_round_id
+                        ELSE (startup_id::text || ':' || round_type || ':' || edge_date::text)
+                      END AS round_id,
+                      startup_id,
+                      round_type,
+                      amount_usd,
+                      investor_id,
+                      is_lead,
+                      ss.funding_stage,
+                      ss.build_patterns
+                    FROM edges
+                    LEFT JOIN startup_state_snapshot ss
+                      ON ss.startup_id = edges.startup_id
+                     AND ss.analysis_period = $1
+                    WHERE edge_date >= ($1 || '-01')::date
+                      AND edge_date < (($1 || '-01')::date + INTERVAL '1 month')
+                    """,
+                    period,
+                    scope,
+                )
+                return [dict(r) for r in rows]
+            except Exception:
+                logger.exception(
+                    "Failed loading investor DNA period data from capital graph (period=%s scope=%s); "
+                    "falling back to legacy investments path",
+                    period,
+                    scope,
+                )
+
+        # Legacy fallback: funding_rounds + investments join.
         rows = await self.conn.fetch(
             """
             SELECT fr.id AS round_id, fr.startup_id, fr.round_type, fr.amount_usd,
@@ -210,7 +297,8 @@ class InvestorDNAEngine:
               AND fr.announced_date < (($1 || '-01')::date + INTERVAL '1 month')
               AND s.dataset_region = $2
             """,
-            period, scope,
+            period,
+            scope,
         )
         return [dict(r) for r in rows]
 

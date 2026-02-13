@@ -90,10 +90,17 @@ export function DeepDiveHeader({ signal, version, createdAt, diff, sampleCount }
 
         <span className="h-3 w-px bg-border/30" />
 
-        <span className="text-xs text-muted-foreground/60 flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          {sampleCount} companies sampled
-        </span>
+        {sampleCount > 0 ? (
+          <span className="text-xs text-muted-foreground/60 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {sampleCount} companies sampled
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/60 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            Trend-only (no startups sampled)
+          </span>
+        )}
 
         <span className="text-xs text-muted-foreground/60">
           Generated {timeAgo(createdAt)}

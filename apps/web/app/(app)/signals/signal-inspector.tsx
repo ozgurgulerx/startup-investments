@@ -75,6 +75,7 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 const EVIDENCE_TYPE_LABELS: Record<string, string> = {
+  event: 'Event',
   news: 'News',
   cluster: 'Cluster',
   crawl_diff: 'Crawl',
@@ -82,6 +83,7 @@ const EVIDENCE_TYPE_LABELS: Record<string, string> = {
 };
 
 const EVIDENCE_TYPE_LABELS_TR: Record<string, string> = {
+  event: 'Olay',
   news: 'Haber',
   cluster: 'Kume',
   crawl_diff: 'Tarama',

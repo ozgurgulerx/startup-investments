@@ -64,6 +64,8 @@ Important headers/invariants:
   - `backend-deploy.yml` must be able to connect to the AKS control plane.
 - Avoid making `/dealbook` depend on slow file-based reads in steady state:
   - When API is down, web falls back to file reads; this is a degradation mode.
+- Keep `packages/analysis/src/automation/__init__.py` import-light (no eager imports of optional heavy deps like `openai`).
+  - Cron jobs import `src.automation.*` submodules; an import-time crash here can take down unrelated jobs (e.g. `event-processor`).
 - News email subscriptions are **double opt-in**:
   - New signups are stored as `pending_confirmation` and must be activated via the emailed confirmation link.
   - Unsubscribe is token-based (`GET /api/news/subscriptions?token=...`); do not add raw email-based unsubscribe endpoints.
@@ -140,6 +142,11 @@ VM cron runner:
     - `METRICS_REPORT_EMAIL_SUBJECT_PREFIX` prepends email subject.
     - Delivery is best-effort: Slack summary still posts if email send fails.
   - Schedule: `slack-summary` runs every 3 hours at minute `:00` UTC (`0 */3 * * *`).
+  - AKS fallback (VM-independent): `posthog-usage-summary` CronJob posts the same PostHog usage block to Slack:
+    - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
+    - Image: `aistartuptr.azurecr.io/buildatlas-ops:latest` (built from `infrastructure/ops/Dockerfile`)
+    - Secrets: Kubernetes `buildatlas-ops-secrets` (`slack-webhook-url`, `posthog-project-id`, `posthog-personal-api-key`, optional `posthog-host`)
+    - Deploy: `.github/workflows/ops-posthog-usage-deploy.yml` (manual `workflow_dispatch`)
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
 - VM access (for manual deploy/debug):
@@ -243,6 +250,11 @@ News:
     - `deep-dive-generate.sh` runs migration preflight (`apply-migrations.sh news`) before computing occurrences/generating deep dives.
   - Runtime degradation behavior:
     - If deep-dive tables are unavailable, backend deep-dive endpoints should return empty payloads (not crash) so `/signals/[id]` can show "No deep dive available yet" instead of failing hard.
+  - Coverage behavior (important for "empty deep dive" debugging):
+    - Deep-dive generation prefers per-startup samples from `signal_occurrences` (requires startup-linked evidence).
+    - If a signal cannot produce a per-startup sample set (e.g., evidence is mostly `startup_id=NULL` or too sparse), the pipeline falls back to a **trend-only deep dive** synthesized from recent `signal_evidence` rows.
+      - These deep dives may have `sample_count=0` and should be treated as "trend-level" (no startup case studies/watchlist unless startups are explicitly linked).
+    - Backend `GET /api/v1/signals/:id/deep-dive` includes best-effort `meta` diagnostics (`startups_eligible`, `unlinked_evidence_count`, `occurrences_total`, `latest_status`) to help explain why a deep dive is missing.
 - Daily brief + LLM enrichment (news):
   - Controlled by `NEWS_LLM_ENRICHMENT=true` (and optional `NEWS_LLM_DAILY_BRIEF=true`) in `/etc/buildatlas/.env`.
   - Intel headline mode is controlled by `INTEL_FIRST_PROMPT=true` (recommended ON in prod VM). When enabled, cards prefer `news_clusters.ba_title`/`ba_bullets`/`why_it_matters`.
@@ -426,6 +438,29 @@ Quick checks:
   - `SELECT COUNT(*) FROM mv_startup_investors_current;`
 - Extension status (optional):
   - `SELECT extname FROM pg_extension WHERE extname='age';`
+
+## Investor DNA (Screener)
+
+The `/investors` UI is backed by monthly materialized tables (migration: `database/migrations/054_investor_dna.sql`):
+- `investor_pattern_mix` (drives the screener list; latest month per `scope`)
+- `investor_co_invest_edges` (drives top co-investors on profile pages when available)
+
+Population model/invariants:
+- Canonical source is `capital_graph_edges` (`investor --LEADS_ROUND--> startup`) filtered by month using:
+  - `attrs_json.announced_date` when present
+  - otherwise `valid_from`
+- Legacy fallback (older environments only): `funding_rounds` + `investments` join.
+
+Automation:
+- VM cron job: `infrastructure/vm-cron/jobs/compute-investor-dna.sh` (scheduled in `infrastructure/vm-cron/crontab`)
+- The job computes both **previous** and **current** month for `global` + `turkey` to avoid “empty month” behavior early in the month.
+
+Quick checks:
+- Is the screener table empty?
+  - `SELECT scope, COUNT(*) AS rows, MAX(month) AS latest_month FROM investor_pattern_mix GROUP BY scope;`
+- If empty, recompute for a period:
+  - `cd packages/analysis && python main.py compute-investor-dna --period YYYY-MM --scope global`
+  - `cd packages/analysis && python main.py compute-investor-dna --period YYYY-MM --scope turkey`
 
 ### News Regions (Global vs Turkey)
 

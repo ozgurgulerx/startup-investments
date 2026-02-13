@@ -68,32 +68,79 @@ export default function BenchmarksPage() {
   const [selectedMetric, setSelectedMetric] = useState('funding_total_usd');
   const [sector, setSector] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [benchLoading, setBenchLoading] = useState(false);
 
   useEffect(() => {
-    async function load() {
+    let cancelled = false;
+
+    async function loadCohorts() {
+      setLoading(true);
       try {
         const params = new URLSearchParams();
         if (region !== 'global') params.set('region', region);
+        // Sector is accepted for forward-compat; backend may choose to filter cohorts later.
         if (sector) params.set('sector', sector);
         const qs = params.toString();
-        const prefix = qs ? `?${qs}` : '';
-        const [cohortRes, benchRes] = await Promise.all([
-          fetch(`/api/benchmarks/cohorts${prefix}`),
-          fetch(`/api/benchmarks${prefix}`),
-        ]);
-        if (cohortRes.ok) setCohorts(await cohortRes.json());
-        if (benchRes.ok) {
+        const cohortRes = await fetch(`/api/benchmarks/cohorts${qs ? `?${qs}` : ''}`);
+        if (!cancelled && cohortRes.ok) {
+          setCohorts(await cohortRes.json());
+        }
+      } catch (err) {
+        console.error('Failed to load benchmark cohorts:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadCohorts();
+    return () => { cancelled = true; };
+  }, [region, sector]);
+
+  useEffect(() => {
+    if (cohorts.length === 0) return;
+    const keys = new Set(cohorts.map(c => c.cohort_key));
+    if (keys.has(selectedCohort)) return;
+    const fallback = cohorts.find(c => c.cohort_key === 'all:all')?.cohort_key || cohorts[0]?.cohort_key || 'all:all';
+    setSelectedCohort(fallback);
+  }, [cohorts, selectedCohort]);
+
+  useEffect(() => {
+    if (!selectedCohort) return;
+    let cancelled = false;
+
+    async function loadBenchmarksForCohort() {
+      setBenchLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (region !== 'global') params.set('region', region);
+        // Keep sector in the query so future backend filtering stays consistent.
+        if (sector) params.set('sector', sector);
+        params.set('cohort_key', selectedCohort);
+
+        const qs = params.toString();
+        const benchRes = await fetch(`/api/benchmarks${qs ? `?${qs}` : ''}`);
+        if (!cancelled && benchRes.ok) {
           const data = await benchRes.json();
           setBenchmarks(data.benchmarks || []);
         }
       } catch (err) {
         console.error('Failed to load benchmarks:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setBenchLoading(false);
       }
     }
-    load();
-  }, [region, sector]);
+
+    loadBenchmarksForCohort();
+    return () => { cancelled = true; };
+  }, [region, sector, selectedCohort]);
+
+  useEffect(() => {
+    if (benchmarks.length === 0) return;
+    const available = new Set(benchmarks.map(b => b.metric));
+    if (!available.has(selectedMetric)) {
+      setSelectedMetric(benchmarks[0].metric);
+    }
+  }, [benchmarks, selectedMetric]);
 
   const filteredCohorts = useMemo(() => {
     if (selectedCohortType === 'all') return cohorts;
@@ -160,7 +207,11 @@ export default function BenchmarksPage() {
               {cohortTypes.map(ct => (
                 <button
                   key={ct}
-                  onClick={() => { setSelectedCohortType(ct); setSelectedCohort(filteredCohorts[0]?.cohort_key || 'all:all'); }}
+                  onClick={() => {
+                    setSelectedCohortType(ct);
+                    const next = ct === 'all' ? cohorts : cohorts.filter(c => c.cohort_type === ct);
+                    setSelectedCohort(next[0]?.cohort_key || 'all:all');
+                  }}
                   className={`px-2.5 py-1 text-xs rounded transition-colors ${
                     selectedCohortType === ct
                       ? 'bg-accent-info/15 text-accent-info'
@@ -216,6 +267,14 @@ export default function BenchmarksPage() {
         {/* Right Panel — Distribution + Stats */}
         <div className="space-y-6">
           {/* Distribution Chart */}
+          {benchLoading && benchmarks.length === 0 && (
+            <div className="p-4 border border-border/30 rounded-lg">
+              <div className="h-4 w-48 bg-muted/20 rounded animate-pulse mb-2" />
+              <div className="h-3 w-32 bg-muted/15 rounded animate-pulse mb-6" />
+              <div className="h-48 bg-muted/10 rounded animate-pulse" />
+            </div>
+          )}
+
           {distributionData.length > 0 && (
             <div className="p-4 border border-border/30 rounded-lg">
               <h3 className="text-sm font-medium text-foreground mb-1">

@@ -487,6 +487,16 @@ export interface DeepDiveResponse {
     diff_json: Record<string, any>;
     created_at: string;
   } | null;
+  meta?: {
+    schema_missing: boolean;
+    unlinked_evidence_count: number;
+    startups_with_evidence: number;
+    startups_eligible: number;
+    occurrences_total: number;
+    latest_status: string | null;
+    latest_version: number | null;
+    latest_created_at: string | null;
+  } | null;
 }
 
 export interface OccurrenceItem {
@@ -675,19 +685,23 @@ export interface BenchmarksResponse {
 }
 
 export async function getStartupNeighbors(slug: string, params?: {
+  region?: string;
   period?: string;
   limit?: number;
 }): Promise<NeighborsResponse> {
   const qs = new URLSearchParams();
+  if (params?.region) qs.set('region', params.region);
   if (params?.period) qs.set('period', params.period);
   if (params?.limit) qs.set('limit', String(params.limit));
   return fetchFromAPI<NeighborsResponse>(`/api/v1/companies/${slug}/neighbors?${qs.toString()}`);
 }
 
 export async function getStartupBenchmarks(slug: string, params?: {
+  region?: string;
   period?: string;
 }): Promise<BenchmarksResponse> {
   const qs = new URLSearchParams();
+  if (params?.region) qs.set('region', params.region);
   if (params?.period) qs.set('period', params.period);
   return fetchFromAPI<BenchmarksResponse>(`/api/v1/companies/${slug}/benchmarks?${qs.toString()}`);
 }

@@ -51,7 +51,7 @@ export function StartupDeltas({ slug, region }: StartupDeltasProps) {
   useEffect(() => {
     const params = new URLSearchParams({ limit: '8' });
     if (region && region !== 'global') params.set('region', region);
-    fetch(`/api/v1/companies/${encodeURIComponent(slug)}/deltas?${params}`)
+    fetch(`/api/companies/${encodeURIComponent(slug)}/deltas?${params}`)
       .then((res) => (res.ok ? res.json() : { events: [] }))
       .then((data) => {
         if (data.events) setEvents(data.events);

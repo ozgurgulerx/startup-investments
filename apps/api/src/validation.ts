@@ -448,11 +448,13 @@ export const startupDeltasQuerySchema = z.object({
 });
 
 export const startupNeighborsQuerySchema = z.object({
+  region: z.enum(['global', 'turkey']).default('global'),
   period: optionalTrimmedString(10),
   limit: z.coerce.number().int().min(1).max(20).default(8),
 });
 
 export const startupBenchmarksQuerySchema = z.object({
+  region: z.enum(['global', 'turkey']).default('global'),
   period: optionalTrimmedString(10),
 });
 

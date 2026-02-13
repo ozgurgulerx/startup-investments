@@ -26,6 +26,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 import re
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -112,6 +113,19 @@ def _as_int(value: Any) -> int | None:
         except ValueError:
             return None
     return None
+
+
+def _as_bool(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        s = value.strip().lower()
+        return s in ("1", "true", "yes", "y", "on")
+    return False
 
 
 def _mask_email(email: str) -> str:
@@ -912,6 +926,146 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
         await conn.close()
 
 
+async def _subscriber_list_rows(
+    database_url: str,
+    *,
+    status: str,
+    region: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    if asyncpg is None:
+        raise RuntimeError(f"asyncpg import failed: {_asyncpg_import_error}")
+
+    status_norm = (status or "active").strip().lower()
+    if status_norm not in ("active", "pending_confirmation", "unsubscribed", "bounced", "all"):
+        status_norm = "active"
+
+    region_norm = (region or "").strip().lower() or None
+    if region_norm not in (None, "global", "turkey"):
+        region_norm = None
+
+    limit = max(1, min(int(limit), 20000))
+
+    where = []
+    args: list[Any] = []
+    if status_norm != "all":
+        where.append(f"status = ${len(args) + 1}")
+        args.append(status_norm)
+    if region_norm is not None:
+        where.append(f"region = ${len(args) + 1}")
+        args.append(region_norm)
+
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    query = f"""
+        SELECT
+          email,
+          region,
+          COALESCE(NULLIF(digest_frequency, ''), 'daily') AS digest_frequency,
+          status,
+          created_at,
+          confirmed_at
+        FROM news_email_subscriptions
+        {where_sql}
+        ORDER BY confirmed_at DESC NULLS LAST, created_at DESC
+        LIMIT {limit}
+    """
+
+    conn = await asyncpg.connect(database_url)
+    try:
+        rows = await conn.fetch(query, *args)
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            out.append(
+                {
+                    "email": str(r["email"] or ""),
+                    "region": str(r["region"] or ""),
+                    "digest_frequency": str(r["digest_frequency"] or ""),
+                    "status": str(r["status"] or ""),
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    "confirmed_at": r["confirmed_at"].isoformat() if r["confirmed_at"] else None,
+                }
+            )
+        return out
+    finally:
+        await conn.close()
+
+
+def _subscriber_list_state_path() -> Path:
+    preferred = Path("/var/lib/buildatlas")
+    if _IS_VM and preferred.is_dir() and os.access(str(preferred), os.W_OK):
+        return preferred / "subscriber-list-email.last"
+
+    repo_root = Path(__file__).resolve().parents[1]
+    tmp_dir = repo_root / ".tmp"
+    try:
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return tmp_dir / "subscriber-list-email.last"
+
+
+def _read_state_marker(path: Path) -> str | None:
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace").strip()
+        return raw or None
+    except FileNotFoundError:
+        return None
+    except Exception:
+        return None
+
+
+def _write_state_marker(path: Path, value: str) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((value or "").strip() + "\n", encoding="utf-8")
+    except Exception:
+        # Best-effort; avoid failing Slack summary on state persistence issues.
+        pass
+
+
+def _subscriber_list_anchor_date(now_utc: datetime, *, hour: int, minute: int) -> str:
+    # Send once per day; the "report date" is anchored at the configured UTC time.
+    anchor = datetime(now_utc.year, now_utc.month, now_utc.day, hour, minute, tzinfo=timezone.utc)
+    if now_utc < anchor:
+        anchor -= timedelta(days=1)
+    return anchor.date().isoformat()
+
+
+def _build_subscriber_list_report(
+    *,
+    report_date: str,
+    generated_at_utc: datetime,
+    rows: list[dict[str, Any]],
+    include_full_emails: bool,
+    status: str,
+    region: str | None,
+    truncated: bool,
+) -> str:
+    lines: list[str] = []
+    lines.append("Build Atlas subscriber email list")
+    lines.append(f"Report date (UTC): {report_date}")
+    lines.append(f"Generated at (UTC): {generated_at_utc.strftime('%Y-%m-%d %H:%M UTC')}")
+    region_suffix = f" region={region}" if region else ""
+    lines.append(f"Filter: status={status}{region_suffix}")
+    lines.append(f"Rows: {len(rows)}{' (TRUNCATED)' if truncated else ''}")
+    lines.append("")
+
+    segments = Counter((str(r.get("region") or ""), str(r.get("digest_frequency") or "")) for r in rows)
+    if segments:
+        lines.append("Segments:")
+        for (seg_region, seg_freq), count in sorted(segments.items(), key=lambda x: (x[0][0], x[0][1])):
+            lines.append(f"- {seg_region}/{seg_freq}: {count}")
+        lines.append("")
+
+    lines.append("Emails:")
+    for r in rows:
+        email = str(r.get("email") or "").strip()
+        if not email:
+            continue
+        lines.append(email if include_full_emails else _mask_email(email))
+    return "\n".join(lines)
+
+
 def _slack_post(webhook_url: str, payload: dict[str, Any]) -> None:
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -1020,7 +1174,8 @@ def main() -> int:
     # Back-compat: some environments use SLACK_WEBHOOK instead of SLACK_WEBHOOK_URL.
     webhook_url = _env("SLACK_WEBHOOK_URL") or _env("SLACK_WEBHOOK")
     metrics_email_to_raw = _env("METRICS_REPORT_EMAIL_TO")
-    if not webhook_url and not metrics_email_to_raw:
+    subscriber_list_to_raw = _env("SUBSCRIBER_LIST_EMAIL_TO")
+    if not webhook_url and not metrics_email_to_raw and not subscriber_list_to_raw:
         return 0
 
     repo = _env("GITHUB_REPOSITORY")

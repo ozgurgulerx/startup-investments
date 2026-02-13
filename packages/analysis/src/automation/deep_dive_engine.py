@@ -800,6 +800,108 @@ RULES:
 - Keep total response under 5000 tokens."""
 
 
+def _build_trend_synthesis_prompt(
+    signal: Dict[str, Any],
+    evidence_items: List[Dict[str, Any]],
+    linked_startups: List[Dict[str, Any]],
+) -> str:
+    """Build the LLM prompt for trend-only deep dive synthesis.
+
+    Used when we can't build a per-startup sample set (e.g., occurrences empty),
+    but there is still meaningful signal_evidence to synthesize.
+    """
+    explain = {}
+    try:
+        meta = signal.get("metadata_json") or {}
+        meta_obj = meta if isinstance(meta, dict) else json.loads(meta)
+        explain = meta_obj.get("explain_json") or {}
+    except Exception:
+        explain = {}
+
+    allowed_slugs = [s.get("slug") for s in linked_startups if s.get("slug")]
+    startups_section = ""
+    if linked_startups:
+        startups_section = "\n".join(
+            f"- {s.get('name', 'Unknown')} ({s.get('slug', '')}) | Stage: {s.get('funding_stage') or 'unknown'} | Evidence: {s.get('evidence_count', 0)}"
+            for s in linked_startups
+        )
+    else:
+        startups_section = "(none)"
+
+    evidence_lines = []
+    for ev in evidence_items:
+        evid = (ev.get("id") or "")[:8]
+        title = ev.get("title") or ev.get("snippet") or ""
+        url = ev.get("url") or ""
+        slug = ev.get("startup_slug") or "trend"
+        etype = ev.get("type") or "event"
+        line = f"  [{evid}] ({etype}) {slug}: {title}"
+        if url:
+            line += f" ({url})"
+        evidence_lines.append(line)
+    evidence_section = "\n".join(evidence_lines) if evidence_lines else "(no evidence)"
+
+    return f"""You are a senior investment analyst creating a deep dive report on a startup signal.
+
+IMPORTANT CONTEXT:
+- Sometimes evidence is trend-level (not linked to specific startups). In that case, you must avoid inventing startups.
+
+SIGNAL:
+- Claim: {signal.get('claim', '')}
+- Domain: {signal.get('domain', '')}
+- Status: {signal.get('status', '')}
+- Conviction: {float(signal.get('conviction') or 0):.0%}
+- Momentum: {float(signal.get('momentum') or 0):.0%}
+- Impact: {float(signal.get('impact') or 0):.0%}
+- Companies tracked (may be 0 if unlinked): {signal.get('unique_company_count', 0)}
+- Evidence items: {signal.get('evidence_count', 0)}
+
+EXPLAIN (template, may be empty):
+- Definition: {explain.get('definition') or ''}
+- Why: {explain.get('why') or ''}
+- Risk: {explain.get('risk') or ''}
+- Time horizon: {explain.get('time_horizon') or ''}
+- Examples (names only): {json.dumps(explain.get('examples') or [])}
+
+LINKED STARTUPS (ONLY use these slugs anywhere in output, otherwise keep startup lists empty):
+{startups_section}
+
+RECENT EVIDENCE:
+{evidence_section}
+
+Generate a complete deep dive report as JSON with this exact structure:
+{{
+  "tldr": "2-3 sentence executive summary (max 300 chars)",
+  "mechanism": "What this signal measures and why it matters (2-3 paragraphs, max 800 chars)",
+  "patterns": [
+    {{"archetype": "Name of pattern", "description": "How this archetype plays out", "startups": ["slug1", "slug2"]}}
+  ],
+  "case_studies": [
+    {{
+      "startup_slug": "slug",
+      "startup_name": "Company Name",
+      "summary": "2-3 sentence overview",
+      "key_moves": ["Move 1", "Move 2"]
+    }}
+  ],
+  "thresholds": [
+    {{"metric": "Metric name", "value": "Threshold value", "action": "What to do when threshold is crossed"}}
+  ],
+  "failure_modes": [
+    {{"mode": "Failure mode name", "description": "What goes wrong and why", "example": "Optional real example or null"}}
+  ],
+  "watchlist": [
+    {{"startup_slug": "slug", "why": "Why this company is worth watching"}}
+  ]
+}}
+
+RULES:
+- Be specific and actionable. Avoid generic advice.
+- If evidence is not linked to startups, set case_studies = [] and watchlist = [] and keep patterns[*].startups = [].
+- If you include ANY startup_slug anywhere (patterns/case_studies/watchlist), it MUST be one of these slugs: {json.dumps(allowed_slugs)}
+- Keep total response under 5000 tokens."""
+
+
 async def synthesize_deep_dive(
     conn: asyncpg.Connection,
     signal_id: str,
@@ -968,6 +1070,188 @@ async def synthesize_deep_dive(
         return None
 
 
+async def synthesize_trend_deep_dive(
+    conn: asyncpg.Connection,
+    signal_id: str,
+    force: bool = False,
+    evidence_limit: int = 30,
+) -> Optional[Dict[str, Any]]:
+    """Synthesize a deep dive even when we can't build a per-startup sample set.
+
+    This produces a "trend-only" deep dive (sample_count may be 0) using the most
+    recent signal_evidence rows, and optionally a small set of linked startups
+    (if any exist).
+    """
+    # Fetch signal (include metadata_json for explain context)
+    signal = await conn.fetchrow(
+        """SELECT id::text, claim, domain, status, conviction, momentum, impact,
+                  adoption_velocity, evidence_count, unique_company_count, region,
+                  metadata_json
+           FROM signals WHERE id = $1::uuid""",
+        signal_id,
+    )
+    if not signal:
+        logger.warning("Signal %s not found", signal_id[:8])
+        return None
+
+    # Gather recent evidence (linked or unlinked)
+    evidence_rows = await conn.fetch(
+        """SELECT se.id::text AS id,
+                  se.evidence_type AS type,
+                  se.snippet AS snippet,
+                  se.source_url AS source_url,
+                  se.created_at AS created_at,
+                  nc.title AS cluster_title,
+                  nc.canonical_url AS cluster_url,
+                  nc.builder_takeaway AS cluster_takeaway,
+                  s.slug AS startup_slug
+           FROM signal_evidence se
+           LEFT JOIN news_clusters nc ON nc.id = se.cluster_id
+           LEFT JOIN startups s ON s.id = se.startup_id
+           WHERE se.signal_id = $1::uuid
+           ORDER BY se.created_at DESC
+           LIMIT $2""",
+        signal_id,
+        max(1, evidence_limit),
+    )
+    if not evidence_rows:
+        logger.debug("Signal %s has no evidence rows; skipping trend deep dive", signal_id[:8])
+        return None
+
+    evidence_ids = [r["id"] for r in evidence_rows if r.get("id")]
+    current_hash = hashlib.sha256("|".join(sorted(evidence_ids)).encode()).hexdigest()
+
+    if not force:
+        latest = await conn.fetchrow(
+            """SELECT evidence_hash, version FROM signal_deep_dives
+               WHERE signal_id = $1::uuid AND status = 'ready'
+               ORDER BY version DESC LIMIT 1""",
+            signal_id,
+        )
+        if latest and latest["evidence_hash"] == current_hash:
+            logger.info("Trend deep dive for signal %s unchanged, skipping", signal_id[:8])
+            return None
+
+    # Linked startups (if any), ranked by evidence count
+    startup_rows = await conn.fetch(
+        """SELECT s.id::text AS startup_id,
+                  s.name AS name,
+                  s.slug AS slug,
+                  s.funding_stage AS funding_stage,
+                  COUNT(*) AS evidence_count
+           FROM signal_evidence se
+           JOIN startups s ON s.id = se.startup_id
+           WHERE se.signal_id = $1::uuid AND se.startup_id IS NOT NULL
+           GROUP BY s.id, s.name, s.slug, s.funding_stage
+           ORDER BY COUNT(*) DESC, s.name
+           LIMIT 12""",
+        signal_id,
+    )
+    linked_startups = [dict(r) for r in startup_rows]
+
+    # Determine next version
+    last_version = await conn.fetchval(
+        "SELECT COALESCE(MAX(version), 0) FROM signal_deep_dives WHERE signal_id = $1::uuid",
+        signal_id,
+    )
+    new_version = last_version + 1
+
+    sample_startup_ids = [s.get("startup_id") for s in linked_startups if s.get("startup_id")]
+    dive_id = await conn.fetchval(
+        """INSERT INTO signal_deep_dives
+           (signal_id, version, status, sample_startup_ids, sample_count, evidence_hash)
+           VALUES ($1::uuid, $2, 'generating', $3, $4, $5)
+           RETURNING id::text""",
+        signal_id,
+        new_version,
+        sample_startup_ids,
+        len(sample_startup_ids),
+        current_hash,
+    )
+
+    client = _create_llm_client()
+    if not client:
+        await conn.execute(
+            "UPDATE signal_deep_dives SET status = 'failed' WHERE id = $1::uuid",
+            dive_id,
+        )
+        return None
+
+    model = settings.azure_openai.fast_model
+
+    evidence_items: List[Dict[str, Any]] = []
+    for r in evidence_rows:
+        title = r.get("cluster_title") or ""
+        snippet = r.get("snippet") or r.get("cluster_takeaway") or ""
+        text = title or snippet
+        if not text.strip():
+            continue
+        url = r.get("source_url") or r.get("cluster_url") or ""
+        evidence_items.append({
+            "id": r.get("id"),
+            "type": r.get("type") or "event",
+            "startup_slug": r.get("startup_slug"),
+            "title": title[:200] if title else "",
+            "snippet": snippet[:300] if snippet else "",
+            "url": url,
+        })
+        if len(evidence_items) >= 20:
+            break
+
+    prompt = _build_trend_synthesis_prompt(dict(signal), evidence_items, linked_startups)
+
+    try:
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a senior investment analyst. Generate structured deep dive reports as JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            **llm_kwargs(model, max_tokens=4000),
+        )
+
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty LLM response")
+
+        content_json = json.loads(content)
+        total_tokens = (
+            (response.usage.prompt_tokens if response.usage else 0)
+            + (response.usage.completion_tokens if response.usage else 0)
+        )
+
+        await conn.execute(
+            """UPDATE signal_deep_dives
+               SET status = 'ready',
+                   content_json = $2::jsonb,
+                   generation_model = $3,
+                   generation_cost_tokens = $4
+               WHERE id = $1::uuid""",
+            dive_id,
+            json.dumps(content_json),
+            model,
+            total_tokens,
+        )
+
+        if last_version > 0:
+            await _compute_version_diff(conn, signal_id, last_version, new_version)
+
+        logger.info(
+            "Trend deep dive synthesized for signal %s v%d (%d tokens)",
+            signal_id[:8], new_version, total_tokens,
+        )
+        return content_json
+
+    except Exception as exc:
+        logger.error("Trend deep dive synthesis failed for signal %s: %s", signal_id[:8], exc)
+        await conn.execute(
+            "UPDATE signal_deep_dives SET status = 'failed' WHERE id = $1::uuid",
+            dive_id,
+        )
+        return None
+
+
 async def _compute_version_diff(
     conn: asyncpg.Connection,
     signal_id: str,
@@ -1083,7 +1367,13 @@ async def generate_deep_dives(
                 # Select sample startups
                 samples = await _select_sample_startups(conn, sig["id"])
                 if len(samples) < 2:
-                    logger.debug("Signal %s has too few samples (%d), skipping", sig["id"][:8], len(samples))
+                    logger.debug(
+                        "Signal %s has too few samples (%d); attempting trend-only deep dive",
+                        sig["id"][:8], len(samples),
+                    )
+                    content = await synthesize_trend_deep_dive(conn, sig["id"], force=force)
+                    if content:
+                        stats["dives_synthesized"] += 1
                     continue
 
                 # Phase 5: Extract moves

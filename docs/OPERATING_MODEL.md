@@ -121,6 +121,7 @@ Do not break these:
 |---|---|---|
 | VM cron jobs | `/etc/buildatlas/.env` | Loaded by `runner.sh` |
 | API pods | Kubernetes secret `startup-investments-secrets` | Refreshed in `backend-deploy.sh` |
+| AKS ops CronJobs | Kubernetes secret `buildatlas-ops-secrets` | Ops-only scheduled tasks (keep isolated from API secrets) |
 | App Service web | App settings | Set/updated in `frontend-deploy.sh` |
 | GitHub workflows | Repository secrets/variables | Backup and selected active automations |
 
@@ -153,6 +154,24 @@ Git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock`.
 - VM health telemetry: `/var/log/buildatlas/heartbeat.log`
 - Drift/availability alerts: heartbeat + release reconciler + health report + Slack dispatch.
 
+## 7.1) AKS Ops CronJobs
+
+Some ops tasks run as AKS CronJobs to avoid VM availability issues.
+
+- PostHog usage summary:
+  - Resource: `CronJob/posthog-usage-summary` (namespace `default`)
+  - Schedule: `0 */3 * * *` (UTC)
+  - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
+  - Image: `aistartuptr.azurecr.io/buildatlas-ops:latest` (from `infrastructure/ops/Dockerfile`)
+  - Secret: `Secret/buildatlas-ops-secrets` with:
+    - `slack-webhook-url`
+    - `posthog-project-id`
+    - `posthog-personal-api-key`
+    - optional: `posthog-host`
+  - Deploy workflow: `.github/workflows/ops-posthog-usage-deploy.yml` (manual backup/ops)
+  - One-off run:
+    - `kubectl create job -n default --from=cronjob/posthog-usage-summary posthog-usage-summary-manual-<id>`
+
 ## 8) Cron Schedule Inventory (UTC)
 
 ### Scheduled jobs
@@ -172,9 +191,12 @@ Git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock`.
 | `x-post-publish` | `55 * * * *` | 10 | `infrastructure/vm-cron/jobs/x-post-publish.sh` |
 | `x-post-metrics` | `20 */6 * * *` | 10 | `infrastructure/vm-cron/jobs/x-post-metrics.sh` |
 | `weekly-brief` | `0 6 * * 1` | 20 | `infrastructure/vm-cron/jobs/weekly-brief.sh` |
+| `generate-weekly-digest` | `35 6 * * 1` | 15 | `infrastructure/vm-cron/jobs/generate-weekly-digest.sh` |
 | `monthly-brief` | `0 6 1 * *` | 20 | `infrastructure/vm-cron/jobs/monthly-brief.sh` |
 | `embed-backfill` | `25 * * * *` | 15 | `infrastructure/vm-cron/jobs/embed-backfill.sh` |
 | `signal-aggregate` | `30 */4 * * *` | 10 | `infrastructure/vm-cron/jobs/signal-aggregate.sh` |
+| `delta-generate` | `38 */4 * * *` | 15 | `infrastructure/vm-cron/jobs/delta-generate.sh` |
+| `generate-alerts` | `48 */4 * * *` | 15 | `infrastructure/vm-cron/jobs/generate-alerts.sh` |
 | `deep-dive-generate` | `15 5 * * *` | 45 | `infrastructure/vm-cron/jobs/deep-dive-generate.sh` |
 | `dealbook-brief` | `0 4 * * *` | 15 | `infrastructure/vm-cron/jobs/dealbook-brief.sh` |
 | `neighbors-benchmarks` | `0 7 * * 4` | 60 | `infrastructure/vm-cron/jobs/neighbors-benchmarks.sh` |

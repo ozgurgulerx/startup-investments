@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 ACTIONABLE_REASON_GUIDANCE: Dict[str, str] = {
+    "missing_openai_library": "Install the python `openai` package in the worker environment (e.g., pip install -r packages/analysis/requirements.txt).",
     "missing_openai_credentials": "Configure Azure OpenAI credentials (endpoint + AAD role or API key) on the worker environment.",
     "startup_missing_website": "Add a website for this startup so crawl/research gates can pass.",
     "startup_not_crawled_yet": "Wait for crawl-frontier to complete at least one crawl, then requeue research.",

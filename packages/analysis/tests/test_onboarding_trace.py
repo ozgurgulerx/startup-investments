@@ -40,3 +40,8 @@ def test_classify_research_failure_retry_exhausted_is_actionable():
 def test_guidance_for_reason_defaults():
     guidance = guidance_for_reason("nonexistent_reason")
     assert "Review details" in guidance
+
+
+def test_guidance_for_missing_openai_library_is_actionable():
+    guidance = guidance_for_reason("missing_openai_library")
+    assert "openai" in guidance.lower()

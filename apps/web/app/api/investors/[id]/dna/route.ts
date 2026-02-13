@@ -10,6 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching investor DNA:', error);
-    return NextResponse.json(null, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch investor DNA' }, { status: 500 });
   }
 }
+

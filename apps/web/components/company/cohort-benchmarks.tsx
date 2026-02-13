@@ -60,7 +60,7 @@ export function CohortBenchmarks({ slug, region }: CohortBenchmarksProps) {
   useEffect(() => {
     const params = new URLSearchParams();
     if (region && region !== 'global') params.set('region', region);
-    fetch(`/api/v1/companies/${encodeURIComponent(slug)}/benchmarks?${params}`)
+    fetch(`/api/companies/${encodeURIComponent(slug)}/benchmarks?${params}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((d) => {
         if (d && d.benchmarks && d.benchmarks.length > 0) setData(d);

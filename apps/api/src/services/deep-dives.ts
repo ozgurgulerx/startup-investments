@@ -70,6 +70,34 @@ export interface DiffRow {
   created_at: string;
 }
 
+export interface DeepDiveMeta {
+  /**
+   * True when the deep-dive schema isn't present (migration not applied),
+   * so deep-dive endpoints intentionally degrade to empty payloads.
+   */
+  schema_missing: boolean;
+
+  /**
+   * Evidence that isn't tied to a specific startup yet (startup_id IS NULL).
+   * These signals can still be trend-level, but won't produce per-startup occurrences.
+   */
+  unlinked_evidence_count: number;
+
+  /** Distinct startups that have at least one evidence row linked to them. */
+  startups_with_evidence: number;
+
+  /** Distinct startups that have enough linked evidence to be occurrence-eligible (>=2 evidence rows). */
+  startups_eligible: number;
+
+  /** Total per-startup occurrence rows currently computed for this signal. */
+  occurrences_total: number;
+
+  /** Latest deep-dive row status/version regardless of readiness (useful for debugging). */
+  latest_status: string | null;
+  latest_version: number | null;
+  latest_created_at: string | null;
+}
+
 function isMissingDeepDiveSchemaError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const code = (error as { code?: string }).code;
@@ -89,6 +117,7 @@ export function makeDeepDivesService(pool: Pool) {
     deep_dive: DeepDiveRow | null;
     signal: Record<string, any> | null;
     diff: DiffRow | null;
+    meta: DeepDiveMeta | null;
   }> {
     // Fetch signal
     const sigResult = await pool.query(
@@ -99,9 +128,87 @@ export function makeDeepDivesService(pool: Pool) {
       [signalId]
     );
     const signalRow = sigResult.rows[0] || null;
-    if (!signalRow) return { deep_dive: null, signal: null, diff: null };
+    if (!signalRow) return { deep_dive: null, signal: null, diff: null, meta: null };
+
+    const meta: DeepDiveMeta = {
+      schema_missing: false,
+      unlinked_evidence_count: 0,
+      startups_with_evidence: 0,
+      startups_eligible: 0,
+      occurrences_total: 0,
+      latest_status: null,
+      latest_version: null,
+      latest_created_at: null,
+    };
 
     try {
+      // Diagnostics: evidence + occurrences coverage (used by UI to explain empty states)
+      try {
+        const evidenceMeta = await pool.query(
+          `SELECT
+              COUNT(DISTINCT startup_id) FILTER (WHERE startup_id IS NOT NULL) AS startups_with_evidence,
+              COUNT(*) FILTER (WHERE startup_id IS NULL) AS unlinked_evidence_count
+           FROM signal_evidence
+           WHERE signal_id = $1::uuid`,
+          [signalId]
+        );
+        const em = evidenceMeta.rows[0] || {};
+        meta.startups_with_evidence = parseInt(em.startups_with_evidence || '0', 10);
+        meta.unlinked_evidence_count = parseInt(em.unlinked_evidence_count || '0', 10);
+
+        const eligibleRes = await pool.query(
+          `SELECT COUNT(*) AS cnt FROM (
+              SELECT startup_id
+              FROM signal_evidence
+              WHERE signal_id = $1::uuid AND startup_id IS NOT NULL
+              GROUP BY startup_id
+              HAVING COUNT(*) >= 2
+           ) t`,
+          [signalId]
+        );
+        meta.startups_eligible = parseInt((eligibleRes.rows[0] || {}).cnt || '0', 10);
+      } catch {
+        // Non-fatal; meta remains best-effort.
+      }
+
+      // Diagnostics: occurrences count + latest attempt status
+      try {
+        const occCount = await pool.query(
+          `SELECT COUNT(*) AS cnt FROM signal_occurrences WHERE signal_id = $1::uuid`,
+          [signalId]
+        );
+        meta.occurrences_total = parseInt((occCount.rows[0] || {}).cnt || '0', 10);
+      } catch (error) {
+        if (isMissingDeepDiveSchemaError(error)) {
+          meta.schema_missing = true;
+        } else {
+          throw error;
+        }
+      }
+
+      try {
+        const latestAny = await pool.query(
+          `SELECT version, status, created_at
+           FROM signal_deep_dives
+           WHERE signal_id = $1::uuid
+           ORDER BY version DESC
+           LIMIT 1`,
+          [signalId]
+        );
+        const row = latestAny.rows[0] || null;
+        if (row) {
+          meta.latest_status = row.status || null;
+          meta.latest_version = row.version ?? null;
+          meta.latest_created_at = row.created_at?.toISOString?.() ?? row.created_at ?? null;
+        }
+      } catch (error) {
+        if (isMissingDeepDiveSchemaError(error)) {
+          meta.schema_missing = true;
+        } else {
+          throw error;
+        }
+      }
+
       // Fetch latest ready deep dive
       const ddResult = await pool.query(
         `SELECT id, signal_id, version, status, content_json,
@@ -131,13 +238,16 @@ export function makeDeepDivesService(pool: Pool) {
         deep_dive: dd ? rowToDeepDive(dd) : null,
         signal: rowToSignalSummary(signalRow),
         diff,
+        meta,
       };
     } catch (error) {
       if (isMissingDeepDiveSchemaError(error)) {
+        meta.schema_missing = true;
         return {
           deep_dive: null,
           signal: rowToSignalSummary(signalRow),
           diff: null,
+          meta,
         };
       }
       throw error;

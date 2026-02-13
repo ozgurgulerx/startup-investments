@@ -14,15 +14,19 @@ echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
 cd "$REPO_DIR/packages/analysis"
 
-# Determine current period (YYYY-MM)
-PERIOD=$(date -u '+%Y-%m')
+# Determine periods (YYYY-MM). We compute both current and previous month to avoid
+# "empty month" behavior when the job runs early in the month before any deals exist.
+PERIOD_CURRENT=$(date -u '+%Y-%m')
+PERIOD_PREV=$(date -u -d '1 month ago' '+%Y-%m')
 
-# Compute investor DNA for global
-echo "Computing investor DNA for global (period=$PERIOD)..."
-"$VENV_DIR/bin/python" main.py compute-investor-dna --period "$PERIOD" --scope global || echo "Global investor DNA failed (non-fatal)"
+for PERIOD in "$PERIOD_PREV" "$PERIOD_CURRENT"; do
+  # Compute investor DNA for global
+  echo "Computing investor DNA for global (period=$PERIOD)..."
+  "$VENV_DIR/bin/python" main.py compute-investor-dna --period "$PERIOD" --scope global || echo "Global investor DNA failed (non-fatal)"
 
-# Compute investor DNA for turkey
-echo "Computing investor DNA for turkey (period=$PERIOD)..."
-"$VENV_DIR/bin/python" main.py compute-investor-dna --period "$PERIOD" --scope turkey || echo "Turkey investor DNA failed (non-fatal)"
+  # Compute investor DNA for turkey
+  echo "Computing investor DNA for turkey (period=$PERIOD)..."
+  "$VENV_DIR/bin/python" main.py compute-investor-dna --period "$PERIOD" --scope turkey || echo "Turkey investor DNA failed (non-fatal)"
+done
 
 echo "=== Compute Investor DNA complete ==="

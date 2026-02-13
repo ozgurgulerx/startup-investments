@@ -31,6 +31,15 @@ export interface CohortInfo {
 
 export function makeBenchmarksService(pool: Pool) {
 
+  async function resolveLatestBenchmarksPeriod(region: string): Promise<string | undefined> {
+    const result = await pool.query(
+      `SELECT MAX(period) AS period FROM cohort_benchmarks cb WHERE cb.region = $1`,
+      [region],
+    );
+    const p = result.rows[0]?.period;
+    return typeof p === 'string' && p.trim() ? p : undefined;
+  }
+
   async function getBenchmarks(params: {
     cohort_type?: string;
     cohort_key?: string;
@@ -38,7 +47,8 @@ export function makeBenchmarksService(pool: Pool) {
     period?: string;
     metric?: string;
   }): Promise<{ benchmarks: CohortBenchmark[]; total: number }> {
-    const { cohort_type, cohort_key, region = 'global', period, metric } = params;
+    const { cohort_type, cohort_key, region = 'global', metric } = params;
+    const period = params.period || await resolveLatestBenchmarksPeriod(region);
 
     const conditions: string[] = ['cb.region = $1'];
     const values: any[] = [region];
@@ -117,7 +127,7 @@ export function makeBenchmarksService(pool: Pool) {
       snapshotValues.push(period);
     }
     const snapshotResult = await pool.query(
-      `SELECT ss.funding_stage, ss.vertical, ss.build_patterns,
+      `SELECT ss.analysis_period, ss.funding_stage, ss.vertical, ss.build_patterns,
               ss.confidence_score, ss.engineering_quality_score,
               ss.percentile_ranks,
               s.money_raised_usd, s.employee_count
@@ -134,6 +144,7 @@ export function makeBenchmarksService(pool: Pool) {
     }
 
     const snap = snapshotResult.rows[0];
+    const resolvedPeriod = period || snap.analysis_period || await resolveLatestBenchmarksPeriod(region);
     const startup_values: Record<string, number | null> = {
       funding_total_usd: snap.money_raised_usd != null ? Number(snap.money_raised_usd) : null,
       confidence_score: snap.confidence_score != null ? Number(snap.confidence_score) : null,
@@ -164,9 +175,9 @@ export function makeBenchmarksService(pool: Pool) {
 
     const benchConditions = ['cohort_key = ANY($1)', 'region = $2'];
     const benchValues: any[] = [cohort_keys, region];
-    if (period) {
+    if (resolvedPeriod) {
       benchConditions.push(`period = $3`);
-      benchValues.push(period);
+      benchValues.push(resolvedPeriod);
     }
     const benchResult = await pool.query(
       `SELECT cohort_key, cohort_type, metric, cohort_size,
@@ -202,18 +213,19 @@ export function makeBenchmarksService(pool: Pool) {
     region?: string;
     period?: string;
   }): Promise<CohortInfo[]> {
-    const { region = 'global', period } = params;
+    const { region = 'global' } = params;
+    const period = params.period || await resolveLatestBenchmarksPeriod(region);
 
     const periodCondition = period ? ' AND period = $2' : '';
     const values = period ? [region, period] : [region];
 
     const result = await pool.query(
-      `SELECT cohort_key, cohort_type, cohort_size,
+      `SELECT cohort_key, cohort_type, MAX(cohort_size) AS cohort_size,
               array_agg(DISTINCT metric) AS metrics
        FROM cohort_benchmarks
        WHERE region = $1 ${periodCondition}
-       GROUP BY cohort_key, cohort_type, cohort_size
-       ORDER BY cohort_size DESC`,
+       GROUP BY cohort_key, cohort_type
+       ORDER BY MAX(cohort_size) DESC`,
       values,
     );
 

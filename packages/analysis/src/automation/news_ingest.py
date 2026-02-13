@@ -622,6 +622,18 @@ def _compute_enrichment_hash(cluster: StoryCluster) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _truncate_at_word(text: str, max_len: int) -> str:
+    """Truncate text to max_len at the nearest word boundary, avoiding mid-word cuts."""
+    if len(text) <= max_len:
+        return text
+    # Leave room for ellipsis
+    cut = text[: max_len - 1].rsplit(" ", 1)[0]
+    # If no space found (single giant word), hard cut
+    if not cut:
+        cut = text[: max_len - 1]
+    return cut.rstrip(",-—:; ") + "\u2026"
+
+
 def _validate_intel_fields(
     result: LLMEnrichmentResult,
     cluster_title: str = "",
@@ -631,22 +643,22 @@ def _validate_intel_fields(
     """Enforce hard caps and validation rules on intel-first enrichment fields (mutates in place)."""
     validation_error: Optional[str] = None
 
-    # ba_title: hard cap 120 chars
+    # ba_title: hard cap 90 chars (prompt targets 80; truncate at word boundary as safety net)
     if result.ba_title:
-        if len(result.ba_title) > 120:
-            result.ba_title = result.ba_title[:117] + "..."
+        if len(result.ba_title) > 90:
+            result.ba_title = _truncate_at_word(result.ba_title, 90)
 
-    # why_it_matters: hard cap 160 chars
+    # why_it_matters: hard cap 160 chars (truncate at word boundary)
     if result.why_it_matters:
         if len(result.why_it_matters) > 160:
-            result.why_it_matters = result.why_it_matters[:157] + "..."
+            result.why_it_matters = _truncate_at_word(result.why_it_matters, 160)
 
-    # ba_bullets: max 4 items, each <=180 chars
+    # ba_bullets: max 4 items, each <=180 chars (truncate at word boundary)
     if result.ba_bullets:
         result.ba_bullets = result.ba_bullets[:4]
         for i, bullet in enumerate(result.ba_bullets):
             if len(bullet) > 180:
-                result.ba_bullets[i] = bullet[:177] + "..."
+                result.ba_bullets[i] = _truncate_at_word(bullet, 180)
 
         # Anti-copy heuristic: flag bullets with >40 char overlap with title/summary
         ref_texts = [cluster_title.lower(), cluster_summary.lower()]
@@ -4473,8 +4485,10 @@ class DailyNewsIngestor:
                 "Analyze this cluster of related news sources about the same event/topic. "
                 "Create BuildAtlas intelligence with strict paraphrasing and citation-first behavior.\n\n"
                 "CONSTRAINTS:\n"
-                "- The ba_title MUST be an analytical claim (intel headline), NOT a restated source headline. "
-                "Frame it as an implication, shift, or verification-oriented statement.\n"
+                "- ba_title is a SHORT punchy intel headline (max 80 chars). State the core signal in one clause. "
+                "Do NOT pack implications, qualifiers, or secondary analysis into the title — those belong in why_it_matters and ba_bullets. "
+                "Good: \"Anthropic's $30B raise intensifies the AI capital race\" "
+                "Bad: \"Anthropic's $30B Series G underscores a high-velocity AI capital race, signaling intensified competition and a higher-ceiling valuation trajectory\"\n"
                 "- You MUST review every item in sources[] before producing any intel fields.\n"
                 "- ba_bullets must be abstract claims about implications, not story narration.\n"
                 "- Quotes are DISALLOWED by default. If exactly one short quote (<=20 words) adds unique value, "
@@ -4835,7 +4849,7 @@ class DailyNewsIngestor:
                 }
                 json_schema_required = ["builder_takeaway", "summary", "story_type", "topic_tags", "signal_score", "confidence_score", "impact"]
                 if INTEL_FIRST_PROMPT_ENABLED:
-                    json_schema_props["ba_title"] = {"type": "string", "maxLength": 120}
+                    json_schema_props["ba_title"] = {"type": "string", "maxLength": 90}
                     json_schema_props["ba_bullets"] = {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "string", "maxLength": 180}}
                     json_schema_props["why_it_matters"] = {"type": "string", "maxLength": 160}
                     json_schema_props["reviewed_source_count"] = {"type": "integer", "minimum": 0}

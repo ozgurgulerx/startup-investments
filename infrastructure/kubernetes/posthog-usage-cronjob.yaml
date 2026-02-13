@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: posthog-usage-summary
+  namespace: default
+  labels:
+    app: buildatlas-ops
+spec:
+  schedule: "0 */3 * * *" # UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400 # 24h
+      activeDeadlineSeconds: 300      # should be fast; fail loudly if stuck
+      template:
+        metadata:
+          labels:
+            app: buildatlas-ops
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: posthog-usage
+              image: aistartuptr.azurecr.io/buildatlas-ops:latest
+              imagePullPolicy: Always
+              env:
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: buildatlas-ops-secrets
+                      key: slack-webhook-url
+                - name: POSTHOG_PROJECT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: buildatlas-ops-secrets
+                      key: posthog-project-id
+                - name: POSTHOG_PERSONAL_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: buildatlas-ops-secrets
+                      key: posthog-personal-api-key
+                - name: POSTHOG_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: buildatlas-ops-secrets
+                      key: posthog-host
+                      optional: true
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "250m"
+                  memory: "256Mi"
+

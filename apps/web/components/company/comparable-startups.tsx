@@ -26,7 +26,7 @@ export function ComparableStartups({ slug, region }: ComparableStartupsProps) {
   useEffect(() => {
     const params = new URLSearchParams({ limit: '8' });
     if (region && region !== 'global') params.set('region', region);
-    fetch(`/api/v1/companies/${encodeURIComponent(slug)}/neighbors?${params}`)
+    fetch(`/api/companies/${encodeURIComponent(slug)}/neighbors?${params}`)
       .then((res) => (res.ok ? res.json() : { neighbors: [], method: '' }))
       .then((data) => {
         if (data.neighbors) setNeighbors(data.neighbors);

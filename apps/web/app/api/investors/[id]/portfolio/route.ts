@@ -13,3 +13,4 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ portfolio: [], total: 0 }, { status: 500 });
   }
 }
+
