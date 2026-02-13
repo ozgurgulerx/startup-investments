@@ -6,6 +6,9 @@ set -euo pipefail
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"
 
+# Ensure required schema exists (delta_events, state snapshots, etc).
+bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" news
+
 echo "=== Delta Event Generation ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 

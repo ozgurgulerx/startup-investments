@@ -52,8 +52,15 @@ SETS = {
         "036_signal_intelligence_schema.sql",
         # Fix signal deduplication — unique indexes + count recompute
         "038_fix_signal_dedupe.sql",
+        # Queryable state snapshots + architecture history (required by signal aggregation + delta generator)
+        "039_startup_state_snapshot.sql",
+        "040_architecture_history.sql",
         # Signal deep dives (occurrences, moves, deep dive versions, diffs)
         "050_signal_deep_dives.sql",
+        # Delta events (movers/changefeed) + watchlist intelligence tables
+        "051_delta_events.sql",
+        "055_watchlist_intelligence.sql",
+        "065_watchlist_intelligence_dedupe.sql",
         # Funding rounds enrichment source marker used by event extractor (source='news_event')
         "044_funding_source.sql",
         # Intel-first enrichment fields on news_clusters (ba_title, ba_bullets, etc.)
@@ -102,8 +109,15 @@ SETS = {
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
         "027_subscriber_timezone.sql",
+        # Queryable state snapshots + architecture history (required by signal aggregation + delta generator)
+        "039_startup_state_snapshot.sql",
+        "040_architecture_history.sql",
         # Signal deep dives (occurrences, moves, deep dive versions, diffs)
         "050_signal_deep_dives.sql",
+        # Delta events (movers/changefeed) + watchlist intelligence tables
+        "051_delta_events.sql",
+        "055_watchlist_intelligence.sql",
+        "065_watchlist_intelligence_dedupe.sql",
         "044_funding_source.sql",
         # Intel-first enrichment fields on news_clusters (ba_title, ba_bullets, etc.)
         "057_intel_first_enrichment.sql",

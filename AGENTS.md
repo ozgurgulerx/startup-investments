@@ -498,6 +498,40 @@ Debug commands:
   - `gh run list --workflow \"Daily Startup News Digest\" -L 5`
   - `gh run view <run_id> --log-failed`
 
+## Watchlist Intelligence (Alerts + Digests)
+
+Watchlist intelligence is a DB-driven pipeline that turns `delta_events` into a per-user alert feed
+(`user_alerts`) and a weekly digest (`user_digest_threads`).
+
+Schema/migrations:
+- `database/migrations/051_delta_events.sql` (changefeed/movers feed)
+- `database/migrations/055_watchlist_intelligence.sql` (subscriptions + alerts + digests)
+- `database/migrations/065_watchlist_intelligence_dedupe.sql` (idempotency guards; unique indexes)
+
+VM cron jobs:
+- `infrastructure/vm-cron/jobs/delta-generate.sh` (every 4h, staggered after `signal-aggregate`)
+- `infrastructure/vm-cron/jobs/generate-alerts.sh` (every 4h; materializes `user_alerts`)
+- `infrastructure/vm-cron/jobs/generate-weekly-digest.sh` (Mondays 06:35 UTC; creates/updates digest threads)
+
+LLM cost guardrail:
+- Alert narratives are **disabled by default** in cron (`--no-narratives`) and can be enabled via:
+  - `ALERT_NARRATIVES_ENABLED=true` in `/etc/buildatlas/.env`
+  - The UI still shows a deterministic explanation block (`explain`) even without narratives.
+
+## Blob Storage Auth (VM Cron)
+
+Storage invariants:
+- `buildatlasstorage` has **shared key access disabled** (`allowSharedKeyAccess=false`), so key-based auth
+  via `AZURE_STORAGE_CONNECTION_STRING` will fail with `KeyBasedAuthenticationNotPermitted`.
+- VM cron must use **managed identity** (AAD) for blob operations (`DefaultAzureCredential` in `BlobStorageClient`).
+- The VM managed identity needs RBAC:
+  - `Storage Blob Data Reader` (required for `sync-data` reads)
+  - `Storage Blob Data Contributor` (required for raw-capture/snapshot writes)
+
+Common failure mode:
+- If the storage account has `publicNetworkAccess=Disabled` and there is no private endpoint/VNet routing,
+  VM cron will not be able to reach the blob data-plane and jobs will log `AuthorizationFailure`.
+
 ## Secrets / Env Vars (What Must Exist)
 
 GitHub Actions secrets (minimum):

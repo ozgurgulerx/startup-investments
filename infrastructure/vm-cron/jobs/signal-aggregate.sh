@@ -7,6 +7,9 @@ set -euo pipefail
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"
 
+# Ensure required signal/state schema exists (startup_state_snapshot, startup_architecture_history, etc).
+bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" news
+
 echo "=== Signal Aggregation ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 

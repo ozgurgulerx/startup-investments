@@ -29,7 +29,7 @@ from azure.storage.blob import (
     ContainerClient,
     ContentSettings,
 )
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ResourceNotFoundError, ResourceExistsError
 
 # Try to import Azure Identity for AAD auth (optional)
 try:
@@ -107,8 +107,10 @@ class BlobStorageClient:
                 # Test the connection by listing containers (take first only)
                 for _ in self._blob_service.list_containers():
                     break
+                self.last_error = ""
                 return self._blob_service
             except Exception as e:
+                self.last_error = str(e)
                 if auth_mode == "connection_string":
                     print(f"Error connecting with connection string: {e}")
                     return None
@@ -128,8 +130,10 @@ class BlobStorageClient:
                 # Test the connection (take first only)
                 for _ in self._blob_service.list_containers():
                     break
+                self.last_error = ""
                 return self._blob_service
             except Exception as e:
+                self.last_error = str(e)
                 print(f"Error connecting with Azure AD: {e}")
                 return None
 
@@ -214,9 +218,10 @@ class BlobStorageClient:
         if not container_client:
             return None
 
-        try:
-            blob_client = container_client.get_blob_client(blob_path)
+        blob_client = container_client.get_blob_client(blob_path)
+        blob_url = blob_client.url
 
+        try:
             # Convert string to bytes if needed
             if isinstance(data, str):
                 data = data.encode("utf-8")
@@ -231,9 +236,22 @@ class BlobStorageClient:
             )
 
             self.last_error = ""
-            return blob_client.url
+            return blob_url
+        except ResourceExistsError:
+            # Common and expected when overwrite=False (idempotent writes, content-addressed raw captures).
+            if not overwrite:
+                self.last_error = ""
+                return blob_url
+            self.last_error = "ResourceExistsError"
+            print(f"Error uploading blob {blob_path}: blob already exists and overwrite is disabled")
+            return None
         except Exception as e:
-            self.last_error = str(e)
+            msg = str(e)
+            # Some SDK paths surface "BlobAlreadyExists" as a generic HttpResponseError.
+            if not overwrite and ("BlobAlreadyExists" in msg or "The specified blob already exists" in msg):
+                self.last_error = ""
+                return blob_url
+            self.last_error = msg
             print(f"Error uploading blob {blob_path}: {e}")
             return None
 

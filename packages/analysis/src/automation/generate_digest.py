@@ -141,6 +141,11 @@ Return a concise narrative summary focusing on the most significant developments
             INSERT INTO user_digest_threads
                 (user_id, scope, period_start, period_end, title, summary, themes, alert_ids)
             VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb, $8::text[])
+            ON CONFLICT (user_id, scope, period_start, period_end) DO UPDATE SET
+              title = EXCLUDED.title,
+              summary = EXCLUDED.summary,
+              themes = EXCLUDED.themes,
+              alert_ids = EXCLUDED.alert_ids
             """,
             user_id, scope, period_start, period_end,
             title, summary, json.dumps(theme_list), alert_ids,

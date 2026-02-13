@@ -425,7 +425,7 @@ fi
 # Detect raw capture storage auth errors (best-effort log scan)
 CRAWL_LOG="${LOG_DIR}/crawl-frontier.log"
 if [ -f "$CRAWL_LOG" ]; then
-    CAPTURE_AUTH_ERRORS=$(grep -a -E "Error uploading blob raw-captures/|\\[raw-capture\\] disabling blob upload" "$CRAWL_LOG" | tail -n 200 | wc -l | tr -d '[:space:]' || echo "0")
+    CAPTURE_AUTH_ERRORS=$(grep -a -E "\\[raw-capture\\] disabling blob upload|Error uploading blob raw-captures/.*(AuthorizationFailure|AuthorizationPermissionMismatch|AuthenticationFailed|KeyBasedAuthenticationNotPermitted)" "$CRAWL_LOG" | tail -n 200 | wc -l | tr -d '[:space:]' || echo "0")
     if [ "$CAPTURE_AUTH_ERRORS" -gt 0 ] 2>/dev/null; then
         add_warn "Raw captures: recent blob upload auth failures (${CAPTURE_AUTH_ERRORS})"
     fi
@@ -440,7 +440,7 @@ echo ""
 echo "[11/11] Cron jobs..."
 
 # job_name:expected_interval_minutes
-CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 onboarding-alerts:5 crawl-frontier:30 sync-data:30 news-digest:60 code-update:15"
+CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 onboarding-alerts:5 crawl-frontier:30 sync-data:30 news-digest:60 signal-aggregate:240 delta-generate:240 generate-alerts:240 code-update:15"
 NOW_EPOCH=$(date +%s)
 
 for job_entry in $CRON_JOBS; do

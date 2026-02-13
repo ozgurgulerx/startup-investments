@@ -85,16 +85,17 @@ class AlertGenerator:
         # Bulk insert alerts
         for alert in alerts_to_insert:
             try:
-                await self.conn.execute(
+                result = await self.conn.execute(
                     """
                     INSERT INTO user_alerts (user_id, scope, delta_id, severity, reason)
                     VALUES ($1::uuid, $2, $3::uuid, $4, $5::jsonb)
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT (user_id, scope, delta_id) DO NOTHING
                     """,
                     alert["user_id"], alert["scope"], alert["delta_id"],
                     alert["severity"], json.dumps(alert["reason"]),
                 )
-                stats["alerts_inserted"] += 1
+                if result and result.endswith("1"):
+                    stats["alerts_inserted"] += 1
             except Exception:
                 logger.exception("Failed inserting alert for user %s", alert["user_id"])
                 stats["errors"] += 1
@@ -172,28 +173,17 @@ class AlertGenerator:
         # Also include watchlist items as startup subscriptions
         wl_rows = await self.conn.fetch(
             """
-            SELECT user_id::text, company_slug AS object_id
+            SELECT user_id::text, startup_id::text AS object_id
             FROM user_watchlists
             """,
         )
-        # Map slugs to startup IDs
-        if wl_rows:
-            slugs = [r["object_id"] for r in wl_rows]
-            slug_map = {}
-            id_rows = await self.conn.fetch(
-                "SELECT id::text, slug FROM startups WHERE slug = ANY($1)",
-                slugs,
-            )
-            for r in id_rows:
-                slug_map[r["slug"]] = r["id"]
-            for r in wl_rows:
-                sid = slug_map.get(r["object_id"])
-                if sid:
-                    grouped.setdefault("startup", []).append({
-                        "user_id": r["user_id"],
-                        "object_type": "startup",
-                        "object_id": sid,
-                    })
+        for r in wl_rows:
+            if r.get("object_id"):
+                grouped.setdefault("startup", []).append({
+                    "user_id": r["user_id"],
+                    "object_type": "startup",
+                    "object_id": r["object_id"],
+                })
 
         return grouped
 

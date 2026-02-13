@@ -6,6 +6,9 @@ set -euo pipefail
 VENV_DIR="/opt/buildatlas/venv"
 REPO_DIR="/opt/buildatlas/startup-analysis"
 
+# Ensure required schema exists (user_digest_threads, user_alerts, delta_events, etc).
+bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" news
+
 echo "=== Generate Weekly Digest ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
