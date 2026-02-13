@@ -70,6 +70,12 @@ export interface DiffRow {
   created_at: string;
 }
 
+function isMissingDeepDiveSchemaError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as { code?: string }).code;
+  return code === '42P01' || code === '42703';
+}
+
 // ---------------------------------------------------------------------------
 // Service factory
 // ---------------------------------------------------------------------------
@@ -92,54 +98,70 @@ export function makeDeepDivesService(pool: Pool) {
        FROM signals WHERE id = $1::uuid`,
       [signalId]
     );
-    const signal = sigResult.rows[0] || null;
-    if (!signal) return { deep_dive: null, signal: null, diff: null };
+    const signalRow = sigResult.rows[0] || null;
+    if (!signalRow) return { deep_dive: null, signal: null, diff: null };
 
-    // Fetch latest ready deep dive
-    const ddResult = await pool.query(
-      `SELECT id, signal_id, version, status, content_json,
-              sample_startup_ids, sample_count, generation_model,
-              generation_cost_tokens, evidence_hash, created_at
-       FROM signal_deep_dives
-       WHERE signal_id = $1::uuid AND status = 'ready'
-       ORDER BY version DESC LIMIT 1`,
-      [signalId]
-    );
-    const dd = ddResult.rows[0] || null;
-
-    // Fetch diff from previous version if exists
-    let diff: DiffRow | null = null;
-    if (dd && dd.version > 1) {
-      const diffResult = await pool.query(
-        `SELECT from_version, to_version, diff_json, created_at
-         FROM signal_deep_dive_diffs
-         WHERE signal_id = $1::uuid AND to_version = $2
-         LIMIT 1`,
-        [signalId, dd.version]
+    try {
+      // Fetch latest ready deep dive
+      const ddResult = await pool.query(
+        `SELECT id, signal_id, version, status, content_json,
+                sample_startup_ids, sample_count, generation_model,
+                generation_cost_tokens, evidence_hash, created_at
+         FROM signal_deep_dives
+         WHERE signal_id = $1::uuid AND status = 'ready'
+         ORDER BY version DESC LIMIT 1`,
+        [signalId]
       );
-      diff = diffResult.rows[0] || null;
-    }
+      const dd = ddResult.rows[0] || null;
 
-    return {
-      deep_dive: dd ? rowToDeepDive(dd) : null,
-      signal: signal ? rowToSignalSummary(signal) : null,
-      diff,
-    };
+      // Fetch diff from previous version if exists
+      let diff: DiffRow | null = null;
+      if (dd && dd.version > 1) {
+        const diffResult = await pool.query(
+          `SELECT from_version, to_version, diff_json, created_at
+           FROM signal_deep_dive_diffs
+           WHERE signal_id = $1::uuid AND to_version = $2
+           LIMIT 1`,
+          [signalId, dd.version]
+        );
+        diff = diffResult.rows[0] || null;
+      }
+
+      return {
+        deep_dive: dd ? rowToDeepDive(dd) : null,
+        signal: rowToSignalSummary(signalRow),
+        diff,
+      };
+    } catch (error) {
+      if (isMissingDeepDiveSchemaError(error)) {
+        return {
+          deep_dive: null,
+          signal: rowToSignalSummary(signalRow),
+          diff: null,
+        };
+      }
+      throw error;
+    }
   }
 
   /**
    * Get a specific version of a deep dive.
    */
   async function getDeepDiveVersion(signalId: string, version: number): Promise<DeepDiveRow | null> {
-    const result = await pool.query(
-      `SELECT id, signal_id, version, status, content_json,
-              sample_startup_ids, sample_count, generation_model,
-              generation_cost_tokens, evidence_hash, created_at
-       FROM signal_deep_dives
-       WHERE signal_id = $1::uuid AND version = $2 AND status = 'ready'`,
-      [signalId, version]
-    );
-    return result.rows[0] ? rowToDeepDive(result.rows[0]) : null;
+    try {
+      const result = await pool.query(
+        `SELECT id, signal_id, version, status, content_json,
+                sample_startup_ids, sample_count, generation_model,
+                generation_cost_tokens, evidence_hash, created_at
+         FROM signal_deep_dives
+         WHERE signal_id = $1::uuid AND version = $2 AND status = 'ready'`,
+        [signalId, version]
+      );
+      return result.rows[0] ? rowToDeepDive(result.rows[0]) : null;
+    } catch (error) {
+      if (isMissingDeepDiveSchemaError(error)) return null;
+      throw error;
+    }
   }
 
   /**
@@ -149,36 +171,41 @@ export function makeDeepDivesService(pool: Pool) {
     versions: Array<{ version: number; status: string; created_at: string; sample_count: number }>;
     diffs: DiffRow[];
   }> {
-    const versionsResult = await pool.query(
-      `SELECT version, status, created_at, sample_count
-       FROM signal_deep_dives
-       WHERE signal_id = $1::uuid
-       ORDER BY version DESC`,
-      [signalId]
-    );
+    try {
+      const versionsResult = await pool.query(
+        `SELECT version, status, created_at, sample_count
+         FROM signal_deep_dives
+         WHERE signal_id = $1::uuid
+         ORDER BY version DESC`,
+        [signalId]
+      );
 
-    const diffsResult = await pool.query(
-      `SELECT from_version, to_version, diff_json, created_at
-       FROM signal_deep_dive_diffs
-       WHERE signal_id = $1::uuid
-       ORDER BY to_version DESC`,
-      [signalId]
-    );
+      const diffsResult = await pool.query(
+        `SELECT from_version, to_version, diff_json, created_at
+         FROM signal_deep_dive_diffs
+         WHERE signal_id = $1::uuid
+         ORDER BY to_version DESC`,
+        [signalId]
+      );
 
-    return {
-      versions: versionsResult.rows.map(r => ({
-        version: r.version,
-        status: r.status,
-        created_at: r.created_at?.toISOString?.() ?? r.created_at,
-        sample_count: r.sample_count,
-      })),
-      diffs: diffsResult.rows.map(r => ({
-        from_version: r.from_version,
-        to_version: r.to_version,
-        diff_json: typeof r.diff_json === 'string' ? JSON.parse(r.diff_json) : r.diff_json,
-        created_at: r.created_at?.toISOString?.() ?? r.created_at,
-      })),
-    };
+      return {
+        versions: versionsResult.rows.map(r => ({
+          version: r.version,
+          status: r.status,
+          created_at: r.created_at?.toISOString?.() ?? r.created_at,
+          sample_count: r.sample_count,
+        })),
+        diffs: diffsResult.rows.map(r => ({
+          from_version: r.from_version,
+          to_version: r.to_version,
+          diff_json: typeof r.diff_json === 'string' ? JSON.parse(r.diff_json) : r.diff_json,
+          created_at: r.created_at?.toISOString?.() ?? r.created_at,
+        })),
+      };
+    } catch (error) {
+      if (isMissingDeepDiveSchemaError(error)) return { versions: [], diffs: [] };
+      throw error;
+    }
   }
 
   /**
@@ -188,43 +215,48 @@ export function makeDeepDivesService(pool: Pool) {
     occurrences: OccurrenceRow[];
     total: number;
   }> {
-    const countResult = await pool.query(
-      `SELECT COUNT(*) as cnt FROM signal_occurrences WHERE signal_id = $1::uuid`,
-      [signalId]
-    );
-    const total = parseInt(countResult.rows[0]?.cnt || '0', 10);
+    try {
+      const countResult = await pool.query(
+        `SELECT COUNT(*) as cnt FROM signal_occurrences WHERE signal_id = $1::uuid`,
+        [signalId]
+      );
+      const total = parseInt(countResult.rows[0]?.cnt || '0', 10);
 
-    const result = await pool.query(
-      `SELECT so.id, so.signal_id, so.startup_id,
-              s.name AS startup_name, s.slug AS startup_slug, s.funding_stage,
-              so.score, so.features_json, so.explain_json,
-              so.computed_at,
-              (SELECT COUNT(*) FROM signal_evidence se
-               WHERE se.signal_id = so.signal_id AND se.startup_id = so.startup_id) AS evidence_count
-       FROM signal_occurrences so
-       JOIN startups s ON s.id = so.startup_id
-       WHERE so.signal_id = $1::uuid
-       ORDER BY so.score DESC
-       LIMIT $2 OFFSET $3`,
-      [signalId, limit, offset]
-    );
+      const result = await pool.query(
+        `SELECT so.id, so.signal_id, so.startup_id,
+                s.name AS startup_name, s.slug AS startup_slug, s.funding_stage,
+                so.score, so.features_json, so.explain_json,
+                so.computed_at,
+                (SELECT COUNT(*) FROM signal_evidence se
+                 WHERE se.signal_id = so.signal_id AND se.startup_id = so.startup_id) AS evidence_count
+         FROM signal_occurrences so
+         JOIN startups s ON s.id = so.startup_id
+         WHERE so.signal_id = $1::uuid
+         ORDER BY so.score DESC
+         LIMIT $2 OFFSET $3`,
+        [signalId, limit, offset]
+      );
 
-    return {
-      occurrences: result.rows.map(r => ({
-        id: String(r.id),
-        signal_id: String(r.signal_id),
-        startup_id: String(r.startup_id),
-        startup_name: r.startup_name,
-        startup_slug: r.startup_slug,
-        funding_stage: r.funding_stage || null,
-        score: Number(r.score),
-        features_json: typeof r.features_json === 'string' ? JSON.parse(r.features_json) : r.features_json,
-        explain_json: typeof r.explain_json === 'string' ? JSON.parse(r.explain_json) : r.explain_json,
-        evidence_count: parseInt(r.evidence_count || '0', 10),
-        computed_at: r.computed_at?.toISOString?.() ?? r.computed_at,
-      })),
-      total,
-    };
+      return {
+        occurrences: result.rows.map(r => ({
+          id: String(r.id),
+          signal_id: String(r.signal_id),
+          startup_id: String(r.startup_id),
+          startup_name: r.startup_name,
+          startup_slug: r.startup_slug,
+          funding_stage: r.funding_stage || null,
+          score: Number(r.score),
+          features_json: typeof r.features_json === 'string' ? JSON.parse(r.features_json) : r.features_json,
+          explain_json: typeof r.explain_json === 'string' ? JSON.parse(r.explain_json) : r.explain_json,
+          evidence_count: parseInt(r.evidence_count || '0', 10),
+          computed_at: r.computed_at?.toISOString?.() ?? r.computed_at,
+        })),
+        total,
+      };
+    } catch (error) {
+      if (isMissingDeepDiveSchemaError(error)) return { occurrences: [], total: 0 };
+      throw error;
+    }
   }
 
   /**
@@ -244,35 +276,40 @@ export function makeDeepDivesService(pool: Pool) {
     const limit = Math.min(100, opts.limit || 50);
     const where = conditions.join(' AND ');
 
-    const result = await pool.query(
-      `SELECT sm.id, sm.signal_id, sm.startup_id,
-              s.name AS startup_name, s.slug AS startup_slug,
-              sm.move_type, sm.what_happened, sm.why_it_worked,
-              sm.unique_angle, sm.timestamp_hint, sm.evidence_ids,
-              sm.confidence, sm.extracted_at
-       FROM signal_moves sm
-       JOIN startups s ON s.id = sm.startup_id
-       WHERE ${where}
-       ORDER BY sm.confidence DESC
-       LIMIT $${idx}`,
-      [...values, limit]
-    );
+    try {
+      const result = await pool.query(
+        `SELECT sm.id, sm.signal_id, sm.startup_id,
+                s.name AS startup_name, s.slug AS startup_slug,
+                sm.move_type, sm.what_happened, sm.why_it_worked,
+                sm.unique_angle, sm.timestamp_hint, sm.evidence_ids,
+                sm.confidence, sm.extracted_at
+         FROM signal_moves sm
+         JOIN startups s ON s.id = sm.startup_id
+         WHERE ${where}
+         ORDER BY sm.confidence DESC
+         LIMIT $${idx}`,
+        [...values, limit]
+      );
 
-    return result.rows.map(r => ({
-      id: String(r.id),
-      signal_id: String(r.signal_id),
-      startup_id: String(r.startup_id),
-      startup_name: r.startup_name,
-      startup_slug: r.startup_slug,
-      move_type: r.move_type,
-      what_happened: r.what_happened,
-      why_it_worked: r.why_it_worked || null,
-      unique_angle: r.unique_angle || null,
-      timestamp_hint: r.timestamp_hint || null,
-      evidence_ids: r.evidence_ids || [],
-      confidence: Number(r.confidence),
-      extracted_at: r.extracted_at?.toISOString?.() ?? r.extracted_at,
-    }));
+      return result.rows.map(r => ({
+        id: String(r.id),
+        signal_id: String(r.signal_id),
+        startup_id: String(r.startup_id),
+        startup_name: r.startup_name,
+        startup_slug: r.startup_slug,
+        move_type: r.move_type,
+        what_happened: r.what_happened,
+        why_it_worked: r.why_it_worked || null,
+        unique_angle: r.unique_angle || null,
+        timestamp_hint: r.timestamp_hint || null,
+        evidence_ids: r.evidence_ids || [],
+        confidence: Number(r.confidence),
+        extracted_at: r.extracted_at?.toISOString?.() ?? r.extracted_at,
+      }));
+    } catch (error) {
+      if (isMissingDeepDiveSchemaError(error)) return [];
+      throw error;
+    }
   }
 
   /**
@@ -305,35 +342,40 @@ export function makeDeepDivesService(pool: Pool) {
     const limit = Math.min(50, opts.limit || 20);
     const where = conditions.join(' AND ');
 
-    const result = await pool.query(
-      `SELECT DISTINCT ON (dd.signal_id)
-              dd.signal_id, s.claim, s.domain, s.status,
-              s.conviction, s.momentum, s.region,
-              dd.version, dd.created_at, dd.content_json, dd.sample_count
-       FROM signal_deep_dives dd
-       JOIN signals s ON s.id = dd.signal_id
-       WHERE ${where}
-       ORDER BY dd.signal_id, dd.version DESC
-       LIMIT $${idx}`,
-      [...values, limit]
-    );
+    try {
+      const result = await pool.query(
+        `SELECT DISTINCT ON (dd.signal_id)
+                dd.signal_id, s.claim, s.domain, s.status,
+                s.conviction, s.momentum, s.region,
+                dd.version, dd.created_at, dd.content_json, dd.sample_count
+         FROM signal_deep_dives dd
+         JOIN signals s ON s.id = dd.signal_id
+         WHERE ${where}
+         ORDER BY dd.signal_id, dd.version DESC
+         LIMIT $${idx}`,
+        [...values, limit]
+      );
 
-    return result.rows.map(r => {
-      const content = typeof r.content_json === 'string' ? JSON.parse(r.content_json) : r.content_json;
-      return {
-        signal_id: String(r.signal_id),
-        claim: r.claim,
-        domain: r.domain,
-        status: r.status,
-        conviction: Number(r.conviction),
-        momentum: Number(r.momentum),
-        region: r.region,
-        version: r.version,
-        created_at: r.created_at?.toISOString?.() ?? r.created_at,
-        tldr: content?.tldr || '',
-        sample_count: r.sample_count,
-      };
-    });
+      return result.rows.map(r => {
+        const content = typeof r.content_json === 'string' ? JSON.parse(r.content_json) : r.content_json;
+        return {
+          signal_id: String(r.signal_id),
+          claim: r.claim,
+          domain: r.domain,
+          status: r.status,
+          conviction: Number(r.conviction),
+          momentum: Number(r.momentum),
+          region: r.region,
+          version: r.version,
+          created_at: r.created_at?.toISOString?.() ?? r.created_at,
+          tldr: content?.tldr || '',
+          sample_count: r.sample_count,
+        };
+      });
+    } catch (error) {
+      if (isMissingDeepDiveSchemaError(error)) return [];
+      throw error;
+    }
   }
 
   // Helpers

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchFromAPI } from '@/lib/api/client';
+import { APIError, fetchFromAPI } from '@/lib/api/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +21,11 @@ export async function GET(
     const data = await fetchFromAPI(url);
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof APIError) {
+      const status = error.status >= 400 && error.status < 500 ? error.status : 500;
+      if (status >= 500) console.error('Error fetching occurrences:', error);
+      return NextResponse.json({ occurrences: [], total: 0 }, { status });
+    }
     console.error('Error fetching occurrences:', error);
     return NextResponse.json({ occurrences: [], total: 0 }, { status: 500 });
   }

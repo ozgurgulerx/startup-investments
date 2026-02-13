@@ -49,6 +49,10 @@ MAILTO=""
 # Aggregates events into signals, scores, and updates lifecycle
 30 */4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh signal-aggregate 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/signal-aggregate.sh
 
+# === Deep Dive Generation (daily 05:15 UTC) ===
+# Computes occurrences and generates signal deep dives (moves + synthesis)
+15 5 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh deep-dive-generate 45 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-dive-generate.sh
+
 # === Dealbook Living Brief (daily 04:00 UTC / 07:00 Istanbul) ===
 # Generates fresh brief snapshots for each region
 0 4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh dealbook-brief 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/dealbook-brief.sh

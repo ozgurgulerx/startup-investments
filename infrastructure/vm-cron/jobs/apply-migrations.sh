@@ -50,6 +50,8 @@ SETS = {
         "036_signal_intelligence_schema.sql",
         # Fix signal deduplication — unique indexes + count recompute
         "038_fix_signal_dedupe.sql",
+        # Signal deep dives (occurrences, moves, deep dive versions, diffs)
+        "050_signal_deep_dives.sql",
         # Event key discriminator — allows multiple events of same type per cluster
         "042_event_key_discriminator.sql",
         # Event-driven refresh jobs — boost frontier priority for startups with news events
@@ -84,6 +86,8 @@ SETS = {
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
         "027_subscriber_timezone.sql",
+        # Signal deep dives (occurrences, moves, deep dive versions, diffs)
+        "050_signal_deep_dives.sql",
         # Event timeline effective_date column
         "043_effective_date.sql",
         # Extend scoring_method CHECK to include editorial_postgate

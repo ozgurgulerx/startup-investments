@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchFromAPI } from '@/lib/api/client';
+import { APIError, fetchFromAPI } from '@/lib/api/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +17,11 @@ export async function GET(
     const data = await fetchFromAPI(`/api/v1/signals/${encodeURIComponent(id)}/deep-dive`);
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof APIError) {
+      const status = error.status >= 400 && error.status < 500 ? error.status : 500;
+      if (status >= 500) console.error('Error fetching deep dive:', error);
+      return NextResponse.json({ deep_dive: null, signal: null, diff: null }, { status });
+    }
     console.error('Error fetching deep dive:', error);
     return NextResponse.json({ deep_dive: null, signal: null, diff: null }, { status: 500 });
   }
