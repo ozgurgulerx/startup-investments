@@ -233,6 +233,7 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `delta-generate` | `38 */4 * * *` | 15 | `infrastructure/vm-cron/jobs/delta-generate.sh` |
 | `generate-alerts` | `48 */4 * * *` | 15 | `infrastructure/vm-cron/jobs/generate-alerts.sh` |
 | `deep-dive-generate` | `15 5 * * *` | 45 | `infrastructure/vm-cron/jobs/deep-dive-generate.sh` |
+| `deep-dive-catchup` | `58 */4 * * *` | 30 | `infrastructure/vm-cron/jobs/deep-dive-catchup.sh` |
 | `dealbook-brief` | `0 4 * * *` | 15 | `infrastructure/vm-cron/jobs/dealbook-brief.sh` |
 | `neighbors-benchmarks` | `0 7 * * 4` | 60 | `infrastructure/vm-cron/jobs/neighbors-benchmarks.sh` |
 | `compute-benchmarks` | `0 4 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-benchmarks.sh` |
@@ -320,17 +321,20 @@ Key risk controls:
 Entry points:
 - `infrastructure/vm-cron/jobs/signal-aggregate.sh`
 - `infrastructure/vm-cron/jobs/deep-dive-generate.sh`
+- `infrastructure/vm-cron/jobs/deep-dive-catchup.sh`
 
 Flow:
 1. Aggregate events into signals on the 4-hour cadence.
-2. Apply migrations (`apply-migrations.sh news`) before deep-dive generation.
-3. Compute per-startup occurrences.
-4. Generate/update deep-dive documents and diffs.
+2. `deep-dive-catchup` backfills **missing** deep dives (coverage-first, trend-only synthesis) so `/signals/[id]` isn't empty.
+3. Apply migrations (`apply-migrations.sh news`) before deep-dive generation.
+4. Compute per-startup occurrences (deterministic).
+5. `deep-dive-generate` upgrades a rotating set of top signals (moves + synthesis) and writes version diffs.
 
 Key risk controls:
 - migration preflight in `deep-dive-generate.sh`,
 - graceful API degradation when deep-dive tables are unavailable,
 - dedicated daily job timeout budget (45 minutes).
+- catchup job is bounded (`--limit`) and enqueues a small, capped number of startups; deep research spend is capped by `DEEP_RESEARCH_*` envs in the consumer.
 
 ### D) Dataset sync pipeline
 

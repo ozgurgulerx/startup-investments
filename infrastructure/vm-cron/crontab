@@ -79,6 +79,10 @@ MAILTO=""
 # Computes occurrences and generates signal deep dives (moves + synthesis)
 15 5 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh deep-dive-generate 45 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-dive-generate.sh
 
+# === Deep Dive Catchup (every 4 hours at :58 UTC) ===
+# Backfills missing deep dives so all non-decaying signals have coverage content.
+58 */4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh deep-dive-catchup 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-dive-catchup.sh
+
 # === Dealbook Living Brief (daily 04:00 UTC / 07:00 Istanbul) ===
 # Generates fresh brief snapshots for each region
 0 4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh dealbook-brief 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/dealbook-brief.sh

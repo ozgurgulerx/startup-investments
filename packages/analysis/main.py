@@ -2943,6 +2943,49 @@ def generate_deep_dives_cmd(
     console.print(f"  Errors: {result.get('errors', 0)}")
 
 
+@app.command("backfill-deep-dives")
+def backfill_deep_dives_cmd(
+    region: Optional[str] = typer.Option(None, "--region", help="Region: 'global', 'turkey'"),
+    limit: int = typer.Option(40, "--limit", "-l", help="Max missing signals to process"),
+    mode: str = typer.Option("coverage", "--mode", help="coverage|full"),
+    force: bool = typer.Option(False, "--force", help="Force re-generation even if evidence unchanged"),
+    enqueue_research: bool = typer.Option(False, "--enqueue-research", help="Enqueue deep research for related startups (best-effort)"),
+    research_per_signal: int = typer.Option(2, "--research-per-signal", help="Max startups to enqueue per signal"),
+    research_depth: str = typer.Option("quick", "--research-depth", help="quick|standard|deep"),
+):
+    """Backfill missing deep dives so every non-decaying signal has at least one."""
+    from src.automation.deep_dive_engine import backfill_deep_dives
+
+    try:
+        result = asyncio.run(
+            backfill_deep_dives(
+                region=region,
+                limit=limit,
+                mode=mode,
+                force=force,
+                enqueue_research=enqueue_research,
+                research_per_signal=research_per_signal,
+                research_depth=research_depth,
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]Deep dive backfill failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Deep Dive Backfill[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"  Mode: {result.get('mode', 'coverage')}")
+    console.print(f"  Signals targeted: {result.get('signals_targeted', 0)}")
+    console.print(f"  Trend dives synthesized: {result.get('trend_synthesized', 0)}")
+    console.print(f"  Full dives synthesized: {result.get('full_synthesized', 0)}")
+    console.print(f"  Moves extracted: {result.get('moves_extracted', 0)}")
+    console.print(f"  Deep research enqueued: {result.get('research_enqueued', 0)}")
+    console.print(f"  Skipped: {result.get('skipped', 0)}")
+    console.print(f"  Errors: {result.get('errors', 0)}")
+
+
 @app.command("generate-deltas")
 def generate_deltas_cmd(
     period: str = typer.Option(..., "--period", "-p", help="Period to generate deltas for (e.g., 2026-02)"),
