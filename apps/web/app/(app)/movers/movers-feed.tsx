@@ -5,6 +5,7 @@ import { getDeltaFeed } from '@/lib/api/client';
 import type { MoversSummaryResponse, DeltaFeedResponse } from '@/lib/api/client';
 import { DeltaCard } from './delta-card';
 import { MoversFilters } from './movers-filters';
+import { SectorFilter } from '@/components/features/sector-filter';
 
 interface Props {
   initialSummary: MoversSummaryResponse;
@@ -18,6 +19,7 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
   const [filters, setFilters] = useState<{
     delta_type?: string;
     domain?: string;
+    sector?: string;
     period?: string;
   }>({});
   const [loading, setLoading] = useState(false);
@@ -39,13 +41,14 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
   }, [region, filters, events.length]);
 
   const applyFilters = useCallback(
-    async (newFilters: typeof filters) => {
-      setFilters(newFilters);
+    async (newFilters: Omit<typeof filters, 'sector'>) => {
+      const merged = { ...filters, ...newFilters };
+      setFilters(merged);
       setLoading(true);
       try {
         const result = await getDeltaFeed({
           region,
-          ...newFilters,
+          ...merged,
           offset: 0,
           limit: 25,
         });
@@ -55,7 +58,28 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
         setLoading(false);
       }
     },
-    [region],
+    [region, filters],
+  );
+
+  const handleSectorChange = useCallback(
+    async (sectorId: string | null) => {
+      const merged = { ...filters, sector: sectorId || undefined };
+      setFilters(merged);
+      setLoading(true);
+      try {
+        const result = await getDeltaFeed({
+          region,
+          ...merged,
+          offset: 0,
+          limit: 25,
+        });
+        setEvents(result.events);
+        setTotal(result.total);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [region, filters],
   );
 
   return (
@@ -80,6 +104,9 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
 
       {/* Filters */}
       <MoversFilters byType={initialSummary.by_type} onFilter={applyFilters} />
+      <div className="mt-2">
+        <SectorFilter region={region} value={filters.sector || null} onChange={handleSectorChange} />
+      </div>
 
       {/* Events feed */}
       <div className="space-y-3 mt-4">

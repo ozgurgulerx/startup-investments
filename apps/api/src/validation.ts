@@ -23,6 +23,7 @@ const optionalSearchString = optionalTrimmedString(200);
 const optionalTopicString = optionalTrimmedString(100);
 const datasetRegionParam = z.enum(['global', 'turkey']).default('global');
 const newsRegionParam = z.enum(['global', 'turkey']).default('global');
+const sectorParam = optionalTrimmedString(50);
 const newsDateParam = z.preprocess((value) => {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== 'string') return value;
@@ -133,6 +134,10 @@ export const newsBriefArchiveQuerySchema = z.object({
   type: z.enum(['weekly', 'monthly']).default('weekly'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const sectorsQuerySchema = z.object({
+  region: datasetRegionParam,
 });
 
 // =============================================================================
@@ -356,6 +361,7 @@ export const signalsQuerySchema = z.object({
   region: optionalTrimmedString(20),
   status: signalStatus.optional(),
   domain: signalDomain.optional(),
+  sector: sectorParam,
   sort: z.enum(['conviction', 'momentum', 'impact', 'created', 'novelty']).optional().default('conviction'),
   window: z.coerce.number().int().refine(v => [7, 30, 90].includes(v)).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
@@ -364,6 +370,7 @@ export const signalsQuerySchema = z.object({
 
 export const signalsSummaryQuerySchema = z.object({
   region: optionalTrimmedString(20),
+  sector: sectorParam,
   window: z.coerce.number().int().refine(v => [7, 30, 90].includes(v)).optional(),
 });
 
@@ -404,6 +411,7 @@ export const moversFeedQuerySchema = z.object({
   region: z.enum(['global', 'turkey']).default('global'),
   delta_type: deltaType.optional(),
   domain: optionalTrimmedString(50),
+  sector: sectorParam,
   startup_id: optionalTrimmedString(50),
   period: optionalTrimmedString(10),
   min_magnitude: z.coerce.number().min(0).max(1).optional(),
@@ -413,6 +421,7 @@ export const moversFeedQuerySchema = z.object({
 
 export const moversSummaryQuerySchema = z.object({
   region: z.enum(['global', 'turkey']).default('global'),
+  sector: sectorParam,
   period: optionalTrimmedString(10),
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
@@ -449,6 +458,7 @@ export const startupBenchmarksQuerySchema = z.object({
 export const benchmarksQuerySchema = z.object({
   cohort_type: optionalTrimmedString(50),
   cohort_key: optionalTrimmedString(200),
+  sector: sectorParam,
   region: z.enum(['global', 'turkey']).default('global'),
   period: optionalTrimmedString(10),
   metric: optionalTrimmedString(50),
@@ -497,6 +507,7 @@ export const investorPortfolioQuerySchema = z.object({
 export const landscapesQuerySchema = z.object({
   scope: z.enum(['global', 'turkey']).default('global'),
   period: optionalTrimmedString(10),
+  sector: sectorParam,
   size_by: z.enum(['funding', 'count', 'deals']).default('funding'),
   color_by: z.enum(['stage', 'vertical', 'signal']).default('stage'),
   stage: optionalTrimmedString(50),

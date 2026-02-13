@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { findSector, sectorFilterForStartups } from '../shared/sectors';
 
 // ---------------------------------------------------------------------------
 // Types (moved from news.ts)
@@ -134,6 +135,7 @@ export function makeSignalsService(pool: Pool) {
     region?: string;
     status?: string;
     domain?: string;
+    sector?: string;
     sort?: string;
     window?: number;
     limit?: number;
@@ -154,6 +156,17 @@ export function makeSignalsService(pool: Pool) {
         conditions.push(`domain = $${idx}`);
         values.push(params.domain);
         idx++;
+      }
+      if (params.sector) {
+        const sectorDef = findSector(params.sector);
+        if (sectorDef) {
+          const sf = sectorFilterForStartups(sectorDef, 's_sec', idx);
+          conditions.push(
+            `EXISTS (SELECT 1 FROM signal_evidence se JOIN startups s_sec ON s_sec.id = se.startup_id WHERE se.signal_id = signals.id AND ${sf.clause})`,
+          );
+          values.push(...sf.values);
+          idx = sf.nextIdx;
+        }
       }
       if (params.window) {
         conditions.push(`last_evidence_at >= NOW() - INTERVAL '${params.window} days'`);
@@ -296,6 +309,7 @@ export function makeSignalsService(pool: Pool) {
 
   async function getSignalsSummary(params: {
     region?: string;
+    sector?: string;
     window?: number;
   }): Promise<{
     rising: SignalRow[];
@@ -309,16 +323,27 @@ export function makeSignalsService(pool: Pool) {
         ? `AND last_evidence_at >= NOW() - INTERVAL '${params.window} days'`
         : '';
 
+      let sectorFilter = '';
+      const sectorValues: any[] = [];
+      if (params.sector) {
+        const sectorDef = findSector(params.sector);
+        if (sectorDef) {
+          const sf = sectorFilterForStartups(sectorDef, 's_sec', 2);
+          sectorFilter = ` AND EXISTS (SELECT 1 FROM signal_evidence se JOIN startups s_sec ON s_sec.id = se.startup_id WHERE se.signal_id = signals.id AND ${sf.clause})`;
+          sectorValues.push(...sf.values);
+        }
+      }
+
       const risingResult = await pool.query(
         `SELECT id::text, domain, cluster_name, claim, region,
                 conviction, momentum, impact, adoption_velocity,
                 status, evidence_count, unique_company_count,
                 first_seen_at, last_evidence_at, metadata_json
          FROM signals
-         WHERE region = $1 AND status IN ('emerging', 'accelerating') ${windowFilter}
+         WHERE region = $1 AND status IN ('emerging', 'accelerating') ${windowFilter}${sectorFilter}
          ORDER BY momentum DESC
          LIMIT 20`,
-        [region]
+        [region, ...sectorValues]
       );
 
       const establishedResult = await pool.query(
@@ -327,10 +352,10 @@ export function makeSignalsService(pool: Pool) {
                 status, evidence_count, unique_company_count,
                 first_seen_at, last_evidence_at, metadata_json
          FROM signals
-         WHERE region = $1 AND status = 'established' ${windowFilter}
+         WHERE region = $1 AND status = 'established' ${windowFilter}${sectorFilter}
          ORDER BY conviction DESC
          LIMIT 20`,
-        [region]
+        [region, ...sectorValues]
       );
 
       const decayingResult = await pool.query(
@@ -339,19 +364,19 @@ export function makeSignalsService(pool: Pool) {
                 status, evidence_count, unique_company_count,
                 first_seen_at, last_evidence_at, metadata_json
          FROM signals
-         WHERE region = $1 AND status = 'decaying' ${windowFilter}
+         WHERE region = $1 AND status = 'decaying' ${windowFilter}${sectorFilter}
          ORDER BY momentum ASC
          LIMIT 10`,
-        [region]
+        [region, ...sectorValues]
       );
 
       const statusStats = await pool.query(
-        `SELECT status, COUNT(*) as cnt FROM signals WHERE region = $1 ${windowFilter} GROUP BY status`,
-        [region]
+        `SELECT status, COUNT(*) as cnt FROM signals WHERE region = $1 ${windowFilter}${sectorFilter} GROUP BY status`,
+        [region, ...sectorValues]
       );
       const domainStats = await pool.query(
-        `SELECT domain, COUNT(*) as cnt FROM signals WHERE region = $1 ${windowFilter} GROUP BY domain`,
-        [region]
+        `SELECT domain, COUNT(*) as cnt FROM signals WHERE region = $1 ${windowFilter}${sectorFilter} GROUP BY domain`,
+        [region, ...sectorValues]
       );
 
       const by_status: Record<string, number> = {};

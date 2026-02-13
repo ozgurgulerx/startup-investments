@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { findSector, sectorFilterForStartups } from '../shared/sectors';
 
 export interface TreemapNode {
   name: string;
@@ -31,10 +32,11 @@ export function makeLandscapesService(pool: Pool) {
   async function getTreemap(params: {
     scope?: string;
     period?: string;
+    sector?: string;
     size_by?: string;
     stage?: string;
   }): Promise<TreemapNode[]> {
-    const { scope = 'global', period, size_by = 'funding', stage } = params;
+    const { scope = 'global', period, sector, size_by = 'funding', stage } = params;
 
     const conditions = ['s.dataset_region = $1'];
     const values: any[] = [scope];
@@ -51,6 +53,15 @@ export function makeLandscapesService(pool: Pool) {
       conditions.push(`ss.funding_stage = $${paramIdx}`);
       values.push(stage);
       paramIdx++;
+    }
+    if (sector) {
+      const sectorDef = findSector(sector);
+      if (sectorDef) {
+        const sf = sectorFilterForStartups(sectorDef, 's', paramIdx);
+        conditions.push(sf.clause);
+        values.push(...sf.values);
+        paramIdx = sf.nextIdx;
+      }
     }
 
     const where = conditions.join(' AND ');

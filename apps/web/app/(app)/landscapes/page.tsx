@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRegion } from '@/lib/region-context';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
+import { SectorFilter } from '@/components/features/sector-filter';
 
 interface TreemapNode {
   name: string;
@@ -62,6 +63,7 @@ export default function LandscapesPage() {
   const { region } = useRegion();
   const [nodes, setNodes] = useState<TreemapNode[]>([]);
   const [sizeBy, setSizeBy] = useState<'funding' | 'count'>('funding');
+  const [sector, setSector] = useState<string | null>(null);
   const [selectedPattern, setSelectedPattern] = useState<string | null>(null);
   const [clusterDetail, setClusterDetail] = useState<ClusterDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,8 +71,10 @@ export default function LandscapesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const scope = region !== 'global' ? `&scope=${region}` : '';
-        const res = await fetch(`/api/landscapes?size_by=${sizeBy}${scope}`);
+        const params = new URLSearchParams({ size_by: sizeBy });
+        if (region !== 'global') params.set('scope', region);
+        if (sector) params.set('sector', sector);
+        const res = await fetch(`/api/landscapes?${params.toString()}`);
         if (res.ok) setNodes(await res.json());
       } catch (err) {
         console.error('Failed to load landscapes:', err);
@@ -79,7 +83,7 @@ export default function LandscapesPage() {
       }
     }
     load();
-  }, [region, sizeBy]);
+  }, [region, sizeBy, sector]);
 
   useEffect(() => {
     if (!selectedPattern) { setClusterDetail(null); return; }
@@ -127,21 +131,24 @@ export default function LandscapesPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-4 mt-4 mb-6">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Size by:</span>
-          {(['funding', 'count'] as const).map(opt => (
-            <button
-              key={opt}
-              onClick={() => setSizeBy(opt)}
-              className={`px-2.5 py-1 text-xs rounded transition-colors ${
-                sizeBy === opt ? 'bg-accent-info/15 text-accent-info' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {opt === 'funding' ? 'Funding' : 'Count'}
-            </button>
-          ))}
+      <div className="space-y-3 mt-4 mb-6">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Size by:</span>
+            {(['funding', 'count'] as const).map(opt => (
+              <button
+                key={opt}
+                onClick={() => setSizeBy(opt)}
+                className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                  sizeBy === opt ? 'bg-accent-info/15 text-accent-info' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {opt === 'funding' ? 'Funding' : 'Count'}
+              </button>
+            ))}
+          </div>
         </div>
+        <SectorFilter region={region} value={sector} onChange={setSector} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">

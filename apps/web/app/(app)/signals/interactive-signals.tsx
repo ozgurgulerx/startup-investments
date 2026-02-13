@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock, ChevronRight, Info, Bell, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { PatternCohortTable } from '@/components/features/pattern-cohort-table';
+import { SectorFilter } from '@/components/features/sector-filter';
 import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
 import { Sheet, SheetHeader, SheetContent } from '@/components/ui/sheet';
 import { useIsDesktop } from '@/lib/hooks/use-media-query';
@@ -508,6 +509,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   const [sort, setSort] = useState<SortKey>('momentum');
   const [domain, setDomain] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [sector, setSector] = useState<string | null>(null);
 
   // Fetched signals (null = using initial data)
   const [fetchedSignals, setFetchedSignals] = useState<SignalItem[] | null>(null);
@@ -585,7 +587,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   }, []);
 
   // Determine if we need to re-fetch (filters changed from default)
-  const isDefaultFilters = sort === 'momentum' && domain === null && status === null;
+  const isDefaultFilters = sort === 'momentum' && domain === null && status === null && sector === null;
 
   // Fetch signals when filters change
   useEffect(() => {
@@ -601,6 +603,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
     if (region) params.set('region', region);
     if (domain) params.set('domain', domain);
     if (status) params.set('status', status);
+    if (sector) params.set('sector', sector);
     params.set('sort', sort);
     params.set('limit', '50');
 
@@ -617,7 +620,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       });
 
     return () => { cancelled = true; };
-  }, [sort, domain, status, region, isDefaultFilters]);
+  }, [sort, domain, status, sector, region, isDefaultFilters]);
 
   // Current signals list (use fetched or initial)
   const signals = fetchedSignals || initialSignals;
@@ -694,6 +697,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
             onStatusChange={setStatus}
             stats={stats}
           />
+          <SectorFilter region={region} value={sector} onChange={setSector} />
         </div>
         {isAuthenticated && newCount > 0 && (
           <div className="pt-1">

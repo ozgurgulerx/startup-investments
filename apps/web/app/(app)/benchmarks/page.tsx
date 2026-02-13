@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRegion } from '@/lib/region-context';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { SectorFilter } from '@/components/features/sector-filter';
 
 interface CohortBenchmark {
   cohort_key: string;
@@ -65,15 +66,20 @@ export default function BenchmarksPage() {
   const [selectedCohortType, setSelectedCohortType] = useState('all');
   const [selectedCohort, setSelectedCohort] = useState('all:all');
   const [selectedMetric, setSelectedMetric] = useState('funding_total_usd');
+  const [sector, setSector] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const qs = region !== 'global' ? `?region=${region}` : '';
+        const params = new URLSearchParams();
+        if (region !== 'global') params.set('region', region);
+        if (sector) params.set('sector', sector);
+        const qs = params.toString();
+        const prefix = qs ? `?${qs}` : '';
         const [cohortRes, benchRes] = await Promise.all([
-          fetch(`/api/benchmarks/cohorts${qs}`),
-          fetch(`/api/benchmarks${qs}`),
+          fetch(`/api/benchmarks/cohorts${prefix}`),
+          fetch(`/api/benchmarks${prefix}`),
         ]);
         if (cohortRes.ok) setCohorts(await cohortRes.json());
         if (benchRes.ok) {
@@ -87,7 +93,7 @@ export default function BenchmarksPage() {
       }
     }
     load();
-  }, [region]);
+  }, [region, sector]);
 
   const filteredCohorts = useMemo(() => {
     if (selectedCohortType === 'all') return cohorts;
@@ -142,6 +148,8 @@ export default function BenchmarksPage() {
           Compare funding, scores, and team size across {cohorts.length} cohorts
         </p>
       </div>
+
+      <SectorFilter region={region} value={sector} onChange={setSector} className="mt-4" />
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 mt-6">
         {/* Left Panel — Cohort Builder */}

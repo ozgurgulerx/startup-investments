@@ -60,6 +60,7 @@ import {
   investorPortfolioQuerySchema,
   landscapesQuerySchema,
   landscapesClusterQuerySchema,
+  sectorsQuerySchema,
   subscriptionCreateSchema,
   subscriptionDeleteSchema,
   subscriptionsQuerySchema,
@@ -77,6 +78,7 @@ import { makeBriefService } from './services/brief';
 import { makeBenchmarksService } from './services/benchmarks';
 import { makeInvestorsService } from './services/investors';
 import { makeLandscapesService } from './services/landscapes';
+import { CURATED_SECTORS, findSector, sectorFilterForStartups } from './shared/sectors';
 import { makeSubscriptionsService } from './services/subscriptions';
 import {
   getRedisClient,
@@ -2118,8 +2120,8 @@ app.get('/api/v1/signals', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
 
-    const { region, status, domain, sort, window, limit, offset } = parsed.data;
-    const cacheKey = `signals:list:${region || 'global'}:${status || 'all'}:${domain || 'all'}:${sort}:${window || 'all'}:${limit}:${offset}`;
+    const { region, status, domain, sector, sort, window, limit, offset } = parsed.data;
+    const cacheKey = `signals:list:${region || 'global'}:${status || 'all'}:${domain || 'all'}:${sector || 'all'}:${sort}:${window || 'all'}:${limit}:${offset}`;
 
     const redis = await getRedisClient();
     if (redis) {
@@ -2132,7 +2134,7 @@ app.get('/api/v1/signals', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await signalsService.getSignalsList({ region, status, domain, sort, window, limit, offset });
+    const result = await signalsService.getSignalsList({ region, status, domain, sector, sort, window, limit, offset });
 
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
@@ -2152,8 +2154,8 @@ app.get('/api/v1/signals/summary', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
 
-    const { region, window } = parsed.data;
-    const cacheKey = `signals:summary:${region || 'global'}:${window || 'all'}`;
+    const { region, sector, window } = parsed.data;
+    const cacheKey = `signals:summary:${region || 'global'}:${sector || 'all'}:${window || 'all'}`;
 
     const redis = await getRedisClient();
     if (redis) {
@@ -2166,7 +2168,7 @@ app.get('/api/v1/signals/summary', async (req, res) => {
       } catch { /* noop */ }
     }
 
-    const result = await signalsService.getSignalsSummary({ region, window });
+    const result = await signalsService.getSignalsSummary({ region, sector, window });
 
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
@@ -2545,7 +2547,7 @@ app.get('/api/v1/movers', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
     const params = parsed.data;
-    const cacheKey = `movers:feed:${params.region}:${params.delta_type || 'all'}:${params.domain || 'all'}:${params.period || 'all'}:${params.limit}:${params.offset}`;
+    const cacheKey = `movers:feed:${params.region}:${params.delta_type || 'all'}:${params.domain || 'all'}:${params.sector || 'all'}:${params.period || 'all'}:${params.limit}:${params.offset}`;
 
     const redis = await getRedisClient();
     if (redis) {
@@ -2576,7 +2578,7 @@ app.get('/api/v1/movers/summary', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
     const params = parsed.data;
-    const cacheKey = `movers:summary:${params.region}:${params.period || 'all'}:${params.limit}`;
+    const cacheKey = `movers:summary:${params.region}:${params.sector || 'all'}:${params.period || 'all'}:${params.limit}`;
 
     const redis = await getRedisClient();
     if (redis) {
@@ -2776,7 +2778,7 @@ app.get('/api/v1/benchmarks', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const cacheKey = `benchmarks:list:${parsed.data.region}:${parsed.data.cohort_type || 'all'}:${parsed.data.cohort_key || 'all'}:${parsed.data.period || 'latest'}:${parsed.data.metric || 'all'}`;
+    const cacheKey = `benchmarks:list:${parsed.data.region}:${parsed.data.cohort_type || 'all'}:${parsed.data.cohort_key || 'all'}:${parsed.data.sector || 'all'}:${parsed.data.period || 'latest'}:${parsed.data.metric || 'all'}`;
     const redis = await getRedisClient();
     if (redis) {
       try {
@@ -2784,7 +2786,18 @@ app.get('/api/v1/benchmarks', async (req, res) => {
         if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
       } catch { /* noop */ }
     }
-    const result = await benchmarksService.getBenchmarks(parsed.data);
+    // Translate sector into cohort_type/cohort_key if no explicit cohort provided
+    const params = { ...parsed.data };
+    if (params.sector && !params.cohort_key) {
+      const sectorDef = findSector(params.sector);
+      if (sectorDef) {
+        params.cohort_type = 'vertical';
+        // Use the first verticalId or subVerticalId as cohort key
+        const vertKey = sectorDef.verticalIds[0] || sectorDef.subVerticalIds[0];
+        if (vertKey) params.cohort_key = `vertical:${vertKey}`;
+      }
+    }
+    const result = await benchmarksService.getBenchmarks(params);
     if (redis) {
       try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
     }
@@ -2936,6 +2949,55 @@ app.get('/api/v1/investors/:id/portfolio', async (req, res) => {
 });
 
 // =============================================================================
+// CURATED SECTORS
+// =============================================================================
+
+app.get('/api/v1/sectors', async (req, res) => {
+  try {
+    const parsed = sectorsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region } = parsed.data;
+    const cacheKey = `sectors:list:${region}`;
+
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    // Count startups per sector
+    const sectors = await Promise.all(
+      CURATED_SECTORS.map(async (sector) => {
+        const sf = sectorFilterForStartups(sector, 's', 2);
+        const countResult = await pool.query(
+          `SELECT COUNT(*) AS cnt FROM startups s WHERE s.dataset_region = $1 AND ${sf.clause}`,
+          [region, ...sf.values],
+        );
+        return {
+          id: sector.id,
+          label: sector.label,
+          count: parseInt(countResult.rows[0]?.cnt || '0', 10),
+        };
+      }),
+    );
+
+    const result = { sectors: sectors.filter(s => s.count > 0) };
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 300 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching sectors:', error);
+    return res.status(500).json({ error: 'Failed to fetch sectors' });
+  }
+});
+
+// =============================================================================
 // PATTERN LANDSCAPES
 // =============================================================================
 
@@ -2945,7 +3007,7 @@ app.get('/api/v1/landscapes', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const cacheKey = `landscapes:treemap:${parsed.data.scope}:${parsed.data.period || 'latest'}:${parsed.data.size_by}:${parsed.data.stage || 'all'}`;
+    const cacheKey = `landscapes:treemap:${parsed.data.scope}:${parsed.data.period || 'latest'}:${parsed.data.sector || 'all'}:${parsed.data.size_by}:${parsed.data.stage || 'all'}`;
     const redis = await getRedisClient();
     if (redis) {
       try {

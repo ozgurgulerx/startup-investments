@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { findSector, sectorExistsSubquery } from '../shared/sectors';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,6 +70,7 @@ export function makeMoversService(pool: Pool) {
     region?: string;
     delta_type?: string;
     domain?: string;
+    sector?: string;
     startup_id?: string;
     period?: string;
     min_magnitude?: number;
@@ -79,6 +81,7 @@ export function makeMoversService(pool: Pool) {
       region = 'global',
       delta_type,
       domain,
+      sector,
       startup_id,
       period,
       min_magnitude,
@@ -99,6 +102,15 @@ export function makeMoversService(pool: Pool) {
       conditions.push(`de.domain = $${paramIdx}`);
       values.push(domain);
       paramIdx++;
+    }
+    if (sector) {
+      const sectorDef = findSector(sector);
+      if (sectorDef) {
+        const sf = sectorExistsSubquery(sectorDef, 'de.startup_id', paramIdx);
+        conditions.push(sf.clause);
+        values.push(...sf.values);
+        paramIdx = sf.nextIdx;
+      }
     }
     if (startup_id) {
       conditions.push(`de.startup_id = $${paramIdx}::uuid`);
@@ -142,34 +154,53 @@ export function makeMoversService(pool: Pool) {
 
   async function getMoversSummary(params: {
     region?: string;
+    sector?: string;
     period?: string;
     limit?: number;
   }): Promise<MoversSummary> {
-    const { region = 'global', period, limit = 10 } = params;
+    const { region = 'global', sector, period, limit = 10 } = params;
 
-    const periodCondition = period ? 'AND de.period = $2' : '';
-    const periodValues = period ? [region, period] : [region];
+    const conditions: string[] = ['de.region = $1'];
+    const values: any[] = [region];
+    let paramIdx = 2;
+
+    if (period) {
+      conditions.push(`de.period = $${paramIdx}`);
+      values.push(period);
+      paramIdx++;
+    }
+    if (sector) {
+      const sectorDef = findSector(sector);
+      if (sectorDef) {
+        const sf = sectorExistsSubquery(sectorDef, 'de.startup_id', paramIdx);
+        conditions.push(sf.clause);
+        values.push(...sf.values);
+        paramIdx = sf.nextIdx;
+      }
+    }
+
+    const where = conditions.join(' AND ');
 
     // Top movers by magnitude
     const topResult = await pool.query(
       `SELECT de.*, s.name AS startup_name, s.slug AS startup_slug
        FROM delta_events de
        LEFT JOIN startups s ON s.id = de.startup_id
-       WHERE de.region = $1 ${periodCondition}
+       WHERE ${where}
          AND de.magnitude IS NOT NULL
        ORDER BY de.magnitude DESC, de.effective_at DESC
-       LIMIT $${periodValues.length + 1}`,
-      [...periodValues, limit],
+       LIMIT $${paramIdx}`,
+      [...values, limit],
     );
 
     // Type breakdown
     const typeResult = await pool.query(
       `SELECT de.delta_type, COUNT(*) AS count
        FROM delta_events de
-       WHERE de.region = $1 ${periodCondition}
+       WHERE ${where}
        GROUP BY de.delta_type
        ORDER BY count DESC`,
-      periodValues,
+      values,
     );
 
     const byType: Record<string, number> = {};

@@ -431,6 +431,7 @@ export async function getSignalsList(params?: {
   region?: string;
   status?: string;
   domain?: string;
+  sector?: string;
   sort?: string;
   limit?: number;
   offset?: number;
@@ -439,6 +440,7 @@ export async function getSignalsList(params?: {
   if (params?.region) qs.set('region', params.region);
   if (params?.status) qs.set('status', params.status);
   if (params?.domain) qs.set('domain', params.domain);
+  if (params?.sector) qs.set('sector', params.sector);
   if (params?.sort) qs.set('sort', params.sort);
   if (params?.limit) qs.set('limit', String(params.limit));
   if (params?.offset) qs.set('offset', String(params.offset));
@@ -584,11 +586,13 @@ export interface DeltaFeedResponse {
 
 export async function getMoversSummary(params?: {
   region?: string;
+  sector?: string;
   period?: string;
   limit?: number;
 }): Promise<MoversSummaryResponse> {
   const qs = new URLSearchParams();
   if (params?.region) qs.set('region', params.region);
+  if (params?.sector) qs.set('sector', params.sector);
   if (params?.period) qs.set('period', params.period);
   if (params?.limit) qs.set('limit', String(params.limit));
   return fetchFromAPI<MoversSummaryResponse>(`/api/v1/movers/summary?${qs.toString()}`);
@@ -598,6 +602,7 @@ export async function getDeltaFeed(params?: {
   region?: string;
   delta_type?: string;
   domain?: string;
+  sector?: string;
   period?: string;
   min_magnitude?: number;
   limit?: number;
@@ -607,6 +612,7 @@ export async function getDeltaFeed(params?: {
   if (params?.region) qs.set('region', params.region);
   if (params?.delta_type) qs.set('delta_type', params.delta_type);
   if (params?.domain) qs.set('domain', params.domain);
+  if (params?.sector) qs.set('sector', params.sector);
   if (params?.period) qs.set('period', params.period);
   if (params?.min_magnitude != null) qs.set('min_magnitude', String(params.min_magnitude));
   if (params?.limit) qs.set('limit', String(params.limit));
@@ -720,6 +726,7 @@ export interface BenchmarksListResponse {
 export async function getBenchmarksList(params?: {
   cohort_type?: string;
   cohort_key?: string;
+  sector?: string;
   region?: string;
   period?: string;
   metric?: string;
@@ -727,6 +734,7 @@ export async function getBenchmarksList(params?: {
   const qs = new URLSearchParams();
   if (params?.cohort_type) qs.set('cohort_type', params.cohort_type);
   if (params?.cohort_key) qs.set('cohort_key', params.cohort_key);
+  if (params?.sector) qs.set('sector', params.sector);
   if (params?.region) qs.set('region', params.region);
   if (params?.period) qs.set('period', params.period);
   if (params?.metric) qs.set('metric', params.metric);
@@ -845,12 +853,14 @@ export interface ClusterDetail {
 export async function getLandscapes(params?: {
   scope?: string;
   period?: string;
+  sector?: string;
   size_by?: string;
   stage?: string;
 }): Promise<TreemapNode[]> {
   const qs = new URLSearchParams();
   if (params?.scope) qs.set('scope', params.scope);
   if (params?.period) qs.set('period', params.period);
+  if (params?.sector) qs.set('sector', params.sector);
   if (params?.size_by) qs.set('size_by', params.size_by);
   if (params?.stage) qs.set('stage', params.stage);
   return fetchFromAPI<TreemapNode[]>(`/api/v1/landscapes?${qs.toString()}`);
