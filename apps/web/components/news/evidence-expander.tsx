@@ -59,7 +59,7 @@ function EvidenceRow({ item, region }: { item: EvidenceItem; region: 'global' | 
         <>
           <span className="text-muted-foreground/40">&middot;</span>
           <span className="text-muted-foreground/60 tabular-nums whitespace-nowrap">
-            {timeAgo(item.published_at)}
+            {timeAgo(item.published_at, region)}
           </span>
         </>
       )}

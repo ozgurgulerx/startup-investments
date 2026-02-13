@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Activity, ArrowUpRight, Newspaper, RefreshCcw, Sparkles } from 'lucide-react';
 import type { NewsEdition } from '@startup-intelligence/shared';
@@ -128,8 +128,10 @@ export function DailyNewsModule({ className, region = 'global' }: DailyNewsModul
     };
 
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const selectedId = searchParams.get('story');
+  const selectedIdFromUrl = searchParams.get('story');
+  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(selectedIdFromUrl);
 
   const newsBasePath = region === 'turkey' ? '/news/turkey' : '/news';
   const archivePath = region === 'turkey' ? '/news/turkey/archive' : '/news/archive';
@@ -171,6 +173,7 @@ export function DailyNewsModule({ className, region = 'global' }: DailyNewsModul
   }, []);
 
   const selectStory = useCallback((id: string | null) => {
+    setSelectedStoryId(id);
     const params = new URLSearchParams(searchParams.toString());
     if (id) {
       params.set('story', id);
@@ -178,8 +181,12 @@ export function DailyNewsModule({ className, region = 'global' }: DailyNewsModul
       params.delete('story');
     }
     const qs = params.toString();
-    router.replace(qs ? `?${qs}` : '?', { scroll: false });
-  }, [router, searchParams]);
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    setSelectedStoryId(selectedIdFromUrl);
+  }, [selectedIdFromUrl]);
 
   const applyEdition = useCallback((data: NewsEdition) => {
     const current = editionRef.current;
@@ -333,8 +340,8 @@ export function DailyNewsModule({ className, region = 'global' }: DailyNewsModul
   }, [edition?.items]);
 
   const selectedItem = useMemo(
-    () => (selectedId ? sortedItems.find((item) => item.id === selectedId) || null : null),
-    [selectedId, sortedItems]
+    () => (selectedStoryId ? sortedItems.find((item) => item.id === selectedStoryId) || null : null),
+    [selectedStoryId, sortedItems]
   );
 
   if (loading) {
@@ -548,7 +555,7 @@ export function DailyNewsModule({ className, region = 'global' }: DailyNewsModul
                   >
                     <StoryCard
                       item={item}
-                      isSelected={selectedId === item.id}
+                      isSelected={selectedStoryId === item.id}
                       onSelect={selectStory}
                       onHide={handleHideStory}
                       region={region}
@@ -565,7 +572,7 @@ export function DailyNewsModule({ className, region = 'global' }: DailyNewsModul
                       <StoryCard
                         key={item.id}
                         item={item}
-                        isSelected={selectedId === item.id}
+                        isSelected={selectedStoryId === item.id}
                         onSelect={selectStory}
                         onHide={handleHideStory}
                         region={region}
@@ -583,7 +590,7 @@ export function DailyNewsModule({ className, region = 'global' }: DailyNewsModul
                       <StoryCard
                         key={item.id}
                         item={item}
-                        isSelected={selectedId === item.id}
+                        isSelected={selectedStoryId === item.id}
                         onSelect={selectStory}
                         onHide={handleHideStory}
                         region={region}
@@ -601,7 +608,7 @@ export function DailyNewsModule({ className, region = 'global' }: DailyNewsModul
                       <StoryCard
                         key={item.id}
                         item={item}
-                        isSelected={selectedId === item.id}
+                        isSelected={selectedStoryId === item.id}
                         onSelect={selectStory}
                         onHide={handleHideStory}
                         region={region}
