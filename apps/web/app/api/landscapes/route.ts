@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchFromAPI } from '@/lib/api/client';
+import { APIError, fetchFromAPI } from '@/lib/api/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching landscapes:', error);
-    return NextResponse.json([], { status: 500 });
+    const status = error instanceof APIError ? error.status : 500;
+    return NextResponse.json([], { status });
   }
 }

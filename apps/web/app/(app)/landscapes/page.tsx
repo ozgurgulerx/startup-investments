@@ -66,18 +66,30 @@ export default function LandscapesPage() {
   const [sector, setSector] = useState<string | null>(null);
   const [selectedPattern, setSelectedPattern] = useState<string | null>(null);
   const [clusterDetail, setClusterDetail] = useState<ClusterDetail | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
+        setLoading(true);
+        setLoadError(null);
         const params = new URLSearchParams({ size_by: sizeBy });
         if (region !== 'global') params.set('scope', region);
         if (sector) params.set('sector', sector);
         const res = await fetch(`/api/landscapes?${params.toString()}`);
-        if (res.ok) setNodes(await res.json());
+        if (res.ok) {
+          setNodes(await res.json());
+        } else {
+          setNodes([]);
+          setLoadError(`Failed to load landscapes (HTTP ${res.status})`);
+        }
       } catch (err) {
         console.error('Failed to load landscapes:', err);
+        setNodes([]);
+        setLoadError('Failed to load landscapes');
       } finally {
         setLoading(false);
       }
@@ -86,14 +98,31 @@ export default function LandscapesPage() {
   }, [region, sizeBy, sector]);
 
   useEffect(() => {
-    if (!selectedPattern) { setClusterDetail(null); return; }
+    if (!selectedPattern) {
+      setClusterDetail(null);
+      setDetailError(null);
+      setDetailLoading(false);
+      return;
+    }
     async function loadDetail() {
       try {
+        setDetailLoading(true);
+        setDetailError(null);
+        setClusterDetail(null);
         const scope = region !== 'global' ? `&scope=${region}` : '';
         const res = await fetch(`/api/landscapes/cluster?pattern=${encodeURIComponent(selectedPattern!)}${scope}`);
-        if (res.ok) setClusterDetail(await res.json());
+        if (res.ok) {
+          setClusterDetail(await res.json());
+        } else if (res.status === 404) {
+          setDetailError('No details available for this pattern.');
+        } else {
+          setDetailError(`Failed to load details (HTTP ${res.status})`);
+        }
       } catch (err) {
         console.error('Failed to load cluster detail:', err);
+        setDetailError('Failed to load details');
+      } finally {
+        setDetailLoading(false);
       }
     }
     loadDetail();
@@ -125,9 +154,13 @@ export default function LandscapesPage() {
       <div className="briefing-header">
         <span className="briefing-date">Landscapes</span>
         <h1 className="briefing-headline">Pattern landscape map</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {nodes.length} patterns across {nodes.reduce((s, n) => s + n.count, 0)} startups
-        </p>
+        {loadError ? (
+          <p className="text-sm text-destructive mt-1">{loadError}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground mt-1">
+            {nodes.length} patterns across {nodes.reduce((s, n) => s + n.count, 0)} startups
+          </p>
+        )}
       </div>
 
       {/* Controls */}
@@ -174,7 +207,19 @@ export default function LandscapesPage() {
 
         {/* Detail Panel */}
         <div className="border border-border/30 rounded-lg p-4">
-          {selectedPattern && clusterDetail ? (
+          {!selectedPattern ? (
+            <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16">
+              Click a pattern cell to see details
+            </div>
+          ) : detailLoading ? (
+            <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16">
+              Loading details...
+            </div>
+          ) : detailError ? (
+            <div className="flex items-center justify-center h-full text-xs text-destructive py-16 text-center">
+              {detailError}
+            </div>
+          ) : clusterDetail ? (
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-medium text-foreground">{clusterDetail.pattern}</h3>
@@ -232,8 +277,8 @@ export default function LandscapesPage() {
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16">
-              Click a pattern cell to see details
+            <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16 text-center">
+              No details available for this pattern.
             </div>
           )}
         </div>

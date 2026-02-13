@@ -47,7 +47,14 @@ export function makeLandscapesService(pool: Pool) {
       values.push(period);
       paramIdx++;
     } else {
-      conditions.push(`ss.analysis_period = (SELECT MAX(analysis_period) FROM startup_state_snapshot)`);
+      // Scope-aware "latest" period. Snapshot table is region-agnostic, so join via startups.
+      conditions.push(`ss.analysis_period = (
+        SELECT MAX(ss2.analysis_period)
+        FROM startup_state_snapshot ss2
+        JOIN startups s2 ON s2.id = ss2.startup_id
+        WHERE s2.dataset_region = $1
+          AND ss2.analysis_period IS NOT NULL
+      )`);
     }
     if (stage) {
       conditions.push(`ss.funding_stage = $${paramIdx}`);
@@ -155,7 +162,13 @@ export function makeLandscapesService(pool: Pool) {
 
     const periodCondition = period
       ? `AND ss.analysis_period = $3`
-      : `AND ss.analysis_period = (SELECT MAX(analysis_period) FROM startup_state_snapshot)`;
+      : `AND ss.analysis_period = (
+          SELECT MAX(ss2.analysis_period)
+          FROM startup_state_snapshot ss2
+          JOIN startups s2 ON s2.id = ss2.startup_id
+          WHERE s2.dataset_region = $1
+            AND ss2.analysis_period IS NOT NULL
+        )`;
     const values = period ? [scope, pattern, period] : [scope, pattern];
 
     // Get startups with this pattern
@@ -165,26 +178,35 @@ export function makeLandscapesService(pool: Pool) {
        JOIN startups s ON s.id = ss.startup_id
        WHERE s.dataset_region = $1
          ${periodCondition}
-         AND ss.build_patterns::jsonb @> $2::jsonb
-       ORDER BY s.money_raised_usd DESC NULLS LAST
-       LIMIT 20`,
-      [...values.slice(0, period ? 1 : 1), JSON.stringify([pattern]), ...(period ? [period] : [])],
-    );
-
-    // Try simpler pattern matching with text search
-    const startupsResult2 = await pool.query(
-      `SELECT s.id::text, s.name, s.slug, s.money_raised_usd, ss.funding_stage
-       FROM startup_state_snapshot ss
-       JOIN startups s ON s.id = ss.startup_id
-       WHERE s.dataset_region = $1
-         ${periodCondition}
-         AND ss.build_patterns::text ILIKE '%' || $2 || '%'
+         AND (
+           (LOWER($2) = 'unclassified' AND COALESCE(array_length(ss.build_patterns, 1), 0) = 0)
+           OR
+           (LOWER($2) <> 'unclassified' AND COALESCE(ss.build_patterns, ARRAY[]::text[]) @> ARRAY[$2]::text[])
+         )
        ORDER BY s.money_raised_usd DESC NULLS LAST
        LIMIT 20`,
       values,
     );
 
-    const startupRows = startupsResult.rows.length > 0 ? startupsResult.rows : startupsResult2.rows;
+    let startupRows = startupsResult.rows;
+
+    // Fallback: substring match for legacy/dirty data where patterns may not match exactly.
+    // (Not useful for Unclassified, which is represented by an empty array.)
+    if (startupRows.length === 0 && pattern.trim().toLowerCase() !== 'unclassified') {
+      const startupsResult2 = await pool.query(
+        `SELECT s.id::text, s.name, s.slug, s.money_raised_usd, ss.funding_stage
+         FROM startup_state_snapshot ss
+         JOIN startups s ON s.id = ss.startup_id
+         WHERE s.dataset_region = $1
+           ${periodCondition}
+           AND ss.build_patterns::text ILIKE '%' || $2 || '%'
+         ORDER BY s.money_raised_usd DESC NULLS LAST
+         LIMIT 20`,
+        values,
+      );
+      startupRows = startupsResult2.rows;
+    }
+
     if (!startupRows.length) return null;
 
     const startupIds = startupRows.map(r => r.id);
