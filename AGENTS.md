@@ -143,6 +143,7 @@ VM cron runner:
   - Product surface canary:
     - `product-canary` runs every 30 minutes (`17,47 * * * *`) and validates:
       - brief snapshot schema (includes `verticalLandscape` + `capitalGraph`),
+      - landscapes surfaces (`/api/v1/landscapes` + `/api/v1/landscapes/cluster`) (global must return data; Turkey warn-only),
       - Investor DNA screener (`/api/v1/investors/screener`) (warn if empty),
       - deep dives have at least one `ready` item (`/api/v1/deep-dives`).
     - State file: `/var/lib/buildatlas/product-canary.state` (fallback: `$REPO_DIR/.tmp/product-canary.state`).
@@ -154,7 +155,12 @@ VM cron runner:
     - worker execution still proceeds if seed chunk fails/times out.
   - Frontier telemetry:
     - Each frontier URL crawl attempt is persisted to `crawl_logs` (with `canonical_url`, `fetch_method`, `proxy_tier`, `error_category`, and optional `capture_id`) so `/api/admin/monitoring/frontier` can report 24h success/error rates.
+    - `/api/admin/monitoring/frontier` computes `runs24h` from frontier-related `crawl_logs` (canonical URLs present in `crawl_frontier_urls`) and excludes synthetic `fetch_method=runtime_missing_output` rows.
     - If `crawl_logs` is empty (older deployments), monitoring falls back to `crawl_frontier_urls.last_*` fields as an approximation.
+  - API runtime telemetry (admin-only):
+    - Middleware: `apps/api/src/monitoring/runtime_metrics.ts` records rolling per-minute request counts/status/latency buckets.
+    - Admin endpoint: `/api/admin/monitoring/runtime?window_min=10` returns a snapshot plus DB pool stats (`getPoolStats()`).
+    - VM `infrastructure/vm-cron/monitoring/heartbeat.sh` and `infrastructure/vm-cron/jobs/health-report.sh` consume this endpoint for SLO-style alerting.
   - Raw captures (WARC-lite):
     - `crawl_raw_captures` stores envelope metadata for replay and optionally uploads the compressed body to Blob Storage under `crawl-snapshots/raw-captures/...`.
     - If Blob upload auth is misconfigured (e.g., `AuthorizationFailure`), the worker **fail-opens**: it disables further blob uploads for that run (to avoid log spam) and continues recording DB metadata with `body_blob_path=NULL`.
@@ -368,6 +374,8 @@ News:
     - `DEEP_RESEARCH_MIN_CRAWL_SUCCESS_RATE`
     - `ONBOARDING_ALERTS_ENABLED`
     - `ONBOARDING_ALERTS_BATCH_SIZE`
+    - `ONBOARD_SINGLE_SOURCE_TRUST_MIN` (allow trusted single-source funding clusters to create stub startups when entity type is unknown)
+    - `ONBOARD_SINGLE_SOURCE_ALLOWLIST` (comma-separated publisher domain allowlist for single-source funding onboarding)
   - Visibility invariant:
     - Backend `GET /api/v1/dealbook`, `GET /api/v1/dealbook/filters`, and `GET /api/v1/companies/:slug` are **verified-only** (`onboarding_status='verified'`).
     - `merged`/`stub`/`rejected` startups are excluded from those surfaces.

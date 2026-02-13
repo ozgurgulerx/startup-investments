@@ -104,6 +104,12 @@ FRESHNESS_JOBS=(
     "deep-research:90:always"
     "onboarding-alerts:30:always"
     "crawl-frontier:90:always"
+    "signal-aggregate:540:always"
+    "delta-generate:540:always"
+    "generate-alerts:540:always"
+    "deep-dive-generate:1800:always"
+    "deep-dive-catchup:540:always"
+    "daily-observability:1800:always"
     "news-digest:3000:always"
     "sync-data:90:always"
     "code-update:800:always"
@@ -173,6 +179,91 @@ for entry in "${FRESHNESS_JOBS[@]}"; do
         rm -f "$STALE_ALERT_DIR/$JOB"
     fi
 done
+
+# ---------------------------------------------------------------------------
+# API runtime SLO checks — alert on rolling-window 5xx/p95 and DB pool pressure.
+# Dedup: once per hour per condition key.
+# ---------------------------------------------------------------------------
+SLO_ALERT_DIR="/tmp/buildatlas-slo-alerts"
+mkdir -p "$SLO_ALERT_DIR"
+
+maybe_slo_alert() {
+    local key="$1"
+    local line="$2"
+    local sentinel="$SLO_ALERT_DIR/$key"
+
+    if [ -f "$sentinel" ]; then
+        local age
+        age=$(( NOW_TS - $(stat -c %Y "$sentinel" 2>/dev/null || echo "$NOW_TS") ))
+        if [ "$age" -lt 3600 ]; then
+            return 0
+        fi
+    fi
+
+    touch "$sentinel" 2>/dev/null || true
+    ALERT=true
+    ALERT_LINES+=("$line")
+}
+
+clear_slo_sentinels() {
+    rm -f "$SLO_ALERT_DIR"/api-runtime-* 2>/dev/null || true
+}
+
+API_BASE_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}"
+RUNTIME_URL="${API_BASE_URL}/api/admin/monitoring/runtime?window_min=10"
+
+if [ -z "${API_KEY:-}" ]; then
+    maybe_slo_alert "api-runtime-no-api-key" "- API runtime SLO check skipped: API_KEY missing"
+else
+    RUNTIME_JSON=$(curl -sf \
+        -H "X-API-Key: ${API_KEY}" \
+        -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY}}" \
+        "$RUNTIME_URL" 2>/dev/null || echo "")
+
+    if [ -z "$RUNTIME_JSON" ]; then
+        maybe_slo_alert "api-runtime-unreachable" "- API runtime SLO check unreachable"
+    else
+        PARSED=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+except Exception:
+    print('error')
+    raise SystemExit(0)
+
+req = d.get('requests') or {}
+status = req.get('status') or {}
+pool = d.get('pool') or {}
+
+total = int(req.get('total') or 0)
+err5xx = int(status.get('5xx') or 0)
+p95 = int(req.get('p95_ms') or 0)
+waiting = int(pool.get('waitingCount') or 0)
+rate = (err5xx * 100.0 / total) if total > 0 else 0.0
+
+sev = 'ok'
+if rate >= 5.0 or p95 >= 5000 or waiting >= 10:
+    sev = 'fail'
+elif rate >= 2.0 or p95 >= 2000 or waiting > 0:
+    sev = 'warn'
+
+print(f\"{sev}|{total}|{err5xx}|{rate:.2f}|{p95}|{waiting}\")
+" <<< "$RUNTIME_JSON" 2>/dev/null || echo "error")
+
+        if [ "$PARSED" = "error" ]; then
+            maybe_slo_alert "api-runtime-parse-error" "- API runtime SLO check parse error"
+        else
+            IFS='|' read -r SEV TOTAL ERR5XX RATE P95 WAITING <<< "$PARSED"
+            if [ "$SEV" = "ok" ]; then
+                clear_slo_sentinels
+            else
+                maybe_slo_alert \
+                    "api-runtime-${SEV}" \
+                    "- API runtime SLO ${SEV}: 5xx_rate=${RATE}% p95=${P95}ms waiting=${WAITING} (total=${TOTAL}, window=10m)"
+            fi
+        fi
+    fi
+fi
 
 # Send alert if needed
 if [ "$ALERT" = true ]; then

@@ -3,6 +3,7 @@
 #
 # Goal: catch regressions in the user-facing "intelligence" surfaces:
 # - Dealbook brief snapshot schema (including verticalLandscape + capitalGraph)
+# - Landscapes (pattern treemap + cluster detail)
 # - Investor DNA screener (warn if empty; don't fail yet)
 # - Deep dives (must have at least one ready deep dive)
 #
@@ -111,6 +112,15 @@ fetch() {
   curl -sS --max-time 25 --retry 2 --retry-delay 1 -o "$out" -w "%{http_code}" "$@" "$url" 2>/dev/null || echo "000"
 }
 
+urlencode() {
+  python3 - "$1" <<'PY' 2>/dev/null
+import sys
+import urllib.parse
+
+print(urllib.parse.quote(sys.argv[1] if len(sys.argv) > 1 else ""))
+PY
+}
+
 echo "=== Product Canary ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo "State file: $STATE_FILE"
@@ -123,6 +133,7 @@ echo ""
 # ---------------------------------------------------------------------------
 FE_BRIEF_HTML="$TMP_DIR/brief.html"
 FE_INVESTORS_HTML="$TMP_DIR/investors.html"
+FE_LANDSCAPES_HTML="$TMP_DIR/landscapes.html"
 
 FE_BRIEF_HTTP="$(fetch "$FRONTEND_URL/brief" "$FE_BRIEF_HTML")"
 if [ "$FE_BRIEF_HTTP" != "200" ]; then
@@ -136,6 +147,13 @@ if [ "$FE_INV_HTTP" != "200" ]; then
   set_status_fail "frontend /investors HTTP $FE_INV_HTTP"
 else
   add_info "frontend /investors HTTP 200"
+fi
+
+FE_LAND_HTTP="$(fetch "$FRONTEND_URL/landscapes" "$FE_LANDSCAPES_HTML")"
+if [ "$FE_LAND_HTTP" != "200" ]; then
+  set_status_fail "frontend /landscapes HTTP $FE_LAND_HTTP"
+else
+  add_info "frontend /landscapes HTTP 200"
 fi
 
 # Extract build sha (best effort)
@@ -368,6 +386,229 @@ PY
           fi
         fi
       fi
+    fi
+  fi
+
+  # --- Landscapes (treemap + cluster detail) ---
+  LAND_GLOBAL_JSON="$TMP_DIR/landscapes_global.json"
+  LAND_GLOBAL_URL="$API_BASE_URL/api/v1/landscapes?size_by=funding&scope=global"
+  LAND_GLOBAL_HTTP="$(fetch "$LAND_GLOBAL_URL" "$LAND_GLOBAL_JSON" -H "X-API-Key: ${API_KEY}")"
+  if [ "$LAND_GLOBAL_HTTP" != "200" ]; then
+    set_status_fail "landscapes treemap HTTP $LAND_GLOBAL_HTTP (global)"
+  else
+    LAND_GLOBAL_NODES="$(python3 - "$LAND_GLOBAL_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+    print(len(d) if isinstance(d, list) else 0)
+except Exception:
+    print(0)
+PY
+    )"
+    add_info "landscapes treemap nodes (global): ${LAND_GLOBAL_NODES:-0}"
+    if [ "${LAND_GLOBAL_NODES:-0}" -le 0 ]; then
+      set_status_fail "landscapes treemap empty (global)"
+    fi
+
+    LAND_GLOBAL_HAS_U="$(python3 - "$LAND_GLOBAL_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    print("false")
+    raise SystemExit(0)
+if not isinstance(d, list):
+    print("false")
+    raise SystemExit(0)
+print("true" if any(isinstance(n, dict) and (n.get("name") or "") == "Unclassified" for n in d) else "false")
+PY
+    )"
+    LAND_GLOBAL_SAMPLE="$(python3 - "$LAND_GLOBAL_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    print("")
+    raise SystemExit(0)
+if not isinstance(d, list):
+    print("")
+    raise SystemExit(0)
+out = ""
+for n in d:
+    if not isinstance(n, dict):
+        continue
+    name = (n.get("name") or "").strip()
+    if name and name.lower() != "unclassified":
+        out = name
+        break
+print(out)
+PY
+    )"
+
+    if [ "${LAND_GLOBAL_HAS_U:-false}" = "true" ]; then
+      LAND_U_JSON="$TMP_DIR/landscapes_cluster_global_unclassified.json"
+      LAND_U_URL="$API_BASE_URL/api/v1/landscapes/cluster?pattern=Unclassified&scope=global"
+      LAND_U_HTTP="$(fetch "$LAND_U_URL" "$LAND_U_JSON" -H "X-API-Key: ${API_KEY}")"
+      if [ "$LAND_U_HTTP" != "200" ]; then
+        set_status_fail "landscapes cluster HTTP $LAND_U_HTTP (global, Unclassified)"
+      else
+        LAND_U_COUNT="$(python3 - "$LAND_U_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    print(0)
+    raise SystemExit(0)
+try:
+    print(int((d.get("startup_count") if isinstance(d, dict) else 0) or 0))
+except Exception:
+    print(0)
+PY
+        )"
+        add_info "landscapes cluster startups (global, Unclassified): ${LAND_U_COUNT:-0}"
+        if [ "${LAND_U_COUNT:-0}" -le 0 ]; then
+          set_status_fail "landscapes cluster has 0 startups (global, Unclassified)"
+        fi
+      fi
+    fi
+
+    if [ -n "${LAND_GLOBAL_SAMPLE:-}" ]; then
+      LAND_P_ESC="$(urlencode "$LAND_GLOBAL_SAMPLE")"
+      LAND_P_JSON="$TMP_DIR/landscapes_cluster_global_sample.json"
+      LAND_P_URL="$API_BASE_URL/api/v1/landscapes/cluster?pattern=${LAND_P_ESC}&scope=global"
+      LAND_P_HTTP="$(fetch "$LAND_P_URL" "$LAND_P_JSON" -H "X-API-Key: ${API_KEY}")"
+      if [ "$LAND_P_HTTP" != "200" ]; then
+        set_status_fail "landscapes cluster HTTP $LAND_P_HTTP (global, ${LAND_GLOBAL_SAMPLE})"
+      else
+        LAND_P_COUNT="$(python3 - "$LAND_P_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    print(0)
+    raise SystemExit(0)
+try:
+    print(int((d.get("startup_count") if isinstance(d, dict) else 0) or 0))
+except Exception:
+    print(0)
+PY
+        )"
+        add_info "landscapes cluster startups (global, ${LAND_GLOBAL_SAMPLE}): ${LAND_P_COUNT:-0}"
+        if [ "${LAND_P_COUNT:-0}" -le 0 ]; then
+          set_status_fail "landscapes cluster has 0 startups (global, ${LAND_GLOBAL_SAMPLE})"
+        fi
+      fi
+    else
+      set_status_warn "landscapes treemap has no non-Unclassified pattern (global)"
+    fi
+  fi
+
+  LAND_TR_JSON="$TMP_DIR/landscapes_turkey.json"
+  LAND_TR_URL="$API_BASE_URL/api/v1/landscapes?size_by=funding&scope=turkey"
+  LAND_TR_HTTP="$(fetch "$LAND_TR_URL" "$LAND_TR_JSON" -H "X-API-Key: ${API_KEY}")"
+  if [ "$LAND_TR_HTTP" != "200" ]; then
+    if [ "$LAND_TR_HTTP" = "000" ]; then
+      set_status_fail "landscapes treemap HTTP 000 (turkey)"
+    else
+      set_status_warn "landscapes treemap HTTP $LAND_TR_HTTP (turkey)"
+    fi
+  else
+    LAND_TR_NODES="$(python3 - "$LAND_TR_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+    print(len(d) if isinstance(d, list) else 0)
+except Exception:
+    print(0)
+PY
+    )"
+    add_info "landscapes treemap nodes (turkey): ${LAND_TR_NODES:-0}"
+    if [ "${LAND_TR_NODES:-0}" -le 0 ]; then
+      set_status_warn "landscapes treemap empty (turkey)"
+    fi
+
+    LAND_TR_HAS_U="$(python3 - "$LAND_TR_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    print("false")
+    raise SystemExit(0)
+if not isinstance(d, list):
+    print("false")
+    raise SystemExit(0)
+print("true" if any(isinstance(n, dict) and (n.get("name") or "") == "Unclassified" for n in d) else "false")
+PY
+    )"
+    LAND_TR_SAMPLE="$(python3 - "$LAND_TR_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    print("")
+    raise SystemExit(0)
+if not isinstance(d, list):
+    print("")
+    raise SystemExit(0)
+out = ""
+for n in d:
+    if not isinstance(n, dict):
+        continue
+    name = (n.get("name") or "").strip()
+    if name and name.lower() != "unclassified":
+        out = name
+        break
+if not out:
+    # Fall back to Unclassified if it's the only thing available
+    for n in d:
+        if isinstance(n, dict) and (n.get("name") or "") == "Unclassified":
+            out = "Unclassified"
+            break
+print(out)
+PY
+    )"
+
+    if [ -n "${LAND_TR_SAMPLE:-}" ]; then
+      LAND_TR_P_ESC="$(urlencode "$LAND_TR_SAMPLE")"
+      LAND_TR_P_JSON="$TMP_DIR/landscapes_cluster_turkey_sample.json"
+      LAND_TR_P_URL="$API_BASE_URL/api/v1/landscapes/cluster?pattern=${LAND_TR_P_ESC}&scope=turkey"
+      LAND_TR_P_HTTP="$(fetch "$LAND_TR_P_URL" "$LAND_TR_P_JSON" -H "X-API-Key: ${API_KEY}")"
+      if [ "$LAND_TR_P_HTTP" != "200" ]; then
+        if [ "$LAND_TR_P_HTTP" = "000" ]; then
+          set_status_fail "landscapes cluster HTTP 000 (turkey, ${LAND_TR_SAMPLE})"
+        else
+          set_status_warn "landscapes cluster HTTP $LAND_TR_P_HTTP (turkey, ${LAND_TR_SAMPLE})"
+        fi
+      else
+        LAND_TR_P_COUNT="$(python3 - "$LAND_TR_P_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    print(0)
+    raise SystemExit(0)
+try:
+    print(int((d.get("startup_count") if isinstance(d, dict) else 0) or 0))
+except Exception:
+    print(0)
+PY
+        )"
+        add_info "landscapes cluster startups (turkey, ${LAND_TR_SAMPLE}): ${LAND_TR_P_COUNT:-0}"
+        if [ "${LAND_TR_P_COUNT:-0}" -le 0 ]; then
+          set_status_warn "landscapes cluster has 0 startups (turkey, ${LAND_TR_SAMPLE})"
+        fi
+      fi
+    else
+      set_status_warn "landscapes treemap has no patterns to sample (turkey)"
     fi
   fi
 

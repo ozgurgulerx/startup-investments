@@ -155,7 +155,7 @@ echo "  unembedded: ${EMB_UNEMBEDDED}  embedded_last_24h: ${EMB_LAST24H}  covera
 # Metric 5: Onboarding funnel + deep-research spend
 # ---------------------------------------------------------------------------
 echo ""
-echo "[5/5] Onboarding funnel + research spend..."
+echo "[5/6] Onboarding funnel + research spend..."
 
 ONBOARDING=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
 SELECT
@@ -199,6 +199,56 @@ echo "  stubs: ${ONB_STUBS} (24h +${ONB_STUBS_24H})  verified: ${ONB_VERIFIED} (
 echo "  deep-research spend: daily=\$${SPEND_DAILY} monthly=\$${SPEND_MONTHLY}"
 
 # ---------------------------------------------------------------------------
+# Metric 6: Signals + deltas + alerts activity (last 24h)
+# ---------------------------------------------------------------------------
+echo ""
+echo "[6/6] Signals + deltas + alerts activity..."
+
+if ACTIVITY=$(psql "$DATABASE_URL" -t -A -F'|' <<'SQL'
+WITH su AS (
+  SELECT COUNT(*)::int AS signal_updates_24h
+  FROM signal_updates
+  WHERE created_at > NOW() - INTERVAL '24 hours'
+),
+de AS (
+  SELECT
+    COUNT(*) FILTER (WHERE region = 'global')::int AS deltas_global_24h,
+    COUNT(*) FILTER (WHERE region = 'turkey')::int AS deltas_turkey_24h
+  FROM delta_events
+  WHERE created_at > NOW() - INTERVAL '24 hours'
+),
+ua AS (
+  SELECT
+    COUNT(*) FILTER (WHERE scope = 'global')::int AS alerts_global_24h,
+    COUNT(*) FILTER (WHERE scope = 'turkey')::int AS alerts_turkey_24h
+  FROM user_alerts
+  WHERE created_at > NOW() - INTERVAL '24 hours'
+)
+SELECT
+  (SELECT signal_updates_24h FROM su),
+  (SELECT deltas_global_24h FROM de),
+  (SELECT deltas_turkey_24h FROM de),
+  (SELECT alerts_global_24h FROM ua),
+  (SELECT alerts_turkey_24h FROM ua);
+SQL
+); then
+    SU_24H=$(echo "$ACTIVITY" | cut -d'|' -f1 | tr -d ' ')
+    DELTAS_G_24H=$(echo "$ACTIVITY" | cut -d'|' -f2 | tr -d ' ')
+    DELTAS_T_24H=$(echo "$ACTIVITY" | cut -d'|' -f3 | tr -d ' ')
+    ALERTS_G_24H=$(echo "$ACTIVITY" | cut -d'|' -f4 | tr -d ' ')
+    ALERTS_T_24H=$(echo "$ACTIVITY" | cut -d'|' -f5 | tr -d ' ')
+else
+    SU_24H="-1"
+    DELTAS_G_24H="-1"
+    DELTAS_T_24H="-1"
+    ALERTS_G_24H="-1"
+    ALERTS_T_24H="-1"
+    echo "  WARNING: Signals/deltas/alerts activity query failed"
+fi
+
+echo "  signal_updates: ${SU_24H}  deltas: global=${DELTAS_G_24H}, turkey=${DELTAS_T_24H}  alerts: global=${ALERTS_G_24H}, turkey=${ALERTS_T_24H}"
+
+# ---------------------------------------------------------------------------
 # Build Slack message
 # ---------------------------------------------------------------------------
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
@@ -227,6 +277,8 @@ BODY="${BODY}unembedded: ${EMB_UNEMBEDDED}  \u2022  last 24h: ${EMB_LAST24H}  \u
 BODY="${BODY}*Onboarding Funnel / Research Spend*"$'\n'
 BODY="${BODY}stubs: ${ONB_STUBS} (24h +${ONB_STUBS_24H})  \u2022  verified: ${ONB_VERIFIED} (24h +${ONB_VERIFIED_24H})  \u2022  rejected: ${ONB_REJECTED}"$'\n'
 BODY="${BODY}deep-research spend: daily=\$${SPEND_DAILY}  \u2022  monthly=\$${SPEND_MONTHLY}"$'\n\n'
+BODY="${BODY}*Signals / Deltas / Alerts (24h)*"$'\n'
+BODY="${BODY}signal_updates: ${SU_24H}  \u2022  deltas: global=${DELTAS_G_24H}, turkey=${DELTAS_T_24H}  \u2022  alerts: global=${ALERTS_G_24H}, turkey=${ALERTS_T_24H}"$'\n\n'
 BODY="${BODY}_${TIMESTAMP}_"
 
 echo ""
