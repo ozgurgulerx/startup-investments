@@ -24,23 +24,53 @@ DO $$
 DECLARE
   dup RECORD;
   suffix INTEGER;
+  new_slug TEXT;
+  has_region BOOLEAN;
 BEGIN
-  FOR dup IN
-    SELECT slug, array_agg(id ORDER BY updated_at DESC NULLS LAST) AS ids
-    FROM startups
-    WHERE slug IS NOT NULL
-    GROUP BY slug
-    HAVING COUNT(*) > 1
-  LOOP
-    suffix := 1;
-    -- Skip the first (most recent) — rename the duplicates
-    FOR i IN 2..array_length(dup.ids, 1) LOOP
-      UPDATE startups SET slug = dup.slug || '-' || suffix WHERE id = dup.ids[i];
-      suffix := suffix + 1;
+  SELECT EXISTS(
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'startups' AND column_name = 'dataset_region'
+  ) INTO has_region;
+
+  IF has_region THEN
+    FOR dup IN
+      SELECT dataset_region, slug, array_agg(id ORDER BY updated_at DESC NULLS LAST) AS ids
+      FROM startups WHERE slug IS NOT NULL
+      GROUP BY dataset_region, slug HAVING COUNT(*) > 1
+    LOOP
+      FOR i IN 2..array_length(dup.ids, 1) LOOP
+        suffix := 1;
+        LOOP
+          new_slug := dup.slug || '-' || suffix;
+          EXIT WHEN NOT EXISTS (
+            SELECT 1 FROM startups
+            WHERE dataset_region = dup.dataset_region AND slug = new_slug
+          );
+          suffix := suffix + 1;
+        END LOOP;
+        UPDATE startups SET slug = new_slug WHERE id = dup.ids[i];
+      END LOOP;
     END LOOP;
-  END LOOP;
+  ELSE
+    FOR dup IN
+      SELECT slug, array_agg(id ORDER BY updated_at DESC NULLS LAST) AS ids
+      FROM startups WHERE slug IS NOT NULL
+      GROUP BY slug HAVING COUNT(*) > 1
+    LOOP
+      FOR i IN 2..array_length(dup.ids, 1) LOOP
+        suffix := 1;
+        LOOP
+          new_slug := dup.slug || '-' || suffix;
+          EXIT WHEN NOT EXISTS (
+            SELECT 1 FROM startups WHERE slug = new_slug
+          );
+          suffix := suffix + 1;
+        END LOOP;
+        UPDATE startups SET slug = new_slug WHERE id = dup.ids[i];
+      END LOOP;
+    END LOOP;
+  END IF;
 END $$;
 
--- Drop the old non-unique index and create a unique one
-DROP INDEX IF EXISTS idx_startups_slug;
-CREATE UNIQUE INDEX idx_startups_slug ON startups(slug) WHERE slug IS NOT NULL;
+-- Index creation removed: migration 022 is the authority on idx_startups_slug
+-- and creates it as (dataset_region, slug) for multi-region support.
