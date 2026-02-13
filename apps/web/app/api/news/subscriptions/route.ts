@@ -4,6 +4,7 @@ import { query } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_REGIONS = ['global', 'turkey'] as const;
 type Region = (typeof VALID_REGIONS)[number];
 const CONFIRMATION_TTL_DAYS = 7;
@@ -204,6 +205,12 @@ export async function GET(req: NextRequest) {
     const token = searchParams.get('token');
     if (!token) {
       return NextResponse.json({ error: 'Missing unsubscribe token' }, { status: 400 });
+    }
+
+    if (!UUID_RE.test(token)) {
+      const url = new URL('/news', baseUrlFromRequest(req));
+      url.searchParams.set('unsubscribed', '0');
+      return NextResponse.redirect(url, { status: 302 });
     }
 
     const result = await query<{ region: string }>(
