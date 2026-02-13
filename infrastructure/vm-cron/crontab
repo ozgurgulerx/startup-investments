@@ -45,6 +45,15 @@ MAILTO=""
 # Generates fresh brief snapshots for each region
 0 4 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh dealbook-brief 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/dealbook-brief.sh
 
+# === Neighbors & Benchmarks (weekly Thu 07:00 UTC) ===
+0 7 * * 4 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh neighbors-benchmarks 60 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/neighbors-benchmarks.sh
+
+# === Extended Benchmarks (monthly 2nd 04:00 UTC) ===
+0 4 2 * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh compute-benchmarks 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/compute-benchmarks.sh
+
+# === Investor DNA (monthly 2nd 05:00 UTC) ===
+0 5 2 * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh compute-investor-dna 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/compute-investor-dna.sh
+
 # === Digest QA Preview (hourly at :50) ===
 # Sends merged global+turkey digest to QA email for iterative review
 50 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh digest-qa 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/digest-qa.sh
