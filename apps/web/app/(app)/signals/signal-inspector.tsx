@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, Activity, Users, BarChart3, Clock, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Users, BarChart3, Clock, ExternalLink, ChevronRight } from 'lucide-react';
 import type { SignalItem } from '@/lib/api/client';
 import { timeAgo } from '@/lib/news-utils';
 
@@ -249,6 +249,11 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
         <h2 className="text-base font-medium text-foreground leading-snug">
           {signal.claim}
         </h2>
+        {signal.explain?.definition && (
+          <p className="text-xs text-muted-foreground/70 leading-relaxed mt-1.5 line-clamp-2">
+            {signal.explain.definition}
+          </p>
+        )}
       </div>
 
       {/* Metrics */}
@@ -276,6 +281,20 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
         </span>
       </div>
 
+      {/* Deep Dive CTA */}
+      <Link
+        href={`/signals/${signal.id}`}
+        className="flex items-center gap-3 px-3 py-3 rounded-lg border border-border/30 hover:border-accent-info/30 hover:bg-muted/10 transition-colors group"
+      >
+        <div className="flex-1 min-w-0">
+          <span className="text-sm text-foreground block">Deep Dive</span>
+          <span className="text-[10px] text-muted-foreground/60 block mt-0.5">
+            Full analysis · Case studies · Counterevidence
+          </span>
+        </div>
+        <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-accent-info transition-colors shrink-0" />
+      </Link>
+
       {/* Stage Breakdown */}
       {stageContext?.adoption_by_stage && (
         <>
@@ -293,7 +312,7 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
               Recent Evidence
             </span>
             <div className="mt-2 space-y-3">
-              {evidence.slice(0, 5).map(ev => (
+              {evidence.slice(0, 3).map(ev => (
                 <div key={ev.id} className="text-sm">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-muted/30 text-muted-foreground">
@@ -324,22 +343,15 @@ export function SignalInspector({ signalId, listSignal, allSignals = [], onSelec
                   )}
                 </div>
               ))}
+              {evidence.length > 3 && (
+                <p className="text-[10px] text-muted-foreground/50 pt-1">
+                  {evidence.length - 3} more evidence items in deep dive
+                </p>
+              )}
             </div>
           </div>
         </>
       )}
-
-      {/* Deep Dive link */}
-      <div className="h-px bg-border/20" />
-      <Link
-        href={`/signals/${signal.id}`}
-        className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/20 hover:border-border/40 hover:bg-muted/10 transition-colors group"
-      >
-        <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-          View Full Deep Dive
-        </span>
-        <ExternalLink className="w-3 h-3 text-muted-foreground/50 group-hover:text-accent-info transition-colors" />
-      </Link>
 
       {/* Related Signals */}
       {related.length > 0 && (
