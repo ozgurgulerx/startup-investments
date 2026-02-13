@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,42 @@ function baseUrlFromRequest(_req: NextRequest): string {
 
 const CONFIRMATION_TTL_DAYS = 7;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function getPostHogEnv(): { host: string; key: string } | null {
+  const key = (process.env.POSTHOG_KEY || process.env.NEXT_PUBLIC_POSTHOG_KEY || '').trim();
+  if (!key) return null;
+  const host = (process.env.POSTHOG_HOST || process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com')
+    .trim()
+    .replace(/\/+$/, '');
+  return { host, key };
+}
+
+function hashedDistinctId(seed: string): string {
+  return `news-subscription-${createHash('sha256').update(seed).digest('hex').slice(0, 24)}`;
+}
+
+async function capturePosthogEvent(
+  event: string,
+  distinctSeed: string,
+  properties: Record<string, unknown>,
+): Promise<void> {
+  const config = getPostHogEnv();
+  if (!config) return;
+  try {
+    await fetch(`${config.host}/capture/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: config.key,
+        event,
+        distinct_id: hashedDistinctId(distinctSeed),
+        properties,
+      }),
+    });
+  } catch (error) {
+    console.warn('PostHog capture failed (subscription confirm):', error);
+  }
+}
 
 // GET /api/news/subscriptions/confirm?token=<confirmation_token>
 export async function GET(req: NextRequest) {
@@ -80,6 +117,10 @@ export async function GET(req: NextRequest) {
 
     // Successfully confirmed
     const region = result.rows[0].region;
+    void capturePosthogEvent('subscription_confirmed', token, {
+      region,
+      source: 'news-subscription-confirm',
+    });
     const newsPath = region === 'turkey' ? '/news/turkey' : '/news';
     const url = new URL(newsPath, baseUrl);
     url.searchParams.set('confirmed', '1');

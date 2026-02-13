@@ -7,8 +7,43 @@ import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 
 // PostHog configuration
+function parseBooleanEnv(value: string | undefined, defaultValue: boolean): boolean {
+  if (value == null) return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === '') return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(normalized);
+}
+
+function parseSampleRate(value: string | undefined, defaultValue: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return defaultValue;
+  if (parsed <= 0) return 0;
+  if (parsed >= 1) return 1;
+  return parsed;
+}
+
+const REPLAY_SAMPLE_STORAGE_KEY = 'ba_posthog_replay_sampled';
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
+const POSTHOG_AUTOCAPTURE_ENABLED = parseBooleanEnv(process.env.NEXT_PUBLIC_POSTHOG_AUTOCAPTURE, false);
+const POSTHOG_CAPTURE_PAGELEAVE = parseBooleanEnv(process.env.NEXT_PUBLIC_POSTHOG_CAPTURE_PAGELEAVE, false);
+const POSTHOG_CAPTURE_DEAD_CLICKS = parseBooleanEnv(process.env.NEXT_PUBLIC_POSTHOG_CAPTURE_DEAD_CLICKS, false);
+const POSTHOG_CAPTURE_EXCEPTIONS = parseBooleanEnv(process.env.NEXT_PUBLIC_POSTHOG_CAPTURE_EXCEPTIONS, true);
+const POSTHOG_REPLAY_SAMPLE_RATE = parseSampleRate(process.env.NEXT_PUBLIC_POSTHOG_REPLAY_SAMPLE_RATE, 0.03);
+
+function shouldSampleReplay(rate: number): boolean {
+  if (typeof window === 'undefined' || rate <= 0) return false;
+  try {
+    const existing = window.sessionStorage.getItem(REPLAY_SAMPLE_STORAGE_KEY);
+    if (existing === '1') return true;
+    if (existing === '0') return false;
+    const sampled = Math.random() < rate;
+    window.sessionStorage.setItem(REPLAY_SAMPLE_STORAGE_KEY, sampled ? '1' : '0');
+    return sampled;
+  } catch {
+    return Math.random() < rate;
+  }
+}
 
 /**
  * PostHog page view tracker for Next.js App Router
@@ -61,18 +96,36 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       posthog.init(POSTHOG_KEY, {
         api_host: POSTHOG_HOST,
         person_profiles: 'identified_only',
+        autocapture: POSTHOG_AUTOCAPTURE_ENABLED,
+        capture_dead_clicks: POSTHOG_CAPTURE_DEAD_CLICKS,
+        rageclick: POSTHOG_CAPTURE_DEAD_CLICKS,
+        capture_exceptions: POSTHOG_CAPTURE_EXCEPTIONS,
         capture_pageview: false, // We capture manually for Next.js
-        capture_pageleave: true,
-        // Session recording
-        disable_session_recording: false,
+        capture_pageleave: POSTHOG_CAPTURE_PAGELEAVE,
+        // Keep baseline usage low and only enable replay for sampled sessions.
+        disable_session_recording: true,
+        session_recording: {
+          maskAllInputs: true,
+          maskInputOptions: { password: true, email: true, tel: true },
+          recordHeaders: false,
+          recordBody: false,
+          collectFonts: false,
+          recordCrossOriginIframes: false,
+        },
         // DO NOT respect DNT - we want to track all users
         respect_dnt: false,
         // Persistence
         persistence: 'localStorage+cookie',
         // Debug mode in development
-        loaded: (posthog) => {
+        loaded: (posthogClient) => {
+          if (POSTHOG_REPLAY_SAMPLE_RATE > 0 && shouldSampleReplay(POSTHOG_REPLAY_SAMPLE_RATE)) {
+            posthogClient.startSessionRecording({ sampling: true });
+            posthogClient.register({ replay_sampled: true });
+          } else {
+            posthogClient.register({ replay_sampled: false });
+          }
           if (process.env.NODE_ENV === 'development') {
-            posthog.debug();
+            posthogClient.debug();
           }
           setIsInitialized(true);
         },

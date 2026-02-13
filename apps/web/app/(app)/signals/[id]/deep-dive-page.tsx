@@ -10,6 +10,7 @@ import { HowItWorksTab } from './how-it-works-tab';
 import { CaseStudiesTab } from './case-studies-tab';
 import { ExplorerTab } from './explorer-tab';
 import { CounterevienceTab } from './counterevidence-tab';
+import { CommunityTab } from './community-tab';
 
 interface DeepDivePageProps {
   data: DeepDiveResponse;
@@ -53,6 +54,9 @@ export function DeepDivePage({ data }: DeepDivePageProps) {
         )}
         {activeTab === 'counter' && (
           <CounterevienceTab content={content} />
+        )}
+        {activeTab === 'community' && (
+          <CommunityTab signalId={signal.id} />
         )}
       </div>
     </div>

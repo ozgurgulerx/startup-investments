@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,42 @@ const CONFIRMATION_TTL_DAYS = 7;
 const RATE_LIMIT_PER_HOUR = Number(process.env.NEWS_SUBSCRIBE_RATE_LIMIT_PER_HOUR || '10');
 const RATE_LIMIT_PER_DAY = Number(process.env.NEWS_SUBSCRIBE_RATE_LIMIT_PER_DAY || '30');
 const RATE_LIMIT_PER_EMAIL_PER_HOUR = Number(process.env.NEWS_SUBSCRIBE_RATE_LIMIT_PER_EMAIL_PER_HOUR || '3');
+
+function getPostHogEnv(): { host: string; key: string } | null {
+  const key = (process.env.POSTHOG_KEY || process.env.NEXT_PUBLIC_POSTHOG_KEY || '').trim();
+  if (!key) return null;
+  const host = (process.env.POSTHOG_HOST || process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com')
+    .trim()
+    .replace(/\/+$/, '');
+  return { host, key };
+}
+
+function hashedDistinctId(seed: string): string {
+  return `news-subscription-${createHash('sha256').update(seed).digest('hex').slice(0, 24)}`;
+}
+
+async function capturePosthogEvent(
+  event: string,
+  distinctSeed: string,
+  properties: Record<string, unknown>,
+): Promise<void> {
+  const config = getPostHogEnv();
+  if (!config) return;
+  try {
+    await fetch(`${config.host}/capture/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: config.key,
+        event,
+        distinct_id: hashedDistinctId(distinctSeed),
+        properties,
+      }),
+    });
+  } catch (error) {
+    console.warn('PostHog capture failed (news subscription):', error);
+  }
+}
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -225,6 +262,12 @@ export async function GET(req: NextRequest) {
     );
 
     const region = result.rows[0]?.region;
+    if (result.rowCount > 0 && region) {
+      void capturePosthogEvent('subscription_unsubscribed', token, {
+        region,
+        source: 'news-subscription-unsubscribe',
+      });
+    }
     const newsPath = region === 'turkey' ? '/news/turkey' : '/news';
     const url = new URL(newsPath, baseUrlFromRequest(req));
     url.searchParams.set('unsubscribed', result.rowCount > 0 ? '1' : '0');
@@ -238,6 +281,7 @@ export async function GET(req: NextRequest) {
 // POST /api/news/subscriptions
 // body: { email: string, builderFocus?: boolean, source?: string, region?: 'global' | 'turkey' }
 export async function POST(req: NextRequest) {
+  let captureDistinctSeed = '';
   try {
     const body = (await req.json()) as {
       email?: string;
@@ -256,6 +300,13 @@ export async function POST(req: NextRequest) {
     const region: Region = VALID_REGIONS.includes(body.region as Region)
       ? (body.region as Region)
       : 'global';
+    const source = (body.source || 'website').slice(0, 80);
+    captureDistinctSeed = email;
+    void capturePosthogEvent('subscription_submit', captureDistinctSeed, {
+      region,
+      source,
+      builder_focus: body.builderFocus !== false,
+    });
 
     // Validate IANA timezone; fall back to Istanbul if invalid or missing
     const rawTz = (body.timezone || '').trim().slice(0, 80);
@@ -264,10 +315,14 @@ export async function POST(req: NextRequest) {
     const ip = clientIpFromRequest(req);
     const rate = await enforceRateLimit(ip, { emailNormalized: email, region });
     if (rate.limited) {
+      void capturePosthogEvent('subscription_submit_error', captureDistinctSeed, {
+        region,
+        source,
+        error_type: 'rate_limited',
+      });
       return NextResponse.json({ error: rate.message || 'Rate limited' }, { status: 429 });
     }
 
-    const source = (body.source || 'website').slice(0, 80);
     const preferences = {
       builder_focus: body.builderFocus !== false,
       cadence: 'daily',
@@ -320,6 +375,11 @@ export async function POST(req: NextRequest) {
 
     // If already active, don't resend confirmation — they're already subscribed
     if (row?.status === 'active') {
+      void capturePosthogEvent('subscription_submit_success', captureDistinctSeed, {
+        region,
+        source,
+        already_confirmed: true,
+      });
       return NextResponse.json({
         ok: true,
         message: 'You are already subscribed',
@@ -333,6 +393,11 @@ export async function POST(req: NextRequest) {
       await sendConfirmationEmail(emailRaw.trim(), row.confirmation_token, region, baseUrl);
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError);
+      void capturePosthogEvent('subscription_submit_error', captureDistinctSeed, {
+        region,
+        source,
+        error_type: 'confirmation_email_failed',
+      });
       // Don't fail the subscription — they can re-subscribe to get a new email.
       return NextResponse.json({
         ok: true,
@@ -340,12 +405,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    void capturePosthogEvent('subscription_submit_success', captureDistinctSeed, {
+      region,
+      source,
+      already_confirmed: false,
+    });
     return NextResponse.json({
       ok: true,
       message: 'Check your inbox to confirm your subscription',
     });
   } catch (error) {
     console.error('Error creating news subscription:', error);
+    if (captureDistinctSeed) {
+      void capturePosthogEvent('subscription_submit_error', captureDistinctSeed, {
+        error_type: 'server_error',
+      });
+    }
     return NextResponse.json({ error: 'Failed to subscribe' }, { status: 500 });
   }
 }

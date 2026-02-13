@@ -8,7 +8,7 @@ import type {
 
 export type { DeepDiveContent, DeepDiveResponse, OccurrenceItem, MoveItem, SignalItem };
 
-export type DeepDiveTab = 'delta' | 'mechanism' | 'cases' | 'explorer' | 'counter';
+export type DeepDiveTab = 'delta' | 'mechanism' | 'cases' | 'explorer' | 'counter' | 'community';
 
 export const TAB_CONFIG: Array<{ id: DeepDiveTab; label: string }> = [
   { id: 'delta', label: 'Delta Board' },
@@ -16,6 +16,7 @@ export const TAB_CONFIG: Array<{ id: DeepDiveTab; label: string }> = [
   { id: 'cases', label: 'Case Studies' },
   { id: 'explorer', label: 'Explorer' },
   { id: 'counter', label: 'Counterevidence' },
+  { id: 'community', label: 'Community' },
 ];
 
 export const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
