@@ -1436,13 +1436,15 @@ def main() -> int:
         if "site_metrics_error" in site_metrics:
             body_lines.append(f"- Site metrics error: `{site_metrics.get('site_metrics_error')}`")
 
-    email_status_line: str | None = None
+    email_delivery_lines: list[str] = []
+
+    metrics_email_status_line: str | None = None
     metrics_recipients = _parse_email_list(metrics_email_to_raw)
     if metrics_email_to_raw is not None:
         if not metrics_recipients:
-            email_status_line = "Metrics email skipped: no valid `METRICS_REPORT_EMAIL_TO` recipients parsed."
+            metrics_email_status_line = "Metrics email skipped: no valid `METRICS_REPORT_EMAIL_TO` recipients parsed."
         elif not resend_api_key:
-            email_status_line = "Metrics email skipped: `RESEND_API_KEY` is not configured."
+            metrics_email_status_line = "Metrics email skipped: `RESEND_API_KEY` is not configured."
         else:
             try:
                 subject = (
@@ -1461,14 +1463,114 @@ def main() -> int:
                     subject=subject,
                     text_body=plain_report,
                 )
-                email_status_line = f"Metrics email sent ({len(metrics_recipients)} recipient(s))."
+                metrics_email_status_line = f"Metrics email sent ({len(metrics_recipients)} recipient(s))."
             except Exception as e:
-                email_status_line = f"Metrics email failed (best-effort): `{e}`"
+                metrics_email_status_line = f"Metrics email failed (best-effort): `{e}`"
 
-    if email_status_line:
+    if metrics_email_status_line:
+        email_delivery_lines.append(metrics_email_status_line)
+
+    subscriber_list_status_line: str | None = None
+    subscriber_recipients = _parse_email_list(subscriber_list_to_raw)
+    if subscriber_list_to_raw is not None:
+        if not subscriber_recipients:
+            subscriber_list_status_line = (
+                "Subscriber list email skipped: no valid `SUBSCRIBER_LIST_EMAIL_TO` recipients parsed."
+            )
+        elif not resend_api_key:
+            subscriber_list_status_line = "Subscriber list email skipped: `RESEND_API_KEY` is not configured."
+        elif not database_url:
+            subscriber_list_status_line = "Subscriber list email skipped: `DATABASE_URL` is not configured."
+        else:
+            force_send = _as_bool(_env("SUBSCRIBER_LIST_FORCE_SEND"))
+            include_full_emails = _as_bool(_env("SUBSCRIBER_LIST_INCLUDE_FULL_EMAILS"))
+            status_filter = (_env("SUBSCRIBER_LIST_STATUS", "active") or "active").strip().lower()
+            region_filter = _env("SUBSCRIBER_LIST_REGION")
+
+            max_rows = _as_int(_env("SUBSCRIBER_LIST_MAX_ROWS", "5000")) or 5000
+            max_rows = max(1, min(int(max_rows), 20000))
+
+            send_hour = _as_int(_env("SUBSCRIBER_LIST_SEND_AT_UTC_HOUR", "0")) or 0
+            send_minute = _as_int(_env("SUBSCRIBER_LIST_SEND_AT_UTC_MINUTE", "0")) or 0
+            if send_hour < 0 or send_hour > 23:
+                send_hour = 0
+            if send_minute < 0 or send_minute > 59:
+                send_minute = 0
+
+            now_utc = datetime.now(timezone.utc)
+            report_date = now_utc.date().isoformat()
+            send_after_dt = datetime(
+                now_utc.year,
+                now_utc.month,
+                now_utc.day,
+                send_hour,
+                send_minute,
+                tzinfo=timezone.utc,
+            )
+
+            state_path = _subscriber_list_state_path()
+            last_sent = _read_state_marker(state_path)
+            should_send = force_send or (now_utc >= send_after_dt and last_sent != report_date)
+
+            if should_send:
+                try:
+                    rows = asyncio.run(
+                        _subscriber_list_rows(
+                            database_url,
+                            status=status_filter,
+                            region=region_filter,
+                            limit=max_rows + 1,
+                        )
+                    )
+                    truncated = len(rows) > max_rows
+                    if truncated:
+                        rows = rows[:max_rows]
+
+                    from_email = (
+                        _env("SUBSCRIBER_LIST_EMAIL_FROM")
+                        or _env("METRICS_REPORT_EMAIL_FROM")
+                        or _env("NEWS_DIGEST_FROM_EMAIL")
+                        or "Build Atlas <news@buildatlas.net>"
+                    )
+                    subj = (_env("SUBSCRIBER_LIST_EMAIL_SUBJECT_PREFIX") or subject_prefix).strip()
+                    if subj and not subj.endswith(" "):
+                        subj += " "
+                    subject = f"{subj}Subscriber email list — {report_date}"
+
+                    text_body = _build_subscriber_list_report(
+                        report_date=report_date,
+                        generated_at_utc=now_utc,
+                        rows=rows,
+                        include_full_emails=include_full_emails,
+                        status=status_filter,
+                        region=(region_filter or "").strip() or None,
+                        truncated=truncated,
+                    )
+
+                    _send_email_via_resend(
+                        api_key=resend_api_key,
+                        from_email=from_email,
+                        to_emails=subscriber_recipients,
+                        subject=subject,
+                        text_body=text_body,
+                    )
+                    _write_state_marker(state_path, report_date)
+                    subscriber_list_status_line = (
+                        "Subscriber list email sent "
+                        f"({len(subscriber_recipients)} recipient(s), {len(rows)} row(s))"
+                        f\"{' [PII]' if include_full_emails else ''}.\"
+                    )
+                except Exception as e:
+                    subscriber_list_status_line = f"Subscriber list email failed (best-effort): `{e}`"
+
+    if subscriber_list_status_line:
+        email_delivery_lines.append(subscriber_list_status_line)
+
+    if email_delivery_lines:
         body_lines.append("")
         body_lines.append("*Email delivery*")
-        body_lines.append(f"- {email_status_line}")
+        for line in email_delivery_lines:
+            body_lines.append(f"- {line}")
 
     blocks = [
         {"type": "header", "text": {"type": "plain_text", "text": f"{status_emoji} {title}", "emoji": True}},
