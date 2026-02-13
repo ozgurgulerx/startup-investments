@@ -136,6 +136,12 @@ VM cron runner:
 - One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
+  - Product surface canary:
+    - `product-canary` runs every 30 minutes (`17,47 * * * *`) and validates:
+      - brief snapshot schema (includes `verticalLandscape` + `capitalGraph`),
+      - Investor DNA screener (`/api/v1/investors/screener`) (warn if empty),
+      - deep dives have at least one `ready` item (`/api/v1/deep-dives`).
+    - State file: `/var/lib/buildatlas/product-canary.state` (fallback: `$REPO_DIR/.tmp/product-canary.state`).
   - `crawl-frontier` runs every 30 minutes with a **40 minute** runner timeout (`runner.sh crawl-frontier 40 ...`) to avoid recurring timeout kills during large frontier seeding windows.
   - `crawl-frontier` now uses **chunked resumable seeding**:
     - full reseed is not attempted on every cycle,

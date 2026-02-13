@@ -108,6 +108,7 @@ FRESHNESS_JOBS=(
     "sync-data:90:always"
     "code-update:800:always"
     "release-reconciler:30:always"
+    "product-canary:90:always"
     "health-report:600:always"
 )
 

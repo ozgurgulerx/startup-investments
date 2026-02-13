@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
+# Signal lifecycle statuses
+NON_DECAYING_SIGNAL_STATUSES = ("candidate", "emerging", "accelerating", "established")
+DEFAULT_DEEP_DIVE_SIGNAL_STATUSES = ("emerging", "accelerating", "established")
+
 # Occurrence scoring weights
 W_EVIDENCE_COUNT = 0.30
 W_SOURCE_DIVERSITY = 0.20
@@ -50,6 +54,7 @@ MAX_PER_STAGE = 4  # diversity constraint
 
 # Synthesis
 MAX_SIGNALS_PER_RUN = 15
+MAX_RESEARCH_STARTUPS_IN_PROMPT = 4
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +134,289 @@ def _create_llm_client() -> Optional[Any]:
         pass
     return None
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _is_missing_schema_error(exc: Exception) -> bool:
+    """Return True when a DB error likely means required tables/columns are missing."""
+    sqlstate = getattr(exc, "sqlstate", None)
+    return sqlstate in {"42P01", "42703"}  # undefined_table, undefined_column
+
+
+def _truncate_text(value: Any, max_chars: int) -> str:
+    text = str(value or "")
+    if len(text) <= max_chars:
+        return text
+    return text[: max(0, max_chars - 3)] + "..."
+
+
+def _normalize_deep_dive_content(raw: Any) -> Dict[str, Any]:
+    """Best-effort schema normalization to avoid UI breakage on partial LLM output."""
+    obj: Dict[str, Any] = raw if isinstance(raw, dict) else {}
+
+    def _as_str(v: Any) -> str:
+        return str(v).strip() if isinstance(v, str) else ""
+
+    def _as_list(v: Any) -> List[Any]:
+        return v if isinstance(v, list) else []
+
+    def _as_nullable_str(v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s if s else None
+        return None
+
+    patterns: List[Dict[str, Any]] = []
+    for p in _as_list(obj.get("patterns")):
+        if not isinstance(p, dict):
+            continue
+        patterns.append({
+            "archetype": _as_str(p.get("archetype")),
+            "description": _as_str(p.get("description")),
+            "startups": [s.strip() for s in _as_list(p.get("startups")) if isinstance(s, str) and s.strip()],
+        })
+
+    case_studies: List[Dict[str, Any]] = []
+    for cs in _as_list(obj.get("case_studies")):
+        if not isinstance(cs, dict):
+            continue
+        case_studies.append({
+            "startup_slug": _as_str(cs.get("startup_slug")),
+            "startup_name": _as_str(cs.get("startup_name")),
+            "summary": _as_str(cs.get("summary")),
+            "key_moves": [m.strip() for m in _as_list(cs.get("key_moves")) if isinstance(m, str) and m.strip()],
+        })
+
+    thresholds: List[Dict[str, Any]] = []
+    for th in _as_list(obj.get("thresholds")):
+        if not isinstance(th, dict):
+            continue
+        thresholds.append({
+            "metric": _as_str(th.get("metric")),
+            "value": _as_str(th.get("value")),
+            "action": _as_str(th.get("action")),
+        })
+
+    failure_modes: List[Dict[str, Any]] = []
+    for fm in _as_list(obj.get("failure_modes")):
+        if not isinstance(fm, dict):
+            continue
+        failure_modes.append({
+            "mode": _as_str(fm.get("mode")),
+            "description": _as_str(fm.get("description")),
+            "example": _as_nullable_str(fm.get("example")),
+        })
+
+    watchlist: List[Dict[str, Any]] = []
+    for w in _as_list(obj.get("watchlist")):
+        if not isinstance(w, dict):
+            continue
+        watchlist.append({
+            "startup_slug": _as_str(w.get("startup_slug")),
+            "why": _as_str(w.get("why")),
+        })
+
+    return {
+        "tldr": _as_str(obj.get("tldr")),
+        "mechanism": _as_str(obj.get("mechanism")),
+        "patterns": patterns,
+        "case_studies": case_studies,
+        "thresholds": thresholds,
+        "failure_modes": failure_modes,
+        "watchlist": watchlist,
+    }
+
+
+def _sanitize_deep_dive_slugs(content: Dict[str, Any], allowed_slugs: List[str]) -> Dict[str, Any]:
+    allowed = {s for s in allowed_slugs if isinstance(s, str) and s.strip()}
+    if not allowed:
+        # Trend-only or fully unlinked: remove startup-specific content.
+        sanitized = dict(content)
+        sanitized["patterns"] = [
+            {**p, "startups": []} for p in (content.get("patterns") or []) if isinstance(p, dict)
+        ]
+        sanitized["case_studies"] = []
+        sanitized["watchlist"] = []
+        return sanitized
+
+    def _filter_slugs(slugs: Any) -> List[str]:
+        if not isinstance(slugs, list):
+            return []
+        out = []
+        for s in slugs:
+            if not isinstance(s, str):
+                continue
+            s2 = s.strip()
+            if s2 and s2 in allowed:
+                out.append(s2)
+        return out
+
+    sanitized = dict(content)
+
+    pats = []
+    for p in content.get("patterns") or []:
+        if not isinstance(p, dict):
+            continue
+        pats.append({
+            "archetype": str(p.get("archetype") or "").strip(),
+            "description": str(p.get("description") or "").strip(),
+            "startups": _filter_slugs(p.get("startups")),
+        })
+    sanitized["patterns"] = pats
+
+    css = []
+    for cs in content.get("case_studies") or []:
+        if not isinstance(cs, dict):
+            continue
+        slug = str(cs.get("startup_slug") or "").strip()
+        if slug and slug in allowed:
+            css.append({
+                "startup_slug": slug,
+                "startup_name": str(cs.get("startup_name") or "").strip(),
+                "summary": str(cs.get("summary") or "").strip(),
+                "key_moves": [str(m).strip() for m in (cs.get("key_moves") or []) if isinstance(m, str) and str(m).strip()],
+            })
+    sanitized["case_studies"] = css
+
+    wl = []
+    for w in content.get("watchlist") or []:
+        if not isinstance(w, dict):
+            continue
+        slug = str(w.get("startup_slug") or "").strip()
+        if slug and slug in allowed:
+            wl.append({
+                "startup_slug": slug,
+                "why": str(w.get("why") or "").strip(),
+            })
+    sanitized["watchlist"] = wl
+
+    return sanitized
+
+
+async def _fetch_latest_startup_research_note(
+    conn: asyncpg.Connection,
+    startup_id: str,
+    max_chars: int = 900,
+) -> Optional[str]:
+    """Load latest completed deep-research analysis (best-effort)."""
+    try:
+        row = await conn.fetchrow(
+            """SELECT research_output
+               FROM deep_research_queue
+               WHERE startup_id = $1::uuid
+                 AND status = 'completed'
+                 AND research_output IS NOT NULL
+               ORDER BY completed_at DESC NULLS LAST
+               LIMIT 1""",
+            startup_id,
+        )
+    except Exception as exc:
+        if _is_missing_schema_error(exc):
+            return None
+        raise
+
+    if not row:
+        return None
+    payload = row.get("research_output")
+    if not payload:
+        return None
+    try:
+        obj = payload if isinstance(payload, dict) else json.loads(payload)
+        note = obj.get("analysis") or ""
+        if not isinstance(note, str) or not note.strip():
+            return None
+        return _truncate_text(note.strip(), max_chars)
+    except Exception:
+        return None
+
+
+async def _enqueue_deep_research_if_needed(
+    conn: asyncpg.Connection,
+    startup_id: str,
+    *,
+    reason: str,
+    priority: int = 8,
+    research_depth: str = "quick",
+    focus_areas: Optional[List[str]] = None,
+    require_crawled: bool = True,
+    min_completed_age_days: int = 30,
+) -> bool:
+    """Enqueue deep research for a startup if there is no recent completed run."""
+    try:
+        active = await conn.fetchval(
+            """SELECT 1
+               FROM deep_research_queue
+               WHERE startup_id = $1::uuid
+                 AND status IN ('pending', 'processing')
+               LIMIT 1""",
+            startup_id,
+        )
+        if active:
+            return False
+    except Exception as exc:
+        if _is_missing_schema_error(exc):
+            return False
+        raise
+
+    try:
+        recent = await conn.fetchval(
+            """SELECT 1
+               FROM deep_research_queue
+               WHERE startup_id = $1::uuid
+                 AND status = 'completed'
+                 AND completed_at > NOW() - INTERVAL '1 day' * $2
+               LIMIT 1""",
+            startup_id,
+            max(0, int(min_completed_age_days)),
+        )
+        if recent:
+            return False
+    except Exception as exc:
+        if _is_missing_schema_error(exc):
+            return False
+        raise
+
+    # Conservative gating mirrored from DatabaseConnection.enqueue_research
+    row = await conn.fetchrow(
+        """SELECT
+              COALESCE(onboarding_status, 'verified') AS onboarding_status,
+              website,
+              last_crawl_at
+           FROM startups
+           WHERE id = $1::uuid""",
+        startup_id,
+    )
+    if not row:
+        return False
+    if row.get("onboarding_status") in ("merged", "rejected"):
+        return False
+    website = str(row.get("website") or "").strip()
+    if not website:
+        return False
+    if require_crawled and not row.get("last_crawl_at"):
+        return False
+
+    try:
+        await conn.execute(
+            """INSERT INTO deep_research_queue
+               (startup_id, priority, reason, research_depth, focus_areas)
+               VALUES ($1::uuid, $2, $3, $4, $5::jsonb)
+               ON CONFLICT DO NOTHING""",
+            startup_id,
+            int(priority),
+            _truncate_text(reason, 96),
+            research_depth,
+            json.dumps(focus_areas) if focus_areas else None,
+        )
+        return True
+    except Exception as exc:
+        if _is_missing_schema_error(exc):
+            return False
+        raise
 
 # ---------------------------------------------------------------------------
 # Phase 3: Evidence Enrichment
@@ -296,7 +584,12 @@ async def compute_signal_occurrences(
     Returns stats dict.
     """
     # Get target signals
-    conditions = ["status IN ('emerging', 'accelerating', 'established')"]
+    #
+    # Default behavior (no signal_id): only compute for non-decayed signals we typically
+    # deep-dive (emerging/accelerating/established).
+    # When a specific signal_id is provided, do not status-filter so operators can
+    # compute occurrences for any lifecycle stage (including candidate/decaying).
+    conditions: List[str] = []
     params: List[Any] = []
     idx = 1
 
@@ -304,6 +597,8 @@ async def compute_signal_occurrences(
         conditions.append(f"id = ${idx}::uuid")
         params.append(signal_id)
         idx += 1
+    else:
+        conditions.append("status IN ('emerging', 'accelerating', 'established')")
     if region:
         conditions.append(f"region = ${idx}")
         params.append(region)
@@ -727,21 +1022,27 @@ def _build_synthesis_prompt(
     sample_companies: List[Dict[str, Any]],
     moves_by_startup: Dict[str, List[Dict[str, Any]]],
     aggregate_stats: Dict[str, Any],
+    research_by_startup: Optional[Dict[str, str]] = None,
 ) -> str:
     """Build the LLM prompt for deep dive synthesis."""
     companies_section = ""
     for company in sample_companies:
         slug = company["slug"]
         moves = moves_by_startup.get(company["startup_id"], [])
+        research_note = (research_by_startup or {}).get(company["startup_id"])
         moves_text = "\n".join(
             f"  - [{m['move_type']}] {m['what_happened']}"
             + (f" → {m['why_it_worked']}" if m.get('why_it_worked') else "")
             for m in moves
         )
+        research_text = ""
+        if research_note:
+            research_text = f"\nDeep research (optional):\n  {_truncate_text(research_note, 900)}\n"
         companies_section += f"""
 Company: {company['name']} ({slug}) | Stage: {company.get('funding_stage', 'unknown')} | Score: {company['score']:.2f}
 Moves:
 {moves_text or '  (no extracted moves)'}
+{research_text}
 """
 
     return f"""You are a senior investment analyst creating a deep dive report on a startup signal.
@@ -804,6 +1105,7 @@ def _build_trend_synthesis_prompt(
     signal: Dict[str, Any],
     evidence_items: List[Dict[str, Any]],
     linked_startups: List[Dict[str, Any]],
+    research_by_slug: Optional[Dict[str, str]] = None,
 ) -> str:
     """Build the LLM prompt for trend-only deep dive synthesis.
 
@@ -841,6 +1143,18 @@ def _build_trend_synthesis_prompt(
         evidence_lines.append(line)
     evidence_section = "\n".join(evidence_lines) if evidence_lines else "(no evidence)"
 
+    research_section = ""
+    if research_by_slug:
+        lines: List[str] = []
+        for slug, note in research_by_slug.items():
+            if not slug or not note:
+                continue
+            if slug not in allowed_slugs:
+                continue
+            lines.append(f"- {slug}: {_truncate_text(note, 800)}")
+        if lines:
+            research_section = "\n\nDEEP RESEARCH SNAPSHOTS (optional, may be stale):\n" + "\n".join(lines)
+
     return f"""You are a senior investment analyst creating a deep dive report on a startup signal.
 
 IMPORTANT CONTEXT:
@@ -868,6 +1182,7 @@ LINKED STARTUPS (ONLY use these slugs anywhere in output, otherwise keep startup
 
 RECENT EVIDENCE:
 {evidence_section}
+{research_section}
 
 Generate a complete deep dive report as JSON with this exact structure:
 {{
@@ -952,6 +1267,16 @@ async def synthesize_deep_dive(
         )
         moves_by_startup[s["startup_id"]] = [dict(r) for r in move_rows]
 
+    # Best-effort: include deep research snapshots for a small subset of startups.
+    research_by_startup: Dict[str, str] = {}
+    for s in sample_startups[:MAX_RESEARCH_STARTUPS_IN_PROMPT]:
+        sid = s.get("startup_id")
+        if not sid:
+            continue
+        note = await _fetch_latest_startup_research_note(conn, sid)
+        if note:
+            research_by_startup[sid] = note
+
     # Compute aggregate stats
     occ_rows = await conn.fetch(
         """SELECT so.score, s.funding_stage
@@ -1013,7 +1338,11 @@ async def synthesize_deep_dive(
 
     model = settings.azure_openai.fast_model
     prompt = _build_synthesis_prompt(
-        dict(signal), sample_startups, moves_by_startup, aggregate_stats,
+        dict(signal),
+        sample_startups,
+        moves_by_startup,
+        aggregate_stats,
+        research_by_startup=research_by_startup,
     )
 
     try:
@@ -1031,7 +1360,9 @@ async def synthesize_deep_dive(
         if not content:
             raise ValueError("Empty LLM response")
 
-        content_json = json.loads(content)
+        content_json = _normalize_deep_dive_content(json.loads(content))
+        allowed_slugs = [s.get("slug") for s in sample_startups if s.get("slug")]
+        content_json = _sanitize_deep_dive_slugs(content_json, allowed_slugs)
         total_tokens = (
             (response.usage.prompt_tokens if response.usage else 0)
             + (response.usage.completion_tokens if response.usage else 0)
@@ -1149,6 +1480,17 @@ async def synthesize_trend_deep_dive(
     )
     linked_startups = [dict(r) for r in startup_rows]
 
+    # Best-effort: include deep research snapshots for linked startups.
+    research_by_slug: Dict[str, str] = {}
+    for s in linked_startups[:MAX_RESEARCH_STARTUPS_IN_PROMPT]:
+        sid = s.get("startup_id")
+        slug = s.get("slug")
+        if not sid or not slug:
+            continue
+        note = await _fetch_latest_startup_research_note(conn, sid)
+        if note:
+            research_by_slug[str(slug)] = note
+
     # Determine next version
     last_version = await conn.fetchval(
         "SELECT COALESCE(MAX(version), 0) FROM signal_deep_dives WHERE signal_id = $1::uuid",
@@ -1198,7 +1540,12 @@ async def synthesize_trend_deep_dive(
         if len(evidence_items) >= 20:
             break
 
-    prompt = _build_trend_synthesis_prompt(dict(signal), evidence_items, linked_startups)
+    prompt = _build_trend_synthesis_prompt(
+        dict(signal),
+        evidence_items,
+        linked_startups,
+        research_by_slug=research_by_slug,
+    )
 
     try:
         response = await client.chat.completions.create(
@@ -1215,7 +1562,9 @@ async def synthesize_trend_deep_dive(
         if not content:
             raise ValueError("Empty LLM response")
 
-        content_json = json.loads(content)
+        content_json = _normalize_deep_dive_content(json.loads(content))
+        allowed_slugs = [s.get("slug") for s in linked_startups if s.get("slug")]
+        content_json = _sanitize_deep_dive_slugs(content_json, allowed_slugs)
         total_tokens = (
             (response.usage.prompt_tokens if response.usage else 0)
             + (response.usage.completion_tokens if response.usage else 0)
@@ -1340,13 +1689,19 @@ async def generate_deep_dives(
         stats["occurrences_computed"] = occ_stats.get("occurrences_upserted", 0)
 
         # Get target signals for phases 5-6
-        conditions = ["status IN ('emerging', 'accelerating', 'established')"]
+        #
+        # Default (no signal_id): focus on high-signal lifecycle stages.
+        # When a specific signal_id is provided, do not status-filter so operators
+        # can generate deep dives for any lifecycle stage.
+        conditions: List[str] = []
         params: List[Any] = []
         idx = 1
         if signal_id:
             conditions.append(f"id = ${idx}::uuid")
             params.append(signal_id)
             idx += 1
+        else:
+            conditions.append("status IN ('emerging', 'accelerating', 'established')")
         if region:
             conditions.append(f"region = ${idx}")
             params.append(region)
@@ -1395,4 +1750,160 @@ async def generate_deep_dives(
         await conn.close()
 
     logger.info("Deep dive generation complete: %s", stats)
+    return stats
+
+
+# ---------------------------------------------------------------------------
+# Coverage backfill (ensure deep dives exist)
+# ---------------------------------------------------------------------------
+
+async def backfill_deep_dives(
+    *,
+    region: Optional[str] = None,
+    limit: int = 50,
+    mode: str = "coverage",
+    force: bool = False,
+    statuses: Optional[List[str]] = None,
+    enqueue_research: bool = False,
+    research_per_signal: int = 2,
+    research_depth: str = "quick",
+    research_priority: int = 8,
+    research_min_completed_age_days: int = 30,
+) -> Dict[str, Any]:
+    """Backfill deep dives for signals that don't have any ready deep dive yet.
+
+    Modes:
+      - coverage: synthesize trend-only deep dives (single LLM call) for missing signals.
+      - full: run the full pipeline (occurrences -> moves -> synthesis) when >=2 samples exist,
+              otherwise fall back to trend-only.
+    """
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL not set")
+
+    mode = str(mode or "coverage").strip().lower()
+    if mode not in {"coverage", "full"}:
+        raise ValueError("mode must be one of: coverage, full")
+
+    target_statuses = statuses or list(NON_DECAYING_SIGNAL_STATUSES)
+    target_statuses = [s for s in target_statuses if isinstance(s, str) and s.strip()]
+    if not target_statuses:
+        raise ValueError("No statuses provided for backfill selection")
+
+    conn = await asyncpg.connect(database_url)
+    stats: Dict[str, Any] = {
+        "mode": mode,
+        "signals_considered": 0,
+        "signals_targeted": 0,
+        "trend_synthesized": 0,
+        "full_synthesized": 0,
+        "moves_extracted": 0,
+        "research_enqueued": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+
+    try:
+        # Only signals that have no *ready* deep dive at all.
+        rows = await conn.fetch(
+            """SELECT s.id::text AS id, s.claim, s.domain, s.status, s.region,
+                      s.conviction, s.evidence_count
+               FROM signals s
+               WHERE s.status = ANY($1::text[])
+                 AND ($2::text IS NULL OR s.region = $2)
+                 AND NOT EXISTS (
+                   SELECT 1
+                   FROM signal_deep_dives dd
+                   WHERE dd.signal_id = s.id AND dd.status = 'ready'
+                 )
+               ORDER BY s.conviction DESC, s.evidence_count DESC
+               LIMIT $3""",
+            target_statuses,
+            region,
+            max(1, int(limit)),
+        )
+
+        stats["signals_targeted"] = len(rows)
+
+        # Optional: avoid re-enqueueing the same startup many times in one run.
+        research_enqueued_startups: set[str] = set()
+
+        for sig in rows:
+            stats["signals_considered"] += 1
+            signal_id = sig["id"]
+            claim = sig.get("claim") or ""
+            try:
+                if enqueue_research and research_per_signal > 0:
+                    try:
+                        startup_rows = await conn.fetch(
+                            """SELECT s.id::text AS startup_id
+                               FROM signal_evidence se
+                               JOIN startups s ON s.id = se.startup_id
+                               WHERE se.signal_id = $1::uuid
+                                 AND se.startup_id IS NOT NULL
+                               GROUP BY s.id
+                               ORDER BY COUNT(*) DESC
+                               LIMIT $2""",
+                            signal_id,
+                            max(1, int(research_per_signal)),
+                        )
+                    except Exception as exc:
+                        if not _is_missing_schema_error(exc):
+                            raise
+                        startup_rows = []
+
+                    for r in startup_rows:
+                        sid = r.get("startup_id")
+                        if not sid or sid in research_enqueued_startups:
+                            continue
+                        ok = await _enqueue_deep_research_if_needed(
+                            conn,
+                            sid,
+                            reason="signal_deep_dive",
+                            priority=research_priority,
+                            research_depth=research_depth,
+                            focus_areas=[f"Signal relevance: {_truncate_text(claim, 140)}"] if claim else None,
+                            require_crawled=True,
+                            min_completed_age_days=research_min_completed_age_days,
+                        )
+                        if ok:
+                            stats["research_enqueued"] += 1
+                            research_enqueued_startups.add(sid)
+
+                if mode == "coverage":
+                    content = await synthesize_trend_deep_dive(conn, signal_id, force=force)
+                    if content:
+                        stats["trend_synthesized"] += 1
+                    else:
+                        stats["skipped"] += 1
+                    continue
+
+                # mode == "full"
+                await compute_signal_occurrences(conn, signal_id, region)
+                samples = await _select_sample_startups(conn, signal_id)
+                if len(samples) < 2:
+                    content = await synthesize_trend_deep_dive(conn, signal_id, force=force)
+                    if content:
+                        stats["trend_synthesized"] += 1
+                    else:
+                        stats["skipped"] += 1
+                    continue
+
+                move_stats = await extract_moves_for_signal(conn, signal_id, claim, samples, force)
+                stats["moves_extracted"] += move_stats.get("extracted", 0)
+
+                content = await synthesize_deep_dive(conn, signal_id, samples, force)
+                if content:
+                    stats["full_synthesized"] += 1
+                else:
+                    stats["skipped"] += 1
+
+            except Exception as exc:
+                logger.error("Backfill error for signal %s: %s", signal_id[:8], exc)
+                stats["errors"] += 1
+
+    finally:
+        await conn.close()
+
+    logger.info("Deep dive backfill complete: %s", stats)
     return stats

@@ -169,7 +169,7 @@ Git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock`.
 
 - Job logs: `/var/log/buildatlas/*.log`
 - VM health telemetry: `/var/log/buildatlas/heartbeat.log`
-- Drift/availability alerts: heartbeat + release reconciler + health report + Slack dispatch.
+- Drift/availability alerts: heartbeat + release reconciler + health report + product canary + Slack dispatch.
 
 ## 7.1) AKS Ops CronJobs
 
@@ -238,6 +238,7 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `compute-benchmarks` | `0 4 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-benchmarks.sh` |
 | `compute-investor-dna` | `0 5 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-investor-dna.sh` |
 | `digest-qa` | `50 * * * *` | 10 | `infrastructure/vm-cron/jobs/digest-qa.sh` |
+| `product-canary` | `17,47 * * * *` | 5 | `infrastructure/vm-cron/jobs/product-canary.sh` |
 | `health-report` | `45 0,4,8,12,16,20 * * *` | 10 | `infrastructure/vm-cron/jobs/health-report.sh` |
 | `daily-observability` | `0 9 * * *` | 10 | `infrastructure/vm-cron/jobs/daily-observability.sh` |
 | `slack-summary` | `0 */3 * * *` | 10 | `infrastructure/vm-cron/jobs/slack-summary.sh` |

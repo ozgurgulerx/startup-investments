@@ -96,6 +96,10 @@ MAILTO=""
 # Sends merged global+turkey digest to QA email for iterative review
 50 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh digest-qa 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/digest-qa.sh
 
+# === Product Canary (every 30 min) ===
+# Verifies brief schema + Investor DNA + deep dives; posts Slack only on state changes/reminders.
+17,47 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh product-canary 5 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/product-canary.sh
+
 # === Infrastructure Health Report (every 4 hours at :45) ===
 # Posts a concise all-systems status to Slack (6 reports/day)
 45 0,4,8,12,16,20 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh health-report 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/health-report.sh
