@@ -1023,14 +1023,6 @@ def _write_state_marker(path: Path, value: str) -> None:
         pass
 
 
-def _subscriber_list_anchor_date(now_utc: datetime, *, hour: int, minute: int) -> str:
-    # Send once per day; the "report date" is anchored at the configured UTC time.
-    anchor = datetime(now_utc.year, now_utc.month, now_utc.day, hour, minute, tzinfo=timezone.utc)
-    if now_utc < anchor:
-        anchor -= timedelta(days=1)
-    return anchor.date().isoformat()
-
-
 def _build_subscriber_list_report(
     *,
     report_date: str,
@@ -1558,7 +1550,7 @@ def main() -> int:
                     subscriber_list_status_line = (
                         "Subscriber list email sent "
                         f"({len(subscriber_recipients)} recipient(s), {len(rows)} row(s))"
-                        f\"{' [PII]' if include_full_emails else ''}.\"
+                        f"{' [PII]' if include_full_emails else ''}."
                     )
                 except Exception as e:
                     subscriber_list_status_line = f"Subscriber list email failed (best-effort): `{e}`"

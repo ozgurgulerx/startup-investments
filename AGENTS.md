@@ -141,6 +141,11 @@ VM cron runner:
     - `METRICS_REPORT_EMAIL_FROM` overrides sender (defaults to `NEWS_DIGEST_FROM_EMAIL`).
     - `METRICS_REPORT_EMAIL_SUBJECT_PREFIX` prepends email subject.
     - Delivery is best-effort: Slack summary still posts if email send fails.
+  - Optional daily subscriber list email can also run from `scripts/slack_daily_summary.py` via Resend (PII):
+    - `SUBSCRIBER_LIST_EMAIL_TO` (comma-separated recipients) enables send.
+    - `SUBSCRIBER_LIST_SEND_AT_UTC_HOUR` / `SUBSCRIBER_LIST_SEND_AT_UTC_MINUTE` set the earliest send time (UTC).
+    - `SUBSCRIBER_LIST_STATUS` / `SUBSCRIBER_LIST_REGION` filter the export.
+    - Default behavior masks emails; set `SUBSCRIBER_LIST_INCLUDE_FULL_EMAILS=true` only for trusted internal recipients.
   - Schedule: `slack-summary` runs every 3 hours at minute `:00` UTC (`0 */3 * * *`).
   - AKS fallback (VM-independent): `posthog-usage-summary` CronJob posts the same PostHog usage block to Slack:
     - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
