@@ -1,0 +1,42 @@
+name: Ops Docs Consistency
+
+on:
+  pull_request:
+    paths:
+      - 'docs/OPERATING_MODEL.md'
+      - 'docs/CHANGE_CONTROL.md'
+      - 'docs/README.md'
+      - 'infrastructure/vm-cron/crontab'
+      - 'scripts/verify-operating-model.sh'
+      - 'scripts/check-crontab-doc-touch.sh'
+      - '.github/workflows/ops-doc-consistency.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/OPERATING_MODEL.md'
+      - 'docs/CHANGE_CONTROL.md'
+      - 'docs/README.md'
+      - 'infrastructure/vm-cron/crontab'
+      - 'scripts/verify-operating-model.sh'
+      - 'scripts/check-crontab-doc-touch.sh'
+      - '.github/workflows/ops-doc-consistency.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-ops-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify cron and operating model consistency
+        run: ./scripts/verify-operating-model.sh
+      - name: Enforce docs updates when crontab changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: ./scripts/check-crontab-doc-touch.sh

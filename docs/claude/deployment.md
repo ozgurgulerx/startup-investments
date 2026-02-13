@@ -1,6 +1,7 @@
 # Deployment Guide (Current)
 
 Canonical reference: `docs/OPERATING_MODEL.md`
+Change gate reference: `docs/CHANGE_CONTROL.md`
 
 This file is a quick operational cheatsheet. If anything conflicts, use the canonical document and the scripts themselves.
 

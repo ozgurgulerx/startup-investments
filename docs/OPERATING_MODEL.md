@@ -1,136 +1,158 @@
 # BuildAtlas Operating Model
 
 Last updated: 2026-02-13
-Status: Canonical operator reference for architecture, deploys, cron jobs, and runbooks.
+Document owner: Platform/Operations
+Review cadence: Monthly or immediately after architecture/deploy/schedule changes.
 
-## 1) What This Document Is
+## 1) Purpose and Scope
 
-Use this file as the source of truth before touching:
-- infrastructure,
-- deployments,
-- scheduled jobs,
-- data/news pipelines,
-- API auth and routing.
+This is the canonical operations reference for:
+- architecture and production dependencies,
+- deployment surfaces and release flow,
+- cron jobs and data/news pipelines,
+- change safety and incident response.
 
-If this document conflicts with older docs, trust this file plus the code paths linked below.
+If this file conflicts with an older doc, use this file plus the linked source scripts/workflows.
 
-## 2) Production Architecture
+## 2) Source-of-Truth Hierarchy
 
-### Runtime components
+Use this priority order when debugging drift:
 
-| Layer | Runtime | Resource / Entry | Purpose |
+1. Runtime code and scripts:
+   - `infrastructure/vm-cron/**`
+   - `apps/api/**`
+   - `apps/web/**`
+2. Schedules/workflow definitions:
+   - `infrastructure/vm-cron/crontab`
+   - `.github/workflows/*.yml`
+3. Operational memory and invariants:
+   - `AGENTS.md`
+4. Human-friendly summaries:
+   - `docs/README.md`
+   - `docs/claude/*.md`
+
+## 3) Production Architecture
+
+### Service catalog
+
+| Service | Runtime | Public entrypoint | Primary responsibility |
 |---|---|---|---|
-| Web | Azure App Service | `https://buildatlas.net` (`buildatlas-web`) | Next.js 14 frontend (standalone container) |
-| API edge | Azure Front Door | `https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net` | Public API entrypoint, probes, header enforcement path |
-| API compute | AKS | `startup-investments-api` deployment | Express API (`apps/api`) |
-| Data | Azure Postgres Flexible Server | `startupinvestments` DB | Primary application + pipeline data |
-| Cache | Azure Redis (optional) | `REDIS_URL`-driven | API caching when configured |
-| Scheduler | Azure VM cron | `vm-buildatlas-cron` | Primary automation runner |
-| Container builds | Azure Container Registry | `aistartuptr.azurecr.io` | Remote builds for web/api images |
-| Object data source | Azure Blob Storage | Synced into `apps/web/data/**` | Dataset ingestion source for sync pipeline |
+| Web frontend | Azure App Service | `https://buildatlas.net` | Next.js 14 SSR/CSR application |
+| API edge | Azure Front Door | `https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net` | Public API edge, health routing path |
+| API backend | AKS (`startup-investments-api`) | Front Door-routed | Core API, admin routes, data access |
+| Primary data store | Azure Postgres Flexible Server | Private | Application and pipeline state |
+| Cache (optional) | Azure Redis | Internal | API response caching |
+| Automation control plane | Azure VM cron (`vm-buildatlas-cron`) | Internal | Primary scheduled jobs and deploy automation |
+| Image build/registry | Azure Container Registry | Internal | Remote image builds for web/api |
+| Dataset ingress | Azure Blob Storage | Internal | Source of `apps/web/data/**` sync jobs |
 
-### Request/data flow
+### Primary request path
 
 1. Browser -> `buildatlas.net` (App Service).
-2. Server-side web code calls API via Front Door.
-3. Front Door routes to AKS API.
-4. API reads/writes Postgres (and Redis when enabled).
-5. If API is unhealthy, web can fall back to file-based dataset reads from `apps/web/data/**` (degradation mode).
+2. Server-side web layer -> API via Front Door.
+3. Front Door -> AKS API.
+4. API -> Postgres (+ Redis if configured).
+5. If API is unhealthy, web can degrade to file-based reads from `apps/web/data/**`.
 
-### Security invariants
+### Critical dependency chains
 
-- API production routing expects Front Door header (`x-azure-fdid`) on most non-health routes.
-- `/api/*` requires `x-api-key`; `/api/admin/*` requires `x-admin-key`.
-- `/health`, `/healthz`, `/readyz` must stay public and cheap.
-- `API_KEY` and `ADMIN_KEY` must never be exposed client-side.
+- Product experience chain:
+  - App Service -> Front Door -> AKS API -> Postgres.
+- Data freshness chain:
+  - Blob data -> `sync-data` cron -> Postgres + `apps/web/data/**` commit -> `frontend-deploy`.
+- News delivery chain:
+  - `news-ingest` -> enrich/cluster -> `news-digest` -> subscriber delivery.
 
-## 3) Repository Map (Operationally Important Paths)
+## 4) Security and Reliability Invariants
 
-| Path | Role |
+Do not break these:
+
+- API routing/auth:
+  - production routes enforce Front Door ID header (`x-azure-fdid`) where configured,
+  - `/api/*` requires `x-api-key`,
+  - `/api/admin/*` requires `x-admin-key`.
+- Health endpoints remain public and lightweight:
+  - `/health`, `/healthz`, `/readyz`.
+- Secrets are server-side only:
+  - never expose `API_KEY` or `ADMIN_KEY` in browser-executed code.
+- Degradation mode is fallback only:
+  - file-based dataset reads are a resilience mechanism, not steady-state.
+- News subscription model:
+  - double opt-in + token-based unsubscribe.
+
+## 5) Control Planes and Deploy Surfaces
+
+### Primary control plane: VM cron
+
+`infrastructure/vm-cron/deploy.sh` (`code-update` job) is the default release orchestrator.
+
+- Pulls latest `main` every 15 minutes.
+- Reinstalls cron if drift is detected.
+- Triggers:
+  - `backend-deploy.sh` for API/shared/k8s changes.
+  - `frontend-deploy.sh` for web/shared changes.
+- Applies migrations when migration files changed.
+
+### Backup/manual control plane: GitHub Actions
+
+| Workflow | Role |
 |---|---|
-| `apps/web` | Next.js frontend |
-| `apps/api` | Express backend |
-| `packages/analysis` | Python automation (news, research, sync tooling) |
-| `database/migrations` | SQL migrations |
-| `infrastructure/kubernetes` | AKS manifests |
-| `infrastructure/vm-cron` | Primary scheduler, deploy scripts, health monitors |
-| `.github/workflows` | Backup/manual deploys + selected always-on GitHub automation |
-| `scripts` | Operational scripts (Slack, sync helpers, deploy helpers) |
+| `frontend-deploy.yml` | Manual backup deploy |
+| `backend-deploy.yml` | Manual backup deploy |
+| `news-ingest.yml` | Manual backup run |
+| `news-digest-daily.yml` | Manual backup run |
+| `keep-aks-alive.yml` | Manual backup keep-alive |
+| `keep-aks-running.yml` | Manual backup keep-alive |
+| `sync-data.yml` | Manual/repository_dispatch backup |
+| `slack-daily-summary.yml` | Manual backup summary |
+| `crawl-frontier.yml` | Manual run (schedule disabled) |
+| `functions-deploy.yml` | Active workflow (`push` + manual) |
+| `sync-to-database.yml` | Active workflow (`push` + manual) |
+| `slack-commit-notify.yml` | Active on `main` push |
+| `vm-watchdog.yml` | Active scheduled VM safety net |
+| `vm-cron-slack-notify.yml` | Active dispatch receiver |
 
-## 4) Deployment Model
+## 6) Configuration and Secrets Model
 
-### Primary deployment path (production default)
+### Runtime secret sources
 
-VM cron is the primary control plane.
+| Surface | Secret source | Notes |
+|---|---|---|
+| VM cron jobs | `/etc/buildatlas/.env` | Loaded by `runner.sh` |
+| API pods | Kubernetes secret `startup-investments-secrets` | Refreshed in `backend-deploy.sh` |
+| App Service web | App settings | Set/updated in `frontend-deploy.sh` |
+| GitHub workflows | Repository secrets/variables | Backup and selected active automations |
 
-- `code-update` (`infrastructure/vm-cron/deploy.sh`) runs every 15 minutes:
-  - `git pull --ff-only origin main`
-  - reinstalls cron if drift is detected
-  - conditionally triggers:
-    - `backend-deploy.sh` when API/shared/k8s files changed
-    - `frontend-deploy.sh` when web/shared files changed
-- `sync-data.sh` also triggers `frontend-deploy.sh` after blob data sync + git push.
+### Minimum required deploy secrets
 
-### How web deploy works (`infrastructure/vm-cron/jobs/frontend-deploy.sh`)
+- Backend deploy path:
+  - `DATABASE_URL`, `API_KEY`, `ADMIN_KEY`, `FRONT_DOOR_ID`.
+- Frontend deploy path:
+  - `DATABASE_URL`, `API_KEY`, auth/email vars as required by deployed features.
 
-1. Azure login via VM managed identity.
-2. Build web image remotely on ACR (`az acr build`) with commit SHA tags.
-3. Point App Service to that image.
-4. Update app settings (without wiping missing secrets).
-5. Smoke-check build marker on `buildatlas.net`; restart webapp if needed.
+## 7) VM Cron Operations
 
-### How API deploy works (`infrastructure/vm-cron/jobs/backend-deploy.sh`)
+Source schedule: `infrastructure/vm-cron/crontab` (all UTC).
 
-1. Validate required envs: `DATABASE_URL`, `API_KEY`, `ADMIN_KEY`, `FRONT_DOOR_ID`.
-2. Build API image on ACR.
-3. Ensure AKS is running; fetch credentials.
-4. Refresh Kubernetes secret `startup-investments-secrets`.
-5. `kubectl apply` + rollout restart.
-6. Health-check `/health`; rollback to previous image if unhealthy.
+### Wrapper guarantees (`infrastructure/vm-cron/lib/runner.sh`)
 
-## 5) GitHub Actions: Backup vs Active Responsibilities
-
-| Workflow | Current role |
-|---|---|
-| `frontend-deploy.yml` | Manual backup deploy only (`workflow_dispatch`) |
-| `backend-deploy.yml` | Manual backup deploy only (`workflow_dispatch`) |
-| `news-ingest.yml` | Manual backup only (scheduled run moved to VM cron) |
-| `news-digest-daily.yml` | Manual backup only (scheduled run moved to VM cron) |
-| `keep-aks-alive.yml` | Manual backup only |
-| `keep-aks-running.yml` | Manual backup only |
-| `sync-data.yml` | Manual + repository_dispatch backup |
-| `slack-daily-summary.yml` | Manual backup only |
-| `crawl-frontier.yml` | Manual workflow (cron schedule disabled) |
-| `functions-deploy.yml` | Active GitHub workflow (`push` + manual) |
-| `sync-to-database.yml` | Active GitHub workflow (`push` + manual) |
-| `slack-commit-notify.yml` | Active on every push to `main` |
-| `vm-watchdog.yml` | Active scheduled safety net (every 30m) |
-| `vm-cron-slack-notify.yml` | Active event receiver for VM dispatch fallback |
-
-## 6) VM Cron Operational Model
-
-Source of truth: `infrastructure/vm-cron/crontab`.
-
-### Wrapper behavior (`infrastructure/vm-cron/lib/runner.sh`)
-
-`runner.sh` provides:
-- env sourcing (`/etc/buildatlas/.env`, fallback repo `.env`),
+- env sourcing,
 - per-job lock files (`/tmp/buildatlas-<job>.lock`),
 - timeout enforcement,
-- log routing (`/var/log/buildatlas/<job>.log`),
-- Slack start/success/failure/timeout notifications.
+- structured log routing (`/var/log/buildatlas/<job>.log`),
+- Slack lifecycle notifications.
 
-### Global git safety lock
+### Git race prevention
 
-`deploy.sh`, `sync-data.sh`, and other git-touching jobs use `/tmp/buildatlas-git.lock` to serialize git operations and avoid cross-job races.
+Git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock`.
 
-### Logs and monitoring
+### Logging and telemetry
 
 - Job logs: `/var/log/buildatlas/*.log`
-- VM heartbeat log: `/var/log/buildatlas/heartbeat.log`
-- Heartbeat detects stale/overdue jobs, resource pressure, and cron daemon issues.
+- VM health telemetry: `/var/log/buildatlas/heartbeat.log`
+- Drift/availability alerts: heartbeat + release reconciler + health report + Slack dispatch.
 
-## 7) Cron Schedule Inventory (UTC)
+## 8) Cron Schedule Inventory (UTC)
 
 ### Scheduled jobs
 
@@ -138,15 +160,20 @@ Source of truth: `infrastructure/vm-cron/crontab`.
 |---|---|---:|---|
 | `keep-alive` | `*/15 * * * *` | 20 | `infrastructure/vm-cron/jobs/keep-alive.sh` |
 | `news-ingest` | `15 * * * *` | 30 | `infrastructure/vm-cron/jobs/news-ingest.sh` |
+| `x-trends` | `28 * * * *` | 20 | `infrastructure/vm-cron/jobs/x-trends.sh` |
 | `event-processor` | `5,20,35,50 * * * *` | 10 | `infrastructure/vm-cron/jobs/event-processor.sh` |
 | `deep-research` | `12,27,42,57 * * * *` | 20 | `infrastructure/vm-cron/jobs/deep-research.sh` |
 | `crawl-frontier` | `0,30 * * * *` | 25 | `infrastructure/vm-cron/jobs/crawl-frontier.sh` |
 | `research-topics` | `40 * * * *` | 10 | `infrastructure/vm-cron/jobs/research-topics.sh` |
 | `news-digest` | `45 * * * *` | 15 | `infrastructure/vm-cron/jobs/news-digest.sh` |
+| `x-post-generate` | `35 */4 * * *` | 10 | `infrastructure/vm-cron/jobs/x-post-generate.sh` |
+| `x-post-publish` | `55 * * * *` | 10 | `infrastructure/vm-cron/jobs/x-post-publish.sh` |
+| `x-post-metrics` | `20 */6 * * *` | 10 | `infrastructure/vm-cron/jobs/x-post-metrics.sh` |
 | `weekly-brief` | `0 6 * * 1` | 20 | `infrastructure/vm-cron/jobs/weekly-brief.sh` |
 | `monthly-brief` | `0 6 1 * *` | 20 | `infrastructure/vm-cron/jobs/monthly-brief.sh` |
 | `embed-backfill` | `25 * * * *` | 15 | `infrastructure/vm-cron/jobs/embed-backfill.sh` |
 | `signal-aggregate` | `30 */4 * * *` | 10 | `infrastructure/vm-cron/jobs/signal-aggregate.sh` |
+| `deep-dive-generate` | `15 5 * * *` | 45 | `infrastructure/vm-cron/jobs/deep-dive-generate.sh` |
 | `dealbook-brief` | `0 4 * * *` | 15 | `infrastructure/vm-cron/jobs/dealbook-brief.sh` |
 | `neighbors-benchmarks` | `0 7 * * 4` | 60 | `infrastructure/vm-cron/jobs/neighbors-benchmarks.sh` |
 | `compute-benchmarks` | `0 4 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-benchmarks.sh` |
@@ -154,7 +181,7 @@ Source of truth: `infrastructure/vm-cron/crontab`.
 | `digest-qa` | `50 * * * *` | 10 | `infrastructure/vm-cron/jobs/digest-qa.sh` |
 | `health-report` | `45 0,4,8,12,16,20 * * *` | 10 | `infrastructure/vm-cron/jobs/health-report.sh` |
 | `daily-observability` | `0 9 * * *` | 10 | `infrastructure/vm-cron/jobs/daily-observability.sh` |
-| `slack-summary` | `0 14 * * *` | 10 | `infrastructure/vm-cron/jobs/slack-summary.sh` |
+| `slack-summary` | `0 */3 * * *` | 10 | `infrastructure/vm-cron/jobs/slack-summary.sh` |
 | `slack-commit-notify` | `*/2 * * * *` | 5 | `infrastructure/vm-cron/jobs/slack-commit-notify.sh` |
 | `release-reconciler` | `*/5 * * * *` | 5 | `infrastructure/vm-cron/jobs/release-reconciler.sh` |
 | `sync-data` | `0,30 * * * *` | 45 | `infrastructure/vm-cron/jobs/sync-data.sh` |
@@ -165,78 +192,190 @@ Source of truth: `infrastructure/vm-cron/crontab`.
 
 | Job | Trigger |
 |---|---|
-| `frontend-deploy` | Called from `sync-data.sh`, `deploy.sh`, or manual runner invocation |
-| `backend-deploy` | Called from `deploy.sh` or manual runner invocation |
+| `frontend-deploy` | Called by `sync-data.sh`, `deploy.sh`, or manual runner invocation |
+| `backend-deploy` | Called by `deploy.sh` or manual runner invocation |
 
-## 8) Pipeline Maps
+## 9) Pipeline Maps
 
 ### A) News pipeline
 
-1. `news-ingest.sh` applies news migrations and runs `python main.py ingest-news --lookback-hours 48`.
-2. Ingest writes clusters/editions and memory-gate artifacts to Postgres.
-3. `embed-backfill`, `signal-aggregate`, `research-topics`, and brief jobs enrich downstream outputs.
-4. `news-digest.sh` sends regional digests (`global`, `turkey`) with per-run delivery metrics + Slack summary.
+Entry points:
+- `infrastructure/vm-cron/jobs/news-ingest.sh`
+- `infrastructure/vm-cron/jobs/news-digest.sh`
+
+Flow:
+1. Apply relevant migrations.
+2. Ingest/fetch/cluster/enrich editions.
+3. Persist clusters, facts, and editions to Postgres.
+4. Send digest per region with per-run metrics and Slack summary.
+
+Key risk controls:
+- migration idempotency in `apply-migrations.sh`,
+- digest metrics reporting for sent/skipped/failed,
+- hourly ingest cadence + keep-alive/health-report monitoring.
 
 ### B) Event -> deep research pipeline
 
-1. `event-processor.sh` processes `startup_events` and enqueues eligible deep-research items.
-2. `deep-research.sh` consumes queue with budget caps (`DEEP_RESEARCH_*` env controls).
-3. Observability job tracks latency, linking quality, onboarding funnel, and spend.
+Entry points:
+- `infrastructure/vm-cron/jobs/event-processor.sh`
+- `infrastructure/vm-cron/jobs/deep-research.sh`
 
-### C) Dataset sync pipeline
+Flow:
+1. Event processor consumes startup events and enqueues deep-research candidates.
+2. Deep-research consumer processes queue with budget/cap controls.
+3. Results inform onboarding and downstream insights.
 
-1. `sync-data.sh` checks blob deltas.
-2. Syncs to `apps/web/data/**`.
-3. Validates/backfills taxonomy when needed.
-4. Applies startup migrations and syncs `startups.csv` + `analysis_data` to Postgres.
-5. Commits/pushes data changes.
-6. Triggers `frontend-deploy` so web reflects new dataset.
+Key risk controls:
+- budget guard envs (`DEEP_RESEARCH_*`),
+- periodic observability report,
+- queue schema migrations applied before processing.
 
-## 9) Change Safety Checklist
+### C) Signal deep-dive pipeline
+
+Entry points:
+- `infrastructure/vm-cron/jobs/signal-aggregate.sh`
+- `infrastructure/vm-cron/jobs/deep-dive-generate.sh`
+
+Flow:
+1. Aggregate events into signals on the 4-hour cadence.
+2. Apply migrations (`apply-migrations.sh news`) before deep-dive generation.
+3. Compute per-startup occurrences.
+4. Generate/update deep-dive documents and diffs.
+
+Key risk controls:
+- migration preflight in `deep-dive-generate.sh`,
+- graceful API degradation when deep-dive tables are unavailable,
+- dedicated daily job timeout budget (45 minutes).
+
+### D) Dataset sync pipeline
+
+Entry point:
+- `infrastructure/vm-cron/jobs/sync-data.sh`
+
+Flow:
+1. Check blob diffs.
+2. Sync to `apps/web/data/**`.
+3. Validate/backfill taxonomy if incomplete.
+4. Sync startups + analysis JSON to Postgres.
+5. Commit/push dataset updates.
+6. Trigger `frontend-deploy`.
+
+Key risk controls:
+- git lock serialization,
+- DB sync even in no-change windows (sentinel logic),
+- migration application before DB writes.
+
+### E) X/Twitter trend + posting pipeline
+
+Entry points:
+- `infrastructure/vm-cron/jobs/x-trends.sh`
+- `infrastructure/vm-cron/jobs/x-post-generate.sh`
+- `infrastructure/vm-cron/jobs/x-post-publish.sh`
+- `infrastructure/vm-cron/jobs/x-post-metrics.sh`
+
+Flow:
+1. Fetch recent X search results (global + turkey query packs) into `news_items_raw`.
+2. Reuse news clustering/ranking pipeline so X signals affect edition composition.
+3. Generate queue entries in `x_post_queue` from top clusters.
+4. Publish queued items via X API with cap/cooldown controls.
+5. Sync post metrics into `x_post_metrics_daily`.
+
+Key risk controls:
+- posting feature gate (`X_POSTING_ENABLED`),
+- daily cap + spacing (`X_MAX_POSTS_PER_DAY`, `X_MIN_POST_INTERVAL_MINUTES`),
+- dedupe key + retry ceiling (`X_POST_DEDUPE_DAYS`, `X_POST_MAX_ATTEMPTS`).
+
+## 10) Release Process, Verification, and Rollback
+
+### Standard release path
+
+1. Merge to `main`.
+2. Wait for `code-update` cron (or run manual job).
+3. Confirm deploy logs:
+   - `/var/log/buildatlas/frontend-deploy.log`
+   - `/var/log/buildatlas/backend-deploy.log`
+4. Verify health:
+   - `curl -i https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health`
+   - `curl -I https://buildatlas.net`
+
+### Fast verification checklist
+
+- API health returns `200`.
+- Frontend returns `200`.
+- Release reconciler reports no sustained drift.
+- No repeated failure loops in relevant job logs.
+
+### Rollback guidelines
+
+- Backend:
+  - automatic rollback is attempted by `backend-deploy.sh` when health checks fail.
+  - if needed manually: set previous image on deployment and monitor rollout.
+- Frontend:
+  - redeploy a known good commit/image via VM deploy path.
+- Data:
+  - use git history for `apps/web/data/**` and rerun `sync-data` path carefully.
+
+Always prefer restoring service availability first, then perform root-cause analysis.
+
+## 11) Incident Response Model
+
+### Severity guide
+
+- `SEV1`: User-facing outage or major data integrity risk.
+- `SEV2`: Significant degradation with workaround.
+- `SEV3`: Partial degradation or internal tooling failure.
+
+### First 10 minutes checklist
+
+1. Confirm symptom with direct checks (`/health`, frontend HTTP status).
+2. Identify failing layer (web, edge, AKS, DB, cron, pipeline).
+3. Check latest relevant logs under `/var/log/buildatlas/`.
+4. Mitigate quickly (restart/redeploy/start stopped service).
+5. Post incident status in Slack.
+
+### High-frequency incidents and first actions
+
+| Incident | First action |
+|---|---|
+| Frontend slow due API fallback | Verify API health and AKS power state; restore API path |
+| API unreachable | Check AKS state and rollout health; verify secrets/header invariants |
+| Cron jobs stale | Check cron service, heartbeat alerts, and lock files |
+| Data not refreshing | Inspect `sync-data.log`, git push status, and triggered frontend deploy |
+| Digest not sending | Inspect `news-digest.log` metrics and email env variables |
+
+## 12) Change Management and Safe Delivery
 
 Before merging production-impacting changes:
 
-1. Confirm which control plane you are touching: VM cron vs GitHub workflow backup.
-2. Keep `infrastructure/vm-cron/crontab` and `runner.sh` invariants intact (timeouts, locks, logs).
-3. Do not remove API auth/header enforcement in `apps/api/src/index.ts`.
-4. Keep health endpoints public and cheap.
-5. For web changes, run:
-   - `pnpm --filter web type-check`
-   - `pnpm --filter web build`
-6. For API changes, run:
-   - `pnpm --filter @startup-investments/api build`
-7. For pipeline/migration changes, validate migration application path in `infrastructure/vm-cron/jobs/apply-migrations.sh`.
-8. If cron schedules change, update both:
-   - `infrastructure/vm-cron/crontab`
-   - this file (`docs/OPERATING_MODEL.md`)
+1. Identify impacted control plane(s): VM cron, workflows, runtime service(s).
+2. Validate invariants in Section 4.
+3. Run area-specific checks:
+   - web: `pnpm --filter web type-check` and `pnpm --filter web build`
+   - api: `pnpm --filter @startup-investments/api build`
+   - pipeline: relevant `packages/analysis` dry-run/health checks
+4. For migration changes:
+   - ensure idempotent behavior,
+   - ensure inclusion in `apply-migrations.sh` path.
+5. For cron changes:
+   - update `infrastructure/vm-cron/crontab`,
+   - update this document,
+   - run doc drift check script.
+6. Update docs in same PR when behavior/ops expectations change.
 
-## 10) Quick Incident Runbooks
+Detailed checklist: `docs/CHANGE_CONTROL.md`.
 
-### Dealbook/front pages are slow
+## 13) Documentation Drift Guard
 
-1. Check API health:
-   - `curl -i https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health`
-2. If unhealthy, verify AKS power state and start if stopped:
-   - `az aks show -g aistartuptr -n aks-aistartuptr --query powerState.code -o tsv`
-   - `az aks start -g aistartuptr -n aks-aistartuptr`
-3. Verify authenticated API dealbook path from server context.
+Run this before merging schedule-related changes:
 
-### VM cron appears stuck
+```bash
+./scripts/verify-operating-model.sh
+```
 
-1. Check heartbeat/log freshness in `/var/log/buildatlas`.
-2. Verify cron service on VM.
-3. Check stale lock files under `/tmp/buildatlas-*.lock`.
-4. Use `infrastructure/vm-cron/verify.sh` for sanity checks.
+This checks that cron job names in `infrastructure/vm-cron/crontab` are represented in `docs/OPERATING_MODEL.md`.
+It is also enforced in CI by `.github/workflows/ops-doc-consistency.yml`.
 
-### Frontend or backend deployment drift
-
-1. Check `release-reconciler` logs and Slack notifications.
-2. For backend failures inspect `/var/log/buildatlas/backend-deploy.log`.
-3. For frontend failures inspect `/var/log/buildatlas/frontend-deploy.log`.
-
-## 11) Source-of-Truth Files
-
-If you need to validate this document, start here:
+## 14) Canonical Files for Validation
 
 - `infrastructure/vm-cron/crontab`
 - `infrastructure/vm-cron/lib/runner.sh`

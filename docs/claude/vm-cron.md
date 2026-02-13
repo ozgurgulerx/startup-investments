@@ -46,6 +46,9 @@ For full schedule and timeouts, see `infrastructure/vm-cron/crontab`.
 # VM cron sanity
 infrastructure/vm-cron/verify.sh
 
+# Cron/doc inventory consistency
+./scripts/verify-operating-model.sh
+
 # Recent logs
 tail -n 80 /var/log/buildatlas/keep-alive.log
 tail -n 80 /var/log/buildatlas/code-update.log
