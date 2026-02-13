@@ -76,6 +76,7 @@ VM_CRON_JOBS = {
 }
 
 _IS_VM = bool(os.environ.get("BUILDATLAS_RUNNER") == "vm-cron")
+BACKEND_ACTIVITY_WINDOW_HOURS = 3
 
 # Select workflow list based on context
 WORKFLOWS = CICD_WORKFLOWS if _IS_VM else ALL_WORKFLOWS
@@ -387,6 +388,7 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
     conn = await asyncpg.connect(database_url)
     try:
         metrics: dict[str, Any] = {}
+        warnings: list[str] = []
 
         latest_edition = await conn.fetchrow(
             """
@@ -432,6 +434,185 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
                 "items_kept": int(run_row["items_kept"]),
                 "clusters_built": int(run_row["clusters_built"]),
             }
+
+        try:
+            win_hours = BACKEND_ACTIVITY_WINDOW_HOURS
+            recent_window = f"{int(win_hours)} hours"
+
+            recent_ingest = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE status = 'success') AS success,
+                  COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+                  COUNT(*) FILTER (WHERE status = 'running') AS running,
+                  MAX(completed_at) FILTER (WHERE status = 'success') AS last_success_at
+                FROM news_ingestion_runs
+                WHERE started_at >= NOW() - ($1::text)::interval
+                """,
+                recent_window,
+            )
+            if recent_ingest:
+                metrics["backend_ingest_activity"] = {
+                    "window_hours": int(win_hours),
+                    "success": int(recent_ingest["success"]),
+                    "failed": int(recent_ingest["failed"]),
+                    "running": int(recent_ingest["running"]),
+                    "last_success_at": recent_ingest["last_success_at"].isoformat() if recent_ingest["last_success_at"] else None,
+                }
+
+            # Region-aware news cluster updates (fallback to global-only if old schema).
+            try:
+                cluster_rows = await conn.fetch(
+                    """
+                    SELECT region, COUNT(*) AS cnt
+                    FROM news_clusters
+                    WHERE published_at >= NOW() - ($1::text)::interval
+                    GROUP BY region
+                    ORDER BY region ASC
+                    """,
+                    recent_window,
+                )
+                metrics["backend_news_updates"] = {
+                    "window_hours": int(win_hours),
+                    "clusters_total": int(sum(int(r["cnt"]) for r in cluster_rows)),
+                    "clusters_by_region": [
+                        {"region": str(r["region"]), "count": int(r["cnt"])}
+                        for r in cluster_rows
+                    ],
+                }
+            except Exception:
+                cluster_total = await conn.fetchval(
+                    """
+                    SELECT COUNT(*)
+                    FROM news_clusters
+                    WHERE published_at >= NOW() - ($1::text)::interval
+                    """,
+                    recent_window,
+                )
+                metrics["backend_news_updates"] = {
+                    "window_hours": int(win_hours),
+                    "clusters_total": int(cluster_total or 0),
+                    "clusters_by_region": [{"region": "global", "count": int(cluster_total or 0)}],
+                }
+
+            try:
+                edition_rows = await conn.fetch(
+                    """
+                    SELECT region, COUNT(*) AS cnt
+                    FROM news_daily_editions
+                    WHERE generated_at >= NOW() - ($1::text)::interval
+                    GROUP BY region
+                    ORDER BY region ASC
+                    """,
+                    recent_window,
+                )
+                metrics["backend_edition_updates"] = [
+                    {"region": str(r["region"]), "count": int(r["cnt"])}
+                    for r in edition_rows
+                ]
+            except Exception:
+                edition_total = await conn.fetchval(
+                    """
+                    SELECT COUNT(*)
+                    FROM news_daily_editions
+                    WHERE generated_at >= NOW() - ($1::text)::interval
+                    """,
+                    recent_window,
+                )
+                metrics["backend_edition_updates"] = [{"region": "global", "count": int(edition_total or 0)}]
+
+            onboarding_row = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) AS total,
+                  COUNT(*) FILTER (WHERE success = TRUE) AS success,
+                  COUNT(*) FILTER (WHERE success = FALSE) AS failed
+                FROM startup_onboarding_attempts
+                WHERE attempted_at >= NOW() - ($1::text)::interval
+                """,
+                recent_window,
+            )
+            if onboarding_row:
+                metrics["backend_onboarding_attempts"] = {
+                    "window_hours": int(win_hours),
+                    "total": int(onboarding_row["total"]),
+                    "success": int(onboarding_row["success"]),
+                    "failed": int(onboarding_row["failed"]),
+                }
+
+                stage_rows = await conn.fetch(
+                    """
+                    SELECT stage, COUNT(*) AS total
+                    FROM startup_onboarding_attempts
+                    WHERE attempted_at >= NOW() - ($1::text)::interval
+                    GROUP BY stage
+                    ORDER BY total DESC, stage ASC
+                    LIMIT 4
+                    """,
+                    recent_window,
+                )
+                metrics["backend_onboarding_stages"] = [
+                    {"stage": str(r["stage"]), "total": int(r["total"])}
+                    for r in stage_rows
+                ]
+
+                recent_entities = await conn.fetch(
+                    """
+                    SELECT entity_name, region, stage, success
+                    FROM startup_onboarding_attempts
+                    WHERE attempted_at >= NOW() - ($1::text)::interval
+                    ORDER BY attempted_at DESC
+                    LIMIT 5
+                    """,
+                    recent_window,
+                )
+                metrics["backend_onboarding_recent_entities"] = [
+                    {
+                        "entity_name": str(r["entity_name"]),
+                        "region": str(r["region"]),
+                        "stage": str(r["stage"]),
+                        "success": bool(r["success"]),
+                    }
+                    for r in recent_entities
+                ]
+
+            queue_movement = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE queued_at >= NOW() - ($1::text)::interval) AS queued,
+                  COUNT(*) FILTER (WHERE started_at >= NOW() - ($1::text)::interval) AS started,
+                  COUNT(*) FILTER (
+                    WHERE completed_at >= NOW() - ($1::text)::interval
+                      AND status = 'completed'
+                  ) AS completed,
+                  COUNT(*) FILTER (
+                    WHERE completed_at >= NOW() - ($1::text)::interval
+                      AND status = 'failed'
+                  ) AS failed
+                FROM deep_research_queue
+                """,
+                recent_window,
+            )
+            queue_state = await conn.fetchrow(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                  COUNT(*) FILTER (WHERE status = 'processing') AS processing
+                FROM deep_research_queue
+                """
+            )
+            if queue_movement and queue_state:
+                metrics["backend_research_queue"] = {
+                    "window_hours": int(win_hours),
+                    "queued": int(queue_movement["queued"]),
+                    "started": int(queue_movement["started"]),
+                    "completed": int(queue_movement["completed"]),
+                    "failed": int(queue_movement["failed"]),
+                    "pending": int(queue_state["pending"]),
+                    "processing": int(queue_state["processing"]),
+                }
+        except Exception as e:
+            warnings.append(f"backend_activity unavailable: {e}")
 
         deliveries = await conn.fetchrow(
             """
@@ -482,8 +663,6 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
                 "unsubscribed": int(subs["unsubscribed"]),
                 "total": int(subs["total"]),
             }
-
-        warnings: list[str] = []
 
         try:
             subs_24h = await conn.fetchrow(
@@ -934,6 +1113,51 @@ def main() -> int:
             body_lines.append(
                 f"- LLM (24h clusters): llm_summary={l.get('with_llm_summary')}/{l.get('total')} • builder_takeaway={l.get('with_builder_takeaway')}/{l.get('total')}"
             )
+        if "backend_ingest_activity" in metrics or "backend_news_updates" in metrics or "backend_onboarding_attempts" in metrics:
+            window_hours = BACKEND_ACTIVITY_WINDOW_HOURS
+            if "backend_ingest_activity" in metrics:
+                window_hours = int(metrics["backend_ingest_activity"].get("window_hours") or window_hours)
+            elif "backend_news_updates" in metrics:
+                window_hours = int(metrics["backend_news_updates"].get("window_hours") or window_hours)
+            body_lines.append("")
+            body_lines.append(f"*Backend activity (last {window_hours}h)*")
+            if "backend_ingest_activity" in metrics:
+                bi = metrics["backend_ingest_activity"]
+                body_lines.append(
+                    f"- News ingest runs: success={bi.get('success')} failed={bi.get('failed')} running={bi.get('running')}"
+                )
+            if "backend_news_updates" in metrics:
+                bn = metrics["backend_news_updates"]
+                by_region = bn.get("clusters_by_region") or []
+                region_parts = [f"{r.get('region')}={r.get('count')}" for r in by_region]
+                body_lines.append(
+                    f"- News updates: clusters={bn.get('clusters_total')} ({', '.join(region_parts)})"
+                )
+            if "backend_edition_updates" in metrics:
+                be = metrics["backend_edition_updates"]
+                if be:
+                    parts = [f"{r.get('region')}={r.get('count')}" for r in be]
+                    body_lines.append(f"- Edition rebuilds: {', '.join(parts)}")
+            if "backend_onboarding_attempts" in metrics:
+                bo = metrics["backend_onboarding_attempts"]
+                body_lines.append(
+                    f"- Onboarding triggered: total={bo.get('total')} success={bo.get('success')} failed={bo.get('failed')}"
+                )
+            if "backend_onboarding_stages" in metrics:
+                stage_parts = [f"{s.get('stage')}={s.get('total')}" for s in (metrics.get("backend_onboarding_stages") or [])]
+                if stage_parts:
+                    body_lines.append(f"- Onboarding stages: {', '.join(stage_parts)}")
+            if "backend_onboarding_recent_entities" in metrics:
+                entities = metrics["backend_onboarding_recent_entities"] or []
+                if entities:
+                    names = [str(e.get("entity_name") or "") for e in entities if e.get("entity_name")]
+                    if names:
+                        body_lines.append(f"- Recent onboarding entities: {', '.join(names[:5])}")
+            if "backend_research_queue" in metrics:
+                rq = metrics["backend_research_queue"]
+                body_lines.append(
+                    f"- Deep research queue: queued={rq.get('queued')} started={rq.get('started')} completed={rq.get('completed')} failed={rq.get('failed')} pending={rq.get('pending')} processing={rq.get('processing')}"
+                )
         if "db_metrics_warnings" in metrics:
             warns = metrics["db_metrics_warnings"]
             if warns:

@@ -103,6 +103,8 @@ VM cron runner:
   - Daily `slack-summary` now includes subscription lifecycle metrics (created/confirmed/unsubscribed in 24h),
     segment breakdown (`region` × `digest_frequency`), masked newly-confirmed subscriber emails, and digest
     delivery totals by region.
+  - `slack-summary` also includes a backend activity snapshot for the last 3 hours:
+    news ingest run outcomes, region-scoped news/edition updates, onboarding attempt activity, and deep-research queue movement.
   - Optional site-usage block comes from PostHog when `POSTHOG_PROJECT_ID` + (`POSTHOG_PERSONAL_API_KEY` or
     `POSTHOG_API_KEY`) are set on the VM (`POSTHOG_HOST` defaults to `NEXT_PUBLIC_POSTHOG_HOST` / `us.i.posthog.com`).
   - Optional daily metrics email runs from the same job (`scripts/slack_daily_summary.py`) via Resend:
