@@ -72,6 +72,8 @@ SETS = {
         "058_onboarding_pipeline_activation.sql",
         # Onboarding trace events + human context injection
         "063_onboarding_trace_and_context.sql",
+        # Fix: dedupe_key unique index inference for ON CONFLICT
+        "064_fix_onboarding_trace_dedupe_index.sql",
         # X/Twitter trend intelligence + automated posting queue
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
@@ -124,6 +126,7 @@ SETS = {
         "046_startup_merge_infrastructure.sql",
         "058_onboarding_pipeline_activation.sql",
         "063_onboarding_trace_and_context.sql",
+        "064_fix_onboarding_trace_dedupe_index.sql",
         # Capital graph + founder normalization
         "059_capital_graph_founders.sql",
         # Optional graph extension (AGE) with graceful fallback

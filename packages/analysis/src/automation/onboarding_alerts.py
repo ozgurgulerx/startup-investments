@@ -52,6 +52,41 @@ def _context_template_url(base_url: str, startup_id: Optional[str], trace_event_
         params["startupId"] = startup_id
     return f"{base}/api/v1/onboarding/context-template?{urlencode(params)}"
 
+def _api_base_url() -> str:
+    return (
+        str(os.getenv("API_URL") or "").strip()
+        or str(os.getenv("NEXT_PUBLIC_API_URL") or "").strip()
+        or "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net"
+    ).rstrip("/")
+
+
+def _build_context_curl(event: Dict[str, Any]) -> str:
+    trace_id = str(event.get("id") or "")
+    startup_id = str(event.get("startup_id") or "")
+    api_base = _api_base_url()
+
+    payload = {
+        "startupId": startup_id or "<startup-uuid>",
+        "traceEventId": trace_id or None,
+        "contextText": "Add your deep-research context here (facts, links, missing data, caveats).",
+        "source": "slack",
+        "createdBy": "ops",
+        "enqueueResearch": True,
+        "metadata": {"source": "slack_followup"},
+    }
+    payload_str = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+
+    # Production API requires BOTH X-API-Key and X-Admin-Key.
+    return "\n".join(
+        [
+            f"curl -X POST \"{api_base}/api/admin/v1/onboarding/context\" \\",
+            "  -H \"Content-Type: application/json\" \\",
+            "  -H \"X-API-Key: <API_KEY>\" \\",
+            "  -H \"X-Admin-Key: <ADMIN_KEY>\" \\",
+            f"  -d '{payload_str}'",
+        ]
+    )
+
 
 def _build_body(event: Dict[str, Any], context_url: str) -> str:
     startup_name = str(event.get("startup_name") or "Unknown startup")
@@ -77,8 +112,10 @@ def _build_body(event: Dict[str, Any], context_url: str) -> str:
             "",
             "*Action needed:*",
             f"- {guidance}",
-            "- Add context and requeue using the template endpoint below.",
-            f"- Context helper: {context_url}",
+            "- Add context and optionally requeue deep research with this command:",
+            "```",
+            _build_context_curl(event),
+            "```",
         ]
     )
     return "\n".join(lines)
@@ -115,7 +152,8 @@ def _send_slack_notification(event: Dict[str, Any], *, base_url: str) -> bool:
     env["SLACK_TITLE"] = title
     env["SLACK_STATUS"] = status
     env["SLACK_BODY"] = body
-    env["SLACK_URL"] = context_url
+    # Avoid broken buttons; the body includes a ready-to-run curl command.
+    env.pop("SLACK_URL", None)
     env["SLACK_CONTEXT_JSON"] = context_json
 
     try:

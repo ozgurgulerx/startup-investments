@@ -111,6 +111,12 @@ VM cron runner:
     - seed runs on interval (`CRAWL_FRONTIER_SEED_INTERVAL_HOURS`, default 6h) or resume cursor,
     - state files live under `/var/lib/buildatlas` (`crawl-frontier.seed.cursor`, `crawl-frontier.seed.last`),
     - worker execution still proceeds if seed chunk fails/times out.
+  - Frontier telemetry:
+    - Each frontier URL crawl attempt is persisted to `crawl_logs` (with `canonical_url`, `fetch_method`, `proxy_tier`, `error_category`, and optional `capture_id`) so `/api/admin/monitoring/frontier` can report 24h success/error rates.
+    - If `crawl_logs` is empty (older deployments), monitoring falls back to `crawl_frontier_urls.last_*` fields as an approximation.
+  - Raw captures (WARC-lite):
+    - `crawl_raw_captures` stores envelope metadata for replay and optionally uploads the compressed body to Blob Storage under `crawl-snapshots/raw-captures/...`.
+    - If Blob upload auth is misconfigured (e.g., `AuthorizationFailure`), the worker **fail-opens**: it disables further blob uploads for that run (to avoid log spam) and continues recording DB metadata with `body_blob_path=NULL`.
   - Seed chunk controls are env-driven:
     - `CRAWL_FRONTIER_SEED_LIMIT` (DB batch read, default 5000)
     - `CRAWL_FRONTIER_SEED_MAX_STARTUPS` (per-run processed startups, default 500)
@@ -124,6 +130,10 @@ VM cron runner:
     news ingest run outcomes, region-scoped news/edition updates, onboarding attempt activity, and deep-research queue movement.
   - Optional site-usage block comes from PostHog when `POSTHOG_PROJECT_ID` + (`POSTHOG_PERSONAL_API_KEY` or
     `POSTHOG_API_KEY`) are set on the VM (`POSTHOG_HOST` defaults to `NEXT_PUBLIC_POSTHOG_HOST` / `us.i.posthog.com`).
+  - PostHog key separation (important):
+    - `POSTHOG_PROJECT_API_KEY` (`phc_...`) is the ingestion key used by browser SDK and server `/capture` calls.
+    - `POSTHOG_PERSONAL_API_KEY` (`phx_...`) is the admin/query key used for HogQL/API (dashboards, alerts, summaries).
+    - Do not expose personal keys in `NEXT_PUBLIC_*` settings.
   - Optional daily metrics email runs from the same job (`scripts/slack_daily_summary.py`) via Resend:
     - `METRICS_REPORT_EMAIL_TO` (comma-separated recipients) enables email send.
     - `METRICS_REPORT_EMAIL_FROM` overrides sender (defaults to `NEWS_DIGEST_FROM_EMAIL`).

@@ -14,7 +14,7 @@ const RATE_LIMIT_PER_DAY = Number(process.env.NEWS_SUBSCRIBE_RATE_LIMIT_PER_DAY 
 const RATE_LIMIT_PER_EMAIL_PER_HOUR = Number(process.env.NEWS_SUBSCRIBE_RATE_LIMIT_PER_EMAIL_PER_HOUR || '3');
 
 function getPostHogEnv(): { host: string; key: string } | null {
-  const key = (process.env.POSTHOG_KEY || process.env.NEXT_PUBLIC_POSTHOG_KEY || '').trim();
+  const key = (process.env.POSTHOG_PROJECT_API_KEY || process.env.NEXT_PUBLIC_POSTHOG_KEY || '').trim();
   if (!key) return null;
   const host = (process.env.POSTHOG_HOST || process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com')
     .trim()

@@ -32,9 +32,9 @@ CREATE INDEX IF NOT EXISTS idx_onboarding_trace_events_notify
     ON onboarding_trace_events(should_notify, notified_at, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_onboarding_trace_events_startup
     ON onboarding_trace_events(startup_id, occurred_at DESC);
+-- UNIQUE allows multiple NULLs by default in Postgres.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_onboarding_trace_events_dedupe
-    ON onboarding_trace_events(dedupe_key)
-    WHERE dedupe_key IS NOT NULL;
+    ON onboarding_trace_events(dedupe_key);
 
 COMMENT ON TABLE onboarding_trace_events IS
     'Event timeline for automated startup onboarding and deep-research lifecycle; used for near-real-time Slack alerts.';

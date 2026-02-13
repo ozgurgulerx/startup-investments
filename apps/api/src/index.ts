@@ -3900,11 +3900,11 @@ app.get('/api/v1/onboarding/context-template', async (req, res) => {
   };
 
   const endpointPath = '/api/admin/v1/onboarding/context';
-  const publicBase = (process.env.PUBLIC_BASE_URL || 'https://buildatlas.net').replace(/\/+$/, '');
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || publicBase).replace(/\/+$/, '');
+  const apiBase = `${req.protocol}://${req.get('host')}`.replace(/\/+$/, '');
   const curlCommand = [
     `curl -X POST "${apiBase}${endpointPath}" \\`,
     `  -H "Content-Type: application/json" \\`,
+    `  -H "X-API-Key: <API_KEY>" \\`,
     `  -H "X-Admin-Key: <ADMIN_KEY>" \\`,
     `  -d '${JSON.stringify(payload)}'`,
   ].join('\n');
@@ -3913,7 +3913,7 @@ app.get('/api/v1/onboarding/context-template', async (req, res) => {
     startup,
     endpoint: endpointPath,
     method: 'POST',
-    required_headers: ['X-Admin-Key'],
+    required_headers: ['X-API-Key', 'X-Admin-Key'],
     sample_payload: payload,
     curl_command: curlCommand,
     notes: [
@@ -4889,21 +4889,53 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
   try {
     const pgClient = await pool.connect();
     try {
-      const domainsResult = await pgClient.query(`
-        SELECT dp.domain, dp.blocked, dp.crawl_delay_ms, dp.max_concurrent,
-               dp.proxy_tier, dp.render_required, dp.block_rate, dp.consecutive_blocks,
-               dp.last_blocked_at, dp.last_provider_success_at,
-               ds.error_rate, ds.consecutive_errors, ds.avg_response_ms,
-               ds.total_requests, ds.successful_requests, ds.requires_js,
-               ds.last_error_at AS stats_last_error_at, ds.updated_at AS stats_updated_at
-        FROM domain_policies dp
-        LEFT JOIN domain_stats ds ON dp.domain = ds.domain
-        ORDER BY dp.blocked DESC, dp.block_rate DESC
-        LIMIT 200
-      `);
+      let domainsResult;
+      try {
+        domainsResult = await pgClient.query(`
+          SELECT dp.domain, dp.blocked, dp.crawl_delay_ms, dp.max_concurrent,
+                dp.proxy_tier, dp.render_required, dp.block_rate, dp.consecutive_blocks,
+                dp.last_blocked_at, dp.last_provider_success_at,
+                ds.error_rate, ds.consecutive_errors, ds.avg_response_ms,
+                ds.total_requests, ds.successful_requests, ds.requires_js,
+                ds.last_error_at AS stats_last_error_at, ds.updated_at AS stats_updated_at
+          FROM domain_policies dp
+          LEFT JOIN domain_stats ds ON dp.domain = ds.domain
+          ORDER BY dp.blocked DESC, dp.block_rate DESC
+          LIMIT 200
+        `);
+      } catch (err) {
+        // Older DBs may not have domain_stats (009_crawler_improvements.sql). Keep endpoint usable.
+        console.warn('Frontier monitoring: domain_stats join failed, falling back:', err);
+        domainsResult = await pgClient.query(`
+          SELECT dp.domain, dp.blocked, dp.crawl_delay_ms, dp.max_concurrent,
+                dp.proxy_tier, dp.render_required, dp.block_rate, dp.consecutive_blocks,
+                dp.last_blocked_at, dp.last_provider_success_at,
+                NULL::float AS error_rate, NULL::int AS consecutive_errors, NULL::int AS avg_response_ms,
+                NULL::int AS total_requests, NULL::int AS successful_requests, NULL::boolean AS requires_js,
+                NULL::timestamptz AS stats_last_error_at, NULL::timestamptz AS stats_updated_at
+          FROM domain_policies dp
+          ORDER BY dp.blocked DESC, dp.block_rate DESC
+          LIMIT 200
+        `);
+      }
 
       const urlCountResult = await pgClient.query(`
         SELECT COUNT(*) AS total FROM crawl_frontier_urls
+      `);
+      const urlCoverageResult = await pgClient.query(`
+        SELECT
+          COUNT(*)::int AS total_urls,
+          COUNT(*) FILTER (WHERE last_crawled_at IS NOT NULL)::int AS crawled_urls,
+          COUNT(*) FILTER (WHERE last_crawled_at IS NULL)::int AS never_crawled,
+          COALESCE(
+            EXTRACT(EPOCH FROM (NOW() - MAX(last_crawled_at))) / 60.0,
+            NULL
+          )::float AS mins_since_latest_crawl,
+          COALESCE(
+            EXTRACT(EPOCH FROM (NOW() - MIN(last_crawled_at))) / 3600.0,
+            NULL
+          )::float AS hours_since_oldest_crawl
+        FROM crawl_frontier_urls
       `);
       const queueStatsResult = await pgClient.query(`
         SELECT
@@ -4937,11 +4969,13 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
           )::float AS due_age_p95_seconds
         FROM crawl_frontier_queue
       `);
-      const runStatsResult = await pgClient.query(`
+      let runMode: 'crawl_logs' | 'frontier_urls' = 'crawl_logs';
+      let runStatsResult = await pgClient.query(`
         SELECT
           COUNT(*)::int AS total_attempts,
           COUNT(*) FILTER (WHERE status = 'success')::int AS success,
           COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+          COUNT(*) FILTER (WHERE status = 'blocked')::int AS blocked,
           COALESCE(
             ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL), 1),
             0
@@ -4961,12 +4995,69 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
         FROM crawl_logs
         WHERE COALESCE(crawl_started_at, created_at) >= NOW() - INTERVAL '24 hours'
       `);
+      const runStatsRowRaw = runStatsResult.rows[0] || {};
+      const runAttempts = Number.parseInt(String(runStatsRowRaw.total_attempts ?? '0'), 10) || 0;
+      if (runAttempts === 0) {
+        runMode = 'frontier_urls';
+        runStatsResult = await pgClient.query(`
+          SELECT
+            COUNT(*) FILTER (WHERE last_crawled_at >= NOW() - INTERVAL '24 hours')::int AS total_attempts,
+            COUNT(*) FILTER (
+              WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                AND (last_status_code BETWEEN 200 AND 299 OR last_status_code = 304)
+            )::int AS success,
+            COUNT(*) FILTER (
+              WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                AND (last_status_code IS NULL OR last_status_code >= 400)
+            )::int AS failed,
+            COUNT(*) FILTER (
+              WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                AND COALESCE(last_blocked_detected, FALSE) = TRUE
+            )::int AS blocked,
+            COALESCE(
+              ROUND(AVG(last_response_ms) FILTER (
+                WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                  AND last_response_ms IS NOT NULL
+              ), 1),
+              0
+            )::float AS avg_duration_ms,
+            COALESCE(
+              ROUND(
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY last_response_ms)
+                  FILTER (
+                    WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                      AND last_response_ms IS NOT NULL
+                  ),
+                1
+              ),
+              0
+            )::float AS p95_duration_ms,
+            COUNT(*) FILTER (
+              WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                AND last_status_code BETWEEN 200 AND 299
+            )::int AS http_2xx,
+            COUNT(*) FILTER (
+              WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                AND last_status_code = 304
+            )::int AS http_304,
+            COUNT(*) FILTER (
+              WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                AND last_status_code BETWEEN 400 AND 499
+            )::int AS http_4xx,
+            COUNT(*) FILTER (
+              WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                AND last_status_code >= 500
+            )::int AS http_5xx
+          FROM crawl_frontier_urls
+        `);
+      }
 
       const domains = domainsResult.rows;
       const blocked = domains.filter((d: any) => d.blocked);
       const highBlockRate = domains.filter((d: any) => !d.blocked && d.block_rate > 0.5);
       const queueStatsRow = queueStatsResult.rows[0] || {};
       const runStatsRow = runStatsResult.rows[0] || {};
+      const coverageRow = urlCoverageResult.rows[0] || {};
       const toInt = (value: unknown): number => {
         const parsed = Number.parseInt(String(value ?? '0'), 10);
         return Number.isFinite(parsed) ? parsed : 0;
@@ -4978,6 +5069,7 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
       const totalAttempts = toInt(runStatsRow.total_attempts);
       const success = toInt(runStatsRow.success);
       const failed = toInt(runStatsRow.failed);
+      const blockedAttempts = toInt(runStatsRow.blocked);
       const successRatePct = totalAttempts > 0
         ? Number(((success / totalAttempts) * 100).toFixed(1))
         : 0;
@@ -4995,6 +5087,12 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
           dueAgeP50Minutes: Number((toFloat(queueStatsRow.due_age_p50_seconds) / 60).toFixed(1)),
           dueAgeP95Minutes: Number((toFloat(queueStatsRow.due_age_p95_seconds) / 60).toFixed(1)),
           runSuccessRate24h: successRatePct,
+          crawledUrls: toInt(coverageRow.crawled_urls),
+          neverCrawled: toInt(coverageRow.never_crawled),
+          crawledPct: toInt(coverageRow.total_urls) > 0
+            ? Number(((toInt(coverageRow.crawled_urls) / toInt(coverageRow.total_urls)) * 100).toFixed(1))
+            : 0,
+          minsSinceLatestCrawl: coverageRow.mins_since_latest_crawl == null ? null : Number(toFloat(coverageRow.mins_since_latest_crawl).toFixed(1)),
         },
         queue: {
           total: toInt(queueStatsRow.total),
@@ -5004,10 +5102,22 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
           dueAgeP50Seconds: Number(toFloat(queueStatsRow.due_age_p50_seconds).toFixed(1)),
           dueAgeP95Seconds: Number(toFloat(queueStatsRow.due_age_p95_seconds).toFixed(1)),
         },
+        urls: {
+          total: toInt(coverageRow.total_urls),
+          crawled: toInt(coverageRow.crawled_urls),
+          neverCrawled: toInt(coverageRow.never_crawled),
+          crawledPct: toInt(coverageRow.total_urls) > 0
+            ? Number(((toInt(coverageRow.crawled_urls) / toInt(coverageRow.total_urls)) * 100).toFixed(1))
+            : 0,
+          minsSinceLatestCrawl: coverageRow.mins_since_latest_crawl == null ? null : Number(toFloat(coverageRow.mins_since_latest_crawl).toFixed(1)),
+          hoursSinceOldestCrawl: coverageRow.hours_since_oldest_crawl == null ? null : Number(toFloat(coverageRow.hours_since_oldest_crawl).toFixed(1)),
+        },
         runs24h: {
+          mode: runMode,
           totalAttempts,
           success,
           failed,
+          blocked: blockedAttempts,
           successRatePct,
           avgDurationMs: Number(toFloat(runStatsRow.avg_duration_ms).toFixed(1)),
           p95DurationMs: Number(toFloat(runStatsRow.p95_duration_ms).toFixed(1)),

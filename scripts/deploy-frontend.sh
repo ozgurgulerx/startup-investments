@@ -109,7 +109,7 @@ az acr build \
     --build-arg "NEXT_PUBLIC_BUILD_SHA=$COMMIT_SHA" \
     --build-arg "NEXT_PUBLIC_API_URL=$API_URL" \
     --build-arg "NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com" \
-    --build-arg "NEXT_PUBLIC_POSTHOG_KEY=${POSTHOG_KEY:-}" \
+    --build-arg "NEXT_PUBLIC_POSTHOG_KEY=${POSTHOG_PROJECT_API_KEY:-${POSTHOG_KEY:-}}" \
     --build-arg "NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=${POSTHOG_AUTOCAPTURE:-false}" \
     --build-arg "NEXT_PUBLIC_POSTHOG_CAPTURE_PAGELEAVE=${POSTHOG_CAPTURE_PAGELEAVE:-false}" \
     --build-arg "NEXT_PUBLIC_POSTHOG_CAPTURE_DEAD_CLICKS=${POSTHOG_CAPTURE_DEAD_CLICKS:-false}" \

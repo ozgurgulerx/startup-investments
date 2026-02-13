@@ -22,6 +22,7 @@ WEBAPP_NAME="buildatlas-web"
 WEBAPP_RG="rg-startup-analysis"
 HEALTH_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/health"
 MONITOR_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/api/admin/monitoring/sources"
+FRONTIER_MONITOR_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/api/admin/monitoring/frontier"
 FRONTEND_URL="https://buildatlas.net"
 
 echo "=== Infrastructure Health Report ==="
@@ -334,12 +335,109 @@ else
 fi
 
 # =========================================================================
+# Crawler Frontier (via monitoring API)
+# =========================================================================
+add_section "Crawler Frontier"
+
+echo ""
+echo "[10/11] Frontier..."
+
+FRONTIER_JSON=$(curl -sf \
+    -H "X-API-Key: ${API_KEY:-}" \
+    -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY:-}}" \
+    "$FRONTIER_MONITOR_URL" 2>/dev/null || echo "")
+
+if [ -n "$FRONTIER_JSON" ]; then
+    FRONTIER_INFO=$(python3 -c "
+import json, sys
+
+try:
+    data = json.loads(sys.stdin.read())
+except Exception:
+    print('error')
+    raise SystemExit(0)
+
+summary = data.get('summary') or {}
+queue = data.get('queue') or {}
+runs = data.get('runs24h') or {}
+urls = data.get('urls') or {}
+
+due = int(queue.get('due') or 0)
+total = int(queue.get('total') or 0)
+stale = int(queue.get('staleLeases') or 0)
+due_p95_min = float(summary.get('dueAgeP95Minutes') or 0)
+success_pct = float(runs.get('successRatePct') or 0)
+attempts = int(runs.get('totalAttempts') or 0)
+mode = str(runs.get('mode') or '')
+crawled_pct = float(urls.get('crawledPct') or 0)
+latest_min = urls.get('minsSinceLatestCrawl', None)
+
+latest_str = 'unknown'
+try:
+    latest_str = f\"{float(latest_min):.1f}m\" if latest_min is not None else 'unknown'
+except Exception:
+    latest_str = 'unknown'
+
+print(f\"{due}|{total}|{stale}|{due_p95_min}|{success_pct}|{attempts}|{mode}|{crawled_pct}|{latest_str}\")
+" <<< "$FRONTIER_JSON" 2>/dev/null || echo "error")
+
+    if [ "$FRONTIER_INFO" != "error" ] && [ -n "$FRONTIER_INFO" ]; then
+        IFS='|' read -r F_DUE F_TOTAL F_STALE F_DUE_P95_MIN F_SUCCESS_PCT F_ATTEMPTS F_MODE F_CRAWLED_PCT F_LATEST <<< "$FRONTIER_INFO"
+
+        echo "  Queue: due ${F_DUE}/${F_TOTAL} (stale ${F_STALE}), due_age_p95=${F_DUE_P95_MIN}m"
+        echo "  Runs: ${F_SUCCESS_PCT}% success (${F_ATTEMPTS} attempts, mode=${F_MODE:-unknown})"
+        echo "  Coverage: ${F_CRAWLED_PCT}% crawled, latest=${F_LATEST}"
+
+        add_ok "Frontier queue: due ${F_DUE}/${F_TOTAL}, stale ${F_STALE}, p95 ${F_DUE_P95_MIN}m"
+
+        SUCCESS_INT="${F_SUCCESS_PCT%.*}"
+        DUE_P95_INT="${F_DUE_P95_MIN%.*}"
+        # Heuristic thresholds (aim for fast detection without paging on known backlog)
+        if [ "${F_STALE:-0}" -gt 0 ] 2>/dev/null; then
+            add_warn "Frontier: stale leases detected (${F_STALE})"
+        fi
+        if [ "${F_ATTEMPTS:-0}" -gt 0 ] 2>/dev/null; then
+            if [ "${SUCCESS_INT:-0}" -lt 30 ] 2>/dev/null; then
+                add_fail "Frontier runs (24h): ${F_SUCCESS_PCT}% success (${F_ATTEMPTS} attempts)"
+            elif [ "${SUCCESS_INT:-0}" -lt 60 ] 2>/dev/null; then
+                add_warn "Frontier runs (24h): ${F_SUCCESS_PCT}% success (${F_ATTEMPTS} attempts)"
+            else
+                add_ok "Frontier runs (24h): ${F_SUCCESS_PCT}% success (${F_ATTEMPTS} attempts)"
+            fi
+        else
+            add_warn "Frontier runs (24h): no recent attempts (mode=${F_MODE:-unknown})"
+        fi
+
+        if [ "${DUE_P95_INT:-0}" -gt 4320 ] 2>/dev/null; then
+            add_fail "Frontier due age p95: ${F_DUE_P95_MIN}m"
+        elif [ "${DUE_P95_INT:-0}" -gt 1440 ] 2>/dev/null; then
+            add_warn "Frontier due age p95: ${F_DUE_P95_MIN}m"
+        fi
+    else
+        echo "  Could not parse frontier monitoring response"
+        add_warn "Frontier: could not parse API response"
+    fi
+else
+    echo "  Frontier monitoring API unreachable"
+    add_warn "Frontier: monitoring API unreachable"
+fi
+
+# Detect raw capture storage auth errors (best-effort log scan)
+CRAWL_LOG="${LOG_DIR}/crawl-frontier.log"
+if [ -f "$CRAWL_LOG" ]; then
+    CAPTURE_AUTH_ERRORS=$(grep -a -E "Error uploading blob raw-captures/|\\[raw-capture\\] disabling blob upload" "$CRAWL_LOG" | tail -n 200 | wc -l | tr -d '[:space:]' || echo "0")
+    if [ "$CAPTURE_AUTH_ERRORS" -gt 0 ] 2>/dev/null; then
+        add_warn "Raw captures: recent blob upload auth failures (${CAPTURE_AUTH_ERRORS})"
+    fi
+fi
+
+# =========================================================================
 # Cron Jobs (from log files)
 # =========================================================================
 add_section "Cron Jobs (last 4h)"
 
 echo ""
-echo "[10/10] Cron jobs..."
+echo "[11/11] Cron jobs..."
 
 # job_name:expected_interval_minutes
 CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 onboarding-alerts:5 crawl-frontier:30 sync-data:30 news-digest:60 code-update:15"

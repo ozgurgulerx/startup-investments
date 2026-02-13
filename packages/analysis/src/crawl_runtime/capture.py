@@ -38,6 +38,8 @@ class RawCaptureRecorder:
     def __init__(self, frontier):
         self.frontier = frontier
         self.blob_client = BlobStorageClient()
+        self._blob_upload_disabled = False
+        self._blob_upload_disabled_reason: Optional[str] = None
 
     @property
     def enabled(self) -> bool:
@@ -57,6 +59,8 @@ class RawCaptureRecorder:
     def _upload_body(self, domain: str, body: bytes, metadata: Dict[str, str]) -> Optional[str]:
         if not body:
             return None
+        if self._blob_upload_disabled:
+            return None
 
         now = datetime.now(timezone.utc)
         sha256 = hashlib.sha256(body).hexdigest()
@@ -75,6 +79,26 @@ class RawCaptureRecorder:
         )
         if url:
             return blob_path
+
+        # Fail-open behavior: if blob auth is broken, keep crawl metadata flowing
+        # and suppress repeated noisy upload errors for the rest of the worker run.
+        last_error = str(getattr(self.blob_client, "last_error", "") or "")
+        if last_error and any(
+            token in last_error
+            for token in (
+                "AuthorizationFailure",
+                "AuthorizationPermissionMismatch",
+                "AuthenticationFailed",
+                "KeyBasedAuthenticationNotPermitted",
+            )
+        ):
+            if not self._blob_upload_disabled:
+                self._blob_upload_disabled = True
+                self._blob_upload_disabled_reason = last_error[:240]
+                print(
+                    "[raw-capture] disabling blob upload for this run due to auth error: "
+                    f"{self._blob_upload_disabled_reason}"
+                )
         return None
 
     async def save_from_doc(self, startup_slug: str, doc: Dict[str, Any]) -> Optional[str]:

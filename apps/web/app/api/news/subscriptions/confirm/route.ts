@@ -16,7 +16,7 @@ const CONFIRMATION_TTL_DAYS = 7;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getPostHogEnv(): { host: string; key: string } | null {
-  const key = (process.env.POSTHOG_KEY || process.env.NEXT_PUBLIC_POSTHOG_KEY || '').trim();
+  const key = (process.env.POSTHOG_PROJECT_API_KEY || process.env.NEXT_PUBLIC_POSTHOG_KEY || '').trim();
   if (!key) return null;
   const host = (process.env.POSTHOG_HOST || process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com')
     .trim()

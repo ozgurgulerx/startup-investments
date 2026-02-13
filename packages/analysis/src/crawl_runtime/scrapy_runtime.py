@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -28,6 +29,8 @@ from src.crawl_runtime.models import estimate_quality_score
 from src.crawl_runtime.unblock_provider import UnblockRequest, build_unblock_provider
 from src.data.models import StartupInput
 
+logger = logging.getLogger(__name__)
+
 
 class ScrapyPlaywrightRuntime:
     """Modern crawler runtime with optional frontier persistence."""
@@ -45,6 +48,7 @@ class ScrapyPlaywrightRuntime:
             endpoint=settings.crawler.browserless_endpoint,
             token=settings.crawler.browserless_token,
         )
+        self._startup_id_cache: Dict[str, Optional[str]] = {}
 
     async def close(self):
         await self.frontier.close()
@@ -237,6 +241,139 @@ class ScrapyPlaywrightRuntime:
             return "permanent"
         return None
 
+    @staticmethod
+    def _crawl_log_status(*, status_code: int, blocked_detected: bool, error_category: Optional[str]) -> str:
+        if blocked_detected or error_category == "blocked":
+            return "blocked"
+        if status_code == 304:
+            return "success"
+        if status_code <= 0:
+            return "failed"
+        if status_code >= 400:
+            return "failed"
+        return "success"
+
+    async def _resolve_startup_id(self, startup_slug: str) -> Optional[str]:
+        if startup_slug in self._startup_id_cache:
+            return self._startup_id_cache[startup_slug]
+        if not self.frontier.enabled or not getattr(self.frontier, "pool", None):
+            self._startup_id_cache[startup_slug] = None
+            return None
+
+        startup_id: Optional[str] = None
+        try:
+            async with self.frontier.pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT id::text AS id FROM startups WHERE slug = $1 LIMIT 1",
+                    startup_slug,
+                )
+            if row and row["id"]:
+                startup_id = str(row["id"])
+        except Exception as exc:
+            logger.warning("Failed to resolve startup id for slug=%s: %s", startup_slug, exc)
+
+        self._startup_id_cache[startup_slug] = startup_id
+        return startup_id
+
+    async def _log_crawl_attempt(
+        self,
+        *,
+        startup_slug: str,
+        doc: Dict[str, Any],
+        error_category: Optional[str],
+        capture_id: Optional[str],
+    ) -> None:
+        if not self.frontier.enabled or not getattr(self.frontier, "pool", None):
+            return
+
+        canonical_url = canonicalize_url(doc.get("canonical_url") or doc.get("url") or "")
+        if not canonical_url:
+            return
+
+        startup_id = await self._resolve_startup_id(startup_slug)
+        status_code = int(doc.get("status_code") or 0)
+        blocked_detected = bool(doc.get("blocked_detected", False))
+        status = self._crawl_log_status(
+            status_code=status_code,
+            blocked_detected=blocked_detected,
+            error_category=error_category,
+        )
+        error_message = str(doc.get("error_message") or doc.get("error") or "").strip()
+        if not error_message and status != "success":
+            error_message = error_category or "crawl failed"
+        content = str(doc.get("clean_text") or "")
+        content_length = len(content.encode("utf-8", errors="ignore")) if content else None
+        quality_score = float(doc.get("quality_score") or 0.0)
+        safe_capture_id = capture_id if isinstance(capture_id, str) and len(capture_id) >= 32 else None
+
+        try:
+            async with self.frontier.pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO crawl_logs (
+                        startup_id,
+                        source_type,
+                        url,
+                        status,
+                        http_status,
+                        error_message,
+                        content_length,
+                        duration_ms,
+                        crawl_started_at,
+                        crawl_completed_at,
+                        canonical_url,
+                        quality_score,
+                        content_type,
+                        error_category,
+                        etag,
+                        last_modified,
+                        proxy_tier,
+                        fetch_method,
+                        capture_id
+                    )
+                    VALUES (
+                        $1::uuid,
+                        $2,
+                        $3,
+                        $4,
+                        NULLIF($5, 0),
+                        $6,
+                        $7,
+                        $8,
+                        NOW(),
+                        NOW(),
+                        $9,
+                        $10,
+                        $11,
+                        $12,
+                        $13,
+                        $14,
+                        $15,
+                        $16,
+                        $17::uuid
+                    )
+                    """,
+                    startup_id,
+                    "docs" if str(doc.get("page_type") or "") == "docs" else "website",
+                    str(doc.get("url") or canonical_url),
+                    status,
+                    status_code,
+                    error_message[:2000] if error_message else None,
+                    content_length,
+                    int(doc.get("response_time_ms") or 0),
+                    canonical_url,
+                    max(0.0, min(quality_score, 1.0)),
+                    str(doc.get("content_type") or "html"),
+                    error_category,
+                    doc.get("etag"),
+                    doc.get("last_modified"),
+                    str(doc.get("proxy_tier") or "none"),
+                    str(doc.get("fetch_method") or "http"),
+                    safe_capture_id,
+                )
+        except Exception as exc:
+            logger.warning("Failed to write crawl log for %s: %s", canonical_url, exc)
+
     def _should_attempt_unblock(self, doc: Dict[str, Any], policy: DomainPolicy) -> bool:
         mode = (settings.crawler.unblock_mode or "auto").lower()
         if mode == "off":
@@ -349,6 +486,12 @@ class ScrapyPlaywrightRuntime:
             error_category = self._doc_error_category(doc)
             capture_id = await self.capture_recorder.save_from_doc(startup_slug=startup_slug, doc=doc)
             doc["capture_id"] = capture_id
+            await self._log_crawl_attempt(
+                startup_slug=startup_slug,
+                doc=doc,
+                error_category=error_category,
+                capture_id=capture_id,
+            )
 
             await self.frontier.mark_crawled(
                 canonical_url=canonical,
@@ -370,6 +513,21 @@ class ScrapyPlaywrightRuntime:
             if canonical not in seen_leased:
                 # Spider failed to emit this URL; retry with backoff.
                 await self.frontier.requeue_failed(canonical, backoff_seconds=300)
+                await self._log_crawl_attempt(
+                    startup_slug=startup_slug,
+                    doc={
+                        "url": canonical,
+                        "canonical_url": canonical,
+                        "page_type": classify_page_type(canonical),
+                        "status_code": 0,
+                        "content_type": "html",
+                        "fetch_method": "runtime_missing_output",
+                        "response_time_ms": 0,
+                        "error_message": "spider returned no document for leased URL",
+                    },
+                    error_category="transient",
+                    capture_id=None,
+                )
 
         if discovered:
             await self.frontier.enqueue_urls(startup_slug, discovered)
@@ -529,6 +687,21 @@ class ScrapyPlaywrightRuntime:
                 failed += len(group_items)
                 for item in group_items:
                     await self.frontier.requeue_failed(item.canonical_url, backoff_seconds=600)
+                    await self._log_crawl_attempt(
+                        startup_slug=startup_slug,
+                        doc={
+                            "url": item.url,
+                            "canonical_url": item.canonical_url,
+                            "page_type": item.page_type,
+                            "status_code": 0,
+                            "content_type": "html",
+                            "fetch_method": "runtime_error",
+                            "response_time_ms": 0,
+                            "error_message": err[:500],
+                        },
+                        error_category="transient",
+                        capture_id=None,
+                    )
                 continue
 
             docs = await self._maybe_apply_provider(docs, policy=policy)

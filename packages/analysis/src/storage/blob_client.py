@@ -81,6 +81,8 @@ class BlobStorageClient:
         self.config = config or StorageConfig()
         self._blob_service: Optional[BlobServiceClient] = None
         self._containers: Dict[str, ContainerClient] = {}
+        # Last storage error captured (best-effort, for operational visibility and fail-open guards).
+        self.last_error: str = ""
 
     @property
     def blob_service(self) -> Optional[BlobServiceClient]:
@@ -228,8 +230,10 @@ class BlobStorageClient:
                 metadata=metadata,
             )
 
+            self.last_error = ""
             return blob_client.url
         except Exception as e:
+            self.last_error = str(e)
             print(f"Error uploading blob {blob_path}: {e}")
             return None
 

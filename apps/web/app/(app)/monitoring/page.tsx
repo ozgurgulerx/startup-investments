@@ -57,7 +57,55 @@ interface DomainRow {
 }
 
 interface FrontierData {
-  summary: { totalDomains: number; blocked: number; highBlockRate: number; totalUrls: number };
+  summary: {
+    totalDomains: number;
+    blocked: number;
+    highBlockRate: number;
+    totalUrls: number;
+    totalQueue?: number;
+    dueQueue?: number;
+    leasedQueue?: number;
+    staleLeases?: number;
+    dueAgeP50Minutes?: number;
+    dueAgeP95Minutes?: number;
+    runSuccessRate24h?: number;
+    crawledUrls?: number;
+    neverCrawled?: number;
+    crawledPct?: number;
+    minsSinceLatestCrawl?: number | null;
+  };
+  queue?: {
+    total: number;
+    due: number;
+    leased: number;
+    staleLeases: number;
+    dueAgeP50Seconds: number;
+    dueAgeP95Seconds: number;
+  };
+  urls?: {
+    total: number;
+    crawled: number;
+    neverCrawled: number;
+    crawledPct: number;
+    minsSinceLatestCrawl: number | null;
+    hoursSinceOldestCrawl: number | null;
+  };
+  runs24h?: {
+    mode: 'crawl_logs' | 'frontier_urls';
+    totalAttempts: number;
+    success: number;
+    failed: number;
+    blocked: number;
+    successRatePct: number;
+    avgDurationMs: number;
+    p95DurationMs: number;
+  };
+  http24h?: {
+    status2xx: number;
+    status304: number;
+    status4xx: number;
+    status5xx: number;
+  };
   domains: DomainRow[];
 }
 
@@ -181,6 +229,14 @@ function extractKeywordsFromTitle(title: string): string[] {
     .map(w => w.replace(/[^a-z0-9-]/g, ''))
     .filter(w => w.length > 2 && !stopWords.has(w))
     .slice(0, 10);
+}
+
+function formatMinutes(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  if (value < 60) return `${value.toFixed(0)}m`;
+  const hours = value / 60;
+  if (hours < 48) return `${hours.toFixed(1)}h`;
+  return `${(hours / 24).toFixed(1)}d`;
 }
 
 // ---------------------------------------------------------------------------
@@ -595,10 +651,60 @@ export default function MonitoringPage() {
               <div className="text-xs text-muted-foreground/60 mt-0.5">&gt;50% blocked</div>
             </Card>
             <Card className="p-4 bg-card border-border/40">
+              <div className="label-xs">Queue Due</div>
+              <div className="text-2xl font-light text-foreground mt-1">
+                {(frontierData.summary.dueQueue ?? frontierData.queue?.due ?? 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-muted-foreground/60 mt-0.5">
+                total {(frontierData.summary.totalQueue ?? frontierData.queue?.total ?? 0).toLocaleString()}
+                {frontierData.queue ? ` • stale ${frontierData.queue.staleLeases}` : ''}
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="p-4 bg-card border-border/40">
               <div className="label-xs">Total URLs</div>
               <div className="text-2xl font-light text-foreground mt-1">
-                {frontierData.summary.totalUrls.toLocaleString()}
+                {(frontierData.urls?.total ?? frontierData.summary.totalUrls ?? 0).toLocaleString()}
               </div>
+              <div className="text-xs text-muted-foreground/60 mt-0.5">
+                never crawled {(frontierData.urls?.neverCrawled ?? frontierData.summary.neverCrawled ?? 0).toLocaleString()}
+              </div>
+            </Card>
+            <Card className="p-4 bg-card border-border/40">
+              <div className="label-xs">Crawled %</div>
+              <div className="text-2xl font-light text-accent-info mt-1">
+                {((frontierData.urls?.crawledPct ?? frontierData.summary.crawledPct ?? 0)).toFixed(1)}%
+              </div>
+              <div className="text-xs text-muted-foreground/60 mt-0.5">
+                {(() => {
+                  const latest = formatMinutes(frontierData.urls?.minsSinceLatestCrawl ?? frontierData.summary.minsSinceLatestCrawl);
+                  return latest === '—' ? 'latest —' : `latest ${latest} ago`;
+                })()}
+              </div>
+            </Card>
+            <Card className="p-4 bg-card border-border/40">
+              <div className="label-xs">Due Age (p95)</div>
+              <div className="text-2xl font-light text-foreground mt-1">
+                {formatMinutes(frontierData.summary.dueAgeP95Minutes)}
+              </div>
+              <div className="text-xs text-muted-foreground/60 mt-0.5">
+                p50 {formatMinutes(frontierData.summary.dueAgeP50Minutes)}
+              </div>
+            </Card>
+            <Card className="p-4 bg-card border-border/40">
+              <div className="label-xs">Runs (24h)</div>
+              <div className="text-2xl font-light text-success mt-1">
+                {frontierData.runs24h ? `${frontierData.runs24h.successRatePct.toFixed(1)}%` : '—'}
+              </div>
+              {frontierData.runs24h && (
+                <div className="text-xs text-muted-foreground/60 mt-0.5">
+                  {frontierData.runs24h.success}/{frontierData.runs24h.totalAttempts} success
+                  {frontierData.runs24h.blocked > 0 ? ` • ${frontierData.runs24h.blocked} blocked` : ''}
+                  {frontierData.runs24h.mode ? ` • ${frontierData.runs24h.mode}` : ''}
+                </div>
+              )}
             </Card>
           </div>
 
