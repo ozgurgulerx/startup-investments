@@ -19,6 +19,9 @@ const navItems: NavItem[] = [
   { label: 'Dossiers', href: '/dealbook', regionAware: true },
   { label: 'Signals', href: '/signals', regionAware: true },
   { label: 'Capital', href: '/capital', regionAware: true },
+  { label: 'Benchmarks', href: '/benchmarks', regionAware: true },
+  { label: 'Landscapes', href: '/landscapes', regionAware: true },
+  { label: 'Investors', href: '/investors', regionAware: true },
   { label: 'Deep Dives', href: '/library' },
   { label: 'Watchlist', href: '/watchlist', showBadge: true },
 ];

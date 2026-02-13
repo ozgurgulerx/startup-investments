@@ -52,6 +52,21 @@ import {
   startupDeltasQuerySchema,
   startupNeighborsQuerySchema,
   startupBenchmarksQuerySchema,
+  benchmarksQuerySchema,
+  benchmarksCompareQuerySchema,
+  benchmarksCohortQuerySchema,
+  investorDnaQuerySchema,
+  investorScreenerQuerySchema,
+  investorPortfolioQuerySchema,
+  landscapesQuerySchema,
+  landscapesClusterQuerySchema,
+  subscriptionCreateSchema,
+  subscriptionDeleteSchema,
+  subscriptionsQuerySchema,
+  alertsQuerySchema,
+  alertUpdateSchema,
+  alertBatchUpdateSchema,
+  alertDigestQuerySchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -59,6 +74,10 @@ import { makeSignalsService } from './services/signals';
 import { makeDeepDivesService } from './services/deep-dives';
 import { makeMoversService } from './services/movers';
 import { makeBriefService } from './services/brief';
+import { makeBenchmarksService } from './services/benchmarks';
+import { makeInvestorsService } from './services/investors';
+import { makeLandscapesService } from './services/landscapes';
+import { makeSubscriptionsService } from './services/subscriptions';
 import {
   getRedisClient,
   closeRedisClient,
@@ -98,6 +117,10 @@ const signalsService = makeSignalsService(pool);
 const deepDivesService = makeDeepDivesService(pool);
 const moversService = makeMoversService(pool);
 const briefService = makeBriefService(pool);
+const benchmarksService = makeBenchmarksService(pool);
+const investorsService = makeInvestorsService(pool);
+const landscapesService = makeLandscapesService(pool);
+const subscriptionsService = makeSubscriptionsService(pool);
 
 // Trust proxy for correct client IP behind Azure Front Door / Load Balancer
 app.set('trust proxy', true);
@@ -2740,6 +2763,360 @@ app.get('/api/v1/companies/:slug/benchmarks', async (req, res) => {
   } catch (error) {
     console.error('Error fetching startup benchmarks:', error);
     return res.status(500).json({ error: 'Failed to fetch startup benchmarks' });
+  }
+});
+
+// =============================================================================
+// BENCHMARKS (standalone page)
+// =============================================================================
+
+app.get('/api/v1/benchmarks', async (req, res) => {
+  try {
+    const parsed = benchmarksQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `benchmarks:list:${parsed.data.region}:${parsed.data.cohort_type || 'all'}:${parsed.data.cohort_key || 'all'}:${parsed.data.period || 'latest'}:${parsed.data.metric || 'all'}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+    const result = await benchmarksService.getBenchmarks(parsed.data);
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching benchmarks:', error);
+    return res.status(500).json({ error: 'Failed to fetch benchmarks' });
+  }
+});
+
+app.get('/api/v1/benchmarks/compare', async (req, res) => {
+  try {
+    const parsed = benchmarksCompareQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `benchmarks:compare:${parsed.data.startup_id}:${parsed.data.region}:${parsed.data.period || 'latest'}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+    const result = await benchmarksService.getCompare(parsed.data);
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching benchmark compare:', error);
+    return res.status(500).json({ error: 'Failed to fetch benchmark compare' });
+  }
+});
+
+app.get('/api/v1/benchmarks/cohorts', async (req, res) => {
+  try {
+    const parsed = benchmarksCohortQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `benchmarks:cohorts:${parsed.data.region}:${parsed.data.period || 'latest'}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+    const result = await benchmarksService.getCohorts(parsed.data);
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching benchmark cohorts:', error);
+    return res.status(500).json({ error: 'Failed to fetch benchmark cohorts' });
+  }
+});
+
+// =============================================================================
+// INVESTOR DNA
+// =============================================================================
+
+app.get('/api/v1/investors/screener', async (req, res) => {
+  try {
+    const parsed = investorScreenerQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `investors:screener:${parsed.data.scope}:${parsed.data.pattern || 'all'}:${parsed.data.stage || 'all'}:${parsed.data.sort}:${parsed.data.limit}:${parsed.data.offset}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+    const result = await investorsService.screener(parsed.data);
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching investor screener:', error);
+    return res.status(500).json({ error: 'Failed to fetch investor screener' });
+  }
+});
+
+app.get('/api/v1/investors/:id/dna', async (req, res) => {
+  try {
+    const investorId = String(req.params.id || '').trim();
+    if (!investorId || investorId.length > 50) {
+      return res.status(400).json({ error: 'Invalid investor ID' });
+    }
+    const parsed = investorDnaQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `investors:dna:${investorId}:${parsed.data.scope}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+    const result = await investorsService.getDNA({ investorId, ...parsed.data });
+    if (!result) {
+      return res.status(404).json({ error: 'Investor not found' });
+    }
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching investor DNA:', error);
+    return res.status(500).json({ error: 'Failed to fetch investor DNA' });
+  }
+});
+
+app.get('/api/v1/investors/:id/portfolio', async (req, res) => {
+  try {
+    const investorId = String(req.params.id || '').trim();
+    if (!investorId || investorId.length > 50) {
+      return res.status(400).json({ error: 'Invalid investor ID' });
+    }
+    const parsed = investorPortfolioQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `investors:portfolio:${investorId}:${parsed.data.scope}:${parsed.data.limit}:${parsed.data.offset}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+    const result = await investorsService.getPortfolio({ investorId, ...parsed.data });
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching investor portfolio:', error);
+    return res.status(500).json({ error: 'Failed to fetch investor portfolio' });
+  }
+});
+
+// =============================================================================
+// PATTERN LANDSCAPES
+// =============================================================================
+
+app.get('/api/v1/landscapes', async (req, res) => {
+  try {
+    const parsed = landscapesQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `landscapes:treemap:${parsed.data.scope}:${parsed.data.period || 'latest'}:${parsed.data.size_by}:${parsed.data.stage || 'all'}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+    const result = await landscapesService.getTreemap(parsed.data);
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 1800 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching landscapes:', error);
+    return res.status(500).json({ error: 'Failed to fetch landscapes' });
+  }
+});
+
+app.get('/api/v1/landscapes/cluster', async (req, res) => {
+  try {
+    const parsed = landscapesClusterQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const cacheKey = `landscapes:cluster:${parsed.data.scope}:${parsed.data.pattern}:${parsed.data.period || 'latest'}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+    const result = await landscapesService.getClusterDetail(parsed.data);
+    if (!result) {
+      return res.status(404).json({ error: 'Pattern not found' });
+    }
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(result), { EX: 1800 }); } catch { /* noop */ }
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching landscape cluster:', error);
+    return res.status(500).json({ error: 'Failed to fetch landscape cluster' });
+  }
+});
+
+// =============================================================================
+// SUBSCRIPTIONS & ALERTS (Watchlist Intelligence)
+// =============================================================================
+
+app.get('/api/v1/subscriptions', async (req, res) => {
+  try {
+    const parsed = subscriptionsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const result = await subscriptionsService.getSubscriptions({ userId, scope: parsed.data.scope });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching subscriptions:', error);
+    return res.status(500).json({ error: 'Failed to fetch subscriptions' });
+  }
+});
+
+app.post('/api/v1/subscriptions', async (req, res) => {
+  try {
+    const parsed = subscriptionCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const result = await subscriptionsService.createSubscription({
+      userId, objectType: parsed.data.object_type, objectId: parsed.data.object_id, scope: parsed.data.scope,
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Error creating subscription:', error);
+    return res.status(500).json({ error: 'Failed to create subscription' });
+  }
+});
+
+app.delete('/api/v1/subscriptions', async (req, res) => {
+  try {
+    const parsed = subscriptionDeleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    await subscriptionsService.deleteSubscription({
+      userId, objectType: parsed.data.object_type, objectId: parsed.data.object_id, scope: parsed.data.scope,
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error deleting subscription:', error);
+    return res.status(500).json({ error: 'Failed to delete subscription' });
+  }
+});
+
+app.get('/api/v1/alerts', async (req, res) => {
+  try {
+    const parsed = alertsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const result = await subscriptionsService.getAlerts({
+      userId, scope: parsed.data.scope, status: parsed.data.status,
+      severityMin: parsed.data.severity_min, type: parsed.data.type,
+      limit: parsed.data.limit, offset: parsed.data.offset,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching alerts:', error);
+    return res.status(500).json({ error: 'Failed to fetch alerts' });
+  }
+});
+
+app.patch('/api/v1/alerts/batch', async (req, res) => {
+  try {
+    const parsed = alertBatchUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    await subscriptionsService.batchUpdateAlertStatus({
+      alertIds: parsed.data.ids, userId, status: parsed.data.status,
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error batch updating alerts:', error);
+    return res.status(500).json({ error: 'Failed to batch update alerts' });
+  }
+});
+
+app.get('/api/v1/alerts/digest', async (req, res) => {
+  try {
+    const parsed = alertDigestQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const result = await subscriptionsService.getLatestDigest({ userId, scope: parsed.data.scope });
+    res.json(result || { digest: null });
+  } catch (error) {
+    console.error('Error fetching alert digest:', error);
+    return res.status(500).json({ error: 'Failed to fetch alert digest' });
+  }
+});
+
+app.patch('/api/v1/alerts/:id', async (req, res) => {
+  try {
+    const alertId = String(req.params.id || '').trim();
+    if (!alertId) return res.status(400).json({ error: 'Invalid alert ID' });
+    const parsed = alertUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    }
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    await subscriptionsService.updateAlertStatus({ alertId, userId, status: parsed.data.status });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error updating alert:', error);
+    return res.status(500).json({ error: 'Failed to update alert' });
   }
 });
 

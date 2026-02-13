@@ -441,3 +441,112 @@ export const startupNeighborsQuerySchema = z.object({
 export const startupBenchmarksQuerySchema = z.object({
   period: optionalTrimmedString(10),
 });
+
+// =============================================================================
+// BENCHMARKS (standalone page)
+// =============================================================================
+
+export const benchmarksQuerySchema = z.object({
+  cohort_type: optionalTrimmedString(50),
+  cohort_key: optionalTrimmedString(200),
+  region: z.enum(['global', 'turkey']).default('global'),
+  period: optionalTrimmedString(10),
+  metric: optionalTrimmedString(50),
+});
+
+export const benchmarksCompareQuerySchema = z.object({
+  startup_id: z.string().uuid(),
+  region: z.enum(['global', 'turkey']).default('global'),
+  period: optionalTrimmedString(10),
+});
+
+export const benchmarksCohortQuerySchema = z.object({
+  region: z.enum(['global', 'turkey']).default('global'),
+  period: optionalTrimmedString(10),
+});
+
+// =============================================================================
+// INVESTOR DNA
+// =============================================================================
+
+export const investorDnaQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+  window: z.coerce.number().int().min(1).max(36).optional().default(12),
+});
+
+export const investorScreenerQuerySchema = z.object({
+  pattern: optionalTrimmedString(200),
+  stage: optionalTrimmedString(50),
+  min_deals: z.coerce.number().int().min(1).optional().default(1),
+  sort: z.enum(['deal_count', 'total_amount', 'thesis_shift', 'lead_rate']).default('deal_count'),
+  scope: z.enum(['global', 'turkey']).default('global'),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const investorPortfolioQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+// =============================================================================
+// PATTERN LANDSCAPES
+// =============================================================================
+
+export const landscapesQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+  period: optionalTrimmedString(10),
+  size_by: z.enum(['funding', 'count', 'deals']).default('funding'),
+  color_by: z.enum(['stage', 'vertical', 'signal']).default('stage'),
+  stage: optionalTrimmedString(50),
+});
+
+export const landscapesClusterQuerySchema = z.object({
+  pattern: z.string().min(1).max(200),
+  scope: z.enum(['global', 'turkey']).default('global'),
+  period: optionalTrimmedString(10),
+});
+
+// =============================================================================
+// SUBSCRIPTIONS & ALERTS
+// =============================================================================
+
+export const subscriptionCreateSchema = z.object({
+  object_type: z.enum(['startup', 'investor', 'pattern', 'cohort']),
+  object_id: z.string().min(1).max(500),
+  scope: z.enum(['global', 'turkey']).default('global'),
+});
+
+export const subscriptionDeleteSchema = z.object({
+  object_type: z.enum(['startup', 'investor', 'pattern', 'cohort']),
+  object_id: z.string().min(1).max(500),
+  scope: z.enum(['global', 'turkey']).default('global'),
+});
+
+export const subscriptionsQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+});
+
+export const alertsQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+  status: z.enum(['unread', 'read', 'archived']).optional(),
+  severity_min: z.coerce.number().int().min(1).max(5).optional(),
+  type: optionalTrimmedString(50),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+export const alertUpdateSchema = z.object({
+  status: z.enum(['read', 'archived']),
+});
+
+export const alertBatchUpdateSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+  status: z.enum(['read', 'archived']),
+});
+
+export const alertDigestQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+  period: z.enum(['latest']).default('latest'),
+});

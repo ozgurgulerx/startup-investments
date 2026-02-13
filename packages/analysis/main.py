@@ -2812,5 +2812,130 @@ def compute_benchmarks_cmd(
     console.print(f"  Skipped (small cohort): [yellow]{result.get('skipped_small', 0)}[/yellow]")
 
 
+@app.command("compute-benchmarks-extended")
+def compute_benchmarks_extended_cmd(
+    period: str = typer.Option(..., "--period", "-p", help="Period (e.g., 2026-02)"),
+    region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
+):
+    """Compute extended benchmarks with pattern cohorts and startup ranks.
+
+    Extends base benchmarks with pattern:{name} and stage+pattern cohorts,
+    plus computes per-startup percentile ranks stored in startup_state_snapshot.
+
+    Example:
+        python main.py compute-benchmarks-extended --period 2026-02
+    """
+    from src.automation.compute_benchmarks import run_extended_benchmarks
+
+    try:
+        result = asyncio.run(run_extended_benchmarks(period=period, region=region))
+    except Exception as exc:
+        console.print(f"[red]Extended benchmark computation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Extended Benchmarks + Startup Ranks[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"  Cohorts computed: [green]{result.get('cohorts_computed', 0)}[/green]")
+    console.print(f"  Benchmarks inserted: [cyan]{result.get('benchmarks_inserted', 0)}[/cyan]")
+    console.print(f"  Skipped (small): [yellow]{result.get('skipped_small', 0)}[/yellow]")
+    console.print(f"  Startups ranked: [green]{result.get('startups_ranked', 0)}[/green]")
+    console.print(f"  Ranking errors: [red]{result.get('errors', 0)}[/red]")
+
+
+@app.command("compute-investor-dna")
+def compute_investor_dna_cmd(
+    period: str = typer.Option(..., "--period", "-p", help="Period (e.g., 2026-02)"),
+    scope: str = typer.Option("global", "--scope", help="Scope: 'global' or 'turkey'"),
+):
+    """Compute investor DNA — pattern exposure, thesis shifts, co-invest graph.
+
+    For each investor with deals in the period, computes pattern mix,
+    stage distribution, Jensen-Shannon thesis shift, and co-invest edges.
+
+    Example:
+        python main.py compute-investor-dna --period 2026-02 --scope global
+    """
+    from src.automation.compute_investor_dna import run_investor_dna
+
+    try:
+        result = asyncio.run(run_investor_dna(period=period, scope=scope))
+    except Exception as exc:
+        console.print(f"[red]Investor DNA computation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Investor DNA[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"  Investors processed: [green]{result.get('investors_processed', 0)}[/green]")
+    console.print(f"  Mix entries inserted: [cyan]{result.get('mix_inserted', 0)}[/cyan]")
+    console.print(f"  Co-invest edges: [cyan]{result.get('edges_inserted', 0)}[/cyan]")
+    console.print(f"  Errors: [red]{result.get('errors', 0)}[/red]")
+
+
+@app.command("generate-alerts")
+def generate_alerts_cmd(
+    period: str = typer.Option(..., "--period", "-p", help="Period (e.g., 2026-02)"),
+    scope: str = typer.Option("global", "--scope", help="Scope: 'global' or 'turkey'"),
+    narratives: bool = typer.Option(True, "--narratives/--no-narratives", help="Generate LLM narratives"),
+):
+    """Generate user alerts from delta_events + subscriptions.
+
+    Matches delta events to user subscriptions and watchlist items,
+    computes severity, and optionally generates LLM narratives.
+
+    Example:
+        python main.py generate-alerts --period 2026-02 --scope global
+    """
+    from src.automation.generate_alerts import run_generate_alerts
+
+    try:
+        result = asyncio.run(run_generate_alerts(period=period, scope=scope, narratives=narratives))
+    except Exception as exc:
+        console.print(f"[red]Alert generation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Alert Generation[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"  Deltas checked: [green]{result.get('deltas_checked', 0)}[/green]")
+    console.print(f"  Alerts inserted: [cyan]{result.get('alerts_inserted', 0)}[/cyan]")
+    console.print(f"  Narratives generated: [cyan]{result.get('narratives_generated', 0)}[/cyan]")
+    console.print(f"  Errors: [red]{result.get('errors', 0)}[/red]")
+
+
+@app.command("generate-weekly-digest")
+def generate_weekly_digest_cmd(
+    scope: str = typer.Option("global", "--scope", help="Scope: 'global' or 'turkey'"),
+    days: int = typer.Option(7, "--days", help="Number of days to look back for alerts"),
+):
+    """Generate weekly digest threads for users with recent alerts.
+
+    Groups user alerts by theme, generates LLM summaries, and creates
+    digest threads for the past N days.
+
+    Example:
+        python main.py generate-weekly-digest --scope global --days 7
+    """
+    from src.automation.generate_digest import run_generate_digest
+
+    try:
+        result = asyncio.run(run_generate_digest(scope=scope, days=days))
+    except Exception as exc:
+        console.print(f"[red]Digest generation failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Weekly Digest[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"  Users processed: [green]{result.get('users_processed', 0)}[/green]")
+    console.print(f"  Digests created: [cyan]{result.get('digests_created', 0)}[/cyan]")
+    console.print(f"  Errors: [red]{result.get('errors', 0)}[/red]")
+
+
 if __name__ == "__main__":
     app()

@@ -686,6 +686,182 @@ export async function getStartupBenchmarks(slug: string, params?: {
   return fetchFromAPI<BenchmarksResponse>(`/api/v1/companies/${slug}/benchmarks?${qs.toString()}`);
 }
 
+// ---------------------------------------------------------------------------
+// Benchmarks (standalone page)
+// ---------------------------------------------------------------------------
+
+export interface CohortBenchmark {
+  cohort_key: string;
+  cohort_type: string;
+  metric: string;
+  cohort_size: number;
+  p10: number | null;
+  p25: number | null;
+  p50: number | null;
+  p75: number | null;
+  p90: number | null;
+  mean: number | null;
+  stddev: number | null;
+  period: string;
+}
+
+export interface CohortInfo {
+  cohort_key: string;
+  cohort_type: string;
+  size: number;
+  metrics: string[];
+}
+
+export interface BenchmarksListResponse {
+  benchmarks: CohortBenchmark[];
+  total: number;
+}
+
+export async function getBenchmarksList(params?: {
+  cohort_type?: string;
+  cohort_key?: string;
+  region?: string;
+  period?: string;
+  metric?: string;
+}): Promise<BenchmarksListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.cohort_type) qs.set('cohort_type', params.cohort_type);
+  if (params?.cohort_key) qs.set('cohort_key', params.cohort_key);
+  if (params?.region) qs.set('region', params.region);
+  if (params?.period) qs.set('period', params.period);
+  if (params?.metric) qs.set('metric', params.metric);
+  return fetchFromAPI<BenchmarksListResponse>(`/api/v1/benchmarks?${qs.toString()}`);
+}
+
+export async function getBenchmarksCohorts(region?: string): Promise<CohortInfo[]> {
+  const qs = new URLSearchParams();
+  if (region) qs.set('region', region);
+  return fetchFromAPI<CohortInfo[]>(`/api/v1/benchmarks/cohorts?${qs.toString()}`);
+}
+
+// ---------------------------------------------------------------------------
+// Investor DNA
+// ---------------------------------------------------------------------------
+
+export interface InvestorDNA {
+  investor_id: string;
+  investor_name: string;
+  investor_type: string | null;
+  deal_count: number;
+  total_amount_usd: number | null;
+  lead_count: number;
+  median_check_usd: number | null;
+  pattern_deal_counts: Record<string, number>;
+  pattern_amounts: Record<string, number>;
+  stage_deal_counts: Record<string, number>;
+  stage_amounts: Record<string, number>;
+  thesis_shift_js: number | null;
+  top_gainers: Array<{ pattern: string; delta_pp: number }> | null;
+  top_partners: Array<{ investor_id: string; name: string; co_deals: number }>;
+}
+
+export interface InvestorScreenerItem {
+  investor_id: string;
+  name: string;
+  type: string | null;
+  country: string | null;
+  deal_count: number;
+  total_amount_usd: number | null;
+  lead_count: number;
+  top_patterns: string[];
+  thesis_shift_js: number | null;
+}
+
+export interface InvestorScreenerResponse {
+  investors: InvestorScreenerItem[];
+  total: number;
+}
+
+export async function getInvestorDNA(investorId: string, scope?: string): Promise<InvestorDNA> {
+  const qs = new URLSearchParams();
+  if (scope) qs.set('scope', scope);
+  return fetchFromAPI<InvestorDNA>(`/api/v1/investors/${investorId}/dna?${qs.toString()}`);
+}
+
+export async function getInvestorScreener(params?: {
+  pattern?: string;
+  stage?: string;
+  sort?: string;
+  scope?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<InvestorScreenerResponse> {
+  const qs = new URLSearchParams();
+  if (params?.pattern) qs.set('pattern', params.pattern);
+  if (params?.stage) qs.set('stage', params.stage);
+  if (params?.sort) qs.set('sort', params.sort);
+  if (params?.scope) qs.set('scope', params.scope);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.offset) qs.set('offset', String(params.offset));
+  return fetchFromAPI<InvestorScreenerResponse>(`/api/v1/investors/screener?${qs.toString()}`);
+}
+
+export async function getInvestorPortfolio(investorId: string, scope?: string): Promise<{
+  portfolio: Array<{
+    startup_id: string;
+    name: string;
+    slug: string;
+    stage: string | null;
+    patterns: string[];
+    amount_usd: number | null;
+    round_type: string;
+  }>;
+  total: number;
+}> {
+  const qs = new URLSearchParams();
+  if (scope) qs.set('scope', scope);
+  return fetchFromAPI(`/api/v1/investors/${investorId}/portfolio?${qs.toString()}`);
+}
+
+// ---------------------------------------------------------------------------
+// Pattern Landscapes
+// ---------------------------------------------------------------------------
+
+export interface TreemapNode {
+  name: string;
+  value: number;
+  count: number;
+  funding: number;
+  children?: TreemapNode[];
+  startups?: Array<{ id: string; name: string; slug: string; funding: number }>;
+}
+
+export interface ClusterDetail {
+  pattern: string;
+  startup_count: number;
+  total_funding: number;
+  deal_count: number;
+  top_startups: Array<{ id: string; name: string; slug: string; funding: number; stage: string | null }>;
+  top_investors: Array<{ name: string; deal_count: number }>;
+  related_patterns: string[];
+  signal_summary: Record<string, number>;
+}
+
+export async function getLandscapes(params?: {
+  scope?: string;
+  period?: string;
+  size_by?: string;
+  stage?: string;
+}): Promise<TreemapNode[]> {
+  const qs = new URLSearchParams();
+  if (params?.scope) qs.set('scope', params.scope);
+  if (params?.period) qs.set('period', params.period);
+  if (params?.size_by) qs.set('size_by', params.size_by);
+  if (params?.stage) qs.set('stage', params.stage);
+  return fetchFromAPI<TreemapNode[]>(`/api/v1/landscapes?${qs.toString()}`);
+}
+
+export async function getLandscapeCluster(pattern: string, scope?: string): Promise<ClusterDetail> {
+  const qs = new URLSearchParams({ pattern });
+  if (scope) qs.set('scope', scope);
+  return fetchFromAPI<ClusterDetail>(`/api/v1/landscapes/cluster?${qs.toString()}`);
+}
+
 // Re-export health utilities
 export {
   checkApiHealth,

@@ -1,0 +1,254 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { useRegion } from '@/lib/region-context';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+
+interface InvestorDNA {
+  investor_id: string;
+  investor_name: string;
+  investor_type: string | null;
+  deal_count: number;
+  total_amount_usd: number | null;
+  lead_count: number;
+  median_check_usd: number | null;
+  pattern_deal_counts: Record<string, number>;
+  pattern_amounts: Record<string, number>;
+  stage_deal_counts: Record<string, number>;
+  thesis_shift_js: number | null;
+  top_gainers: Array<{ pattern: string; delta_pp: number }> | null;
+  top_partners: Array<{ investor_id: string; name: string; co_deals: number }>;
+}
+
+interface PortfolioItem {
+  startup_id: string;
+  name: string;
+  slug: string;
+  stage: string | null;
+  patterns: string[];
+  amount_usd: number | null;
+  round_type: string;
+}
+
+const CHART_COLORS = [
+  'hsl(220 10% 50%)', 'hsl(220 10% 40%)', 'hsl(220 10% 60%)',
+  'hsl(220 10% 35%)', 'hsl(220 10% 55%)', 'hsl(220 10% 45%)',
+  'hsl(220 10% 30%)', 'hsl(220 10% 65%)',
+];
+
+function formatUsd(v: number | null): string {
+  if (v == null) return '-';
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `$${(v / 1e3).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
+export default function InvestorProfilePage() {
+  const params = useParams();
+  const { region } = useRegion();
+  const investorId = params.id as string;
+  const [dna, setDna] = useState<InvestorDNA | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const scope = region !== 'global' ? `?scope=${region}` : '';
+        const [dnaRes, portRes] = await Promise.all([
+          fetch(`/api/investors/${investorId}/dna${scope}`),
+          fetch(`/api/investors/${investorId}/portfolio${scope}`),
+        ]);
+        if (dnaRes.ok) setDna(await dnaRes.json());
+        if (portRes.ok) {
+          const data = await portRes.json();
+          setPortfolio(data.portfolio || []);
+        }
+      } catch (err) {
+        console.error('Failed to load investor:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [investorId, region]);
+
+  const patternChartData = useMemo(() => {
+    if (!dna) return [];
+    return Object.entries(dna.pattern_deal_counts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 8)
+      .map(([name, value]) => ({ name, value }));
+  }, [dna]);
+
+  const stageChartData = useMemo(() => {
+    if (!dna) return [];
+    return Object.entries(dna.stage_deal_counts)
+      .sort(([, a], [, b]) => b - a)
+      .map(([name, value]) => ({ name, value }));
+  }, [dna]);
+
+  if (loading) {
+    return (
+      <>
+        <div className="briefing-header">
+          <span className="briefing-date">Investor Profile</span>
+          <h1 className="briefing-headline">Loading...</h1>
+        </div>
+        <div className="flex items-center justify-center py-16">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        </div>
+      </>
+    );
+  }
+
+  if (!dna) {
+    return (
+      <>
+        <div className="briefing-header">
+          <span className="briefing-date">Investor Profile</span>
+          <h1 className="briefing-headline">Investor not found</h1>
+        </div>
+        <p className="text-sm text-muted-foreground mt-4">No DNA data available for this investor.</p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="briefing-header">
+        <span className="briefing-date">Investor Profile</span>
+        <h1 className="briefing-headline">{dna.investor_name}</h1>
+        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+          {dna.investor_type && <span className="capitalize">{dna.investor_type}</span>}
+          <span>{dna.deal_count} deals</span>
+          <span>{formatUsd(dna.total_amount_usd)} total</span>
+          <span>{dna.lead_count} led</span>
+          {dna.median_check_usd && <span>Median check: {formatUsd(dna.median_check_usd)}</span>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Pattern Mix */}
+        <div className="p-4 border border-border/30 rounded-lg">
+          <h3 className="text-sm font-medium text-foreground mb-3">Pattern Mix</h3>
+          {patternChartData.length > 0 ? (
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={patternChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={40}>
+                    {patternChartData.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground py-8 text-center">No pattern data</p>
+          )}
+          <div className="space-y-1 mt-2">
+            {patternChartData.map((d, i) => (
+              <div key={d.name} className="flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                <span className="text-foreground flex-1 truncate">{d.name}</span>
+                <span className="text-muted-foreground tabular-nums">{d.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Stage Mix */}
+        <div className="p-4 border border-border/30 rounded-lg">
+          <h3 className="text-sm font-medium text-foreground mb-3">Stage Mix</h3>
+          <div className="space-y-2">
+            {stageChartData.map(d => {
+              const total = stageChartData.reduce((s, x) => s + x.value, 0);
+              const pct = total > 0 ? (d.value / total) * 100 : 0;
+              return (
+                <div key={d.name}>
+                  <div className="flex items-center justify-between text-xs mb-0.5">
+                    <span className="text-foreground capitalize">{d.name.replace(/_/g, ' ')}</span>
+                    <span className="text-muted-foreground tabular-nums">{d.value} ({pct.toFixed(0)}%)</span>
+                  </div>
+                  <div className="h-1.5 bg-muted/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-muted-foreground/40 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Thesis Shift */}
+          {dna.thesis_shift_js != null && (
+            <div className="mt-4 pt-4 border-t border-border/20">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Thesis Shift</h4>
+              <span className="text-lg tabular-nums text-foreground">{(dna.thesis_shift_js * 100).toFixed(1)}%</span>
+              <span className="text-xs text-muted-foreground ml-2">JS divergence vs prev quarter</span>
+              {dna.top_gainers && dna.top_gainers.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {dna.top_gainers.map(g => (
+                    <div key={g.pattern} className="text-xs text-muted-foreground">
+                      <span className="text-accent-info">+{g.delta_pp.toFixed(1)}pp</span> {g.pattern}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Top Co-Investors */}
+      {dna.top_partners.length > 0 && (
+        <div className="mt-6 p-4 border border-border/30 rounded-lg">
+          <h3 className="text-sm font-medium text-foreground mb-3">Top Co-Investors</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            {dna.top_partners.map(p => (
+              <Link
+                key={p.investor_id}
+                href={`/investors/${p.investor_id}`}
+                className="p-2 text-xs border border-border/20 rounded hover:border-accent-info/30 transition-colors"
+              >
+                <div className="text-foreground truncate">{p.name}</div>
+                <div className="text-muted-foreground/60 mt-0.5">{p.co_deals} co-deals</div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Portfolio */}
+      <div className="mt-6 p-4 border border-border/30 rounded-lg">
+        <h3 className="text-sm font-medium text-foreground mb-3">Portfolio ({portfolio.length})</h3>
+        <div className="space-y-1.5">
+          {portfolio.map(s => (
+            <Link
+              key={s.startup_id}
+              href={`/company/${s.slug}`}
+              className="flex items-center justify-between py-1.5 text-xs hover:text-accent-info transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-foreground">{s.name}</span>
+                {s.stage && <span className="text-muted-foreground/60 capitalize">{s.stage.replace(/_/g, ' ')}</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                {s.patterns.length > 0 && (
+                  <span className="text-muted-foreground/50 truncate max-w-[120px]">{s.patterns[0]}</span>
+                )}
+                <span className="text-muted-foreground tabular-nums">{formatUsd(s.amount_usd)}</span>
+              </div>
+            </Link>
+          ))}
+          {portfolio.length === 0 && (
+            <p className="text-xs text-muted-foreground py-4 text-center">No portfolio data available</p>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
