@@ -431,7 +431,8 @@ async def _select_sample_startups(
     """Select top startups by occurrence score with diversity constraints."""
     rows = await conn.fetch(
         """SELECT so.startup_id::text, so.score, so.evidence_hash,
-                  s.name, s.slug, s.funding_stage, s.region
+                  s.name, s.slug, s.funding_stage,
+                  COALESCE(s.dataset_region, 'global') AS region
            FROM signal_occurrences so
            JOIN startups s ON s.id = so.startup_id
            WHERE so.signal_id = $1::uuid
