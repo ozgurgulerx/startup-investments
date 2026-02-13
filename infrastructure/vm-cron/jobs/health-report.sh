@@ -451,7 +451,8 @@ for job_entry in $CRON_JOBS; do
 
     if [ -f "$LOG_FILE" ]; then
         # Get the last SUCCESS timestamp from the log
-        LAST_SUCCESS=$(grep 'SUCCESS' "$LOG_FILE" 2>/dev/null | tail -1 || echo "")
+        # Some logs can contain non-UTF8 bytes (treated as "binary" by grep); force text mode.
+        LAST_SUCCESS=$(grep -a 'SUCCESS' "$LOG_FILE" 2>/dev/null | tail -1 || echo "")
         if [ -n "$LAST_SUCCESS" ]; then
             # Extract timestamp: [2026-02-10 14:15:00 UTC]
             TS=$(echo "$LAST_SUCCESS" | sed -n 's/^\[\([^]]*\)\].*/\1/p')
