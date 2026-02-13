@@ -127,6 +127,7 @@ kubectl create secret generic startup-investments-secrets \
     --from-literal=api-key="$API_KEY" \
     --from-literal=admin-key="$ADMIN_KEY" \
     --from-literal=front-door-id="$FRONT_DOOR_ID" \
+    --from-literal=api-build-sha="$COMMIT_SHA" \
     --from-literal=redis-url="${REDIS_URL:-}" \
     --from-literal=applicationinsights-connection-string="${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" \
     --from-literal=azure-openai-endpoint="${AZURE_OPENAI_ENDPOINT:-}" \

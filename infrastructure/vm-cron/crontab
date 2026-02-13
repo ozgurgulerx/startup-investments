@@ -72,6 +72,10 @@ MAILTO=""
 # === Slack Commit Notify (every 2 min) ===
 */2 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh slack-commit-notify 5 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/slack-commit-notify.sh
 
+# === Release Reconciler (every 5 min) ===
+# Compares desired main SHA with live frontend/backend build SHAs and posts Slack on drift.
+*/5 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh release-reconciler 5 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/release-reconciler.sh
+
 # === Sync Blob Data (every 30 min, all days) ===
 0,30 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh sync-data 45 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/sync-data.sh
 

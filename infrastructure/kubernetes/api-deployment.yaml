@@ -44,6 +44,12 @@ spec:
                 secretKeyRef:
                   name: startup-investments-secrets
                   key: admin-key
+            - name: API_BUILD_SHA
+              valueFrom:
+                secretKeyRef:
+                  name: startup-investments-secrets
+                  key: api-build-sha
+                  optional: true
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:

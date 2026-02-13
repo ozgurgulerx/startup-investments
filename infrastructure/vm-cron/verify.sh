@@ -89,6 +89,7 @@ else
       "runner.sh crawl-frontier"
       "runner.sh news-digest"
       "runner.sh slack-summary"
+      "runner.sh release-reconciler"
       "runner.sh sync-data"
       "runner.sh code-update"
       "monitoring/heartbeat.sh"
@@ -131,4 +132,3 @@ if [ "$FAIL" -ne 0 ]; then
 fi
 echo "Result: OK"
 exit 0
-

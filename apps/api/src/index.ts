@@ -123,6 +123,7 @@ const benchmarksService = makeBenchmarksService(pool);
 const investorsService = makeInvestorsService(pool);
 const landscapesService = makeLandscapesService(pool);
 const subscriptionsService = makeSubscriptionsService(pool);
+const API_BUILD_SHA = (process.env.API_BUILD_SHA || process.env.GITHUB_SHA || 'unknown').trim();
 
 // Trust proxy for correct client IP behind Azure Front Door / Load Balancer
 app.set('trust proxy', true);
@@ -148,7 +149,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // Lightweight liveness probe - no I/O, for K8s liveness checks
 app.get('/healthz', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), build_sha: API_BUILD_SHA });
 });
 
 // Readiness probe - checks pool stats in-memory only, for K8s readiness checks
@@ -161,6 +162,7 @@ app.get('/readyz', async (_req, res) => {
     return res.status(dbReady ? 200 : 503).json({
       status: dbReady ? 'ready' : 'not_ready',
       timestamp: new Date().toISOString(),
+      build_sha: API_BUILD_SHA,
       pool: poolStats,
     });
   }
@@ -169,6 +171,7 @@ app.get('/readyz', async (_req, res) => {
   res.status(dbOk ? 200 : 503).json({
     status: dbOk ? 'ready' : 'not_ready',
     timestamp: new Date().toISOString(),
+    build_sha: API_BUILD_SHA,
     pool: poolStats,
   });
 });
@@ -182,6 +185,7 @@ app.get('/health', async (_req, res) => {
   res.json({
     status: dbConnected ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
+    build_sha: API_BUILD_SHA,
     database: dbConnected ? 'connected' : 'disconnected',
     pool: poolStats,
     cache: cacheStats || { connected: false },

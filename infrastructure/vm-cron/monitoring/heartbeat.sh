@@ -104,6 +104,7 @@ FRESHNESS_JOBS=(
     "news-digest:3000:always"
     "sync-data:90:always"
     "code-update:800:always"
+    "release-reconciler:30:always"
     "health-report:600:always"
 )
 

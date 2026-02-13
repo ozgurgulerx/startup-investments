@@ -61,6 +61,7 @@ VM_CRON_JOBS = {
     "crawl-frontier": 45,
     "news-digest": 1500,     # daily
     "slack-summary": 1500,   # daily (this script itself)
+    "release-reconciler": 20,
     "sync-data": 45,
     "code-update": 400,      # every 6h
 }

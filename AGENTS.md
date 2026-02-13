@@ -9,7 +9,7 @@ Goals:
 - Make recovery/debug of "site is slow/down" deterministic.
 - Avoid accidental changes that break deploys, auth, or data pipelines.
 
-Last verified: 2026-02-08
+Last verified: 2026-02-13
 
 ## Repo Map
 
@@ -41,6 +41,7 @@ Important headers/invariants:
   - `x-admin-key` must match `ADMIN_KEY` for `/api/admin/*`.
 - Health endpoints are intentionally public:
   - `/health`, `/healthz`, `/readyz` are not API-key protected.
+  - `/health`, `/healthz`, `/readyz` include `build_sha` for release reconciliation.
 
 ## Critical Invariants (Don’t Break These)
 
@@ -61,8 +62,9 @@ Primary automation is now **VM cron** (cost control) and GitHub Actions workflow
 
 VM cron runner:
 - Config: `infrastructure/vm-cron/crontab`
-- Wrapper (locks, timeouts, logs, Slack alerts): `infrastructure/vm-cron/lib/runner.sh`
+- Wrapper (locks, timeouts, logs, structured Slack lifecycle events): `infrastructure/vm-cron/lib/runner.sh`
 - Code updater (git pull + triggers deploys): `infrastructure/vm-cron/deploy.sh`
+- Release drift monitor (desired vs live SHA): `infrastructure/vm-cron/jobs/release-reconciler.sh`
 - One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
@@ -80,6 +82,8 @@ VM cron runner:
 - Slack notifications:
   - Set `SLACK_WEBHOOK_URL` (or legacy `SLACK_WEBHOOK`) in `/etc/buildatlas/.env`.
   - Optional success notifications for selected jobs via `SLACK_NOTIFY_SUCCESS_JOBS` (see `infrastructure/vm-cron/.env.example`). In production we typically keep this as a high-signal subset (often excluding `keep-alive` / `crawl-frontier`) to avoid spam; add them if you want “continuous” Slack pings.
+  - Optional start notifications via `SLACK_NOTIFY_START_JOBS` (default: `frontend-deploy,backend-deploy,sync-data,code-update,news-digest`).
+  - Runner sends structured context (`event_type`, `phase`, `run_id`, `job`, `sha`, `duration_sec`, `exit_code`, `log`) in `SLACK_CONTEXT_JSON`.
   - GitHub push notifications:
     - Each push to `main` posts a Slack message via `.github/workflows/slack-commit-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
     - Opt-out per commit: include `[skip slack]` (or `[no-slack]`) in the commit message.
@@ -97,6 +101,9 @@ VM cron runner:
     - If it fails, inspect: `gh run view <run_id> --log-failed`
   - VM debugging:
     - Slack-post failures are appended into the job log (e.g. `/var/log/buildatlas/news-ingest.log`) and `heartbeat.log`.
+  - Release reconciliation state:
+    - Cursor/state file: `/var/lib/buildatlas/release-reconciler.state` (or `$REPO_DIR/.tmp` fallback).
+    - Drift reminders are controlled by `RELEASE_RECONCILE_ALERT_AFTER_MINUTES` and `RELEASE_RECONCILE_REMINDER_MINUTES`.
 
 Frontend:
 - `.github/workflows/frontend-deploy.yml`
@@ -126,6 +133,7 @@ News:
 - VM jobs:
   - `infrastructure/vm-cron/jobs/news-ingest.sh`
   - `infrastructure/vm-cron/jobs/news-digest.sh`
+  - `news-digest.sh` now posts per-run delivery totals to Slack (`sent/skipped/failed` for global+turkey).
 - Daily brief + LLM enrichment (news):
   - Controlled by `NEWS_LLM_ENRICHMENT=true` (and optional `NEWS_LLM_DAILY_BRIEF=true`) in `/etc/buildatlas/.env`.
   - "Why It Matters" under each news story card comes from `news_clusters.builder_takeaway` (server-fetched via backend `/api/v1/news`). If `builder_takeaway` is empty/NULL, the UI will not render that block.
@@ -365,6 +373,18 @@ File-based fallback cost:
    - Ensure import path casing matches the filename exactly (CI is Linux case-sensitive; macOS often hides this).
 4. If CI fails with a Dealbook filters type error (example seen on 2026-02-07: `DealbookFilters.vertical` missing):
    - Keep `apps/web/lib/api/client.ts` `DealbookFilters` in sync with filter usage in `apps/web/lib/data/index.ts` and UI filter keys.
+
+### "Which commits are live vs pending?"
+1. Check release reconciler log:
+   - `tail -n 80 /var/log/buildatlas/release-reconciler.log`
+2. Compare desired vs live directly:
+   - Desired: `git -C /opt/buildatlas/startup-analysis rev-parse --short origin/main`
+   - Frontend live: `curl -fsS https://buildatlas.net | rg -o 'ba-build-sha\" content=\"[0-9a-f]+'`
+   - Backend live: `curl -fsS https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health | jq -r '.build_sha'`
+3. If drift persists:
+   - Check recent deploy jobs:
+     - `tail -n 120 /var/log/buildatlas/frontend-deploy.log`
+     - `tail -n 120 /var/log/buildatlas/backend-deploy.log`
 
 ## UI Design Philosophy & Color System
 
