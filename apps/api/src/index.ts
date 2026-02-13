@@ -4980,14 +4980,16 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
             ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL), 1),
             0
           )::float AS avg_duration_ms,
-          COALESCE(
-            ROUND(
-              PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms)
-                FILTER (WHERE duration_ms IS NOT NULL),
-              1
-            ),
-            0
-          )::float AS p95_duration_ms,
+	          COALESCE(
+	            ROUND(
+	              (
+	                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms)
+	                  FILTER (WHERE duration_ms IS NOT NULL)
+	              )::numeric,
+	              1
+	            ),
+	            0
+	          )::float AS p95_duration_ms,
           COUNT(*) FILTER (WHERE http_status BETWEEN 200 AND 299)::int AS http_2xx,
           COUNT(*) FILTER (WHERE http_status = 304)::int AS http_304,
           COUNT(*) FILTER (WHERE http_status BETWEEN 400 AND 499)::int AS http_4xx,
@@ -5021,17 +5023,19 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
               ), 1),
               0
             )::float AS avg_duration_ms,
-            COALESCE(
-              ROUND(
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY last_response_ms)
-                  FILTER (
-                    WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
-                      AND last_response_ms IS NOT NULL
-                  ),
-                1
-              ),
-              0
-            )::float AS p95_duration_ms,
+	            COALESCE(
+	              ROUND(
+	                (
+	                  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY last_response_ms)
+	                    FILTER (
+	                      WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+	                        AND last_response_ms IS NOT NULL
+	                    )
+	                )::numeric,
+	                1
+	              ),
+	              0
+	            )::float AS p95_duration_ms,
             COUNT(*) FILTER (
               WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
                 AND last_status_code BETWEEN 200 AND 299
