@@ -51,6 +51,8 @@ SETS: dict[str, list[str]] = {
         "023_memory_system.sql",
         "024_regional_memory.sql",
         "025_periodic_briefs.sql",
+        # Dealbook living briefs (editions + revisions)
+        "035_brief_editions.sql",
         # Phase 2: Refinery enhancements (scoring, gating, pattern/GTM tables)
         "026_refinery_enhancements.sql",
         # Vector embeddings for semantic search (requires pgvector extension)
@@ -126,6 +128,8 @@ SETS: dict[str, list[str]] = {
         "023_memory_system.sql",
         "024_regional_memory.sql",
         "025_periodic_briefs.sql",
+        # Dealbook living briefs (editions + revisions)
+        "035_brief_editions.sql",
         "026_refinery_enhancements.sql",
         "028_pgvector_embeddings.sql",
         "017_email_confirmation_and_region.sql",
@@ -318,4 +322,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

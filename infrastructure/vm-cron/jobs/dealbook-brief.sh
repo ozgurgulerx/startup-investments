@@ -14,10 +14,16 @@ echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
 # API endpoint — must be the Front Door URL (not direct AKS)
 API_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}"
-ADMIN_KEY="${ADMIN_KEY:-${API_KEY:-}}"
+API_KEY="${API_KEY:-}"
+ADMIN_KEY="${ADMIN_KEY:-}"
+
+if [ -z "$API_KEY" ]; then
+  echo "ERROR: API_KEY not set"
+  exit 1
+fi
 
 if [ -z "$ADMIN_KEY" ]; then
-  echo "ERROR: ADMIN_KEY (or API_KEY) not set"
+  echo "ERROR: ADMIN_KEY not set"
   exit 1
 fi
 
@@ -42,7 +48,7 @@ generate_edition() {
   HTTP_CODE=$(curl -s -o /tmp/brief-response.json -w "%{http_code}" \
     -X POST "${API_URL}/api/v1/briefs/regenerate" \
     -H "Content-Type: application/json" \
-    -H "X-API-Key: ${ADMIN_KEY}" \
+    -H "X-API-Key: ${API_KEY}" \
     -H "X-Admin-Key: ${ADMIN_KEY}" \
     -d "{\"region\": \"${region}\", \"period_type\": \"${period_type}\", \"period_start\": \"${period_start}\", \"period_end\": \"${period_end}\", \"kind\": \"${kind}\"}" \
     --max-time 120)
