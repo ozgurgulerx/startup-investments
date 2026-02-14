@@ -64,6 +64,12 @@ Important headers/invariants:
 - Keep `/health` cheap and reachable (Front Door probe + diagnostics).
 - Keep the API deployable when AKS is running:
   - `backend-deploy.yml` must be able to connect to the AKS control plane.
+- Deploy artifacts must be pinned (no floating `:latest` tags in `infrastructure/kubernetes/**`):
+  - Manifests use `__IMAGE_TAG__` placeholders; deploy scripts/workflows must patch them to a concrete tag/digest.
+  - CI guardrail: `scripts/check-k8s-no-latest.sh` + `.github/workflows/k8s-manifest-guard.yml`.
+- Release reconciliation invariants:
+  - API `/health*` `build_sha` comes from `API_BUILD_SHA` baked into the API image (`apps/api/Dockerfile` build arg).
+  - Avoid reintroducing secret-sourced `api-build-sha` env injection (it breaks deterministic rollbacks).
 - Avoid making `/dealbook` depend on slow file-based reads in steady state:
   - When API is down, web falls back to file reads; this is a degradation mode.
 - Keep `packages/analysis/src/automation/__init__.py` import-light (no eager imports of optional heavy deps like `openai`).
@@ -128,7 +134,7 @@ AKS pipelines CronJobs:
 - Manifests:
   - `infrastructure/kubernetes/pipelines-configmap.yaml`
   - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
-- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:latest` (from `infrastructure/pipelines/Dockerfile`)
+- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (from `infrastructure/pipelines/Dockerfile`)
 - Secret: `Secret/buildatlas-pipelines-secrets` (keys are ENV var names so pods can use `envFrom`)
   - Important: `kubectl create secret --from-env-file` does **not** parse shell quoting. If you feed lines like
     `AZURE_OPENAI_ENDPOINT="https://.../"`, the pods will literally see quotes and Azure OpenAI calls will fail.
@@ -150,6 +156,7 @@ VM cron runner:
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
   - `runner.sh` strips NUL bytes (`\000`) from job stdout/stderr before appending to logs so log-scanners don't treat them as binary.
+  - `runner.sh` sets `AZURE_CONFIG_DIR` per job run to isolate Azure CLI auth state (prevents cross-job `az login` races).
   - `heartbeat.sh` scans logs in text mode (`grep -a`) so occasional NUL bytes won't break freshness detection.
   - Product surface canary:
     - `product-canary` runs every 30 minutes (`17,47 * * * *`) and validates:
@@ -205,7 +212,7 @@ VM cron runner:
   - Schedule: `slack-summary` runs every 3 hours at minute `:00` UTC (`0 */3 * * *`).
   - AKS fallback (VM-independent): `posthog-usage-summary` CronJob posts the same PostHog usage block to Slack:
     - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
-    - Image: `aistartuptr.azurecr.io/buildatlas-ops:latest` (built from `infrastructure/ops/Dockerfile`)
+    - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (built from `infrastructure/ops/Dockerfile`)
     - Secrets: Kubernetes `buildatlas-ops-secrets` (`slack-webhook-url`, `posthog-project-id`, `posthog-personal-api-key`, optional `posthog-host`)
     - Deploy: `.github/workflows/ops-posthog-usage-deploy.yml` (manual `workflow_dispatch`)
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).

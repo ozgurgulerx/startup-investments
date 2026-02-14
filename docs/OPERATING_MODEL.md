@@ -78,6 +78,8 @@ Do not break these:
   - `/health`, `/healthz`, `/readyz`.
 - Secrets are server-side only:
   - never expose `API_KEY` or `ADMIN_KEY` in browser-executed code.
+- Deploys use pinned artifacts:
+  - no `:latest` tags in `infrastructure/kubernetes/**` (manifests use `__IMAGE_TAG__` placeholders patched at deploy time).
 - Degradation mode is fallback only:
   - file-based dataset reads are a resilience mechanism, not steady-state.
 - News subscription model:
@@ -92,7 +94,7 @@ Pipelines are deployed into AKS as CronJobs to avoid VM availability issues:
 - Manifests:
   - `infrastructure/kubernetes/pipelines-configmap.yaml`
   - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
-- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:latest` (`infrastructure/pipelines/Dockerfile`)
+- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:<git-sha>` (pinned; CronJob manifest uses `__IMAGE_TAG__` patched at deploy time) (`infrastructure/pipelines/Dockerfile`)
 - Secrets/config:
   - `Secret/buildatlas-pipelines-secrets` (keys are ENV var names so pods use `envFrom`)
   - `ConfigMap/buildatlas-pipelines-config` (non-secret runtime toggles)
@@ -164,6 +166,7 @@ Source schedule: `infrastructure/vm-cron/crontab` (all UTC).
 - per-job lock files (`/tmp/buildatlas-<job>.lock`),
 - timeout enforcement,
 - structured log routing (`/var/log/buildatlas/<job>.log`),
+- Azure CLI state isolation per job run (`AZURE_CONFIG_DIR`) to avoid cross-job races,
 - Slack lifecycle notifications.
 
 ### Git race prevention
@@ -184,7 +187,7 @@ Some ops tasks run as AKS CronJobs to avoid VM availability issues.
   - Resource: `CronJob/posthog-usage-summary` (namespace `default`)
   - Schedule: `0 */3 * * *` (UTC)
   - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
-  - Image: `aistartuptr.azurecr.io/buildatlas-ops:latest` (from `infrastructure/ops/Dockerfile`)
+  - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (from `infrastructure/ops/Dockerfile`)
   - Secret: `Secret/buildatlas-ops-secrets` with:
     - `slack-webhook-url`
     - `posthog-project-id`
@@ -202,7 +205,7 @@ run in AKS as CronJobs.
 - Manifests:
   - `infrastructure/kubernetes/pipelines-configmap.yaml`
   - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
-- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:latest` (VM layout under `/opt/buildatlas/...` to reuse scripts)
+- Image: `aistartuptr.azurecr.io/buildatlas-pipelines:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time; VM layout under `/opt/buildatlas/...` to reuse scripts)
 - Runner semantics: uses `infrastructure/vm-cron/lib/runner.sh` for locks/timeouts + Slack lifecycle notifications.
 - VM duplicate-run prevention:
   - Set `BUILDATLAS_VM_CRON_DISABLED_JOBS=<comma-separated job names>` in `/etc/buildatlas/.env`

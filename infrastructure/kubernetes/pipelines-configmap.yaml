@@ -6,6 +6,7 @@ metadata:
 data:
   # Identify runtime in Slack context and logs.
   BUILDATLAS_RUNNER: "aks-cronjob"
+  BUILDATLAS_LOG_DIR: "/tmp/buildatlas-logs"
 
   # Azure OpenAI (AAD auth). For GPT-5 deployments, Responses API requires a newer api-version.
   # Keep this in ConfigMap (non-secret) so we can rotate without touching Secret values.

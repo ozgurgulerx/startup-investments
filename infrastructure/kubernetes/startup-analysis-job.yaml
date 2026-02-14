@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
       - name: analysis
-        image: aistartuptr.azurecr.io/startup-analysis:latest
+        # Patched by deploy tooling (replace __IMAGE_TAG__ with a concrete tag/digest before applying).
+        image: aistartuptr.azurecr.io/startup-analysis:__IMAGE_TAG__
         # CMD from Dockerfile runs Feb 2026 analysis by default.
         # Override with: command: ["python", "main.py", "analyze", ...]
         env:

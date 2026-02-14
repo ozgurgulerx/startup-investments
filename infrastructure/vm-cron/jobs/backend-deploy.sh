@@ -19,6 +19,54 @@ API_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}"
 COMMIT_SHA=$(git -C "$REPO_DIR" rev-parse --short HEAD)
 FULL_IMAGE="$ACR_NAME.azurecr.io/$IMAGE_NAME"
 PREVIOUS_IMAGE=""
+DEPLOY_IMAGE="$FULL_IMAGE:$COMMIT_SHA"
+
+TEMP_DIR="$(mktemp -d /tmp/buildatlas-backend-deploy.XXXXXX)"
+cleanup() {
+    rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
+
+# Avoid clobbering shared kubeconfig state (deploy.sh can run deploys in parallel).
+export KUBECONFIG="$TEMP_DIR/kubeconfig"
+
+sha_matches() {
+    local expected="${1:-}"
+    local live="${2:-}"
+    expected="$(echo "$expected" | tr '[:upper:]' '[:lower:]')"
+    live="$(echo "$live" | tr '[:upper:]' '[:lower:]')"
+    if [ -z "$expected" ] || [ -z "$live" ]; then
+        return 1
+    fi
+    if [ "$expected" = "$live" ]; then
+        return 0
+    fi
+    case "$expected" in
+        "$live"*) return 0 ;;
+    esac
+    case "$live" in
+        "$expected"*) return 0 ;;
+    esac
+    return 1
+}
+
+extract_build_sha() {
+    local json_payload="$1"
+    PAYLOAD="$json_payload" python3 - <<'PY'
+import json
+import os
+
+raw = os.environ.get("PAYLOAD", "")
+try:
+    data = json.loads(raw)
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+sha = data.get("build_sha") or data.get("sha") or ""
+print(str(sha).strip())
+PY
+}
 
 echo "=== Backend Deploy ==="
 echo "  Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -66,6 +114,7 @@ az acr build \
     --image "$IMAGE_NAME:$COMMIT_SHA" \
     --image "$IMAGE_NAME:latest" \
     --file apps/api/Dockerfile \
+    --build-arg "API_BUILD_SHA=$COMMIT_SHA" \
     "$REPO_DIR"
 
 echo "  Pushed: $FULL_IMAGE:$COMMIT_SHA"
@@ -100,8 +149,8 @@ if [ "$AKS_STATE" != "Running" ]; then
     exit 1
 fi
 
-# Refresh kubectl credentials
-az aks get-credentials -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --overwrite-existing
+# Refresh kubectl credentials (avoid mutating the default kubeconfig).
+az aks get-credentials -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --file "$KUBECONFIG" --overwrite-existing
 
 # Preserve REDIS_URL from existing K8s secret if not in env (now that AKS is running)
 if [ -z "${REDIS_URL:-}" ]; then
@@ -127,7 +176,6 @@ kubectl create secret generic startup-investments-secrets \
     --from-literal=api-key="$API_KEY" \
     --from-literal=admin-key="$ADMIN_KEY" \
     --from-literal=front-door-id="$FRONT_DOOR_ID" \
-    --from-literal=api-build-sha="$COMMIT_SHA" \
     --from-literal=redis-url="${REDIS_URL:-}" \
     --from-literal=applicationinsights-connection-string="${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" \
     --from-literal=azure-openai-endpoint="${AZURE_OPENAI_ENDPOINT:-}" \
@@ -145,27 +193,56 @@ PREVIOUS_IMAGE=$(kubectl get deployment startup-investments-api -o jsonpath='{.s
 if [ -n "$PREVIOUS_IMAGE" ]; then
     echo "  Previous image: $PREVIOUS_IMAGE"
 fi
-kubectl apply -f "$REPO_DIR/infrastructure/kubernetes/api-deployment.yaml"
-# Force pods to pull the new image (kubectl apply alone won't restart when the
-# tag is "latest" and the deployment spec is unchanged).
-kubectl rollout restart deployment/startup-investments-api
-kubectl rollout status deployment/startup-investments-api --timeout=300s
+
+echo "  Target image: $DEPLOY_IMAGE"
+
+# Render the manifest with a pinned image tag.
+RENDERED_MANIFEST="$TEMP_DIR/api-deployment.rendered.yaml"
+sed "s/__IMAGE_TAG__/${COMMIT_SHA}/g" "$REPO_DIR/infrastructure/kubernetes/api-deployment.yaml" > "$RENDERED_MANIFEST"
+
+kubectl apply -f "$RENDERED_MANIFEST"
+
+# If the image did not change, force a restart so pods can pick up rotated secrets.
+if [ -n "$PREVIOUS_IMAGE" ] && [ "$PREVIOUS_IMAGE" = "$DEPLOY_IMAGE" ]; then
+    echo "  Image unchanged; forcing rollout restart to pick up secrets/config..."
+    kubectl rollout restart deployment/startup-investments-api
+fi
+
+if ! kubectl rollout status deployment/startup-investments-api --timeout=600s; then
+    echo "ERROR: Rollout did not complete successfully."
+    if [ -n "$PREVIOUS_IMAGE" ]; then
+        echo "  Attempting rollback to: $PREVIOUS_IMAGE"
+        kubectl set image deployment/startup-investments-api api="$PREVIOUS_IMAGE"
+        kubectl rollout status deployment/startup-investments-api --timeout=300s || true
+    fi
+    exit 1
+fi
 
 # --- Step 6: Health check ---
 echo ""
 echo "[6/6] Waiting for API health..."
+EXPECTED_SHA="$COMMIT_SHA"
+LAST_BUILD_SHA=""
 for i in $(seq 1 20); do
-    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")
-    if [ "$STATUS" = "200" ]; then
-        echo "  API is healthy!"
-        break
+    RESP="$(curl -fsS --max-time 10 "$API_URL/health" 2>/dev/null || true)"
+    STATUS="000"
+    if [ -n "$RESP" ]; then
+        STATUS="200"
+        LAST_BUILD_SHA="$(extract_build_sha "$RESP")"
+        if sha_matches "$EXPECTED_SHA" "$LAST_BUILD_SHA"; then
+            echo "  API is healthy (build_sha=$LAST_BUILD_SHA)!"
+            break
+        fi
+        echo "  Attempt $i: status=$STATUS but build_sha mismatch (got '${LAST_BUILD_SHA:-}', expected '$EXPECTED_SHA')"
+    else
+        STATUS="$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")"
+        echo "  Attempt $i: status=$STATUS, waiting..."
     fi
-    echo "  Attempt $i: status=$STATUS, waiting..."
     sleep 5
 done
 
-if [ "$STATUS" != "200" ]; then
-    echo "ERROR: API health check did not return 200 (last status: $STATUS)"
+if [ "$STATUS" != "200" ] || ! sha_matches "$EXPECTED_SHA" "$LAST_BUILD_SHA"; then
+    echo "ERROR: API health check did not converge to expected build (status=${STATUS}, build_sha='${LAST_BUILD_SHA:-}')"
     if [ -n "$PREVIOUS_IMAGE" ]; then
         echo "  Attempting rollback to: $PREVIOUS_IMAGE"
         kubectl set image deployment/startup-investments-api api="$PREVIOUS_IMAGE"
@@ -173,10 +250,15 @@ if [ "$STATUS" != "200" ]; then
             echo "  Rollback deployment succeeded. Verifying health..."
             ROLLBACK_OK=0
             for i in $(seq 1 12); do
-                RSTATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")
+                RRESP="$(curl -fsS --max-time 10 "$API_URL/health" 2>/dev/null || true)"
+                RSTATUS="000"
+                if [ -n "$RRESP" ]; then
+                    RSTATUS="200"
+                    RBUILD_SHA="$(extract_build_sha "$RRESP")"
+                fi
                 if [ "$RSTATUS" = "200" ]; then
                     ROLLBACK_OK=1
-                    echo "  Rollback health check passed."
+                    echo "  Rollback health check passed (build_sha=${RBUILD_SHA:-unknown})."
                     break
                 fi
                 echo "  Rollback health check attempt $i: status=$RSTATUS"

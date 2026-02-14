@@ -22,6 +22,10 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
+# Build marker used by /health* endpoints (see apps/api/src/index.ts).
+ARG API_BUILD_SHA=unknown
+ENV API_BUILD_SHA=$API_BUILD_SHA
+
 # pnpm --filter installs produce workspace-aware symlinks. Keep both the
 # workspace root node_modules store and package-local node_modules links.
 COPY --from=builder /app/node_modules ./node_modules

@@ -27,6 +27,8 @@ Mark all that apply:
 - Ensure no secrets are exposed in code or logs.
 - Confirm API auth/header invariants still hold.
 - Confirm health endpoints remain cheap and public.
+- Confirm Kubernetes manifests do not use floating `:latest` image tags:
+  - `bash scripts/check-k8s-no-latest.sh`
 - Update docs when operational behavior changes.
 
 ### Frontend changes

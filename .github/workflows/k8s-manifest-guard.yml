@@ -1,0 +1,27 @@
+name: K8s Manifest Guardrails
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/kubernetes/**'
+      - 'scripts/check-k8s-no-latest.sh'
+      - '.github/workflows/k8s-manifest-guard.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/kubernetes/**'
+      - 'scripts/check-k8s-no-latest.sh'
+      - '.github/workflows/k8s-manifest-guard.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  no-latest-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disallow :latest tags in Kubernetes manifests
+        run: bash scripts/check-k8s-no-latest.sh
+

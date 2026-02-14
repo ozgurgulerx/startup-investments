@@ -117,7 +117,8 @@ jobs:
 
       - name: Deploy CronJob
         run: |
-          kubectl apply -n "${{ env.NAMESPACE }}" -f infrastructure/kubernetes/posthog-usage-cronjob.yaml
+          tag="${{ github.sha }}"
+          sed "s/__IMAGE_TAG__/${tag}/g" infrastructure/kubernetes/posthog-usage-cronjob.yaml | kubectl apply -n "${{ env.NAMESPACE }}" -f -
 
       - name: Run CronJob once (verification)
         run: |
@@ -125,4 +126,3 @@ jobs:
           kubectl create job -n "${{ env.NAMESPACE }}" --from=cronjob/${{ env.CRONJOB_NAME }} "$job"
           kubectl wait -n "${{ env.NAMESPACE }}" --for=condition=complete "job/$job" --timeout=240s
           kubectl logs -n "${{ env.NAMESPACE }}" "job/$job"
-

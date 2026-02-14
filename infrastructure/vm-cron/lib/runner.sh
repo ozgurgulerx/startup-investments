@@ -26,6 +26,8 @@ ENV_FILE_FALLBACK="$REPO_DIR/.env"
 DEFAULT_SLACK_SUCCESS_JOBS="news-ingest,news-digest,frontend-deploy,backend-deploy,functions-deploy,code-update,sync-data,crawl-frontier"
 DEFAULT_SLACK_START_JOBS="frontend-deploy,backend-deploy,functions-deploy,sync-data,code-update,news-digest"
 
+AZURE_CONFIG_DIR_CREATED=0
+
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
 
@@ -218,6 +220,22 @@ export BUILDATLAS_HOST="${HOSTNAME:-vm-buildatlas-cron}"
 RUN_ID="${JOB_NAME}-$(date -u '+%Y%m%dT%H%M%SZ')-$$"
 STARTED_AT_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 SHA_SHORT="$(git_sha_short)"
+
+# Isolate Azure CLI state per job run to avoid concurrency races across cron jobs.
+# (deploy.sh can trigger multiple deploys in parallel; other jobs also call `az login`.)
+if [ -z "${AZURE_CONFIG_DIR:-}" ]; then
+    export AZURE_CONFIG_DIR="/tmp/buildatlas-azure-${JOB_NAME}-${RUN_ID}"
+    AZURE_CONFIG_DIR_CREATED=1
+fi
+
+cleanup_runner_tmp() {
+    if [ "${AZURE_CONFIG_DIR_CREATED:-0}" = "1" ] && [ -n "${AZURE_CONFIG_DIR:-}" ]; then
+        rm -rf "$AZURE_CONFIG_DIR" 2>/dev/null || true
+    fi
+}
+trap cleanup_runner_tmp EXIT
+
+mkdir -p "$AZURE_CONFIG_DIR" 2>/dev/null || true
 
 # Acquire exclusive lock (non-blocking). If already running, skip.
 exec 200>"$LOCK_FILE"

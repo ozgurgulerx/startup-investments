@@ -1,3 +1,4 @@
+# NOTE: Deploy tooling replaces `__IMAGE_TAG__` with a concrete image tag (typically a git SHA).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -8,6 +9,7 @@ metadata:
     job: news-ingest
 spec:
   schedule: "15 * * * *"
+  startingDeadlineSeconds: 7200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -25,8 +27,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -57,6 +59,7 @@ metadata:
     job: news-digest
 spec:
   schedule: "45 * * * *"
+  startingDeadlineSeconds: 7200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -74,8 +77,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -106,6 +109,7 @@ metadata:
     job: event-processor
 spec:
   schedule: "5,20,35,50 * * * *"
+  startingDeadlineSeconds: 1800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -123,8 +127,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -155,6 +159,7 @@ metadata:
     job: deep-research
 spec:
   schedule: "12,27,42,57 * * * *"
+  startingDeadlineSeconds: 1800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -172,8 +177,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -204,6 +209,7 @@ metadata:
     job: onboarding-alerts
 spec:
   schedule: "*/2 * * * *"
+  startingDeadlineSeconds: 600
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -221,8 +227,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -253,6 +259,7 @@ metadata:
     job: research-topics
 spec:
   schedule: "40 * * * *"
+  startingDeadlineSeconds: 7200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -270,8 +277,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -302,6 +309,7 @@ metadata:
     job: x-trends
 spec:
   schedule: "28 * * * *"
+  startingDeadlineSeconds: 7200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -319,8 +327,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -351,6 +359,7 @@ metadata:
     job: x-post-generate
 spec:
   schedule: "35 */4 * * *"
+  startingDeadlineSeconds: 28800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -368,8 +377,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -400,6 +409,7 @@ metadata:
     job: x-post-publish
 spec:
   schedule: "55 * * * *"
+  startingDeadlineSeconds: 7200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -417,8 +427,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -449,6 +459,7 @@ metadata:
     job: x-post-metrics
 spec:
   schedule: "20 */6 * * *"
+  startingDeadlineSeconds: 43200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -466,8 +477,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -498,6 +509,7 @@ metadata:
     job: weekly-brief
 spec:
   schedule: "0 6 * * 1"
+  startingDeadlineSeconds: 259200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -515,8 +527,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -547,6 +559,7 @@ metadata:
     job: monthly-brief
 spec:
   schedule: "0 6 1 * *"
+  startingDeadlineSeconds: 604800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -564,8 +577,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -596,6 +609,7 @@ metadata:
     job: embed-backfill
 spec:
   schedule: "25 * * * *"
+  startingDeadlineSeconds: 7200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -613,8 +627,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -645,6 +659,7 @@ metadata:
     job: signal-aggregate
 spec:
   schedule: "30 */4 * * *"
+  startingDeadlineSeconds: 28800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -662,8 +677,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -694,6 +709,7 @@ metadata:
     job: delta-generate
 spec:
   schedule: "38 */4 * * *"
+  startingDeadlineSeconds: 28800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -711,8 +727,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -743,6 +759,7 @@ metadata:
     job: generate-alerts
 spec:
   schedule: "48 */4 * * *"
+  startingDeadlineSeconds: 28800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -760,8 +777,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -792,6 +809,7 @@ metadata:
     job: generate-weekly-digest
 spec:
   schedule: "35 6 * * 1"
+  startingDeadlineSeconds: 259200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -809,8 +827,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -841,6 +859,7 @@ metadata:
     job: deep-dive-generate
 spec:
   schedule: "15 5 * * *"
+  startingDeadlineSeconds: 86400
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -858,8 +877,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -890,6 +909,7 @@ metadata:
     job: dealbook-brief
 spec:
   schedule: "0 4 * * *"
+  startingDeadlineSeconds: 86400
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -907,8 +927,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -939,6 +959,7 @@ metadata:
     job: neighbors-benchmarks
 spec:
   schedule: "0 7 * * 4"
+  startingDeadlineSeconds: 259200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -956,8 +977,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -988,6 +1009,7 @@ metadata:
     job: compute-benchmarks
 spec:
   schedule: "0 4 2 * *"
+  startingDeadlineSeconds: 604800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -1005,8 +1027,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -1037,6 +1059,7 @@ metadata:
     job: compute-investor-dna
 spec:
   schedule: "0 5 2 * *"
+  startingDeadlineSeconds: 604800
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -1054,8 +1077,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -1086,6 +1109,7 @@ metadata:
     job: digest-qa
 spec:
   schedule: "50 * * * *"
+  startingDeadlineSeconds: 7200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -1103,8 +1127,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: job
-              image: aistartuptr.azurecr.io/buildatlas-pipelines:latest
-              imagePullPolicy: Always
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
               command:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
@@ -1123,4 +1147,3 @@ spec:
                 limits:
                   cpu: "500m"
                   memory: "1Gi"
-
