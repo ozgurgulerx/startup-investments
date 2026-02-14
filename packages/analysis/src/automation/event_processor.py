@@ -85,6 +85,13 @@ class StartupEventProcessor:
                 result = await self._process_event(event)
                 results.append(result)
 
+            # Option 2 behavior: research for stub startups is gated on crawl, but once crawl lands
+            # we should re-enqueue previously blocked high/medium impact events.
+            try:
+                await self._requeue_crawl_gated_research()
+            except Exception:
+                logger.debug("Crawl-gated research requeue skipped due to unexpected error.", exc_info=True)
+
             return results
 
         finally:
@@ -360,6 +367,119 @@ class StartupEventProcessor:
             focus_areas=focus,
             require_crawled=True,
         )
+
+    async def _requeue_crawl_gated_research(self) -> Dict[str, Any]:
+        """Requeue research items that were previously blocked solely due to missing crawl."""
+        enabled_raw = str(os.getenv("DEEP_RESEARCH_REQUEUE_CRAWL_GATED", "true")).strip().lower()
+        if enabled_raw not in {"1", "true", "yes", "y", "on"}:
+            return {"enabled": False, "candidates": 0, "enqueued": 0, "skipped": 0, "blocked": 0}
+
+        lookback_days = int(os.getenv("DEEP_RESEARCH_REQUEUE_LOOKBACK_DAYS", "14") or "14")
+        limit = int(os.getenv("DEEP_RESEARCH_REQUEUE_LIMIT", "25") or "25")
+
+        candidates = await self.db.get_crawl_gated_research_requeue_candidates(
+            limit=max(1, limit),
+            lookback_days=max(1, lookback_days),
+        )
+        if not candidates:
+            return {"enabled": True, "candidates": 0, "enqueued": 0, "skipped": 0, "blocked": 0}
+
+        stats = {"enabled": True, "candidates": len(candidates), "enqueued": 0, "skipped": 0, "blocked": 0}
+        logger.info("Found %d crawl-gated research candidates to requeue", len(candidates))
+
+        for row in candidates:
+            startup_id = str(row.get("startup_id") or "").strip()
+            if not startup_id:
+                stats["skipped"] += 1
+                continue
+
+            event_type = str(row.get("event_type") or "funding_news").strip() or "funding_news"
+            event_id = row.get("event_id")
+            priority = int(row.get("priority") or self._get_priority_for_event(event_type))
+
+            eligible, gate_reason, gate_payload = await self._eligible_for_research(
+                startup_id=startup_id,
+                confidence=None,
+            )
+            if not eligible:
+                stats["blocked"] += 1
+                await emit_trace(
+                    self.db,
+                    startup_id=startup_id,
+                    queue_item_id=None,
+                    trace_type="onboarding",
+                    stage="research_requeue_blocked",
+                    status="warning",
+                    severity="warning",
+                    reason_code=gate_reason or "gated",
+                    message="Deep research requeue blocked (crawl-gated retry)",
+                    payload={
+                        "source": "crawl_gate_requeue",
+                        "event_id": str(event_id) if event_id else None,
+                        "event_type": event_type,
+                        **(gate_payload or {}),
+                    },
+                    dedupe_key=f"research_requeue_blocked:{startup_id}:{gate_reason or 'gated'}",
+                    should_notify=(gate_reason in ACTIONABLE_ENQUEUE_BLOCK_REASONS),
+                )
+                continue
+
+            analysis_id = await self._enqueue_for_research(
+                startup_id=startup_id,
+                reason=event_type,
+                priority=priority,
+            )
+            if analysis_id:
+                stats["enqueued"] += 1
+                await emit_trace(
+                    self.db,
+                    startup_id=startup_id,
+                    queue_item_id=str(analysis_id),
+                    trace_type="onboarding",
+                    stage="research_enqueued",
+                    status="success",
+                    severity="info",
+                    reason_code=event_type,
+                    message="Deep research queued after crawl gate cleared",
+                    payload={
+                        "source": "crawl_gate_requeue",
+                        "event_id": str(event_id) if event_id else None,
+                        "event_type": event_type,
+                        "priority": priority,
+                    },
+                    dedupe_key=f"research_enqueued:{analysis_id}",
+                    should_notify=True,
+                )
+            else:
+                stats["skipped"] += 1
+                await emit_trace(
+                    self.db,
+                    startup_id=startup_id,
+                    queue_item_id=None,
+                    trace_type="onboarding",
+                    stage="research_requeue_skipped",
+                    status="info",
+                    severity="info",
+                    reason_code="already_queued_or_not_eligible",
+                    message="Deep research requeue skipped (already queued or not eligible)",
+                    payload={
+                        "source": "crawl_gate_requeue",
+                        "event_id": str(event_id) if event_id else None,
+                        "event_type": event_type,
+                        "priority": priority,
+                    },
+                    dedupe_key=f"research_requeue_skipped:{startup_id}:{event_type}",
+                    should_notify=False,
+                )
+
+        logger.info(
+            "Crawl-gated research requeue summary: candidates=%d enqueued=%d skipped=%d blocked=%d",
+            stats["candidates"],
+            stats["enqueued"],
+            stats["skipped"],
+            stats["blocked"],
+        )
+        return stats
 
 
 async def run_event_processor(batch_size: int = 50) -> List[ProcessingResult]:

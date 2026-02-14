@@ -84,6 +84,97 @@ class DatabaseConnection:
         """, limit)
         return [dict(r) for r in rows]
 
+    async def get_crawl_gated_research_requeue_candidates(
+        self,
+        *,
+        limit: int = 25,
+        lookback_days: int = 14,
+    ) -> List[Dict[str, Any]]:
+        """Return startups whose research enqueue was blocked due to crawl gate, but are now eligible.
+
+        This is the "option 2" behavior for deep-research: keep the crawl requirement for stubs,
+        but automatically re-enqueue once the first crawl lands (or the startup stops being a stub).
+
+        Notes:
+        - Uses onboarding_trace_events as the durable record of the gating decision (no schema change).
+        - Avoids duplicate work by skipping startups that have any deep_research_queue row queued
+          after the gating trace occurred_at.
+        - Avoids active-queue conflicts by skipping startups that already have pending/processing.
+        """
+        # Some environments may not have onboarding_trace_events yet.
+        try:
+            rows = await self.fetch(
+                """
+                WITH gated AS (
+                    SELECT
+                        t.startup_id::text AS startup_id,
+                        (t.payload_json->>'event_type')::text AS event_type,
+                        (t.payload_json->>'event_id')::text AS event_id,
+                        t.occurred_at AS occurred_at,
+                        CASE
+                            WHEN (t.payload_json->>'event_type') IN ('cap_funding_raised', 'cap_acquisition_announced', 'funding_news') THEN 1
+                            WHEN (t.payload_json->>'event_type') IN ('prod_launched', 'prod_major_update', 'org_key_hire') THEN 2
+                            WHEN (t.payload_json->>'event_type') LIKE 'gtm_%' OR (t.payload_json->>'event_type') LIKE 'arch_%' THEN 3
+                            WHEN (t.payload_json->>'event_type') LIKE 'cap_%' OR (t.payload_json->>'event_type') LIKE 'prod_%' OR (t.payload_json->>'event_type') LIKE 'org_%' THEN 4
+                            ELSE 5
+                        END AS priority
+                    FROM onboarding_trace_events t
+                    WHERE t.stage = 'research_enqueue_blocked'
+                      AND t.reason_code = 'startup_not_crawled_yet'
+                      AND t.startup_id IS NOT NULL
+                      AND t.occurred_at >= NOW() - ($1::text)::interval
+                ),
+                unhandled AS (
+                    SELECT g.*
+                    FROM gated g
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM deep_research_queue q
+                        WHERE q.startup_id = g.startup_id::uuid
+                          AND q.queued_at >= g.occurred_at
+                    )
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM deep_research_queue q2
+                        WHERE q2.startup_id = g.startup_id::uuid
+                          AND q2.status IN ('pending', 'processing')
+                    )
+                ),
+                picked AS (
+                    SELECT DISTINCT ON (startup_id)
+                        startup_id,
+                        event_type,
+                        event_id,
+                        occurred_at,
+                        priority
+                    FROM unhandled
+                    ORDER BY startup_id, priority ASC, occurred_at DESC
+                )
+                SELECT
+                    p.startup_id,
+                    COALESCE(NULLIF(TRIM(p.event_type), ''), 'funding_news') AS event_type,
+                    p.event_id,
+                    p.occurred_at,
+                    p.priority
+                FROM picked p
+                JOIN startups s ON s.id = p.startup_id::uuid
+                WHERE COALESCE(s.onboarding_status, 'verified') NOT IN ('merged', 'rejected')
+                  AND s.website IS NOT NULL
+                  AND TRIM(s.website) <> ''
+                  AND (
+                        COALESCE(s.onboarding_status, 'verified') != 'stub'
+                        OR s.last_crawl_at IS NOT NULL
+                      )
+                ORDER BY p.priority ASC, p.occurred_at ASC
+                LIMIT $2
+                """,
+                f"{max(1, int(lookback_days))} days",
+                max(1, int(limit)),
+            )
+        except Exception:
+            return []
+        return [dict(r) for r in rows]
+
     async def mark_event_processed(
         self,
         event_id: str,

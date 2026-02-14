@@ -415,6 +415,8 @@ News:
     - `DEEP_RESEARCH_MIN_EVENT_CONFIDENCE`
     - `DEEP_RESEARCH_MIN_CRAWL_SUCCESS_RATE`
     - Enqueue gating note: deep-research enqueues require `last_crawl_at` only for `onboarding_status='stub'`; verified startups can be queued without a prior crawl.
+    - Crawl-gate retry (Option 2): `event-processor` auto-requeues research for startups previously blocked with `reason_code='startup_not_crawled_yet'` once a crawl lands (uses `onboarding_trace_events` as the durable "defer" record; no extra table).
+      - Env: `DEEP_RESEARCH_REQUEUE_CRAWL_GATED=true` (default), `DEEP_RESEARCH_REQUEUE_LOOKBACK_DAYS=14`, `DEEP_RESEARCH_REQUEUE_LIMIT=25`
     - `ONBOARDING_ALERTS_ENABLED`
     - `ONBOARDING_ALERTS_BATCH_SIZE`
     - `ONBOARD_SINGLE_SOURCE_TRUST_MIN` (allow trusted single-source funding clusters to create stub startups when entity type is unknown)
