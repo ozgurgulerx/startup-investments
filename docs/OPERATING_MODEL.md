@@ -129,7 +129,7 @@ AKS availability is primarily protected via an Azure Automation runbook (indepen
 
 ### GitHub Actions
 
-GitHub Actions workflows are intentionally removed from this repo. Deploy and automation run via:
+GitHub Actions workflows exist as manual backups/ops tooling. Production deploy and automation run via:
 - AKS CronJobs (`buildatlas-pipelines`, `buildatlas-ops`)
 - VM cron (`infrastructure/vm-cron/**`)
 
@@ -491,7 +491,7 @@ Run this before merging schedule-related changes:
 ```
 
 This checks that cron job names in `infrastructure/vm-cron/crontab` are represented in `docs/OPERATING_MODEL.md`.
-Treat this script as the canonical guardrail (GitHub Actions workflows are removed from this repo).
+Treat this script as the canonical guardrail (also runnable via `pnpm ops:verify-docs`).
 
 ## 14) Canonical Files for Validation
 
