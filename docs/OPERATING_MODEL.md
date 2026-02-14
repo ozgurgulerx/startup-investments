@@ -129,7 +129,7 @@ AKS availability is primarily protected via an Azure Automation runbook (indepen
 
 ### GitHub Actions
 
-GitHub Actions workflows exist as manual backups/ops tooling. Production deploy and automation run via:
+GitHub Actions workflows are intentionally removed from this repo. Deploy and automation run via:
 - AKS CronJobs (`buildatlas-pipelines`, `buildatlas-ops`)
 - VM cron (`infrastructure/vm-cron/**`)
 
