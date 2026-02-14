@@ -503,12 +503,23 @@ def test_build_turkey_cluster_keeps_llm_classified_non_ai_item():
 
 
 def test_new_turkey_rss_sources_in_default_sources():
-    """All 4 new Turkey RSS sources must be in DEFAULT_SOURCES with region='turkey'."""
+    """Key Turkey VC/ecosystem RSS sources must be in DEFAULT_SOURCES with region='turkey'."""
     source_map = {s.source_key: s for s in DEFAULT_SOURCES}
     for key in ("vc_212", "finberg", "endeavor_turkey", "startupcentrum_tr"):
         assert key in source_map, f"{key} missing from DEFAULT_SOURCES"
         assert source_map[key].region == "turkey", f"{key} should have region='turkey'"
         assert source_map[key].fetch_mode == "rss", f"{key} should be RSS"
+
+def test_turkey_ai_sources_in_default_sources():
+    """Turkey AI-focused RSS sources must be in DEFAULT_SOURCES with region='turkey'."""
+    source_map = {s.source_key: s for s in DEFAULT_SOURCES}
+    for key in ("webrazzi_yapay_zeka", "egirisim_yapay_zeka", "techinside_yapay_zeka", "turkiye_ai"):
+        assert key in source_map, f"{key} missing from DEFAULT_SOURCES"
+        assert source_map[key].region == "turkey", f"{key} should have region='turkey'"
+        assert source_map[key].fetch_mode == "rss", f"{key} should be RSS"
+        assert source_map[key].language == "tr", f"{key} should be language='tr'"
+
+    assert source_map["turkiye_ai"].lookback_hours_override == 168
 
 
 def test_vc_turkey_blogs_source_in_default_sources():
@@ -544,7 +555,7 @@ def test_turkey_vc_blog_urls_non_empty_and_valid():
 def test_total_turkey_sources_count():
     """Total Turkey sources should match DEFAULT_SOURCES (incl. X recent search)."""
     turkey = [s for s in DEFAULT_SOURCES if s.region == "turkey"]
-    assert len(turkey) == 15
+    assert len(turkey) == 19
 
 
 # --- Turkey nexus filter tests ---
