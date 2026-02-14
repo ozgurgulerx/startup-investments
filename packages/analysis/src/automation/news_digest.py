@@ -21,6 +21,19 @@ except Exception:  # pragma: no cover - optional import at module import time
     asyncpg = None
 
 
+def _sanitize_email_header(value: str) -> str:
+    """
+    Resend requires `from` to be `email@example.com` or `Name <email@example.com>`.
+    We've seen secrets accidentally include surrounding quotes, e.g.
+      "Graph Atlas <noreply@graph-atlas.com>"
+    Strip a single layer of matching outer quotes and normalize whitespace.
+    """
+    v = (value or "").strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
+        v = v[1:-1].strip()
+    return " ".join(v.split())
+
+
 @dataclass
 class DigestStory:
     title: str
@@ -57,8 +70,10 @@ class DailyNewsDigestSender:
 
         self.pool: Optional[asyncpg.Pool] = None
         self.resend_api_key = os.getenv("RESEND_API_KEY", "")
-        self.from_email = os.getenv("NEWS_DIGEST_FROM_EMAIL", "Build Atlas <news@buildatlas.net>")
-        self.reply_to = os.getenv("NEWS_DIGEST_REPLY_TO", "").strip()
+        self.from_email = _sanitize_email_header(
+            os.getenv("NEWS_DIGEST_FROM_EMAIL", "Build Atlas <news@buildatlas.net>")
+        ) or "Build Atlas <news@buildatlas.net>"
+        self.reply_to = _sanitize_email_header(os.getenv("NEWS_DIGEST_REPLY_TO", "")).strip()
         self.public_base_url = os.getenv("PUBLIC_BASE_URL", "https://buildatlas.net").rstrip("/")
         self.max_items = max(3, int(os.getenv("NEWS_DIGEST_MAX_ITEMS", "10")))
         self.dry_run = os.getenv("NEWS_DIGEST_DRY_RUN", "false").strip().lower() == "true"
