@@ -4088,9 +4088,151 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
     return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
   }
 
+  if (parsed.data.startupId && parsed.data.investorId) {
+    return res.status(400).json({ error: 'Provide either startupId or investorId (not both)' });
+  }
+  const startupId = parsed.data.startupId || null;
+  const investorId = parsed.data.investorId || null;
+
   const pgClient = await pool.connect();
   try {
     await pgClient.query('BEGIN');
+
+    if (investorId) {
+      const investorResult = await pgClient.query<{
+        id: string;
+        name: string;
+        type: string | null;
+        website: string | null;
+        headquarters_country: string | null;
+      }>(
+        `SELECT
+            id::text AS id,
+            name,
+            type,
+            website,
+            headquarters_country
+         FROM investors
+         WHERE id = $1::uuid
+         LIMIT 1`,
+        [investorId],
+      );
+      const investor = investorResult.rows[0];
+      if (!investor) {
+        await pgClient.query('ROLLBACK');
+        return res.status(404).json({ error: 'Investor not found' });
+      }
+
+      const contextInsert = await pgClient.query<{ id: string }>(
+        `INSERT INTO investor_onboarding_context (investor_id, source, context_text, metadata_json, created_by)
+         VALUES ($1::uuid, $2, $3, $4::jsonb, $5)
+         RETURNING id::text`,
+        [
+          investorId,
+          parsed.data.source || 'admin',
+          parsed.data.contextText,
+          JSON.stringify(parsed.data.metadata || {}),
+          parsed.data.createdBy || null,
+        ],
+      );
+      const contextId = contextInsert.rows[0]?.id;
+
+      try {
+        await pgClient.query(
+          `INSERT INTO onboarding_trace_events
+            (startup_id, investor_id, queue_item_id, investor_queue_item_id, trace_type, stage, status, severity, reason_code, message, payload_json, dedupe_key, should_notify, notification_channel)
+           VALUES
+            (NULL, $1::uuid, NULL, NULL, 'context', 'human_context_added', 'success', 'info', 'manual_context', $2, $3::jsonb, $4, FALSE, 'slack')
+           ON CONFLICT (dedupe_key) DO NOTHING`,
+          [
+            investorId,
+            `Manual context added for ${investor.name}`,
+            JSON.stringify({
+              context_id: contextId,
+              trace_event_id: parsed.data.traceEventId || null,
+              source: parsed.data.source || 'admin',
+            }),
+            `investor_human_context_added:${contextId || investorId}`,
+          ],
+        );
+      } catch (error) {
+        // Back-compat: older trace schema.
+        try {
+          await pgClient.query(
+            `INSERT INTO onboarding_trace_events
+              (startup_id, queue_item_id, trace_type, stage, status, severity, reason_code, message, payload_json, dedupe_key, should_notify, notification_channel)
+             VALUES
+              (NULL, NULL, 'context', 'human_context_added', 'success', 'info', 'manual_context', $1, $2::jsonb, $3, FALSE, 'slack')
+             ON CONFLICT (dedupe_key) DO NOTHING`,
+            [
+              `Manual context added for investor ${investor.name}`,
+              JSON.stringify({ context_id: contextId, investor_id: investorId }),
+              `investor_human_context_added:${contextId || investorId}`,
+            ],
+          );
+        } catch (err2) {
+          console.warn('Failed to persist onboarding trace for investor manual context:', err2);
+        }
+      }
+
+      let queueItemId: string | null = null;
+      if (parsed.data.enqueueResearch) {
+        const queueResult = await pgClient.query<{ id: string }>(
+          `INSERT INTO investor_onboarding_queue (investor_id, priority, reason, seed_urls)
+           SELECT id, 2, 'human_context', $2::text[]
+           FROM investors
+           WHERE id = $1::uuid
+           ON CONFLICT DO NOTHING
+           RETURNING id::text`,
+          [investorId, []],
+        );
+        queueItemId = queueResult.rows[0]?.id || null;
+
+        if (queueItemId) {
+          try {
+            await pgClient.query(
+              `INSERT INTO onboarding_trace_events
+                (startup_id, investor_id, queue_item_id, investor_queue_item_id, trace_type, stage, status, severity, reason_code, message, payload_json, dedupe_key, should_notify, notification_channel)
+               VALUES
+                (NULL, $1::uuid, NULL, $2::uuid, 'investor_onboarding', 'investor_requeued_by_human', 'success', 'info', 'human_context', $3, $4::jsonb, $5, TRUE, 'slack')
+               ON CONFLICT (dedupe_key) DO NOTHING`,
+              [
+                investorId,
+                queueItemId,
+                `Investor onboarding requeued by human context for ${investor.name}`,
+                JSON.stringify({
+                  context_id: contextId,
+                  source: parsed.data.source || 'admin',
+                }),
+                `investor_requeued_by_human:${queueItemId}`,
+              ],
+            );
+          } catch (error) {
+            console.warn('Failed to persist onboarding trace for investor requeue:', error);
+          }
+        }
+      }
+
+      await pgClient.query('COMMIT');
+      return res.json({
+        ok: true,
+        investor: {
+          id: investor.id,
+          name: investor.name,
+          type: investor.type,
+          website: investor.website,
+          headquarters_country: investor.headquarters_country,
+        },
+        context_id: contextId || null,
+        investor_onboarding_queue_item_id: queueItemId,
+        requeued: Boolean(queueItemId),
+      });
+    }
+
+    if (!startupId) {
+      await pgClient.query('ROLLBACK');
+      return res.status(400).json({ error: 'startupId or investorId is required' });
+    }
 
     const startupResult = await pgClient.query<{
       id: string;
@@ -4108,7 +4250,7 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
        FROM startups
        WHERE id = $1::uuid
        LIMIT 1`,
-      [parsed.data.startupId],
+      [startupId],
     );
     const startup = startupResult.rows[0];
     if (!startup) {
@@ -4125,7 +4267,7 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
        VALUES ($1::uuid, $2, $3, $4::jsonb, $5)
        RETURNING id::text`,
       [
-        parsed.data.startupId,
+        startupId,
         parsed.data.source || 'admin',
         parsed.data.contextText,
         JSON.stringify(parsed.data.metadata || {}),
@@ -4141,7 +4283,7 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
          VALUES
            ($1::uuid, $2, $3, 'human_context_added', TRUE, 'manual_context', $4::jsonb)`,
         [
-          parsed.data.startupId,
+          startupId,
           startup.name,
           startup.dataset_region,
           JSON.stringify({
@@ -4163,7 +4305,7 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
           ($1::uuid, NULL, 'context', 'human_context_added', 'success', 'info', 'manual_context', $2, $3::jsonb, $4, FALSE, 'slack')
          ON CONFLICT (dedupe_key) DO NOTHING`,
         [
-          parsed.data.startupId,
+          startupId,
           `Manual context added for ${startup.name}`,
           JSON.stringify({
             context_id: contextId,
@@ -4187,7 +4329,7 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
            AND COALESCE(onboarding_status, 'verified') NOT IN ('merged', 'rejected')
          ON CONFLICT DO NOTHING
          RETURNING id::text`,
-        [parsed.data.startupId, JSON.stringify(['manual_context'])],
+        [startupId, JSON.stringify(['manual_context'])],
       );
       queueItemId = queueResult.rows[0]?.id || null;
 
@@ -4197,10 +4339,10 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
             `INSERT INTO onboarding_trace_events
               (startup_id, queue_item_id, trace_type, stage, status, severity, reason_code, message, payload_json, dedupe_key, should_notify, notification_channel)
              VALUES
-              ($1::uuid, $2::uuid, 'onboarding', 'research_requeued_by_human', 'success', 'info', 'human_context', $3, $4::jsonb, $5, TRUE, 'slack')
+             ($1::uuid, $2::uuid, 'onboarding', 'research_requeued_by_human', 'success', 'info', 'human_context', $3, $4::jsonb, $5, TRUE, 'slack')
              ON CONFLICT (dedupe_key) DO NOTHING`,
             [
-              parsed.data.startupId,
+              startupId,
               queueItemId,
               `Deep research requeued by human context for ${startup.name}`,
               JSON.stringify({

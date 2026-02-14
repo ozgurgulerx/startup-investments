@@ -637,6 +637,48 @@ PY
     if [ "${INV_TOTAL:-0}" -le 0 ]; then
       set_status_warn "investor DNA screener is empty (total=0)"
     fi
+
+    INV_SAMPLE_ID="$(python3 - "$INV_SCREENER_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    print("")
+    raise SystemExit(0)
+items = d.get("investors") if isinstance(d, dict) else None
+if not isinstance(items, list) or not items:
+    print("")
+    raise SystemExit(0)
+row = items[0]
+print((row.get("investor_id") if isinstance(row, dict) else "") or "")
+PY
+    )"
+    if [ -n "${INV_SAMPLE_ID:-}" ]; then
+      INV_NEWS_JSON="$TMP_DIR/investor_news.json"
+      INV_NEWS_URL="$API_BASE_URL/api/v1/investors/${INV_SAMPLE_ID}/news?scope=global&days=30&limit=5&offset=0"
+      INV_NEWS_HTTP="$(fetch "$INV_NEWS_URL" "$INV_NEWS_JSON" -H "X-API-Key: ${API_KEY}")"
+      if [ "$INV_NEWS_HTTP" != "200" ]; then
+        set_status_fail "investor news HTTP $INV_NEWS_HTTP"
+      else
+        INV_NEWS_TOTAL="$(python3 - "$INV_NEWS_JSON" <<'PY' 2>/dev/null || true
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+    print(int(d.get("total") or 0))
+except Exception:
+    print(0)
+PY
+        )"
+        add_info "investor funding news sample (30d): ${INV_NEWS_TOTAL:-0}"
+        if [ "${INV_NEWS_TOTAL:-0}" -le 0 ]; then
+          set_status_warn "investor news is empty for sample investor (30d total=0)"
+        fi
+      fi
+    else
+      set_status_warn "investor screener returned no investor_id sample"
+    fi
   fi
 
   # --- Deep dives ---

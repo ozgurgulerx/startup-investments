@@ -419,7 +419,7 @@ export function makeInvestorsService(pool: Pool) {
             COUNT(DISTINCT c.id)::int AS news_30d_count,
             to_char(MAX(c.published_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_news_at
           FROM capital_graph_edges e
-          JOIN news_clusters c ON c.id = e.source_ref::uuid
+          JOIN news_clusters c ON c.id::text = e.source_ref
           WHERE e.src_type = 'investor'
             AND e.edge_type = 'LEADS_ROUND'
             AND e.source = 'news_event'
@@ -484,91 +484,95 @@ export function makeInvestorsService(pool: Pool) {
       offset = 0,
     } = params;
 
-    const totalResult = await pool.query<{ count: string }>(
-      `
-      SELECT COUNT(DISTINCT c.id) AS count
-      FROM capital_graph_edges e
-      JOIN news_clusters c ON c.id = e.source_ref::uuid
-      WHERE e.src_type = 'investor'
-        AND e.src_id = $1::uuid
-        AND e.dst_type = 'startup'
-        AND e.edge_type = 'LEADS_ROUND'
-        AND e.source = 'news_event'
-        AND e.region = $2
-        AND e.valid_to = DATE '9999-12-31'
-        AND c.published_at >= NOW() - ($3::int * INTERVAL '1 day')
-      `,
-      [investorId, scope, days],
-    );
-    const total = parseIntSafe(totalResult.rows[0]?.count);
+    try {
+      const totalResult = await pool.query<{ count: string }>(
+        `
+        SELECT COUNT(DISTINCT c.id) AS count
+        FROM capital_graph_edges e
+        JOIN news_clusters c ON c.id::text = e.source_ref
+        WHERE e.src_type = 'investor'
+          AND e.src_id = $1::uuid
+          AND e.dst_type = 'startup'
+          AND e.edge_type = 'LEADS_ROUND'
+          AND e.source = 'news_event'
+          AND e.region = $2
+          AND e.valid_to = DATE '9999-12-31'
+          AND c.published_at >= NOW() - ($3::int * INTERVAL '1 day')
+        `,
+        [investorId, scope, days],
+      );
+      const total = parseIntSafe(totalResult.rows[0]?.count);
 
-    const dataResult = await pool.query<{
-      cluster_id: string;
-      published_at: string;
-      title: string;
-      canonical_url: string | null;
-      startup_id: string | null;
-      startup_name: string | null;
-      startup_slug: string | null;
-      round_type: string | null;
-      amount_usd: number | null;
-      announced_date: string | null;
-    }>(
-      `
-      SELECT
-        c.id::text AS cluster_id,
-        to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
-        c.title,
-        c.canonical_url,
-        s.id::text AS startup_id,
-        s.name AS startup_name,
-        s.slug AS startup_slug,
-        COALESCE(NULLIF(e.attrs_json->>'round_type', ''), fr.round_type) AS round_type,
-        fr.amount_usd,
-        fr.announced_date::text AS announced_date
-      FROM capital_graph_edges e
-      JOIN news_clusters c ON c.id = e.source_ref::uuid
-      LEFT JOIN startups s ON s.id = e.dst_id
-      LEFT JOIN funding_rounds fr
-        ON fr.startup_id = e.dst_id
-       AND fr.announced_date = e.valid_from
-       AND (
-            NULLIF(e.attrs_json->>'round_type', '') IS NULL
-            OR lower(fr.round_type) = lower(NULLIF(e.attrs_json->>'round_type', ''))
-          )
-      WHERE e.src_type = 'investor'
-        AND e.src_id = $1::uuid
-        AND e.dst_type = 'startup'
-        AND e.edge_type = 'LEADS_ROUND'
-        AND e.source = 'news_event'
-        AND e.region = $2
-        AND e.valid_to = DATE '9999-12-31'
-        AND c.published_at >= NOW() - ($3::int * INTERVAL '1 day')
-      ORDER BY c.published_at DESC
-      LIMIT $4 OFFSET $5
-      `,
-      [investorId, scope, days, limit, offset],
-    );
+      const dataResult = await pool.query<{
+        cluster_id: string;
+        published_at: string;
+        title: string;
+        canonical_url: string | null;
+        startup_id: string | null;
+        startup_name: string | null;
+        startup_slug: string | null;
+        round_type: string | null;
+        amount_usd: number | null;
+        announced_date: string | null;
+      }>(
+        `
+        SELECT
+          c.id::text AS cluster_id,
+          to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
+          c.title,
+          c.canonical_url,
+          s.id::text AS startup_id,
+          s.name AS startup_name,
+          s.slug AS startup_slug,
+          COALESCE(NULLIF(e.attrs_json->>'round_type', ''), fr.round_type) AS round_type,
+          fr.amount_usd,
+          fr.announced_date::text AS announced_date
+        FROM capital_graph_edges e
+        JOIN news_clusters c ON c.id::text = e.source_ref
+        LEFT JOIN startups s ON s.id = e.dst_id
+        LEFT JOIN funding_rounds fr
+          ON fr.startup_id = e.dst_id
+         AND fr.announced_date = e.valid_from
+         AND (
+              NULLIF(e.attrs_json->>'round_type', '') IS NULL
+              OR lower(fr.round_type) = lower(NULLIF(e.attrs_json->>'round_type', ''))
+            )
+        WHERE e.src_type = 'investor'
+          AND e.src_id = $1::uuid
+          AND e.dst_type = 'startup'
+          AND e.edge_type = 'LEADS_ROUND'
+          AND e.source = 'news_event'
+          AND e.region = $2
+          AND e.valid_to = DATE '9999-12-31'
+          AND c.published_at >= NOW() - ($3::int * INTERVAL '1 day')
+        ORDER BY c.published_at DESC
+        LIMIT $4 OFFSET $5
+        `,
+        [investorId, scope, days, limit, offset],
+      );
 
-    return {
-      total,
-      items: dataResult.rows.map(r => ({
-        cluster_id: String(r.cluster_id),
-        published_at: String(r.published_at),
-        title: String(r.title || ''),
-        canonical_url: (r.canonical_url ?? null) as string | null,
-        startup: {
-          id: String(r.startup_id || ''),
-          name: String(r.startup_name || ''),
-          slug: (r.startup_slug ?? null) as string | null,
-        },
-        round: {
-          round_type: (r.round_type ?? null) as string | null,
-          amount_usd: r.amount_usd != null ? Number(r.amount_usd) : null,
-          announced_date: (r.announced_date ?? null) as string | null,
-        },
-      })),
-    };
+      return {
+        total,
+        items: dataResult.rows.map(r => ({
+          cluster_id: String(r.cluster_id),
+          published_at: String(r.published_at),
+          title: String(r.title || ''),
+          canonical_url: (r.canonical_url ?? null) as string | null,
+          startup: {
+            id: String(r.startup_id || ''),
+            name: String(r.startup_name || ''),
+            slug: (r.startup_slug ?? null) as string | null,
+          },
+          round: {
+            round_type: (r.round_type ?? null) as string | null,
+            amount_usd: r.amount_usd != null ? Number(r.amount_usd) : null,
+            announced_date: (r.announced_date ?? null) as string | null,
+          },
+        })),
+      };
+    } catch {
+      return { total: 0, items: [] };
+    }
   }
 
   async function getPortfolio(params: {

@@ -392,9 +392,11 @@ News:
     - Writes attempt telemetry to `startup_onboarding_attempts` (migration: `database/migrations/058_onboarding_pipeline_activation.sql`).
   - Event/crawl/research chain:
     - `onboard_unknown_startups` enqueues refresh jobs (`reason='news_onboard'`) → `crawl-frontier` processes them.
-    - VM cron `event-processor` runs `main.py process-events` (gated enqueue to `deep_research_queue`).
-    - VM cron `deep-research` runs `main.py consume-deep-research` (Azure chat-based worker).
-    - VM cron `onboarding-alerts` runs `main.py dispatch-onboarding-alerts` (near-real-time Slack notifications for actionable trace events).
+    - Pipeline scheduler (AKS CronJob `event-processor` via `buildatlas-pipelines`; VM cron fallback) runs `main.py process-events`
+      (gated enqueue to `deep_research_queue`).
+    - Pipeline scheduler (AKS CronJob `deep-research`; VM cron fallback) runs `main.py consume-deep-research` (Azure chat-based worker).
+    - Pipeline scheduler (AKS CronJob `onboarding-alerts`; VM cron fallback) runs `main.py dispatch-onboarding-alerts`
+      (near-real-time Slack notifications for actionable trace events).
   - Trace + context tables (migration: `database/migrations/063_onboarding_trace_and_context.sql`):
     - `onboarding_trace_events` stores onboarding/deep-research lifecycle events + Slack notification state.
     - `startup_onboarding_context` stores operator-provided context used to enrich deep-research prompts.
@@ -419,6 +421,11 @@ News:
     - On successful deep-research completion, stub startups with website + successful crawl are promoted to `verified`.
     - `sync-startups-to-db.py` and `populate-analysis-data.py` also promote `stub -> verified` for curated/analysis-backed records.
   - Quick checks:
+    - If onboarding/deep research stalls but news looks healthy:
+      - Check latest `news_ingestion_runs.stats_json->'events'`:
+        - symptom: `extracted > 0` but `persisted == 0`
+        - look for `persist_errors > 0` + `first_error`
+      - In this failure mode, a Slack alert is emitted: `News ingest: event persistence failure`.
     - Stub/verified counts:
       - `SELECT onboarding_status, COUNT(*) FROM startups GROUP BY onboarding_status ORDER BY onboarding_status;`
     - New onboarding attempts:
@@ -555,6 +562,19 @@ Population model/invariants:
 Automation:
 - VM cron job: `infrastructure/vm-cron/jobs/compute-investor-dna.sh` (scheduled in `infrastructure/vm-cron/crontab`)
 - The job computes both **previous** and **current** month for `global` + `turkey` to avoid “empty month” behavior early in the month.
+
+Investor news + onboarding (funding-linked):
+- Backend endpoint: `/api/v1/investors/:id/news` returns **funding-linked** clusters (news-derived graph edges).
+- Screener augmentation: `/api/v1/investors/screener` now includes `news_30d_count` + `last_news_at` (best-effort).
+- Onboarding/enrichment pipeline (VC/investor):
+  - Migration: `database/migrations/068_investor_onboarding.sql`
+  - Queue table: `investor_onboarding_queue`
+  - Profile table: `investor_profiles`
+  - Operator context: `investor_onboarding_context`
+  - Enqueue gate (news ingest): `INVESTOR_ONBOARDING_ENQUEUE_ENABLED=true`
+  - Consumer gate: `INVESTOR_ONBOARDING_ENABLED=true` (AKS CronJob `investor-onboarding`, VM fallback script exists)
+  - Admin context endpoint now accepts either `startupId` or `investorId`:
+    `POST /api/admin/v1/onboarding/context` (requires `X-API-Key` + `X-Admin-Key`)
 
 Quick checks:
 - Is the screener table empty?
