@@ -7,8 +7,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY scripts/posthog_usage_to_slack.py ./posthog_usage_to_slack.py
+COPY scripts/posthog_exceptions_to_slack.py ./posthog_exceptions_to_slack.py
 
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "/app/posthog_usage_to_slack.py"]
-

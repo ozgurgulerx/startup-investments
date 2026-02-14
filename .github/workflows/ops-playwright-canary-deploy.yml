@@ -1,4 +1,4 @@
-name: Deploy Ops PostHog CronJobs (AKS)
+name: Deploy Ops Playwright Canary (AKS)
 
 on:
   workflow_dispatch:
@@ -11,9 +11,8 @@ env:
   ACR_NAME: aistartuptr
   AKS_CLUSTER_NAME: aks-aistartuptr
   AKS_RESOURCE_GROUP: aistartuptr
-  IMAGE_NAME: buildatlas-ops
-  CRONJOB_USAGE_NAME: posthog-usage-summary
-  CRONJOB_EXCEPTIONS_NAME: posthog-exceptions-alerts
+  IMAGE_NAME: buildatlas-playwright-canary
+  CRONJOB_NAME: browser-canary-landscapes
   NAMESPACE: default
 
 jobs:
@@ -21,19 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Validate required secrets
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
-          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
-        run: |
-          for key in SLACK_WEBHOOK_URL POSTHOG_PROJECT_ID POSTHOG_PERSONAL_API_KEY; do
-            if [ -z "${!key}" ]; then
-              echo "::error::Missing required secret: $key"
-              exit 1
-            fi
-          done
 
       - name: Login to Azure (OIDC)
         uses: azure/login@v2
@@ -45,9 +31,9 @@ jobs:
       - name: Login to ACR
         run: az acr login --name ${{ env.ACR_NAME }}
 
-      - name: Build and push ops image
+      - name: Build and push canary image
         run: |
-          docker build -f infrastructure/ops/Dockerfile -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker build -f infrastructure/ops/playwright-canary/Dockerfile -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} .
           docker tag ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
@@ -95,39 +81,19 @@ jobs:
           resource-group: ${{ env.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
 
-      - name: Create/Update ops secrets
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
-          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
-          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+      - name: Verify ops secrets exist
         run: |
-          args=(
-            "--from-literal=slack-webhook-url=${SLACK_WEBHOOK_URL}"
-            "--from-literal=posthog-project-id=${POSTHOG_PROJECT_ID}"
-            "--from-literal=posthog-personal-api-key=${POSTHOG_PERSONAL_API_KEY}"
-          )
-          if [ -n "${POSTHOG_HOST:-}" ]; then
-            args+=("--from-literal=posthog-host=${POSTHOG_HOST}")
-          fi
+          kubectl get secret -n "${{ env.NAMESPACE }}" buildatlas-ops-secrets >/dev/null
 
-          kubectl create secret generic buildatlas-ops-secrets \
-            --namespace "${{ env.NAMESPACE }}" \
-            "${args[@]}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-      - name: Deploy CronJobs
+      - name: Deploy CronJob
         run: |
           tag="${{ github.sha }}"
-          sed "s/__IMAGE_TAG__/${tag}/g" infrastructure/kubernetes/posthog-usage-cronjob.yaml | kubectl apply -n "${{ env.NAMESPACE }}" -f -
-          sed "s/__IMAGE_TAG__/${tag}/g" infrastructure/kubernetes/posthog-exceptions-cronjob.yaml | kubectl apply -n "${{ env.NAMESPACE }}" -f -
+          sed "s/__IMAGE_TAG__/${tag}/g" infrastructure/kubernetes/playwright-canary-cronjob.yaml | kubectl apply -n "${{ env.NAMESPACE }}" -f -
 
-      - name: Run CronJobs once (verification)
+      - name: Run CronJob once (verification)
         run: |
-          for cj in "${{ env.CRONJOB_USAGE_NAME }}" "${{ env.CRONJOB_EXCEPTIONS_NAME }}"; do
-            job="${cj}-manual-${{ github.run_id }}"
-            echo "Running CronJob/$cj as Job/$job..."
-            kubectl create job -n "${{ env.NAMESPACE }}" --from=cronjob/"$cj" "$job"
-            kubectl wait -n "${{ env.NAMESPACE }}" --for=condition=complete "job/$job" --timeout=240s
-            kubectl logs -n "${{ env.NAMESPACE }}" "job/$job"
-          done
+          job="${{ env.CRONJOB_NAME }}-manual-${{ github.run_id }}"
+          kubectl create job -n "${{ env.NAMESPACE }}" --from=cronjob/${{ env.CRONJOB_NAME }} "$job"
+          kubectl wait -n "${{ env.NAMESPACE }}" --for=condition=complete "job/$job" --timeout=540s
+          kubectl logs -n "${{ env.NAMESPACE }}" "job/$job"
+
