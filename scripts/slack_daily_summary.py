@@ -1152,6 +1152,46 @@ def _build_subscriber_list_report(
     return "\n".join(lines)
 
 
+_SLACK_SECTION_MAX_CHARS = 2900  # Slack mrkdwn section text limit is 3000 chars
+_SLACK_MAX_BLOCKS = 50
+
+
+def _chunk_lines_for_slack(lines: list[str], *, max_chars: int = _SLACK_SECTION_MAX_CHARS) -> list[str]:
+    """Split a list of lines into Slack-safe mrkdwn chunks.
+
+    Slack section blocks limit mrkdwn text to 3000 chars. We chunk slightly
+    under that to leave headroom for truncation markers.
+    """
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+
+    def flush() -> None:
+        nonlocal current, current_len
+        if current:
+            chunks.append("\n".join(current))
+        current = []
+        current_len = 0
+
+    for line in lines:
+        # If a single line exceeds the max, split it into fixed-size pieces.
+        parts = [line]
+        if len(line) > max_chars:
+            parts = [line[i : i + max_chars] for i in range(0, len(line), max_chars)]
+
+        for part in parts:
+            add_len = len(part) + (1 if current else 0)  # newline if not first
+            if current and current_len + add_len > max_chars:
+                flush()
+            if current:
+                current_len += 1
+            current.append(part)
+            current_len += len(part)
+
+    flush()
+    return chunks
+
+
 def _slack_post(webhook_url: str, payload: dict[str, Any]) -> None:
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -1160,9 +1200,22 @@ def _slack_post(webhook_url: str, payload: dict[str, Any]) -> None:
         headers={"Content-Type": "application/json; charset=utf-8"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        if resp.status < 200 or resp.status >= 300:
-            raise RuntimeError(f"Slack webhook returned HTTP {resp.status}")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                raise RuntimeError(f"Slack webhook returned HTTP {resp.status}")
+    except urllib.error.HTTPError as e:
+        # Slack typically returns a helpful JSON body like: {"ok":false,"error":"invalid_blocks"}
+        try:
+            raw = e.read()
+            body = raw.decode("utf-8", errors="replace") if raw else ""
+        except Exception:
+            body = ""
+        body = body.strip()
+        if len(body) > 2000:
+            body = body[:2000] + "… (truncated)"
+        suffix = f" — {body}" if body else ""
+        raise RuntimeError(f"Slack webhook returned HTTP {e.code}{suffix}") from e
 
 
 def _parse_email_list(raw: str | None) -> list[str]:
@@ -1670,14 +1723,35 @@ def main() -> int:
 
     blocks = [
         {"type": "header", "text": {"type": "plain_text", "text": f"{status_emoji} {title}", "emoji": True}},
-        {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(body_lines)}},
+    ]
+
+    # Slack section blocks have a 3000 char limit. Split long reports across multiple blocks
+    # to avoid "invalid_blocks" 400s.
+    runner = "vm-cron" if _IS_VM else "github-actions"
+    context_text = f"*Repo:* `{repo}`  •  *Runner:* `{runner}`  •  *At:* {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+
+    section_texts = _chunk_lines_for_slack(body_lines)
+    max_sections = _SLACK_MAX_BLOCKS - 2  # header + context
+    if len(section_texts) > max_sections:
+        section_texts = section_texts[:max_sections]
+        marker = "\n… _(truncated)_"
+        if section_texts:
+            last = section_texts[-1]
+            if len(last) + len(marker) > _SLACK_SECTION_MAX_CHARS:
+                last = last[: max(0, _SLACK_SECTION_MAX_CHARS - len(marker))]
+            section_texts[-1] = last + marker
+
+    for text in section_texts:
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": text}})
+
+    blocks.append(
         {
             "type": "context",
             "elements": [
-                {"type": "mrkdwn", "text": f"*Repo:* `{repo}`  •  *Runner:* `{'vm-cron' if _IS_VM else 'github-actions'}`  •  *At:* {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
+                {"type": "mrkdwn", "text": context_text},
             ],
-        },
-    ]
+        }
+    )
 
     if webhook_url:
         _slack_post(webhook_url, {"blocks": blocks})

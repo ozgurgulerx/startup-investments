@@ -39,7 +39,9 @@ cat "$SYNC_CHECK_LOG"
 
 if [ "$SYNC_CHECK_RC" -eq 2 ]; then
     echo "WARN: Blob storage auth failed (exit code 2). Change detection is degraded."
-    echo "      Fix: assign Storage Blob Data Reader to VM managed identity on buildatlasstorage."
+    echo "      Fix: verify (1) VM managed identity RBAC (Storage Blob Data Reader/Contributor) and"
+    echo "           (2) storage account network access (publicNetworkAccess/private endpoint/VNet)."
+    echo "           If the storage account has public network access disabled, the VM must reach it via a private endpoint."
     BLOB_DEGRADED=1
     TOTAL=0
 elif [ "$SYNC_CHECK_RC" -ne 0 ]; then

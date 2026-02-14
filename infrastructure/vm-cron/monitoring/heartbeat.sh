@@ -53,7 +53,24 @@ list_contains_job() {
 
 is_job_disabled() {
     local job="${1:-}"
-    list_contains_job "$job" "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "$job" "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"
+
+    if list_contains_job "$job" "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "$job" "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"; then
+        return 0
+    fi
+
+    # Mirror runner.sh safety net: allow a repo-managed disabled list so we don't
+    # page ourselves about "stale" jobs that were intentionally migrated to AKS.
+    local runner="${BUILDATLAS_RUNNER:-vm-cron}"
+    if [ "$runner" != "vm-cron" ]; then
+        return 1
+    fi
+    local file="${BUILDATLAS_VM_CRON_DISABLED_JOBS_FILE:-$REPO_DIR/infrastructure/vm-cron/vm-cron-disabled-jobs}"
+    if [ ! -f "$file" ]; then
+        return 1
+    fi
+    local raw=""
+    raw="$(sed -e 's/#.*$//' -e 's/[[:space:]]//g' "$file" | tr '\n' ',' | tr -s ',' | sed -e 's/^,//' -e 's/,$//')"
+    list_contains_job "$job" "$raw"
 }
 
 derive_github_repository() {

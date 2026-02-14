@@ -488,6 +488,16 @@ if [ -f "$CRAWL_LOG" ]; then
     fi
 fi
 
+# Detect blob storage auth/network errors in sync-data (change detection degraded => stale data risk)
+SYNC_LOG="${LOG_DIR}/sync-data.log"
+if [ -f "$SYNC_LOG" ]; then
+    # sync-data.sh prints a stable warning line when blob auth fails.
+    SYNC_BLOB_DEGRADED=$(tail -n 250 "$SYNC_LOG" 2>/dev/null | grep -a -c "WARN: Blob storage auth failed (exit code 2)" | tr -d '[:space:]' || echo "0")
+    if [ "$SYNC_BLOB_DEGRADED" -gt 0 ] 2>/dev/null; then
+        add_warn "Blob sync: storage auth/network failures in latest sync-data run (change detection degraded; may be stale)"
+    fi
+fi
+
 # =========================================================================
 # Cron Jobs (from log files)
 # =========================================================================

@@ -1,6 +1,6 @@
 #!/bin/bash
 # digest-qa.sh — Send merged global+turkey digest to QA email for review.
-# Runs every 4 hours; uses the same template as production.
+# Runs every 3 hours at :50 UTC; uses the same template as production.
 set -euo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"

@@ -226,6 +226,7 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `x-trends` | `28 * * * *` | 20 | `infrastructure/vm-cron/jobs/x-trends.sh` |
 | `event-processor` | `5,20,35,50 * * * *` | 10 | `infrastructure/vm-cron/jobs/event-processor.sh` |
 | `deep-research` | `12,27,42,57 * * * *` | 20 | `infrastructure/vm-cron/jobs/deep-research.sh` |
+| `investor-onboarding` | `8,38 * * * *` | 15 | `infrastructure/vm-cron/jobs/investor-onboarding.sh` |
 | `onboarding-alerts` | `*/2 * * * *` | 5 | `infrastructure/vm-cron/jobs/onboarding-alerts.sh` |
 | `crawl-frontier` | `0,30 * * * *` | 40 | `infrastructure/vm-cron/jobs/crawl-frontier.sh` |
 | `research-topics` | `40 * * * *` | 10 | `infrastructure/vm-cron/jobs/research-topics.sh` |
@@ -246,7 +247,7 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `neighbors-benchmarks` | `0 7 * * 4` | 60 | `infrastructure/vm-cron/jobs/neighbors-benchmarks.sh` |
 | `compute-benchmarks` | `0 4 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-benchmarks.sh` |
 | `compute-investor-dna` | `0 5 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-investor-dna.sh` |
-| `digest-qa` | `50 * * * *` | 10 | `infrastructure/vm-cron/jobs/digest-qa.sh` |
+| `digest-qa` | `50 */3 * * *` | 10 | `infrastructure/vm-cron/jobs/digest-qa.sh` |
 | `product-canary` | `17,47 * * * *` | 5 | `infrastructure/vm-cron/jobs/product-canary.sh` |
 | `health-report` | `45 0,4,8,12,16,20 * * *` | 10 | `infrastructure/vm-cron/jobs/health-report.sh` |
 | `daily-observability` | `0 9 * * *` | 10 | `infrastructure/vm-cron/jobs/daily-observability.sh` |
