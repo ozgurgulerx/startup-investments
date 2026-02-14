@@ -281,7 +281,7 @@ async def generate_rule_suggestions(
                            regexp_replace(
                                split_part(
                                    split_part(
-                                       (SELECT url FROM news_clusters c WHERE c.id = a2.cluster_id LIMIT 1),
+                                       (SELECT canonical_url FROM news_clusters c WHERE c.id = a2.cluster_id LIMIT 1),
                                    '://', 2),
                                '/', 1),
                            '^www\\.', ''),

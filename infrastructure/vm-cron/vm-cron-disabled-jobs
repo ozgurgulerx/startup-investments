@@ -1,0 +1,35 @@
+# VM Cron Disabled Jobs
+#
+# This is a repo-managed safety net to prevent accidental duplicate runs when
+# a job is migrated to AKS CronJobs but the VM is still alive (or comes back).
+#
+# runner.sh will only apply this list when BUILDATLAS_RUNNER is vm-cron
+# (AKS CronJobs set BUILDATLAS_RUNNER=aks-cronjob).
+#
+# One job per line or comma-separated; comments are allowed.
+
+news-ingest
+news-digest
+event-processor
+deep-research
+onboarding-alerts
+research-topics
+
+x-trends
+x-post-generate
+x-post-publish
+x-post-metrics
+
+signal-aggregate
+delta-generate
+generate-alerts
+generate-weekly-digest
+deep-dive-generate
+embed-backfill
+weekly-brief
+monthly-brief
+neighbors-benchmarks
+compute-benchmarks
+compute-investor-dna
+digest-qa
+dealbook-brief

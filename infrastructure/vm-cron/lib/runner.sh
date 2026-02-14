@@ -82,7 +82,28 @@ list_contains_job() {
 is_disabled() {
     # Allow disabling jobs without editing the installed crontab.
     # Useful for AKS cutovers where the VM may still run the cron schedule.
-    list_contains_job "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"
+    if list_contains_job "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"; then
+        return 0
+    fi
+
+    # Safety net: allow a repo-managed disabled-jobs list for the VM runner so we
+    # don't accidentally double-run pipelines if /etc/buildatlas/.env is missing
+    # or gets reset after a VM restart.
+    #
+    # Only applies to the VM runner. AKS CronJobs set BUILDATLAS_RUNNER=aks-cronjob.
+    local runner="${BUILDATLAS_RUNNER:-vm-cron}"
+    if [ "$runner" != "vm-cron" ]; then
+        return 1
+    fi
+
+    local file="${BUILDATLAS_VM_CRON_DISABLED_JOBS_FILE:-$REPO_DIR/infrastructure/vm-cron/vm-cron-disabled-jobs}"
+    if [ ! -f "$file" ]; then
+        return 1
+    fi
+
+    local raw=""
+    raw="$(sed -e 's/#.*$//' -e 's/[[:space:]]//g' "$file" | tr '\n' ',' | tr -s ',' | sed -e 's/^,//' -e 's/,$//')"
+    list_contains_job "$raw"
 }
 
 should_notify_success() {

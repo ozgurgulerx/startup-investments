@@ -393,15 +393,21 @@ async def persist_events(
         registry_id = registry.get(evt.event_type)
 
         event_date = evt.event_date
-        # asyncpg can raise AmbiguousParameterError if the same SQL statement is
-        # executed with different inferred types (e.g., date vs timestamptz). Ensure
-        # we always bind a timestamptz-compatible datetime.
+        # Avoid asyncpg AmbiguousParameterError by:
+        # - normalizing event_date to a tz-aware datetime (timestamptz)
+        # - passing effective_date as a separate $n parameter (date)
+        effective_date: date
         if isinstance(event_date, date) and not isinstance(event_date, datetime):
-            # Some callers may provide a date; normalize to UTC midnight.
+            effective_date = event_date
             event_date = datetime.combine(event_date, datetime.min.time(), tzinfo=timezone.utc)
-        elif isinstance(event_date, datetime) and event_date.tzinfo is None:
-            # Persist in UTC for deterministic effective_date derivation.
-            event_date = event_date.replace(tzinfo=timezone.utc)
+        elif isinstance(event_date, datetime):
+            if event_date.tzinfo is None:
+                event_date = event_date.replace(tzinfo=timezone.utc)
+            else:
+                event_date = event_date.astimezone(timezone.utc)
+            effective_date = event_date.date()
+        else:
+            effective_date = datetime.now(timezone.utc).date()
 
         try:
             row = await conn.fetchrow(
@@ -411,7 +417,7 @@ async def persist_events(
                         metadata_json, cluster_id, region, event_key,
                         event_date, effective_date)
                    VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
-                           $12::timestamptz, COALESCE(($12::timestamptz)::date, CURRENT_DATE))
+                           $12::timestamptz, $13::date)
                    ON CONFLICT (cluster_id, startup_id, event_type, event_key)
                        WHERE cluster_id IS NOT NULL DO NOTHING
                    RETURNING id""",
@@ -427,6 +433,7 @@ async def persist_events(
                 evt.region,
                 evt.event_key,
                 event_date,
+                effective_date,
             )
             if row is not None:
                 inserted += 1
@@ -831,6 +838,7 @@ async def upsert_capital_graph_from_events(
     stats: Dict[str, int] = {
         "events_considered": 0,
         "investors_created": 0,
+        "investors_enqueued": 0,
         "edges_upserted": 0,
         "skipped": 0,
     }
@@ -846,7 +854,26 @@ async def upsert_capital_graph_from_events(
     if not graph_ready:
         return stats
 
+    def _env_bool(name: str, default: bool = False) -> bool:
+        raw = str(os.getenv(name, "") or "").strip().lower()
+        if not raw:
+            return default
+        return raw in {"1", "true", "yes", "on"}
+
+    enqueue_enabled = _env_bool("INVESTOR_ONBOARDING_ENQUEUE_ENABLED", False)
+    onboarding_queue_ready = False
+    if enqueue_enabled:
+        try:
+            onboarding_queue_ready = bool(
+                await conn.fetchval(
+                    "SELECT to_regclass('public.investor_onboarding_queue') IS NOT NULL"
+                )
+            )
+        except Exception:
+            onboarding_queue_ready = False
+
     investor_cache: Dict[str, str] = {}
+    enqueued_investor_ids: set[str] = set()
     for evt in events:
         if evt.event_type != "cap_funding_raised":
             continue
@@ -889,6 +916,67 @@ async def upsert_capital_graph_from_events(
                 investor_cache[norm_key] = investor_id
                 if created_now:
                     stats["investors_created"] += 1
+
+            # Best-effort investor onboarding enqueue for newly discovered or under-specified investors.
+            if (
+                enqueue_enabled
+                and onboarding_queue_ready
+                and investor_id
+                and investor_id not in enqueued_investor_ids
+            ):
+                try:
+                    inv_row = await conn.fetchrow(
+                        "SELECT website, type FROM investors WHERE id = $1::uuid",
+                        investor_id,
+                    )
+                    inv_website = str((inv_row or {}).get("website") or "").strip() if inv_row else ""
+                    inv_type = str((inv_row or {}).get("type") or "").strip().lower() if inv_row else ""
+                    type_unknown = (not inv_type) or inv_type in {"unknown", "n/a", "na"}
+                    missing_profile = (not inv_website) or type_unknown
+                    should_enqueue = bool(created_now or missing_profile)
+                    if should_enqueue:
+                        reason = "news_lead_investor_created" if created_now else "news_lead_investor_missing_profile"
+                        priority = 3 if created_now else 6
+                        await conn.execute(
+                            """
+                            INSERT INTO investor_onboarding_queue (
+                                investor_id, priority, reason, seed_cluster_id, seed_urls
+                            )
+                            VALUES ($1::uuid, $2, $3, $4::uuid, $5::text[])
+                            ON CONFLICT DO NOTHING
+                            """,
+                            investor_id,
+                            priority,
+                            reason,
+                            evt.cluster_id,
+                            [],
+                        )
+                        enqueued_investor_ids.add(investor_id)
+                        stats["investors_enqueued"] += 1
+                        await emit_trace(
+                            conn,
+                            startup_id=None,
+                            investor_id=investor_id,
+                            queue_item_id=None,
+                            investor_queue_item_id=None,
+                            trace_type="investor_onboarding",
+                            stage="investor_enqueued",
+                            status="success",
+                            severity="info",
+                            reason_code=reason,
+                            message="Investor enqueued for onboarding enrichment",
+                            payload={
+                                "investor_id": investor_id,
+                                "created_now": bool(created_now),
+                                "region": evt.region or "global",
+                                "cluster_id": evt.cluster_id,
+                            },
+                            dedupe_key=f"investor_onboarding_enqueued:{investor_id}:{reason}",
+                            should_notify=False,
+                        )
+                except Exception:
+                    # Enqueue is best-effort; do not block graph writes.
+                    pass
 
             try:
                 await _upsert_investor_alias(
