@@ -14,7 +14,6 @@ export async function GET(req: NextRequest) {
       region,
       limit: Number.isFinite(limitParam) ? limitParam : 30,
       offset: Number.isFinite(offsetParam) ? offsetParam : 0,
-      region,
     });
 
     return NextResponse.json(archive, {

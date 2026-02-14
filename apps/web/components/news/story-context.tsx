@@ -76,7 +76,6 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
     ? item.evidence
     : buildFallbackEvidence(item);
 
-<<<<<<< Updated upstream
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -110,28 +109,6 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
         <div>
           <h3 className="text-base font-medium leading-snug tracking-tight text-foreground">
             {displayTitle}
-=======
-  return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-border/30">
-        <span className="text-[10px] uppercase tracking-wider text-accent-info">Story Detail</span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 rounded hover:bg-muted/30 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-        {/* Title */}
-        <div>
-          <h3 className="text-base font-medium leading-snug tracking-tight text-foreground">
-            {item.title}
->>>>>>> Stashed changes
           </h3>
           {/* Show original publisher headline when ba_title differs */}
           {item.ba_title && item.ba_title !== item.title && (
@@ -253,7 +230,6 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
             </div>
           </div>
         )}
-<<<<<<< Updated upstream
       </div>
 
       {/* Actions footer */}
@@ -263,24 +239,3 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
     </div>
   );
 }
-=======
-      </div>
-
-      {/* Actions footer */}
-      <div className="border-t border-border/30 px-6 py-3 flex items-center gap-2">
-        {item.url && (
-          <Link
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-foreground hover:bg-muted/40 transition-colors"
-          >
-            <ExternalLink className="h-3 w-3" />
-            Read source
-          </Link>
-        )}
-      </div>
-    </div>
-  );
-}
->>>>>>> Stashed changes

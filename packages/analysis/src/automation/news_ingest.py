@@ -355,11 +355,7 @@ class SourceDefinition:
     source_type: str
     base_url: str
     region: str = "global"  # global|turkey
-<<<<<<< Updated upstream
     fetch_mode: str = "rss"  # rss|api|crawler|digest_rss|x_recent_search|paid_headlines
-=======
-    fetch_mode: str = "rss"  # rss|api|crawler
->>>>>>> Stashed changes
     credibility_weight: float = 0.65
     legal_mode: str = "headline_snippet"
     language: str = ""  # override auto-detection (e.g. "en" for English Turkey sources)
@@ -414,7 +410,6 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("wired", "WIRED", "rss", "https://www.wired.com/feed/rss", credibility_weight=0.80),
     SourceDefinition("sifted", "Sifted", "rss", "https://sifted.eu/feed", credibility_weight=0.78),
     SourceDefinition("crunchbase_news", "Crunchbase News", "rss", "https://news.crunchbase.com/feed/", credibility_weight=0.85),
-<<<<<<< Updated upstream
     # SemiAnalysis RSS appears low-frequency and may not reflect the most recent updates.
     # Keep a long lookback window so we still ingest the latest feed entries reliably.
     SourceDefinition("semianalysis", "SemiAnalysis", "rss", "https://semianalysis.com/feed/", credibility_weight=0.90, language="en", lookback_hours_override=8760),
@@ -443,11 +438,6 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("vc_turkey_blogs", "Turkey VC Blogs", "crawler", "vc://turkey-blogs", region="turkey", fetch_mode="crawler", credibility_weight=0.65, lookback_hours_override=168),
     # NOTE: Consumer-tech feeds (e.g. phone/app updates) are intentionally excluded from the Turkey edition.
     SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
-=======
-    SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", region="turkey", credibility_weight=0.74),
-    SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", region="turkey", credibility_weight=0.70),
-    SourceDefinition("producthunt_blog", "Product Hunt Blog", "rss", "https://www.producthunt.com/blog/feed", credibility_weight=0.82),
->>>>>>> Stashed changes
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
     SourceDefinition("inc", "Inc", "rss", "https://www.inc.com/rss", credibility_weight=0.74),
     SourceDefinition("fastcompany", "Fast Company", "rss", "https://www.fastcompany.com/rss", credibility_weight=0.75),
@@ -2127,10 +2117,7 @@ class DailyNewsIngestor:
                     source_type = EXCLUDED.source_type,
                     base_url = EXCLUDED.base_url,
                     region = EXCLUDED.region,
-<<<<<<< Updated upstream
                     is_active = true,
-=======
->>>>>>> Stashed changes
                     credibility_weight = EXCLUDED.credibility_weight,
                     legal_mode = EXCLUDED.legal_mode,
                     updated_at = NOW()
@@ -6927,7 +6914,6 @@ class DailyNewsIngestor:
         excluded_cluster_ids: set = frozenset(),
         raw_lookup: Optional[Dict[Tuple[str, str], str]] = None,
     ) -> Dict[str, Any]:
-<<<<<<< Updated upstream
         # Merge community signal boost into rank_score before sorting
         sig_agg = getattr(self, "_signal_aggregator", None)
         if sig_agg and sig_agg.loaded:
@@ -6974,12 +6960,6 @@ class DailyNewsIngestor:
                         str(raw_id),
                         member.source_weight,
                     )
-=======
-        # Persist a deterministic ordering so the web UI can treat the first item as "top impact".
-        ranked = sorted(clusters, key=lambda c: (c.rank_score, c.trust_score, c.published_at), reverse=True)
-        top = ranked[:40]
-        top_ids = [cluster_ids[c.cluster_key] for c in top if c.cluster_key in cluster_ids]
->>>>>>> Stashed changes
 
         story_type_counts: Dict[str, int] = {}
         topic_counts: Dict[str, int] = {}
@@ -7037,11 +7017,7 @@ class DailyNewsIngestor:
             edition_date,
             region,
         )
-<<<<<<< Updated upstream
         for c in top:
-=======
-        for c in clusters:
->>>>>>> Stashed changes
             cid = cluster_ids.get(c.cluster_key)
             if not cid:
                 continue
@@ -7303,7 +7279,6 @@ class DailyNewsIngestor:
                 # Enrich all clusters with LLM (gated by NEWS_LLM_MAX_CLUSTERS)
                 await self._enrich_clusters_with_llm(clusters, region="global")
                 images_enriched = await self._enrich_missing_images(conn, clusters)
-<<<<<<< Updated upstream
 
                 # Enrich turkey clusters with LLM too
                 if turkey_clusters:
@@ -7519,18 +7494,10 @@ class DailyNewsIngestor:
                     if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
                     and _count_non_lead_members(c.members) > 0
                 ]
-=======
-                cluster_ids = await self._persist_clusters(conn, clusters)
-
-                turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
-                turkey_clusters = [c for c in clusters if any(m.source_key in turkey_source_keys for m in c.members)]
-
->>>>>>> Stashed changes
                 global_stats = await self._persist_edition(
                     conn,
                     edition_date=e_date,
                     region="global",
-<<<<<<< Updated upstream
                     clusters=global_clusters_for_edition,
                     cluster_ids=cluster_ids_global,
                     excluded_cluster_ids=rejected_global,
@@ -7603,27 +7570,6 @@ class DailyNewsIngestor:
                     f"\n[turkey-summary] edition: {_tr_ed_top} top clusters, brief={_tr_has_brief}, "
                     f"regional_supported={self._regional_clusters_supported}"
                 )
-=======
-                    clusters=clusters,
-                    cluster_ids=cluster_ids,
-                )
-                turkey_stats = await self._persist_edition(
-                    conn,
-                    edition_date=e_date,
-                    region="turkey",
-                    clusters=turkey_clusters,
-                    cluster_ids=cluster_ids,
-                )
-
-                stats = {
-                    **global_stats,
-                    "regions": {
-                        "global": global_stats.get("total_clusters", 0),
-                        "turkey": turkey_stats.get("total_clusters", 0),
-                    },
-                    "llm": dict(self._llm_metrics),
-                }
->>>>>>> Stashed changes
 
                 result = {
                     "run_id": run_id,

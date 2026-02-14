@@ -12,11 +12,7 @@ export async function GET(req: NextRequest) {
     const limit = limitParam ? Number(limitParam) : undefined;
     const region = searchParams.get('region') === 'turkey' ? 'turkey' : 'global';
 
-<<<<<<< Updated upstream
     const topics = await getNewsTopics({ date, limit: Number.isFinite(limit) ? limit : undefined, region });
-=======
-    const topics = await getNewsTopics({ date, region, limit: Number.isFinite(limit) ? limit : undefined });
->>>>>>> Stashed changes
     return NextResponse.json(topics, {
       headers: {
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',
