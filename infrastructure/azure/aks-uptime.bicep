@@ -28,7 +28,7 @@ param apiUrl string = 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net'
 
 @secure()
 @description('Slack webhook URL for notifications (stored as an encrypted Automation variable).')
-param slackWebhookUrl string
+param slackWebhookUrl string = ''
 
 @allowed([
   5
