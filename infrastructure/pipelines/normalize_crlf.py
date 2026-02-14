@@ -8,19 +8,17 @@ enforces LF via .gitattributes. CR bytes can break bash options parsing
 This script is invoked by `infrastructure/pipelines/Dockerfile`.
 """
 
-from __future__ import annotations
-
-from pathlib import Path
+import pathlib
 import sys
 
 
 def main() -> int:
     roots = [
-        Path("scripts"),
-        Path("infrastructure") / "vm-cron",
+        pathlib.Path("scripts"),
+        pathlib.Path("infrastructure") / "vm-cron",
     ]
 
-    shell_scripts: list[Path] = []
+    shell_scripts: list[pathlib.Path] = []
     for root in roots:
         if root.exists():
             shell_scripts.extend(root.rglob("*.sh"))
@@ -48,4 +46,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -8,6 +8,8 @@ import type { SavedFilter } from '@/components/features';
 import { redirect } from 'next/navigation';
 import { normalizeDatasetRegion } from '@/lib/region';
 
+// This page depends on frequently-updated backend data and user-specific filters.
+// Force dynamic rendering to avoid serving stale cached results.
 export const dynamic = 'force-dynamic';
 
 function getCurrentPeriod(): string {
