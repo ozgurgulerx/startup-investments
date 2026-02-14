@@ -251,6 +251,7 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `product-canary` | `17,47 * * * *` | 5 | `infrastructure/vm-cron/jobs/product-canary.sh` |
 | `health-report` | `45 0,4,8,12,16,20 * * *` | 10 | `infrastructure/vm-cron/jobs/health-report.sh` |
 | `daily-observability` | `0 9 * * *` | 10 | `infrastructure/vm-cron/jobs/daily-observability.sh` |
+| `onboarding-eod-report` | `0 20 * * *` | 10 | `infrastructure/vm-cron/jobs/onboarding-eod-report.sh` |
 | `slack-summary` | `0 */3 * * *` | 10 | `infrastructure/vm-cron/jobs/slack-summary.sh` |
 | `slack-commit-notify` | `*/2 * * * *` | 5 | `infrastructure/vm-cron/jobs/slack-commit-notify.sh` |
 | `release-reconciler` | `*/5 * * * *` | 5 | `infrastructure/vm-cron/jobs/release-reconciler.sh` |

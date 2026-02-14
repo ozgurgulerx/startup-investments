@@ -212,6 +212,8 @@ VM cron runner:
     - `SUBSCRIBER_LIST_STATUS` / `SUBSCRIBER_LIST_REGION` filter the export.
     - Default behavior masks emails; set `SUBSCRIBER_LIST_INCLUDE_FULL_EMAILS=true` only for trusted internal recipients.
   - Schedule: `slack-summary` runs every 3 hours at minute `:00` UTC (`0 */3 * * *`).
+  - Daily EOD onboarding report: `onboarding-eod-report` runs at `20:00 UTC` (`0 20 * * *`) and posts a Slack report of:
+    stub startups created, investors added, capital graph edges upserted, and news<>startup linking activity (startup_events + refresh jobs + memory linking).
   - AKS fallback (VM-independent): `posthog-usage-summary` CronJob posts the same PostHog usage block to Slack:
     - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
     - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (built from `infrastructure/ops/Dockerfile`)
