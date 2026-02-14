@@ -56,40 +56,8 @@ COPY infrastructure/vm-cron/ ./infrastructure/vm-cron/
 # Defensive: some build environments may check out with CRLF line endings even
 # when the repo enforces LF via .gitattributes. CR bytes can break bash options
 # (e.g. `set -euo pipefail` -> `pipefail\r`).
-RUN python - <<'PY'
-if True:
-    import sys
-    from pathlib import Path
-
-    roots = [
-        Path("scripts"),
-        Path("infrastructure") / "vm-cron",
-    ]
-
-    shell_scripts: list[Path] = []
-    for root in roots:
-        if root.exists():
-            shell_scripts.extend(root.rglob("*.sh"))
-
-    normalized = 0
-    bad: list[str] = []
-
-    for path in shell_scripts:
-        data = path.read_bytes()
-        if b"\r" in data:
-            new = data.replace(b"\r\n", b"\n").replace(b"\r", b"")
-            path.write_bytes(new)
-            normalized += 1
-
-        if b"\r" in path.read_bytes():
-            bad.append(str(path))
-
-    if bad:
-        sys.stderr.write("CRLF normalization failed for: " + ", ".join(bad) + "\n")
-        raise SystemExit(1)
-
-    print(f"Shell script EOL check: {len(shell_scripts)} checked, {normalized} normalized")
-PY
+COPY infrastructure/pipelines/normalize_crlf.py /tmp/normalize_crlf.py
+RUN python /tmp/normalize_crlf.py
 
 # Default: no-op. CronJobs set command/args.
 CMD ["bash", "-lc", "echo 'buildatlas-pipelines image: ready' && sleep 3600"]

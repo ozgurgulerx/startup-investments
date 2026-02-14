@@ -91,3 +91,4 @@ Read these files on-demand when the task requires it:
 | `docs/claude/email-infrastructure.md` | Working on email/newsletter features (Resend API) |
 | `docs/claude/frontend-patterns.md` | Working on frontend copy, UI, dual-audience messaging |
 | `docs/claude/card-schema.md` | Brief card format and components |
+| `docs/SYSTEMS_AUDIT.md` | Full 40-question due-diligence audit: data ingestion, entity resolution, signals model, LLM pipeline, storage, UI/UX, operations, business/moat |
