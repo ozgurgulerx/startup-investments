@@ -80,8 +80,14 @@ VM_CRON_JOBS = {
 _IS_VM = bool(os.environ.get("BUILDATLAS_RUNNER") == "vm-cron")
 BACKEND_ACTIVITY_WINDOW_HOURS = 3
 
-# Select workflow list based on context
-WORKFLOWS = CICD_WORKFLOWS if _IS_VM else ALL_WORKFLOWS
+# Select workflow list based on context.
+#
+# GitHub Actions workflows are intentionally removed from this repo. When the
+# workflow directory isn't present, skip the GitHub API workflow checks entirely
+# (avoid noisy 404s and false "CI failures" in the daily summary).
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_HAS_WORKFLOWS = (_REPO_ROOT / ".github" / "workflows").is_dir()
+WORKFLOWS = (CICD_WORKFLOWS if _IS_VM else ALL_WORKFLOWS) if _HAS_WORKFLOWS else []
 
 
 class GitHubApiAuthError(Exception):
@@ -1336,7 +1342,9 @@ def main() -> int:
     since = _days_ago(24)
     runs: list[WorkflowRunSummary] = []
     ci_status_note: str | None = None
-    if not repo or not token:
+    if not WORKFLOWS:
+        ci_status_note = "CI/CD workflow status not checked: GitHub Actions workflows are removed from this repo."
+    elif not repo or not token:
         ci_status_note = "CI/CD workflow status unavailable: missing GITHUB_REPOSITORY or GITHUB_TOKEN"
     else:
         try:
