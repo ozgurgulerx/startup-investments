@@ -14,10 +14,13 @@ import json
 import math
 import os
 import re
+import subprocess
+import sys
 import time
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
@@ -765,6 +768,56 @@ def normalize_image_url(url: str, base_url: str = "") -> str:
     pairs = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if k.lower() not in utm_params]
     query = urlencode(pairs)
     return urlunparse((parsed.scheme or "https", parsed.netloc, parsed.path, "", query, ""))
+
+
+def _repo_root() -> Path:
+    # packages/analysis/src/automation/news_ingest.py -> repo root
+    return Path(__file__).resolve().parents[4]
+
+
+def _slack_notify_script() -> Path:
+    return _repo_root() / "scripts" / "slack_notify.py"
+
+
+def _send_slack_notification(
+    *,
+    title: str,
+    status: str,
+    body: str,
+    context: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Best-effort Slack notify via scripts/slack_notify.py (no-op if not configured)."""
+    script_path = _slack_notify_script()
+    if not script_path.exists():
+        return False
+
+    env = os.environ.copy()
+    env["SLACK_TITLE"] = title
+    env["SLACK_STATUS"] = status
+    env["SLACK_BODY"] = body
+    # Optional machine-readable bits (rendered as Slack context lines).
+    if context:
+        try:
+            env["SLACK_CONTEXT_JSON"] = json.dumps(context, ensure_ascii=True)
+        except Exception:
+            pass
+
+    # Avoid stale buttons; we embed any needed links directly in the body.
+    env.pop("SLACK_URL", None)
+
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(script_path)],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except Exception:
+        return False
+
+    return completed.returncode == 0
 
 
 def normalize_text(value: str) -> str:
@@ -6193,6 +6246,8 @@ class DailyNewsIngestor:
         stats: Dict[str, Any] = {
             "extracted": 0,
             "persisted": 0,
+            "persist_errors": 0,
+            "first_error": None,
             "funding_rounds_upserted": 0,
             "onboarded_startups": 0,
             "graph": {
@@ -6233,8 +6288,11 @@ class DailyNewsIngestor:
 
         stats["extracted"] = len(all_events)
 
-        inserted, inserted_events = await persist_events(conn, all_events, extractor._registry)
+        inserted, inserted_events, persist_diag = await persist_events(conn, all_events, extractor._registry)
         stats["persisted"] = inserted
+        if isinstance(persist_diag, dict):
+            stats["persist_errors"] = int(persist_diag.get("persist_errors") or 0)
+            stats["first_error"] = persist_diag.get("first_error")
         print(f"[events:{region}] Extracted {len(all_events)} events from {len(clusters)} clusters, persisted {inserted}")
 
         # Onboard unknown startups from unlinked entity mentions
@@ -7163,6 +7221,47 @@ class DailyNewsIngestor:
                 # --- Extract structured events from clusters ---
                 events_global = await self._extract_events(conn, non_dropped_global, cluster_ids_global, region="global")
                 events_turkey = await self._extract_events(conn, non_dropped_turkey, cluster_ids_turkey, region="turkey")
+
+                # Guardrail: extracted>0 but persisted==0 with DB errors means downstream onboarding/research stalls.
+                for rkey, rstats in (("global", events_global), ("turkey", events_turkey)):
+                    try:
+                        extracted = int((rstats or {}).get("extracted") or 0)
+                        persisted = int((rstats or {}).get("persisted") or 0)
+                        persist_errors = int((rstats or {}).get("persist_errors") or 0)
+                        first_error = str((rstats or {}).get("first_error") or "").strip()
+                        if extracted > 0 and persisted == 0 and persist_errors > 0:
+                            msg = (
+                                f"[events:{rkey}] extracted={extracted} persisted=0 "
+                                f"persist_errors={persist_errors} first_error={first_error[:220]}"
+                            )
+                            errors.append(msg)
+                            _send_slack_notification(
+                                title="News ingest: event persistence failure",
+                                status="failure",
+                                body="\n".join(
+                                    [
+                                        f"*Edition:* `{e_date.isoformat()}`",
+                                        f"*Run ID:* `{run_id}`",
+                                        f"*Region:* `{rkey}`",
+                                        f"*Extracted:* `{extracted}`",
+                                        f"*Persisted:* `0`",
+                                        f"*Persist errors:* `{persist_errors}`",
+                                        f"*First error:* `{first_error[:500]}`",
+                                    ]
+                                ),
+                                context={
+                                    "edition_date": e_date.isoformat(),
+                                    "run_id": str(run_id),
+                                    "region": rkey,
+                                    "extracted": extracted,
+                                    "persisted": persisted,
+                                    "persist_errors": persist_errors,
+                                },
+                            )
+                    except Exception:
+                        # Best-effort: don't block the ingest if Slack or stats parsing fails.
+                        pass
+
                 event_extraction_total = int(events_global.get("persisted") or 0) + int(events_turkey.get("persisted") or 0)
                 if event_extraction_total > 0:
                     print(

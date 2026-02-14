@@ -374,40 +374,56 @@ class EventExtractor:
 # Persistence
 # ---------------------------------------------------------------------------
 
+def _normalize_event_date_for_db(
+    event_date: Any,
+) -> Tuple[Optional[datetime], Optional[date]]:
+    """Normalize an event_date value for DB insertion.
+
+    Returns:
+    - normalized datetime (UTC, tz-aware) or None
+    - effective_date (date) derived from the normalized datetime, or None
+
+    We keep effective_date as a separate parameter so asyncpg never has to infer
+    the same placeholder as both date and timestamptz (AmbiguousParameterError).
+    """
+    if isinstance(event_date, date) and not isinstance(event_date, datetime):
+        dt = datetime.combine(event_date, datetime.min.time(), tzinfo=timezone.utc)
+        return dt, event_date
+
+    if isinstance(event_date, datetime):
+        if event_date.tzinfo is None:
+            dt = event_date.replace(tzinfo=timezone.utc)
+        else:
+            dt = event_date.astimezone(timezone.utc)
+        return dt, dt.date()
+
+    return None, None
+
+
 async def persist_events(
     conn: "asyncpg.Connection",
     events: List[ExtractedEvent],
     registry: Dict[str, str],
-) -> Tuple[int, List[Tuple[str, str, str]]]:
+) -> Tuple[int, List[Tuple[str, str, str]], Dict[str, Any]]:
     """Persist extracted events to startup_events table.
 
-    Returns (count_inserted, list of (event_id, startup_id, event_type) tuples).
+    Returns:
+    - count_inserted
+    - list of (event_id, startup_id, event_type) tuples
+    - diagnostics dict (persist_errors, first_error)
     """
     if not events:
-        return 0, []
+        return 0, [], {"persist_errors": 0, "first_error": None}
 
     inserted = 0
     inserted_events: List[Tuple[str, str, str]] = []
+    persist_errors = 0
+    first_error: Optional[str] = None
 
     for evt in events:
         registry_id = registry.get(evt.event_type)
 
-        event_date = evt.event_date
-        # Avoid asyncpg AmbiguousParameterError by:
-        # - normalizing event_date to a tz-aware datetime (timestamptz)
-        # - passing effective_date as a separate $n parameter (date)
-        effective_date: date
-        if isinstance(event_date, date) and not isinstance(event_date, datetime):
-            effective_date = event_date
-            event_date = datetime.combine(event_date, datetime.min.time(), tzinfo=timezone.utc)
-        elif isinstance(event_date, datetime):
-            if event_date.tzinfo is None:
-                event_date = event_date.replace(tzinfo=timezone.utc)
-            else:
-                event_date = event_date.astimezone(timezone.utc)
-            effective_date = event_date.date()
-        else:
-            effective_date = datetime.now(timezone.utc).date()
+        event_date, effective_date = _normalize_event_date_for_db(evt.event_date)
 
         try:
             row = await conn.fetchrow(
@@ -417,7 +433,7 @@ async def persist_events(
                         metadata_json, cluster_id, region, event_key,
                         event_date, effective_date)
                    VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
-                           $12::timestamptz, $13::date)
+                           $12::timestamptz, COALESCE($13::date, CURRENT_DATE))
                    ON CONFLICT (cluster_id, startup_id, event_type, event_key)
                        WHERE cluster_id IS NOT NULL DO NOTHING
                    RETURNING id""",
@@ -439,7 +455,10 @@ async def persist_events(
                 inserted += 1
                 if evt.startup_id:
                     inserted_events.append((str(row["id"]), evt.startup_id, evt.event_type))
-        except Exception:
+        except Exception as exc:
+            persist_errors += 1
+            if first_error is None:
+                first_error = f"{type(exc).__name__}: {(str(exc) or '').strip()}"[:600]
             logger.warning(
                 "Failed to persist event %s for cluster %s",
                 evt.event_type,
@@ -447,7 +466,7 @@ async def persist_events(
                 exc_info=True,
             )
 
-    return inserted, inserted_events
+    return inserted, inserted_events, {"persist_errors": persist_errors, "first_error": first_error}
 
 async def enqueue_refresh_for_events(
     conn: "asyncpg.Connection",

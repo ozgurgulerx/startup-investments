@@ -3990,8 +3990,10 @@ app.get('/api/v1/onboarding/context-template', async (req, res) => {
   }
 
   const startupId = parsed.data.startupId || '';
+  const investorId = parsed.data.investorId || '';
   const traceEventId = parsed.data.traceEventId || '';
   let startup: Record<string, unknown> | null = null;
+  let investor: Record<string, unknown> | null = null;
 
   if (startupId) {
     try {
@@ -4008,9 +4010,23 @@ app.get('/api/v1/onboarding/context-template', async (req, res) => {
     }
   }
 
-  const payload = {
-    startupId: startupId || '<startup-uuid>',
-    contextText: 'Add your deep-research context here (facts, links, missing data, caveats).',
+  if (investorId) {
+    try {
+      const investorResult = await pool.query(
+        `SELECT id::text AS id, name, type, website, headquarters_country
+         FROM investors
+         WHERE id = $1::uuid
+         LIMIT 1`,
+        [investorId],
+      );
+      investor = investorResult.rows[0] || null;
+    } catch (error) {
+      console.warn('Could not load investor for onboarding context template:', error);
+    }
+  }
+
+  const payload: Record<string, unknown> = {
+    contextText: 'Add your context here (facts, links, missing data, caveats).',
     traceEventId: traceEventId || undefined,
     source: 'slack',
     createdBy: 'ops',
@@ -4020,6 +4036,8 @@ app.get('/api/v1/onboarding/context-template', async (req, res) => {
       notes: 'Operator-supplied context',
     },
   };
+  if (investorId) payload.investorId = investorId || '<investor-uuid>';
+  else payload.startupId = startupId || '<startup-uuid>';
 
   const endpointPath = '/api/admin/v1/onboarding/context';
   // Prefer an explicit public base (Front Door) to avoid returning an origin IP
@@ -4039,14 +4057,15 @@ app.get('/api/v1/onboarding/context-template', async (req, res) => {
 
   return res.json({
     startup,
+    investor,
     endpoint: endpointPath,
     method: 'POST',
     required_headers: ['X-API-Key', 'X-Admin-Key'],
     sample_payload: payload,
     curl_command: curlCommand,
     notes: [
-      'Submit context to enrich deep research prompt context.',
-      'If enqueueResearch=true and no active queue item exists, startup is requeued.',
+      'Submit context to enrich deep research prompt context (startup) or investor onboarding enrichment (investor).',
+      'If enqueueResearch=true and no active queue item exists, the target is requeued.',
     ],
   });
 });

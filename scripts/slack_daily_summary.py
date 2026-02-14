@@ -676,6 +676,46 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
                     "processing": int(queue_state["processing"]),
                 }
 
+            # Investor onboarding queue (best-effort; may not exist in older envs)
+            try:
+                inv_queue_movement = await conn.fetchrow(
+                    """
+                    SELECT
+                      COUNT(*) FILTER (WHERE queued_at >= NOW() - ($1::text)::interval) AS queued,
+                      COUNT(*) FILTER (WHERE started_at >= NOW() - ($1::text)::interval) AS started,
+                      COUNT(*) FILTER (
+                        WHERE completed_at >= NOW() - ($1::text)::interval
+                          AND status = 'completed'
+                      ) AS completed,
+                      COUNT(*) FILTER (
+                        WHERE completed_at >= NOW() - ($1::text)::interval
+                          AND status = 'failed'
+                      ) AS failed
+                    FROM investor_onboarding_queue
+                    """,
+                    recent_window,
+                )
+                inv_queue_state = await conn.fetchrow(
+                    """
+                    SELECT
+                      COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                      COUNT(*) FILTER (WHERE status = 'processing') AS processing
+                    FROM investor_onboarding_queue
+                    """
+                )
+                if inv_queue_movement and inv_queue_state:
+                    metrics["backend_investor_onboarding_queue"] = {
+                        "window_hours": int(win_hours),
+                        "queued": int(inv_queue_movement["queued"]),
+                        "started": int(inv_queue_movement["started"]),
+                        "completed": int(inv_queue_movement["completed"]),
+                        "failed": int(inv_queue_movement["failed"]),
+                        "pending": int(inv_queue_state["pending"]),
+                        "processing": int(inv_queue_state["processing"]),
+                    }
+            except Exception:
+                pass
+
             trace_activity = await conn.fetchrow(
                 """
                 SELECT
@@ -725,6 +765,31 @@ async def _db_metrics(database_url: str) -> dict[str, Any]:
                     "context_added": int(context_activity["context_added"]),
                     "human_requeued": int(context_activity["human_requeued"]),
                 }
+
+            # Investor onboarding context (best-effort; may not exist in older envs)
+            try:
+                inv_context_activity = await conn.fetchrow(
+                    """
+                    SELECT
+                      COUNT(*) FILTER (WHERE created_at >= NOW() - ($1::text)::interval) AS context_added,
+                      (
+                        SELECT COUNT(*)
+                        FROM investor_onboarding_queue
+                        WHERE reason = 'human_context'
+                          AND queued_at >= NOW() - ($1::text)::interval
+                      ) AS human_requeued
+                    FROM investor_onboarding_context
+                    """,
+                    recent_window,
+                )
+                if inv_context_activity:
+                    metrics["backend_investor_onboarding_context"] = {
+                        "window_hours": int(win_hours),
+                        "context_added": int(inv_context_activity["context_added"]),
+                        "human_requeued": int(inv_context_activity["human_requeued"]),
+                    }
+            except Exception:
+                pass
         except Exception as e:
             warnings.append(f"backend_activity unavailable: {e}")
 
@@ -1416,6 +1481,11 @@ def main() -> int:
                 body_lines.append(
                     f"- Deep research queue: queued={rq.get('queued')} started={rq.get('started')} completed={rq.get('completed')} failed={rq.get('failed')} pending={rq.get('pending')} processing={rq.get('processing')}"
                 )
+            if "backend_investor_onboarding_queue" in metrics:
+                iq = metrics["backend_investor_onboarding_queue"]
+                body_lines.append(
+                    f"- Investor onboarding queue: queued={iq.get('queued')} started={iq.get('started')} completed={iq.get('completed')} failed={iq.get('failed')} pending={iq.get('pending')} processing={iq.get('processing')}"
+                )
             if "backend_onboarding_trace" in metrics:
                 bt = metrics["backend_onboarding_trace"]
                 body_lines.append(
@@ -1425,6 +1495,11 @@ def main() -> int:
                 bc = metrics["backend_onboarding_context"]
                 body_lines.append(
                     f"- Human context: added={bc.get('context_added')} requeued={bc.get('human_requeued')}"
+                )
+            if "backend_investor_onboarding_context" in metrics:
+                ic = metrics["backend_investor_onboarding_context"]
+                body_lines.append(
+                    f"- Investor context: added={ic.get('context_added')} requeued={ic.get('human_requeued')}"
                 )
         if "db_metrics_warnings" in metrics:
             warns = metrics["db_metrics_warnings"]

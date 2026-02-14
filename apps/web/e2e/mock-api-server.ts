@@ -41,6 +41,25 @@ type SignalItem = {
   };
 };
 
+type LandscapeNode = {
+  name: string;
+  value: number;
+  count: number;
+  funding: number;
+  pattern?: string;
+  children?: LandscapeNode[];
+  startups?: Array<{ id: string; name: string; slug: string; funding: number }>;
+};
+
+type LandscapeCluster = {
+  pattern: string;
+  startup_count: number;
+  total_funding: number;
+  top_startups: Array<{ id: string; name: string; slug: string; funding: number; stage: string | null }>;
+  top_investors: Array<{ name: string; deal_count: number }>;
+  related_patterns: string[];
+};
+
 const NOW = new Date();
 const isoDaysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -114,6 +133,66 @@ const SIGNALS_BY_ID: Record<string, SignalItem> = {
   [TURKEY_SIGNAL_ID]: turkeySignal,
 };
 
+const LANDSCAPE_PATTERNS: Array<Omit<LandscapeNode, 'value'>> = [
+  {
+    name: 'Agentic Architectures',
+    count: 24,
+    funding: 340_000_000,
+    startups: [
+      { id: 'aaaa0000-0000-0000-0000-000000000001', name: 'Alpha Agent', slug: 'alpha-agent', funding: 55_000_000 },
+      { id: 'aaaa0000-0000-0000-0000-000000000002', name: 'Orchestrate AI', slug: 'orchestrate-ai', funding: 42_000_000 },
+    ],
+  },
+  {
+    name: 'RAG (Retrieval-Augmented Generation)',
+    count: 18,
+    funding: 210_000_000,
+    startups: [
+      { id: 'bbbb0000-0000-0000-0000-000000000001', name: 'VectorWorks', slug: 'vectorworks', funding: 38_000_000 },
+      { id: 'bbbb0000-0000-0000-0000-000000000002', name: 'IndexHub', slug: 'indexhub', funding: 25_000_000 },
+    ],
+  },
+  {
+    name: 'Vertical Data Moats',
+    count: 12,
+    funding: 125_000_000,
+    startups: [
+      { id: 'cccc0000-0000-0000-0000-000000000001', name: 'LedgerLens', slug: 'ledgerlens', funding: 30_000_000 },
+    ],
+  },
+  {
+    name: 'Micro-model Meshes',
+    count: 9,
+    funding: 80_000_000,
+    startups: [
+      { id: 'dddd0000-0000-0000-0000-000000000001', name: 'TinyLM', slug: 'tinylm', funding: 12_000_000 },
+    ],
+  },
+];
+
+const LANDSCAPE_CLUSTERS: Record<string, LandscapeCluster> = Object.fromEntries(
+  LANDSCAPE_PATTERNS.map((p) => [
+    p.name,
+    {
+      pattern: p.name,
+      startup_count: p.count,
+      total_funding: p.funding,
+      top_startups: (p.startups || []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        slug: s.slug,
+        funding: s.funding,
+        stage: 'Seed',
+      })),
+      top_investors: [
+        { name: 'Mock VC', deal_count: 7 },
+        { name: 'Demo Capital', deal_count: 4 },
+      ],
+      related_patterns: LANDSCAPE_PATTERNS.filter((x) => x.name !== p.name).slice(0, 3).map((x) => x.name),
+    },
+  ])
+);
+
 function readRegion(sp: URLSearchParams): Region {
   const raw = sp.get('region');
   return raw === 'turkey' ? 'turkey' : 'global';
@@ -171,6 +250,25 @@ const server = http.createServer((req, res) => {
   // Sector metadata (used by the Signals sector filter UI).
   if (p === '/api/v1/sectors') {
     return json(res, 200, { sectors: [] });
+  }
+
+  // Landscapes treemap data (used by /landscapes page).
+  if (p === '/api/v1/landscapes') {
+    const sizeBy = url.searchParams.get('size_by') === 'count' ? 'count' : 'funding';
+    const nodes: LandscapeNode[] = LANDSCAPE_PATTERNS.map((n) => ({
+      ...n,
+      value: sizeBy === 'count' ? n.count : n.funding,
+    }));
+    return json(res, 200, nodes);
+  }
+
+  // Landscapes cluster detail panel (used by /landscapes page).
+  if (p === '/api/v1/landscapes/cluster') {
+    const pattern = (url.searchParams.get('pattern') || '').trim();
+    if (!pattern) return json(res, 400, { error: 'Missing pattern' });
+    const detail = LANDSCAPE_CLUSTERS[pattern];
+    if (!detail) return json(res, 404, { error: 'Not found' });
+    return json(res, 200, detail);
   }
 
   const deepDiveMatch = p.match(/^\/api\/v1\/signals\/([0-9a-f-]+)\/deep-dive$/i);
