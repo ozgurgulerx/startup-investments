@@ -261,6 +261,193 @@ class DatabaseConnection:
             "monthly_usd": float(row.get("monthly_usd") or 0.0),
         }
 
+    # =========================================================================
+    # Investor Onboarding Queue Operations
+    # =========================================================================
+
+    async def get_pending_investor_onboarding_items(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get pending investor onboarding items by priority."""
+        rows = await self.fetch(
+            """
+            SELECT
+                q.id,
+                q.investor_id,
+                q.priority,
+                q.reason,
+                q.retry_count,
+                q.queued_at,
+                q.seed_cluster_id,
+                q.seed_urls,
+                i.name AS investor_name,
+                i.website AS investor_website,
+                i.type AS investor_type,
+                i.headquarters_country AS investor_hq_country
+            FROM investor_onboarding_queue q
+            JOIN investors i ON i.id = q.investor_id
+            WHERE q.status = 'pending'
+            ORDER BY q.priority ASC, q.queued_at ASC
+            LIMIT $1
+            """,
+            max(1, int(limit)),
+        )
+        return [dict(r) for r in rows]
+
+    async def reclaim_stale_investor_onboarding_items(self, stale_minutes: int = 30) -> int:
+        """Reclaim items stuck in processing for too long."""
+        result = await self.execute(
+            """
+            UPDATE investor_onboarding_queue
+            SET status = 'pending', started_at = NULL
+            WHERE status = 'processing'
+              AND started_at < NOW() - ($1::text)::interval
+            """,
+            f"{max(1, int(stale_minutes))} minutes",
+        )
+        try:
+            return int(str(result).split()[-1])
+        except Exception:
+            return 0
+
+    async def claim_investor_onboarding_item(self, item_id: str) -> bool:
+        """Claim an investor onboarding item for processing (atomic operation)."""
+        result = await self.execute(
+            """
+            UPDATE investor_onboarding_queue
+            SET status = 'processing',
+                started_at = $2
+            WHERE id = $1::uuid AND status = 'pending'
+            """,
+            item_id,
+            datetime.now(timezone.utc),
+        )
+        return "UPDATE 1" in result
+
+    async def complete_investor_onboarding_item(
+        self,
+        item_id: str,
+        enrichment_output: Dict[str, Any],
+        tokens_used: int = 0,
+        cost_usd: float = 0.0,
+    ) -> None:
+        """Mark an investor onboarding item as completed."""
+        import json
+        await self.execute(
+            """
+            UPDATE investor_onboarding_queue
+            SET status = 'completed',
+                completed_at = $2,
+                enrichment_output = $3,
+                tokens_used = $4,
+                cost_usd = $5,
+                error_message = NULL
+            WHERE id = $1::uuid
+            """,
+            item_id,
+            datetime.now(timezone.utc),
+            json.dumps(enrichment_output),
+            int(tokens_used or 0),
+            float(cost_usd or 0.0),
+        )
+
+    async def fail_investor_onboarding_item(self, item_id: str, error_message: str) -> None:
+        """Mark an investor onboarding item as failed."""
+        await self.execute(
+            """
+            UPDATE investor_onboarding_queue
+            SET status = 'failed',
+                completed_at = $2,
+                error_message = $3,
+                retry_count = retry_count + 1
+            WHERE id = $1::uuid
+            """,
+            item_id,
+            datetime.now(timezone.utc),
+            (error_message or "")[:1200],
+        )
+
+    async def requeue_failed_investor_onboarding_item(self, item_id: str, max_retries: int = 3) -> bool:
+        """Requeue a failed item if under retry limit."""
+        result = await self.execute(
+            """
+            UPDATE investor_onboarding_queue
+            SET status = 'pending',
+                started_at = NULL,
+                error_message = NULL,
+                priority = priority + 1
+            WHERE id = $1::uuid AND retry_count < $2
+            """,
+            item_id,
+            max(1, int(max_retries)),
+        )
+        return "UPDATE 1" in result
+
+    async def enqueue_investor_onboarding(
+        self,
+        investor_id: str,
+        reason: str,
+        priority: int = 5,
+        seed_cluster_id: Optional[str] = None,
+        seed_urls: Optional[List[str]] = None,
+    ) -> Optional[str]:
+        """Add an investor to the onboarding/enrichment queue (best-effort)."""
+        item_id = await self.fetchval(
+            """
+            INSERT INTO investor_onboarding_queue (investor_id, priority, reason, seed_cluster_id, seed_urls)
+            VALUES ($1::uuid, $2, $3, $4::uuid, $5::text[])
+            ON CONFLICT DO NOTHING
+            RETURNING id
+            """,
+            investor_id,
+            max(1, int(priority)),
+            (reason or "")[:100],
+            seed_cluster_id,
+            seed_urls or [],
+        )
+        return str(item_id) if item_id else None
+
+    async def get_investor_onboarding_spend(self) -> Dict[str, float]:
+        """Return completed investor-onboarding spend for current UTC day/month."""
+        row = await self.fetchrow(
+            """
+            SELECT
+                COALESCE(SUM(cost_usd) FILTER (
+                    WHERE completed_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
+                ), 0)::float8 AS daily_usd,
+                COALESCE(SUM(cost_usd) FILTER (
+                    WHERE completed_at >= date_trunc('month', NOW() AT TIME ZONE 'UTC')
+                ), 0)::float8 AS monthly_usd
+            FROM investor_onboarding_queue
+            WHERE status = 'completed'
+            """
+        )
+        if not row:
+            return {"daily_usd": 0.0, "monthly_usd": 0.0}
+        return {
+            "daily_usd": float(row.get("daily_usd") or 0.0),
+            "monthly_usd": float(row.get("monthly_usd") or 0.0),
+        }
+
+    async def get_recent_investor_onboarding_context(self, investor_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Get latest human-provided onboarding context for an investor."""
+        rows = await self.fetch(
+            """
+            SELECT
+                id::text AS id,
+                source,
+                context_text,
+                metadata_json,
+                created_by,
+                created_at
+            FROM investor_onboarding_context
+            WHERE investor_id = $1::uuid
+            ORDER BY created_at DESC
+            LIMIT $2
+            """,
+            investor_id,
+            max(1, int(limit)),
+        )
+        return [dict(r) for r in rows]
+
     async def get_startup_research_snapshot(self, startup_id: str) -> Optional[Dict[str, Any]]:
         """Get minimal startup state used for research queue gating."""
         row = await self.fetchrow(

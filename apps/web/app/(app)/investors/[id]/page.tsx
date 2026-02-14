@@ -32,6 +32,47 @@ interface PortfolioItem {
   round_type: string;
 }
 
+interface InvestorNetworkNode {
+  id: string;
+  type: 'investor' | 'startup';
+  name: string;
+  slug?: string;
+  meta?: Record<string, unknown>;
+}
+
+interface InvestorNetworkEdge {
+  id: string;
+  src_id: string;
+  dst_id: string;
+  edge_type: string;
+  meta?: Record<string, unknown>;
+}
+
+interface InvestorNetwork {
+  investor_id: string;
+  scope: string;
+  depth: number;
+  nodes: InvestorNetworkNode[];
+  edges: InvestorNetworkEdge[];
+}
+
+interface InvestorNewsItem {
+  cluster_id: string;
+  published_at: string;
+  title: string;
+  canonical_url: string | null;
+  startup: { id: string; name: string; slug: string | null };
+  round: { round_type: string | null; amount_usd: number | null; announced_date: string | null };
+}
+
+interface InvestorNewsResponse {
+  investor_id: string;
+  scope: string;
+  days: number;
+  total: number;
+  items: InvestorNewsItem[];
+}
+
 const CHART_COLORS = [
   'hsl(220 10% 50%)', 'hsl(220 10% 40%)', 'hsl(220 10% 60%)',
   'hsl(220 10% 35%)', 'hsl(220 10% 55%)', 'hsl(220 10% 45%)',
@@ -46,26 +87,63 @@ function formatUsd(v: number | null): string {
   return `$${v.toFixed(0)}`;
 }
 
+function formatShortDate(iso: string): string {
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 export default function InvestorProfilePage() {
   const params = useParams();
   const { region } = useRegion();
   const investorId = params.id as string;
   const [dna, setDna] = useState<InvestorDNA | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [network, setNetwork] = useState<InvestorNetwork | null>(null);
+  const [news, setNews] = useState<InvestorNewsItem[]>([]);
+  const [newsTotal, setNewsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setNetwork(null);
+      setNews([]);
+      setNewsTotal(0);
       try {
-        const scope = region !== 'global' ? `?scope=${region}` : '';
-        const [dnaRes, portRes] = await Promise.all([
-          fetch(`/api/investors/${investorId}/dna${scope}`),
-          fetch(`/api/investors/${investorId}/portfolio${scope}`),
+        const scopeQs = region !== 'global' ? `scope=${region}` : '';
+        const dnaUrl = `/api/investors/${investorId}/dna${scopeQs ? `?${scopeQs}` : ''}`;
+        const portfolioUrl = `/api/investors/${investorId}/portfolio${scopeQs ? `?${scopeQs}` : ''}`;
+
+        const networkQs = new URLSearchParams();
+        if (region !== 'global') networkQs.set('scope', region);
+        networkQs.set('depth', '2');
+        networkQs.set('limit', '25');
+        const networkUrl = `/api/investors/${investorId}/network?${networkQs.toString()}`;
+
+        const newsQs = new URLSearchParams({ scope: region, days: '30', limit: '12', offset: '0' });
+        const newsUrl = `/api/investors/${investorId}/news?${newsQs.toString()}`;
+
+        const [dnaRes, portRes, netRes, newsRes] = await Promise.all([
+          fetch(dnaUrl),
+          fetch(portfolioUrl),
+          fetch(networkUrl),
+          fetch(newsUrl),
         ]);
         if (dnaRes.ok) setDna(await dnaRes.json());
         if (portRes.ok) {
           const data = await portRes.json();
           setPortfolio(data.portfolio || []);
+        }
+        if (netRes.ok) {
+          setNetwork(await netRes.json());
+        } else {
+          setNetwork(null);
+        }
+        if (newsRes.ok) {
+          const data = (await newsRes.json()) as InvestorNewsResponse;
+          setNews(data.items || []);
+          setNewsTotal(data.total || 0);
         }
       } catch (err) {
         console.error('Failed to load investor:', err);
@@ -90,6 +168,28 @@ export default function InvestorProfilePage() {
       .sort(([, a], [, b]) => b - a)
       .map(([name, value]) => ({ name, value }));
   }, [dna]);
+
+  const graphPartners = useMemo(() => {
+    if (!network) return [];
+    const nodesById = new Map(network.nodes.map(n => [n.id, n]));
+
+    return network.edges
+      .filter(e => e.edge_type === 'CO_INVESTS_WITH' && e.src_id === network.investor_id)
+      .map(e => {
+        const node = nodesById.get(e.dst_id);
+        const coDeals = Number((e.meta as { co_deals?: unknown } | undefined)?.co_deals || 0);
+        const coAmountUsd = (e.meta as { co_amount_usd?: unknown } | undefined)?.co_amount_usd;
+        return {
+          investor_id: e.dst_id,
+          name: String(node?.name || 'Unknown'),
+          co_deals: Number.isFinite(coDeals) ? coDeals : 0,
+          co_amount_usd: typeof coAmountUsd === 'number' ? coAmountUsd : null,
+        };
+      })
+      .filter(p => p.investor_id !== network.investor_id)
+      .sort((a, b) => b.co_deals - a.co_deals)
+      .slice(0, 10);
+  }, [network]);
 
   if (loading) {
     return (
@@ -222,6 +322,35 @@ export default function InvestorProfilePage() {
         </div>
       )}
 
+      {/* Network (Graph) */}
+      {network && (
+        <div className="mt-6 p-4 border border-border/30 rounded-lg">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <h3 className="text-sm font-medium text-foreground">Network (Graph)</h3>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {network.nodes.length} nodes · {network.edges.length} edges
+            </span>
+          </div>
+
+          {graphPartners.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+              {graphPartners.map(p => (
+                <Link
+                  key={p.investor_id}
+                  href={`/investors/${p.investor_id}`}
+                  className="p-2 text-xs border border-border/20 rounded hover:border-accent-info/30 transition-colors"
+                >
+                  <div className="text-foreground truncate">{p.name}</div>
+                  <div className="text-muted-foreground/60 mt-0.5">{p.co_deals} co-deals</div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground py-2">No co-invest edges found in the graph yet.</p>
+          )}
+        </div>
+      )}
+
       {/* Portfolio */}
       <div className="mt-6 p-4 border border-border/30 rounded-lg">
         <h3 className="text-sm font-medium text-foreground mb-3">Portfolio ({portfolio.length})</h3>
@@ -246,6 +375,50 @@ export default function InvestorProfilePage() {
           ))}
           {portfolio.length === 0 && (
             <p className="text-xs text-muted-foreground py-4 text-center">No portfolio data available</p>
+          )}
+        </div>
+      </div>
+
+      {/* Recent funding news */}
+      <div className="mt-6 p-4 border border-border/30 rounded-lg">
+        <h3 className="text-sm font-medium text-foreground mb-3">
+          Recent funding news {newsTotal > 0 ? `(${newsTotal})` : ''}
+        </h3>
+        <div className="space-y-2">
+          {news.map(item => (
+            <div key={item.cluster_id} className="text-xs">
+              <div className="flex items-start justify-between gap-3">
+                <a
+                  href={item.canonical_url || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`text-foreground hover:text-accent-info transition-colors ${item.canonical_url ? '' : 'pointer-events-none opacity-80'}`}
+                >
+                  {item.title}
+                </a>
+                <span className="text-muted-foreground tabular-nums whitespace-nowrap">
+                  {formatShortDate(item.published_at)}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-0.5 text-muted-foreground/80">
+                {item.startup?.slug ? (
+                  <Link href={`/company/${item.startup.slug}`} className="hover:text-accent-info transition-colors">
+                    {item.startup.name}
+                  </Link>
+                ) : (
+                  <span>{item.startup?.name || 'Unknown startup'}</span>
+                )}
+                {item.round?.round_type && (
+                  <span className="capitalize">{item.round.round_type}</span>
+                )}
+                {item.round?.amount_usd != null && (
+                  <span className="tabular-nums">{formatUsd(item.round.amount_usd)}</span>
+                )}
+              </div>
+            </div>
+          ))}
+          {news.length === 0 && (
+            <p className="text-xs text-muted-foreground py-4 text-center">No recent funding news found.</p>
           )}
         </div>
       </div>

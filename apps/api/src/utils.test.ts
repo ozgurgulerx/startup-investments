@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slugify, parseLocation, parseFundingAmount } from './utils';
+import { slugify, parseLocation, parseFundingAmount, canonicalizeSeedUrl } from './utils';
 
 describe('slugify', () => {
   it('converts basic names to slugs', () => {
@@ -73,5 +73,21 @@ describe('parseFundingAmount', () => {
   it('returns null for invalid inputs', () => {
     expect(parseFundingAmount('')).toBe(null);
     expect(parseFundingAmount('abc')).toBe(null);
+  });
+});
+
+describe('canonicalizeSeedUrl', () => {
+  it('strips tracking params and normalizes scheme/host', () => {
+    const input = 'https://www.theinformation.com/articles/top-funded-ai-database-startup-pinecone-considers-sale?utm_campaign=&utm_content=&utm_medium=organic_social&utm_source=bluesky%2Cfacebook%2Clinkedin%2Cthreads%2Ctwitter';
+    expect(canonicalizeSeedUrl(input)).toBe('https://theinformation.com/articles/top-funded-ai-database-startup-pinecone-considers-sale');
+  });
+
+  it('drops trailing slash (except root) and sorts query params', () => {
+    const input = 'http://www.example.com/path/?b=2&a=1&utm_source=x';
+    expect(canonicalizeSeedUrl(input)).toBe('https://example.com/path?a=1&b=2');
+  });
+
+  it('returns empty string for invalid URLs', () => {
+    expect(canonicalizeSeedUrl('not a url')).toBe('');
   });
 });

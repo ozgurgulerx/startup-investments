@@ -11,6 +11,8 @@ interface TreemapNode {
   value: number;
   count: number;
   funding: number;
+  /** Parent pattern name (for child nodes); used to map vertical clicks to a pattern detail view. */
+  pattern?: string;
   children?: TreemapNode[];
   startups?: Array<{ id: string; name: string; slug: string; funding: number }>;
 }
@@ -89,6 +91,29 @@ async function extractErrorMessage(res: Response): Promise<string | null> {
   }
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function getSelectedPatternFromTreemapClick(node: any): string | null {
+  if (!node) return null;
+
+  const depth = typeof node.depth === 'number' ? node.depth : undefined;
+
+  const directPattern = [node.pattern, node.payload?.pattern].find(isNonEmptyString);
+  if (directPattern) return directPattern.trim();
+
+  if (typeof depth === 'number' && depth > 1) {
+    // Nested tile click: prefer the parent pattern.
+    const parentName = [node.parent?.name, node.parent?.payload?.name].find(isNonEmptyString);
+    return parentName ? parentName.trim() : null;
+  }
+
+  // Root/pattern tile click: use its name.
+  const name = [node.name, node.payload?.name].find(isNonEmptyString);
+  return name ? name.trim() : null;
+}
+
 export default function LandscapesPage() {
   const { region } = useRegion();
   const [nodes, setNodes] = useState<TreemapNode[]>([]);
@@ -163,7 +188,12 @@ export default function LandscapesPage() {
   const treemapData = useMemo(() => {
     return nodes.map((n, i) => ({
       ...n,
+      pattern: n.name,
       fill: COLORS[i % COLORS.length],
+      children: n.children?.map((child) => ({
+        ...child,
+        pattern: n.name,
+      })),
     }));
   }, [nodes]);
 
@@ -227,7 +257,10 @@ export default function LandscapesPage() {
                 aspectRatio={4/3}
                 stroke="var(--border)"
                 content={<TreemapContent />}
-                onClick={(node: any) => node?.name && setSelectedPattern(node.name)}
+                onClick={(node: any) => {
+                  const pattern = getSelectedPatternFromTreemapClick(node);
+                  if (pattern) setSelectedPattern(pattern);
+                }}
               />
             </ResponsiveContainer>
           ) : (
@@ -310,7 +343,7 @@ export default function LandscapesPage() {
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16 text-center">
-              No details available for this pattern.
+              No details available for {selectedPattern}.
             </div>
           )}
         </div>

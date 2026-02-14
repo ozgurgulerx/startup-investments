@@ -352,7 +352,7 @@ class SourceDefinition:
     source_type: str
     base_url: str
     region: str = "global"  # global|turkey
-    fetch_mode: str = "rss"  # rss|api|crawler|digest_rss|x_recent_search
+    fetch_mode: str = "rss"  # rss|api|crawler|digest_rss|x_recent_search|paid_headlines
     credibility_weight: float = 0.65
     legal_mode: str = "headline_snippet"
     language: str = ""  # override auto-detection (e.g. "en" for English Turkey sources)
@@ -456,6 +456,16 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("hackernews_api", "Hacker News API", "api", "https://hacker-news.firebaseio.com/v0", fetch_mode="api", credibility_weight=0.88),
     SourceDefinition("newsapi", "NewsAPI", "api", "https://newsapi.org/v2/everything", fetch_mode="api", credibility_weight=0.67),
     SourceDefinition("gnews", "GNews", "api", "https://gnews.io/api/v4/search", fetch_mode="api", credibility_weight=0.66),
+    # Paid source leads (headline-only); used as triggers for open-web corroboration.
+    SourceDefinition(
+        "theinformation",
+        "The Information",
+        "community",
+        "https://www.theinformation.com",
+        fetch_mode="paid_headlines",
+        credibility_weight=0.05,
+        legal_mode="headline_only",
+    ),
     SourceDefinition("x_recent_search_global", "X Recent Search (Global)", "api", "https://api.x.com/2/tweets/search/recent", fetch_mode="x_recent_search", credibility_weight=0.64),
     SourceDefinition("x_recent_search_turkey", "X Recent Search (Turkey)", "api", "https://api.x.com/2/tweets/search/recent", region="turkey", fetch_mode="x_recent_search", credibility_weight=0.65, language="tr"),
     # Diff-based sources (daily snapshots + deltas), fetched from the hourly job.
@@ -761,6 +771,22 @@ def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip())
 
 
+def _is_lead_only_item(item: "NormalizedNewsItem") -> bool:
+    """True when an item is a headline-only lead (e.g. paywalled seed URL)."""
+    try:
+        return bool((item.payload or {}).get("lead_only"))
+    except Exception:
+        return False
+
+
+def _non_lead_members(members: Sequence["NormalizedNewsItem"]) -> List["NormalizedNewsItem"]:
+    return [m for m in members if not _is_lead_only_item(m)]
+
+
+def _count_non_lead_members(members: Sequence["NormalizedNewsItem"]) -> int:
+    return len(_non_lead_members(members))
+
+
 def is_likely_content_url(url: str) -> bool:
     path = (urlparse(url).path or "").strip().lower().strip("/")
     if path in FRONTIER_LISTING_PATHS:
@@ -831,6 +857,69 @@ def extract_entities(title: str) -> List[str]:
         if len(entities) >= 6:
             break
     return entities
+
+
+_PAID_HEADLINE_QUERY_STOPWORDS = {
+    "top",
+    "most",
+    "biggest",
+    "funded",
+}
+
+
+def build_paid_headline_search_query(title: str) -> str:
+    """Build a conservative open-web corroboration query from a paid headline.
+
+    We never try to reconstruct paywalled content. This query is used to find
+    independent accessible coverage (e.g. via GNews/NewsAPI).
+    """
+    title_norm = normalize_text(title or "")
+    if not title_norm:
+        return ""
+
+    anchor = ""
+    for entity in extract_entities(title_norm):
+        cand = normalize_text(entity)
+        if not cand:
+            continue
+        if cand in GENERIC_ENTITIES:
+            continue
+        # Avoid adjective-y matches like "Top-funded" that pollute queries.
+        if "-" in cand:
+            continue
+        # Avoid short acronyms as anchors (we prefer proper names).
+        if len(cand) < 3:
+            continue
+        if cand.isupper() and len(cand) <= 4:
+            continue
+        anchor = cand
+        break
+
+    tokens = tokenize_title(title_norm)
+    used: Set[str] = set()
+    if anchor:
+        used.add(anchor.lower())
+
+    parts: List[str] = []
+    if anchor:
+        parts.append(f"\"{anchor}\"")
+
+    for tok in tokens:
+        if tok in used:
+            continue
+        if tok in _PAID_HEADLINE_QUERY_STOPWORDS:
+            continue
+        parts.append(tok)
+        used.add(tok)
+        if len(parts) >= 6:
+            break
+
+    if not parts:
+        # Worst-case fallback: a compacted title query (still safe; it's just a search string).
+        parts = [re.sub(r"\s+", " ", title_norm)[:120]]
+
+    query = " ".join(parts).strip()
+    return query[:200]
 
 
 def classify_topic_tags(title: str, summary: str = "") -> List[str]:
@@ -942,10 +1031,17 @@ def compute_cluster_scores(
     age_hours = max(0.0, (now_ts - published_at).total_seconds() / 3600.0)
     recency = max(0.0, 1.0 - (age_hours / 72.0))
 
-    source_weight = max((m.source_weight for m in members), default=0.6)
-    diversity = min(1.0, len({m.source_key for m in members}) / 4.0)
+    # Lead-only items (e.g. paywalled headline seeds) should not inflate
+    # source diversity/credibility/engagement for scoring.
+    effective_members = _non_lead_members(members)
+    if effective_members:
+        source_weight = max((m.source_weight for m in effective_members), default=0.6)
+        diversity = min(1.0, len({m.source_key for m in effective_members}) / 4.0)
+    else:
+        source_weight = 0.05
+        diversity = 0.0
     engagement_raw = 0.0
-    for item in members:
+    for item in effective_members:
         points = float(item.engagement.get("points") or item.engagement.get("votes") or 0.0)
         engagement_raw = max(engagement_raw, min(1.0, points / 500.0))
 
@@ -966,11 +1062,12 @@ def compute_cluster_scores(
 
     trust_score = max(0.0, min(1.0, source_weight * 0.45 + diversity * 0.40 + 0.15))
 
+    effective_count = len(effective_members)
     reasons: List[str] = []
     if recency > 0.75:
         reasons.append("breaking")
-    if len(members) >= 3:
-        reasons.append(f"covered by {len(members)} sources")
+    if effective_count >= 3:
+        reasons.append(f"covered by {effective_count} sources")
     if "funding" in topic_tags:
         reasons.append("funding signal")
     if "ai" in topic_tags:
@@ -2512,6 +2609,416 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
+    async def _search_newsapi_query(
+        self,
+        client: httpx.AsyncClient,
+        *,
+        query: str,
+        lookback_hours: int,
+        max_items: int,
+        seed_meta: Dict[str, Any],
+    ) -> List[NormalizedNewsItem]:
+        if not self.newsapi_key:
+            return []
+        q = normalize_text(query or "")
+        if not q:
+            return []
+
+        now = datetime.now(timezone.utc)
+        since = (now - timedelta(hours=max(1, lookback_hours))).isoformat()
+        params = {
+            "q": q,
+            "language": "en",
+            "sortBy": "publishedAt",
+            "from": since,
+            "pageSize": str(min(100, max(1, max_items))),
+            "apiKey": self.newsapi_key,
+        }
+        try:
+            resp = await client.get("https://newsapi.org/v2/everything", params=params)
+        except Exception:
+            return []
+        if resp.status_code >= 400:
+            return []
+
+        body = resp.json() or {}
+        raw_articles = body.get("articles") or []
+        items: List[NormalizedNewsItem] = []
+
+        for art in raw_articles:
+            title = normalize_text(str(art.get("title") or ""))
+            url = str(art.get("url") or "")
+            if not title or not url:
+                continue
+
+            published_raw = art.get("publishedAt") or now.isoformat()
+            try:
+                published = datetime.fromisoformat(str(published_raw).replace("Z", "+00:00"))
+                if published.tzinfo is None:
+                    published = published.replace(tzinfo=timezone.utc)
+                else:
+                    published = published.astimezone(timezone.utc)
+            except Exception:
+                published = now
+
+            payload = {
+                "provider": "newsapi",
+                "origin": "paid_headline_expand",
+                "seed": seed_meta,
+                "source": art.get("source"),
+                "image_url": normalize_image_url(str(art.get("urlToImage") or "")) if art.get("urlToImage") else None,
+            }
+            item = NormalizedNewsItem(
+                source_key="newsapi",
+                source_name="NewsAPI",
+                source_type="api",
+                title=title[:300],
+                url=url,
+                canonical_url=canonicalize_url(url),
+                summary=normalize_text(str(art.get("description") or ""))[:300],
+                published_at=published,
+                language="en",
+                author=normalize_text(str(art.get("author") or "")) or None,
+                payload=payload,
+                source_weight=0.67,
+            ).with_external_id()
+            items.append(item)
+            if len(items) >= max_items:
+                break
+
+        return items[:max_items]
+
+    async def _search_gnews_query(
+        self,
+        client: httpx.AsyncClient,
+        *,
+        query: str,
+        lookback_hours: int,
+        max_items: int,
+        seed_meta: Dict[str, Any],
+    ) -> List[NormalizedNewsItem]:
+        if not self.gnews_key:
+            return []
+        q = normalize_text(query or "")
+        if not q:
+            return []
+
+        now = datetime.now(timezone.utc)
+        since = (now - timedelta(hours=max(1, lookback_hours))).isoformat()
+        params = {
+            "q": q,
+            "lang": "en",
+            "max": str(min(50, max(1, max_items))),
+            "from": since,
+            "token": self.gnews_key,
+        }
+        try:
+            resp = await client.get("https://gnews.io/api/v4/search", params=params)
+        except Exception:
+            return []
+        if resp.status_code >= 400:
+            return []
+
+        body = resp.json() or {}
+        articles = body.get("articles") or []
+        items: List[NormalizedNewsItem] = []
+
+        for art in articles:
+            title = normalize_text(str(art.get("title") or ""))
+            url = str(art.get("url") or "")
+            if not title or not url:
+                continue
+
+            published_raw = art.get("publishedAt") or now.isoformat()
+            try:
+                published = datetime.fromisoformat(str(published_raw).replace("Z", "+00:00"))
+                if published.tzinfo is None:
+                    published = published.replace(tzinfo=timezone.utc)
+                else:
+                    published = published.astimezone(timezone.utc)
+            except Exception:
+                published = now
+
+            payload = {
+                "provider": "gnews",
+                "origin": "paid_headline_expand",
+                "seed": seed_meta,
+                "image_url": normalize_image_url(str(art.get("image") or "")) if art.get("image") else None,
+            }
+            item = NormalizedNewsItem(
+                source_key="gnews",
+                source_name="GNews",
+                source_type="api",
+                title=title[:300],
+                url=url,
+                canonical_url=canonicalize_url(url),
+                summary=normalize_text(str(art.get("description") or ""))[:300],
+                published_at=published,
+                language="en",
+                author=normalize_text(str(art.get("source", {}).get("name") or "")) or None,
+                payload=payload,
+                source_weight=0.66,
+            ).with_external_id()
+            items.append(item)
+            if len(items) >= max_items:
+                break
+
+        return items[:max_items]
+
+    async def _fetch_paid_headline_seeds(
+        self,
+        conn: asyncpg.Connection,
+        client: httpx.AsyncClient,
+        source: SourceDefinition,
+        lookback_hours: int,
+    ) -> List[NormalizedNewsItem]:
+        """Fetch paid headline leads and expand them into open-web corroboration candidates."""
+        if not _env_bool("PAID_HEADLINE_SEEDS_ENABLED", False):
+            return []
+
+        publisher_key = source.source_key
+        max_seeds = max(1, min(50, _env_int("PAID_HEADLINE_MAX_SEEDS_PER_RUN", 10)))
+        metadata_fetch = _env_bool("PAID_HEADLINE_METADATA_FETCH", True)
+        expand_lookback_hours = max(24, _env_int("PAID_HEADLINE_EXPAND_LOOKBACK_HOURS", 168))
+        expand_max_per_seed = max(1, min(25, _env_int("PAID_HEADLINE_EXPAND_MAX_PER_SEED", 8)))
+        max_attempts = max(1, _env_int("PAID_HEADLINE_MAX_ATTEMPTS", 3))
+
+        expand_sources_raw = (os.getenv("PAID_HEADLINE_EXPAND_SOURCES", "gnews,newsapi") or "").strip()
+        expand_sources: List[str] = []
+        for raw in expand_sources_raw.split(","):
+            key = raw.strip().lower()
+            if key and key not in expand_sources:
+                expand_sources.append(key)
+
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT
+                  id::text AS id,
+                  url,
+                  canonical_url,
+                  title,
+                  summary,
+                  published_at,
+                  attempt_count
+                FROM paid_headline_seeds
+                WHERE publisher_key = $1
+                  AND status = 'new'
+                ORDER BY created_at ASC
+                LIMIT $2
+                """,
+                publisher_key,
+                max_seeds,
+            )
+        except Exception as exc:
+            print(f"[news-ingest] {publisher_key}: paid headline seeds skipped (migration missing?): {exc}")
+            return []
+
+        if not rows:
+            return []
+
+        out: List[NormalizedNewsItem] = []
+        now = datetime.now(timezone.utc)
+
+        for row in rows:
+            seed_id = str(row.get("id") or "").strip()
+            seed_url = str(row.get("url") or "").strip()
+            seed_canonical_url = str(row.get("canonical_url") or "").strip() or canonicalize_url(seed_url)
+            seed_title_db = normalize_text(str(row.get("title") or ""))
+            seed_summary_db = normalize_text(str(row.get("summary") or ""))
+            seed_published_at_db = row.get("published_at")
+            try:
+                attempt_count = int(row.get("attempt_count") or 0) + 1
+            except Exception:
+                attempt_count = 1
+
+            # Update attempt telemetry (best-effort, don't fail ingestion on errors).
+            try:
+                await conn.execute(
+                    """
+                    UPDATE paid_headline_seeds
+                    SET attempt_count = $2,
+                        last_attempt_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = $1::uuid
+                    """,
+                    seed_id,
+                    attempt_count,
+                )
+            except Exception:
+                pass
+
+            extracted_title = ""
+            extracted_summary = ""
+            extracted_published_at: Optional[datetime] = None
+            extracted_image_url = ""
+            last_error = ""
+
+            # Metadata-only fetch (title/description/published time/og:image)
+            if metadata_fetch and seed_url:
+                try:
+                    resp = await client.get(
+                        seed_url,
+                        headers={
+                            "User-Agent": "Mozilla/5.0 (compatible; BuildAtlasHeadlineLead/1.0; +https://buildatlas.net)",
+                        },
+                    )
+                    if resp.status_code < 400:
+                        t, s, p, img = extract_html_title_summary(resp.text or "", source_url=seed_url)
+                        extracted_title = normalize_text(t)
+                        extracted_summary = normalize_text(s)
+                        extracted_published_at = p
+                        if img:
+                            extracted_image_url = normalize_image_url(str(img), base_url=seed_url)
+
+                        try:
+                            await conn.execute(
+                                """
+                                UPDATE paid_headline_seeds
+                                SET title = COALESCE(title, $2),
+                                    summary = COALESCE(summary, $3),
+                                    published_at = COALESCE(published_at, $4),
+                                    last_error = NULL,
+                                    updated_at = NOW()
+                                WHERE id = $1::uuid
+                                """,
+                                seed_id,
+                                extracted_title or None,
+                                extracted_summary or None,
+                                extracted_published_at,
+                            )
+                        except Exception:
+                            pass
+                    else:
+                        last_error = f"http_{resp.status_code}"
+                except Exception as exc:
+                    last_error = str(exc)[:300]
+
+            seed_title = seed_title_db or extracted_title
+            seed_summary = seed_summary_db or extracted_summary
+
+            # Ensure lead items don't collapse into one cluster when titles are missing:
+            # make a URL-derived fallback title that stays unique per seed.
+            if not seed_title:
+                path = (urlparse(seed_canonical_url).path or "").strip("/") or seed_canonical_url
+                seed_title = f"{source.display_name}: {path}"[:300]
+
+            lead_payload: Dict[str, Any] = {
+                "origin": "paid_headline_seed",
+                "paywalled": True,
+                "lead_only": True,
+                "seed_id": seed_id,
+                "publisher_key": publisher_key,
+            }
+            if extracted_image_url:
+                lead_payload["image_url"] = extracted_image_url
+
+            # Use a stable external_id (seed UUID) so re-runs update instead of duplicating.
+            lead_item = NormalizedNewsItem(
+                source_key=source.source_key,
+                source_name=source.display_name,
+                source_type=source.source_type,
+                title=seed_title[:300],
+                url=seed_url or seed_canonical_url,
+                canonical_url=seed_canonical_url,
+                summary=(seed_summary or "")[:300],
+                published_at=seed_published_at_db or extracted_published_at or now,
+                language=source.language or "en",
+                author=None,
+                external_id=seed_id,
+                payload=lead_payload,
+                source_weight=source.credibility_weight,
+            )
+            out.append(lead_item)
+
+            expanded: List[NormalizedNewsItem] = []
+            query_title = seed_title_db or extracted_title
+            query = build_paid_headline_search_query(query_title) if query_title else ""
+            if query:
+                seed_meta = {
+                    "publisher_key": publisher_key,
+                    "seed_id": seed_id,
+                    "seed_url": seed_url,
+                    "seed_canonical_url": seed_canonical_url,
+                    "seed_title": query_title,
+                }
+                if "gnews" in expand_sources:
+                    expanded.extend(
+                        await self._search_gnews_query(
+                            client,
+                            query=query,
+                            lookback_hours=expand_lookback_hours,
+                            max_items=expand_max_per_seed,
+                            seed_meta=seed_meta,
+                        )
+                    )
+                if "newsapi" in expand_sources:
+                    expanded.extend(
+                        await self._search_newsapi_query(
+                            client,
+                            query=query,
+                            lookback_hours=expand_lookback_hours,
+                            max_items=expand_max_per_seed,
+                            seed_meta=seed_meta,
+                        )
+                    )
+
+            expanded = expanded[: expand_max_per_seed * 2]
+
+            # Update seed status based on corroboration results (best-effort).
+            try:
+                if expanded:
+                    await conn.execute(
+                        """
+                        UPDATE paid_headline_seeds
+                        SET status = 'processed',
+                            last_error = NULL,
+                            updated_at = NOW()
+                        WHERE id = $1::uuid
+                        """,
+                        seed_id,
+                    )
+                else:
+                    err = last_error or ""
+                    if not err:
+                        if not query:
+                            err = "missing_title"
+                        elif not (self.gnews_key or self.newsapi_key):
+                            err = "missing_expand_api_keys"
+                        else:
+                            err = "no_corroborating_results"
+                    if attempt_count >= max_attempts:
+                        await conn.execute(
+                            """
+                            UPDATE paid_headline_seeds
+                            SET status = 'failed',
+                                last_error = $2,
+                                updated_at = NOW()
+                            WHERE id = $1::uuid
+                            """,
+                            seed_id,
+                            err,
+                        )
+                    else:
+                        await conn.execute(
+                            """
+                            UPDATE paid_headline_seeds
+                            SET last_error = $2,
+                                updated_at = NOW()
+                            WHERE id = $1::uuid
+                            """,
+                            seed_id,
+                            err,
+                        )
+            except Exception:
+                pass
+
+            out.extend(expanded)
+            if len(out) >= self.max_per_source:
+                return out[: self.max_per_source]
+
+        return out[: self.max_per_source]
+
     async def _fetch_github_trending_ai(
         self,
         conn: asyncpg.Connection,
@@ -3470,6 +3977,8 @@ class DailyNewsIngestor:
                         items = await self._fetch_huggingface_papers(client, source, source_lookback)
                     elif source.fetch_mode == "digest_rss":
                         items = await self._fetch_ainews_digest(client, source, source_lookback)
+                    elif source.fetch_mode == "paid_headlines":
+                        items = await self._fetch_paid_headline_seeds(conn, client, source, source_lookback)
                     elif source.fetch_mode == "crawler":
                         items = await self._fetch_frontier_candidates(conn, client, source, source_lookback)
                     else:
@@ -4056,7 +4565,7 @@ class DailyNewsIngestor:
                     "summary": _shorten_text(pick_summary(c), 240),
                     "rank_score": float(round(c.rank_score, 4)),
                     "trust_score": float(round(c.trust_score, 4)),
-                    "source_count": int(len(c.members)),
+                    "source_count": int(_count_non_lead_members(c.members)),
                     **_memory_enrichment(c),
                     **_research_enrichment(c),
                 }
@@ -4450,7 +4959,7 @@ class DailyNewsIngestor:
         ) if region == "turkey" else ""
 
         ranked_members = sorted(
-            list(cluster.members),
+            _non_lead_members(cluster.members),
             key=lambda m: (m.source_weight, m.published_at),
             reverse=True,
         )
@@ -4535,7 +5044,7 @@ class DailyNewsIngestor:
             "story_type": cluster.story_type,
             "topic_tags": cluster.topic_tags[:6],
             "entities": cluster.entities[:6],
-            "source_count": len(cluster.members),
+            "source_count": _count_non_lead_members(cluster.members),
             "source_count_expected": expected_source_count,
             "source_count_payload": expected_source_count,
             "source_urls_expected": [row.get("canonical_url") for row in source_rows if row.get("canonical_url")],
@@ -5097,9 +5606,17 @@ class DailyNewsIngestor:
         # of gating decision so that edition items always have builder_takeaway.
         enrichment_candidates = list(clusters)
 
+        # Hard exclude: never spend LLM budget on lead-only clusters.
+        before_leads = len(enrichment_candidates)
+        enrichment_candidates = [
+            c for c in enrichment_candidates
+            if _count_non_lead_members(getattr(c, "members", [])) > 0
+        ]
+        skipped_by_lead_only = before_leads - len(enrichment_candidates)
+
         # Further filter: skip if strong negative signal history
         sig_agg = getattr(self, "_signal_aggregator", None)
-        skipped_by_gating = len(clusters) - len(enrichment_candidates)
+        skipped_by_gating = 0
         skipped_by_signal = 0
         if sig_agg and sig_agg.loaded:
             before = len(enrichment_candidates)
@@ -5118,6 +5635,7 @@ class DailyNewsIngestor:
         self._llm_metrics["attempted"] = int(top_n)
         self._llm_metrics["intel_attempted"] = int(top_n) if INTEL_FIRST_PROMPT_ENABLED else 0
         self._llm_metrics["skipped_by_gating"] = int(skipped_by_gating)
+        self._llm_metrics["skipped_by_lead_only"] = int(skipped_by_lead_only)
         self._llm_metrics["skipped_by_signal"] = int(skipped_by_signal)
 
         async def enrich_one(
@@ -5238,6 +5756,8 @@ class DailyNewsIngestor:
         """Fetch og:image from article URLs for clusters where no member has an image."""
         needs_image: List[NormalizedNewsItem] = []
         for cluster in clusters:
+            if _count_non_lead_members(cluster.members) == 0:
+                continue
             has_any_image = any(
                 m.payload.get("image_url")
                 for m in cluster.members
@@ -5434,6 +5954,21 @@ class DailyNewsIngestor:
         }
 
         for cluster in clusters:
+            # Hard guardrail: never allow a cluster composed only of paid/headline
+            # leads to proceed through the normal pipeline. These are triggers for
+            # open-web corroboration, not publishable items on their own.
+            if _count_non_lead_members(cluster.members) == 0:
+                cluster.gating_decision = "drop"
+                cluster.gating_reason = "Paid headline lead without corroboration"
+                cluster.gating_scores = {
+                    "builder_insight": 0,
+                    "pattern_novelty": 0,
+                    "gtm_uniqueness": 0,
+                    "evidence_quality": 0,
+                    "composite": 0.0,
+                }
+                decision_counts["drop"] = decision_counts.get("drop", 0) + 1
+                continue
             try:
                 # 1. Pattern matching
                 patterns = pattern_matcher.match(
@@ -5472,9 +6007,10 @@ class DailyNewsIngestor:
                         break
 
                 # 4. Heuristic scoring
-                source_count = len(cluster.members)
+                non_lead_members = _non_lead_members(cluster.members)
+                source_count = len(non_lead_members)
                 source_credibility = max(
-                    (m.source_weight for m in cluster.members), default=0.65
+                    (m.source_weight for m in non_lead_members), default=0.65
                 )
                 sig_agg = getattr(self, "_signal_aggregator", None)
                 cid = (cluster_ids or {}).get(cluster.cluster_key)
@@ -5864,7 +6400,7 @@ class DailyNewsIngestor:
                     cluster.topic_tags,
                     cluster.entities,
                     cluster.story_type,
-                    len(cluster.members),
+                    _count_non_lead_members(cluster.members),
                     cluster.rank_score,
                     cluster.rank_reason,
                     cluster.trust_score,
@@ -5950,7 +6486,7 @@ class DailyNewsIngestor:
                     cluster.topic_tags,
                     cluster.entities,
                     cluster.story_type,
-                    len(cluster.members),
+                    _count_non_lead_members(cluster.members),
                     cluster.rank_score,
                     cluster.rank_reason,
                     cluster.trust_score,
@@ -6171,7 +6707,7 @@ class DailyNewsIngestor:
                     continue
                 await conn.execute(
                     "UPDATE news_clusters SET source_count = $1 WHERE id = $2::uuid",
-                    len(c.members),
+                    _count_non_lead_members(c.members),
                     cid,
                 )
                 for member in c.members:
@@ -6616,10 +7152,12 @@ class DailyNewsIngestor:
                 non_dropped_global = [
                     c for c in clusters
                     if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                    and _count_non_lead_members(c.members) > 0
                 ]
                 non_dropped_turkey = [
                     c for c in turkey_clusters
                     if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                    and _count_non_lead_members(c.members) > 0
                 ]
 
                 # --- Extract structured events from clusters ---
@@ -6665,6 +7203,7 @@ class DailyNewsIngestor:
                 turkey_clusters_for_edition = [
                     c for c in turkey_clusters
                     if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                    and _count_non_lead_members(c.members) > 0
                 ]
                 if len(turkey_clusters_for_edition) < 5:
                     print(
@@ -6675,6 +7214,7 @@ class DailyNewsIngestor:
                 global_clusters_for_edition = [
                     c for c in clusters
                     if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                    and _count_non_lead_members(c.members) > 0
                 ]
                 global_stats = await self._persist_edition(
                     conn,

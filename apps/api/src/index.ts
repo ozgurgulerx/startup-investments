@@ -62,6 +62,7 @@ import {
   investorScreenerQuerySchema,
   investorPortfolioQuerySchema,
   investorNetworkQuerySchema,
+  investorNewsQuerySchema,
   startupInvestorsQuerySchema,
   startupFoundersQuerySchema,
   investorUpsertSchema,
@@ -70,6 +71,8 @@ import {
   graphEdgesBulkUpsertSchema,
   onboardingContextCreateSchema,
   onboardingContextTemplateQuerySchema,
+  headlineSeedCreateSchema,
+  headlineSeedsQuerySchema,
   landscapesQuerySchema,
   landscapesClusterQuerySchema,
   sectorsQuerySchema,
@@ -81,7 +84,7 @@ import {
   alertBatchUpdateSchema,
   alertDigestQuerySchema,
 } from './validation';
-import { slugify, parseLocation, parseFundingAmount } from './utils';
+import { slugify, parseLocation, parseFundingAmount, canonicalizeSeedUrl } from './utils';
 import { makeNewsService } from './services/news';
 import { makeSignalsService } from './services/signals';
 import { makeDeepDivesService } from './services/deep-dives';
@@ -3351,6 +3354,45 @@ app.get('/api/v1/investors/:id/network', async (req, res) => {
   }
 });
 
+app.get('/api/v1/investors/:id/news', async (req, res) => {
+  try {
+    const investorId = String(req.params.id || '').trim();
+    if (!investorId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(investorId)) {
+      return res.status(400).json({ error: 'Invalid investor ID (must be UUID)' });
+    }
+    const parsed = investorNewsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+
+    const cacheKey = `investors:news:${investorId}:${parsed.data.scope}:${parsed.data.days}:${parsed.data.limit}:${parsed.data.offset}`;
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) { res.setHeader('X-Cache', 'HIT'); return res.json(JSON.parse(cached)); }
+      } catch { /* noop */ }
+    }
+
+    const result = await investorsService.getNews({ investorId, ...parsed.data });
+    const payload = {
+      investor_id: investorId,
+      scope: parsed.data.scope,
+      days: parsed.data.days,
+      total: result.total,
+      items: result.items,
+    };
+
+    if (redis) {
+      try { await redis.set(cacheKey, JSON.stringify(payload), { EX: CACHE_TTL.BENCHMARKS }); } catch { /* noop */ }
+    }
+    res.json(payload);
+  } catch (error) {
+    console.error('Error fetching investor news:', error);
+    return res.status(500).json({ error: 'Failed to fetch investor news' });
+  }
+});
+
 app.get('/api/v1/startups/:id/investors', async (req, res) => {
   try {
     const startupId = String(req.params.id || '').trim();
@@ -4173,6 +4215,127 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
     await pgClient.query('ROLLBACK');
     console.error('Error adding onboarding context:', error);
     return res.status(500).json({ error: 'Failed to add onboarding context' });
+  } finally {
+    pgClient.release();
+  }
+});
+
+// =============================================================================
+// Admin API - Paid Headline Seeds (manual paywalled-source leads)
+// =============================================================================
+
+// POST /api/admin/v1/headline-seeds — add a paid headline lead URL (metadata only)
+app.post('/api/admin/v1/headline-seeds', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = headlineSeedCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
+
+  const canonicalUrl = canonicalizeSeedUrl(parsed.data.url);
+  if (!canonicalUrl) return res.status(400).json({ error: 'Invalid URL' });
+
+  let publishedAt: string | null = null;
+  if (parsed.data.publishedAt) {
+    const dt = new Date(parsed.data.publishedAt);
+    if (!Number.isNaN(dt.getTime())) publishedAt = dt.toISOString();
+  }
+
+  const pgClient = await pool.connect();
+  try {
+    const result = await pgClient.query(
+      `
+      INSERT INTO paid_headline_seeds
+        (publisher_key, url, canonical_url, title, published_at, status, created_at, updated_at)
+      VALUES
+        ($1, $2, $3, $4, $5, 'new', now(), now())
+      ON CONFLICT (publisher_key, canonical_url) DO UPDATE
+      SET url = EXCLUDED.url,
+          title = COALESCE(paid_headline_seeds.title, EXCLUDED.title),
+          published_at = COALESCE(paid_headline_seeds.published_at, EXCLUDED.published_at),
+          updated_at = now()
+      RETURNING
+        id::text,
+        publisher_key,
+        url,
+        canonical_url,
+        title,
+        to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS published_at,
+        status,
+        attempt_count,
+        to_char(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_attempt_at,
+        last_error,
+        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS updated_at
+      `,
+      [
+        parsed.data.publisherKey,
+        parsed.data.url,
+        canonicalUrl,
+        parsed.data.title || null,
+        publishedAt,
+      ],
+    );
+    return res.json({ seed: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating paid headline seed:', error);
+    return res.status(500).json({ error: 'Failed to create seed' });
+  } finally {
+    pgClient.release();
+  }
+});
+
+// GET /api/admin/v1/headline-seeds — list seeds
+app.get('/api/admin/v1/headline-seeds', async (req, res) => {
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = headlineSeedsQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid query', details: parsed.error.issues });
+
+  const pgClient = await pool.connect();
+  try {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+
+    if (parsed.data.publisherKey) {
+      params.push(parsed.data.publisherKey);
+      where.push(`publisher_key = $${params.length}`);
+    }
+    if (parsed.data.status) {
+      params.push(parsed.data.status);
+      where.push(`status = $${params.length}`);
+    }
+
+    params.push(parsed.data.limit);
+    const sql = `
+      SELECT
+        id::text,
+        publisher_key,
+        url,
+        canonical_url,
+        title,
+        summary,
+        to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS published_at,
+        status,
+        attempt_count,
+        to_char(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_attempt_at,
+        last_error,
+        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS updated_at
+      FROM paid_headline_seeds
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY created_at DESC
+      LIMIT $${params.length}
+    `;
+
+    const result = await pgClient.query(sql, params);
+    return res.json({ seeds: result.rows });
+  } catch (error) {
+    console.error('Error listing paid headline seeds:', error);
+    return res.status(500).json({ error: 'Failed to list seeds' });
   } finally {
     pgClient.release();
   }

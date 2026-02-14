@@ -37,7 +37,11 @@ const formatStageName = (stage: string) => {
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload;
+    const data = payload[0]?.payload;
+    const pct =
+      typeof data?.percentage === 'number' && Number.isFinite(data.percentage)
+        ? data.percentage
+        : null;
     return (
       <div className="rounded-lg border border-border bg-card p-3 shadow-lg">
         <p className="font-medium text-foreground">{data.name}</p>
@@ -45,7 +49,7 @@ const CustomTooltip = ({ active, payload }: any) => {
           {formatCurrency(data.value, true)} ({data.count} deals)
         </p>
         <p className="text-xs text-muted-foreground">
-          {data.percentage.toFixed(1)}% of total
+          {pct != null ? `${pct.toFixed(1)}% of total` : 'Share: —'}
         </p>
       </div>
     );

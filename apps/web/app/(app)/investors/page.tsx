@@ -14,6 +14,8 @@ interface InvestorItem {
   lead_count: number;
   top_patterns: string[];
   thesis_shift_js: number | null;
+  news_30d_count?: number;
+  last_news_at?: string | null;
 }
 
 function formatUsd(v: number | null): string {
@@ -22,6 +24,13 @@ function formatUsd(v: number | null): string {
   if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
   if (v >= 1e3) return `$${(v / 1e3).toFixed(0)}K`;
   return `$${v.toFixed(0)}`;
+}
+
+function formatShortDate(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 const SORT_OPTIONS = [
@@ -130,6 +139,11 @@ export default function InvestorsPage() {
                     <span>{inv.deal_count} deals</span>
                     <span>{formatUsd(inv.total_amount_usd)}</span>
                     {inv.lead_count > 0 && <span>{inv.lead_count} led</span>}
+                    {inv.news_30d_count != null && inv.news_30d_count > 0 && (
+                      <span>
+                        {inv.news_30d_count} news{inv.last_news_at ? ` · ${formatShortDate(inv.last_news_at)}` : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {inv.thesis_shift_js != null && inv.thesis_shift_js > 0.01 && (

@@ -521,6 +521,13 @@ export const investorNetworkQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
+export const investorNewsQuerySchema = z.object({
+  scope: z.enum(['global', 'turkey']).default('global'),
+  days: z.coerce.number().int().min(1).max(365).default(30),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
 export const startupInvestorsQuerySchema = z.object({
   scope: z.enum(['global', 'turkey']).default('global'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -592,6 +599,23 @@ export const onboardingContextCreateSchema = z.object({
 export const onboardingContextTemplateQuerySchema = z.object({
   startupId: z.string().uuid().optional(),
   traceEventId: z.string().uuid().optional(),
+});
+
+// =============================================================================
+// ADMIN - PAID HEADLINE SEEDS (manual paywalled-source leads)
+// =============================================================================
+
+export const headlineSeedCreateSchema = z.object({
+  publisherKey: z.enum(['theinformation']),
+  url: z.string().url().max(2000),
+  title: optionalTrimmedString(300),
+  publishedAt: z.string().datetime().optional(),
+});
+
+export const headlineSeedsQuerySchema = z.object({
+  publisherKey: z.enum(['theinformation']).optional(),
+  status: z.enum(['new', 'processed', 'failed', 'ignored']).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
 // =============================================================================

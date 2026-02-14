@@ -62,6 +62,8 @@ SETS: dict[str, list[str]] = {
         # Email subscriptions: confirmation + region support + rate limits
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
+        # Manual paid headline leads (e.g. The Information) for open-web corroboration
+        "067_paid_headline_seeds.sql",
         # Topic research queue for automated deep-dive research
         "032_topic_research.sql",
         # Signal intelligence engine — event registry, pattern registry, signals, evidence
@@ -102,6 +104,8 @@ SETS: dict[str, list[str]] = {
         "063_onboarding_trace_and_context.sql",
         # Fix: dedupe_key unique index inference for ON CONFLICT
         "064_fix_onboarding_trace_dedupe_index.sql",
+        # Investor onboarding (queue + profiles + trace extensions)
+        "068_investor_onboarding.sql",
         # X/Twitter trend intelligence + automated posting queue
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
@@ -116,6 +120,7 @@ SETS: dict[str, list[str]] = {
         "058_onboarding_pipeline_activation.sql",
         "063_onboarding_trace_and_context.sql",
         "064_fix_onboarding_trace_dedupe_index.sql",
+        "068_investor_onboarding.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -134,6 +139,8 @@ SETS: dict[str, list[str]] = {
         "028_pgvector_embeddings.sql",
         "017_email_confirmation_and_region.sql",
         "018_news_subscription_rate_limits.sql",
+        # Manual paid headline leads (e.g. The Information) for open-web corroboration
+        "067_paid_headline_seeds.sql",
         "027_subscriber_timezone.sql",
         # Queryable state snapshots + architecture history (required by signal aggregation + delta generator)
         "039_startup_state_snapshot.sql",
@@ -174,10 +181,13 @@ SETS: dict[str, list[str]] = {
         "058_onboarding_pipeline_activation.sql",
         "063_onboarding_trace_and_context.sql",
         "064_fix_onboarding_trace_dedupe_index.sql",
+        "068_investor_onboarding.sql",
         # Capital graph + founder normalization
         "059_capital_graph_founders.sql",
         # Optional graph extension (AGE) with graceful fallback
         "060_graph_extension_optional.sql",
+        # Co-invest network edges stored in the canonical capital graph
+        "069_capital_graph_coinvest_edges.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
         "062_community_features.sql",
     ],
@@ -197,6 +207,7 @@ SETS: dict[str, list[str]] = {
         "056_benchmark_percentile_ranks.sql",
         "059_capital_graph_founders.sql",
         "060_graph_extension_optional.sql",
+        "069_capital_graph_coinvest_edges.sql",
     ],
 }
 

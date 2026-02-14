@@ -88,7 +88,9 @@ async def emit_trace(
     target: Any,
     *,
     startup_id: Optional[str],
+    investor_id: Optional[str] = None,
     queue_item_id: Optional[str],
+    investor_queue_item_id: Optional[str] = None,
     trace_type: str,
     stage: str,
     status: str,
@@ -115,15 +117,103 @@ async def emit_trace(
         stage,
         status,
         startup_id,
+        investor_id,
         queue_item_id,
+        investor_queue_item_id,
         reason_code,
         message,
     )
 
     try:
-        await execute(
-            """
-            INSERT INTO onboarding_trace_events (
+        try:
+            # Newer schema (068+) supports investor trace linkage.
+            await execute(
+                """
+                INSERT INTO onboarding_trace_events (
+                    startup_id,
+                    investor_id,
+                    queue_item_id,
+                    investor_queue_item_id,
+                    trace_type,
+                    stage,
+                    status,
+                    severity,
+                    reason_code,
+                    message,
+                    payload_json,
+                    dedupe_key,
+                    should_notify,
+                    notification_channel
+                )
+                VALUES (
+                    $1::uuid,
+                    $2::uuid,
+                    $3::uuid,
+                    $4::uuid,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    $11::jsonb,
+                    $12,
+                    $13,
+                    $14
+                )
+                ON CONFLICT (dedupe_key)
+                DO NOTHING
+                """,
+                startup_id,
+                investor_id,
+                queue_item_id,
+                investor_queue_item_id,
+                trace_type,
+                stage,
+                status,
+                severity,
+                reason_code,
+                (message or "")[:1200],
+                json.dumps(payload_json),
+                final_dedupe,
+                bool(should_notify),
+                notification_channel,
+            )
+        except Exception:
+            # Back-compat: older schema supports only startup linkage.
+            await execute(
+                """
+                INSERT INTO onboarding_trace_events (
+                    startup_id,
+                    queue_item_id,
+                    trace_type,
+                    stage,
+                    status,
+                    severity,
+                    reason_code,
+                    message,
+                    payload_json,
+                    dedupe_key,
+                    should_notify,
+                    notification_channel
+                )
+                VALUES (
+                    $1::uuid,
+                    $2::uuid,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9::jsonb,
+                    $10,
+                    $11,
+                    $12
+                )
+                ON CONFLICT (dedupe_key)
+                DO NOTHING
+                """,
                 startup_id,
                 queue_item_id,
                 trace_type,
@@ -131,42 +221,12 @@ async def emit_trace(
                 status,
                 severity,
                 reason_code,
-                message,
-                payload_json,
-                dedupe_key,
-                should_notify,
-                notification_channel
+                (message or "")[:1200],
+                json.dumps(payload_json),
+                final_dedupe,
+                bool(should_notify),
+                notification_channel,
             )
-            VALUES (
-                $1::uuid,
-                $2::uuid,
-                $3,
-                $4,
-                $5,
-                $6,
-                $7,
-                $8,
-                $9::jsonb,
-                $10,
-                $11,
-                $12
-            )
-            ON CONFLICT (dedupe_key)
-            DO NOTHING
-            """,
-            startup_id,
-            queue_item_id,
-            trace_type,
-            stage,
-            status,
-            severity,
-            reason_code,
-            (message or "")[:1200],
-            json.dumps(payload_json),
-            final_dedupe,
-            bool(should_notify),
-            notification_channel,
-        )
         return True
     except Exception:
         # Table may not exist yet on partially migrated environments.

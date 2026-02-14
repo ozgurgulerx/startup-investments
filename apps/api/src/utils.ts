@@ -4,6 +4,64 @@ export interface ParsedLocation {
   continent: string | null;
 }
 
+const TRACKING_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'gclid',
+  'fbclid',
+  'msclkid',
+  'ref',
+  'source',
+  'campaign',
+]);
+
+export function canonicalizeSeedUrl(inputUrl: string): string {
+  const raw = String(inputUrl || '').trim();
+  if (!raw) return '';
+
+  const withScheme = raw.startsWith('http://') || raw.startsWith('https://')
+    ? raw
+    : `https://${raw}`;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(withScheme);
+  } catch {
+    return '';
+  }
+
+  // Normalize scheme/host/path and drop hash + tracking query params.
+  parsed.protocol = 'https:';
+  parsed.username = '';
+  parsed.password = '';
+  parsed.hostname = parsed.hostname.toLowerCase().replace(/^www\./, '');
+  parsed.port = '';
+  parsed.hash = '';
+
+  let path = parsed.pathname || '/';
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+  parsed.pathname = path;
+
+  const keptPairs: Array<[string, string]> = [];
+  for (const [k, v] of parsed.searchParams.entries()) {
+    const key = k.toLowerCase();
+    if (TRACKING_PARAMS.has(key)) continue;
+    if (!v) continue; // match canonicalization behavior that drops blank values
+    keptPairs.push([k, v]);
+  }
+  keptPairs.sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
+
+  const rebuilt = new URLSearchParams();
+  for (const [k, v] of keptPairs) rebuilt.append(k, v);
+  const qs = rebuilt.toString();
+  parsed.search = qs ? `?${qs}` : '';
+
+  return parsed.toString();
+}
+
 export function slugify(name: string): string {
   return name
     .toLowerCase()

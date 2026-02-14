@@ -20,6 +20,8 @@ from src.automation.news_ingest import (
     _parse_amazon_new_releases_html,
     _stable_external_id,
     _utc_midnight,
+    build_paid_headline_search_query,
+    compute_cluster_scores,
     ensure_json_object,
     is_likely_content_url,
 )
@@ -43,6 +45,51 @@ def test_is_likely_content_url_filters_listing_paths():
     assert is_likely_content_url("https://acme.com/changelog") is False
     assert is_likely_content_url("https://acme.com/blog/launch-post") is True
     assert is_likely_content_url("https://acme.com/updates/product-v2") is True
+
+
+def test_build_paid_headline_search_query_prefers_anchor_entity():
+    query = build_paid_headline_search_query("Top-funded AI database startup Pinecone considers sale")
+    assert '"Pinecone"' in query
+    assert "sale" in query
+
+
+def test_compute_cluster_scores_ignores_lead_only_members():
+    now = datetime.now(timezone.utc)
+    real = NormalizedNewsItem(
+        source_key="gnews",
+        source_name="GNews",
+        source_type="api",
+        title="Pinecone considers sale",
+        url="https://example.com/story",
+        canonical_url="https://example.com/story",
+        summary="",
+        published_at=now,
+        language="en",
+        payload={},
+        engagement={"points": 1},
+        source_weight=0.50,
+    ).with_external_id()
+
+    lead = NormalizedNewsItem(
+        source_key="theinformation",
+        source_name="The Information",
+        source_type="community",
+        title="Top-funded AI database startup Pinecone considers sale",
+        url="https://theinformation.com/articles/x",
+        canonical_url="https://theinformation.com/articles/x",
+        summary="",
+        published_at=now,
+        language="en",
+        payload={"lead_only": True, "paywalled": True},
+        engagement={"points": 999},
+        source_weight=0.99,
+    ).with_external_id()
+
+    tags = ["ai"]
+    score_real = compute_cluster_scores(published_at=now, topic_tags=tags, members=[real], now=now)
+    score_with_lead = compute_cluster_scores(published_at=now, topic_tags=tags, members=[real, lead], now=now)
+
+    assert score_real == score_with_lead
 
 
 def test_semianalysis_source_in_default_sources():

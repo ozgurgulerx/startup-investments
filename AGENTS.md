@@ -351,6 +351,18 @@ News:
     - Back-compat: `AZURE_OPENAI_DEPLOYMENT`
   - Verify in `/var/log/buildatlas/news-ingest.log`:
     - `[news-ingest] daily brief generated via Azure: "..."` and `Daily brief: generated`.
+- Paid headline leads (The Information):
+  - Goal: ingest **headline-only** URLs from paywalled sources as *leads*, then expand to accessible corroborating coverage (do not paywall-bypass).
+  - DB table: `paid_headline_seeds` (migration: `database/migrations/067_paid_headline_seeds.sql`; included in `news` + `news-digest` sets in `scripts/apply_migrations.py`).
+  - Admin API:
+    - `POST /api/admin/v1/headline-seeds` (create seed) (`x-admin-key` required)
+    - `GET /api/admin/v1/headline-seeds` (list seeds) (`x-admin-key` required)
+  - Ingest integration: `packages/analysis/src/automation/news_ingest.py` adds source `theinformation` with `fetch_mode=paid_headlines`.
+  - Env gates:
+    - `PAID_HEADLINE_SEEDS_ENABLED=true` enables processing.
+    - `PAID_HEADLINE_METADATA_FETCH=true` enables metadata-only HTML fetch (title/description/og:image/article:published_time).
+    - `PAID_HEADLINE_EXPAND_SOURCES=gnews,newsapi`, `PAID_HEADLINE_EXPAND_LOOKBACK_HOURS=168`, `PAID_HEADLINE_EXPAND_MAX_PER_SEED=8`, `PAID_HEADLINE_MAX_SEEDS_PER_RUN=10`, `PAID_HEADLINE_MAX_ATTEMPTS=3`.
+  - Guardrail: lead-only clusters are excluded from editions/events/research/LLM; a seed only influences published news via corroborating non-paywalled sources.
 - Memory-Gated Editorial Intelligence (Phase 1: entity linking + fact extraction):
   - Migration: `database/migrations/023_memory_system.sql`
   - Runtime: `packages/analysis/src/automation/memory_gate.py` (zero-LLM; regex + DB lookups)
@@ -530,6 +542,9 @@ Quick checks:
 The `/investors` UI is backed by monthly materialized tables (migration: `database/migrations/054_investor_dna.sql`):
 - `investor_pattern_mix` (drives the screener list; latest month per `scope`)
 - `investor_co_invest_edges` (drives top co-investors on profile pages when available)
+- Co-invest edges are also synced into the canonical graph table:
+  - `capital_graph_edges`: `investor --CO_INVESTS_WITH--> investor` (region-aware, current-only)
+  - Migration/indexes: `database/migrations/069_capital_graph_coinvest_edges.sql`
 
 Population model/invariants:
 - Canonical source is `capital_graph_edges` (`investor --LEADS_ROUND--> startup`) filtered by month using:

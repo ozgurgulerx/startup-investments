@@ -25,6 +25,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _parse_command_tag_count(tag: str) -> int:
+    # asyncpg returns strings like: "INSERT 0 123" or "UPDATE 45"
+    parts = (tag or "").strip().split()
+    for p in reversed(parts):
+        if p.isdigit():
+            try:
+                return int(p)
+            except Exception:
+                return 0
+    return 0
+
+
 class InvestorDNAEngine:
     """Computes investor pattern mix, thesis shifts, and co-invest graph."""
 
@@ -37,6 +49,7 @@ class InvestorDNAEngine:
             "investors_processed": 0,
             "mix_inserted": 0,
             "edges_inserted": 0,
+            "graph_coinvest_edges_upserted": 0,
             "errors": 0,
         }
 
@@ -193,8 +206,68 @@ class InvestorDNAEngine:
                         logger.exception("Failed inserting co-invest edge %s<->%s", inv_a, inv_b)
                         stats["errors"] += 1
 
+        # Sync co-invest edges into the canonical capital graph for graph-based traversal APIs.
+        try:
+            stats["graph_coinvest_edges_upserted"] = await self._sync_coinvest_edges_to_capital_graph(scope)
+        except Exception:
+            logger.exception("Failed syncing co-invest edges into capital graph (scope=%s)", scope)
+            stats["errors"] += 1
+
         logger.info("Investor DNA computed: %s", stats)
         return stats
+
+    async def _sync_coinvest_edges_to_capital_graph(self, scope: str) -> int:
+        """Upsert investor<->investor co-invest edges into capital_graph_edges (current-only)."""
+        try:
+            has_graph = await self.conn.fetchval(
+                "SELECT to_regclass('public.capital_graph_edges') IS NOT NULL"
+            )
+        except Exception:
+            has_graph = False
+
+        if not has_graph:
+            return 0
+
+        tag = await self.conn.execute(
+            """
+            INSERT INTO capital_graph_edges (
+              src_type, src_id, edge_type, dst_type, dst_id, region,
+              attrs_json, source, source_ref, confidence, created_by,
+              valid_from, valid_to
+            )
+            SELECT
+              'investor' AS src_type,
+              ice.investor_id AS src_id,
+              'CO_INVESTS_WITH' AS edge_type,
+              'investor' AS dst_type,
+              ice.partner_investor_id AS dst_id,
+              $1::text AS region,
+              jsonb_build_object(
+                'co_deals', SUM(ice.co_deals)::int,
+                'co_amount_usd', SUM(COALESCE(ice.co_amount_usd, 0))
+              ) AS attrs_json,
+              'investor_dna' AS source,
+              'investor_co_invest_edges' AS source_ref,
+              NULL AS confidence,
+              'compute-investor-dna' AS created_by,
+              DATE '1900-01-01' AS valid_from,
+              DATE '9999-12-31' AS valid_to
+            FROM investor_co_invest_edges ice
+            WHERE ice.scope = $1
+              AND ice.investor_id <> ice.partner_investor_id
+            GROUP BY ice.investor_id, ice.partner_investor_id
+            ON CONFLICT (src_type, src_id, edge_type, dst_type, dst_id, region, valid_from, valid_to)
+            DO UPDATE SET
+              attrs_json = capital_graph_edges.attrs_json || EXCLUDED.attrs_json,
+              source = EXCLUDED.source,
+              source_ref = EXCLUDED.source_ref,
+              confidence = COALESCE(EXCLUDED.confidence, capital_graph_edges.confidence),
+              created_by = COALESCE(EXCLUDED.created_by, capital_graph_edges.created_by),
+              updated_at = NOW()
+            """,
+            scope,
+        )
+        return _parse_command_tag_count(tag)
 
     async def _load_period_data(self, period: str, scope: str) -> List[dict]:
         """Load funding rounds with investor and pattern data for a period.
