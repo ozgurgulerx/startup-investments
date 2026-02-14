@@ -57,39 +57,38 @@ COPY infrastructure/vm-cron/ ./infrastructure/vm-cron/
 # when the repo enforces LF via .gitattributes. CR bytes can break bash options
 # (e.g. `set -euo pipefail` -> `pipefail\r`).
 RUN python - <<'PY'
-from __future__ import annotations
+if True:
+    import sys
+    from pathlib import Path
 
-import sys
-from pathlib import Path
+    roots = [
+        Path("scripts"),
+        Path("infrastructure") / "vm-cron",
+    ]
 
-roots = [
-    Path("scripts"),
-    Path("infrastructure") / "vm-cron",
-]
+    shell_scripts: list[Path] = []
+    for root in roots:
+        if root.exists():
+            shell_scripts.extend(root.rglob("*.sh"))
 
-shell_scripts: list[Path] = []
-for root in roots:
-    if root.exists():
-        shell_scripts.extend(root.rglob("*.sh"))
+    normalized = 0
+    bad: list[str] = []
 
-normalized = 0
-bad: list[str] = []
+    for path in shell_scripts:
+        data = path.read_bytes()
+        if b"\r" in data:
+            new = data.replace(b"\r\n", b"\n").replace(b"\r", b"")
+            path.write_bytes(new)
+            normalized += 1
 
-for path in shell_scripts:
-    data = path.read_bytes()
-    if b"\r" in data:
-        new = data.replace(b"\r\n", b"\n").replace(b"\r", b"")
-        path.write_bytes(new)
-        normalized += 1
+        if b"\r" in path.read_bytes():
+            bad.append(str(path))
 
-    if b"\r" in path.read_bytes():
-        bad.append(str(path))
+    if bad:
+        sys.stderr.write("CRLF normalization failed for: " + ", ".join(bad) + "\n")
+        raise SystemExit(1)
 
-if bad:
-    sys.stderr.write("CRLF normalization failed for: " + ", ".join(bad) + "\n")
-    raise SystemExit(1)
-
-print(f"Shell script EOL check: {len(shell_scripts)} checked, {normalized} normalized")
+    print(f"Shell script EOL check: {len(shell_scripts)} checked, {normalized} normalized")
 PY
 
 # Default: no-op. CronJobs set command/args.
