@@ -488,33 +488,67 @@ class DatabaseConnection:
 
     async def get_pending_onboarding_trace_notifications(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get trace events that should be sent to Slack and are not notified yet."""
-        rows = await self.fetch(
-            """
-            SELECT
-                e.id::text AS id,
-                e.startup_id::text AS startup_id,
-                e.queue_item_id::text AS queue_item_id,
-                e.trace_type,
-                e.stage,
-                e.status,
-                e.severity,
-                e.reason_code,
-                e.message,
-                e.payload_json,
-                e.occurred_at,
-                s.name AS startup_name,
-                s.slug AS startup_slug,
-                s.dataset_region AS startup_region
-            FROM onboarding_trace_events e
-            LEFT JOIN startups s ON s.id = e.startup_id
-            WHERE e.should_notify = TRUE
-              AND e.notified_at IS NULL
-            ORDER BY e.occurred_at ASC
-            LIMIT $1
-            """,
-            max(1, int(limit)),
-        )
-        return [dict(r) for r in rows]
+        try:
+            rows = await self.fetch(
+                """
+                SELECT
+                    e.id::text AS id,
+                    e.startup_id::text AS startup_id,
+                    e.investor_id::text AS investor_id,
+                    e.queue_item_id::text AS queue_item_id,
+                    e.investor_queue_item_id::text AS investor_queue_item_id,
+                    e.trace_type,
+                    e.stage,
+                    e.status,
+                    e.severity,
+                    e.reason_code,
+                    e.message,
+                    e.payload_json,
+                    e.occurred_at,
+                    s.name AS startup_name,
+                    s.slug AS startup_slug,
+                    s.dataset_region AS startup_region,
+                    i.name AS investor_name
+                FROM onboarding_trace_events e
+                LEFT JOIN startups s ON s.id = e.startup_id
+                LEFT JOIN investors i ON i.id = e.investor_id
+                WHERE e.should_notify = TRUE
+                  AND e.notified_at IS NULL
+                ORDER BY e.occurred_at ASC
+                LIMIT $1
+                """,
+                max(1, int(limit)),
+            )
+            return [dict(r) for r in rows]
+        except Exception:
+            # Back-compat: older schema without investor linkage.
+            rows = await self.fetch(
+                """
+                SELECT
+                    e.id::text AS id,
+                    e.startup_id::text AS startup_id,
+                    e.queue_item_id::text AS queue_item_id,
+                    e.trace_type,
+                    e.stage,
+                    e.status,
+                    e.severity,
+                    e.reason_code,
+                    e.message,
+                    e.payload_json,
+                    e.occurred_at,
+                    s.name AS startup_name,
+                    s.slug AS startup_slug,
+                    s.dataset_region AS startup_region
+                FROM onboarding_trace_events e
+                LEFT JOIN startups s ON s.id = e.startup_id
+                WHERE e.should_notify = TRUE
+                  AND e.notified_at IS NULL
+                ORDER BY e.occurred_at ASC
+                LIMIT $1
+                """,
+                max(1, int(limit)),
+            )
+            return [dict(r) for r in rows]
 
     async def mark_onboarding_trace_events_notified(self, event_ids: List[str]) -> int:
         """Mark trace events as notified."""
