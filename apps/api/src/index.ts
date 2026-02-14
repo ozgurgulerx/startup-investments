@@ -3365,7 +3365,8 @@ app.get('/api/v1/investors/:id/news', async (req, res) => {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
 
-    const cacheKey = `investors:news:${investorId}:${parsed.data.scope}:${parsed.data.days}:${parsed.data.limit}:${parsed.data.offset}`;
+    const daysKey = parsed.data.days != null ? String(parsed.data.days) : 'all';
+    const cacheKey = `investors:news:${investorId}:${parsed.data.scope}:${daysKey}:${parsed.data.limit}:${parsed.data.offset}`;
     const redis = await getRedisClient();
     if (redis) {
       try {
@@ -3378,7 +3379,7 @@ app.get('/api/v1/investors/:id/news', async (req, res) => {
     const payload = {
       investor_id: investorId,
       scope: parsed.data.scope,
-      days: parsed.data.days,
+      days: parsed.data.days ?? null,
       total: result.total,
       items: result.items,
     };

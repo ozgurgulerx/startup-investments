@@ -220,12 +220,6 @@ send_slack_event() {
     python3 "$REPO_DIR/scripts/slack_notify.py" >> "$LOG_FILE" 2>&1 || true
 }
 
-# Ensure GITHUB_REPOSITORY is set so slack_notify.py can fall back to repository_dispatch.
-if [ -z "${GITHUB_REPOSITORY:-}" ]; then
-    GITHUB_REPOSITORY="$(derive_github_repository || true)"
-    export GITHUB_REPOSITORY
-fi
-
 # If the job is disabled, log a skip and exit cleanly.
 if is_disabled; then
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] SKIP: $JOB_NAME disabled via BUILDATLAS_DISABLED_JOBS/BUILDATLAS_VM_CRON_DISABLED_JOBS" >> "$LOG_FILE"

@@ -35,7 +35,7 @@ export interface InvestorScreenerItem {
   lead_count: number;
   top_patterns: string[];
   thesis_shift_js: number | null;
-  news_30d_count?: number;
+  news_count: number;
   last_news_at?: string | null;
 }
 
@@ -44,8 +44,9 @@ export interface InvestorNewsItem {
   published_at: string;
   title: string;
   canonical_url: string | null;
-  startup: { id: string; name: string; slug: string | null };
-  round: { round_type: string | null; amount_usd: number | null; announced_date: string | null };
+  relationship_types: string[];
+  startup: { id: string; name: string; slug: string | null } | null;
+  round: { round_type: string | null; amount_usd: number | null; announced_date: string | null } | null;
 }
 
 export interface InvestorPortfolioItem {
@@ -149,6 +150,27 @@ function parseNumber(value: unknown): number | null {
 function parseIntSafe(value: unknown, fallback = 0): number {
   const num = Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(num) ? num : fallback;
+}
+
+function parseTextArray(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map(v => String(v)).filter(Boolean);
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    // Handle Postgres array literal like {a,b} or {"a","b"}.
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      const inner = trimmed.slice(1, -1).trim();
+      if (!inner) return [];
+      return inner
+        .split(',')
+        .map(part => part.trim().replace(/^"(.*)"$/, '$1'))
+        .filter(Boolean);
+    }
+    // As a fallback, treat as a single value.
+    return [trimmed];
+  }
+  return [];
 }
 
 export function makeInvestorsService(pool: Pool) {
@@ -402,7 +424,7 @@ export function makeInvestorsService(pool: Pool) {
       [...values, limit, offset],
     );
 
-    // Best-effort: attach recent funding-news activity per investor (from news-derived graph edges).
+    // Best-effort: attach all-time investor news activity (mentions + funding-linked clusters).
     // Keep this as a separate query to avoid expensive correlated subqueries on the screener path.
     const newsStatsByInvestorId: Record<string, { count: number; last: string | null }> = {};
     try {
@@ -410,31 +432,26 @@ export function makeInvestorsService(pool: Pool) {
       if (investorIds.length > 0) {
         const newsStatsResult = await pool.query<{
           investor_id: string;
-          news_30d_count: number;
+          news_count: number;
           last_news_at: string | null;
         }>(
           `
           SELECT
-            e.src_id::text AS investor_id,
-            COUNT(DISTINCT c.id)::int AS news_30d_count,
+            l.investor_id::text AS investor_id,
+            COUNT(DISTINCT l.cluster_id)::int AS news_count,
             to_char(MAX(c.published_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_news_at
-          FROM capital_graph_edges e
-          JOIN news_clusters c ON c.id::text = e.source_ref
-          WHERE e.src_type = 'investor'
-            AND e.edge_type = 'LEADS_ROUND'
-            AND e.source = 'news_event'
-            AND e.region = $1
-            AND e.valid_to = DATE '9999-12-31'
-            AND e.src_id = ANY($2::uuid[])
-            AND c.published_at >= NOW() - INTERVAL '30 days'
-          GROUP BY e.src_id
+          FROM investor_news_links l
+          JOIN news_clusters c ON c.id = l.cluster_id
+          WHERE l.region = $1
+            AND l.investor_id = ANY($2::uuid[])
+          GROUP BY l.investor_id
           `,
           [scope, investorIds],
         );
 
         for (const row of newsStatsResult.rows) {
           newsStatsByInvestorId[String(row.investor_id)] = {
-            count: Number(row.news_30d_count || 0),
+            count: Number(row.news_count || 0),
             last: row.last_news_at ? String(row.last_news_at) : null,
           };
         }
@@ -461,7 +478,7 @@ export function makeInvestorsService(pool: Pool) {
           lead_count: Number(r.lead_count || 0),
           top_patterns: topPatterns,
           thesis_shift_js: parseNumber(r.thesis_shift_js),
-          news_30d_count: newsStatsByInvestorId[String(r.investor_id)]?.count || 0,
+          news_count: newsStatsByInvestorId[String(r.investor_id)]?.count || 0,
           last_news_at: newsStatsByInvestorId[String(r.investor_id)]?.last || null,
         };
       }),
@@ -479,12 +496,198 @@ export function makeInvestorsService(pool: Pool) {
     const {
       investorId,
       scope = 'global',
-      days = 30,
+      days,
       limit = 25,
       offset = 0,
     } = params;
 
+    // Preferred path: investor_news_links contains all-time investor news links (mentions + funding-linked).
     try {
+      const values: unknown[] = [investorId, scope];
+      let idx = 3;
+      let daysFilter = '';
+      if (days != null) {
+        daysFilter = `AND c.published_at >= NOW() - ($${idx}::int * INTERVAL '1 day')`;
+        values.push(days);
+        idx++;
+      }
+
+      const totalResult = await pool.query<{ count: string }>(
+        `
+        SELECT COUNT(DISTINCT l.cluster_id) AS count
+        FROM investor_news_links l
+        JOIN news_clusters c ON c.id = l.cluster_id
+        WHERE l.investor_id = $1::uuid
+          AND l.region = $2
+          ${daysFilter}
+        `,
+        values,
+      );
+      const total = parseIntSafe(totalResult.rows[0]?.count);
+
+      const graphAvailable = await hasCapitalGraphTables();
+
+      if (!graphAvailable) {
+        const dataResult = await pool.query<{
+          cluster_id: string;
+          published_at: string;
+          title: string;
+          canonical_url: string | null;
+          relationship_types: unknown;
+        }>(
+          `
+          WITH agg AS (
+            SELECT
+              l.cluster_id,
+              MAX(c.published_at) AS published_at,
+              MAX(c.title) AS title,
+              MAX(c.canonical_url) AS canonical_url,
+              array_agg(DISTINCT l.link_type ORDER BY l.link_type) AS relationship_types
+            FROM investor_news_links l
+            JOIN news_clusters c ON c.id = l.cluster_id
+            WHERE l.investor_id = $1::uuid
+              AND l.region = $2
+              ${daysFilter}
+            GROUP BY l.cluster_id
+          )
+          SELECT
+            a.cluster_id::text AS cluster_id,
+            to_char(a.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
+            a.title,
+            a.canonical_url,
+            a.relationship_types
+          FROM agg a
+          ORDER BY a.published_at DESC NULLS LAST
+          LIMIT $${idx} OFFSET $${idx + 1}
+          `,
+          [...values, limit, offset],
+        );
+
+        return {
+          total,
+          items: dataResult.rows.map(r => ({
+            cluster_id: String(r.cluster_id),
+            published_at: String(r.published_at),
+            title: String(r.title || ''),
+            canonical_url: (r.canonical_url ?? null) as string | null,
+            relationship_types: parseTextArray(r.relationship_types),
+            startup: null,
+            round: null,
+          })),
+        };
+      }
+
+      const dataResult = await pool.query<{
+        cluster_id: string;
+        published_at: string;
+        title: string;
+        canonical_url: string | null;
+        relationship_types: unknown;
+        startup_id: string | null;
+        startup_name: string | null;
+        startup_slug: string | null;
+        round_type: string | null;
+        amount_usd: number | null;
+        announced_date: string | null;
+      }>(
+        `
+        WITH agg AS (
+          SELECT
+            l.cluster_id,
+            MAX(c.published_at) AS published_at,
+            MAX(c.title) AS title,
+            MAX(c.canonical_url) AS canonical_url,
+            array_agg(DISTINCT l.link_type ORDER BY l.link_type) AS relationship_types
+          FROM investor_news_links l
+          JOIN news_clusters c ON c.id = l.cluster_id
+          WHERE l.investor_id = $1::uuid
+            AND l.region = $2
+            ${daysFilter}
+          GROUP BY l.cluster_id
+        )
+        SELECT
+          a.cluster_id::text AS cluster_id,
+          to_char(a.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
+          a.title,
+          a.canonical_url,
+          a.relationship_types,
+          s.id::text AS startup_id,
+          s.name AS startup_name,
+          s.slug AS startup_slug,
+          COALESCE(ge.edge_round_type, fr.round_type) AS round_type,
+          fr.amount_usd,
+          fr.announced_date::text AS announced_date
+        FROM agg a
+        LEFT JOIN LATERAL (
+          SELECT
+            e.dst_id AS startup_id,
+            NULLIF(e.attrs_json->>'round_type', '') AS edge_round_type,
+            e.valid_from,
+            e.edge_type
+          FROM capital_graph_edges e
+          WHERE e.src_type = 'investor'
+            AND e.src_id = $1::uuid
+            AND e.dst_type = 'startup'
+            AND e.source = 'news_event'
+            AND e.source_ref = a.cluster_id::text
+            AND e.region = $2
+            AND e.valid_to = DATE '9999-12-31'
+          ORDER BY (e.edge_type = 'LEADS_ROUND') DESC, e.updated_at DESC
+          LIMIT 1
+        ) ge ON TRUE
+        LEFT JOIN startups s ON s.id = ge.startup_id
+        LEFT JOIN funding_rounds fr
+          ON fr.startup_id = ge.startup_id
+         AND fr.announced_date = ge.valid_from
+         AND (ge.edge_round_type IS NULL OR lower(fr.round_type) = lower(ge.edge_round_type))
+        ORDER BY a.published_at DESC NULLS LAST
+        LIMIT $${idx} OFFSET $${idx + 1}
+        `,
+        [...values, limit, offset],
+      );
+
+      return {
+        total,
+        items: dataResult.rows.map(r => {
+          const hasStartup = Boolean(r.startup_id);
+          return {
+            cluster_id: String(r.cluster_id),
+            published_at: String(r.published_at),
+            title: String(r.title || ''),
+            canonical_url: (r.canonical_url ?? null) as string | null,
+            relationship_types: parseTextArray(r.relationship_types),
+            startup: hasStartup
+              ? {
+                id: String(r.startup_id),
+                name: String(r.startup_name || ''),
+                slug: (r.startup_slug ?? null) as string | null,
+              }
+              : null,
+            round: hasStartup
+              ? {
+                round_type: (r.round_type ?? null) as string | null,
+                amount_usd: r.amount_usd != null ? Number(r.amount_usd) : null,
+                announced_date: (r.announced_date ?? null) as string | null,
+              }
+              : null,
+          };
+        }),
+      };
+    } catch {
+      // Fall back to legacy path (funding-lead only) if the link table isn't available yet.
+    }
+
+    // Legacy fallback: capital_graph_edges (news_event lead edges) with optional window.
+    try {
+      const values: unknown[] = [investorId, scope];
+      let idx = 3;
+      let daysFilter = '';
+      if (days != null) {
+        daysFilter = `AND c.published_at >= NOW() - ($${idx}::int * INTERVAL '1 day')`;
+        values.push(days);
+        idx++;
+      }
+
       const totalResult = await pool.query<{ count: string }>(
         `
         SELECT COUNT(DISTINCT c.id) AS count
@@ -497,9 +700,9 @@ export function makeInvestorsService(pool: Pool) {
           AND e.source = 'news_event'
           AND e.region = $2
           AND e.valid_to = DATE '9999-12-31'
-          AND c.published_at >= NOW() - ($3::int * INTERVAL '1 day')
+          ${daysFilter}
         `,
-        [investorId, scope, days],
+        values,
       );
       const total = parseIntSafe(totalResult.rows[0]?.count);
 
@@ -544,31 +747,39 @@ export function makeInvestorsService(pool: Pool) {
           AND e.source = 'news_event'
           AND e.region = $2
           AND e.valid_to = DATE '9999-12-31'
-          AND c.published_at >= NOW() - ($3::int * INTERVAL '1 day')
-        ORDER BY c.published_at DESC
-        LIMIT $4 OFFSET $5
+          ${daysFilter}
+        ORDER BY c.published_at DESC NULLS LAST
+        LIMIT $${idx} OFFSET $${idx + 1}
         `,
-        [investorId, scope, days, limit, offset],
+        [...values, limit, offset],
       );
 
       return {
         total,
-        items: dataResult.rows.map(r => ({
-          cluster_id: String(r.cluster_id),
-          published_at: String(r.published_at),
-          title: String(r.title || ''),
-          canonical_url: (r.canonical_url ?? null) as string | null,
-          startup: {
-            id: String(r.startup_id || ''),
-            name: String(r.startup_name || ''),
-            slug: (r.startup_slug ?? null) as string | null,
-          },
-          round: {
-            round_type: (r.round_type ?? null) as string | null,
-            amount_usd: r.amount_usd != null ? Number(r.amount_usd) : null,
-            announced_date: (r.announced_date ?? null) as string | null,
-          },
-        })),
+        items: dataResult.rows.map(r => {
+          const hasStartup = Boolean(r.startup_id);
+          return {
+            cluster_id: String(r.cluster_id),
+            published_at: String(r.published_at),
+            title: String(r.title || ''),
+            canonical_url: (r.canonical_url ?? null) as string | null,
+            relationship_types: ['funding_lead'],
+            startup: hasStartup
+              ? {
+                id: String(r.startup_id),
+                name: String(r.startup_name || ''),
+                slug: (r.startup_slug ?? null) as string | null,
+              }
+              : null,
+            round: hasStartup
+              ? {
+                round_type: (r.round_type ?? null) as string | null,
+                amount_usd: r.amount_usd != null ? Number(r.amount_usd) : null,
+                announced_date: (r.announced_date ?? null) as string | null,
+              }
+              : null,
+          };
+        }),
       };
     } catch {
       return { total: 0, items: [] };

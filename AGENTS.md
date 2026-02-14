@@ -29,7 +29,7 @@ When cron schedules change, update docs in the same commit and run:
 - `packages/analysis`: Python analysis/automation tooling used by workflows (news ingest/digest, etc).
 - `database/migrations`: SQL migrations for Postgres.
 - `infrastructure/kubernetes`: AKS manifests.
-- `.github/workflows`: CI/CD and scheduled automation.
+- `.github/workflows`: GitHub Actions workflows (manual/backup only; primary automation runs via AKS CronJobs + VM cron).
 
 ## Production Architecture (What Talks To What)
 
@@ -63,10 +63,10 @@ Important headers/invariants:
   - `apps/web/app/api/monitoring/route.ts` and `apps/web/app/api/editorial/route.ts` call backend admin endpoints and must forward `X-API-Key: API_KEY` and `X-Admin-Key: ADMIN_KEY` (these may differ).
 - Keep `/health` cheap and reachable (Front Door probe + diagnostics).
 - Keep the API deployable when AKS is running:
-  - `backend-deploy.yml` must be able to connect to the AKS control plane.
+  - `infrastructure/vm-cron/jobs/backend-deploy.sh` must be able to connect to the AKS control plane.
 - Deploy artifacts must be pinned (no floating `:latest` tags in `infrastructure/kubernetes/**`):
   - Manifests use `__IMAGE_TAG__` placeholders; deploy scripts/workflows must patch them to a concrete tag/digest.
-  - CI guardrail: `scripts/check-k8s-no-latest.sh` + `.github/workflows/k8s-manifest-guard.yml`.
+  - Guardrail: `scripts/check-k8s-no-latest.sh` (run in deploy automation).
 - Release reconciliation invariants:
   - API `/health*` `build_sha` comes from `API_BUILD_SHA` baked into the API image (`apps/api/Dockerfile` build arg).
   - Avoid reintroducing secret-sourced `api-build-sha` env injection (it breaks deterministic rollbacks).
@@ -96,8 +96,10 @@ Important headers/invariants:
     of which periodic pipeline applies migrations first.
   - Community UI surface is the Signal Deep Dive `Community` tab:
     - `apps/web/app/(app)/signals/[id]/community-tab.tsx`
-  - Notification hygiene preferences are enforced at web API boundary in:
-    - `apps/web/app/api/alerts/route.ts` (filters muted delta types and low-severity alerts).
+  - Notification hygiene preferences are enforced in backend alerts:
+    - `apps/api/src/services/subscriptions.ts` `getAlerts(...)` applies `user_notification_preferences` (`mute_low_severity`, `muted_delta_types`)
+      and fails open (no filtering) if the table isn't migrated yet.
+    - `apps/web/app/api/alerts/route.ts` is a thin proxy and must not rewrite pagination totals.
 - Signals recommendation invariants:
   - Backend recommender (`apps/api/src/services/signals.ts`) is now `signals_v2_graph_memory`:
     watchlist overlap + capital graph overlap (`capital_graph_edges`) + memory-gate strength (`news_item_decisions`).
@@ -121,16 +123,15 @@ Important headers/invariants:
     - UI surfaces:
       - Signal inspector shows a compact "Relevance" section (rounds + patterns).
       - Signal deep dive adds a `Relevance` tab with the full bundle.
-  - CI guardrail:
-    - `.github/workflows/web-ci.yml` runs Playwright smoke tests to prevent regressions in Signals deep-dive links
-      (especially `?region=turkey` propagation) and the web proxy for `GET /api/signals/:id/relevance`.
+  - Smoke-test guardrail:
+    - Playwright coverage is enforced via the ops canary jobs (AKS/VM) and should also be runnable locally before deploys.
 
 ## CI/CD Workflows (Source of Truth)
 
-Primary scheduled automation is now split:
+Primary scheduled automation is split:
 - **AKS CronJobs** for pipeline jobs (news/events/digests/briefs/benchmarks) to avoid VM availability issues.
 - **VM cron** for deploy orchestration + VM-only tasks (keep-alive, blob sync, crawl-frontier, release reconciliation, Slack summary, etc).
-GitHub Actions workflows remain **manual/backup** (except dispatch receivers / watchdogs).
+GitHub Actions workflows remain **manual/backup**; do not treat them as primary automation (use AKS CronJobs + VM cron).
 
 AKS pipelines CronJobs:
 - Manifests:
@@ -146,7 +147,7 @@ AKS pipelines CronJobs:
     GPT-5 `responses.*` calls will fail with `PermissionDenied` (missing `.../responses/write`).
     - Kubelet object id: `AZURE_CLI_DISABLE_LOGFILE=1 az aks show -g aistartuptr -n aks-aistartuptr --query identityProfile.kubeletidentity.objectId -o tsv`
     - Account scope: `/subscriptions/.../resourceGroups/rg-openai/providers/Microsoft.CognitiveServices/accounts/aoai-ep-swedencentral02`
-- Deploy workflow: `.github/workflows/ops-pipelines-deploy.yml`
+- Deploy: apply `infrastructure/kubernetes/pipelines-*.yaml` from an operator environment that can reach the AKS control plane (typically the VM).
 - VM cutover guardrail: set `BUILDATLAS_VM_CRON_DISABLED_JOBS` in `/etc/buildatlas/.env` (enforced by `infrastructure/vm-cron/lib/runner.sh`)
 
 VM cron runner:
@@ -218,7 +219,7 @@ VM cron runner:
     - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
     - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (built from `infrastructure/ops/Dockerfile`)
     - Secrets: Kubernetes `buildatlas-ops-secrets` (`slack-webhook-url`, `posthog-project-id`, `posthog-personal-api-key`, optional `posthog-host`)
-    - Deploy: `.github/workflows/ops-posthog-usage-deploy.yml` (manual `workflow_dispatch`)
+    - Deploy: apply the manifest from an operator environment that can reach the AKS control plane (typically the VM).
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
 - Cron safety: the BuildAtlas schedule must be installed only for the `buildatlas` user. Root crontab must not contain the BuildAtlas block (detect via `sudo crontab -l`; clear via `sudo crontab -r` only if it contains only BuildAtlas entries).
@@ -243,18 +244,10 @@ VM cron runner:
   - Commit notifications (primary path):
     - VM cron job `slack-commit-notify` (see `infrastructure/vm-cron/jobs/slack-commit-notify.sh`) polls `origin/main` and posts Slack notifications.
     - Cursor file is stored under `/var/lib/buildatlas/slack-commit-notify.main.last` (or `$REPO_DIR/.tmp` fallback).
-  - GitHub Actions backup:
-    - `.github/workflows/slack-commit-notify.yml` is manual backup only (`workflow_dispatch`).
     - Opt-out per commit: include `[skip slack]` (or `[no-slack]`) in the commit message.
-  - If you **don't** want Slack webhooks on the VM, `scripts/slack_notify.py` can fall back to GitHub `repository_dispatch`:
-    - Requires `GITHUB_TOKEN` + `GITHUB_REPOSITORY` on the VM.
-    - GitHub workflow handler: `.github/workflows/vm-cron-slack-notify.yml` (uses repo secret `SLACK_WEBHOOK_URL`).
-    - Dispatch fallback is only used when `BUILDATLAS_RUNNER=vm-cron` (set by `runner.sh` and `heartbeat.sh`).
-    - If GitHub Actions is blocked/disabled (billing/spending limits), dispatch fallback will not deliver; set a VM webhook instead.
-  - Quick test (GitHub -> Slack):
-    - `gh workflow run vm-cron-slack-notify.yml -f title="Slack test" -f status=info -f body="Hello from GitHub Actions"`
-    - Then verify it ran: `gh run list --workflow vm-cron-slack-notify.yml -L 5`
-    - If it fails, inspect: `gh run view <run_id> --log-failed`
+  - GitHub dispatch fallback has been removed; ensure a VM Slack webhook is configured.
+  - Quick test (VM -> Slack):
+    - `SLACK_TITLE="Slack test" SLACK_STATUS=info SLACK_BODY="Hello from VM" python3 scripts/slack_notify.py`
   - VM debugging:
     - Slack-post failures are appended into the job log (e.g. `/var/log/buildatlas/news-ingest.log`) and `heartbeat.log`.
   - Release reconciliation state:
@@ -262,40 +255,26 @@ VM cron runner:
     - Drift reminders are controlled by `RELEASE_RECONCILE_ALERT_AFTER_MINUTES` and `RELEASE_RECONCILE_REMINDER_MINUTES`.
 
 Frontend:
-- `.github/workflows/frontend-deploy.yml`
-  - Manual backup only (`workflow_dispatch`).
-  - VM job: `infrastructure/vm-cron/jobs/frontend-deploy.sh` (deploys to App Service `buildatlas-web`).
+- VM job: `infrastructure/vm-cron/jobs/frontend-deploy.sh` (deploys to App Service `buildatlas-web`).
 - Library datasets:
   - `/library` reads file-based newsletters from `DATA_PATH` (default `./data`, see `apps/web/lib/data/index.ts`).
   - `/library` only offers months that have newsletter markdown on disk (`output/comprehensive_newsletter.md` or `output/viral_newsletter.md`) to avoid API/data mismatches.
   - Docker-based App Service deploy must include datasets at `/app/data` (see `apps/web/Dockerfile`).
 
 Backend:
-- `.github/workflows/backend-deploy.yml`
-  - Manual backup only (`workflow_dispatch`).
-  - VM job: `infrastructure/vm-cron/jobs/backend-deploy.sh` (ACR remote build + `kubectl apply`).
+- VM job: `infrastructure/vm-cron/jobs/backend-deploy.sh` (ACR remote build + `kubectl apply`).
   - Common failure modes:
     - Missing secrets (`ADMIN_KEY`, etc).
     - AKS control plane unreachable if the cluster is stopped.
 
 Functions:
-- `.github/workflows/functions-deploy.yml`
-  - Manual backup only (`workflow_dispatch`).
-  - VM fallback job: `infrastructure/vm-cron/jobs/functions-deploy.sh` (zip deploy + health check).
+- VM fallback job: `infrastructure/vm-cron/jobs/functions-deploy.sh` (zip deploy + health check).
   - Auto-triggered by VM `code-update` when `infrastructure/azure-functions/**` or `packages/analysis/**` changes.
 
 Uptime automation:
-- `.github/workflows/keep-aks-running.yml`
-  - Intent: keep Postgres + AKS running, then verify API health.
-  - Note: this workflow historically failed due to Azure RBAC; it should not be treated as a guarantee.
-- `.github/workflows/keep-aks-alive.yml`
-  - Intent: AKS-first watchdog (runs every 15 min). Starts AKS if stopped and verifies API health.
-  - This is the primary "prevent cluster stopped -> API 504" guardrail.
+- VM cron job: `infrastructure/vm-cron/jobs/keep-alive.sh` (every 15 min) starts AKS if stopped and verifies API health.
 
 News:
-- Manual backups:
-  - `.github/workflows/news-ingest.yml`
-  - `.github/workflows/news-digest-daily.yml`
 - VM jobs:
   - `infrastructure/vm-cron/jobs/news-ingest.sh`
   - `infrastructure/vm-cron/jobs/news-digest.sh`
@@ -480,7 +459,7 @@ Materialization step (required for DB-driven filters):
   - Command: `python scripts/populate-analysis-data.py --period YYYY-MM`
 - Primary automation:
   - VM cron `sync-data` runs `apply-migrations.sh startups` and then `populate-analysis-data.py` after syncing blob data.
-  - GitHub fallback: `.github/workflows/sync-to-database.yml` applies required migrations and runs `populate-analysis-data.py`.
+  - GitHub Actions fallback exists (manual only) but prefer the VM cron job (or run the command manually on the VM).
   - Guardrail: `scripts/check-vertical-taxonomy.py` validates `vertical_taxonomy.primary.vertical_id/label` is present; VM `sync-data` will attempt `scripts/backfill-vertical-taxonomy.py --only-incomplete` and re-check before pushing.
 
 Quick verification (run on the DB):
@@ -542,7 +521,7 @@ Automated news-driven updates (active):
 
 Bulk/CSV onboarding integration (active):
 - `scripts/sync-startups-to-db.py` projects CSV lead-investor data into `capital_graph_edges` (`investor --LEADS_ROUND--> startup`, source=`csv_sync`) and refreshes graph views when edges are written.
-- Admin fallback API `POST /api/admin/sync-startups` now runs the same graph projection step after funding upserts (used by `.github/workflows/sync-to-database.yml`).
+- Admin fallback API `POST /api/admin/sync-startups` runs the same graph projection step after funding upserts.
 
 Quick checks:
 - Graph tables exist:
@@ -572,9 +551,15 @@ Automation:
 - VM cron job: `infrastructure/vm-cron/jobs/compute-investor-dna.sh` (scheduled in `infrastructure/vm-cron/crontab`)
 - The job computes both **previous** and **current** month for `global` + `turkey` to avoid “empty month” behavior early in the month.
 
-Investor news + onboarding (funding-linked):
-- Backend endpoint: `/api/v1/investors/:id/news` returns **funding-linked** clusters (news-derived graph edges).
-- Screener augmentation: `/api/v1/investors/screener` now includes `news_30d_count` + `last_news_at` (best-effort).
+Investor news + onboarding (all-time, no aging):
+- Migration: `database/migrations/070_investor_news_links.sql`
+  - Table: `investor_news_links` (investor_id × cluster_id × link_type)
+  - Triggers:
+    - `news_item_extractions` → `investor_news_links` (`link_type='mention'`) from memory gate `linked_entities_json`
+    - `capital_graph_edges` (news_event) → `investor_news_links` (`funding_lead`/`funding_participant`) from `source_ref=cluster_id`
+- Backend endpoint: `/api/v1/investors/:id/news` returns **all-time** clusters for the investor (mentions + funding-linked).
+  - Optional filter: `?days=N` (when omitted, returns all-time).
+- Screener augmentation: `/api/v1/investors/screener` includes `news_count` + `last_news_at` (best-effort, all-time).
 - Onboarding/enrichment pipeline (VC/investor):
   - Migration: `database/migrations/068_investor_onboarding.sql`
   - Queue table: `investor_onboarding_queue`
@@ -632,16 +617,14 @@ Web/UI surfaces:
 The daily news email is a **separate pipeline** from ingestion:
 - Ingest/build editions:
   - VM: `infrastructure/vm-cron/jobs/news-ingest.sh` (primary)
-  - GitHub Actions: `.github/workflows/news-ingest.yml` (manual backup)
 - Send email:
   - VM: `infrastructure/vm-cron/jobs/news-digest.sh` (primary)
-  - GitHub Actions: `.github/workflows/news-digest-daily.yml` (manual backup)
 
 Entry points:
 - CLI: `cd packages/analysis && python main.py send-news-digest --region global|turkey|all`
 - Code: `packages/analysis/src/automation/news_digest.py`
 
-Required secrets/env (GitHub Actions):
+Required secrets/env (VM/AKS):
 - `DATABASE_URL`
 - `RESEND_API_KEY`
 - Optional: `NEWS_DIGEST_FROM_EMAIL`, `NEWS_DIGEST_REPLY_TO`, `PUBLIC_BASE_URL`
@@ -656,13 +639,11 @@ Common failure mode:
 
 Safe test mode:
 - Use `dry_run` to validate the pipeline without sending emails or writing deliveries:
-  - Manual dispatch: `gh workflow run \"Daily Startup News Digest\" -f region=all -f dry_run=true`
   - CLI: `cd packages/analysis && python main.py send-news-digest --region global --dry-run`
 
 Debug commands:
-- Latest runs:
-  - `gh run list --workflow \"Daily Startup News Digest\" -L 5`
-  - `gh run view <run_id> --log-failed`
+- Latest runs (VM):
+  - `tail -200 /var/log/buildatlas/news-digest.log`
 
 ## Watchlist Intelligence (Alerts + Digests)
 
@@ -700,16 +681,16 @@ Common failure mode:
 
 ## Secrets / Env Vars (What Must Exist)
 
-GitHub Actions secrets (minimum):
+Production secrets/env (minimum):
 
-Backend deploy (`backend-deploy.yml`):
+Backend (AKS / API):
 - `DATABASE_URL`: Postgres connection string.
 - `API_KEY`: required for all non-health API calls in production.
 - `ADMIN_KEY`: required for `/api/admin/*` and backend deploy validation.
 - `FRONT_DOOR_ID`: must match Front Door header `x-azure-fdid` in prod.
 - `REDIS_URL`: optional; enables Redis caching.
 
-Frontend deploy (`frontend-deploy.yml`):
+Frontend (App Service / Next server-side):
 - `DATABASE_URL`: used by web app for auth/data (server-side).
 - `API_KEY`: used by web server-side requests to backend.
 - `ADMIN_KEY`: used by web server-only proxies to backend admin endpoints (e.g. `/api/monitoring`, `/api/editorial`).
@@ -722,14 +703,15 @@ Frontend deploy (`frontend-deploy.yml`):
 - Microsoft Clarity (public project id): `CLARITY_PROJECT_ID` (repo variable recommended; or a secret if you prefer).
 - `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, etc.
 
-Azure OIDC (Actions variables):
-- `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+VM cron (`/etc/buildatlas/.env`):
+- `SLACK_WEBHOOK_URL` (required for job notifications)
+- Job-specific creds (PostHog query keys, X/Twitter tokens, etc.)
 
 Operational notes:
 - `ADMIN_KEY` is not "provided by Azure". It is a strong random secret you set.
 - If you rotate `API_KEY`/`ADMIN_KEY`, you must update both:
-  - GitHub secrets (for workflows)
   - AKS secret (via backend deploy) and/or App Service settings (web)
+- GitHub Actions workflows are backup-only; GitHub secrets may exist, but primary secrets live in VM/K8s.
 - X/Twitter automation secrets/env (VM):
   - Required for trend ingest: `X_API_BEARER_TOKEN`
   - Required for posting: `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
@@ -952,10 +934,10 @@ The `/news` page uses a feed-first "radar" layout with an on-demand detail drawe
 - Double-check generated code (AI-generated or script-generated) before committing:
   - Read it end-to-end, verify it matches the intent, and run the relevant build/type-check/tests when feasible.
 - Do not touch infrastructure components or database tables unless absolutely required:
-  - Infra includes `.github/workflows/**` and `infrastructure/**` (and any deploy/cluster config).
+  - Infra includes `infrastructure/**` (and any deploy/cluster config).
   - Database: do not `ALTER`/`DROP`/`DELETE` tables (or ship destructive migrations) without explicit approval first.
 - Prefer small, scoped commits. This repo often has a dirty worktree; do not "clean up" unrelated files.
-- Do not change workflow triggers/secrets lightly; document changes here.
+- Do not change deploy/schedule behavior or production secrets lightly; document changes here.
 - When modifying API auth/proxy rules (`apps/api/src/index.ts`), validate:
   - health endpoints still accessible
   - Front Door ID enforcement still blocks bypass in production
@@ -965,4 +947,4 @@ The `/news` page uses a feed-first "radar" layout with an on-demand detail drawe
   - `pnpm --filter web build`
 - Before pushing API changes:
   - `pnpm --filter @startup-investments/api build`
-  - Confirm `backend-deploy.yml` required secrets are present.
+  - Confirm production deploy secrets are present (AKS/App Service/VM env).

@@ -9,27 +9,48 @@
 -- - The repo migration runner re-applies migrations; everything here must be idempotent.
 -- - Triggers are created only when the required tables exist (to avoid failing on partial schemas).
 
-CREATE TABLE IF NOT EXISTS investor_news_links (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    investor_id UUID NOT NULL REFERENCES investors(id) ON DELETE CASCADE,
-    cluster_id UUID NOT NULL REFERENCES news_clusters(id) ON DELETE CASCADE,
-    region TEXT NOT NULL DEFAULT 'global' CHECK (region IN ('global', 'turkey')),
-    link_type TEXT NOT NULL CHECK (link_type IN ('mention', 'funding_lead', 'funding_participant')),
-    confidence NUMERIC(5,4),
-    source TEXT NOT NULL DEFAULT 'memory_gate',
-    source_ref TEXT,
-    cluster_published_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+DO $$
+BEGIN
+    -- Only create the table when required base tables exist. This keeps the migration
+    -- safe in partial-schema environments (the migration runner re-applies files).
+    IF to_regclass('public.investor_news_links') IS NULL THEN
+        IF to_regclass('public.investors') IS NULL OR to_regclass('public.news_clusters') IS NULL THEN
+            RETURN;
+        END IF;
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_investor_news_links_identity
-    ON investor_news_links(investor_id, cluster_id, region, link_type);
+        EXECUTE $sql$
+        CREATE TABLE investor_news_links (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            investor_id UUID NOT NULL REFERENCES investors(id) ON DELETE CASCADE,
+            cluster_id UUID NOT NULL REFERENCES news_clusters(id) ON DELETE CASCADE,
+            region TEXT NOT NULL DEFAULT 'global' CHECK (region IN ('global', 'turkey')),
+            link_type TEXT NOT NULL CHECK (link_type IN ('mention', 'funding_lead', 'funding_participant')),
+            confidence NUMERIC(5,4),
+            source TEXT NOT NULL DEFAULT 'memory_gate',
+            source_ref TEXT,
+            cluster_published_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        $sql$;
+    END IF;
 
-CREATE INDEX IF NOT EXISTS idx_investor_news_links_investor_recent
-    ON investor_news_links(investor_id, region, cluster_published_at DESC NULLS LAST);
+    IF to_regclass('public.investor_news_links') IS NOT NULL THEN
+        EXECUTE $sql$
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_investor_news_links_identity
+            ON investor_news_links(investor_id, cluster_id, region, link_type);
+        $sql$;
 
-CREATE INDEX IF NOT EXISTS idx_investor_news_links_cluster
-    ON investor_news_links(cluster_id, region);
+        EXECUTE $sql$
+        CREATE INDEX IF NOT EXISTS idx_investor_news_links_investor_recent
+            ON investor_news_links(investor_id, region, cluster_published_at DESC NULLS LAST);
+        $sql$;
+
+        EXECUTE $sql$
+        CREATE INDEX IF NOT EXISTS idx_investor_news_links_cluster
+            ON investor_news_links(cluster_id, region);
+        $sql$;
+    END IF;
+END $$;
 
 -- Optional support index for ad-hoc JSONB queries on extractions (not required for triggers).
 DO $$
@@ -94,7 +115,8 @@ $$;
 
 DO $$
 BEGIN
-    IF to_regclass('public.news_item_extractions') IS NOT NULL THEN
+    IF to_regclass('public.investor_news_links') IS NOT NULL
+       AND to_regclass('public.news_item_extractions') IS NOT NULL THEN
         DROP TRIGGER IF EXISTS trg_sync_investor_news_links_from_extractions ON news_item_extractions;
         CREATE TRIGGER trg_sync_investor_news_links_from_extractions
             AFTER INSERT OR UPDATE OF linked_entities_json
@@ -174,7 +196,8 @@ $$;
 
 DO $$
 BEGIN
-    IF to_regclass('public.capital_graph_edges') IS NOT NULL THEN
+    IF to_regclass('public.investor_news_links') IS NOT NULL
+       AND to_regclass('public.capital_graph_edges') IS NOT NULL THEN
         DROP TRIGGER IF EXISTS trg_sync_investor_news_links_from_graph_edges ON capital_graph_edges;
         CREATE TRIGGER trg_sync_investor_news_links_from_graph_edges
             AFTER INSERT OR UPDATE OF edge_type, source, source_ref, confidence
@@ -192,6 +215,10 @@ DO $$
 DECLARE
     v_count BIGINT;
 BEGIN
+    IF to_regclass('public.investor_news_links') IS NULL THEN
+        RETURN;
+    END IF;
+
     SELECT COUNT(*) INTO v_count FROM investor_news_links;
     IF v_count > 0 THEN
         RETURN;
@@ -246,4 +273,3 @@ BEGIN
         ON CONFLICT (investor_id, cluster_id, region, link_type) DO NOTHING;
     END IF;
 END $$;
-

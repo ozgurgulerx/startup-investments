@@ -61,14 +61,15 @@ interface InvestorNewsItem {
   published_at: string;
   title: string;
   canonical_url: string | null;
-  startup: { id: string; name: string; slug: string | null };
-  round: { round_type: string | null; amount_usd: number | null; announced_date: string | null };
+  relationship_types: string[];
+  startup: { id: string; name: string; slug: string | null } | null;
+  round: { round_type: string | null; amount_usd: number | null; announced_date: string | null } | null;
 }
 
 interface InvestorNewsResponse {
   investor_id: string;
   scope: string;
-  days: number;
+  days: number | null;
   total: number;
   items: InvestorNewsItem[];
 }
@@ -121,7 +122,7 @@ export default function InvestorProfilePage() {
         networkQs.set('limit', '25');
         const networkUrl = `/api/investors/${investorId}/network?${networkQs.toString()}`;
 
-        const newsQs = new URLSearchParams({ scope: region, days: '30', limit: '12', offset: '0' });
+        const newsQs = new URLSearchParams({ scope: region, limit: '25', offset: '0' });
         const newsUrl = `/api/investors/${investorId}/news?${newsQs.toString()}`;
 
         const [dnaRes, portRes, netRes, newsRes] = await Promise.all([
@@ -379,10 +380,10 @@ export default function InvestorProfilePage() {
         </div>
       </div>
 
-      {/* Recent funding news */}
+      {/* News */}
       <div className="mt-6 p-4 border border-border/30 rounded-lg">
         <h3 className="text-sm font-medium text-foreground mb-3">
-          Recent funding news {newsTotal > 0 ? `(${newsTotal})` : ''}
+          News {newsTotal > 0 ? `(${newsTotal})` : ''}
         </h3>
         <div className="space-y-2">
           {news.map(item => (
@@ -401,24 +402,29 @@ export default function InvestorProfilePage() {
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-0.5 text-muted-foreground/80">
-                {item.startup?.slug ? (
-                  <Link href={`/company/${item.startup.slug}`} className="hover:text-accent-info transition-colors">
-                    {item.startup.name}
-                  </Link>
+                {item.relationship_types?.length > 0 && (
+                  <span className="text-muted-foreground/60">
+                    {item.relationship_types.join(' · ')}
+                  </span>
+                )}
+                {item.startup ? (
+                  item.startup.slug ? (
+                    <Link href={`/company/${item.startup.slug}`} className="hover:text-accent-info transition-colors">
+                      {item.startup.name}
+                    </Link>
+                  ) : (
+                    <span>{item.startup.name}</span>
+                  )
                 ) : (
-                  <span>{item.startup?.name || 'Unknown startup'}</span>
+                  <span className="text-muted-foreground/60">No linked startup</span>
                 )}
-                {item.round?.round_type && (
-                  <span className="capitalize">{item.round.round_type}</span>
-                )}
-                {item.round?.amount_usd != null && (
-                  <span className="tabular-nums">{formatUsd(item.round.amount_usd)}</span>
-                )}
+                {item.round?.round_type && <span className="capitalize">{item.round.round_type}</span>}
+                {item.round?.amount_usd != null && <span className="tabular-nums">{formatUsd(item.round.amount_usd)}</span>}
               </div>
             </div>
           ))}
           {news.length === 0 && (
-            <p className="text-xs text-muted-foreground py-4 text-center">No recent funding news found.</p>
+            <p className="text-xs text-muted-foreground py-4 text-center">No news found.</p>
           )}
         </div>
       </div>

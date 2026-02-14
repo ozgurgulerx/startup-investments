@@ -523,7 +523,8 @@ export const investorNetworkQuerySchema = z.object({
 
 export const investorNewsQuerySchema = z.object({
   scope: z.enum(['global', 'turkey']).default('global'),
-  days: z.coerce.number().int().min(1).max(365).default(30),
+  // Optional back-compat filter window. When omitted, we return all-time investor news (no aging).
+  days: z.coerce.number().int().min(1).max(36_500).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
 });

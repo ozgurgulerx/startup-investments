@@ -112,7 +112,9 @@ async function run() {
   const requestFailures = [];
 
   const debug = {
+    landscapesRequest: null,
     landscapes: null,
+    landscapesClusterRequest: null,
     landscapesCluster: null,
     requestFailures,
     pageErrors,
@@ -122,6 +124,17 @@ async function run() {
   page.on('pageerror', (err) => pageErrors.push(err));
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('request', (req) => {
+    const u = safeUrl(req.url());
+    if (!u) return;
+    if (u.origin !== BASE_URL) return;
+    if (u.pathname === '/api/landscapes' && !debug.landscapesRequest) {
+      debug.landscapesRequest = { url: req.url(), method: req.method() };
+    }
+    if (u.pathname === '/api/landscapes/cluster' && !debug.landscapesClusterRequest) {
+      debug.landscapesClusterRequest = { url: req.url(), method: req.method() };
+    }
   });
   page.on('requestfailed', (req) => {
     const u = safeUrl(req.url());
@@ -251,6 +264,9 @@ async function main() {
       `*Target:* ${TARGET_URL}`,
       `*Error:* ${truncate(msg, 600)}`,
     ];
+    if (debug?.landscapesRequest) {
+      bodyLines.push(`*API request:* ${debug.landscapesRequest.method} ${debug.landscapesRequest.url}`);
+    }
     if (debug?.landscapes) {
       const s = debug.landscapes;
       bodyLines.push(`*API:* \`/api/landscapes\` HTTP ${s.status}${s.ok ? '' : ' (not ok)'}`);
@@ -261,6 +277,23 @@ async function main() {
         .map((f) => `- ${f.method} ${f.url}: ${truncate(f.failure, 120)}`)
         .join('\n');
       bodyLines.push(`*Request failures:*\n${head}`);
+    }
+    if (Array.isArray(debug?.consoleErrors) && debug.consoleErrors.length) {
+      const head = debug.consoleErrors.slice(0, 3).map((s) => `- ${truncate(s, 220)}`).join('\n');
+      bodyLines.push(`*Console errors:*\n${head}`);
+    }
+
+    // Also print a compact debug snapshot to logs for post-mortems (Slack might be unreachable).
+    try {
+      const dbg = debug && typeof debug === 'object' ? {
+        landscapesRequest: debug.landscapesRequest || null,
+        landscapes: debug.landscapes || null,
+        requestFailures: Array.isArray(debug.requestFailures) ? debug.requestFailures.slice(0, 3) : [],
+        consoleErrors: Array.isArray(debug.consoleErrors) ? debug.consoleErrors.slice(0, 3) : [],
+      } : null;
+      if (dbg) console.error(`[canary] debug: ${JSON.stringify(dbg).slice(0, 1200)}`);
+    } catch {
+      // ignore
     }
 
     console.error(`[canary] FAIL: ${msg}`);

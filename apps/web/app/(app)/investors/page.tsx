@@ -14,7 +14,7 @@ interface InvestorItem {
   lead_count: number;
   top_patterns: string[];
   thesis_shift_js: number | null;
-  news_30d_count?: number;
+  news_count: number;
   last_news_at?: string | null;
 }
 
@@ -139,9 +139,9 @@ export default function InvestorsPage() {
                     <span>{inv.deal_count} deals</span>
                     <span>{formatUsd(inv.total_amount_usd)}</span>
                     {inv.lead_count > 0 && <span>{inv.lead_count} led</span>}
-                    {inv.news_30d_count != null && inv.news_30d_count > 0 && (
+                    {inv.news_count > 0 && (
                       <span>
-                        {inv.news_30d_count} news{inv.last_news_at ? ` · ${formatShortDate(inv.last_news_at)}` : ''}
+                        {inv.news_count} news{inv.last_news_at ? ` · ${formatShortDate(inv.last_news_at)}` : ''}
                       </span>
                     )}
                   </div>

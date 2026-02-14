@@ -806,7 +806,7 @@ export interface InvestorScreenerItem {
   lead_count: number;
   top_patterns: string[];
   thesis_shift_js: number | null;
-  news_30d_count?: number;
+  news_count: number;
   last_news_at?: string | null;
 }
 

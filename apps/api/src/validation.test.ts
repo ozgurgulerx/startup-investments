@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { syncRequestSchema, newsSignalMergeSchema } from './validation';
+import { syncRequestSchema, newsSignalMergeSchema, investorNewsQuerySchema } from './validation';
 
 describe('syncRequestSchema', () => {
   it('accepts valid startup data', () => {
@@ -94,6 +94,30 @@ describe('newsSignalMergeSchema', () => {
     const result = newsSignalMergeSchema.safeParse({
       user_id: '123e4567-e89b-12d3-a456-426614174000',
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('investorNewsQuerySchema', () => {
+  it('accepts query without days (all-time)', () => {
+    const result = investorNewsQuerySchema.safeParse({ scope: 'global', limit: '10', offset: '0' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.days).toBeUndefined();
+      expect(result.data.limit).toBe(10);
+    }
+  });
+
+  it('accepts days when provided', () => {
+    const result = investorNewsQuerySchema.safeParse({ scope: 'turkey', days: '30', limit: '25' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.days).toBe(30);
+    }
+  });
+
+  it('rejects days beyond max', () => {
+    const result = investorNewsQuerySchema.safeParse({ scope: 'global', days: '40000' });
     expect(result.success).toBe(false);
   });
 });
