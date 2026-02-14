@@ -6,12 +6,18 @@
  * Posts to Slack only on failure.
  */
 
+import * as os from 'node:os';
+import * as dns from 'node:dns/promises';
+
 const env = (name, def = '') => {
   const v = process.env[name];
   if (v == null) return def;
   const s = String(v).trim();
   return s === '' ? def : s;
 };
+
+const STARTED_AT_MS = Date.now();
+const relMs = () => Date.now() - STARTED_AT_MS;
 
 const clampInt = (raw, def, lo, hi) => {
   const n = Number(raw);
@@ -35,6 +41,73 @@ const safeUrl = (raw) => {
     return null;
   }
 };
+
+const timeoutAfter = (ms, label = 'timeout') => new Promise((_, reject) => {
+  setTimeout(() => reject(new Error(label)), ms);
+});
+
+const summarizeNetworkInterfaces = () => {
+  const ifaces = os.networkInterfaces();
+  const out = {};
+
+  for (const [name, infos] of Object.entries(ifaces)) {
+    if (!Array.isArray(infos)) continue;
+
+    const v4 = [];
+    const v6 = [];
+    for (const info of infos) {
+      if (!info) continue;
+      const fam = info.family;
+      if (fam === 'IPv4' || fam === 4) v4.push(info.address);
+      if (fam === 'IPv6' || fam === 6) v6.push(info.address);
+    }
+
+    if (v4.length || v6.length) out[name] = { v4, v6 };
+  }
+
+  return out;
+};
+
+async function dnsSnapshot(host, timeoutMs) {
+  const started = Date.now();
+  try {
+    const results = await Promise.race([
+      dns.lookup(host, { all: true }),
+      timeoutAfter(timeoutMs, `dns timeout after ${timeoutMs}ms`),
+    ]);
+    return {
+      ok: true,
+      elapsed_ms: Date.now() - started,
+      results: Array.isArray(results) ? results.map((r) => ({ address: r.address, family: r.family })) : [],
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      elapsed_ms: Date.now() - started,
+      error: truncate(msg, 280),
+    };
+  }
+}
+
+async function getNetworkSnapshot({ stage, attempt, error }) {
+  const base = safeUrl(BASE_URL);
+  const host = base?.hostname || 'buildatlas.net';
+
+  const snapshot = {
+    t_ms: relMs(),
+    stage,
+    attempt,
+    error: truncate(error, 260),
+    hostname: env('HOSTNAME', ''),
+    node: process.versions.node,
+    ifaces: summarizeNetworkInterfaces(),
+    dns: await dnsSnapshot(host, 1500),
+    http: await directFetchLandscapes({ timeoutMs: 5000 }),
+  };
+
+  return snapshot;
+}
 
 const BASE_URL = env('BASE_URL', 'https://buildatlas.net').replace(/\/+$/, '');
 const LANDSCAPES_PATH = env('LANDSCAPES_PATH', '/landscapes');
@@ -107,6 +180,7 @@ const isRetryableGotoError = (message) => {
 
 async function gotoLandscapesWithRetry(page) {
   const maxAttempts = clampInt(env('GOTO_MAX_ATTEMPTS', '3'), 3, 1, 5);
+  let loggedNetDiag = false;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -115,7 +189,20 @@ async function gotoLandscapesWithRetry(page) {
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (!isRetryableGotoError(msg) || attempt === maxAttempts) {
+      const retryable = isRetryableGotoError(msg);
+
+      if (retryable && !loggedNetDiag) {
+        loggedNetDiag = true;
+        try {
+          const snap = await getNetworkSnapshot({ stage: 'goto', attempt, error: msg });
+          console.warn(`[canary] netdiag: ${JSON.stringify(snap).slice(0, 2600)}`);
+        } catch (snapErr) {
+          const s = snapErr instanceof Error ? snapErr.message : String(snapErr);
+          console.warn(`[canary] netdiag failed: ${truncate(s, 220)}`);
+        }
+      }
+
+      if (!retryable || attempt === maxAttempts) {
         throw err;
       }
       console.warn(`[canary] retrying goto after: ${truncate(msg, 220)}`);
@@ -153,13 +240,13 @@ async function waitForUiLoadedOrError(page, consoleErrors) {
   return { state: 'timeout' };
 }
 
-async function directFetchLandscapes() {
+async function directFetchLandscapes({ timeoutMs } = {}) {
   const url = `${BASE_URL}/api/landscapes?size_by=funding`;
-  const timeoutMs = Math.min(20000, TIMEOUT_MS);
+  const effectiveTimeoutMs = clampInt(timeoutMs, Math.min(20000, TIMEOUT_MS), 1000, 60000);
 
   const controller = new AbortController();
   const started = Date.now();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs);
 
   try {
     const res = await fetch(url, {
