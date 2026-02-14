@@ -598,50 +598,22 @@ AKS_CRON_AVAILABLE=0
 declare -A AKS_CRON_SUSPEND
 declare -A AKS_CRON_LAST_SCHEDULE
 
-AKS_CRON_JSON=$(az aks command invoke \
+AKS_CRON_INFO=$(az aks command invoke \
     --resource-group "$AKS_RG" \
     --name "$AKS_NAME" \
-    --command "kubectl get cronjobs -n default -o json" \
+    --command "kubectl get cronjobs -n default -o jsonpath='{range .items[*]}{.metadata.name}{\"|\"}{.spec.suspend}{\"|\"}{.status.lastScheduleTime}{\"\\n\"}{end}'" \
     --query "logs" -o tsv 2>/dev/null || echo "")
 
-if [ -n "$AKS_CRON_JSON" ]; then
-    AKS_CRON_INFO=$(python3 - <<'PY' 2>/dev/null || true
-import json
-import sys
-
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    d = {}
-
-items = d.get("items") or []
-if not isinstance(items, list):
-    items = []
-
-for cj in items:
-    if not isinstance(cj, dict):
-        continue
-    meta = cj.get("metadata") or {}
-    spec = cj.get("spec") or {}
-    status = cj.get("status") or {}
-    name = meta.get("name") or ""
-    if not name:
-        continue
-    suspend = spec.get("suspend")
-    suspend_s = "true" if suspend is True else "false"
-    last = status.get("lastScheduleTime") or ""
-    print(f"{name}|{suspend_s}|{last}")
-PY
-    <<< "$AKS_CRON_JSON")
-
-    if [ -n "$AKS_CRON_INFO" ]; then
-        AKS_CRON_AVAILABLE=1
-        while IFS='|' read -r N S L; do
-            [ -n "$N" ] || continue
-            AKS_CRON_SUSPEND["$N"]="$S"
-            AKS_CRON_LAST_SCHEDULE["$N"]="$L"
-        done <<< "$AKS_CRON_INFO"
-    fi
+if [ -n "$AKS_CRON_INFO" ] && ! echo "$AKS_CRON_INFO" | grep -qi '^error:'; then
+    AKS_CRON_AVAILABLE=1
+    while IFS='|' read -r N S L; do
+        [ -n "$N" ] || continue
+        if [ -z "$S" ]; then
+            S="false"
+        fi
+        AKS_CRON_SUSPEND["$N"]="$S"
+        AKS_CRON_LAST_SCHEDULE["$N"]="$L"
+    done <<< "$AKS_CRON_INFO"
 fi
 
 for job_entry in $CRON_JOBS; do
