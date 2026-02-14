@@ -296,11 +296,12 @@ cd "$REPO_DIR"
 # (e.g., when a job blocks on a lock or a long-running step). `tr` can fully
 # buffer when writing to a pipe, which makes log mtimes misleading.
 #
-# Cron/non-interactive runs can have stdout closed/unwritable, which can cause
-# `tee` to receive SIGPIPE and fail the whole pipeline (exit 141) due to
-# `set -o pipefail`. Stream to stdout only for operator sessions (TTY or SSH);
-# otherwise discard `tee` stdout and rely on the log file.
-if [ -t 1 ] || [ -n "${SSH_CONNECTION:-}" ]; then
+# Cron/non-interactive runs can have stdout closed/unwritable (VM cron), which
+# can cause `tee` to receive SIGPIPE and fail the whole pipeline (exit 141) due
+# to `set -o pipefail`. Stream to stdout only for:
+# - operator sessions (TTY or SSH), or
+# - AKS CronJobs (stdout is the primary log sink; kubectl logs must work).
+if [ -t 1 ] || [ -n "${SSH_CONNECTION:-}" ] || [ "${BUILDATLAS_RUNNER:-}" = "aks-cronjob" ]; then
     exec 3>&1
 else
     exec 3>/dev/null
