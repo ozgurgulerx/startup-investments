@@ -1,0 +1,118 @@
+name: Deploy AKS Uptime Automation (Azure Automation)
+
+on:
+  workflow_dispatch:
+    inputs:
+      schedule_interval_minutes:
+        description: "How often to run the uptime guard runbook (minutes)."
+        required: false
+        default: "15"
+      smoke_test:
+        description: "Start the runbook once after deploy (basic verification)."
+        required: false
+        default: "true"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: aistartuptr
+  AUTOMATION_ACCOUNT_NAME: aa-buildatlas-aks-uptime
+  RUNBOOK_NAME: buildatlas-aks-ensure-running
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+            echo "::error::Missing required secret: SLACK_WEBHOOK_URL"
+            exit 1
+          fi
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Azure CLI automation extension
+        run: |
+          az extension add --name automation --upgrade
+
+      - name: Deploy Automation Account + schedule via Bicep
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          interval="${{ github.event.inputs.schedule_interval_minutes || '15' }}"
+
+          echo "Deploying AKS uptime guardrails (interval=${interval}m)..."
+          az deployment group create \
+            -g "${{ env.RESOURCE_GROUP }}" \
+            -f infrastructure/azure/aks-uptime.bicep \
+            --parameters \
+              slackWebhookUrl="${SLACK_WEBHOOK_URL}" \
+              automationAccountName="${{ env.AUTOMATION_ACCOUNT_NAME }}" \
+              runbookName="${{ env.RUNBOOK_NAME }}" \
+              scheduleIntervalMinutes="${interval}"
+
+      - name: Upload and publish runbook content
+        run: |
+          set -euo pipefail
+
+          echo "Replacing runbook content..."
+          az automation runbook replace-content \
+            -g "${{ env.RESOURCE_GROUP }}" \
+            --automation-account-name "${{ env.AUTOMATION_ACCOUNT_NAME }}" \
+            -n "${{ env.RUNBOOK_NAME }}" \
+            --content "@infrastructure/azure/runbooks/aks-ensure-running.ps1"
+
+          echo "Publishing runbook..."
+          az automation runbook publish \
+            -g "${{ env.RESOURCE_GROUP }}" \
+            --automation-account-name "${{ env.AUTOMATION_ACCOUNT_NAME }}" \
+            -n "${{ env.RUNBOOK_NAME }}"
+
+      - name: Smoke test runbook (optional)
+        if: ${{ github.event.inputs.smoke_test == 'true' }}
+        run: |
+          set -euo pipefail
+
+          echo "Starting runbook smoke test..."
+          job_id="$(az automation runbook start \
+            -g "${{ env.RESOURCE_GROUP }}" \
+            --automation-account-name "${{ env.AUTOMATION_ACCOUNT_NAME }}" \
+            -n "${{ env.RUNBOOK_NAME }}" \
+            --query jobId -o tsv)"
+
+          if [ -z "$job_id" ]; then
+            echo "::error::Runbook start did not return a jobId"
+            exit 1
+          fi
+
+          echo "Runbook job: $job_id"
+
+          # Poll for completion (best effort; output is in Azure Automation job streams)
+          for i in $(seq 1 60); do
+            status="$(az automation job show \
+              -g "${{ env.RESOURCE_GROUP }}" \
+              --automation-account-name "${{ env.AUTOMATION_ACCOUNT_NAME }}" \
+              -n "$job_id" \
+              --query status -o tsv 2>/dev/null || echo "UNKNOWN")"
+            echo "  attempt=$i status=$status"
+            case "$status" in
+              Completed) exit 0 ;;
+              Failed|Stopped|Suspended) echo "::error::Runbook job ended with status=$status"; exit 1 ;;
+            esac
+            sleep 10
+          done
+
+          echo "::warning::Timed out waiting for runbook job to complete; check Azure Automation job streams for $job_id"

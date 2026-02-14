@@ -2,7 +2,9 @@
 
 **CRITICAL: When ANY configuration value changes, ALL locations must be updated together.**
 
-Configuration exists in 5 places that MUST stay in sync:
+Note (2026-02-14): GitHub Actions workflows are removed from this repo. GitHub Secrets/Variables may still exist but are **not** used for production automation.
+
+Configuration exists in these places that MUST stay in sync:
 
 | Setting | GitHub Secrets | GitHub Variables | App Service | K8s Secrets | CI/CD Workflow |
 |---------|----------------|------------------|-------------|-------------|----------------|
@@ -25,26 +27,21 @@ Configuration exists in 5 places that MUST stay in sync:
 
 | Value | Location | Current Value |
 |-------|----------|---------------|
-| API URL | `.github/workflows/frontend-deploy.yml` (lines 49 & 225) | `https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net` |
-| PostHog Host | `.github/workflows/frontend-deploy.yml` | `https://us.i.posthog.com` |
 | Frontend URL | `apps/api/src/index.ts` (FRONTEND_URL) | `https://buildatlas.net` |
-| App Service Name | `.github/workflows/frontend-deploy.yml` | `buildatlas-web` |
-| Resource Group (App Service) | Multiple workflows | `rg-startup-analysis` |
-| Resource Group (AKS/Storage) | Multiple workflows | `aistartuptr` |
-| Resource Group (Database) | Multiple workflows | `aistartupstr` |
+| App Service Name | Azure App Service | `buildatlas-web` |
+| Resource Group (App Service) | Azure Resource Group | `rg-startup-analysis` |
+| Resource Group (AKS/Storage) | Azure Resource Group | `aistartuptr` |
+| Resource Group (Database) | Azure Resource Group | `aistartupstr` |
 
 ## When to Update Each Location
 
 **If DATABASE_URL changes:**
 ```bash
-# 1. GitHub Secrets
-gh secret set DATABASE_URL --body "new-value"
-
-# 2. App Service
+# 1. App Service
 az webapp config appsettings set --name buildatlas-web --resource-group rg-startup-analysis \
   --settings DATABASE_URL="new-value"
 
-# 3. Kubernetes
+# 2. Kubernetes
 kubectl create secret generic startup-investments-secrets \
   --from-literal=database-url="new-value" \
   --from-literal=api-key="$API_KEY" \
@@ -55,14 +52,11 @@ kubectl create secret generic startup-investments-secrets \
 
 **If API_KEY changes:**
 ```bash
-# 1. GitHub Secrets
-gh secret set API_KEY --body "new-value"
-
-# 2. App Service
+# 1. App Service
 az webapp config appsettings set --name buildatlas-web --resource-group rg-startup-analysis \
   --settings API_KEY="new-value"
 
-# 3. Kubernetes
+# 2. Kubernetes
 kubectl create secret generic startup-investments-secrets \
   --from-literal=database-url="$DATABASE_URL" \
   --from-literal=api-key="new-value" \
@@ -76,10 +70,7 @@ kubectl rollout restart deployment/startup-investments-api
 
 **If REDIS_URL changes:**
 ```bash
-# 1. GitHub Secrets
-gh secret set REDIS_URL --body "new-value"
-
-# 2. Kubernetes
+# 1. Kubernetes
 kubectl create secret generic startup-investments-secrets \
   --from-literal=database-url="$DATABASE_URL" \
   --from-literal=api-key="$API_KEY" \
@@ -93,16 +84,13 @@ kubectl rollout restart deployment/startup-investments-api
 
 **If API URL changes (e.g., new Front Door endpoint):**
 ```bash
-# 1. Update .github/workflows/frontend-deploy.yml - TWO PLACES:
-#    - Line ~49: NEXT_PUBLIC_API_URL in build step
-#    - Line ~225: NEXT_PUBLIC_API_URL in app-settings-json
-
-# 2. Update App Service immediately
+# 1. Update App Service immediately
 az webapp config appsettings set --name buildatlas-web --resource-group rg-startup-analysis \
   --settings NEXT_PUBLIC_API_URL="new-url"
 
-# 3. Commit and push workflow change
-git add -A && git commit -m "Update API URL to new-url" && git push
+# 2. Update VM + AKS pipeline env (if used by jobs)
+# - VM: /etc/buildatlas/.env (API_URL)
+# - AKS: buildatlas-pipelines-secrets (API_URL)
 ```
 
 ## Sync All Configuration (Full Reset)

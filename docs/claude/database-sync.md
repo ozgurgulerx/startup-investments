@@ -65,22 +65,17 @@ CSV File -> Azure Blob Storage (incoming/)
 
 ## Database Sync Methods (in order of preference)
 
-### Method 1: GitHub Actions Workflow (CI/CD)
+### Method 1: VM Cron (`sync-data`) (Primary)
 
-The workflow `.github/workflows/sync-to-database.yml` automatically syncs when CSVs change:
-
-```yaml
-# Triggers on:
-- Push to main with changes to apps/web/data/**/input/startups.csv
-- Manual workflow_dispatch with period parameter
-```
-
-**Manual trigger:**
 ```bash
-gh workflow run sync-to-database.yml --field period=2026-01
+/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
+  sync-data 45 \
+  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/sync-data.sh
 ```
 
-**Known Issue:** Backend CI/CD may fail due to ACR authentication. If API endpoint isn't deployed, use Method 3.
+Notes:
+- This job is scheduled on the VM every 30 minutes and is the canonical data sync path.
+- It also triggers a frontend deploy after pushing updated datasets.
 
 ### Method 2: API Admin Endpoint
 

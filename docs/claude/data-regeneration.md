@@ -19,26 +19,15 @@ When startup data changes (CSV updates, new analyses added), multiple data artif
 2. Then: `monthly_brief.json` (depends on stats)
 3. Then: Enriched CSV (depends on analysis store)
 
-## Automatic Regeneration (CI/CD)
+## Automatic Regeneration (VM Cron)
 
-The workflow `.github/workflows/sync-to-database.yml` automatically regenerates data when:
-- `apps/web/data/**/input/startups.csv` changes
-- `apps/web/data/**/output/analysis_store/**` changes
+VM cron job `sync-data` is the primary regeneration + sync loop (blob sync -> regen artifacts -> commit/push -> DB sync -> frontend deploy).
 
-**What it does:**
-1. Regenerates `monthly_stats.json` (updates genai_analysis from analysis store)
-2. Regenerates `monthly_brief.json` (generates from stats + startups)
-3. Regenerates `startups_enriched_with_analysis.csv`
-4. Commits the changes back to the repo
-5. Syncs to database via API
-
-**Manual trigger:**
+**Manual trigger (VM):**
 ```bash
-# Full regeneration + database sync
-gh workflow run sync-to-database.yml --field period=2026-01
-
-# Regenerate data only (skip database sync)
-gh workflow run sync-to-database.yml --field period=2026-01 --field regenerate_only=true
+/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
+  sync-data 45 \
+  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/sync-data.sh
 ```
 
 ## Local Regeneration Script

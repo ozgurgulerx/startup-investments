@@ -285,7 +285,12 @@ Functions:
   - Auto-triggered by VM `code-update` when `infrastructure/azure-functions/**` or `packages/analysis/**` changes.
 
 Uptime automation:
-- VM cron job: `infrastructure/vm-cron/jobs/keep-alive.sh` (every 15 min) starts AKS if stopped and verifies API health.
+- Azure-native (primary): Azure Automation runbook `buildatlas-aks-ensure-running` (scheduled) starts AKS if stopped and checks API health.
+  - IaC: `infrastructure/azure/aks-uptime.bicep` (Automation Account + variables + schedule) + `infrastructure/azure/runbooks/aks-ensure-running.ps1` (runbook content).
+  - Deploy: `.github/workflows/ops-aks-uptime-deploy.yml` (manual dispatch).
+  - Automation account: `aa-buildatlas-aks-uptime` (RG `aistartuptr`).
+  - Note: `SLACK_WEBHOOK_URL` is stored as an encrypted Automation variable; the runbook only posts to Slack on changes/failures.
+- VM cron fallback: `infrastructure/vm-cron/jobs/keep-alive.sh` (every 15 min) starts AKS if stopped and verifies API health.
 
 News:
 - VM jobs:

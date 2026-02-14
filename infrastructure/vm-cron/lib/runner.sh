@@ -314,7 +314,23 @@ START_TS="$(date +%s)"
 # Some upstream tooling can emit occasional NULs which makes grep treat logs as
 # binary ("binary file matches") and breaks freshness monitors (heartbeat).
 cd "$REPO_DIR"
-timeout "${TIMEOUT_MIN}m" bash "$SCRIPT_PATH" "$@" 2>&1 | tr -d '\000' | tee -a "$LOG_FILE"
+# Also: avoid buffering in the filter stage so logs update in near-real-time
+# (e.g., when a job blocks on a lock or a long-running step). `tr` can fully
+# buffer when writing to a pipe, which makes log mtimes misleading.
+timeout "${TIMEOUT_MIN}m" bash "$SCRIPT_PATH" "$@" 2>&1 \
+  | python3 -u - <<'PY' \
+  | tee -a "$LOG_FILE"
+import sys
+
+while True:
+    chunk = sys.stdin.buffer.read(4096)
+    if not chunk:
+        break
+    if b"\x00" in chunk:
+        chunk = chunk.replace(b"\x00", b"")
+    sys.stdout.buffer.write(chunk)
+    sys.stdout.buffer.flush()
+PY
 EXIT_CODE=$?
 DURATION_SEC="$(( $(date +%s) - START_TS ))"
 ENDED_AT_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"

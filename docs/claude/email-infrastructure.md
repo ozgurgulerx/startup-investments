@@ -3,24 +3,24 @@
 ## Overview
 - **Provider:** [Resend](https://resend.com) — API-based transactional email
 - **Transactional emails** (confirmation): Sent from Next.js API routes via `fetch()` to Resend HTTP API
-- **Batch emails** (daily digest): Sent from Python via `httpx` in GitHub Actions workflow
+- **Batch emails** (daily digest): Sent from Python via AKS CronJobs (`buildatlas-pipelines`) with VM cron as fallback
 
 ## Email Types
 
 | Type | Trigger | Sender | Template |
 |------|---------|--------|----------|
 | Subscription confirmation | User subscribes on `/news` | Next.js API route (`apps/web/app/api/news/subscriptions/route.ts`) | Inline HTML |
-| Daily digest | GitHub Actions cron (13:10 UTC) | Python (`packages/analysis/src/automation/news_digest.py`) | Inline HTML |
+| Daily digest | AKS CronJob (`news-digest`) | Python (`packages/analysis/src/automation/news_digest.py`) | Inline HTML |
 | Unsubscribe | Click unsubscribe link in email | Next.js API route (GET handler) | Redirect |
 
 ## Environment Variables
 
 | Variable | Where | Purpose |
 |----------|-------|---------|
-| `RESEND_API_KEY` | GitHub Secrets, App Service, `.env.local` | Resend API authentication |
-| `RESEND_FROM_EMAIL` | GitHub Secrets (optional) | From address (default: `Build Atlas <news@buildatlas.net>`) |
-| `NEWS_DIGEST_REPLY_TO` | GitHub Secrets (optional) | Reply-to address |
-| `PUBLIC_BASE_URL` | GitHub Secrets (optional) | Base URL for links (default: `https://buildatlas.net`) |
+| `RESEND_API_KEY` | Kubernetes secret / VM env / App Service | Resend API authentication |
+| `RESEND_FROM_EMAIL` | Kubernetes secret / VM env (optional) | From address (default: `Build Atlas <news@buildatlas.net>`) |
+| `NEWS_DIGEST_REPLY_TO` | Kubernetes secret / VM env (optional) | Reply-to address |
+| `PUBLIC_BASE_URL` | Kubernetes secret / VM env (optional) | Base URL for links (default: `https://buildatlas.net`) |
 
 ## Subscription Flow (Double Opt-In)
 
@@ -46,11 +46,8 @@ Subscriptions are region-aware: same email can subscribe to both Global and Turk
 ## Daily Digest Workflow
 
 ```bash
-# Manual trigger (all regions)
-gh workflow run news-digest-daily.yml
-
-# Manual trigger (specific region)
-gh workflow run news-digest-daily.yml --field region=turkey
+# Manual trigger (AKS one-off run)
+kubectl create job -n default --from=cronjob/news-digest news-digest-manual-<id>
 
 # CLI (local)
 cd packages/analysis

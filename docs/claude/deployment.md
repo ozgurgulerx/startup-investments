@@ -9,12 +9,13 @@ This file is a quick operational cheatsheet. If anything conflicts, use the cano
 
 | Surface | Primary Path | Backup Path |
 |---|---|---|
-| Frontend (`apps/web`) | VM cron `infrastructure/vm-cron/jobs/frontend-deploy.sh` | `.github/workflows/frontend-deploy.yml` (`workflow_dispatch`) |
-| Backend (`apps/api`) | VM cron `infrastructure/vm-cron/jobs/backend-deploy.sh` | `.github/workflows/backend-deploy.yml` (`workflow_dispatch`) |
-| Functions (`infrastructure/azure-functions`) | VM cron `infrastructure/vm-cron/jobs/functions-deploy.sh` | `.github/workflows/functions-deploy.yml` (`workflow_dispatch`) |
-| Data refresh + web publish | VM cron `infrastructure/vm-cron/jobs/sync-data.sh` | `.github/workflows/sync-data.yml` |
-| News ingest | VM cron `infrastructure/vm-cron/jobs/news-ingest.sh` | `.github/workflows/news-ingest.yml` |
-| News digest | VM cron `infrastructure/vm-cron/jobs/news-digest.sh` | `.github/workflows/news-digest-daily.yml` |
+| Frontend (`apps/web`) | VM cron `infrastructure/vm-cron/jobs/frontend-deploy.sh` | Manual VM run (same job via `runner.sh`) |
+| Backend (`apps/api`) | VM cron `infrastructure/vm-cron/jobs/backend-deploy.sh` | Manual VM run (same job via `runner.sh`) |
+| Functions (`infrastructure/azure-functions`) | VM cron `infrastructure/vm-cron/jobs/functions-deploy.sh` | Manual VM run (same job via `runner.sh`) |
+| Pipelines (`buildatlas-pipelines`) | VM job `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (build+apply) | Manual `kubectl apply` from the VM (patch `__IMAGE_TAG__`) |
+| Data refresh + web publish | VM cron `infrastructure/vm-cron/jobs/sync-data.sh` | Manual VM run (same job via `runner.sh`) |
+| News ingest | AKS CronJob `news-ingest` | `kubectl create job --from=cronjob/news-ingest ...` (or re-enable VM fallback job) |
+| News digest | AKS CronJob `news-digest` | `kubectl create job --from=cronjob/news-digest ...` (or re-enable VM fallback job) |
 
 ## VM-triggered Deploy Flow
 
@@ -35,6 +36,11 @@ This file is a quick operational cheatsheet. If anything conflicts, use the cano
 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
   frontend-deploy 25 \
   /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/frontend-deploy.sh
+
+# Pipelines (AKS CronJobs)
+/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
+  pipelines-deploy 30 \
+  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/pipelines-deploy.sh
 ```
 
 ## Required Backend Deploy Env
