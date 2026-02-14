@@ -685,6 +685,9 @@ def _split_investor_names(raw: str) -> List[str]:
     if not cleaned:
         return []
 
+    # Some sources/regex fallbacks may leak narrative prefixes into the captured string.
+    cleaned = re.sub(r"^(?:led\s+by|anchored\s+by|co-?led\s+by)\s+", "", cleaned, flags=re.IGNORECASE).strip()
+
     # Drop common trailing clauses that aren't part of investor names.
     cleaned = re.sub(
         r"\b(?:with participation from|with participation by|katılımıyla|katilimiyla)\b.*$",
