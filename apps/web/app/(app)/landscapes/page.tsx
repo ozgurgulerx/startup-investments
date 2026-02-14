@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRegion } from '@/lib/region-context';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import { SectorFilter } from '@/components/features/sector-filter';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 
 interface TreemapNode {
   name: string;
@@ -136,7 +137,13 @@ export default function LandscapesPage() {
         if (sector) params.set('sector', sector);
         const res = await fetch(`/api/landscapes?${params.toString()}`);
         if (res.ok) {
-          setNodes(await res.json());
+          const json = await res.json().catch(() => null);
+          if (Array.isArray(json)) {
+            setNodes(json);
+          } else {
+            setNodes([]);
+            setLoadError('Invalid landscapes payload');
+          }
         } else {
           setNodes([]);
           const msg = await extractErrorMessage(res);
@@ -168,7 +175,13 @@ export default function LandscapesPage() {
         const scope = region !== 'global' ? `&scope=${region}` : '';
         const res = await fetch(`/api/landscapes/cluster?pattern=${encodeURIComponent(selectedPattern!)}${scope}`);
         if (res.ok) {
-          setClusterDetail(await res.json());
+          const json = await res.json().catch(() => null);
+          if (json && typeof json === 'object' && !Array.isArray(json)) {
+            setClusterDetail(json as any);
+          } else {
+            setClusterDetail(null);
+            setDetailError('Invalid cluster payload.');
+          }
         } else if (res.status === 404) {
           setDetailError('No details available for this pattern.');
         } else {
@@ -246,108 +259,117 @@ export default function LandscapesPage() {
         <SectorFilter region={region} value={sector} onChange={setSector} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-        {/* Treemap */}
-        <div className="border border-border/30 rounded-lg p-2 min-h-[400px]">
-          {treemapData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={420}>
-              <Treemap
-                data={treemapData}
-                dataKey="value"
-                aspectRatio={4/3}
-                stroke="var(--border)"
-                content={<TreemapContent />}
-                onClick={(node: any) => {
-                  const pattern = getSelectedPatternFromTreemapClick(node);
-                  if (pattern) setSelectedPattern(pattern);
-                }}
-              />
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-[420px] text-sm text-muted-foreground">
-              No landscape data available
-            </div>
-          )}
-        </div>
-
-        {/* Detail Panel */}
-        <div className="border border-border/30 rounded-lg p-4">
-          {!selectedPattern ? (
-            <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16">
-              Click a pattern cell to see details
-            </div>
-          ) : detailLoading ? (
-            <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16">
-              Loading details...
-            </div>
-          ) : detailError ? (
-            <div className="flex items-center justify-center h-full text-xs text-destructive py-16 text-center">
-              {detailError}
-            </div>
-          ) : clusterDetail ? (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-foreground">{clusterDetail.pattern}</h3>
-                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                  <span>{clusterDetail.startup_count} startups</span>
-                  <span>{formatUsd(clusterDetail.total_funding)}</span>
-                </div>
+      <ErrorBoundary
+        onError={(error) => console.error('Landscapes render error:', error)}
+        fallback={
+          <div className="rounded-lg border border-border/30 bg-muted/10 p-4 text-sm text-muted-foreground">
+            Landscapes failed to render. Try reloading.
+          </div>
+        }
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          {/* Treemap */}
+          <div className="border border-border/30 rounded-lg p-2 min-h-[400px]">
+            {treemapData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={420}>
+                <Treemap
+                  data={treemapData}
+                  dataKey="value"
+                  aspectRatio={4/3}
+                  stroke="var(--border)"
+                  content={<TreemapContent />}
+                  onClick={(node: any) => {
+                    const pattern = getSelectedPatternFromTreemapClick(node);
+                    if (pattern) setSelectedPattern(pattern);
+                  }}
+                />
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[420px] text-sm text-muted-foreground">
+                No landscape data available
               </div>
+            )}
+          </div>
 
-              <div>
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Top Startups</h4>
-                <div className="space-y-1.5">
-                  {clusterDetail.top_startups.slice(0, 8).map(s => (
-                    <Link
-                      key={s.id}
-                      href={`/company/${s.slug}`}
-                      className="flex items-center justify-between text-xs hover:text-accent-info transition-colors"
-                    >
-                      <span className="text-foreground truncate">{s.name}</span>
-                      <span className="text-muted-foreground tabular-nums ml-2">{formatUsd(s.funding)}</span>
-                    </Link>
-                  ))}
-                </div>
+          {/* Detail Panel */}
+          <div className="border border-border/30 rounded-lg p-4">
+            {!selectedPattern ? (
+              <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16">
+                Click a pattern cell to see details
               </div>
-
-              {clusterDetail.top_investors.length > 0 && (
+            ) : detailLoading ? (
+              <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16">
+                Loading details...
+              </div>
+            ) : detailError ? (
+              <div className="flex items-center justify-center h-full text-xs text-destructive py-16 text-center">
+                {detailError}
+              </div>
+            ) : clusterDetail ? (
+              <div className="space-y-4">
                 <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Top Investors</h4>
-                  <div className="space-y-1">
-                    {clusterDetail.top_investors.slice(0, 5).map(inv => (
-                      <div key={inv.name} className="flex items-center justify-between text-xs">
-                        <span className="text-foreground truncate">{inv.name}</span>
-                        <span className="text-muted-foreground/60 ml-2">{inv.deal_count} deals</span>
-                      </div>
-                    ))}
+                  <h3 className="text-sm font-medium text-foreground">{clusterDetail.pattern}</h3>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                    <span>{clusterDetail.startup_count} startups</span>
+                    <span>{formatUsd(clusterDetail.total_funding)}</span>
                   </div>
                 </div>
-              )}
 
-              {clusterDetail.related_patterns.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Related Patterns</h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {clusterDetail.related_patterns.map(p => (
-                      <button
-                        key={p}
-                        onClick={() => setSelectedPattern(p)}
-                        className="px-2 py-0.5 text-[10px] bg-muted/20 text-muted-foreground rounded hover:text-accent-info transition-colors"
+                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Top Startups</h4>
+                  <div className="space-y-1.5">
+                    {clusterDetail.top_startups.slice(0, 8).map(s => (
+                      <Link
+                        key={s.id}
+                        href={`/company/${s.slug}`}
+                        className="flex items-center justify-between text-xs hover:text-accent-info transition-colors"
                       >
-                        {p}
-                      </button>
+                        <span className="text-foreground truncate">{s.name}</span>
+                        <span className="text-muted-foreground tabular-nums ml-2">{formatUsd(s.funding)}</span>
+                      </Link>
                     ))}
                   </div>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16 text-center">
-              No details available for {selectedPattern}.
-            </div>
-          )}
+
+                {clusterDetail.top_investors.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Top Investors</h4>
+                    <div className="space-y-1">
+                      {clusterDetail.top_investors.slice(0, 5).map(inv => (
+                        <div key={inv.name} className="flex items-center justify-between text-xs">
+                          <span className="text-foreground truncate">{inv.name}</span>
+                          <span className="text-muted-foreground/60 ml-2">{inv.deal_count} deals</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {clusterDetail.related_patterns.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Related Patterns</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {clusterDetail.related_patterns.map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setSelectedPattern(p)}
+                          className="px-2 py-0.5 text-[10px] bg-muted/20 text-muted-foreground rounded hover:text-accent-info transition-colors"
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-xs text-muted-foreground py-16 text-center">
+                No details available for {selectedPattern}.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </ErrorBoundary>
     </>
   );
 }
