@@ -681,11 +681,20 @@ async def check_deploy_trigger(timer: func.TimerRequest):
     """Check for pending changes and trigger deploy if needed.
 
     Runs every 30 minutes as a batching window to avoid excessive deploys.
-    Triggers GitHub Actions workflow via repository_dispatch.
+    Legacy: previously triggered GitHub Actions via repository_dispatch.
+
+    GitHub Actions is no longer part of the production control plane for this repo.
+    This trigger is therefore disabled by default to avoid noisy failures.
     """
     logging.info("Timer trigger: Checking for pending deploy changes...")
 
     try:
+        enabled_raw = (os.environ.get("DEPLOY_TRIGGER_ENABLED") or "false").strip().lower()
+        enabled = enabled_raw in ("1", "true", "yes", "on")
+        if not enabled:
+            logging.info("Deploy trigger disabled via DEPLOY_TRIGGER_ENABLED=%s", enabled_raw)
+            return
+
         _setup_analysis_path()
         from src.automation.db import DatabaseManager
 
@@ -707,40 +716,12 @@ async def check_deploy_trigger(timer: func.TimerRequest):
             logging.info("No pending changes, skipping deploy trigger")
             return
 
-        logging.info(f"Found {change_count} changes, triggering deploy...")
-
-        # Trigger GitHub Actions via repository_dispatch
-        import aiohttp
-
-        github_token = os.environ.get("GITHUB_TOKEN")
-        repo = os.environ.get("GITHUB_REPO", "buildatlas/startup-analysis")
-
-        if not github_token:
-            logging.warning("GITHUB_TOKEN not configured, skipping deploy trigger")
-            return
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"https://api.github.com/repos/{repo}/dispatches",
-                headers={
-                    "Authorization": f"Bearer {github_token}",
-                    "Accept": "application/vnd.github.v3+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                },
-                json={
-                    "event_type": "data-updated",
-                    "client_payload": {
-                        "changes": change_count,
-                        "last_update": last_update.isoformat() if last_update else None,
-                        "trigger": "batched_timer",
-                    }
-                }
-            ) as response:
-                if response.status == 204:
-                    logging.info(f"Deploy triggered successfully for {change_count} changes")
-                else:
-                    error = await response.text()
-                    logging.error(f"Failed to trigger deploy: {response.status} - {error}")
+        logging.warning(
+            "Found %d DB updates (last_update=%s) but automatic deploy triggering is deprecated. "
+            "Use VM cron `sync-data` or AKS CronJobs instead.",
+            change_count,
+            last_update.isoformat() if last_update else None,
+        )
 
     except Exception as e:
         logging.error(f"Deploy trigger error: {str(e)}")
@@ -755,52 +736,22 @@ async def manual_deploy_trigger(req: func.HttpRequest) -> func.HttpResponse:
     """
     try:
         body = req.get_json() if req.get_body() else {}
-        force = body.get("force", False)
+        force = bool(body.get("force", False))
 
-        import aiohttp
-
-        github_token = os.environ.get("GITHUB_TOKEN")
-        repo = os.environ.get("GITHUB_REPO", "buildatlas/startup-analysis")
-
-        if not github_token:
-            return func.HttpResponse(
-                json.dumps({"error": "GITHUB_TOKEN not configured"}),
-                status_code=500,
-                mimetype="application/json"
-            )
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"https://api.github.com/repos/{repo}/dispatches",
-                headers={
-                    "Authorization": f"Bearer {github_token}",
-                    "Accept": "application/vnd.github.v3+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                },
-                json={
-                    "event_type": "sync-data",
-                    "client_payload": {
-                        "force": force,
-                        "trigger": "manual",
-                        "triggered_at": datetime.now(timezone.utc).isoformat(),
-                    }
+        return func.HttpResponse(
+            json.dumps(
+                {
+                    "status": "disabled",
+                    "force": force,
+                    "message": (
+                        "Manual deploy triggering via this Azure Function is deprecated. "
+                        "Use VM cron `sync-data` (every 30 min) or run the VM job manually."
+                    ),
                 }
-            ) as response:
-                if response.status == 204:
-                    return func.HttpResponse(
-                        json.dumps({
-                            "status": "triggered",
-                            "message": "Deploy workflow triggered successfully"
-                        }),
-                        mimetype="application/json"
-                    )
-                else:
-                    error = await response.text()
-                    return func.HttpResponse(
-                        json.dumps({"error": f"GitHub API error: {error}"}),
-                        status_code=response.status,
-                        mimetype="application/json"
-                    )
+            ),
+            status_code=410,
+            mimetype="application/json",
+        )
 
     except Exception as e:
         return func.HttpResponse(

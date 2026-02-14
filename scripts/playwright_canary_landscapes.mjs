@@ -313,8 +313,15 @@ async function run() {
       const uiState = await waitForUiLoadedOrError(page, consoleErrors);
       debug.uiState = uiState;
 
-      if (uiState.state === 'retry' && uiAttempt < maxUiAttempts) {
-        console.warn(`[canary] retrying UI load after transient network change (${uiAttempt}/${maxUiAttempts})`);
+      const sawRetryableNetworkError = consoleErrors.some((s) => isRetryableGotoError(String(s)))
+        || requestFailures.some((f) => isRetryableGotoError(String(f?.failure || '')));
+
+      if (
+        (uiState.state === 'retry' || (uiState.state === 'timeout' && sawRetryableNetworkError))
+        && uiAttempt < maxUiAttempts
+      ) {
+        const reason = uiState.state === 'retry' ? 'network_changed' : 'timeout_with_network_changed';
+        console.warn(`[canary] retrying UI load after transient network change (${reason}) (${uiAttempt}/${maxUiAttempts})`);
         await page.waitForTimeout(500 * uiAttempt);
         continue;
       }

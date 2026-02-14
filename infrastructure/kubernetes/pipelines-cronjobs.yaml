@@ -302,6 +302,56 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
+  name: onboarding-eod-report
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: onboarding-eod-report
+spec:
+  schedule: "0 20 * * *"
+  startingDeadlineSeconds: 7200
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 720
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: onboarding-eod-report
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - onboarding-eod-report
+                - "10"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/onboarding-eod-report.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
   name: research-topics
   namespace: default
   labels:

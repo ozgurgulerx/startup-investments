@@ -52,7 +52,7 @@ awk '
 
 # Keep only scheduled job names for strict comparison.
 # Deploy jobs below are intentionally documented as triggered jobs.
-grep -Ev '^(frontend-deploy|backend-deploy|functions-deploy)$' "$DOC_JOBS_FILE" > "$DOC_JOBS_FILTERED_FILE" || true
+grep -Ev '^(frontend-deploy|backend-deploy|functions-deploy|pipelines-deploy)$' "$DOC_JOBS_FILE" > "$DOC_JOBS_FILTERED_FILE" || true
 
 MISSING_FROM_DOC="$(comm -23 "$CRON_JOBS_FILE" "$DOC_JOBS_FILTERED_FILE" || true)"
 EXTRA_IN_DOC="$(comm -13 "$CRON_JOBS_FILE" "$DOC_JOBS_FILTERED_FILE" || true)"

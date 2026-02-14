@@ -29,7 +29,7 @@ When cron schedules change, update docs in the same commit and run:
 - `packages/analysis`: Python analysis/automation tooling used by workflows (news ingest/digest, etc).
 - `database/migrations`: SQL migrations for Postgres.
 - `infrastructure/kubernetes`: AKS manifests.
-- `.github/workflows`: GitHub Actions workflows (manual/backup only; primary automation runs via AKS CronJobs + VM cron).
+- `.github/workflows`: (intentionally removed) GitHub Actions is not part of the production control plane for this repo.
 
 ## Production Architecture (What Talks To What)
 
@@ -80,7 +80,7 @@ Important headers/invariants:
   - Enforced by `.gitattributes` (`*.sh text eol=lf`).
   - Pipelines image hardens this at build time: `infrastructure/pipelines/Dockerfile` strips CR bytes and fails the build if any remain.
   - Guardrail test: `packages/analysis/tests/test_no_crlf_shell_scripts.py`.
-  - CI: `.github/workflows/analysis-ci.yml` runs the `packages/analysis` pytest suite (includes this guardrail).
+  - Run locally: `cd packages/analysis && pytest -q` (includes this guardrail).
 - `embed-backfill` supports safe verification without embedding spend:
   - Set `EMBED_BACKFILL_DRY_RUN=true` to only count unembedded clusters (DB read only; no Azure OpenAI calls).
   - Optional tuning: `EMBED_BACKFILL_LIMIT`, `EMBED_BACKFILL_ORDER`, `EMBED_BACKFILL_SLEEP_MS`, `EMBED_BACKFILL_RELATED_*`.
@@ -134,12 +134,12 @@ Important headers/invariants:
   - Smoke-test guardrail:
     - Playwright coverage is enforced via the ops canary jobs (AKS/VM) and should also be runnable locally before deploys.
 
-## CI/CD Workflows (Source of Truth)
+## Automation (Source of Truth)
 
 Primary scheduled automation is split:
 - **AKS CronJobs** for pipeline jobs (news/events/digests/briefs/benchmarks) to avoid VM availability issues.
 - **VM cron** for deploy orchestration + VM-only tasks (keep-alive, blob sync, crawl-frontier, release reconciliation, Slack summary, etc).
-GitHub Actions workflows remain **manual/backup**; do not treat them as primary automation (use AKS CronJobs + VM cron).
+GitHub Actions workflows are intentionally removed from this repo; do not treat GitHub as a production control plane.
 
 AKS pipelines CronJobs:
 - Manifests:
@@ -155,7 +155,7 @@ AKS pipelines CronJobs:
     GPT-5 `responses.*` calls will fail with `PermissionDenied` (missing `.../responses/write`).
     - Kubelet object id: `AZURE_CLI_DISABLE_LOGFILE=1 az aks show -g aistartuptr -n aks-aistartuptr --query identityProfile.kubeletidentity.objectId -o tsv`
     - Account scope: `/subscriptions/.../resourceGroups/rg-openai/providers/Microsoft.CognitiveServices/accounts/aoai-ep-swedencentral02`
-- Deploy: apply `infrastructure/kubernetes/pipelines-*.yaml` from an operator environment that can reach the AKS control plane (typically the VM).
+- Deploy: VM job `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (runner: `pipelines-deploy`) (typically auto-triggered by `infrastructure/vm-cron/deploy.sh`).
 - VM cutover guardrail: set `BUILDATLAS_VM_CRON_DISABLED_JOBS` in `/etc/buildatlas/.env` (enforced by `infrastructure/vm-cron/lib/runner.sh`)
   - Additional safety net: `infrastructure/vm-cron/vm-cron-disabled-jobs` can disable jobs on the VM even if `/etc/buildatlas/.env` is misconfigured (prevents accidental double-runs).
 
@@ -232,7 +232,8 @@ VM cron runner:
     - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
     - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (built from `infrastructure/ops/Dockerfile`)
     - Secrets: Kubernetes `buildatlas-ops-secrets` (`slack-webhook-url`, `posthog-project-id`, `posthog-personal-api-key`, optional `posthog-host`)
-    - Deploy: apply the manifest from an operator environment that can reach the AKS control plane (typically the VM).
+    - Deploy (primary): VM job `pipelines-deploy` (best effort) builds `buildatlas-ops` + `buildatlas-playwright-canary` and applies ops CronJobs.
+    - Deploy (manual fallback): apply the manifest from an operator environment that can reach the AKS control plane (typically the VM).
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
 - Cron safety: the BuildAtlas schedule must be installed only for the `buildatlas` user. Root crontab must not contain the BuildAtlas block (detect via `sudo crontab -l`; clear via `sudo crontab -r` only if it contains only BuildAtlas entries).
@@ -287,7 +288,7 @@ Functions:
 Uptime automation:
 - Azure-native (primary): Azure Automation runbook `buildatlas-aks-ensure-running` (scheduled) starts AKS if stopped and checks API health.
   - IaC: `infrastructure/azure/aks-uptime.bicep` (Automation Account + variables + schedule) + `infrastructure/azure/runbooks/aks-ensure-running.ps1` (runbook content).
-  - Deploy: `.github/workflows/ops-aks-uptime-deploy.yml` (manual dispatch).
+  - Deploy: apply the Bicep from an operator environment (typically the VM) via `az deployment group create ...`.
   - Automation account: `aa-buildatlas-aks-uptime` (RG `aistartuptr`).
   - Note: `SLACK_WEBHOOK_URL` is stored as an encrypted Automation variable; the runbook only posts to Slack on changes/failures.
 - VM cron fallback: `infrastructure/vm-cron/jobs/keep-alive.sh` (every 15 min) starts AKS if stopped and verifies API health.
@@ -490,7 +491,7 @@ Materialization step (required for DB-driven filters):
   - Command: `python scripts/populate-analysis-data.py --period YYYY-MM`
 - Primary automation:
   - VM cron `sync-data` runs `apply-migrations.sh startups` and then `populate-analysis-data.py` after syncing blob data.
-  - GitHub Actions fallback exists (manual only) but prefer the VM cron job (or run the command manually on the VM).
+  - No GitHub Actions fallback: prefer the VM cron job (or run the command manually on the VM).
   - Guardrail: `scripts/check-vertical-taxonomy.py` validates `vertical_taxonomy.primary.vertical_id/label` is present; VM `sync-data` will attempt `scripts/backfill-vertical-taxonomy.py --only-incomplete` and re-check before pushing.
 
 Quick verification (run on the DB):
@@ -742,7 +743,7 @@ Operational notes:
 - `ADMIN_KEY` is not "provided by Azure". It is a strong random secret you set.
 - If you rotate `API_KEY`/`ADMIN_KEY`, you must update both:
   - AKS secret (via backend deploy) and/or App Service settings (web)
-- GitHub Actions workflows are backup-only; GitHub secrets may exist, but primary secrets live in VM/K8s.
+- GitHub Actions workflows are intentionally removed from this repo; GitHub secrets/variables may exist but are not used for production automation. Primary secrets live in VM/K8s/App Service.
 - X/Twitter automation secrets/env (VM):
   - Required for trend ingest: `X_API_BEARER_TOKEN`
   - Required for posting: `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`

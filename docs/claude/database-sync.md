@@ -81,11 +81,11 @@ Notes:
 
 ```bash
 # Endpoint: POST /api/admin/sync-startups
-# Auth: X-Admin-Key header (same as API_KEY)
+# Auth: X-Admin-Key header (ADMIN_KEY) + X-API-Key header (API_KEY)
 
 curl -X POST https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/api/admin/sync-startups \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Key: $API_KEY" \
+  -H "X-Admin-Key: $ADMIN_KEY" \
   -H "X-API-Key: $API_KEY" \
   -d '{"startups": [{"name": "...", "website": "...", ...}]}'
 ```
@@ -207,7 +207,6 @@ az postgres flexible-server firewall-rule list \
 - `allowSharedKeyAccess: false` - Connection strings don't work
 - **Workaround:** Use Method 2 (API) or Method 3 (direct DB)
 
-**Backend CI/CD:**
-- ACR authentication may fail in GitHub Actions
-- Error: "Unable to get AAD authorization tokens"
-- **Workaround:** Deploy manually with Docker, or use Method 3
+**Deploy automation:**
+- GitHub Actions workflows are removed from this repo; deploys run via VM cron (`code-update` + `backend-deploy.sh`) or manual operator commands.
+- If ACR auth fails (e.g. "Unable to get AAD authorization tokens"), verify Azure RBAC for the identity performing the deploy (VM managed identity / operator user) on the ACR scope.

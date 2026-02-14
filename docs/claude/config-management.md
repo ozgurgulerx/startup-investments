@@ -2,7 +2,7 @@
 
 **CRITICAL: When ANY configuration value changes, ALL locations must be updated together.**
 
-Note (2026-02-14): GitHub Actions workflows are removed from this repo. GitHub Secrets/Variables may still exist but are **not** used for production automation.
+Note (2026-02-14): Production automation is VM cron + AKS CronJobs (plus Azure Automation for AKS uptime). GitHub Actions workflows are intentionally removed from this repo; GitHub Secrets/Variables may still exist but are not used for production automation.
 
 Configuration exists in these places that MUST stay in sync:
 

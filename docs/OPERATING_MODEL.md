@@ -1,6 +1,6 @@
 # BuildAtlas Operating Model
 
-Last updated: 2026-02-13
+Last updated: 2026-02-14
 Document owner: Platform/Operations
 Review cadence: Monthly or immediately after architecture/deploy/schedule changes.
 
@@ -12,7 +12,7 @@ This is the canonical operations reference for:
 - cron jobs and data/news pipelines,
 - change safety and incident response.
 
-If this file conflicts with an older doc, use this file plus the linked source scripts/workflows.
+If this file conflicts with an older doc, use this file plus the linked source scripts.
 
 ## 2) Source-of-Truth Hierarchy
 
@@ -26,7 +26,6 @@ Use this priority order when debugging drift:
 2. Schedules/workflow definitions:
   - `infrastructure/vm-cron/crontab`
   - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
-  - `.github/workflows/*.yml`
 3. Operational memory and invariants:
   - `AGENTS.md`
 4. Human-friendly summaries:
@@ -103,7 +102,17 @@ Pipelines are deployed into AKS as CronJobs to avoid VM availability issues:
     calls will fail.
   - Azure OpenAI is AAD-only in production (`disableLocalAuth=true`). Pipelines must run with an identity that has the
     `Cognitive Services OpenAI User` role on the Azure OpenAI account scope (AKS defaults to the kubelet identity).
-- Deploy workflow: `.github/workflows/ops-pipelines-deploy.yml`
+- Deploy:
+  - VM job: `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (runner: `pipelines-deploy`)
+
+### Azure-native uptime guard (preferred)
+
+AKS availability is primarily protected via an Azure Automation runbook (independent of GitHub schedules and VM cron):
+
+- IaC: `infrastructure/azure/aks-uptime.bicep` (Automation Account + variables + schedule)
+- Runbook: `infrastructure/azure/runbooks/aks-ensure-running.ps1`
+- Deploy: apply the Bicep from an operator environment (typically the VM) using `az deployment group create ...` (see `infrastructure/azure/aks-uptime.bicep` for params/variables).
+- Slack: webhook is stored as an encrypted Automation variable `SLACK_WEBHOOK_URL` (runbook posts only on changes/failures)
 
 ### Deploy/orchestration control plane: VM cron
 
@@ -115,26 +124,14 @@ Pipelines are deployed into AKS as CronJobs to avoid VM availability issues:
   - `backend-deploy.sh` for API/shared/k8s changes.
   - `frontend-deploy.sh` for web/shared changes.
   - `functions-deploy.sh` for `infrastructure/azure-functions/**` and `packages/analysis/**` changes.
+  - `pipelines-deploy.sh` for pipeline runtime changes (`packages/analysis/**`, `database/migrations/**`, `infrastructure/vm-cron/**`, `scripts/**`, `infrastructure/pipelines/**`, `infrastructure/kubernetes/pipelines-*.yaml`).
 - Applies migrations when migration files changed.
 
-### Backup/manual control plane: GitHub Actions
+### GitHub Actions
 
-| Workflow | Role |
-|---|---|
-| `frontend-deploy.yml` | Manual backup deploy |
-| `backend-deploy.yml` | Manual backup deploy |
-| `news-ingest.yml` | Manual backup run |
-| `news-digest-daily.yml` | Manual backup run |
-| `keep-aks-alive.yml` | Manual backup keep-alive |
-| `keep-aks-running.yml` | Manual backup keep-alive |
-| `sync-data.yml` | Manual/repository_dispatch backup |
-| `slack-daily-summary.yml` | Manual backup summary |
-| `crawl-frontier.yml` | Manual run (schedule disabled) |
-| `functions-deploy.yml` | Manual backup deploy (VM `functions-deploy.sh` is primary) |
-| `sync-to-database.yml` | Manual backup only (VM `sync-data.sh` is primary) |
-| `slack-commit-notify.yml` | Manual backup only (VM `slack-commit-notify.sh` is primary) |
-| `vm-watchdog.yml` | Active scheduled VM safety net |
-| `vm-cron-slack-notify.yml` | Active dispatch receiver |
+GitHub Actions workflows are intentionally removed from this repo. Deploy and automation run via:
+- AKS CronJobs (`buildatlas-pipelines`, `buildatlas-ops`)
+- VM cron (`infrastructure/vm-cron/**`)
 
 ## 6) Configuration and Secrets Model
 
@@ -147,7 +144,6 @@ Pipelines are deployed into AKS as CronJobs to avoid VM availability issues:
 | AKS ops CronJobs | Kubernetes secret `buildatlas-ops-secrets` | Ops-only scheduled tasks (keep isolated from API secrets) |
 | AKS pipelines CronJobs | Kubernetes secret `buildatlas-pipelines-secrets` + configmap `buildatlas-pipelines-config` | Pipeline runtime env + toggles |
 | App Service web | App settings | Set/updated in `frontend-deploy.sh` |
-| GitHub workflows | Repository secrets/variables | Backup and selected active automations |
 
 ### Minimum required deploy secrets
 
@@ -193,9 +189,28 @@ Some ops tasks run as AKS CronJobs to avoid VM availability issues.
     - `posthog-project-id`
     - `posthog-personal-api-key`
     - optional: `posthog-host`
-  - Deploy workflow: `.github/workflows/ops-posthog-usage-deploy.yml` (manual backup/ops)
+  - Deploy (primary): `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (best effort) builds `buildatlas-ops` and applies the rendered CronJob manifests.
+  - Deploy (manual fallback): apply `infrastructure/kubernetes/posthog-usage-cronjob.yaml` from an operator environment that can reach the AKS control plane (typically the VM), patching `__IMAGE_TAG__` to a concrete image tag.
   - One-off run:
     - `kubectl create job -n default --from=cronjob/posthog-usage-summary posthog-usage-summary-manual-<id>`
+
+- PostHog exceptions alerts:
+  - Resource: `CronJob/posthog-exceptions-alerts` (namespace `default`)
+  - Schedule: `*/30 * * * *` (UTC)
+  - Manifest: `infrastructure/kubernetes/posthog-exceptions-cronjob.yaml`
+  - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (from `infrastructure/ops/Dockerfile`)
+  - Secret: `Secret/buildatlas-ops-secrets` (same keys as usage summary)
+  - Deploy: same as PostHog usage summary (via `pipelines-deploy.sh`, or manual apply)
+
+- Browser canary (Landscapes):
+  - Resource: `CronJob/browser-canary-landscapes` (namespace `default`)
+  - Schedule: `*/15 * * * *` (UTC)
+  - Manifest: `infrastructure/kubernetes/playwright-canary-cronjob.yaml`
+  - Image: `aistartuptr.azurecr.io/buildatlas-playwright-canary:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (from `infrastructure/ops/playwright-canary/Dockerfile`)
+  - Secret: `Secret/buildatlas-ops-secrets` with:
+    - `slack-webhook-url`
+  - Deploy (primary): `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (best effort) builds `buildatlas-playwright-canary` and applies the rendered CronJob manifest.
+  - Deploy (manual fallback): apply `infrastructure/kubernetes/playwright-canary-cronjob.yaml` from an operator environment that can reach the AKS control plane (typically the VM), patching `__IMAGE_TAG__` to a concrete image tag.
 
 ## 7.2) AKS Pipelines CronJobs
 
@@ -260,7 +275,7 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `heartbeat` | `*/5 * * * *` | N/A (direct) | `infrastructure/vm-cron/monitoring/heartbeat.sh` |
 
 Notes:
-- `onboarding-eod-report` posts to Slack and can also email the same report (best-effort) when `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO` are configured on the VM.
+- `onboarding-eod-report` runs as an AKS CronJob (primary) and posts to Slack; it can also email the same report (best-effort) when `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO` are configured (AKS secret or VM env). The VM schedule is fallback-only and should be disabled via `infrastructure/vm-cron/vm-cron-disabled-jobs` to avoid duplicate posts.
 
 ### Triggered (not scheduled) jobs
 
@@ -269,6 +284,7 @@ Notes:
 | `frontend-deploy` | Called by `sync-data.sh`, `deploy.sh`, or manual runner invocation |
 | `backend-deploy` | Called by `deploy.sh` or manual runner invocation |
 | `functions-deploy` | Called by `deploy.sh` or manual runner invocation |
+| `pipelines-deploy` | Called by `deploy.sh` or manual runner invocation |
 
 ## 9) Pipeline Maps
 
@@ -475,7 +491,7 @@ Run this before merging schedule-related changes:
 ```
 
 This checks that cron job names in `infrastructure/vm-cron/crontab` are represented in `docs/OPERATING_MODEL.md`.
-It is also enforced in CI by `.github/workflows/ops-doc-consistency.yml`.
+Treat this script as the canonical guardrail (GitHub Actions workflows are removed from this repo).
 
 ## 14) Canonical Files for Validation
 
@@ -487,5 +503,4 @@ It is also enforced in CI by `.github/workflows/ops-doc-consistency.yml`.
 - `infrastructure/vm-cron/jobs/sync-data.sh`
 - `infrastructure/vm-cron/jobs/news-ingest.sh`
 - `infrastructure/vm-cron/jobs/news-digest.sh`
-- `.github/workflows/*.yml`
 - `AGENTS.md`

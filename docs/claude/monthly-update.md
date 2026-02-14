@@ -97,7 +97,11 @@ cp data/YYYY-MM/output/startups_enriched_with_analysis.csv apps/web/data/YYYY-MM
 git add -A && git commit -m "Update YYYY-MM startup data: X new startups" && git push
 ```
 
-CI/CD will automatically deploy the frontend with updated data.
+After pushing to `main`, VM cron (`code-update`) will pick up the change and deploy the frontend.
+
+Backup paths:
+- Run the VM job manually via `runner.sh frontend-deploy ...` (if you can reach the VM).
+- If the VM is down, deploy the frontend manually from an operator environment (see `docs/claude/deployment.md`).
 
 ## Full Automation Path (Future State)
 
@@ -115,13 +119,13 @@ When Azure Functions are fully deployed:
 
 2. **Azure Function Triggers** (`process_csv_blob`): Classifies, crawls, analyzes, and saves to PostgreSQL.
 
-3. **Deploy Trigger** (`check_deploy_trigger`): Batches changes and triggers GitHub Actions.
+3. **Deploy trigger:** Legacy Azure Function deploy triggering is deprecated/disabled; deploys are driven by VM cron (`sync-data` and `code-update`) and manual operator runs when needed.
 
 ## Troubleshooting
 
 **Blob upload fails with network rules error:**
 - Storage account has network restrictions
-- Use the manual process above or GitHub Actions CI/CD
+- Use the manual process above, or run the VM `sync-data` job (which has the correct network/identity access).
 
 **Monthly stats fail:**
 - Ensure Python venv has dependencies: `pip install pydantic pandas`

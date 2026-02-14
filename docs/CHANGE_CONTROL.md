@@ -16,7 +16,7 @@ Mark all that apply:
 - Analysis/pipeline logic (`packages/analysis/**`)
 - Cron schedule/runner/deploy (`infrastructure/vm-cron/**`)
 - Kubernetes/deploy config (`infrastructure/kubernetes/**`)
-- Workflows (`.github/workflows/**`)
+- GitHub workflows (deprecated; removed from this repo) (`.github/workflows/**`)
 - Database migration (`database/migrations/**`)
 - Data sync behavior (`scripts/sync-startups-to-db.py`, `scripts/populate-analysis-data.py`, `infrastructure/vm-cron/jobs/sync-data.sh`)
 
@@ -65,7 +65,7 @@ pnpm ops:verify-docs
 
 Confirm before release:
 
-- Affected deploy path is known (VM cron vs workflow backup).
+- Affected control plane is known (VM cron vs AKS CronJobs).
 - Required env vars/secrets are present for affected surface.
 - Rollback path is prepared (known-good image/commit or automated rollback script).
 

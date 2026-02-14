@@ -122,15 +122,15 @@ All pages must display the same deal count:
 
 ## Automated Workflow Details
 
-The `sync-to-database.yml` workflow steps:
+The primary automation is the VM cron job `sync-data` (`infrastructure/vm-cron/jobs/sync-data.sh`):
 
 ```
-Step 1: Recalculate deal_summary from CSV → deal_summary.total_deals
-Step 2: Update genai_analysis from analysis store → total_analyzed, pattern_distribution
-Step 3: Regenerate monthly_brief.json (reads from monthly_stats.json)
-Step 4: Regenerate enriched CSV (merges analysis data)
-Step 5: Commit regenerated files
-Step 6: Sync to database via /api/admin/sync-startups
+Step 1: Sync new input blobs / datasets to disk
+Step 2: Recalculate monthly_stats.json and other output artifacts
+Step 3: Regenerate monthly_brief.json + newsletters (when enabled)
+Step 4: Commit/push regenerated files (dataset-as-code)
+Step 5: Sync startups/funding rounds + analysis_data into Postgres
+Step 6: Trigger frontend deploy (so build includes the new datasets)
 ```
 
-The workflow recalculates `deal_summary` from the CSV every time, ensuring `total_deals` is always accurate.
+GitHub Actions workflows are removed from this repo. Backup path is a manual VM run of `sync-data` (or `frontend-deploy` after a push).

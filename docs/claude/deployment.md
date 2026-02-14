@@ -23,6 +23,8 @@ This file is a quick operational cheatsheet. If anything conflicts, use the cano
 - It pulls latest `main`, ensures crontab drift is corrected, and conditionally triggers:
   - backend deploy for `apps/api`, `packages/shared`, `infrastructure/kubernetes` changes
   - frontend deploy for `apps/web`, `packages/shared` changes
+  - functions deploy for `infrastructure/azure-functions/**`, `packages/analysis/**` changes (if enabled)
+  - pipelines deploy for pipeline runtime changes (`packages/analysis/**`, `scripts/**`, `database/migrations/**`, `infrastructure/pipelines/**`, relevant `infrastructure/kubernetes/*.yaml`, `infrastructure/vm-cron/**`)
 
 ## Manual Commands (VM)
 
@@ -36,6 +38,11 @@ This file is a quick operational cheatsheet. If anything conflicts, use the cano
 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
   frontend-deploy 25 \
   /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/frontend-deploy.sh
+
+# Functions
+/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
+  functions-deploy 25 \
+  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/functions-deploy.sh
 
 # Pipelines (AKS CronJobs)
 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
@@ -69,6 +76,7 @@ Logs:
 - `/var/log/buildatlas/backend-deploy.log`
 - `/var/log/buildatlas/frontend-deploy.log`
 - `/var/log/buildatlas/functions-deploy.log`
+- `/var/log/buildatlas/pipelines-deploy.log`
 
 ## Do Not Break
 

@@ -26,7 +26,7 @@ Use this index to find the right source of truth quickly.
 | Tool | Purpose |
 |---|---|
 | `scripts/verify-operating-model.sh` | Checks cron job inventory consistency between `crontab` and `docs/OPERATING_MODEL.md` |
-| `.github/workflows/ops-doc-consistency.yml` | CI guard that runs the same consistency check on relevant PR/push changes |
+| `pnpm ops:verify-docs` | Convenience wrapper for `scripts/verify-operating-model.sh` |
 
 ## Legacy/Deprecated
 

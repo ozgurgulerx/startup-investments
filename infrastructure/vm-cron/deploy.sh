@@ -142,6 +142,7 @@ fi
 DEPLOY_BACKEND=false
 DEPLOY_FRONTEND=false
 DEPLOY_FUNCTIONS=false
+DEPLOY_PIPELINES=false
 
 if echo "$CHANGED_FILES" | grep -qE '^(apps/api/|packages/shared/|infrastructure/kubernetes/)'; then
     DEPLOY_BACKEND=true
@@ -152,10 +153,14 @@ fi
 if echo "$CHANGED_FILES" | grep -qE '^(infrastructure/azure-functions/|packages/analysis/)'; then
     DEPLOY_FUNCTIONS=true
 fi
+if echo "$CHANGED_FILES" | grep -qE '^(packages/analysis/|scripts/|database/migrations/|infrastructure/pipelines/|infrastructure/ops/|infrastructure/kubernetes/pipelines-|infrastructure/kubernetes/posthog-|infrastructure/kubernetes/playwright-canary-cronjob\.yaml|infrastructure/vm-cron/)'; then
+    DEPLOY_PIPELINES=true
+fi
 
 BACKEND_PID=""
 FRONTEND_PID=""
 FUNCTIONS_PID=""
+PIPELINES_PID=""
 
 if [ "$DEPLOY_BACKEND" = "true" ]; then
     echo "Backend code changed. Triggering backend deploy..."
@@ -173,6 +178,12 @@ if [ "$DEPLOY_FUNCTIONS" = "true" ]; then
     echo "Functions code changed. Triggering functions deploy..."
     SKIP_PULL=1 "$RUNNER" functions-deploy 30 "$JOBS_DIR/functions-deploy.sh" &
     FUNCTIONS_PID=$!
+fi
+
+if [ "$DEPLOY_PIPELINES" = "true" ]; then
+    echo "Pipelines code changed. Triggering pipelines deploy..."
+    SKIP_PULL=1 "$RUNNER" pipelines-deploy 45 "$JOBS_DIR/pipelines-deploy.sh" &
+    PIPELINES_PID=$!
 fi
 
 # Wait for background deploys to finish
@@ -206,6 +217,17 @@ if [ -n "$FUNCTIONS_PID" ]; then
         echo "---- functions-deploy log tail ----"
         tail -60 /var/log/buildatlas/functions-deploy.log 2>/dev/null || true
         echo "---- end functions-deploy log tail ----"
+        echo ""
+        DEPLOY_FAILED=true
+    fi
+fi
+if [ -n "$PIPELINES_PID" ]; then
+    if ! wait "$PIPELINES_PID"; then
+        echo "Pipelines deploy failed (pid $PIPELINES_PID)"
+        echo ""
+        echo "---- pipelines-deploy log tail ----"
+        tail -60 /var/log/buildatlas/pipelines-deploy.log 2>/dev/null || true
+        echo "---- end pipelines-deploy log tail ----"
         echo ""
         DEPLOY_FAILED=true
     fi

@@ -30,6 +30,14 @@ param apiUrl string = 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net'
 @description('Slack webhook URL for notifications (stored as an encrypted Automation variable).')
 param slackWebhookUrl string
 
+@allowed([
+  5
+  10
+  15
+  20
+  30
+  60
+])
 @description('How often to run the guard runbook (minutes).')
 param scheduleIntervalMinutes int = 15
 
