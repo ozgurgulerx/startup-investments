@@ -142,6 +142,26 @@ done
 
 echo ""
 
+# --- Root crontab (should not contain BuildAtlas schedule) ---
+# If the BuildAtlas schedule is accidentally installed as root, it will double-run jobs
+# and can create root-owned /tmp locks and log files.
+if command -v sudo >/dev/null 2>&1; then
+  if sudo -n true >/dev/null 2>&1; then
+    ROOT_CURRENT="$(sudo -n crontab -l 2>/dev/null || true)"
+    if echo "$ROOT_CURRENT" | grep -q "BuildAtlas VM Cron Jobs"; then
+      bad "root crontab contains BuildAtlas schedule (duplicate runs + root-owned locks/logs). Fix: sudo crontab -r (or remove the BuildAtlas block)."
+    else
+      ok "root crontab does not contain BuildAtlas schedule"
+    fi
+  else
+    warn "cannot check root crontab without passwordless sudo (run: sudo crontab -l)"
+  fi
+else
+  warn "sudo not available; cannot check root crontab"
+fi
+
+echo ""
+
 # --- Tooling ---
 if command -v az >/dev/null 2>&1; then ok "az: installed"; else warn "az: missing"; fi
 if command -v kubectl >/dev/null 2>&1; then ok "kubectl: installed"; else warn "kubectl: missing"; fi

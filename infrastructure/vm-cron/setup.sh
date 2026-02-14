@@ -3,6 +3,11 @@
 # Run as the 'buildatlas' user on the provisioned VM.
 set -euo pipefail
 
+if [ "$(id -u)" -eq 0 ]; then
+    echo "ERROR: Do not run setup.sh as root. Run it as the 'buildatlas' user (it uses sudo internally)."
+    exit 1
+fi
+
 REPO_URL="https://github.com/ozgurgulerx/startup-investments.git"
 REPO_DIR="/opt/buildatlas/startup-analysis"
 VENV_DIR="/opt/buildatlas/venv"

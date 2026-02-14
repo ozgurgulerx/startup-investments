@@ -217,6 +217,7 @@ VM cron runner:
     - Deploy: `.github/workflows/ops-posthog-usage-deploy.yml` (manual `workflow_dispatch`)
 - VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
 - Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
+- Cron safety: the BuildAtlas schedule must be installed only for the `buildatlas` user. Root crontab must not contain the BuildAtlas block (detect via `sudo crontab -l`; clear via `sudo crontab -r` only if it contains only BuildAtlas entries).
 - VM repo safety: run git operations as `buildatlas` (avoid `sudo git ...`). If `deploy.sh` fails to stash/pull with `Cannot save the current status`, it is often due to root-owned `.git/refs/stash` or other `.git/**` paths; fix with `sudo chown -R buildatlas:buildatlas /opt/buildatlas/startup-analysis/.git`. Consider `git config core.filemode false` on the VM to avoid local `chmod +x` making the repo perpetually dirty.
 - DB migration safety:
   - `infrastructure/vm-cron/jobs/apply-migrations.sh` provides a VM-local `flock` lock (defaults to `$REPO_DIR/.tmp/db-migrations.lock`, configurable via `BUILDATLAS_MIGRATIONS_LOCK_FILE` + `BUILDATLAS_MIGRATIONS_LOCK_WAIT_SECONDS`).
