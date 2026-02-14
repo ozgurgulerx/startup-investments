@@ -38,6 +38,7 @@ const formatStageName = (stage: string) => {
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0]?.payload;
+    if (!data) return null;
     const pct =
       typeof data?.percentage === 'number' && Number.isFinite(data.percentage)
         ? data.percentage

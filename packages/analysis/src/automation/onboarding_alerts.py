@@ -45,11 +45,13 @@ def _slack_status(trace_status: str, severity: str) -> str:
     return "info"
 
 
-def _context_template_url(base_url: str, startup_id: Optional[str], trace_event_id: str) -> str:
+def _context_template_url(base_url: str, startup_id: Optional[str], investor_id: Optional[str], trace_event_id: str) -> str:
     base = (base_url or "https://buildatlas.net").rstrip("/")
     params = {"traceEventId": trace_event_id}
     if startup_id:
         params["startupId"] = startup_id
+    if investor_id:
+        params["investorId"] = investor_id
     return f"{base}/api/v1/onboarding/context-template?{urlencode(params)}"
 
 def _api_base_url() -> str:
@@ -63,17 +65,21 @@ def _api_base_url() -> str:
 def _build_context_curl(event: Dict[str, Any]) -> str:
     trace_id = str(event.get("id") or "")
     startup_id = str(event.get("startup_id") or "")
+    investor_id = str(event.get("investor_id") or "")
     api_base = _api_base_url()
 
-    payload = {
-        "startupId": startup_id or "<startup-uuid>",
+    payload: Dict[str, Any] = {
         "traceEventId": trace_id or None,
-        "contextText": "Add your deep-research context here (facts, links, missing data, caveats).",
+        "contextText": "Add your context here (facts, links, missing data, caveats).",
         "source": "slack",
         "createdBy": "ops",
         "enqueueResearch": True,
         "metadata": {"source": "slack_followup"},
     }
+    if investor_id:
+        payload["investorId"] = investor_id or "<investor-uuid>"
+    else:
+        payload["startupId"] = startup_id or "<startup-uuid>"
     payload_str = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
 
     # Production API requires BOTH X-API-Key and X-Admin-Key.
@@ -89,6 +95,8 @@ def _build_context_curl(event: Dict[str, Any]) -> str:
 
 
 def _build_body(event: Dict[str, Any], context_url: str) -> str:
+    investor_id = str(event.get("investor_id") or "")
+    investor_name = str(event.get("investor_name") or "Unknown investor")
     startup_name = str(event.get("startup_name") or "Unknown startup")
     startup_id = str(event.get("startup_id") or "n/a")
     stage = str(event.get("stage") or "unknown")
@@ -97,9 +105,13 @@ def _build_body(event: Dict[str, Any], context_url: str) -> str:
     region = str(event.get("startup_region") or (event.get("payload_json") or {}).get("region") or "global")
     guidance = guidance_for_reason(reason_code) if reason_code else "Review trace payload for details."
 
+    entity_label = "Investor" if investor_id else "Startup"
+    entity_name = investor_name if investor_id else startup_name
+    entity_id = investor_id if investor_id else startup_id
+
     lines = [
-        f"*Startup:* {startup_name}",
-        f"*Startup ID:* `{startup_id}`",
+        f"*{entity_label}:* {entity_name}",
+        f"*{entity_label} ID:* `{entity_id}`",
         f"*Stage:* `{stage}`",
         f"*Region:* `{region}`",
     ]
@@ -128,11 +140,14 @@ def _send_slack_notification(event: Dict[str, Any], *, base_url: str) -> bool:
         return False
 
     trace_id = str(event.get("id") or "")
+    investor_id = str(event.get("investor_id") or "")
+    investor_name = str(event.get("investor_name") or "investor")
     startup_name = str(event.get("startup_name") or "startup")
+    entity_name = investor_name if investor_id else startup_name
     stage = str(event.get("stage") or "trace")
     status = _slack_status(str(event.get("status") or ""), str(event.get("severity") or ""))
-    context_url = _context_template_url(base_url, event.get("startup_id"), trace_id)
-    title = f"Onboarding trace: {stage} ({startup_name})"
+    context_url = _context_template_url(base_url, event.get("startup_id"), event.get("investor_id"), trace_id)
+    title = f"Onboarding trace: {stage} ({entity_name})"
     body = _build_body(event, context_url)
 
     context_json = json.dumps(
@@ -140,7 +155,9 @@ def _send_slack_notification(event: Dict[str, Any], *, base_url: str) -> bool:
             "event_type": "onboarding_trace",
             "trace_event_id": trace_id,
             "startup_id": event.get("startup_id"),
+            "investor_id": event.get("investor_id"),
             "queue_item_id": event.get("queue_item_id"),
+            "investor_queue_item_id": event.get("investor_queue_item_id"),
             "trace_type": event.get("trace_type"),
             "stage": stage,
             "reason_code": event.get("reason_code"),

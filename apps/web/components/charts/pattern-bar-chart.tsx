@@ -27,13 +27,20 @@ interface PatternBarChartProps {
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const topStartups = data.topStartups || [];
+    const data = payload[0]?.payload;
+    if (!data) return null;
+
+    const pct =
+      typeof data.percentage === 'number' && Number.isFinite(data.percentage)
+        ? data.percentage
+        : null;
+
+    const topStartups = Array.isArray(data.topStartups) ? data.topStartups : [];
     return (
       <div className="rounded-lg border border-border bg-card p-3 shadow-lg max-w-xs">
         <p className="font-medium text-foreground">{data.name}</p>
         <p className="text-sm text-muted-foreground">
-          {data.count} startups ({data.percentage.toFixed(1)}%)
+          {data.count} startups ({pct != null ? `${pct.toFixed(1)}%` : '—'})
         </p>
         {topStartups.length > 0 && (
           <div className="mt-3 pt-3 border-t border-border">
