@@ -675,6 +675,38 @@ def consume_deep_research(
     console.print(f"[bold]Cost (run):[/bold] ${total_cost:.4f}")
 
 
+@app.command("consume-investor-onboarding")
+def consume_investor_onboarding(
+    batch_size: int = typer.Option(10, "--batch-size", "-b", help="Max queue items to process per run"),
+    max_concurrent: int = typer.Option(3, "--max-concurrent", "-c", help="Max concurrent LLM calls"),
+):
+    """Process investor_onboarding_queue with conservative budget controls."""
+    from src.automation.investor_onboarding_consumer import run_consumer
+
+    try:
+        results = asyncio.run(
+            run_consumer(
+                batch_size=max(1, int(batch_size)),
+                max_concurrent=max(1, int(max_concurrent)),
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]Investor onboarding consumer failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    success = sum(1 for r in results if r.success)
+    failed = sum(1 for r in results if not r.success)
+    total_cost = sum(float(getattr(r, "cost_usd", 0.0) or 0.0) for r in results)
+    console.print(Panel.fit(
+        "[bold blue]Investor Onboarding Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Items processed:[/bold] {len(results)}")
+    console.print(f"[bold]Success:[/bold] {success}")
+    console.print(f"[bold]Failed:[/bold] {failed}")
+    console.print(f"[bold]Cost (run):[/bold] ${total_cost:.4f}")
+
+
 @app.command("dispatch-onboarding-alerts")
 def dispatch_onboarding_alerts(
     batch_size: int = typer.Option(25, "--batch-size", "-b", help="Max trace notifications to send"),
