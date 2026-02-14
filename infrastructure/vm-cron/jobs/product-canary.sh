@@ -199,6 +199,40 @@ fi
 if [ -z "${API_KEY:-}" ]; then
   set_status_fail "API_KEY missing (cannot query /api/* endpoints)"
 else
+  # --- Watchlist alerts endpoint (requires X-User-Id) ---
+  # Use a stable UUID to exercise the DB query path without relying on a real user row.
+  ALERTS_JSON="$TMP_DIR/alerts.json"
+  ALERTS_USER_ID="${PRODUCT_CANARY_USER_ID:-00000000-0000-0000-0000-000000000000}"
+  ALERTS_URL="$API_BASE_URL/api/v1/alerts?scope=global&status=unread&limit=1&offset=0"
+  ALERTS_HTTP="$(fetch "$ALERTS_URL" "$ALERTS_JSON" -H "X-API-Key: ${API_KEY}" -H "X-User-Id: ${ALERTS_USER_ID}")"
+  if [ "$ALERTS_HTTP" != "200" ]; then
+    set_status_fail "alerts HTTP $ALERTS_HTTP"
+  else
+    ALERTS_OK="$(python3 - "$ALERTS_JSON" <<'PY' 2>/dev/null || echo "0"
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    d = json.load(open(path, "r", encoding="utf-8"))
+except Exception:
+    print("0")
+    raise SystemExit(0)
+
+alerts = d.get("alerts")
+total = d.get("total")
+
+ok = isinstance(alerts, list) and isinstance(total, int) and total >= 0
+print("1" if ok else "0")
+PY
+    )"
+    if [ "$ALERTS_OK" != "1" ]; then
+      set_status_fail "alerts payload invalid"
+    else
+      add_info "alerts endpoint ok"
+    fi
+  fi
+
   # --- Brief edition list ---
   BRIEF_LIST_JSON="$TMP_DIR/brief_list.json"
   BRIEF_LIST_URL="$API_BASE_URL/api/v1/briefs/list?region=global&period_type=monthly&kind=rolling&limit=1&offset=0"
