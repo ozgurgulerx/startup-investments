@@ -130,6 +130,12 @@ function parseNullableJsonObject(value: unknown): Record<string, any> | null {
   }
 }
 
+function isMissingTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as { code?: string }).code;
+  return code === '42P01';
+}
+
 export function makeSubscriptionsService(pool: Pool) {
 
   async function createSubscription(params: {
@@ -214,58 +220,85 @@ export function makeSubscriptionsService(pool: Pool) {
 
     const where = conditions.join(' AND ');
 
-    const countResult = await pool.query(
-      `SELECT COUNT(*) FROM user_alerts ua JOIN delta_events de ON de.id = ua.delta_id WHERE ${where}`,
-      values,
-    );
-    const total = parseInt(countResult.rows[0].count, 10);
+    async function run(includePreferences: boolean): Promise<{ alerts: UserAlert[]; total: number }> {
+      const prefJoin = includePreferences
+        ? 'LEFT JOIN user_notification_preferences up ON up.user_id = ua.user_id'
+        : '';
+      const prefWhere = includePreferences
+        ? `
+        AND (COALESCE(up.mute_low_severity, FALSE) = FALSE OR ua.severity > 2)
+        AND NOT (de.delta_type = ANY(COALESCE(up.muted_delta_types, '{}'::text[])))`
+        : '';
 
-    const dataResult = await pool.query(
-      `SELECT ua.id::text, ua.user_id::text, ua.scope, ua.delta_id::text,
-              ua.severity, ua.status, ua.reason, ua.narrative, ua.created_at::text,
-              de.headline, de.delta_type, de.magnitude,
-              s.name AS startup_name, s.slug AS startup_slug
-       FROM user_alerts ua
-       JOIN delta_events de ON de.id = ua.delta_id
-       LEFT JOIN startups s ON s.id = de.startup_id
-       WHERE ${where}
-       ORDER BY ua.created_at DESC
-       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
-      [...values, limit, offset],
-    );
+      const countResult = await pool.query(
+        `SELECT COUNT(*)
+         FROM user_alerts ua
+         JOIN delta_events de ON de.id = ua.delta_id
+         ${prefJoin}
+         WHERE ${where}${prefWhere}`,
+        values,
+      );
+      const total = parseInt(String(countResult.rows[0]?.count || '0'), 10) || 0;
 
-    return {
-      alerts: dataResult.rows.map(r => {
-        const reason = parseJsonObject(r.reason);
-        const narrative = parseNullableJsonObject(r.narrative);
-        const magnitude = r.magnitude != null ? Number(r.magnitude) : null;
-        const severity = Number(r.severity);
-        return {
-          id: r.id,
-          user_id: r.user_id,
-          scope: r.scope,
-          delta_id: r.delta_id,
-          severity,
-          status: r.status,
-          reason,
-          narrative,
-          created_at: r.created_at,
-          headline: r.headline,
-          delta_type: r.delta_type,
-          magnitude,
-          startup_name: r.startup_name,
-          startup_slug: r.startup_slug,
-          explain: buildAlertExplain({
-            deltaType: String(r.delta_type || ''),
+      const dataResult = await pool.query(
+        `SELECT ua.id::text, ua.user_id::text, ua.scope, ua.delta_id::text,
+                ua.severity, ua.status, ua.reason, ua.narrative, ua.created_at::text,
+                de.headline, de.delta_type, de.magnitude,
+                s.name AS startup_name, s.slug AS startup_slug
+         FROM user_alerts ua
+         JOIN delta_events de ON de.id = ua.delta_id
+         ${prefJoin}
+         LEFT JOIN startups s ON s.id = de.startup_id
+         WHERE ${where}${prefWhere}
+         ORDER BY ua.created_at DESC
+         LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+        [...values, limit, offset],
+      );
+
+      return {
+        alerts: dataResult.rows.map(r => {
+          const reason = parseJsonObject(r.reason);
+          const narrative = parseNullableJsonObject(r.narrative);
+          const magnitude = r.magnitude != null ? Number(r.magnitude) : null;
+          const severity = Number(r.severity);
+          return {
+            id: r.id,
+            user_id: r.user_id,
+            scope: r.scope,
+            delta_id: r.delta_id,
             severity,
-            magnitude,
-            startupName: r.startup_name || null,
+            status: r.status,
             reason,
-          }),
-        };
-      }),
-      total,
-    };
+            narrative,
+            created_at: r.created_at,
+            headline: r.headline,
+            delta_type: r.delta_type,
+            magnitude,
+            startup_name: r.startup_name,
+            startup_slug: r.startup_slug,
+            explain: buildAlertExplain({
+              deltaType: String(r.delta_type || ''),
+              severity,
+              magnitude,
+              startupName: r.startup_name || null,
+              reason,
+            }),
+          };
+        }),
+        total,
+      };
+    }
+
+    try {
+      return await run(true);
+    } catch (error) {
+      // If community features (062_community_features.sql) haven't been applied yet,
+      // fail open by serving alerts without preference filtering.
+      if (isMissingTableError(error)) {
+        return await run(false);
+      }
+      throw error;
+    }
   }
 
   async function updateAlertStatus(params: {

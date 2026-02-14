@@ -106,6 +106,8 @@ SETS: dict[str, list[str]] = {
         "064_fix_onboarding_trace_dedupe_index.sql",
         # Investor onboarding (queue + profiles + trace extensions)
         "068_investor_onboarding.sql",
+        # Investor-news links (all-time, includes mentions + funding-linked clusters)
+        "070_investor_news_links.sql",
         # X/Twitter trend intelligence + automated posting queue
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
@@ -121,6 +123,7 @@ SETS: dict[str, list[str]] = {
         "063_onboarding_trace_and_context.sql",
         "064_fix_onboarding_trace_dedupe_index.sql",
         "068_investor_onboarding.sql",
+        "070_investor_news_links.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -169,6 +172,8 @@ SETS: dict[str, list[str]] = {
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
         "062_community_features.sql",
+        # Investor-news links (all-time, includes mentions + funding-linked clusters)
+        "070_investor_news_links.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",
@@ -190,6 +195,8 @@ SETS: dict[str, list[str]] = {
         "069_capital_graph_coinvest_edges.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
         "062_community_features.sql",
+        # Investor-news links (all-time, includes mentions + funding-linked clusters)
+        "070_investor_news_links.sql",
     ],
     "performance": [
         "015_performance_indexes.sql",
@@ -208,6 +215,8 @@ SETS: dict[str, list[str]] = {
         "059_capital_graph_founders.sql",
         "060_graph_extension_optional.sql",
         "069_capital_graph_coinvest_edges.sql",
+        # Investor-news links (all-time, includes mentions + funding-linked clusters)
+        "070_investor_news_links.sql",
     ],
 }
 
