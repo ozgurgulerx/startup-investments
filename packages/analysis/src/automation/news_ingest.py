@@ -415,6 +415,11 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("semianalysis", "SemiAnalysis", "rss", "https://semianalysis.com/feed/", credibility_weight=0.90, language="en", lookback_hours_override=8760),
     SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", region="turkey", credibility_weight=0.74),
     SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", region="turkey", credibility_weight=0.70),
+    # Turkey: AI-focused feeds (keeps the Turkey edition AI-heavy without pulling in consumer-tech noise)
+    SourceDefinition("webrazzi_yapay_zeka", "Webrazzi (Yapay Zeka)", "rss", "https://webrazzi.com/etiket/yapay-zeka/feed/", region="turkey", credibility_weight=0.76, language="tr"),
+    SourceDefinition("egirisim_yapay_zeka", "Egirisim (Yapay Zeka)", "rss", "https://egirisim.com/etiket/yapay-zeka/feed/", region="turkey", credibility_weight=0.72, language="tr"),
+    SourceDefinition("techinside_yapay_zeka", "TechInside (Yapay Zeka)", "rss", "https://www.techinside.com/yapay-zeka/feed/", region="turkey", credibility_weight=0.65, language="tr"),
+    SourceDefinition("turkiye_ai", "Turkiye AI (TRAI)", "rss", "https://turkiye.ai/feed/", region="turkey", credibility_weight=0.66, language="tr", lookback_hours_override=168),
     # Turkey: API sources (Turkish language queries via existing API keys)
     SourceDefinition("gnews_turkey", "GNews Turkey", "api", "https://gnews.io/api/v4/search", region="turkey", fetch_mode="api", credibility_weight=0.66),
     SourceDefinition("newsapi_turkey", "NewsAPI Turkey", "api", "https://newsapi.org/v2/everything", region="turkey", fetch_mode="api", credibility_weight=0.67),
