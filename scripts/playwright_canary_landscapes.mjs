@@ -28,6 +28,14 @@ const truncate = (s, max) => {
   return str.slice(0, max - 1) + '…';
 };
 
+const safeUrl = (raw) => {
+  try {
+    return new URL(raw);
+  } catch {
+    return null;
+  }
+};
+
 const BASE_URL = env('BASE_URL', 'https://buildatlas.net').replace(/\/+$/, '');
 const LANDSCAPES_PATH = env('LANDSCAPES_PATH', '/landscapes');
 const TARGET_URL = `${BASE_URL}${LANDSCAPES_PATH.startsWith('/') ? '' : '/'}${LANDSCAPES_PATH}`;
@@ -101,18 +109,87 @@ async function run() {
 
   const pageErrors = [];
   const consoleErrors = [];
+  const requestFailures = [];
+
+  const debug = {
+    landscapes: null,
+    landscapesCluster: null,
+    requestFailures,
+    pageErrors,
+    consoleErrors,
+  };
 
   page.on('pageerror', (err) => pageErrors.push(err));
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
   });
+  page.on('requestfailed', (req) => {
+    const u = safeUrl(req.url());
+    if (!u) return;
+    if (u.origin !== BASE_URL) return;
+    if (u.pathname !== '/api/landscapes' && u.pathname !== '/api/landscapes/cluster') return;
+    requestFailures.push({
+      url: req.url(),
+      method: req.method(),
+      failure: req.failure()?.errorText || 'request failed',
+    });
+  });
+
+  page.on('response', async (res) => {
+    const u = safeUrl(res.url());
+    if (!u) return;
+    if (u.origin !== BASE_URL) return;
+    if (u.pathname !== '/api/landscapes' && u.pathname !== '/api/landscapes/cluster') return;
+
+    // Only pull bodies for non-2xx responses to keep logs small.
+    let body = '';
+    if (!res.ok()) {
+      try {
+        body = truncate(await res.text(), 800);
+      } catch {
+        body = '';
+      }
+    }
+
+    const entry = {
+      url: res.url(),
+      status: res.status(),
+      ok: res.ok(),
+      body,
+    };
+    if (u.pathname === '/api/landscapes') debug.landscapes = entry;
+    if (u.pathname === '/api/landscapes/cluster') debug.landscapesCluster = entry;
+  });
 
   try {
+    const waitForLandscapesApi = page
+      .waitForResponse((res) => {
+        const u = safeUrl(res.url());
+        if (!u) return false;
+        return u.origin === BASE_URL && u.pathname === '/api/landscapes';
+      }, { timeout: TIMEOUT_MS })
+      .catch(() => null);
+
     console.log(`[canary] goto ${TARGET_URL}`);
     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
 
     const heading = page.getByRole('heading', { name: /pattern landscape map/i });
     await heading.waitFor({ timeout: TIMEOUT_MS });
+
+    const landscapesRes = await waitForLandscapesApi;
+    if (!landscapesRes) {
+      throw new Error('Timed out waiting for /api/landscapes response');
+    }
+    debug.landscapes = debug.landscapes || {
+      url: landscapesRes.url(),
+      status: landscapesRes.status(),
+      ok: landscapesRes.ok(),
+      body: '',
+    };
+    if (!landscapesRes.ok()) {
+      const body = truncate(await landscapesRes.text().catch(() => ''), 800);
+      throw new Error(`/api/landscapes HTTP ${landscapesRes.status()}${body ? `: ${body}` : ''}`);
+    }
 
     // Proves the data fetch completed (not just static HTML).
     await page.getByText(/patterns across/i).waitFor({ timeout: TIMEOUT_MS });
@@ -146,11 +223,16 @@ async function run() {
     }
 
     console.log('[canary] OK');
+  } catch (err) {
+    if (err && typeof err === 'object') {
+      err.debug = debug;
+    }
+    throw err;
   } finally {
     await browser.close().catch(() => {});
   }
 
-  return { pageErrors, consoleErrors };
+  return { pageErrors, consoleErrors, debug };
 }
 
 async function main() {
@@ -163,10 +245,23 @@ async function main() {
     process.exit(0);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    const debug = err && typeof err === 'object' ? err.debug : null;
+
     const bodyLines = [
       `*Target:* ${TARGET_URL}`,
       `*Error:* ${truncate(msg, 600)}`,
     ];
+    if (debug?.landscapes) {
+      const s = debug.landscapes;
+      bodyLines.push(`*API:* \`/api/landscapes\` HTTP ${s.status}${s.ok ? '' : ' (not ok)'}`);
+      if (s.body) bodyLines.push(`*API body:* ${truncate(s.body, 600)}`);
+    }
+    if (Array.isArray(debug?.requestFailures) && debug.requestFailures.length) {
+      const head = debug.requestFailures.slice(0, 3)
+        .map((f) => `- ${f.method} ${f.url}: ${truncate(f.failure, 120)}`)
+        .join('\n');
+      bodyLines.push(`*Request failures:*\n${head}`);
+    }
 
     console.error(`[canary] FAIL: ${msg}`);
     try {
@@ -186,4 +281,3 @@ async function main() {
 
 // eslint-disable-next-line no-void
 void main();
-
