@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -84,6 +85,15 @@ def _clamp_int(raw: str | None, default: int, *, lo: int, hi: int) -> int:
     return v
 
 
+def _sleep_backoff(attempt: int) -> None:
+    # Small exponential backoff (attempt is 1-based).
+    time.sleep(min(8.0, 0.5 * (2 ** max(0, attempt - 1))))
+
+
+def _should_retry_http(code: int) -> bool:
+    return code in (408, 429, 500, 502, 503, 504)
+
+
 def _posthog_query(host: str, project_id: str, token: str, hogql: str) -> dict[str, Any]:
     host = host.strip().rstrip("/")
     if not host.startswith("http://") and not host.startswith("https://"):
@@ -101,17 +111,34 @@ def _posthog_query(host: str, project_id: str, token: str, hogql: str) -> dict[s
         },
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            return json.loads(body)
-    except urllib.error.HTTPError as e:
-        body = ""
+
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
         try:
-            body = e.read().decode("utf-8", errors="ignore")
-        except Exception:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+                return json.loads(body)
+        except urllib.error.HTTPError as e:
             body = ""
-        raise RuntimeError(f"posthog_http_{e.code}:{body[:200]}") from e
+            try:
+                body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            if _should_retry_http(int(getattr(e, "code", 0) or 0)) and attempt < 3:
+                last_exc = RuntimeError(f"posthog_http_{e.code}:{body[:200]}")
+                _sleep_backoff(attempt)
+                continue
+            raise RuntimeError(f"posthog_http_{e.code}:{body[:200]}") from e
+        except (TimeoutError, urllib.error.URLError, ConnectionError, OSError) as e:
+            last_exc = e if isinstance(e, Exception) else Exception(str(e))
+            if attempt < 3:
+                _sleep_backoff(attempt)
+                continue
+            raise
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("posthog_request_failed")
 
 
 def _posthog_rows(host: str, project_id: str, token: str, hogql: str) -> list[Any]:
@@ -168,17 +195,34 @@ def _slack_post(webhook_url: str, payload: dict[str, Any]) -> None:
         headers={"Content-Type": "application/json; charset=utf-8"},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            if resp.status < 200 or resp.status >= 300:
-                raise RuntimeError(f"Slack webhook returned HTTP {resp.status}")
-    except urllib.error.HTTPError as e:
-        body = ""
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
         try:
-            body = e.read().decode("utf-8", errors="ignore")
-        except Exception:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                if resp.status < 200 or resp.status >= 300:
+                    raise RuntimeError(f"Slack webhook returned HTTP {resp.status}")
+                return
+        except urllib.error.HTTPError as e:
             body = ""
-        raise RuntimeError(f"slack_http_{e.code}:{body[:200]}") from e
+            try:
+                body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            if _should_retry_http(int(getattr(e, "code", 0) or 0)) and attempt < 3:
+                last_exc = RuntimeError(f"slack_http_{e.code}:{body[:200]}")
+                _sleep_backoff(attempt)
+                continue
+            raise RuntimeError(f"slack_http_{e.code}:{body[:200]}") from e
+        except (TimeoutError, urllib.error.URLError, ConnectionError, OSError) as e:
+            last_exc = e if isinstance(e, Exception) else Exception(str(e))
+            if attempt < 3:
+                _sleep_backoff(attempt)
+                continue
+            raise
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("slack_post_failed")
 
 
 def _hogql_url_filter(base_url_filter: str | None) -> str:
@@ -215,78 +259,104 @@ def main() -> int:
         sys.stderr.write("Missing required env: " + ", ".join(missing) + "\n")
         return 2
 
-    url_pred = _hogql_url_filter(base_url_filter)
-    window_expr = f"now() - INTERVAL {window_min} MINUTE"
+    try:
+        url_pred = _hogql_url_filter(base_url_filter)
+        window_expr = f"now() - INTERVAL {window_min} MINUTE"
 
-    total = _posthog_scalar(
-        posthog_host,
-        posthog_project_id,
-        posthog_api_key,
-        "SELECT count() FROM events "
-        "WHERE event = '$exception' "
-        f"AND timestamp >= {window_expr}"
-        f"{url_pred}",
-    )
+        total = _posthog_scalar(
+            posthog_host,
+            posthog_project_id,
+            posthog_api_key,
+            "SELECT count() FROM events "
+            "WHERE event = '$exception' "
+            f"AND timestamp >= {window_expr}"
+            f"{url_pred}",
+        )
 
-    landscapes = _posthog_scalar(
-        posthog_host,
-        posthog_project_id,
-        posthog_api_key,
-        "SELECT count() FROM events "
-        "WHERE event = '$exception' "
-        f"AND timestamp >= {window_expr}"
-        " AND lower(toString(properties.$current_url)) LIKE '%/landscapes%'"
-        f"{url_pred}",
-    )
+        landscapes = _posthog_scalar(
+            posthog_host,
+            posthog_project_id,
+            posthog_api_key,
+            "SELECT count() FROM events "
+            "WHERE event = '$exception' "
+            f"AND timestamp >= {window_expr}"
+            " AND lower(toString(properties.$current_url)) LIKE '%/landscapes%'"
+            f"{url_pred}",
+        )
 
-    # Top exception messages (overall and landscapes).
-    top_messages_rows = _posthog_rows(
-        posthog_host,
-        posthog_project_id,
-        posthog_api_key,
-        "SELECT toString(properties.$exception_message) AS msg, count() AS c "
-        "FROM events "
-        "WHERE event = '$exception' "
-        f"AND timestamp >= {window_expr}"
-        f"{url_pred} "
-        "GROUP BY msg "
-        "ORDER BY c DESC "
-        "LIMIT 5",
-    )
-    top_messages = _pairs_from_rows(top_messages_rows)
+        # Top exception messages (overall and landscapes).
+        top_messages_rows = _posthog_rows(
+            posthog_host,
+            posthog_project_id,
+            posthog_api_key,
+            "SELECT toString(properties.$exception_message) AS msg, count() AS c "
+            "FROM events "
+            "WHERE event = '$exception' "
+            f"AND timestamp >= {window_expr}"
+            f"{url_pred} "
+            "GROUP BY msg "
+            "ORDER BY c DESC "
+            "LIMIT 5",
+        )
+        top_messages = _pairs_from_rows(top_messages_rows)
 
-    top_land_messages_rows = _posthog_rows(
-        posthog_host,
-        posthog_project_id,
-        posthog_api_key,
-        "SELECT toString(properties.$exception_message) AS msg, count() AS c "
-        "FROM events "
-        "WHERE event = '$exception' "
-        f"AND timestamp >= {window_expr} "
-        "AND lower(toString(properties.$current_url)) LIKE '%/landscapes%'"
-        f"{url_pred} "
-        "GROUP BY msg "
-        "ORDER BY c DESC "
-        "LIMIT 5",
-    )
-    top_land_messages = _pairs_from_rows(top_land_messages_rows)
+        top_land_messages_rows = _posthog_rows(
+            posthog_host,
+            posthog_project_id,
+            posthog_api_key,
+            "SELECT toString(properties.$exception_message) AS msg, count() AS c "
+            "FROM events "
+            "WHERE event = '$exception' "
+            f"AND timestamp >= {window_expr} "
+            "AND lower(toString(properties.$current_url)) LIKE '%/landscapes%'"
+            f"{url_pred} "
+            "GROUP BY msg "
+            "ORDER BY c DESC "
+            "LIMIT 5",
+        )
+        top_land_messages = _pairs_from_rows(top_land_messages_rows)
 
-    # Top landscapes URLs (helps localize breakage).
-    top_land_urls_rows = _posthog_rows(
-        posthog_host,
-        posthog_project_id,
-        posthog_api_key,
-        "SELECT toString(properties.$current_url) AS url, count() AS c "
-        "FROM events "
-        "WHERE event = '$exception' "
-        f"AND timestamp >= {window_expr} "
-        "AND lower(toString(properties.$current_url)) LIKE '%/landscapes%'"
-        f"{url_pred} "
-        "GROUP BY url "
-        "ORDER BY c DESC "
-        "LIMIT 5",
-    )
-    top_land_urls = _pairs_from_rows(top_land_urls_rows)
+        # Top landscapes URLs (helps localize breakage).
+        top_land_urls_rows = _posthog_rows(
+            posthog_host,
+            posthog_project_id,
+            posthog_api_key,
+            "SELECT toString(properties.$current_url) AS url, count() AS c "
+            "FROM events "
+            "WHERE event = '$exception' "
+            f"AND timestamp >= {window_expr} "
+            "AND lower(toString(properties.$current_url)) LIKE '%/landscapes%'"
+            f"{url_pred} "
+            "GROUP BY url "
+            "ORDER BY c DESC "
+            "LIMIT 5",
+        )
+        top_land_urls = _pairs_from_rows(top_land_urls_rows)
+    except Exception as exc:
+        now_utc = datetime.now(timezone.utc)
+        err = (str(exc) or type(exc).__name__).strip()
+        sys.stderr.write(f"WARNING: PostHog exception query failed: {err[:400]}\n")
+
+        # Try Slack warning (best effort). Exit 0 if Slack succeeds to avoid job flapping.
+        try:
+            _slack_post(
+                slack_webhook_url,
+                {
+                    "blocks": [
+                        {"type": "header", "text": {"type": "plain_text", "text": "PostHog exceptions check failed"}},
+                        {"type": "section", "text": {"type": "mrkdwn", "text": f"*Error:* `{err[:800]}`"}},
+                        {
+                            "type": "context",
+                            "elements": [{"type": "mrkdwn", "text": f"*At:* {now_utc.strftime('%Y-%m-%d %H:%M UTC')}"}],
+                        },
+                    ]
+                },
+            )
+            return 0
+        except Exception as slack_exc:
+            slack_err = (str(slack_exc) or type(slack_exc).__name__).strip()
+            sys.stderr.write(f"WARNING: Slack warning post failed: {slack_err[:400]}\n")
+            return 1
 
     since = datetime.now(timezone.utc) - timedelta(minutes=window_min)
     now_utc = datetime.now(timezone.utc)
@@ -344,4 +414,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

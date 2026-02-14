@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -52,6 +53,15 @@ def _as_int(value: Any) -> int | None:
     return None
 
 
+def _sleep_backoff(attempt: int) -> None:
+    # Small exponential backoff (attempt is 1-based).
+    time.sleep(min(8.0, 0.5 * (2 ** max(0, attempt - 1))))
+
+
+def _should_retry_http(code: int) -> bool:
+    return code in (408, 429, 500, 502, 503, 504)
+
+
 def _posthog_query(host: str, project_id: str, token: str, hogql: str) -> dict[str, Any]:
     host = host.strip().rstrip("/")
     if not host.startswith("http://") and not host.startswith("https://"):
@@ -69,17 +79,33 @@ def _posthog_query(host: str, project_id: str, token: str, hogql: str) -> dict[s
         },
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            return json.loads(body)
-    except urllib.error.HTTPError as e:
-        body = ""
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
         try:
-            body = e.read().decode("utf-8", errors="ignore")
-        except Exception:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+                return json.loads(body)
+        except urllib.error.HTTPError as e:
             body = ""
-        raise RuntimeError(f"posthog_http_{e.code}:{body[:200]}") from e
+            try:
+                body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            if _should_retry_http(int(getattr(e, "code", 0) or 0)) and attempt < 3:
+                last_exc = RuntimeError(f"posthog_http_{e.code}:{body[:200]}")
+                _sleep_backoff(attempt)
+                continue
+            raise RuntimeError(f"posthog_http_{e.code}:{body[:200]}") from e
+        except (TimeoutError, urllib.error.URLError, ConnectionError, OSError) as e:
+            last_exc = e if isinstance(e, Exception) else Exception(str(e))
+            if attempt < 3:
+                _sleep_backoff(attempt)
+                continue
+            raise
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("posthog_request_failed")
 
 
 def _posthog_scalar(host: str, project_id: str, token: str, hogql: str) -> int:
@@ -179,17 +205,34 @@ def _slack_post(webhook_url: str, payload: dict[str, Any]) -> None:
         headers={"Content-Type": "application/json; charset=utf-8"},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            if resp.status < 200 or resp.status >= 300:
-                raise RuntimeError(f"Slack webhook returned HTTP {resp.status}")
-    except urllib.error.HTTPError as e:
-        body = ""
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
         try:
-            body = e.read().decode("utf-8", errors="ignore")
-        except Exception:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                if resp.status < 200 or resp.status >= 300:
+                    raise RuntimeError(f"Slack webhook returned HTTP {resp.status}")
+                return
+        except urllib.error.HTTPError as e:
             body = ""
-        raise RuntimeError(f"slack_http_{e.code}:{body[:200]}") from e
+            try:
+                body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            if _should_retry_http(int(getattr(e, "code", 0) or 0)) and attempt < 3:
+                last_exc = RuntimeError(f"slack_http_{e.code}:{body[:200]}")
+                _sleep_backoff(attempt)
+                continue
+            raise RuntimeError(f"slack_http_{e.code}:{body[:200]}") from e
+        except (TimeoutError, urllib.error.URLError, ConnectionError, OSError) as e:
+            last_exc = e if isinstance(e, Exception) else Exception(str(e))
+            if attempt < 3:
+                _sleep_backoff(attempt)
+                continue
+            raise
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("slack_post_failed")
 
 
 def main() -> int:
@@ -211,7 +254,31 @@ def main() -> int:
         return 2
 
     since = datetime.now(timezone.utc) - timedelta(days=1)
-    metrics = _posthog_metrics(posthog_host, posthog_project_id, posthog_api_key)
+    try:
+        metrics = _posthog_metrics(posthog_host, posthog_project_id, posthog_api_key)
+    except Exception as exc:
+        now_utc = datetime.now(timezone.utc)
+        err = (str(exc) or type(exc).__name__).strip()
+        sys.stderr.write(f"WARNING: PostHog usage query failed: {err[:400]}\n")
+        try:
+            _slack_post(
+                slack_webhook_url,
+                {
+                    "blocks": [
+                        {"type": "header", "text": {"type": "plain_text", "text": "PostHog usage summary failed"}},
+                        {"type": "section", "text": {"type": "mrkdwn", "text": f"*Error:* `{err[:800]}`"}},
+                        {
+                            "type": "context",
+                            "elements": [{"type": "mrkdwn", "text": f"*At:* {now_utc.strftime('%Y-%m-%d %H:%M UTC')}"}],
+                        },
+                    ]
+                },
+            )
+            return 0
+        except Exception as slack_exc:
+            slack_err = (str(slack_exc) or type(slack_exc).__name__).strip()
+            sys.stderr.write(f"WARNING: Slack warning post failed: {slack_err[:400]}\n")
+            return 1
 
     body_lines = []
     body_lines.append(f"*Window:* last 24 hours (since {since.strftime('%Y-%m-%d %H:%M UTC')})")

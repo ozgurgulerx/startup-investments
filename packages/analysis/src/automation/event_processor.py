@@ -305,8 +305,14 @@ class StartupEventProcessor:
             return False, "startup_missing_website", {"onboarding_status": status}
 
         # For stubs, require at least one crawl before spending research budget.
-        if status == "stub" and not snapshot.get("last_crawl_at"):
-            return False, "startup_not_crawled_yet", {"onboarding_status": status}
+        last_crawl_at = snapshot.get("last_crawl_at")
+        last_success_crawl_log_at = snapshot.get("last_success_crawl_log_at")
+        if status == "stub" and not last_crawl_at and not last_success_crawl_log_at:
+            return False, "startup_not_crawled_yet", {
+                "onboarding_status": status,
+                "last_crawl_at": str(last_crawl_at) if last_crawl_at else None,
+                "last_success_crawl_log_at": str(last_success_crawl_log_at) if last_success_crawl_log_at else None,
+            }
 
         try:
             csr = float(snapshot.get("crawl_success_rate") or 0.0)
@@ -323,6 +329,8 @@ class StartupEventProcessor:
             "onboarding_status": status,
             "has_website": bool(website),
             "crawl_success_rate": csr,
+            "last_crawl_at": str(last_crawl_at) if last_crawl_at else None,
+            "last_success_crawl_log_at": str(last_success_crawl_log_at) if last_success_crawl_log_at else None,
         }
 
     def _get_priority_for_event(self, event_type: str) -> int:

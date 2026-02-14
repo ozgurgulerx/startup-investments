@@ -164,6 +164,13 @@ class DatabaseConnection:
                   AND (
                         COALESCE(s.onboarding_status, 'verified') != 'stub'
                         OR s.last_crawl_at IS NOT NULL
+                        OR EXISTS (
+                            SELECT 1
+                            FROM crawl_logs cl
+                            WHERE cl.startup_id = s.id
+                              AND cl.status = 'success'
+                            LIMIT 1
+                        )
                       )
                 ORDER BY p.priority ASC, p.occurred_at ASC
                 LIMIT $2
@@ -272,7 +279,16 @@ class DatabaseConnection:
               AND COALESCE(s.onboarding_status, 'verified') = 'stub'
               AND s.website IS NOT NULL
               AND TRIM(s.website) <> ''
-              AND s.last_crawl_at IS NOT NULL
+              AND (
+                    s.last_crawl_at IS NOT NULL
+                    OR EXISTS (
+                        SELECT 1
+                        FROM crawl_logs cl
+                        WHERE cl.startup_id = s.id
+                          AND cl.status = 'success'
+                        LIMIT 1
+                    )
+                  )
         """, item_id)
 
     async def fail_research_item(self, item_id: str, error_message: str):
@@ -327,6 +343,13 @@ class DatabaseConnection:
                     $6::boolean = FALSE
                     OR COALESCE(s.onboarding_status, 'verified') != 'stub'
                     OR s.last_crawl_at IS NOT NULL
+                    OR EXISTS (
+                        SELECT 1
+                        FROM crawl_logs cl
+                        WHERE cl.startup_id = s.id
+                          AND cl.status = 'success'
+                        LIMIT 1
+                    )
                   )
             ON CONFLICT DO NOTHING
             RETURNING id
@@ -545,19 +568,41 @@ class DatabaseConnection:
 
     async def get_startup_research_snapshot(self, startup_id: str) -> Optional[Dict[str, Any]]:
         """Get minimal startup state used for research queue gating."""
-        row = await self.fetchrow(
-            """
-            SELECT
-                id::text AS id,
-                COALESCE(onboarding_status, 'verified') AS onboarding_status,
-                website,
-                last_crawl_at,
-                COALESCE(crawl_success_rate, 0)::float8 AS crawl_success_rate
-            FROM startups
-            WHERE id = $1::uuid
-            """,
-            startup_id,
-        )
+        try:
+            row = await self.fetchrow(
+                """
+                SELECT
+                    s.id::text AS id,
+                    COALESCE(s.onboarding_status, 'verified') AS onboarding_status,
+                    s.website,
+                    s.last_crawl_at,
+                    COALESCE(s.crawl_success_rate, 0)::float8 AS crawl_success_rate,
+                    (
+                        SELECT MAX(cl.crawl_completed_at)
+                        FROM crawl_logs cl
+                        WHERE cl.startup_id = s.id
+                          AND cl.status = 'success'
+                    ) AS last_success_crawl_log_at
+                FROM startups s
+                WHERE s.id = $1::uuid
+                """,
+                startup_id,
+            )
+        except Exception:
+            # Back-compat: environments missing crawl_logs or columns.
+            row = await self.fetchrow(
+                """
+                SELECT
+                    id::text AS id,
+                    COALESCE(onboarding_status, 'verified') AS onboarding_status,
+                    website,
+                    last_crawl_at,
+                    COALESCE(crawl_success_rate, 0)::float8 AS crawl_success_rate
+                FROM startups
+                WHERE id = $1::uuid
+                """,
+                startup_id,
+            )
         return dict(row) if row else None
 
     async def get_recent_onboarding_context(self, startup_id: str, limit: int = 5) -> List[Dict[str, Any]]:

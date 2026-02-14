@@ -436,7 +436,14 @@ async def _enqueue_deep_research_if_needed(
         """SELECT
               COALESCE(onboarding_status, 'verified') AS onboarding_status,
               website,
-              last_crawl_at
+              last_crawl_at,
+              EXISTS (
+                  SELECT 1
+                  FROM crawl_logs cl
+                  WHERE cl.startup_id = startups.id
+                    AND cl.status = 'success'
+                  LIMIT 1
+              ) AS has_success_crawl_log
            FROM startups
            WHERE id = $1::uuid""",
         startup_id,
@@ -448,7 +455,7 @@ async def _enqueue_deep_research_if_needed(
     website = str(row.get("website") or "").strip()
     if not website:
         return False
-    if require_crawled and not row.get("last_crawl_at"):
+    if require_crawled and not row.get("last_crawl_at") and not row.get("has_success_crawl_log"):
         return False
 
     try:

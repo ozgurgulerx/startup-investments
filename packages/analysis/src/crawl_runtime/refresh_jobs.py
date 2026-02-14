@@ -36,14 +36,16 @@ EVENT_TYPE_TO_REASON: Dict[str, str] = {
 }
 
 REASON_TO_BOOST: Dict[str, int] = {
-    "funding_event": 40,
-    "product_launch": 30,
-    "key_hire": 20,
-    "acquisition": 40,
-    "pricing_change": 25,
+    # Aggressive boosts so event/onboarding startups reach priority cap (120) quickly.
+    # This reduces "first crawl" latency under large frontier backlogs.
+    "funding_event": 80,
+    "product_launch": 70,
+    "key_hire": 55,
+    "acquisition": 80,
+    "pricing_change": 65,
     "crawl_diff_analysis": 15,
-    "news_onboard": 35,
-    "manual": 50,
+    "news_onboard": 80,
+    "manual": 80,
 }
 
 # Cooldown: skip re-enqueue if a completed job with same startup+reason
