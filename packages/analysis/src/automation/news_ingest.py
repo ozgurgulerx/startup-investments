@@ -6288,14 +6288,9 @@ class DailyNewsIngestor:
 
         stats["extracted"] = len(all_events)
 
-        inserted, inserted_events, persist_diag = await persist_events(conn, all_events, extractor._registry)
-        stats["persisted"] = inserted
-        if isinstance(persist_diag, dict):
-            stats["persist_errors"] = int(persist_diag.get("persist_errors") or 0)
-            stats["first_error"] = persist_diag.get("first_error")
-        print(f"[events:{region}] Extracted {len(all_events)} events from {len(clusters)} clusters, persisted {inserted}")
-
-        # Onboard unknown startups from unlinked entity mentions
+        # Onboard unknown startups from unlinked entity mentions before we persist events.
+        # This reduces NULL startup_id rows (which are not actionable downstream) and makes
+        # the (cluster_id, startup_id, event_type, event_key) dedupe index effective.
         try:
             onboarded = await onboard_unknown_startups(conn, all_events, clusters)
             stats["onboarded_startups"] = onboarded
@@ -6304,10 +6299,25 @@ class DailyNewsIngestor:
         except Exception as exc:
             print(f"[news-ingest] Failed to onboard unknown startups: {exc}")
 
+        # Persist only actionable events (those that resolved to a startup_id).
+        # Events without startup_id cannot be processed/enqueued for research and will
+        # otherwise generate noisy missing_startup_id trace events.
+        actionable_events = [e for e in all_events if getattr(e, "startup_id", None)]
+
+        inserted, inserted_events, persist_diag = await persist_events(conn, actionable_events, extractor._registry)
+        stats["persisted"] = inserted
+        if isinstance(persist_diag, dict):
+            stats["persist_errors"] = int(persist_diag.get("persist_errors") or 0)
+            stats["first_error"] = persist_diag.get("first_error")
+        print(
+            f"[events:{region}] Extracted {len(all_events)} events from {len(clusters)} clusters, "
+            f"actionable {len(actionable_events)}, persisted {inserted}"
+        )
+
         # Upsert funding rounds from high-confidence funding events.
         # Runs after onboarding so newly discovered startups can receive rounds immediately.
         try:
-            funding_inserted = await upsert_funding_from_events(conn, all_events)
+            funding_inserted = await upsert_funding_from_events(conn, actionable_events)
             stats["funding_rounds_upserted"] = funding_inserted
             if funding_inserted:
                 print(f"[funding:{region}] Upserted {funding_inserted} funding rounds from events")
@@ -6319,7 +6329,7 @@ class DailyNewsIngestor:
         graph_sync_enabled = os.getenv("NEWS_GRAPH_SYNC_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
         if graph_sync_enabled:
             try:
-                graph_stats = await upsert_capital_graph_from_events(conn, all_events)
+                graph_stats = await upsert_capital_graph_from_events(conn, actionable_events)
                 stats["graph"] = graph_stats
                 if int(graph_stats.get("edges_upserted") or 0) > 0:
                     print(

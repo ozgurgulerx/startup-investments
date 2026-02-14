@@ -366,7 +366,15 @@ _SERIES_RE = re.compile(
     re.IGNORECASE,
 )
 _LED_BY_RE = re.compile(
-    r"(?:led\s+by|anchored\s+by|co-?led\s+by)\s+([A-Za-z0-9][A-Za-z0-9\s&]+?)(?:\s+(?:with|and\s+participation|in\s+a)|[.,;]|$)",
+    r"(?:led\s+by|anchored\s+by|co-?led\s+by)\s+([A-Za-z0-9][A-Za-z0-9\s&.'-]+?)(?:\s+(?:with|and\s+participation|in\s+a)|[.,;]|$)",
+    re.IGNORECASE,
+)
+_BACKED_BY_RE = re.compile(
+    r"(?:backed\s+by|with\s+backing\s+from|backing\s+from|supported\s+by)\s+([A-Za-z0-9][A-Za-z0-9\s&.'-]+?)(?:\s+(?:with|and\s+participation|alongside|including)|[.,;]|$)",
+    re.IGNORECASE,
+)
+_INVESTORS_INCLUDE_RE = re.compile(
+    r"(?:investors?\s+(?:include|included|including))\s+([A-Za-z0-9][A-Za-z0-9\s,&.'-]+?)(?:[.;]|$)",
     re.IGNORECASE,
 )
 _VALUATION_RE = re.compile(
@@ -486,7 +494,11 @@ class FactExtractor:
         region: str = "global",
     ) -> List[ExtractedClaim]:
         """Extract structured claims from a cluster."""
-        text = f"{title} {summary}"
+        # Keep a hard boundary between title/summary so regexes don't
+        # accidentally match across the concatenation seam.
+        title = (title or "").strip()
+        summary = (summary or "").strip()
+        text = f"{title}. {summary}".strip() if title and summary else (title or summary)
         claims: List[ExtractedClaim] = []
 
         # Primary entity is the first entity in the cluster
@@ -611,17 +623,25 @@ class FactExtractor:
                 entity_name=entity,
             ))
 
-        # Lead investor
-        m = _LED_BY_RE.search(text)
-        if m:
-            lead = m.group(1).strip().rstrip(",. ")
-            claims.append(ExtractedClaim(
-                fact_key="lead_investor",
-                fact_value=lead,
-                text_span=m.group(0).strip(),
-                confidence=0.8,
-                entity_name=entity,
-            ))
+        # Lead investor (best-effort; prefer explicit "led by" language, fall back to weaker patterns).
+        lead_match = _LED_BY_RE.search(text)
+        lead_conf = 0.80
+        if not lead_match:
+            lead_match = _BACKED_BY_RE.search(text)
+            lead_conf = 0.70
+        if not lead_match:
+            lead_match = _INVESTORS_INCLUDE_RE.search(text)
+            lead_conf = 0.65
+        if lead_match:
+            lead = (lead_match.group(1) or "").strip().rstrip(",. ")
+            if lead and len(lead) <= 120:
+                claims.append(ExtractedClaim(
+                    fact_key="lead_investor",
+                    fact_value=lead,
+                    text_span=lead_match.group(0).strip(),
+                    confidence=lead_conf,
+                    entity_name=entity,
+                ))
 
         # Valuation
         m = _VALUATION_RE.search(text)

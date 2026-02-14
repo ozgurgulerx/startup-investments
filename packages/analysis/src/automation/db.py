@@ -221,7 +221,7 @@ class DatabaseConnection:
         Conservative-by-default gating:
         - excludes merged/rejected startups
         - requires website
-        - requires at least one crawl (last_crawl_at) unless disabled
+        - requires at least one crawl (last_crawl_at) for stub startups unless disabled
         """
         import json
         item_id = await self.fetchval("""
@@ -232,7 +232,11 @@ class DatabaseConnection:
               AND COALESCE(s.onboarding_status, 'verified') NOT IN ('merged', 'rejected')
               AND s.website IS NOT NULL
               AND TRIM(s.website) <> ''
-              AND ($6::boolean = FALSE OR s.last_crawl_at IS NOT NULL)
+              AND (
+                    $6::boolean = FALSE
+                    OR COALESCE(s.onboarding_status, 'verified') != 'stub'
+                    OR s.last_crawl_at IS NOT NULL
+                  )
             ON CONFLICT DO NOTHING
             RETURNING id
         """, startup_id, priority, reason, research_depth,

@@ -1169,6 +1169,8 @@ _ONBOARD_DENY_PATTERNS = [
     re.compile(r'^[A-Z]{1,4}$'),           # ALL-CAPS <= 4 chars (acronyms)
     re.compile(r'^\d'),                      # starts with digit
     re.compile(r'^(the|a|an)\s', re.I),     # articles
+    re.compile(r'^(why|how|what|when|where|who)\b', re.I),  # question/headline fragments
+    re.compile(r'.*\b(ceo|cfo|cto|coo|founder|co-founder|former|ex-|president|chairman)\b.*', re.I),  # person/role titles
 ]
 
 _ONBOARD_DOMAIN_DENYLIST = {
@@ -1304,8 +1306,24 @@ async def onboard_unknown_startups(
         if ck:
             cluster_by_key[ck] = c
 
-    # Collect unique unlinked entity names from qualifying events
-    seen_names: Dict[str, ExtractedEvent] = {}  # lowercase → first event
+    def _onboard_priority(evt: ExtractedEvent) -> int:
+        # Prefer capital events first so investor graph + deep research have a chance
+        # to run before we hit max_per_run.
+        if evt.event_type == "cap_funding_raised":
+            return 0
+        if evt.event_type == "cap_acquisition_announced":
+            return 1
+        if evt.event_type.startswith("prod_"):
+            return 2
+        if evt.event_type.startswith("org_"):
+            return 3
+        if evt.event_type.startswith(("gtm_", "arch_")):
+            return 4
+        return 5
+
+    # Collect unique unlinked entity names from qualifying events.
+    # Keep the best candidate per entity by (priority, confidence).
+    seen_names: Dict[str, ExtractedEvent] = {}  # lowercase → best event
     for evt in events:
         if evt.startup_id:
             continue
@@ -1314,7 +1332,18 @@ async def onboard_unknown_startups(
         if evt.confidence < confidence_threshold:
             continue
         name_lower = evt.entity_name.lower().strip()
-        if name_lower and name_lower not in seen_names and len(name_lower) > 2:
+        if not name_lower or len(name_lower) <= 2:
+            continue
+
+        existing = seen_names.get(name_lower)
+        if existing is None:
+            seen_names[name_lower] = evt
+            continue
+
+        if (_onboard_priority(evt), -float(evt.confidence or 0.0)) < (
+            _onboard_priority(existing),
+            -float(existing.confidence or 0.0),
+        ):
             seen_names[name_lower] = evt
 
     if not seen_names:
@@ -1363,7 +1392,12 @@ async def onboard_unknown_startups(
     def _skip(reason: str) -> None:
         skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
 
-    for name_lower, evt in list(seen_names.items())[:max_per_run]:
+    candidates = sorted(
+        seen_names.items(),
+        key=lambda kv: (_onboard_priority(kv[1]), -float(kv[1].confidence or 0.0), kv[0]),
+    )
+
+    for name_lower, evt in candidates[:max_per_run]:
         entity_name = evt.entity_name or name_lower
 
         # --- Gate 1: Denylist ---

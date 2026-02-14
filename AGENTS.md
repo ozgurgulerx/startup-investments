@@ -386,6 +386,7 @@ News:
 - News-driven startup onboarding (active):
   - Ingest hook: `packages/analysis/src/automation/news_ingest.py` calls `onboard_unknown_startups(...)` for unlinked startup entities.
   - Ordering invariant: onboarding runs before funding-round + graph upserts inside `_extract_events(...)`, so newly discovered startups can be connected to funding events and investor graph edges in the same ingest run.
+  - Event persistence invariant: `_extract_events(...)` persists only **actionable** events (those with a resolved `startup_id`) to avoid noisy `missing_startup_id` blocks in `event-processor` and to keep the `(cluster_id, startup_id, event_type, event_key)` dedupe index effective.
   - Stub creation behavior:
     - Inserts startup rows with `onboarding_status='stub'` (not immediately visible in Dealbook/company API).
     - Attempts website inference from cluster evidence URLs and stores inferred website when confidence is sufficient.
@@ -410,6 +411,7 @@ News:
     - `DEEP_RESEARCH_MAX_ITEMS_PER_RUN`
     - `DEEP_RESEARCH_MIN_EVENT_CONFIDENCE`
     - `DEEP_RESEARCH_MIN_CRAWL_SUCCESS_RATE`
+    - Enqueue gating note: deep-research enqueues require `last_crawl_at` only for `onboarding_status='stub'`; verified startups can be queued without a prior crawl.
     - `ONBOARDING_ALERTS_ENABLED`
     - `ONBOARDING_ALERTS_BATCH_SIZE`
     - `ONBOARD_SINGLE_SOURCE_TRUST_MIN` (allow trusted single-source funding clusters to create stub startups when entity type is unknown)
