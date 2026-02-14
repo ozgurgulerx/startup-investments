@@ -259,6 +259,9 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `code-update` | `7,22,37,52 * * * *` | 45 | `infrastructure/vm-cron/deploy.sh` |
 | `heartbeat` | `*/5 * * * *` | N/A (direct) | `infrastructure/vm-cron/monitoring/heartbeat.sh` |
 
+Notes:
+- `onboarding-eod-report` posts to Slack and can also email the same report (best-effort) when `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO` are configured on the VM.
+
 ### Triggered (not scheduled) jobs
 
 | Job | Trigger |

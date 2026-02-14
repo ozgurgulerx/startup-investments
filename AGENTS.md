@@ -157,6 +157,7 @@ AKS pipelines CronJobs:
     - Account scope: `/subscriptions/.../resourceGroups/rg-openai/providers/Microsoft.CognitiveServices/accounts/aoai-ep-swedencentral02`
 - Deploy: apply `infrastructure/kubernetes/pipelines-*.yaml` from an operator environment that can reach the AKS control plane (typically the VM).
 - VM cutover guardrail: set `BUILDATLAS_VM_CRON_DISABLED_JOBS` in `/etc/buildatlas/.env` (enforced by `infrastructure/vm-cron/lib/runner.sh`)
+  - Additional safety net: `infrastructure/vm-cron/vm-cron-disabled-jobs` can disable jobs on the VM even if `/etc/buildatlas/.env` is misconfigured (prevents accidental double-runs).
 
 VM cron runner:
 - Config: `infrastructure/vm-cron/crontab`
@@ -223,6 +224,10 @@ VM cron runner:
   - Schedule: `slack-summary` runs every 3 hours at minute `:00` UTC (`0 */3 * * *`).
   - Daily EOD onboarding report: `onboarding-eod-report` runs at `20:00 UTC` (`0 20 * * *`) and posts a Slack report of:
     stub startups created, investors added, capital graph edges upserted, and news<>startup linking activity (startup_events + refresh jobs + memory linking).
+  - Optional EOD onboarding report email (best-effort) uses Resend:
+    - Requires `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO`.
+    - Sender: `METRICS_REPORT_EMAIL_FROM` (falls back to `NEWS_DIGEST_FROM_EMAIL`).
+    - Subject prefix: `ONBOARDING_EOD_REPORT_EMAIL_SUBJECT_PREFIX` (falls back to `METRICS_REPORT_EMAIL_SUBJECT_PREFIX`).
   - AKS fallback (VM-independent): `posthog-usage-summary` CronJob posts the same PostHog usage block to Slack:
     - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
     - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (built from `infrastructure/ops/Dockerfile`)

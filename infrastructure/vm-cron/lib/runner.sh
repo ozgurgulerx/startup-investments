@@ -80,9 +80,18 @@ list_contains_job() {
 }
 
 is_disabled() {
+    disabled_reason >/dev/null 2>&1
+}
+
+disabled_reason() {
     # Allow disabling jobs without editing the installed crontab.
     # Useful for AKS cutovers where the VM may still run the cron schedule.
-    if list_contains_job "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"; then
+    if list_contains_job "${BUILDATLAS_DISABLED_JOBS:-}"; then
+        echo "BUILDATLAS_DISABLED_JOBS"
+        return 0
+    fi
+    if list_contains_job "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"; then
+        echo "BUILDATLAS_VM_CRON_DISABLED_JOBS"
         return 0
     fi
 
@@ -103,7 +112,12 @@ is_disabled() {
 
     local raw=""
     raw="$(sed -e 's/#.*$//' -e 's/[[:space:]]//g' "$file" | tr '\n' ',' | tr -s ',' | sed -e 's/^,//' -e 's/,$//')"
-    list_contains_job "$raw"
+    if list_contains_job "$raw"; then
+        echo "vm-cron-disabled-jobs:${file}"
+        return 0
+    fi
+
+    return 1
 }
 
 should_notify_success() {
@@ -228,7 +242,11 @@ fi
 
 # If the job is disabled, log a skip and exit cleanly.
 if is_disabled; then
-    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] SKIP: $JOB_NAME disabled via BUILDATLAS_DISABLED_JOBS/BUILDATLAS_VM_CRON_DISABLED_JOBS" >> "$LOG_FILE"
+    reason="$(disabled_reason || true)"
+    if [ -z "$reason" ]; then
+        reason="unknown"
+    fi
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] SKIP: $JOB_NAME disabled via $reason" >> "$LOG_FILE"
     exit 0
 fi
 
