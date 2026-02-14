@@ -9,7 +9,7 @@ let _telemetryClient: any = null;
 
 try {
   // Use require() for reliable CJS interop with applicationinsights v2/v3.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
   const appInsights = require('applicationinsights');
 
   const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;

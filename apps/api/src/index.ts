@@ -368,7 +368,7 @@ async function syncCapitalGraphFromFundingRows(
     const investorId = investorResult.rows[0]?.id;
     if (!investorId) continue;
     investorIdByNorm.set(norm, investorId);
-    if (Boolean(investorResult.rows[0]?.inserted)) {
+    if (investorResult.rows[0]?.inserted) {
       stats.investorsUpserted += 1;
     }
   }
@@ -419,7 +419,7 @@ async function syncCapitalGraphFromFundingRows(
     const fnExists = await pgClient.query<{ ok: boolean }>(
       `SELECT to_regprocedure('refresh_capital_graph_views()') IS NOT NULL AS ok`,
     );
-    if (Boolean(fnExists.rows[0]?.ok)) {
+    if (fnExists.rows[0]?.ok) {
       await pgClient.query('SELECT refresh_capital_graph_views()');
       stats.viewsRefreshed = true;
     }
@@ -1193,7 +1193,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
                 '^_+|_+$',
                 '',
                 'g'
-              ) LIKE ${normalizedStage + "\%"}` as ReturnType<typeof eq>
+              ) LIKE ${normalizedStage + "%"}` as ReturnType<typeof eq>
         );
       }
     }
@@ -1352,7 +1352,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
     const total = countResult?.total || 0;
 
     // Determine which field the search matched on (for frontend highlighting)
-    function getSearchMatch(row: Record<string, unknown>, term: string): string | undefined {
+    const getSearchMatch = (row: Record<string, unknown>, term: string): string | undefined => {
       if (!term) return undefined;
       const t = term.toLowerCase();
       if ((row.name as string || '').toLowerCase().includes(t)) return 'name';
@@ -1362,7 +1362,7 @@ app.get('/api/v1/dealbook', async (req, res) => {
       if ((row.subSubVertical as string || '').toLowerCase().includes(t)) return 'sub_sub_vertical';
       if ((row.description as string || '').toLowerCase().includes(t)) return 'description';
       return 'fuzzy'; // trigram match
-    }
+    };
 
     // Transform results to match frontend StartupAnalysis interface
     const data = results.map((row) => ({
@@ -1434,12 +1434,12 @@ app.get('/api/v1/dealbook', async (req, res) => {
 // Get filter options for dealbook (available stages, patterns, continents)
 app.get('/api/v1/dealbook/filters', async (req, res) => {
   try {
-	    const parsed = dealBookFiltersQuerySchema.safeParse(req.query);
-	    if (!parsed.success) {
-	      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
-	    }
-	    const { period, region, verticalId, subVerticalId } = parsed.data;
-	    const cacheKey = `${filterOptionsKey(region, period)}:${hashObject({ verticalId, subVerticalId })}`;
+      const parsed = dealBookFiltersQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+      }
+      const { period, region, verticalId, subVerticalId } = parsed.data;
+      const cacheKey = `${filterOptionsKey(region, period)}:${hashObject({ verticalId, subVerticalId })}`;
 
     // Check cache first
     const redis = await getRedisClient();
@@ -1459,176 +1459,176 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
     }
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
-	    // Get distinct stages (prefer latest funding round type, fallback to startup funding_stage)
-	    const pf = periodFilter(period);
-	    const baseWhere = pf
-	      ? and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'), pf)
-	      : and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'));
-	    const stageRows = await db.execute<{ stage: string }>(
-	      pf
-	        ? sql`
-	            SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
-	            FROM startups s
+      // Get distinct stages (prefer latest funding round type, fallback to startup funding_stage)
+      const pf = periodFilter(period);
+      const baseWhere = pf
+        ? and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'), pf)
+        : and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'));
+      const stageRows = await db.execute<{ stage: string }>(
+        pf
+          ? sql`
+              SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
+              FROM startups s
             LEFT JOIN LATERAL (
               SELECT fr.round_type
               FROM funding_rounds fr
               WHERE fr.startup_id = s.id
               ORDER BY fr.announced_date DESC NULLS LAST, fr.created_at DESC
               LIMIT 1
-	            ) lr ON TRUE
-	            WHERE ${pf}
-	              AND s.dataset_region = ${region}
-	              AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	              AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
-	          `
-	        : sql`
-	            SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
-	            FROM startups s
+              ) lr ON TRUE
+              WHERE ${pf}
+                AND s.dataset_region = ${region}
+                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
+            `
+          : sql`
+              SELECT DISTINCT COALESCE(lr.round_type, s.funding_stage) AS stage
+              FROM startups s
             LEFT JOIN LATERAL (
               SELECT fr.round_type
               FROM funding_rounds fr
               WHERE fr.startup_id = s.id
               ORDER BY fr.announced_date DESC NULLS LAST, fr.created_at DESC
               LIMIT 1
-	            ) lr ON TRUE
-	            WHERE s.dataset_region = ${region}
-	              AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	              AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
-	          `
-	    );
+              ) lr ON TRUE
+              WHERE s.dataset_region = ${region}
+                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
+            `
+      );
 
     // Get distinct continents
-	    const continents = await db.selectDistinct({ continent: startups.continent })
-	      .from(startups)
-	      .where(and(baseWhere, sql`${startups.continent} IS NOT NULL`) as any);
+      const continents = await db.selectDistinct({ continent: startups.continent })
+        .from(startups)
+        .where(and(baseWhere, sql`${startups.continent} IS NOT NULL`) as any);
 
     // Get pattern counts from JSONB (aggregated in SQL)
     const pf2 = periodFilter(period);
-	    const patternRows = await db.execute<{ pattern: string; count: string }>(
-	      pf2
-	        ? sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
-	              FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
-	              WHERE ${pf2}
-	                AND s.dataset_region = ${region}
-	                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                AND elem->>'name' IS NOT NULL
-	              GROUP BY elem->>'name'
-	              ORDER BY count DESC`
-	        : sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
-	              FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
-	              WHERE s.dataset_region = ${region}
-	                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                AND elem->>'name' IS NOT NULL
-	              GROUP BY elem->>'name'
-	              ORDER BY count DESC`
-	    );
+      const patternRows = await db.execute<{ pattern: string; count: string }>(
+        pf2
+          ? sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
+                FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
+                WHERE ${pf2}
+                  AND s.dataset_region = ${region}
+                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND elem->>'name' IS NOT NULL
+                GROUP BY elem->>'name'
+                ORDER BY count DESC`
+          : sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
+                FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
+                WHERE s.dataset_region = ${region}
+                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND elem->>'name' IS NOT NULL
+                GROUP BY elem->>'name'
+                ORDER BY count DESC`
+      );
 
     // Distinct verticals (legacy string field in analysis JSON)
-	    const verticalRows = await db.execute<{ vertical: string }>(
-	      pf2
-	        ? sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
-	              FROM startups s
-	              WHERE ${pf2}
-	                AND s.dataset_region = ${region}
-	                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                AND s.analysis_data->>'vertical' IS NOT NULL
-	                AND s.analysis_data->>'vertical' <> ''`
-	        : sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
-	              FROM startups s
-	              WHERE s.dataset_region = ${region}
-	                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                AND s.analysis_data->>'vertical' IS NOT NULL
-	                AND s.analysis_data->>'vertical' <> ''`
-	    );
+      const verticalRows = await db.execute<{ vertical: string }>(
+        pf2
+          ? sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
+                FROM startups s
+                WHERE ${pf2}
+                  AND s.dataset_region = ${region}
+                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND s.analysis_data->>'vertical' IS NOT NULL
+                  AND s.analysis_data->>'vertical' <> ''`
+          : sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
+                FROM startups s
+                WHERE s.dataset_region = ${region}
+                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND s.analysis_data->>'vertical' IS NOT NULL
+                  AND s.analysis_data->>'vertical' <> ''`
+      );
 
     // New: Vertical taxonomy options (IDs + labels + counts)
-	    const taxonomyVerticalRows = await db.execute<{ id: string; label: string; count: string }>(
-	      pf2
-	        ? sql`SELECT
-	                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
-	                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
-	                COUNT(*) AS count
-	              FROM startups s
-	              WHERE ${pf2}
-	                AND s.dataset_region = ${region}
-	                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
-	                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
-	              GROUP BY 1, 2
-	              ORDER BY COUNT(*) DESC`
-	        : sql`SELECT
-	                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
-	                s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
-	                COUNT(*) AS count
-	              FROM startups s
-	              WHERE s.dataset_region = ${region}
-	                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
-	                AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
-	              GROUP BY 1, 2
-	              ORDER BY COUNT(*) DESC`
-	    );
+      const taxonomyVerticalRows = await db.execute<{ id: string; label: string; count: string }>(
+        pf2
+          ? sql`SELECT
+                  s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
+                  s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
+                  COUNT(*) AS count
+                FROM startups s
+                WHERE ${pf2}
+                  AND s.dataset_region = ${region}
+                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
+                  AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
+                GROUP BY 1, 2
+                ORDER BY COUNT(*) DESC`
+          : sql`SELECT
+                  s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' AS id,
+                  s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_label' AS label,
+                  COUNT(*) AS count
+                FROM startups s
+                WHERE s.dataset_region = ${region}
+                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
+                  AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
+                GROUP BY 1, 2
+                ORDER BY COUNT(*) DESC`
+      );
 
-	    const taxonomySubRows = verticalId
-	      ? await db.execute<{ id: string; label: string; count: string }>(
-	          pf2
-	            ? sql`SELECT
-	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
-	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
-	                    COUNT(*) AS count
-	                  FROM startups s
-	                  WHERE ${pf2}
-	                    AND s.dataset_region = ${region}
-	                    AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
-	                  GROUP BY 1, 2
-	                  ORDER BY COUNT(*) DESC`
-	            : sql`SELECT
-	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
-	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
-	                    COUNT(*) AS count
-	                  FROM startups s
-	                  WHERE s.dataset_region = ${region}
-	                    AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
-	                  GROUP BY 1, 2
-	                  ORDER BY COUNT(*) DESC`
-	        )
+      const taxonomySubRows = verticalId
+        ? await db.execute<{ id: string; label: string; count: string }>(
+            pf2
+              ? sql`SELECT
+                      s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
+                      s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
+                      COUNT(*) AS count
+                    FROM startups s
+                    WHERE ${pf2}
+                      AND s.dataset_region = ${region}
+                      AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
+                    GROUP BY 1, 2
+                    ORDER BY COUNT(*) DESC`
+              : sql`SELECT
+                      s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' AS id,
+                      s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_label' AS label,
+                      COUNT(*) AS count
+                    FROM startups s
+                    WHERE s.dataset_region = ${region}
+                      AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
+                    GROUP BY 1, 2
+                    ORDER BY COUNT(*) DESC`
+          )
       : { rows: [] as Array<{ id: string; label: string; count: string }> };
 
-	    const taxonomyLeafRows = subVerticalId
-	      ? await db.execute<{ id: string; label: string; count: string }>(
-	          pf2
-	            ? sql`SELECT
-	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
-	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
-	                    COUNT(*) AS count
-	                  FROM startups s
-	                  WHERE ${pf2}
-	                    AND s.dataset_region = ${region}
-	                    AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
-	                  GROUP BY 1, 2
-	                  ORDER BY COUNT(*) DESC`
-	            : sql`SELECT
-	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
-	                    s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
-	                    COUNT(*) AS count
-	                  FROM startups s
-	                  WHERE s.dataset_region = ${region}
-	                    AND COALESCE(s.onboarding_status, 'verified') = 'verified'
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
-	                    AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
-	                  GROUP BY 1, 2
-	                  ORDER BY COUNT(*) DESC`
-	        )
+      const taxonomyLeafRows = subVerticalId
+        ? await db.execute<{ id: string; label: string; count: string }>(
+            pf2
+              ? sql`SELECT
+                      s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
+                      s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
+                      COUNT(*) AS count
+                    FROM startups s
+                    WHERE ${pf2}
+                      AND s.dataset_region = ${region}
+                      AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
+                    GROUP BY 1, 2
+                    ORDER BY COUNT(*) DESC`
+              : sql`SELECT
+                      s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' AS id,
+                      s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_label' AS label,
+                      COUNT(*) AS count
+                    FROM startups s
+                    WHERE s.dataset_region = ${region}
+                      AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
+                      AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
+                    GROUP BY 1, 2
+                    ORDER BY COUNT(*) DESC`
+          )
       : { rows: [] as Array<{ id: string; label: string; count: string }> };
 
     const responseData = {
@@ -4422,13 +4422,13 @@ app.post('/api/admin/v1/headline-seeds', async (req, res) => {
         url,
         canonical_url,
         title,
-        to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS published_at,
+        to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
         status,
         attempt_count,
-        to_char(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_attempt_at,
+        to_char(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_attempt_at,
         last_error,
-        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
-        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS updated_at
+        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
       `,
       [
         parsed.data.publisherKey,
@@ -4479,13 +4479,13 @@ app.get('/api/admin/v1/headline-seeds', async (req, res) => {
         canonical_url,
         title,
         summary,
-        to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS published_at,
+        to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
         status,
         attempt_count,
-        to_char(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS last_attempt_at,
+        to_char(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_attempt_at,
         last_error,
-        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
-        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS updated_at
+        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
       FROM paid_headline_seeds
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY created_at DESC
@@ -5339,7 +5339,7 @@ app.get('/api/admin/monitoring/investor-onboarding', async (req, res) => {
           AND to_regclass('public.investor_profiles') IS NOT NULL
         ) AS ok`,
     );
-    const ok = Boolean(hasTables.rows[0]?.ok);
+    const ok = hasTables.rows[0]?.ok === true;
     if (!ok) {
       return res.json({ available: false, error: 'investor onboarding tables missing (apply migrations)' });
     }
@@ -5376,7 +5376,7 @@ app.get('/api/admin/monitoring/investor-onboarding', async (req, res) => {
         q.reason,
         q.retry_count,
         q.error_message,
-        to_char(q.completed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS completed_at
+        to_char(q.completed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS completed_at
       FROM investor_onboarding_queue q
       JOIN investors i ON i.id = q.investor_id
       WHERE q.status = 'failed'
@@ -5490,73 +5490,73 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
             0
           )::float AS due_age_p95_seconds
         FROM crawl_frontier_queue
-	      `);
-	      let runMode: 'crawl_logs' | 'frontier_urls' = 'crawl_logs';
-	      let runStatsResult: any;
-	      try {
-	        runStatsResult = await pgClient.query(`
-	          SELECT
-	            COUNT(*)::int AS total_attempts,
-	            COUNT(*) FILTER (WHERE cl.status = 'success')::int AS success,
-	            COUNT(*) FILTER (WHERE cl.status = 'failed')::int AS failed,
-	            COUNT(*) FILTER (WHERE cl.status = 'blocked')::int AS blocked,
-	            COALESCE(
-	              ROUND(AVG(cl.duration_ms) FILTER (WHERE cl.duration_ms IS NOT NULL), 1),
-	              0
-	            )::float AS avg_duration_ms,
-	            COALESCE(
-	              ROUND(
-	                (
-	                  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY cl.duration_ms)
-	                    FILTER (WHERE cl.duration_ms IS NOT NULL)
-	                )::numeric,
-	                1
-	              ),
-	              0
-	            )::float AS p95_duration_ms,
-	            COUNT(*) FILTER (WHERE cl.http_status BETWEEN 200 AND 299)::int AS http_2xx,
-	            COUNT(*) FILTER (WHERE cl.http_status = 304)::int AS http_304,
-	            COUNT(*) FILTER (WHERE cl.http_status BETWEEN 400 AND 499)::int AS http_4xx,
-	            COUNT(*) FILTER (WHERE cl.http_status >= 500)::int AS http_5xx
-	          FROM crawl_logs cl
-	          WHERE cl.created_at >= NOW() - INTERVAL '24 hours'
-	            AND cl.source_type IN ('website', 'docs')
-	            AND COALESCE(cl.fetch_method, '') <> 'runtime_missing_output'
-	            AND cl.canonical_url IS NOT NULL
-	            AND EXISTS (
-	              SELECT 1 FROM crawl_frontier_urls u WHERE u.canonical_url = cl.canonical_url
-	            )
-	        `);
-	      } catch (err) {
-	        console.warn('Frontier monitoring: crawl_logs frontier-only query failed, falling back:', err);
-	        runStatsResult = await pgClient.query(`
-	          SELECT
-	            COUNT(*)::int AS total_attempts,
-	            COUNT(*) FILTER (WHERE status = 'success')::int AS success,
-	            COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
-	            COUNT(*) FILTER (WHERE status = 'blocked')::int AS blocked,
-	            COALESCE(
-	              ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL), 1),
-	              0
-	            )::float AS avg_duration_ms,
-	            COALESCE(
-	              ROUND(
-	                (
-	                  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms)
-	                    FILTER (WHERE duration_ms IS NOT NULL)
-	                )::numeric,
-	                1
-	              ),
-	              0
-	            )::float AS p95_duration_ms,
-	            COUNT(*) FILTER (WHERE http_status BETWEEN 200 AND 299)::int AS http_2xx,
-	            COUNT(*) FILTER (WHERE http_status = 304)::int AS http_304,
-	            COUNT(*) FILTER (WHERE http_status BETWEEN 400 AND 499)::int AS http_4xx,
-	            COUNT(*) FILTER (WHERE http_status >= 500)::int AS http_5xx
-	          FROM crawl_logs
-	          WHERE COALESCE(crawl_started_at, created_at) >= NOW() - INTERVAL '24 hours'
-	        `);
-	      }
+        `);
+        let runMode: 'crawl_logs' | 'frontier_urls' = 'crawl_logs';
+        let runStatsResult: any;
+        try {
+          runStatsResult = await pgClient.query(`
+            SELECT
+              COUNT(*)::int AS total_attempts,
+              COUNT(*) FILTER (WHERE cl.status = 'success')::int AS success,
+              COUNT(*) FILTER (WHERE cl.status = 'failed')::int AS failed,
+              COUNT(*) FILTER (WHERE cl.status = 'blocked')::int AS blocked,
+              COALESCE(
+                ROUND(AVG(cl.duration_ms) FILTER (WHERE cl.duration_ms IS NOT NULL), 1),
+                0
+              )::float AS avg_duration_ms,
+              COALESCE(
+                ROUND(
+                  (
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY cl.duration_ms)
+                      FILTER (WHERE cl.duration_ms IS NOT NULL)
+                  )::numeric,
+                  1
+                ),
+                0
+              )::float AS p95_duration_ms,
+              COUNT(*) FILTER (WHERE cl.http_status BETWEEN 200 AND 299)::int AS http_2xx,
+              COUNT(*) FILTER (WHERE cl.http_status = 304)::int AS http_304,
+              COUNT(*) FILTER (WHERE cl.http_status BETWEEN 400 AND 499)::int AS http_4xx,
+              COUNT(*) FILTER (WHERE cl.http_status >= 500)::int AS http_5xx
+            FROM crawl_logs cl
+            WHERE cl.created_at >= NOW() - INTERVAL '24 hours'
+              AND cl.source_type IN ('website', 'docs')
+              AND COALESCE(cl.fetch_method, '') <> 'runtime_missing_output'
+              AND cl.canonical_url IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM crawl_frontier_urls u WHERE u.canonical_url = cl.canonical_url
+              )
+          `);
+        } catch (err) {
+          console.warn('Frontier monitoring: crawl_logs frontier-only query failed, falling back:', err);
+          runStatsResult = await pgClient.query(`
+            SELECT
+              COUNT(*)::int AS total_attempts,
+              COUNT(*) FILTER (WHERE status = 'success')::int AS success,
+              COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+              COUNT(*) FILTER (WHERE status = 'blocked')::int AS blocked,
+              COALESCE(
+                ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL), 1),
+                0
+              )::float AS avg_duration_ms,
+              COALESCE(
+                ROUND(
+                  (
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms)
+                      FILTER (WHERE duration_ms IS NOT NULL)
+                  )::numeric,
+                  1
+                ),
+                0
+              )::float AS p95_duration_ms,
+              COUNT(*) FILTER (WHERE http_status BETWEEN 200 AND 299)::int AS http_2xx,
+              COUNT(*) FILTER (WHERE http_status = 304)::int AS http_304,
+              COUNT(*) FILTER (WHERE http_status BETWEEN 400 AND 499)::int AS http_4xx,
+              COUNT(*) FILTER (WHERE http_status >= 500)::int AS http_5xx
+            FROM crawl_logs
+            WHERE COALESCE(crawl_started_at, created_at) >= NOW() - INTERVAL '24 hours'
+          `);
+        }
       const runStatsRowRaw = runStatsResult.rows[0] || {};
       const runAttempts = Number.parseInt(String(runStatsRowRaw.total_attempts ?? '0'), 10) || 0;
       if (runAttempts === 0) {
@@ -5583,19 +5583,19 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
               ), 1),
               0
             )::float AS avg_duration_ms,
-	            COALESCE(
-	              ROUND(
-	                (
-	                  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY last_response_ms)
-	                    FILTER (
-	                      WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
-	                        AND last_response_ms IS NOT NULL
-	                    )
-	                )::numeric,
-	                1
-	              ),
-	              0
-	            )::float AS p95_duration_ms,
+              COALESCE(
+                ROUND(
+                  (
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY last_response_ms)
+                      FILTER (
+                        WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
+                          AND last_response_ms IS NOT NULL
+                      )
+                  )::numeric,
+                  1
+                ),
+                0
+              )::float AS p95_duration_ms,
             COUNT(*) FILTER (
               WHERE last_crawled_at >= NOW() - INTERVAL '24 hours'
                 AND last_status_code BETWEEN 200 AND 299
