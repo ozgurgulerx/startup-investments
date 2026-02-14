@@ -5321,6 +5321,84 @@ app.get('/api/admin/monitoring/runtime', (req, res) => {
   }
 });
 
+app.get('/api/admin/monitoring/investor-onboarding', async (req, res) => {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
+  }
+  const providedKey = req.headers['x-admin-key'] as string;
+  if (!providedKey || providedKey !== ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
+  }
+
+  const pgClient = await pool.connect();
+  try {
+    // Best-effort: older DBs may not have investor onboarding tables yet.
+    const hasTables = await pgClient.query<{ ok: boolean }>(
+      `SELECT (
+          to_regclass('public.investor_onboarding_queue') IS NOT NULL
+          AND to_regclass('public.investor_profiles') IS NOT NULL
+        ) AS ok`,
+    );
+    const ok = Boolean(hasTables.rows[0]?.ok);
+    if (!ok) {
+      return res.json({ available: false, error: 'investor onboarding tables missing (apply migrations)' });
+    }
+
+    const queueStats = await pgClient.query(
+      `
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+        COUNT(*) FILTER (WHERE status = 'processing')::int AS processing,
+        COUNT(*) FILTER (WHERE status = 'completed' AND completed_at >= NOW() - INTERVAL '24 hours')::int AS completed_24h,
+        COUNT(*) FILTER (WHERE status = 'failed' AND completed_at >= NOW() - INTERVAL '24 hours')::int AS failed_24h,
+        COUNT(*)::int AS total
+      FROM investor_onboarding_queue
+      `,
+    );
+
+    const profileCoverage = await pgClient.query(
+      `
+      SELECT
+        COUNT(*)::int AS investors_total,
+        COUNT(*) FILTER (WHERE website IS NOT NULL AND btrim(website) <> '')::int AS investors_with_website,
+        COUNT(*) FILTER (WHERE type IS NOT NULL AND btrim(type) <> '' AND lower(btrim(type)) <> 'unknown')::int AS investors_with_type,
+        (SELECT COUNT(*)::int FROM investor_profiles)::int AS profiles_total
+      FROM investors
+      `,
+    );
+
+    const recentFailures = await pgClient.query(
+      `
+      SELECT
+        q.id::text,
+        q.investor_id::text,
+        i.name AS investor_name,
+        q.reason,
+        q.retry_count,
+        q.error_message,
+        to_char(q.completed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS completed_at
+      FROM investor_onboarding_queue q
+      JOIN investors i ON i.id = q.investor_id
+      WHERE q.status = 'failed'
+      ORDER BY q.completed_at DESC NULLS LAST
+      LIMIT 20
+      `,
+    );
+
+    return res.json({
+      available: true,
+      queue: queueStats.rows[0] || null,
+      coverage: profileCoverage.rows[0] || null,
+      recent_failures: recentFailures.rows || [],
+    });
+  } catch (error) {
+    console.error('Error fetching investor onboarding monitoring:', error);
+    return res.status(500).json({ error: 'Failed to fetch investor onboarding monitoring data' });
+  } finally {
+    pgClient.release();
+  }
+});
+
 app.get('/api/admin/monitoring/frontier', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });

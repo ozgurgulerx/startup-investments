@@ -575,6 +575,7 @@ Investor news + onboarding (funding-linked):
   - Consumer gate: `INVESTOR_ONBOARDING_ENABLED=true` (AKS CronJob `investor-onboarding`, VM fallback script exists)
   - Admin context endpoint now accepts either `startupId` or `investorId`:
     `POST /api/admin/v1/onboarding/context` (requires `X-API-Key` + `X-Admin-Key`)
+  - Admin monitoring: `GET /api/admin/monitoring/investor-onboarding` (`X-Admin-Key` required)
 
 Quick checks:
 - Is the screener table empty?

@@ -20,39 +20,108 @@ ALTER TABLE startup_events
 -- 2. Backfill event_key from metadata_json for existing rows
 -- =============================================================================
 
+-- Idempotency guard:
+-- This repo's migration runner re-applies migrations on every pipeline run.
+-- If the unique index already exists and newer code has started inserting
+-- event_key at write-time, we can end up with:
+--   - a legacy row with event_key = '' and metadata_json containing a key
+--   - a newer row already stored with event_key = that same key
+-- Updating the legacy row would violate uq_startup_events_cluster_type_startup_key.
+-- In that case, delete the legacy empty-key row (it is a duplicate).
+
+-- arch_pattern_adopted: empty-key row would collide with an existing keyed row
+DELETE FROM startup_events a
+USING startup_events b
+WHERE a.cluster_id IS NOT NULL
+  AND a.event_type = 'arch_pattern_adopted'
+  AND a.event_key = ''
+  AND NULLIF(a.metadata_json->>'pattern_name', '') IS NOT NULL
+  AND b.cluster_id = a.cluster_id
+  AND b.startup_id = a.startup_id
+  AND b.event_type = a.event_type
+  AND b.event_key = a.metadata_json->>'pattern_name';
+
+-- cap_funding_raised: empty-key row would collide with an existing keyed row
+DELETE FROM startup_events a
+USING startup_events b
+WHERE a.cluster_id IS NOT NULL
+  AND a.event_type = 'cap_funding_raised'
+  AND a.event_key = ''
+  AND NULLIF(a.metadata_json->>'round_type', '') IS NOT NULL
+  AND b.cluster_id = a.cluster_id
+  AND b.startup_id = a.startup_id
+  AND b.event_type = a.event_type
+  AND b.event_key = a.metadata_json->>'round_type';
+
+-- cap_acquisition_announced: empty-key row would collide with an existing keyed row
+DELETE FROM startup_events a
+USING startup_events b
+WHERE a.cluster_id IS NOT NULL
+  AND a.event_type = 'cap_acquisition_announced'
+  AND a.event_key = ''
+  AND NULLIF(a.metadata_json->>'acquisition_target', '') IS NOT NULL
+  AND b.cluster_id = a.cluster_id
+  AND b.startup_id = a.startup_id
+  AND b.event_type = a.event_type
+  AND b.event_key = a.metadata_json->>'acquisition_target';
+
+-- gtm_*: empty-key row would collide with an existing keyed row
+DELETE FROM startup_events a
+USING startup_events b
+WHERE a.cluster_id IS NOT NULL
+  AND a.event_type LIKE 'gtm_%'
+  AND a.event_key = ''
+  AND NULLIF(a.metadata_json->>'gtm_tag', '') IS NOT NULL
+  AND b.cluster_id = a.cluster_id
+  AND b.startup_id = a.startup_id
+  AND b.event_type = a.event_type
+  AND b.event_key = a.metadata_json->>'gtm_tag';
+
+-- prod_launched: empty-key row would collide with an existing keyed row
+DELETE FROM startup_events a
+USING startup_events b
+WHERE a.cluster_id IS NOT NULL
+  AND a.event_type = 'prod_launched'
+  AND a.event_key = ''
+  AND NULLIF(a.metadata_json->>'product_launched', '') IS NOT NULL
+  AND b.cluster_id = a.cluster_id
+  AND b.startup_id = a.startup_id
+  AND b.event_type = a.event_type
+  AND b.event_key = a.metadata_json->>'product_launched';
+
 -- arch_pattern_adopted → pattern_name
 UPDATE startup_events
 SET event_key = metadata_json->>'pattern_name'
 WHERE event_type = 'arch_pattern_adopted'
-  AND metadata_json->>'pattern_name' IS NOT NULL
+  AND NULLIF(metadata_json->>'pattern_name', '') IS NOT NULL
   AND event_key = '';
 
 -- cap_funding_raised → round_type
 UPDATE startup_events
 SET event_key = metadata_json->>'round_type'
 WHERE event_type = 'cap_funding_raised'
-  AND metadata_json->>'round_type' IS NOT NULL
+  AND NULLIF(metadata_json->>'round_type', '') IS NOT NULL
   AND event_key = '';
 
 -- cap_acquisition_announced → acquisition_target
 UPDATE startup_events
 SET event_key = metadata_json->>'acquisition_target'
 WHERE event_type = 'cap_acquisition_announced'
-  AND metadata_json->>'acquisition_target' IS NOT NULL
+  AND NULLIF(metadata_json->>'acquisition_target', '') IS NOT NULL
   AND event_key = '';
 
 -- gtm_* events → gtm_tag
 UPDATE startup_events
 SET event_key = metadata_json->>'gtm_tag'
 WHERE event_type LIKE 'gtm_%'
-  AND metadata_json->>'gtm_tag' IS NOT NULL
+  AND NULLIF(metadata_json->>'gtm_tag', '') IS NOT NULL
   AND event_key = '';
 
 -- prod_launched → product_launched
 UPDATE startup_events
 SET event_key = metadata_json->>'product_launched'
 WHERE event_type = 'prod_launched'
-  AND metadata_json->>'product_launched' IS NOT NULL
+  AND NULLIF(metadata_json->>'product_launched', '') IS NOT NULL
   AND event_key = '';
 
 -- =============================================================================
