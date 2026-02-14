@@ -202,6 +202,56 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
+  name: investor-onboarding
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: investor-onboarding
+spec:
+  schedule: "8,38 * * * *"
+  startingDeadlineSeconds: 7200
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1020
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: investor-onboarding
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - investor-onboarding
+                - "15"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/investor-onboarding.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
   name: onboarding-alerts
   namespace: default
   labels:
