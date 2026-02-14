@@ -236,9 +236,9 @@ export async function getAvailableNewsletterPeriods(region?: string): Promise<Pe
 
   async function periodHasNewsletter(dataDir: string, period: string): Promise<boolean> {
     const base = path.join(dataDir, period, 'output');
-    // Prefer comprehensive, fall back to viral (same as getNewsletterMarkdown()).
-    if (await fileExists(path.join(base, 'comprehensive_newsletter.md'))) return true;
+    // Prefer viral (deep dives), fall back to comprehensive (monthly brief) — same preference as getNewsletterMarkdown().
     if (await fileExists(path.join(base, 'viral_newsletter.md'))) return true;
+    if (await fileExists(path.join(base, 'comprehensive_newsletter.md'))) return true;
     return false;
   }
 
@@ -1313,20 +1313,17 @@ async function getStartupsForPeriodFromCsv(period: string, region?: string): Pro
  */
 export async function getNewsletterMarkdown(period: string, region?: string): Promise<string | null> {
   const dataPath = getDataPath(region);
-  const filePath = path.join(
-    dataPath,
-    period,
-    'output',
-    'comprehensive_newsletter.md'
-  );
 
+  // /library is positioned as "Deep Dives" — prefer the viral edition (lead story + spotlights)
+  // and fall back to the comprehensive monthly brief if viral isn't available.
+  const viralPath = path.join(dataPath, period, 'output', 'viral_newsletter.md');
   try {
-    return await fs.readFile(filePath, 'utf-8');
+    return await fs.readFile(viralPath, 'utf-8');
   } catch {
-    // Fall back to viral newsletter
+    // Fall back to comprehensive newsletter
     try {
-      const viralPath = path.join(dataPath, period, 'output', 'viral_newsletter.md');
-      return await fs.readFile(viralPath, 'utf-8');
+      const filePath = path.join(dataPath, period, 'output', 'comprehensive_newsletter.md');
+      return await fs.readFile(filePath, 'utf-8');
     } catch {
       return null;
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchFromAPI } from '@/lib/api/client';
+import { APIError, fetchFromAPI } from '@/lib/api/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +10,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching investor screener:', error);
-    return NextResponse.json({ investors: [], total: 0 }, { status: 500 });
+    const status = error instanceof APIError ? error.status : 500;
+    const message =
+      error instanceof APIError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Failed to fetch investor screener';
+    return NextResponse.json({ investors: [], total: 0, error: message }, { status });
   }
 }

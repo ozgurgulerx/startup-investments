@@ -1,9 +1,11 @@
 """Newsletter generator - produces viral, high-impact newsletter content."""
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
 import json
+import math
+import re
 
 
 def generate_viral_newsletter(
@@ -90,25 +92,26 @@ def generate_viral_newsletter(
         newsletter.append("")
 
     # Builder takeaways (aggregated) with visual cards
-    newsletter.append("## Builder Lessons")
-    newsletter.append("")
-    newsletter.append("> Actionable insights extracted from this week's analyses")
-    newsletter.append("")
     all_takeaways = _aggregate_takeaways(analyses)
-    for i, takeaway in enumerate(all_takeaways[:5], 1):
-        impact_badge = _format_impact_badge(takeaway.get('impact', 'medium'))
-        newsletter.append(f"### {i}. {takeaway['title']}")
+    if all_takeaways:
+        newsletter.append("## Builder Lessons")
         newsletter.append("")
-        newsletter.append(f"*Source: {takeaway['source']}* | {impact_badge}")
+        newsletter.append("> Actionable insights extracted from this week's analyses")
         newsletter.append("")
-        newsletter.append(f"> {takeaway['insight']}")
-        newsletter.append("")
-        if takeaway.get('how_to_apply'):
-            newsletter.append(f"**Apply it:** {takeaway['how_to_apply']}")
+        for i, takeaway in enumerate(all_takeaways[:5], 1):
+            impact_badge = _format_impact_badge(takeaway.get('impact', 'medium'))
+            newsletter.append(f"### {i}. {takeaway['title']}")
             newsletter.append("")
+            newsletter.append(f"*Source: {takeaway['source']}* | {impact_badge}")
+            newsletter.append("")
+            newsletter.append(f"> {takeaway['insight']}")
+            newsletter.append("")
+            if takeaway.get('how_to_apply'):
+                newsletter.append(f"**Apply it:** {takeaway['how_to_apply']}")
+                newsletter.append("")
 
-    newsletter.append("---")
-    newsletter.append("")
+        newsletter.append("---")
+        newsletter.append("")
 
     # What we're watching with visual list
     newsletter.append("## Trends to Watch")
@@ -202,6 +205,40 @@ def _rank_stories(analyses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # Unique voice content quality
         if analysis.get("unique_voice_content") and len(analysis.get("unique_voice_content", "")) > 500:
             score += 20
+
+        # Base-analysis heuristics (when viral fields are missing).
+        # This prevents "all scores == 0" and keeps lead story selection stable and sensible.
+        newsletter_potential = (analysis.get("newsletter_potential") or "").lower().strip()
+        if newsletter_potential == "high":
+            score += 12
+        elif newsletter_potential == "medium":
+            score += 6
+
+        technical_depth = (analysis.get("technical_depth") or "").lower().strip()
+        if technical_depth in ("deep", "technical", "high"):
+            score += 6
+        elif technical_depth in ("medium", "moderate"):
+            score += 3
+
+        # Prefer stories with richer story angles (already computed in base analysis).
+        angles = analysis.get("story_angles") or []
+        if isinstance(angles, list) and angles:
+            best_angle = max(
+                (a for a in angles if isinstance(a, dict)),
+                key=lambda a: a.get("uniqueness_score", 0) or 0,
+                default=None,
+            )
+            if best_angle:
+                score += int(best_angle.get("uniqueness_score", 0) or 0)
+
+        # Funding as a weak tie-breaker (log scale).
+        amount = analysis.get("funding_amount") or 0
+        try:
+            amount = float(amount)
+        except Exception:
+            amount = 0
+        if amount > 0:
+            score += min(10, int(math.log10(amount + 1)))
 
         scored.append((score, analysis))
 
@@ -337,6 +374,152 @@ def _extract_theme(analyses: List[Dict[str, Any]]) -> Dict[str, Any]:
         ]
     }
 
+def _get_story_angles(story: Dict[str, Any]) -> List[Dict[str, Any]]:
+    angles = story.get("story_angles") or []
+    if not isinstance(angles, list):
+        return []
+    return [a for a in angles if isinstance(a, dict)]
+
+
+def _pick_best_story_angle(story: Dict[str, Any], allowed_types: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+    angles = _get_story_angles(story)
+    if allowed_types:
+        allowed = set(allowed_types)
+        angles = [a for a in angles if (a.get("angle_type") or "") in allowed]
+    if not angles:
+        return None
+    return max(angles, key=lambda a: a.get("uniqueness_score", 0) or 0)
+
+
+def _truncate(text: str, max_len: int) -> str:
+    s = (text or "").strip()
+    if len(s) <= max_len:
+        return s
+    return s[: max(0, max_len - 3)].rstrip() + "..."
+
+
+def _title_from_finding(text: str, max_len: int = 72) -> str:
+    s = (text or "").strip()
+    if not s:
+        return "Insight"
+    # Prefer "Title: rest" style findings.
+    if ":" in s:
+        head = s.split(":", 1)[0].strip()
+        if head and len(head) <= max_len:
+            return head
+    # Otherwise, use a short, word-bound prefix.
+    compact = re.sub(r"\s+", " ", s)
+    compact = re.sub(r"[.?!].*$", "", compact).strip()
+    if not compact:
+        compact = s
+    return _truncate(compact, max_len)
+
+
+def _format_base_story_markdown(story: Dict[str, Any], kind: str) -> str:
+    """Best-effort renderer when viral fields are missing (base analysis only)."""
+    company = (story.get("company_name") or "Unknown").strip()
+    description = (story.get("description") or "").strip()
+    angle = _pick_best_story_angle(story)
+    build_patterns = story.get("build_patterns") or []
+    novel = story.get("novel_approaches") or []
+    findings = story.get("unique_findings") or []
+
+    parts: List[str] = []
+
+    if description:
+        parts.append(description)
+        parts.append("")
+
+    if angle and angle.get("summary"):
+        if kind == "lead":
+            parts.append("#### The Core Insight")
+            parts.append("")
+        parts.append((angle.get("summary") or "").strip())
+        parts.append("")
+
+    if kind in ("lead", "spotlight") and build_patterns:
+        patterns = []
+        for p in build_patterns:
+            if isinstance(p, dict) and p.get("name"):
+                patterns.append(p)
+        if patterns:
+            parts.append("#### Build Pattern Fingerprint")
+            parts.append("")
+            for p in patterns[:5]:
+                name = (p.get("name") or "").strip()
+                desc = (p.get("description") or "").strip()
+                if name and desc:
+                    parts.append(f"- **{name}**: {desc}")
+                elif name:
+                    parts.append(f"- **{name}**")
+            parts.append("")
+
+    if kind == "lead" and isinstance(novel, list) and novel:
+        novel_items = [n for n in novel if isinstance(n, dict) and (n.get("approach") or n.get("why_novel"))]
+        if novel_items:
+            parts.append("#### Novel Approaches")
+            parts.append("")
+            for n in novel_items[:3]:
+                approach = (n.get("approach") or "").strip()
+                why = (n.get("why_novel") or "").strip()
+                impact = (n.get("potential_impact") or "").strip()
+                line = approach or "Novel approach"
+                if why:
+                    line += f" - {why}"
+                if impact and len(line) < 220:
+                    line += f" (Impact: {impact})"
+                parts.append(f"- {line}")
+            parts.append("")
+
+    comp = story.get("competitive_analysis") or {}
+    if isinstance(comp, dict):
+        moat = (comp.get("competitive_moat") or "").strip().lower()
+        if moat and kind in ("lead", "spotlight"):
+            parts.append("#### Moat Snapshot")
+            parts.append("")
+            parts.append(f"Moat durability: **{moat.upper()}**.")
+            expl = (comp.get("moat_explanation") or "").strip()
+            if expl:
+                parts.append("")
+                parts.append(expl)
+            parts.append("")
+
+    if kind == "lead" and isinstance(findings, list) and findings:
+        bullets = [f for f in findings if isinstance(f, str) and f.strip()]
+        if bullets:
+            parts.append("#### Builder Takeaways")
+            parts.append("")
+            for b in bullets[:4]:
+                parts.append(f"- {b.strip()}")
+            parts.append("")
+
+    eng = story.get("engineering_quality") or {}
+    if kind == "lead" and isinstance(eng, dict):
+        score = eng.get("score")
+        signals = eng.get("signals") or []
+        sigs = [s for s in signals if isinstance(s, str) and s.strip()]
+        if score is not None or sigs:
+            parts.append("#### Execution Signals")
+            parts.append("")
+            if score is not None:
+                parts.append(f"Engineering quality score: **{score}/10**.")
+            for s in sigs[:3]:
+                parts.append(f"- {s.strip()}")
+            parts.append("")
+
+    if kind == "quick":
+        if not parts:
+            parts.append("Interesting AI startup worth watching.")
+            parts.append("")
+        moat = "UNKNOWN"
+        if isinstance(comp, dict):
+            cm = (comp.get("competitive_moat") or "").strip()
+            if cm:
+                moat = cm.upper()
+        parts.append(f"Moat: {moat}")
+
+    return "\n".join([p for p in parts if p is not None]).strip()
+
 
 def _get_best_headline(story: Dict[str, Any]) -> str:
     """Get the best headline for a story."""
@@ -347,6 +530,10 @@ def _get_best_headline(story: Dict[str, Any]) -> str:
         # Find highest hook_strength
         best = max(headlines, key=lambda h: h.get("hook_strength", 0), default={})
         return best.get("headline", story.get("company_name", "Unknown Company"))
+
+    angle = _pick_best_story_angle(story)
+    if angle and angle.get("headline"):
+        return angle.get("headline") or story.get("company_name", "Unknown Company")
 
     return story.get("company_name", "Unknown Company")
 
@@ -442,7 +629,10 @@ def _format_lead_story(story: Dict[str, Any]) -> str:
             parts.append(f"- {win}")
         parts.append("")
 
-    return "\n".join(parts)
+    rendered = "\n".join(parts).strip()
+    if not rendered:
+        return _format_base_story_markdown(story, kind="lead")
+    return rendered
 
 
 def _format_spotlight_story(story: Dict[str, Any]) -> str:
@@ -487,7 +677,10 @@ def _format_spotlight_story(story: Dict[str, Any]) -> str:
         parts.append("**Builder Insight:**")
         parts.append(f"- *{title}* — {insight}")
 
-    return "\n".join(parts)
+    rendered = "\n".join(parts).strip()
+    if not rendered:
+        return _format_base_story_markdown(story, kind="spotlight")
+    return rendered
 
 
 def _format_quick_take(story: Dict[str, Any]) -> str:
@@ -495,8 +688,13 @@ def _format_quick_take(story: Dict[str, Any]) -> str:
     company = story.get("company_name", "Unknown")
     contrarian = story.get("contrarian_analysis", {})
 
-    take = contrarian.get("honest_take", "Interesting AI startup worth watching.")
+    take = contrarian.get("honest_take")
     moat = contrarian.get("moat_reality", {}).get("moat_durability", "unknown")
+    if not take:
+        # Base-analysis fallback: story angles + build patterns + competitive moat.
+        body = _format_base_story_markdown(story, kind="quick")
+        return "\n".join([f"#### {company}", "", body]).strip()
+    take = take.strip()
 
     # Format moat durability with visual indicator
     moat_upper = moat.upper()
@@ -526,15 +724,48 @@ def _aggregate_takeaways(analyses: List[Dict[str, Any]]) -> List[Dict[str, Any]]
         company = analysis.get("company_name", "Unknown")
         takeaways = analysis.get("builder_takeaways", {}).get("takeaways", [])
 
-        for t in takeaways:
-            all_takeaways.append({
-                "source": company,
-                "title": t.get("title", ""),
-                "insight": t.get("insight", ""),
-                "how_to_apply": t.get("how_to_apply", ""),
-                "impact": t.get("impact", "medium"),
-                "difficulty": t.get("difficulty", "medium"),
-            })
+        if takeaways:
+            for t in takeaways:
+                all_takeaways.append({
+                    "source": company,
+                    "title": t.get("title", ""),
+                    "insight": t.get("insight", ""),
+                    "how_to_apply": t.get("how_to_apply", ""),
+                    "impact": t.get("impact", "medium"),
+                    "difficulty": t.get("difficulty", "medium"),
+                })
+            continue
+
+        # Base-analysis fallback: use unique findings / novel approaches.
+        findings = analysis.get("unique_findings") or []
+        if isinstance(findings, list):
+            finding = next((f for f in findings if isinstance(f, str) and f.strip()), "")
+            if finding:
+                all_takeaways.append({
+                    "source": company,
+                    "title": _title_from_finding(finding),
+                    "insight": finding.strip(),
+                    "how_to_apply": "",
+                    "impact": "medium",
+                    "difficulty": "medium",
+                })
+                continue
+
+        novel = analysis.get("novel_approaches") or []
+        if isinstance(novel, list):
+            item = next((n for n in novel if isinstance(n, dict) and (n.get("approach") or n.get("why_novel"))), None)
+            if item:
+                approach = (item.get("approach") or "Novel approach").strip()
+                why = (item.get("why_novel") or "").strip()
+                insight = approach + (f" - {why}" if why else "")
+                all_takeaways.append({
+                    "source": company,
+                    "title": _truncate(approach, 64),
+                    "insight": insight,
+                    "how_to_apply": "",
+                    "impact": "medium",
+                    "difficulty": "medium",
+                })
 
     # Sort by impact (high first) then difficulty (easy first)
     impact_order = {"high": 0, "medium": 1, "low": 2}
