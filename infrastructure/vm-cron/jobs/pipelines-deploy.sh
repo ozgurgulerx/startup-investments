@@ -145,7 +145,7 @@ fi
 # --- Step 3: Ensure AKS is running ---
 echo ""
 echo "[3/5] Checking AKS state..."
-AKS_STATE="$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query \"powerState.code\" -o tsv 2>/dev/null || echo \"UNKNOWN\")"
+AKS_STATE="$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query powerState.code -o tsv 2>/dev/null || echo UNKNOWN)"
 echo "  AKS power state: $AKS_STATE"
 
 if [ "$AKS_STATE" = "Stopped" ]; then
@@ -154,7 +154,7 @@ if [ "$AKS_STATE" = "Stopped" ]; then
 fi
 
 for i in $(seq 1 60); do
-    AKS_STATE="$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query \"powerState.code\" -o tsv 2>/dev/null || echo \"UNKNOWN\")"
+    AKS_STATE="$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query powerState.code -o tsv 2>/dev/null || echo UNKNOWN)"
     if [ "$AKS_STATE" = "Running" ]; then
         echo "  AKS is Running."
         break
