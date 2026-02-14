@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
 
 from .db import DatabaseConnection
+from .json_utils import ensure_json_object
 from .onboarding_trace import guidance_for_reason
 
 logger = logging.getLogger(__name__)
@@ -102,7 +103,8 @@ def _build_body(event: Dict[str, Any], context_url: str) -> str:
     stage = str(event.get("stage") or "unknown")
     reason_code = str(event.get("reason_code") or "")
     message = str(event.get("message") or "").strip()
-    region = str(event.get("startup_region") or (event.get("payload_json") or {}).get("region") or "global")
+    payload = ensure_json_object(event.get("payload_json"))
+    region = str(event.get("startup_region") or payload.get("region") or "global")
     guidance = guidance_for_reason(reason_code) if reason_code else "Review trace payload for details."
 
     entity_label = "Investor" if investor_id else "Startup"

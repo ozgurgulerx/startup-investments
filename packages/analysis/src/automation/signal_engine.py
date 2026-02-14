@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
+from src.automation.json_utils import ensure_json_object
+
 if TYPE_CHECKING:
     import asyncpg
 
@@ -294,7 +296,7 @@ class SignalEngine:
 
         for row in rows:
             event_type = row["event_type"]
-            metadata = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
+            metadata = ensure_json_object(row["metadata_json"])
             domain = row["domain"]
 
             # Determine sub-group discriminator — prefer event_key (set at
@@ -651,7 +653,7 @@ class SignalEngine:
             has_enterprise = False
             has_hyperscaler = False
             for fr in funding_rows:
-                meta = json.loads(fr["metadata_json"]) if fr["metadata_json"] else {}
+                meta = ensure_json_object(fr["metadata_json"])
                 amt = self._parse_funding_amount(meta.get("funding_amount", ""))
                 if amt:
                     sid = fr["startup_id"] or "unknown"
@@ -704,7 +706,7 @@ class SignalEngine:
             raw_momentum = compute_momentum(recent_count, prev_count)
 
             # Load prev_momentum from metadata for EMA
-            metadata = json.loads(sig["metadata_json"]) if sig["metadata_json"] else {}
+            metadata = ensure_json_object(sig["metadata_json"])
             old_momentum = metadata.get("prev_momentum")
             old_conviction = metadata.get("prev_conviction")
 
@@ -766,18 +768,18 @@ class SignalEngine:
 
         transitions = 0
         for sig in signals:
+            metadata = ensure_json_object(sig["metadata_json"])
             old_status = sig["status"]
             new_status = self._compute_new_status(
                 current=old_status,
                 unique_companies=sig["unique_company_count"],
                 momentum=float(sig["momentum"]),
                 velocity=float(sig["adoption_velocity"]),
-                metadata=json.loads(sig["metadata_json"]) if sig["metadata_json"] else {},
+                metadata=metadata,
             )
 
             if new_status != old_status:
                 # Record transition in metadata
-                metadata = json.loads(sig["metadata_json"]) if sig["metadata_json"] else {}
                 lifecycle_history = metadata.get("lifecycle_transitions", [])
                 lifecycle_history.append({
                     "from": old_status,
@@ -943,7 +945,7 @@ class SignalEngine:
                 "SELECT metadata_json FROM signals WHERE id = $1::uuid",
                 signal_id,
             )
-            metadata = json.loads(meta_row["metadata_json"]) if meta_row and meta_row["metadata_json"] else {}
+            metadata = ensure_json_object(meta_row["metadata_json"] if meta_row else None)
             metadata["stage_context"] = stage_context
 
             await conn.execute(
@@ -1033,7 +1035,7 @@ class SignalEngine:
             momentum = float(sig["momentum"] or 0)
 
             # Check if we can skip (version current + not stale)
-            metadata = json.loads(sig["metadata_json"]) if sig["metadata_json"] else {}
+            metadata = ensure_json_object(sig["metadata_json"])
             existing_version = 0
             if metadata.get("explain_json"):
                 existing_version = metadata["explain_json"].get("explain_version", 1)

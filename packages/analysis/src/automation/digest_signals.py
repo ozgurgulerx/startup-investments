@@ -6,11 +6,12 @@ and optionally generates an LLM narrative connecting stories to trends.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+
+from src.automation.json_utils import ensure_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ def _extract_lifecycle_transition(
     """Extract the most recent lifecycle transition from metadata_json if within cutoff."""
     if not metadata_json:
         return None, None
-    meta = metadata_json if isinstance(metadata_json, dict) else json.loads(metadata_json)
+    meta = ensure_json_object(metadata_json)
     transitions = meta.get("lifecycle_transitions", [])
     if not transitions:
         return None, None

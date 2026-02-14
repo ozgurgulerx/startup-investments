@@ -9,7 +9,7 @@ Goals:
 - Make recovery/debug of "site is slow/down" deterministic.
 - Avoid accidental changes that break deploys, auth, or data pipelines.
 
-Last verified: 2026-02-13
+Last verified: 2026-02-14
 
 ## Documentation Source of Truth
 
@@ -74,6 +74,8 @@ Important headers/invariants:
   - When API is down, web falls back to file reads; this is a degradation mode.
 - Keep `packages/analysis/src/automation/__init__.py` import-light (no eager imports of optional heavy deps like `openai`).
   - Cron jobs import `src.automation.*` submodules; an import-time crash here can take down unrelated jobs (e.g. `event-processor`).
+- When reading DB `*_json` columns in `packages/analysis` automation, tolerate both dict and JSON-string values:
+  - Use `packages/analysis/src/automation/json_utils.py` `ensure_json_object(...)` (prevents cron crashes like `onboarding-alerts`).
 - News email subscriptions are **double opt-in**:
   - New signups are stored as `pending_confirmation` and must be activated via the emailed confirmation link.
   - Unsubscribe is token-based (`GET /api/news/subscriptions?token=...`); do not add raw email-based unsubscribe endpoints.

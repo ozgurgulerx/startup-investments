@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 import httpx
 
+from src.automation.json_utils import ensure_json_object
 from src.config import settings
 
 logger = logging.getLogger(__name__)
@@ -271,8 +272,8 @@ async def compute_github_deltas(
     if len(rows) < 2:
         return None
 
-    current = rows[0]["metadata_json"] if isinstance(rows[0]["metadata_json"], dict) else json.loads(rows[0]["metadata_json"])
-    previous = rows[1]["metadata_json"] if isinstance(rows[1]["metadata_json"], dict) else json.loads(rows[1]["metadata_json"])
+    current = ensure_json_object(rows[0]["metadata_json"])
+    previous = ensure_json_object(rows[1]["metadata_json"])
 
     deltas = {
         "stars_delta": current.get("total_stars", 0) - previous.get("total_stars", 0),
