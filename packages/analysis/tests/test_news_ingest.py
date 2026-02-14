@@ -101,7 +101,7 @@ def test_semianalysis_source_in_default_sources():
     assert src.source_type == "rss"
     assert src.base_url == "https://semianalysis.com/feed/"
     assert src.language == "en"
-    assert src.lookback_hours_override == 168
+    assert src.lookback_hours_override == 8760
 
 
 def test_turkey_relevance_excludes_domain_purchase_false_ai_positive():
