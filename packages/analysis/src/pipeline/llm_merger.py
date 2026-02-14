@@ -204,6 +204,7 @@ RELEVANT NEW DATA:
 - Industries: {new_analysis.get('industries', [])}
 - Lead Investors: {startup_input.lead_investors}
 - Sub-vertical: {new_analysis.get('sub_vertical', 'unchanged')}
+- Sub-sub-vertical: {new_analysis.get('sub_sub_vertical', 'unchanged')}
 
 INSTRUCTIONS:
 1. Make MINIMAL changes - only update affected sections

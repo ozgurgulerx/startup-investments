@@ -315,7 +315,7 @@ with open(csv_path, 'r', encoding='utf-8') as f:
 # Analysis columns
 analysis_cols = [
     'analysis_uses_genai', 'analysis_genai_intensity', 'analysis_models_mentioned',
-    'analysis_build_patterns', 'analysis_market_type', 'analysis_sub_vertical',
+    'analysis_build_patterns', 'analysis_market_type', 'analysis_vertical', 'analysis_sub_vertical',
     'analysis_target_market', 'analysis_newsletter_potential', 'analysis_technical_depth',
     'analysis_confidence_score', 'analysis_competitors', 'analysis_competitive_moat'
 ]
@@ -348,6 +348,7 @@ for row in rows:
         row['analysis_models_mentioned'] = '; '.join(analysis.get('models_mentioned', []))
         row['analysis_build_patterns'] = '; '.join(pattern_names)
         row['analysis_market_type'] = analysis.get('market_type', '')
+        row['analysis_vertical'] = analysis.get('vertical', '')
         row['analysis_sub_vertical'] = analysis.get('sub_vertical', '')
         row['analysis_target_market'] = analysis.get('target_market', '')
         row['analysis_newsletter_potential'] = analysis.get('newsletter_potential', '')

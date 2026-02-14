@@ -211,9 +211,11 @@ def populate_from_csv(conn, period: str, *, region: str):
                     'description': row.get('Organization Description'),
                     'website': row.get('Organization Website'),
                     'location': row.get('Organization Location'),
-                    'uses_genai': row.get('analysis_uses_genai', '').lower() == 'true',
+                    # Some pipelines write "Yes/No" while others write "true/false".
+                    'uses_genai': row.get('analysis_uses_genai', '').strip().lower() in ('true', 'yes', '1'),
                     'genai_intensity': row.get('analysis_genai_intensity'),
                     'market_type': row.get('analysis_market_type'),
+                    'vertical': row.get('analysis_vertical'),
                     'sub_vertical': row.get('analysis_sub_vertical'),
                     'target_market': row.get('analysis_target_market'),
                     'newsletter_potential': row.get('analysis_newsletter_potential'),

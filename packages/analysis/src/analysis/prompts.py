@@ -400,6 +400,7 @@ Provide classification in JSON format:
 {{
     "market_type": "horizontal" | "vertical",
     "sub_vertical": "specific industry if vertical (e.g., LegalTech, HealthTech, FinTech)",
+    "sub_sub_vertical": "more specific niche (e.g., 'clinical decision support' within HealthTech)",
     "target_market": "b2b" | "b2c" | "b2b2c",
     "positioning": "brief description of market position",
     "competitive_landscape": "who are they competing with",
@@ -616,6 +617,7 @@ Provide your analysis in JSON format:
     "vertical": "one of the verticals above",
     "confidence": 0.0-1.0,
     "sub_vertical": "more specific category (e.g., 'clinical decision support' for healthcare)",
+    "sub_sub_vertical": "more specific niche (e.g., 'radiology imaging triage')",
     "vertical_specific_insights": [
         "How their AI approach fits this vertical's needs",
         "Vertical-specific technical considerations"

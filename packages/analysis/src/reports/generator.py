@@ -491,6 +491,7 @@ def generate_startup_brief(
 |:---------------|:--|
 | **Market Type** | `{analysis.market_type.value.title()}` |
 | **Sub-vertical** | {analysis.sub_vertical or 'N/A'} |
+| **Sub-sub-vertical** | {analysis.sub_sub_vertical or 'N/A'} |
 | **Target** | `{analysis.target_market.value.upper()}` |
 
 ---
@@ -642,6 +643,7 @@ def get_analysis_csv_columns() -> List[str]:
         "analysis_models_mentioned",
         "analysis_build_patterns",
         "analysis_market_type",
+        "analysis_vertical",
         "analysis_sub_vertical",
         "analysis_target_market",
         "analysis_unique_findings",
@@ -679,6 +681,7 @@ def analysis_to_csv_row(analysis: StartupAnalysis) -> Dict[str, Any]:
         "analysis_models_mentioned": "; ".join(analysis.models_mentioned) if analysis.models_mentioned else "",
         "analysis_build_patterns": "; ".join([p.name for p in analysis.build_patterns]) if analysis.build_patterns else "",
         "analysis_market_type": analysis.market_type.value,
+        "analysis_vertical": analysis.vertical.value if analysis.vertical else "",
         "analysis_sub_vertical": analysis.sub_vertical or "",
         "analysis_target_market": analysis.target_market.value,
         "analysis_unique_findings": " | ".join(analysis.unique_findings[:3]) if analysis.unique_findings else "",
