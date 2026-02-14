@@ -93,40 +93,53 @@ WHERE a.cluster_id IS NOT NULL
   AND b.event_type = a.event_type
   AND b.event_key = a.metadata_json->>'product_launched';
 
--- arch_pattern_adopted → pattern_name
-UPDATE startup_events
-SET event_key = metadata_json->>'pattern_name'
-WHERE event_type = 'arch_pattern_adopted'
-  AND NULLIF(metadata_json->>'pattern_name', '') IS NOT NULL
-  AND event_key = '';
+DO $$
+BEGIN
+    -- IMPORTANT: this repo's migration runner re-applies migrations on every pipeline run.
+    -- Once uq_startup_events_cluster_type_startup_key exists, other jobs can be inserting
+    -- keyed rows concurrently (news-ingest, event-processor, etc). Backfilling event_key
+    -- during a re-apply can intermittently hit unique violations and fail CronJobs.
+    --
+    -- The backfill is only needed on first apply, so skip it once the new index exists.
+    IF to_regclass('public.uq_startup_events_cluster_type_startup_key') IS NOT NULL THEN
+        RETURN;
+    END IF;
 
--- cap_funding_raised → round_type
-UPDATE startup_events
-SET event_key = metadata_json->>'round_type'
-WHERE event_type = 'cap_funding_raised'
-  AND NULLIF(metadata_json->>'round_type', '') IS NOT NULL
-  AND event_key = '';
+    -- arch_pattern_adopted → pattern_name
+    UPDATE startup_events
+    SET event_key = metadata_json->>'pattern_name'
+    WHERE event_type = 'arch_pattern_adopted'
+      AND NULLIF(metadata_json->>'pattern_name', '') IS NOT NULL
+      AND event_key = '';
 
--- cap_acquisition_announced → acquisition_target
-UPDATE startup_events
-SET event_key = metadata_json->>'acquisition_target'
-WHERE event_type = 'cap_acquisition_announced'
-  AND NULLIF(metadata_json->>'acquisition_target', '') IS NOT NULL
-  AND event_key = '';
+    -- cap_funding_raised → round_type
+    UPDATE startup_events
+    SET event_key = metadata_json->>'round_type'
+    WHERE event_type = 'cap_funding_raised'
+      AND NULLIF(metadata_json->>'round_type', '') IS NOT NULL
+      AND event_key = '';
 
--- gtm_* events → gtm_tag
-UPDATE startup_events
-SET event_key = metadata_json->>'gtm_tag'
-WHERE event_type LIKE 'gtm_%'
-  AND NULLIF(metadata_json->>'gtm_tag', '') IS NOT NULL
-  AND event_key = '';
+    -- cap_acquisition_announced → acquisition_target
+    UPDATE startup_events
+    SET event_key = metadata_json->>'acquisition_target'
+    WHERE event_type = 'cap_acquisition_announced'
+      AND NULLIF(metadata_json->>'acquisition_target', '') IS NOT NULL
+      AND event_key = '';
 
--- prod_launched → product_launched
-UPDATE startup_events
-SET event_key = metadata_json->>'product_launched'
-WHERE event_type = 'prod_launched'
-  AND NULLIF(metadata_json->>'product_launched', '') IS NOT NULL
-  AND event_key = '';
+    -- gtm_* events → gtm_tag
+    UPDATE startup_events
+    SET event_key = metadata_json->>'gtm_tag'
+    WHERE event_type LIKE 'gtm_%'
+      AND NULLIF(metadata_json->>'gtm_tag', '') IS NOT NULL
+      AND event_key = '';
+
+    -- prod_launched → product_launched
+    UPDATE startup_events
+    SET event_key = metadata_json->>'product_launched'
+    WHERE event_type = 'prod_launched'
+      AND NULLIF(metadata_json->>'product_launched', '') IS NOT NULL
+      AND event_key = '';
+END $$;
 
 -- =============================================================================
 -- 3. Backfill any NULL detected_at (safety net)
