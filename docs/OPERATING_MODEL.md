@@ -260,7 +260,8 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `heartbeat` | `*/5 * * * *` | N/A (direct) | `infrastructure/vm-cron/monitoring/heartbeat.sh` |
 
 Notes:
-- `onboarding-eod-report` posts to Slack and can also email the same report (best-effort) when `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO` are configured on the VM.
+- `onboarding-eod-report` is deployed as an **AKS CronJob** (pipelines) and is disabled on the VM by default via `infrastructure/vm-cron/vm-cron-disabled-jobs` to avoid duplicate runs.
+- It can also email the same report (best-effort) when `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO` are configured (AKS pipelines secret or VM env if re-enabled).
 
 ### Triggered (not scheduled) jobs
 

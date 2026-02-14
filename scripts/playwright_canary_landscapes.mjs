@@ -109,22 +109,10 @@ async function gotoLandscapesWithRetry(page) {
   const maxAttempts = clampInt(env('GOTO_MAX_ATTEMPTS', '3'), 3, 1, 5);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const waitForLandscapesApi = page
-      .waitForResponse((res) => {
-        const u = safeUrl(res.url());
-        if (!u) return false;
-        return u.origin === BASE_URL && u.pathname === '/api/landscapes';
-      }, { timeout: TIMEOUT_MS })
-      .catch(() => null);
-
     try {
       console.log(`[canary] goto ${TARGET_URL} (attempt ${attempt}/${maxAttempts})`);
       await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
-      const landscapesRes = await waitForLandscapesApi;
-      if (landscapesRes) return landscapesRes;
-      if (attempt === maxAttempts) return null;
-      console.warn(`[canary] retrying goto: no /api/landscapes response`);
-      await page.waitForTimeout(500 * attempt);
+      return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!isRetryableGotoError(msg) || attempt === maxAttempts) {
@@ -134,8 +122,81 @@ async function gotoLandscapesWithRetry(page) {
       await page.waitForTimeout(500 * attempt);
     }
   }
+}
 
-  return null;
+async function waitForUiLoadedOrError(page) {
+  const start = Date.now();
+
+  const crashOverlay = page.getByText(/Application error: a client-side exception has occurred/i);
+  const headerError = page.locator('.briefing-header p.text-destructive').first();
+  const loadedText = page.getByText(/patterns across/i);
+
+  while (Date.now() - start < TIMEOUT_MS) {
+    if (await crashOverlay.isVisible().catch(() => false)) {
+      return { state: 'crash' };
+    }
+    if (await headerError.isVisible().catch(() => false)) {
+      const text = ((await headerError.textContent().catch(() => '')) || '').trim();
+      return { state: 'error', errorText: text };
+    }
+    if (await loadedText.isVisible().catch(() => false)) {
+      return { state: 'loaded' };
+    }
+    await page.waitForTimeout(250);
+  }
+
+  return { state: 'timeout' };
+}
+
+async function directFetchLandscapes() {
+  const url = `${BASE_URL}/api/landscapes?size_by=funding`;
+  const timeoutMs = Math.min(20000, TIMEOUT_MS);
+
+  const controller = new AbortController();
+  const started = Date.now();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+
+    const elapsedMs = Date.now() - started;
+    let body = '';
+    let json = null;
+    let isArray = false;
+
+    if (res.ok) {
+      json = await res.json().catch(() => null);
+      isArray = Array.isArray(json);
+    } else {
+      body = truncate(await res.text().catch(() => ''), 800);
+    }
+
+    return {
+      url,
+      status: res.status,
+      ok: res.ok,
+      elapsed_ms: elapsedMs,
+      is_array: isArray,
+      body,
+    };
+  } catch (err) {
+    const elapsedMs = Date.now() - started;
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      url,
+      status: 0,
+      ok: false,
+      elapsed_ms: elapsedMs,
+      is_array: false,
+      error: truncate(msg, 400),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function run() {
@@ -157,6 +218,8 @@ async function run() {
     landscapes: null,
     landscapesClusterRequest: null,
     landscapesCluster: null,
+    uiState: null,
+    directFetch: null,
     requestFailures,
     pageErrors,
     consoleErrors,
@@ -216,35 +279,49 @@ async function run() {
   });
 
   try {
-    const landscapesRes = await gotoLandscapesWithRetry(page);
+    await gotoLandscapesWithRetry(page);
 
     const heading = page.getByRole('heading', { name: /pattern landscape map/i });
     await heading.waitFor({ timeout: TIMEOUT_MS });
-
-    if (!landscapesRes) {
-      throw new Error('Timed out waiting for /api/landscapes response');
-    }
-    debug.landscapes = debug.landscapes || {
-      url: landscapesRes.url(),
-      status: landscapesRes.status(),
-      ok: landscapesRes.ok(),
-      body: '',
-    };
-    if (!landscapesRes.ok()) {
-      const body = truncate(await landscapesRes.text().catch(() => ''), 800);
-      throw new Error(`/api/landscapes HTTP ${landscapesRes.status()}${body ? `: ${body}` : ''}`);
-    }
-
-    // Proves the data fetch completed (not just static HTML).
-    await page.getByText(/patterns across/i).waitFor({ timeout: TIMEOUT_MS });
 
     const crashOverlay = page.getByText(/Application error: a client-side exception has occurred/i);
     if (await crashOverlay.isVisible().catch(() => false)) {
       throw new Error('Detected Next.js client error overlay on /landscapes');
     }
 
+    const uiState = await waitForUiLoadedOrError(page);
+    debug.uiState = uiState;
+    if (uiState.state === 'crash') {
+      throw new Error('Detected Next.js client error overlay on /landscapes');
+    }
+    if (uiState.state === 'error') {
+      throw new Error(`Landscapes UI error: ${uiState.errorText || 'unknown'}`);
+    }
+    if (uiState.state !== 'loaded') {
+      throw new Error('Timed out waiting for landscapes UI to load');
+    }
+
     if (pageErrors.length) {
       throw new Error(`pageerror: ${pageErrors[0]?.message || String(pageErrors[0])}`);
+    }
+
+    const direct = await directFetchLandscapes();
+    debug.directFetch = direct;
+    if (!direct.ok) {
+      const suffix = direct.status ? ` (HTTP ${direct.status})` : '';
+      const errText = direct.error ? `: ${direct.error}` : '';
+      throw new Error(`Direct fetch /api/landscapes failed${suffix}${errText}`);
+    }
+    if (!direct.is_array) {
+      throw new Error('Direct fetch /api/landscapes returned non-array JSON');
+    }
+
+    // If the browser observed a non-2xx response, treat it as a failure.
+    if (debug.landscapes && !debug.landscapes.ok) {
+      throw new Error(`/api/landscapes HTTP ${debug.landscapes.status}${debug.landscapes.body ? `: ${debug.landscapes.body}` : ''}`);
+    }
+    if (!debug.landscapesRequest || !debug.landscapes) {
+      console.warn('[canary] WARN: did not observe /api/landscapes browser response event (UI loaded + direct fetch OK)');
     }
 
     // Best-effort click a visible label to ensure the detail panel can render.
@@ -295,6 +372,19 @@ async function main() {
       `*Target:* ${TARGET_URL}`,
       `*Error:* ${truncate(msg, 600)}`,
     ];
+    if (debug?.uiState) {
+      if (debug.uiState.state === 'loaded') bodyLines.push('*UI:* loaded');
+      else if (debug.uiState.state === 'error') bodyLines.push(`*UI error:* ${truncate(debug.uiState.errorText || '', 600)}`);
+      else bodyLines.push(`*UI:* ${debug.uiState.state}`);
+    }
+    if (debug?.directFetch) {
+      const d = debug.directFetch;
+      const base = `*Direct fetch:* \`/api/landscapes\` ${d.ok ? 'OK' : 'FAIL'}${d.status ? ` HTTP ${d.status}` : ''} in ${d.elapsed_ms}ms`;
+      bodyLines.push(base);
+      if (!d.ok && d.body) bodyLines.push(`*Direct body:* ${truncate(d.body, 600)}`);
+      if (!d.ok && d.error) bodyLines.push(`*Direct error:* ${truncate(d.error, 600)}`);
+      if (d.ok && d.is_array === false) bodyLines.push('*Direct parse:* non-array JSON');
+    }
     if (debug?.landscapesRequest) {
       bodyLines.push(`*API request:* ${debug.landscapesRequest.method} ${debug.landscapesRequest.url}`);
     }
@@ -317,6 +407,8 @@ async function main() {
     // Also print a compact debug snapshot to logs for post-mortems (Slack might be unreachable).
     try {
       const dbg = debug && typeof debug === 'object' ? {
+        uiState: debug.uiState || null,
+        directFetch: debug.directFetch || null,
         landscapesRequest: debug.landscapesRequest || null,
         landscapes: debug.landscapes || null,
         requestFailures: Array.isArray(debug.requestFailures) ? debug.requestFailures.slice(0, 3) : [],
