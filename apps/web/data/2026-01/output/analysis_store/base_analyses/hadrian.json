@@ -47,8 +47,8 @@
     ]
   },
   "unique_findings": [
-    "The repeated display of synchronized, real-time clocks for multiple US time zones (CA, AZ, DC) suggests a dynamic, possibly server-driven or edge-deployed component that updates frequently\u2014this is not typical for most SaaS or AI newsletter sites, which rarely surface real-time operational context.",
-    "Frequent fallback to '\u2014:\u2014PM' placeholders indicates robust error handling or a failover mechanism for time data, hinting at a system designed to gracefully degrade when upstream services or APIs are unavailable.",
+    "The repeated display of synchronized, real-time clocks for multiple US time zones (CA, AZ, DC) suggests a dynamic, possibly server-driven or edge-deployed component that updates frequently—this is not typical for most SaaS or AI newsletter sites, which rarely surface real-time operational context.",
+    "Frequent fallback to '—:—PM' placeholders indicates robust error handling or a failover mechanism for time data, hinting at a system designed to gracefully degrade when upstream services or APIs are unavailable.",
     "The presence of a 403 Forbidden error interleaved with otherwise normal content suggests the use of aggressive access controls or rate-limiting, possibly to protect sensitive backend services or to prevent scraping, which is more sophisticated than most newsletter implementations.",
     "The technical implementation appears to be highly modular and possibly stateless, given the repetition and fallback patterns, which could point to a serverless or microservices-based architecture."
   ],
@@ -57,7 +57,7 @@
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "Guardrail-as-LLM: Hadrian\u2019s Unconventional Approach to Industrial AI Safety",
+      "headline": "Guardrail-as-LLM: Hadrian’s Unconventional Approach to Industrial AI Safety",
       "summary": "Hadrian appears to be experimenting with a 'Guardrail-as-LLM' build pattern, suggesting a unique architectural focus on safety and reliability in industrial AI deployments. This could signal a shift away from generic LLM stacks toward purpose-built guardrails for mission-critical environments.",
       "evidence": [
         "Build Patterns Detected: Guardrail-as-LLM",
@@ -68,7 +68,7 @@
     {
       "angle_type": "contrarian",
       "headline": "Why Hadrian Is Betting on Custom Guardrails Instead of Off-the-Shelf LLMs",
-      "summary": "While most AI startups chase the latest foundation models, Hadrian\u2019s approach seems to prioritize custom guardrails over traditional LLM integration. This contrarian bet could address unique industrial reliability and compliance needs, but raises questions about engineering quality and scalability.",
+      "summary": "While most AI startups chase the latest foundation models, Hadrian’s approach seems to prioritize custom guardrails over traditional LLM integration. This contrarian bet could address unique industrial reliability and compliance needs, but raises questions about engineering quality and scalability.",
       "evidence": [
         "Tech Stack: LLMs: [] (no mainstream LLMs detected)",
         "Engineering Quality: Score: 2/10"
@@ -77,7 +77,7 @@
     },
     {
       "angle_type": "vertical_expert",
-      "headline": "Deep Industrial Know-How: Hadrian\u2019s AI Tackles Manufacturing\u2019s Toughest Problems",
+      "headline": "Deep Industrial Know-How: Hadrian’s AI Tackles Manufacturing’s Toughest Problems",
       "summary": "With a clear focus on the industrial vertical, Hadrian is leveraging domain expertise to build AI solutions tailored for manufacturing and automation. Their deep understanding of sector-specific challenges may be their edge, even as technical execution lags.",
       "evidence": [
         "Vertical: industrial",
@@ -87,8 +87,8 @@
     },
     {
       "angle_type": "efficiency",
-      "headline": "Can Hadrian\u2019s Guardrails Deliver 10x Reliability for Industrial AI?",
-      "summary": "Hadrian\u2019s architectural emphasis on guardrails could enable dramatically improved reliability and safety in industrial automation, potentially outperforming generic AI solutions. However, the low engineering quality score suggests the promise is still unproven.",
+      "headline": "Can Hadrian’s Guardrails Deliver 10x Reliability for Industrial AI?",
+      "summary": "Hadrian’s architectural emphasis on guardrails could enable dramatically improved reliability and safety in industrial automation, potentially outperforming generic AI solutions. However, the low engineering quality score suggests the promise is still unproven.",
       "evidence": [
         "Build Patterns Detected: Guardrail-as-LLM",
         "Engineering Quality: Score: 2/10"
@@ -180,5 +180,29 @@
   "evidence_quotes": [],
   "analyzed_at": "2026-01-22 22:22:16.498440+00:00",
   "confidence_score": 1.0,
-  "raw_content_analyzed": 4264
+  "raw_content_analyzed": 4264,
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "industrial_manufacturing",
+      "vertical_label": "Industrial & Manufacturing",
+      "sub_vertical_id": "robotics_automation",
+      "sub_vertical_label": "Robotics & Automation",
+      "leaf_id": "robotics_automation",
+      "leaf_label": "Robotics & Automation"
+    },
+    "path": [
+      {
+        "id": "industrial_manufacturing",
+        "label": "Industrial & Manufacturing",
+        "confidence": 0.95
+      },
+      {
+        "id": "robotics_automation",
+        "label": "Robotics & Automation",
+        "confidence": 0.95
+      }
+    ]
+  }
 }

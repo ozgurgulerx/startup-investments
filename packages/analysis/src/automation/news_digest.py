@@ -58,7 +58,7 @@ class DailyNewsDigestSender:
             await self.pool.close()
             self.pool = None
 
-    async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str]) -> date:
+    async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str], *, region: str) -> date:
         if edition_date:
             # asyncpg expects Python date objects for DATE parameters.
             return datetime.strptime(edition_date, "%Y-%m-%d").date()
@@ -66,10 +66,12 @@ class DailyNewsDigestSender:
             """
             SELECT edition_date
             FROM news_daily_editions
-            WHERE status = 'ready'
+            WHERE status = 'ready' AND region = $1
             ORDER BY edition_date DESC
             LIMIT 1
             """
+            ,
+            region,
         )
         if not row:
             raise RuntimeError("No ready news edition found")
@@ -78,14 +80,14 @@ class DailyNewsDigestSender:
             return value
         return datetime.strptime(str(value), "%Y-%m-%d").date()
 
-    async def _load_stories(self, conn: asyncpg.Connection, edition_date: date) -> List[DigestStory]:
+    async def _load_stories(self, conn: asyncpg.Connection, edition_date: date, *, region: str) -> List[DigestStory]:
         rows = await conn.fetch(
             """
             WITH ordered AS (
               SELECT u.cluster_id, u.ord
               FROM news_daily_editions e,
               unnest(e.top_cluster_ids) WITH ORDINALITY AS u(cluster_id, ord)
-              WHERE e.edition_date = $1::date
+              WHERE e.edition_date = $1::date AND e.region = $2
             )
             SELECT
               c.title,
@@ -100,9 +102,10 @@ class DailyNewsDigestSender:
             LEFT JOIN news_sources ns ON ns.id = nir.source_id
             GROUP BY c.id, o.ord
             ORDER BY o.ord ASC
-            LIMIT $2
+            LIMIT $3
             """,
             edition_date,
+            region,
             self.max_items,
         )
 
@@ -138,12 +141,12 @@ class DailyNewsDigestSender:
             for row in rows
         ]
 
-    def _build_email_html(self, *, edition_date: str, stories: List[DigestStory], unsubscribe_url: str) -> str:
+    def _build_email_html(self, *, edition_date: str, stories: List[DigestStory], unsubscribe_url: str, newsroom_url: str) -> str:
         story_blocks = []
         for idx, story in enumerate(stories, start=1):
             summary = story.summary or "Signal captured in today's startup radar."
             takeaway = story.builder_takeaway or "Validate the signal with customer evidence before acting."
-            url = story.url or f"{self.public_base_url}/news/{edition_date}"
+            url = story.url or newsroom_url
             story_blocks.append(
                 f"""
                 <tr>
@@ -177,7 +180,7 @@ class DailyNewsDigestSender:
                     {stories_html}
                     <tr>
                       <td style="padding-top:16px;font-size:13px;color:#6b7280;">
-                        Open full newsroom: <a href="{self.public_base_url}/news/{edition_date}">{self.public_base_url}/news/{edition_date}</a>
+                        Open full newsroom: <a href="{newsroom_url}">{newsroom_url}</a>
                       </td>
                     </tr>
                     <tr>
@@ -194,7 +197,7 @@ class DailyNewsDigestSender:
         </html>
         """
 
-    def _build_email_text(self, *, edition_date: str, stories: List[DigestStory], unsubscribe_url: str) -> str:
+    def _build_email_text(self, *, edition_date: str, stories: List[DigestStory], unsubscribe_url: str, newsroom_url: str) -> str:
         lines = [
             f"Build Atlas Daily Startup Digest ({edition_date})",
             "",
@@ -202,7 +205,7 @@ class DailyNewsDigestSender:
             "",
         ]
         for idx, story in enumerate(stories, start=1):
-            url = story.url or f"{self.public_base_url}/news/{edition_date}"
+            url = story.url or newsroom_url
             summary = story.summary or "Signal captured in today's radar."
             builder_takeaway = story.builder_takeaway or "Validate with user pull before acting."
             lines.extend(
@@ -217,7 +220,7 @@ class DailyNewsDigestSender:
             )
         lines.extend(
             [
-                f"Full newsroom: {self.public_base_url}/news/{edition_date}",
+                f"Full newsroom: {newsroom_url}",
                 "",
                 f"Unsubscribe: {unsubscribe_url}",
             ]
@@ -258,9 +261,9 @@ class DailyNewsDigestSender:
         assert self.pool is not None
 
         async with self.pool.acquire() as conn:
-            resolved_date = await self._resolve_edition_date(conn, edition_date)
+            resolved_date = await self._resolve_edition_date(conn, edition_date, region=region)
             resolved_date_str = resolved_date.isoformat()
-            stories = await self._load_stories(conn, resolved_date)
+            stories = await self._load_stories(conn, resolved_date, region=region)
             all_subscribers = await self._load_subscribers(conn, region=region)
 
             # Avoid duplicate sends when workflows are re-run for the same edition date.
@@ -312,19 +315,26 @@ class DailyNewsDigestSender:
             timeout = httpx.Timeout(20.0)
             async with httpx.AsyncClient(timeout=timeout) as client:
                 for subscriber in subscribers:
+                    newsroom_url = (
+                        f"{self.public_base_url}/news/turkey"
+                        if region == "turkey"
+                        else f"{self.public_base_url}/news/{resolved_date_str}"
+                    )
                     unsubscribe_url = (
                         f"{self.public_base_url}/api/news/subscriptions"
                         f"?token={subscriber.unsubscribe_token}"
                     )
                     html = self._build_email_html(
-                        edition_date=resolved_date,
+                        edition_date=resolved_date_str,
                         stories=stories,
                         unsubscribe_url=unsubscribe_url,
+                        newsroom_url=newsroom_url,
                     )
                     text = self._build_email_text(
-                        edition_date=resolved_date,
+                        edition_date=resolved_date_str,
                         stories=stories,
                         unsubscribe_url=unsubscribe_url,
+                        newsroom_url=newsroom_url,
                     )
                     try:
                         subject_label = "Turkey Signal Feed" if region == "turkey" else "Daily Startup Digest"

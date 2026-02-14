@@ -3,13 +3,15 @@ import { getNewsArchive } from '@/lib/data/news';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/news/archive?limit=30&offset=0
+// GET /api/news/archive?limit=30&offset=0&region=global|turkey
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const limitParam = Number(searchParams.get('limit') || '30');
     const offsetParam = Number(searchParams.get('offset') || '0');
+    const region = searchParams.get('region') === 'turkey' ? 'turkey' : 'global';
     const archive = await getNewsArchive({
+      region,
       limit: Number.isFinite(limitParam) ? limitParam : 30,
       offset: Number.isFinite(offsetParam) ? offsetParam : 0,
     });

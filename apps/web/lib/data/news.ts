@@ -3,6 +3,14 @@ import 'server-only';
 import { query } from '@/lib/db';
 import type { NewsArchiveDay, NewsEdition, NewsItemCard, NewsTopicStat } from '@startup-intelligence/shared';
 
+export type NewsRegion = 'global' | 'turkey';
+const VALID_NEWS_REGIONS: readonly NewsRegion[] = ['global', 'turkey'] as const;
+
+function normalizeNewsRegion(region?: string | null): NewsRegion {
+  const value = (region || '').trim().toLowerCase();
+  return (VALID_NEWS_REGIONS as readonly string[]).includes(value) ? (value as NewsRegion) : 'global';
+}
+
 interface EditionRow {
   edition_date: string;
   generated_at: string;
@@ -110,16 +118,18 @@ function rowToCard(row: ClusterRow): NewsItemCard {
   };
 }
 
-export async function getLatestNewsEditionDate(): Promise<string | null> {
+export async function getLatestNewsEditionDate(region: NewsRegion = 'global'): Promise<string | null> {
   try {
     const { rows } = await query<{ edition_date: string }>(
       `
       SELECT edition_date::text AS edition_date
       FROM news_daily_editions
-      WHERE status = 'ready'
+      WHERE status = 'ready' AND region = $1
       ORDER BY edition_date DESC
       LIMIT 1
       `
+      ,
+      [region]
     );
     return rows[0]?.edition_date || null;
   } catch (error) {
@@ -130,7 +140,7 @@ export async function getLatestNewsEditionDate(): Promise<string | null> {
   }
 }
 
-async function getEditionMeta(editionDate: string): Promise<EditionRow | null> {
+async function getEditionMeta(editionDate: string, region: NewsRegion): Promise<EditionRow | null> {
   const { rows } = await query<EditionRow>(
     `
     SELECT
@@ -139,15 +149,16 @@ async function getEditionMeta(editionDate: string): Promise<EditionRow | null> {
       stats_json
     FROM news_daily_editions
     WHERE edition_date = $1::date
+      AND region = $2
       AND status = 'ready'
     LIMIT 1
     `,
-    [editionDate]
+    [editionDate, region]
   );
   return rows[0] || null;
 }
 
-async function getEditionClusterCards(editionDate: string, limit = 40): Promise<NewsItemCard[]> {
+async function getEditionClusterCards(editionDate: string, region: NewsRegion, limit = 40): Promise<NewsItemCard[]> {
   try {
     const { rows } = await query<ClusterRow>(
       `
@@ -155,7 +166,7 @@ async function getEditionClusterCards(editionDate: string, limit = 40): Promise<
         SELECT u.cluster_id, u.ord
         FROM news_daily_editions e,
         unnest(e.top_cluster_ids) WITH ORDINALITY AS u(cluster_id, ord)
-        WHERE e.edition_date = $1::date
+        WHERE e.edition_date = $1::date AND e.region = $2
       )
       SELECT
         c.id::text AS id,
@@ -190,9 +201,9 @@ async function getEditionClusterCards(editionDate: string, limit = 40): Promise<
       LEFT JOIN news_sources ns ON ns.id = nir.source_id
       GROUP BY c.id, o.ord
       ORDER BY o.ord ASC
-      LIMIT $2
+      LIMIT $3
       `,
-      [editionDate, Math.max(1, limit)]
+      [editionDate, region, Math.max(1, limit)]
     );
     return rows.map(rowToCard);
   } catch (error) {
@@ -206,7 +217,7 @@ async function getEditionClusterCards(editionDate: string, limit = 40): Promise<
         SELECT u.cluster_id, u.ord
         FROM news_daily_editions e,
         unnest(e.top_cluster_ids) WITH ORDINALITY AS u(cluster_id, ord)
-        WHERE e.edition_date = $1::date
+        WHERE e.edition_date = $1::date AND e.region = $2
       )
       SELECT
         c.id::text AS id,
@@ -241,15 +252,15 @@ async function getEditionClusterCards(editionDate: string, limit = 40): Promise<
       LEFT JOIN news_sources ns ON ns.id = nir.source_id
       GROUP BY c.id, o.ord
       ORDER BY o.ord ASC
-      LIMIT $2
+      LIMIT $3
       `,
-      [editionDate, Math.max(1, limit)]
+      [editionDate, region, Math.max(1, limit)]
     );
     return rows.map(rowToCard);
   }
 }
 
-async function getTopicClusterCards(topic: string, editionDate: string, limit = 40): Promise<NewsItemCard[]> {
+async function getTopicClusterCards(topic: string, editionDate: string, region: NewsRegion, limit = 40): Promise<NewsItemCard[]> {
   try {
     const { rows } = await query<ClusterRow>(
       `
@@ -285,12 +296,13 @@ async function getTopicClusterCards(topic: string, editionDate: string, limit = 
       LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
       LEFT JOIN news_sources ns ON ns.id = nir.source_id
       WHERE nti.edition_date = $1::date
-        AND nti.topic = $2
+        AND nti.region = $2
+        AND nti.topic = $3
       GROUP BY c.id, nti.rank_score
       ORDER BY nti.rank_score DESC, c.published_at DESC
-      LIMIT $3
+      LIMIT $4
       `,
-      [editionDate, topic, Math.max(1, limit)]
+      [editionDate, region, topic, Math.max(1, limit)]
     );
     return rows.map(rowToCard);
   } catch (error) {
@@ -331,12 +343,13 @@ async function getTopicClusterCards(topic: string, editionDate: string, limit = 
       LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
       LEFT JOIN news_sources ns ON ns.id = nir.source_id
       WHERE nti.edition_date = $1::date
-        AND nti.topic = $2
+        AND nti.region = $2
+        AND nti.topic = $3
       GROUP BY c.id, nti.rank_score
       ORDER BY nti.rank_score DESC, c.published_at DESC
-      LIMIT $3
+      LIMIT $4
       `,
-      [editionDate, topic, Math.max(1, limit)]
+      [editionDate, region, topic, Math.max(1, limit)]
     );
     return rows.map(rowToCard);
   }
@@ -346,22 +359,24 @@ export async function getNewsEdition(params?: {
   date?: string;
   topic?: string;
   limit?: number;
+  region?: NewsRegion;
 }): Promise<NewsEdition | null> {
   try {
-    const editionDate = params?.date || (await getLatestNewsEditionDate());
+    const region = normalizeNewsRegion(params?.region);
+    const editionDate = params?.date || (await getLatestNewsEditionDate(region));
     if (!editionDate) {
       return null;
     }
 
-    const meta = await getEditionMeta(editionDate);
+    const meta = await getEditionMeta(editionDate, region);
     if (!meta) {
       return null;
     }
 
     const limit = Math.max(1, Math.min(100, params?.limit || 40));
     const items = params?.topic
-      ? await getTopicClusterCards(params.topic, editionDate, limit)
-      : await getEditionClusterCards(editionDate, limit);
+      ? await getTopicClusterCards(params.topic, editionDate, region, limit)
+      : await getEditionClusterCards(editionDate, region, limit);
 
     return {
       edition_date: meta.edition_date,
@@ -396,9 +411,11 @@ export async function getNewsEdition(params?: {
 export async function getNewsTopics(params?: {
   date?: string;
   limit?: number;
+  region?: NewsRegion;
 }): Promise<NewsTopicStat[]> {
   try {
-    const editionDate = params?.date || (await getLatestNewsEditionDate());
+    const region = normalizeNewsRegion(params?.region);
+    const editionDate = params?.date || (await getLatestNewsEditionDate(region));
     if (!editionDate) {
       return [];
     }
@@ -408,12 +425,12 @@ export async function getNewsTopics(params?: {
       `
       SELECT topic, COUNT(*)::text AS count
       FROM news_topic_index
-      WHERE edition_date = $1::date
+      WHERE edition_date = $1::date AND region = $2
       GROUP BY topic
       ORDER BY COUNT(*) DESC, topic ASC
-      LIMIT $2
+      LIMIT $3
       `,
-      [editionDate, limit]
+      [editionDate, region, limit]
     );
 
     return rows.map((row) => ({
@@ -431,8 +448,10 @@ export async function getNewsTopics(params?: {
 export async function getNewsArchive(params?: {
   limit?: number;
   offset?: number;
+  region?: NewsRegion;
 }): Promise<NewsArchiveDay[]> {
   try {
+    const region = normalizeNewsRegion(params?.region);
     const limit = Math.max(1, Math.min(180, params?.limit || 30));
     const offset = Math.max(0, params?.offset || 0);
     const { rows } = await query<ArchiveRow>(
@@ -442,11 +461,11 @@ export async function getNewsArchive(params?: {
         generated_at::text AS generated_at,
         stats_json
       FROM news_daily_editions
-      WHERE status = 'ready'
+      WHERE status = 'ready' AND region = $1
       ORDER BY edition_date DESC
-      LIMIT $1 OFFSET $2
+      LIMIT $2 OFFSET $3
       `,
-      [limit, offset]
+      [region, limit, offset]
     );
 
     return rows.map((row) => ({
@@ -463,17 +482,18 @@ export async function getNewsArchive(params?: {
   }
 }
 
-export async function getActiveNewsSources(): Promise<Array<{
+export async function getActiveNewsSources(params?: { region?: NewsRegion }): Promise<Array<{
   key: string;
   name: string;
   type: string;
 }>> {
   try {
+    const region = normalizeNewsRegion(params?.region);
     const { rows } = await query<SourceRow>(
       `
       SELECT source_key, display_name, source_type, is_active
       FROM news_sources
-      WHERE is_active = true
+      WHERE is_active = true AND region = $1
       ORDER BY
         CASE source_type
           WHEN 'rss' THEN 1
@@ -483,6 +503,8 @@ export async function getActiveNewsSources(): Promise<Array<{
         END,
         display_name ASC
       `
+      ,
+      [region]
     );
     return rows.map((row) => ({
       key: row.source_key,

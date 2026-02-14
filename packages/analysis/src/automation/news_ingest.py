@@ -97,6 +97,7 @@ class SourceDefinition:
     display_name: str
     source_type: str
     base_url: str
+    region: str = "global"  # global|turkey
     fetch_mode: str = "rss"  # rss|api|crawler
     credibility_weight: float = 0.65
     legal_mode: str = "headline_snippet"
@@ -110,8 +111,8 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("wired", "WIRED", "rss", "https://www.wired.com/feed/rss", credibility_weight=0.80),
     SourceDefinition("sifted", "Sifted", "rss", "https://sifted.eu/feed/", credibility_weight=0.78),
     SourceDefinition("crunchbase_news", "Crunchbase News", "rss", "https://news.crunchbase.com/feed/", credibility_weight=0.85),
-    SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", credibility_weight=0.74),
-    SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", credibility_weight=0.70),
+    SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", region="turkey", credibility_weight=0.74),
+    SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", region="turkey", credibility_weight=0.70),
     SourceDefinition("producthunt_blog", "Product Hunt Blog", "rss", "https://www.producthunt.com/blog/feed", credibility_weight=0.82),
     SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
     SourceDefinition("inc", "Inc", "rss", "https://www.inc.com/rss", credibility_weight=0.74),
@@ -662,12 +663,16 @@ class DailyNewsIngestor:
         for src in sources:
             await conn.execute(
                 """
-                INSERT INTO news_sources (source_key, display_name, source_type, base_url, credibility_weight, legal_mode, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                INSERT INTO news_sources (
+                    source_key, display_name, source_type, base_url, region,
+                    credibility_weight, legal_mode, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
                 ON CONFLICT (source_key) DO UPDATE
                 SET display_name = EXCLUDED.display_name,
                     source_type = EXCLUDED.source_type,
                     base_url = EXCLUDED.base_url,
+                    region = EXCLUDED.region,
                     credibility_weight = EXCLUDED.credibility_weight,
                     legal_mode = EXCLUDED.legal_mode,
                     updated_at = NOW()
@@ -676,6 +681,7 @@ class DailyNewsIngestor:
                 src.display_name,
                 src.source_type,
                 src.base_url,
+                src.region,
                 src.credibility_weight,
                 src.legal_mode,
             )
@@ -1989,10 +1995,13 @@ class DailyNewsIngestor:
         conn: asyncpg.Connection,
         *,
         edition_date: date,
+        region: str,
         clusters: Sequence[StoryCluster],
         cluster_ids: Dict[str, str],
     ) -> Dict[str, Any]:
-        top = clusters[:40]
+        # Persist a deterministic ordering so the web UI can treat the first item as "top impact".
+        ranked = sorted(clusters, key=lambda c: (c.rank_score, c.trust_score, c.published_at), reverse=True)
+        top = ranked[:40]
         top_ids = [cluster_ids[c.cluster_key] for c in top if c.cluster_key in cluster_ids]
 
         story_type_counts: Dict[str, int] = {}
@@ -2016,20 +2025,25 @@ class DailyNewsIngestor:
 
         await conn.execute(
             """
-            INSERT INTO news_daily_editions (edition_date, generated_at, status, top_cluster_ids, stats_json)
-            VALUES ($1, NOW(), 'ready', $2::uuid[], $3::jsonb)
-            ON CONFLICT (edition_date) DO UPDATE
+            INSERT INTO news_daily_editions (edition_date, region, generated_at, status, top_cluster_ids, stats_json)
+            VALUES ($1, $2, NOW(), 'ready', $3::uuid[], $4::jsonb)
+            ON CONFLICT (edition_date, region) DO UPDATE
             SET generated_at = NOW(),
                 status = 'ready',
                 top_cluster_ids = EXCLUDED.top_cluster_ids,
                 stats_json = EXCLUDED.stats_json
             """,
             edition_date,
+            region,
             top_ids,
             json.dumps(stats),
         )
 
-        await conn.execute("DELETE FROM news_topic_index WHERE edition_date = $1", edition_date)
+        await conn.execute(
+            "DELETE FROM news_topic_index WHERE edition_date = $1 AND region = $2",
+            edition_date,
+            region,
+        )
         for c in clusters:
             cid = cluster_ids.get(c.cluster_key)
             if not cid:
@@ -2037,14 +2051,15 @@ class DailyNewsIngestor:
             for topic in c.topic_tags:
                 await conn.execute(
                     """
-                    INSERT INTO news_topic_index (topic, cluster_id, edition_date, rank_score)
-                    VALUES ($1, $2::uuid, $3, $4)
-                    ON CONFLICT (topic, cluster_id, edition_date) DO UPDATE
+                    INSERT INTO news_topic_index (topic, cluster_id, edition_date, region, rank_score)
+                    VALUES ($1, $2::uuid, $3, $4, $5)
+                    ON CONFLICT (topic, cluster_id, edition_date, region) DO UPDATE
                     SET rank_score = EXCLUDED.rank_score
                     """,
                     topic,
                     cid,
                     edition_date,
+                    region,
                     c.rank_score,
                 )
 
@@ -2090,13 +2105,33 @@ class DailyNewsIngestor:
                 await self._enrich_clusters_with_llm(clusters)
                 images_enriched = await self._enrich_missing_images(conn, clusters)
                 cluster_ids = await self._persist_clusters(conn, clusters)
-                stats = await self._persist_edition(
+
+                turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
+                turkey_clusters = [c for c in clusters if any(m.source_key in turkey_source_keys for m in c.members)]
+
+                global_stats = await self._persist_edition(
                     conn,
                     edition_date=e_date,
+                    region="global",
                     clusters=clusters,
                     cluster_ids=cluster_ids,
                 )
-                stats["llm"] = dict(self._llm_metrics)
+                turkey_stats = await self._persist_edition(
+                    conn,
+                    edition_date=e_date,
+                    region="turkey",
+                    clusters=turkey_clusters,
+                    cluster_ids=cluster_ids,
+                )
+
+                stats = {
+                    **global_stats,
+                    "regions": {
+                        "global": global_stats.get("total_clusters", 0),
+                        "turkey": turkey_stats.get("total_clusters", 0),
+                    },
+                    "llm": dict(self._llm_metrics),
+                }
 
                 result = {
                     "run_id": run_id,

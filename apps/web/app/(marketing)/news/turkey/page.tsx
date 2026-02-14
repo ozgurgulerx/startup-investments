@@ -72,10 +72,10 @@ export default async function TurkeyNewsPage({
 }: {
   searchParams?: { confirmed?: string; unsubscribed?: string };
 }) {
-  const edition = await getNewsEdition({ limit: 40 });
-  const topics = await getNewsTopics({ date: edition?.edition_date, limit: 24 });
-  const archive = await getNewsArchive({ limit: 30, offset: 0 });
-  const sources = await getActiveNewsSources();
+  const edition = await getNewsEdition({ limit: 40, region: 'turkey' });
+  const topics = await getNewsTopics({ date: edition?.edition_date, limit: 24, region: 'turkey' });
+  const archive = await getNewsArchive({ limit: 30, offset: 0, region: 'turkey' });
+  const sources = await getActiveNewsSources({ region: 'turkey' });
 
   return (
     <div className="min-h-screen bg-background">
@@ -121,7 +121,7 @@ export default async function TurkeyNewsPage({
                 <p className="label-xs text-accent">Turkey Signal Feed</p>
                 <h1 className="mt-2 text-4xl font-light tracking-tight text-foreground">Daily Startup News</h1>
                 <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-                  Subscribe to the Turkey feed for a separate digest list. The newsroom view is global for now.
+                  A Turkey-specific edition built from Turkey ecosystem sources (e.g. Webrazzi, Egirisim), ranked by impact and corroboration.
                 </p>
 
                 <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -213,4 +213,3 @@ export default async function TurkeyNewsPage({
     </div>
   );
 }
-
