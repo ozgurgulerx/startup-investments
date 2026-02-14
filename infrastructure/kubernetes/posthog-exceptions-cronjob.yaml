@@ -50,6 +50,11 @@ spec:
                       name: buildatlas-ops-secrets
                       key: posthog-host
                       optional: true
+                # PostHog query knobs (best-effort telemetry; keep bounded to avoid job timeouts).
+                - name: POSTHOG_TIMEOUT_SEC
+                  value: "20"
+                - name: POSTHOG_RETRIES
+                  value: "1"
                 # Alert tuning knobs (defaults are safe; override here only if needed).
                 - name: ALERT_WINDOW_MINUTES
                   value: "30"
@@ -64,4 +69,3 @@ spec:
                 limits:
                   cpu: "250m"
                   memory: "256Mi"
-

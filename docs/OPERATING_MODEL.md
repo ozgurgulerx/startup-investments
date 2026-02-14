@@ -200,6 +200,9 @@ Some ops tasks run as AKS CronJobs to avoid VM availability issues.
   - Manifest: `infrastructure/kubernetes/posthog-exceptions-cronjob.yaml`
   - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (from `infrastructure/ops/Dockerfile`)
   - Secret: `Secret/buildatlas-ops-secrets` (same keys as usage summary)
+  - Reliability behavior:
+    - Best-effort telemetry: if PostHog times out / is temporarily unavailable, the job logs a warning and exits `0` (to avoid noisy failed Jobs).
+    - Query knobs: `POSTHOG_TIMEOUT_SEC`, `POSTHOG_RETRIES` (set in the manifest).
   - Deploy: same as PostHog usage summary (via `pipelines-deploy.sh`, or manual apply)
 
 - Browser canary (Landscapes):
@@ -209,6 +212,7 @@ Some ops tasks run as AKS CronJobs to avoid VM availability issues.
   - Image: `aistartuptr.azurecr.io/buildatlas-playwright-canary:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (from `infrastructure/ops/playwright-canary/Dockerfile`)
   - Secret: `Secret/buildatlas-ops-secrets` with:
     - `slack-webhook-url`
+  - Retry knobs (set in the manifest): `UI_MAX_ATTEMPTS`, `GOTO_MAX_ATTEMPTS`
   - Deploy (primary): `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (best effort) builds `buildatlas-playwright-canary` and applies the rendered CronJob manifest.
   - Deploy (manual fallback): apply `infrastructure/kubernetes/playwright-canary-cronjob.yaml` from an operator environment that can reach the AKS control plane (typically the VM), patching `__IMAGE_TAG__` to a concrete image tag.
 
