@@ -145,7 +145,15 @@ fi
 # --- Step 3: Ensure AKS is running ---
 echo ""
 echo "[3/5] Checking AKS state..."
-AKS_STATE="$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query powerState.code -o tsv 2>/dev/null || echo UNKNOWN)"
+aks_power_state() {
+    az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query powerState.code -o tsv 2>/dev/null || echo UNKNOWN
+}
+
+AKS_STATE="$(aks_power_state)"
+AKS_STATE="$(echo "$AKS_STATE" | tr -d '\r\n')"
+if [ -z "$AKS_STATE" ]; then
+    AKS_STATE="UNKNOWN"
+fi
 echo "  AKS power state: $AKS_STATE"
 
 if [ "$AKS_STATE" = "Stopped" ]; then
@@ -154,11 +162,33 @@ if [ "$AKS_STATE" = "Stopped" ]; then
 fi
 
 for i in $(seq 1 60); do
-    AKS_STATE="$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query powerState.code -o tsv 2>/dev/null || echo UNKNOWN)"
+    AKS_STATE="$(aks_power_state)"
+    AKS_STATE="$(echo "$AKS_STATE" | tr -d '\r\n')"
+    if [ -z "$AKS_STATE" ]; then
+        AKS_STATE="UNKNOWN"
+    fi
+
+    # Some Azure control-plane responses can intermittently omit powerState even when the
+    # Kubernetes API is already reachable. Prefer a connectivity check over sleeping out
+    # the deploy window.
+    if az aks get-credentials -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --file "$KUBECONFIG" --overwrite-existing >/dev/null 2>&1; then
+        if kubectl --request-timeout=10s get nodes >/dev/null 2>&1; then
+            echo "  AKS is Running (kubectl reachable)."
+            AKS_STATE="Running"
+            break
+        fi
+    fi
+
     if [ "$AKS_STATE" = "Running" ]; then
         echo "  AKS is Running."
         break
     fi
+
+    if [ "$AKS_STATE" = "Stopped" ]; then
+        echo "  Starting AKS..."
+        az aks start -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME"
+    fi
+
     echo "  Waiting for AKS (attempt $i, state=$AKS_STATE)..."
     sleep 10
 done

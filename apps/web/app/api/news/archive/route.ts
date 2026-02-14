@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
     const offsetParam = Number(searchParams.get('offset') || '0');
     const region = searchParams.get('region') === 'turkey' ? 'turkey' : 'global';
     const archive = await getNewsArchive({
+      region,
       limit: Number.isFinite(limitParam) ? limitParam : 30,
       offset: Number.isFinite(offsetParam) ? offsetParam : 0,
       region,

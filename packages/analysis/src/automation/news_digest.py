@@ -95,6 +95,7 @@ class DailyNewsDigestSender:
             await self.pool.close()
             self.pool = None
 
+<<<<<<< Updated upstream
     def _init_azure_client(self) -> None:
         """Lazy-init Azure OpenAI client for signal narrative generation."""
         try:
@@ -129,6 +130,8 @@ class DailyNewsDigestSender:
                     azure_endpoint=endpoint,
                 )
 
+=======
+>>>>>>> Stashed changes
     async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str], *, region: str) -> date:
         if edition_date:
             # asyncpg expects Python date objects for DATE parameters.
@@ -151,6 +154,7 @@ class DailyNewsDigestSender:
             return value
         return datetime.strptime(str(value), "%Y-%m-%d").date()
 
+<<<<<<< Updated upstream
     async def _load_brief(self, conn: asyncpg.Connection, edition_date: date, *, region: str) -> Optional[DailyBrief]:
         """Load the daily brief from the edition's stats_json."""
         row = await conn.fetchrow(
@@ -169,6 +173,8 @@ class DailyNewsDigestSender:
             bullets=[str(b) for b in brief.get("bullets", [])],
         )
 
+=======
+>>>>>>> Stashed changes
     async def _load_stories(self, conn: asyncpg.Connection, edition_date: date, *, region: str) -> List[DigestStory]:
         rows = await conn.fetch(
             """
@@ -234,6 +240,7 @@ class DailyNewsDigestSender:
             for row in rows
         ]
 
+<<<<<<< Updated upstream
     async def _find_cross_region_subs(
         self, conn: asyncpg.Connection, subscribers: List[Subscriber], *, region: str
     ) -> Dict[str, str]:
@@ -295,6 +302,17 @@ class DailyNewsDigestSender:
                 )
             blocks.append(
                 f"""<tr>
+=======
+    def _build_email_html(self, *, edition_date: str, stories: List[DigestStory], unsubscribe_url: str, newsroom_url: str) -> str:
+        story_blocks = []
+        for idx, story in enumerate(stories, start=1):
+            summary = story.summary or "Signal captured in today's startup radar."
+            takeaway = story.builder_takeaway or "Validate the signal with customer evidence before acting."
+            url = story.url or newsroom_url
+            story_blocks.append(
+                f"""
+                <tr>
+>>>>>>> Stashed changes
                   <td style="padding:16px 0;border-bottom:1px solid #e5e7eb;">
                     <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;">#{idx} · {story.source}</div>
                     <a href="{url}" style="display:block;margin-top:4px;font-size:18px;line-height:1.35;color:#111827;text-decoration:none;font-weight:600;">{story.title}</a>
@@ -466,7 +484,11 @@ class DailyNewsDigestSender:
                     {turkey_section_html}
                     <tr>
                       <td style="padding-top:16px;font-size:13px;color:#6b7280;">
+<<<<<<< Updated upstream
                         Open full radar: <a href="{self._news_url(self.public_base_url, edition_date, region)}">{self._news_url(self.public_base_url, edition_date, region)}</a>
+=======
+                        Open full newsroom: <a href="{newsroom_url}">{newsroom_url}</a>
+>>>>>>> Stashed changes
                       </td>
                     </tr>
                     <tr>
@@ -488,6 +510,7 @@ class DailyNewsDigestSender:
         </html>
         """
 
+<<<<<<< Updated upstream
     @staticmethod
     def _build_brief_text(brief: DailyBrief, *, label: str = "TODAY'S BRIEF") -> List[str]:
         lines = [label, brief.headline, brief.summary]
@@ -502,6 +525,17 @@ class DailyNewsDigestSender:
         for idx, story in enumerate(stories, start=1):
             fallback = f"{public_base_url}/news/turkey/{edition_date}" if region == "turkey" else f"{public_base_url}/news/{edition_date}"
             url = story.url or fallback
+=======
+    def _build_email_text(self, *, edition_date: str, stories: List[DigestStory], unsubscribe_url: str, newsroom_url: str) -> str:
+        lines = [
+            f"Build Atlas Daily Startup Digest ({edition_date})",
+            "",
+            "Top stories ranked by popularity and source corroboration:",
+            "",
+        ]
+        for idx, story in enumerate(stories, start=1):
+            url = story.url or newsroom_url
+>>>>>>> Stashed changes
             summary = story.summary or "Signal captured in today's radar."
             builder_takeaway = story.builder_takeaway or "Validate with user pull before acting."
             lines.extend([
@@ -538,6 +572,7 @@ class DailyNewsDigestSender:
                 f"  — momentum={sig.momentum:.2f}, conviction={sig.conviction:.2f}, "
                 f"{sig.unique_company_count} companies{transition_note}"
             )
+<<<<<<< Updated upstream
         lines.append("")
         return lines
 
@@ -583,6 +618,15 @@ class DailyNewsDigestSender:
             "",
             f"Unsubscribe: {unsubscribe_url}",
         ])
+=======
+        lines.extend(
+            [
+                f"Full newsroom: {newsroom_url}",
+                "",
+                f"Unsubscribe: {unsubscribe_url}",
+            ]
+        )
+>>>>>>> Stashed changes
         return "\n".join(lines)
 
     async def _record_delivery(
@@ -903,6 +947,7 @@ class DailyNewsDigestSender:
             resolved_date = await self._resolve_edition_date(conn, edition_date, region=region)
             resolved_date_str = resolved_date.isoformat()
             stories = await self._load_stories(conn, resolved_date, region=region)
+<<<<<<< Updated upstream
             brief = await self._load_brief(conn, resolved_date, region=region)
 
             if qa_email:
@@ -940,6 +985,8 @@ class DailyNewsDigestSender:
                     logger.warning("Signal context loading failed: %s", exc)
                     signal_context = None
 
+=======
+>>>>>>> Stashed changes
             all_subscribers = await self._load_subscribers(conn, region=region)
 
             # Filter to subscribers whose local time is currently the target hour.
@@ -1045,11 +1092,46 @@ class DailyNewsDigestSender:
             timeout = httpx.Timeout(20.0)
             async with httpx.AsyncClient(timeout=timeout) as client:
                 for subscriber in subscribers:
+<<<<<<< Updated upstream
                     email_norm = subscriber.email.strip().lower()
                     is_cross = email_norm in cross_region_map
                     sub_turkey_brief = turkey_brief if is_cross else None
                     sub_turkey_stories = turkey_stories if is_cross else None
                     turkey_sub_id = cross_region_map.get(email_norm) if is_cross else None
+=======
+                    newsroom_url = (
+                        f"{self.public_base_url}/news/turkey"
+                        if region == "turkey"
+                        else f"{self.public_base_url}/news/{resolved_date_str}"
+                    )
+                    unsubscribe_url = (
+                        f"{self.public_base_url}/api/news/subscriptions"
+                        f"?token={subscriber.unsubscribe_token}"
+                    )
+                    html = self._build_email_html(
+                        edition_date=resolved_date_str,
+                        stories=stories,
+                        unsubscribe_url=unsubscribe_url,
+                        newsroom_url=newsroom_url,
+                    )
+                    text = self._build_email_text(
+                        edition_date=resolved_date_str,
+                        stories=stories,
+                        unsubscribe_url=unsubscribe_url,
+                        newsroom_url=newsroom_url,
+                    )
+                    try:
+                        subject_label = "Turkey Signal Feed" if region == "turkey" else "Daily Startup Digest"
+                        payload = {
+                            "from": self.from_email,
+                            "to": [subscriber.email],
+                            "subject": f"Build Atlas {subject_label} — {resolved_date_str}",
+                            "html": html,
+                            "text": text,
+                        }
+                        if self.reply_to:
+                            payload["reply_to"] = self.reply_to
+>>>>>>> Stashed changes
 
                     sub_turkey_signal_ctx = turkey_signal_context if is_cross else None
                     outcome = await self._send_one(
