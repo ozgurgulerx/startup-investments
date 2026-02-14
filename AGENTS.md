@@ -222,8 +222,9 @@ VM cron runner:
     - `SUBSCRIBER_LIST_STATUS` / `SUBSCRIBER_LIST_REGION` filter the export.
     - Default behavior masks emails; set `SUBSCRIBER_LIST_INCLUDE_FULL_EMAILS=true` only for trusted internal recipients.
   - Schedule: `slack-summary` runs every 3 hours at minute `:00` UTC (`0 */3 * * *`).
-  - Daily EOD onboarding report: `onboarding-eod-report` runs at `20:00 UTC` (`0 20 * * *`) and posts a Slack report of:
+  - Daily EOD onboarding report: `onboarding-eod-report` runs at `20:00 UTC` (`0 20 * * *`) as an **AKS CronJob** (pipelines) and posts a Slack report of:
     stub startups created, investors added, capital graph edges upserted, and news<>startup linking activity (startup_events + refresh jobs + memory linking).
+    - VM schedule is intentionally kept as fallback but disabled by default via `infrastructure/vm-cron/vm-cron-disabled-jobs` to avoid duplicate posts.
   - Optional EOD onboarding report email (best-effort) uses Resend:
     - Requires `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO`.
     - Sender: `METRICS_REPORT_EMAIL_FROM` (falls back to `NEWS_DIGEST_FROM_EMAIL`).
