@@ -16,6 +16,9 @@ interface SavedFilter {
     fundingMax?: number;
     usesGenai?: boolean;
     verticals?: string[];
+    verticalId?: string;
+    subVerticalId?: string;
+    leafId?: string;
   };
   alertsEnabled: boolean;
   createdAt: string;
@@ -51,6 +54,24 @@ function parseSavedFilterQuery(raw: unknown): {
   parseStringArray('patterns');
   parseStringArray('continents');
   parseStringArray('verticals');
+
+  const parseTaxonomyId = (field: 'verticalId' | 'subVerticalId' | 'leafId') => {
+    const input = value[field];
+    if (input === undefined) return;
+    if (typeof input !== 'string' || input.length === 0 || input.length > 80) {
+      errors.push(`${field} must be a non-empty string (<=80 chars)`);
+      return;
+    }
+    if (!/^[a-z0-9_]+$/.test(input)) {
+      errors.push(`${field} must match /^[a-z0-9_]+$/`);
+      return;
+    }
+    parsed[field] = input;
+  };
+
+  parseTaxonomyId('verticalId');
+  parseTaxonomyId('subVerticalId');
+  parseTaxonomyId('leafId');
 
   const parseNumber = (field: 'fundingMin' | 'fundingMax') => {
     const input = value[field];

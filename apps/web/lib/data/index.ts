@@ -836,6 +836,8 @@ export async function getStartupsPaginated(
   // Apply filters
   if (options.stage) {
     const selectedStage = normalizeStageKey(options.stage);
+    // Be tolerant of stage variants like "Series A Extension" / "Series A1" by using a prefix match
+    // after normalization. This aligns better with how users expect "Series A" to behave.
     filtered = filtered.filter(s => normalizeStageKey(s.funding_stage).startsWith(selectedStage));
   }
   if (options.pattern) {

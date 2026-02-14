@@ -952,6 +952,56 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
+  name: deep-dive-catchup
+  namespace: default
+  labels:
+    app: buildatlas-pipelines
+    job: deep-dive-catchup
+spec:
+  schedule: "58 */4 * * *"
+  startingDeadlineSeconds: 28800
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1920
+      template:
+        metadata:
+          labels:
+            app: buildatlas-pipelines
+            job: deep-dive-catchup
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: aistartuptr.azurecr.io/buildatlas-pipelines:__IMAGE_TAG__
+              imagePullPolicy: IfNotPresent
+              command:
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+              args:
+                - deep-dive-catchup
+                - "30"
+                - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/deep-dive-catchup.sh
+              envFrom:
+                - configMapRef:
+                    name: buildatlas-pipelines-config
+                - secretRef:
+                    name: buildatlas-pipelines-secrets
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "2Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
   name: dealbook-brief
   namespace: default
   labels:
