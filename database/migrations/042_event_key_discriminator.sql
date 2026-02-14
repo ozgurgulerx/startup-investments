@@ -16,6 +16,10 @@
 ALTER TABLE startup_events
     ADD COLUMN IF NOT EXISTS event_key TEXT NOT NULL DEFAULT '';
 
+-- Prevent concurrent writers (e.g., news-ingest) from racing the backfill
+-- updates below and triggering unique constraint violations.
+LOCK TABLE startup_events IN SHARE ROW EXCLUSIVE MODE;
+
 -- =============================================================================
 -- 2. Backfill event_key from metadata_json for existing rows
 -- =============================================================================

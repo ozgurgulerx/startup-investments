@@ -19,6 +19,32 @@ from .onboarding_trace import guidance_for_reason
 logger = logging.getLogger(__name__)
 
 
+def _coerce_event(raw: Any) -> Dict[str, Any]:
+    """Best-effort coercion for DB-returned rows.
+
+    In some deployments json/jsonb values can come back as JSON-encoded strings,
+    and callers should never crash because a row isn't a dict.
+    """
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str):
+        trimmed = raw.strip()
+        if not trimmed:
+            return {}
+        try:
+            parsed = json.loads(trimmed)
+        except Exception:
+            return {}
+        return dict(parsed) if isinstance(parsed, dict) else {}
+
+    try:
+        return dict(raw)  # type: ignore[arg-type]
+    except Exception:
+        return {}
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = str(os.getenv(name, "") or "").strip().lower()
     if not raw:
@@ -214,13 +240,35 @@ async def run_onboarding_alert_dispatcher(batch_size: int = 25) -> Dict[str, int
 
     try:
         await db.connect()
-        events = await db.get_pending_onboarding_trace_notifications(limit=max(1, int(batch_size)))
+        raw_events: Any = await db.get_pending_onboarding_trace_notifications(limit=max(1, int(batch_size)))
+        if raw_events is None:
+            events: List[Any] = []
+        elif isinstance(raw_events, list):
+            events = raw_events
+        else:
+            events = [raw_events]
+
         fetched = len(events)
         if not events:
             return {"fetched": fetched, "sent": sent, "failed": failed, "marked_notified": marked}
 
-        for event in events:
-            ok = _send_slack_notification(event, base_url=base_url)
+        for raw_event in events:
+            event = _coerce_event(raw_event)
+            if not event:
+                failed += 1
+                continue
+
+            try:
+                ok = _send_slack_notification(event, base_url=base_url)
+            except Exception as exc:
+                failed += 1
+                trace_id = str(event.get("id") or "<unknown>")
+                print(
+                    f"Onboarding alert dispatch: unexpected error for trace_event_id={trace_id}: {exc}",
+                    file=sys.stderr,
+                )
+                continue
+
             if ok:
                 sent += 1
                 if event.get("id"):
