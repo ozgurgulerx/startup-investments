@@ -1,6 +1,8 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui';
 import { getNewsletterMarkdown, getAvailableNewsletterPeriods, getMonthlyStats } from '@/lib/data';
+import { normalizeDatasetRegion } from '@/lib/region';
 import { formatPeriod } from '@/lib/utils';
 import { NewsletterRenderer } from '@/components/features';
 import { PeriodNav } from '@/components/ui/period-nav';
@@ -116,6 +118,15 @@ export default async function LibraryPage({
   searchParams: Promise<{ month?: string; region?: string }>;
 }) {
   const { month, region } = await searchParams;
+
+  // Library is global-only today (Turkey newsletters aren't generated yet).
+  // Avoid rendering a "region-empty" state by redirecting to the global library.
+  if (normalizeDatasetRegion(region) !== 'global') {
+    const qs = new URLSearchParams();
+    if (month) qs.set('month', month);
+    redirect(qs.toString() ? `/library?${qs.toString()}` : '/library');
+  }
+
   return (
     <Suspense fallback={<LibraryLoading />}>
       <ReadingWrapper>
