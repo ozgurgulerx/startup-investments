@@ -8,6 +8,8 @@ import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
 import type { PatternData, EmergingPattern, CategoryData } from './page';
 import type { PatternCorrelation } from '@/lib/data/signals';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
+import { useRegion } from '@/lib/region-context';
+import { withRegionHref } from '@/lib/region-href';
 
 interface InteractiveSignalsProps {
   patterns: PatternData[];
@@ -24,6 +26,7 @@ export function InteractiveSignals({
   emergingPatterns = [],
   categories = [],
 }: InteractiveSignalsProps) {
+  const { region } = useRegion();
   const [cohortModal, setCohortModal] = useState<{
     isOpen: boolean;
     patternName: string;
@@ -244,7 +247,7 @@ export function InteractiveSignals({
               </button>
 
               <Link
-                href={`/dealbook?pattern=${encodeURIComponent(pattern.name)}`}
+                href={withRegionHref(`/dealbook?pattern=${encodeURIComponent(pattern.name)}`, region)}
                 className="inline-flex items-center gap-2 text-xs text-accent-info hover:text-accent-info/80 transition-colors"
               >
                 <ExternalLink className="w-3.5 h-3.5" />

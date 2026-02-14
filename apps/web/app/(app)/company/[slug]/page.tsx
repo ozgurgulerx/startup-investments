@@ -17,6 +17,7 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { ReadingWrapper } from '@/components/ui/reading-wrapper';
 import { normalizeDatasetRegion } from '@/lib/region';
+import { withRegionHref } from '@/lib/region-href';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -221,6 +222,7 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
               companyName={startup.company_name}
               size="lg"
               variant="elevated"
+              region={region}
             />
             <h1 className="text-2xl font-light tracking-tight text-foreground">
               {startup.company_name}
@@ -338,7 +340,7 @@ async function CompanyBriefContent({ slug, region }: { slug: string; region?: st
         <section className="section">
           <div className="section-header">
             <span className="section-title">Build Signals</span>
-            <Link href="/signals" className="section-link">
+            <Link href={withRegionHref('/signals', region)} className="section-link">
               Full pattern analysis
             </Link>
           </div>

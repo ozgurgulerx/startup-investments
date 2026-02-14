@@ -69,6 +69,23 @@ export interface NewsSource {
   type: string;
 }
 
+export interface NewsDeltas {
+  run_id: string;
+  started_at: string;
+  completed_at?: string;
+  edition_date: string;
+  region: NewsRegion;
+  new_in_top_ids: string[];
+  dropped_from_top_ids: string[];
+  new_in_top: NewsItemCard[];
+  vc: {
+    admitted: number;
+    rejected: number;
+    admitted_ids: string[];
+    rejected_ids: string[];
+  };
+}
+
 function isMissingColumnError(error: unknown, columnName: string): boolean {
   if (!error || typeof error !== 'object') return false;
   const message = (error as { message?: unknown }).message;
@@ -353,6 +370,62 @@ export function makeNewsService(pool: Pool) {
         [editionDate, region, safeLimit]
       );
       return result.rows.map(rowToCard);
+    }
+  }
+
+  async function getClusterCardsByIds(clusterIds: string[], limit: number): Promise<NewsItemCard[]> {
+    const safeLimit = Math.max(1, Math.min(100, limit));
+    const ids = (clusterIds || []).map(String).filter(Boolean).slice(0, safeLimit);
+    if (ids.length === 0) return [];
+
+    try {
+      const result = await pool.query(
+        `
+        WITH ordered AS (
+          SELECT u.cluster_id, u.ord
+          FROM unnest($1::uuid[]) WITH ORDINALITY AS u(cluster_id, ord)
+        )
+        SELECT
+          c.id::text AS id,
+          c.title,
+          c.summary,
+          c.builder_takeaway,
+          c.llm_summary,
+          c.llm_model,
+          c.llm_signal_score,
+          c.llm_confidence_score,
+          c.llm_topic_tags,
+          c.llm_story_type,
+          c.published_at::text AS published_at,
+          c.story_type,
+          c.topic_tags,
+          c.entities,
+          c.rank_score,
+          c.rank_reason,
+          c.trust_score,
+          c.source_count,
+          COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
+          COALESCE(
+            MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
+            MAX(NULLIF(nir.payload_json->>'image_url', ''))
+          ) AS image_url,
+          COALESCE(MAX(CASE WHEN nci.is_primary THEN ns.display_name END), 'Unknown') AS primary_source,
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT ns.display_name), NULL) AS sources
+        FROM ordered o
+        JOIN news_clusters c ON c.id = o.cluster_id
+        LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
+        LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
+        LEFT JOIN news_sources ns ON ns.id = nir.source_id
+        GROUP BY c.id, o.ord
+        ORDER BY o.ord ASC
+        LIMIT $2
+        `,
+        [ids, safeLimit]
+      );
+      return result.rows.map(rowToCard);
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return [];
+      throw error;
     }
   }
 
@@ -714,6 +787,60 @@ export function makeNewsService(pool: Pool) {
     }
   }
 
+  async function getNewsDeltas(params?: { region?: unknown; limit?: number }): Promise<NewsDeltas | null> {
+    const region = normalizeRegion(params?.region);
+    const safeLimit = Math.max(1, Math.min(50, Number(params?.limit || 20)));
+
+    try {
+      const runResult = await pool.query(
+        `
+        SELECT
+          id::text AS id,
+          started_at::text AS started_at,
+          completed_at::text AS completed_at,
+          stats_json
+        FROM news_ingestion_runs
+        WHERE status = 'success'
+        ORDER BY started_at DESC
+        LIMIT 1
+        `
+      );
+      const row = runResult.rows[0] as any | undefined;
+      if (!row) return null;
+
+      const statsJson = row.stats_json || {};
+      const deltas = statsJson?.deltas?.[region] || null;
+
+      const newIds = Array.isArray(deltas?.new_in_top) ? deltas.new_in_top.map(String).filter(Boolean) : [];
+      const droppedIds = Array.isArray(deltas?.dropped_from_top) ? deltas.dropped_from_top.map(String).filter(Boolean) : [];
+      const admittedIds = Array.isArray(deltas?.vc_admitted_ids) ? deltas.vc_admitted_ids.map(String).filter(Boolean) : [];
+      const rejectedIds = Array.isArray(deltas?.vc_rejected_ids) ? deltas.vc_rejected_ids.map(String).filter(Boolean) : [];
+
+      const newIdsLimited = newIds.slice(0, safeLimit);
+      const cards = await getClusterCardsByIds(newIdsLimited, safeLimit);
+
+      return {
+        run_id: String(row.id || ''),
+        started_at: String(row.started_at || ''),
+        completed_at: row.completed_at ? String(row.completed_at) : undefined,
+        edition_date: deltas?.edition_date ? String(deltas.edition_date) : '',
+        region,
+        new_in_top_ids: newIdsLimited,
+        dropped_from_top_ids: droppedIds,
+        new_in_top: cards,
+        vc: {
+          admitted: toNumber(deltas?.vc_admitted, admittedIds.length),
+          rejected: toNumber(deltas?.vc_rejected, rejectedIds.length),
+          admitted_ids: admittedIds,
+          rejected_ids: rejectedIds,
+        },
+      };
+    } catch (error) {
+      if (isMissingNewsSchemaError(error)) return null;
+      throw error;
+    }
+  }
+
   return {
     normalizeRegion,
     getLatestEditionDate,
@@ -721,5 +848,6 @@ export function makeNewsService(pool: Pool) {
     getNewsTopics,
     getNewsArchive,
     getActiveNewsSources,
+    getNewsDeltas,
   };
 }

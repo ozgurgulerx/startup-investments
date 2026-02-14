@@ -90,14 +90,50 @@ fi
 # Step 2.5: Materialize analysis_store into Postgres for DB-driven Dealbook filters.
 # This makes vertical_taxonomy (and other analysis_data fields) queryable via the backend API.
 if [ -n "${DATABASE_URL:-}" ]; then
-    PERIOD="$(ls -1 "$REPO_DIR/apps/web/data" 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}$' | sort -r | head -n 1 || true)"
-    if [ -n "$PERIOD" ]; then
-        echo "Applying startup migrations + populating analysis_data for period: $PERIOD"
-        bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" startups
-        "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$PERIOD"
-        echo "DB analysis_data population complete."
+    echo "Applying startup migrations..."
+    bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" startups
+
+    # Keep DB in sync with the on-disk datasets:
+    # 1) Upsert startup rows from startups.csv via admin API
+    # 2) Populate startups.analysis_data from analysis_store JSONs
+    #
+    # This is required so region-aware Dealbook/Dossiers can use the API for both global + turkey.
+    if [ -n "${API_URL:-}" ] && [ -n "${API_KEY:-}" ] && [ -n "${ADMIN_KEY:-}" ]; then
+        # Global dataset
+        if [ -n "$GLOBAL_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" ]; then
+            echo "Syncing startups.csv to API (region=global period=$GLOBAL_PERIOD)..."
+            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
+              --csv "$REPO_DIR/apps/web/data/$GLOBAL_PERIOD/input/startups.csv" \
+              --region global
+            echo "Populating analysis_data (region=global period=$GLOBAL_PERIOD)..."
+            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$GLOBAL_PERIOD" --region global
+        else
+            echo "WARN: Global startups.csv not found for period $GLOBAL_PERIOD; skipping global DB sync."
+        fi
+
+        # Turkey dataset (optional)
+        if [ -n "$TR_PERIOD" ] && [ -f "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" ]; then
+            echo "Syncing startups.csv to API (region=turkey period=$TR_PERIOD)..."
+            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/sync-startups-to-api.py" \
+              --csv "$REPO_DIR/apps/web/data/tr/$TR_PERIOD/input/startups.csv" \
+              --region turkey
+            echo "Populating analysis_data (region=turkey period=$TR_PERIOD)..."
+            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$TR_PERIOD" --region turkey
+        else
+            echo "INFO: Turkey startups.csv not found for period $TR_PERIOD; skipping turkey DB sync."
+        fi
+
+        echo "DB startup sync complete."
     else
-        echo "WARN: Could not determine latest period under apps/web/data; skipping DB populate."
+        echo "WARN: API_URL/API_KEY/ADMIN_KEY not set; skipping /api/admin/sync-startups (DB may miss new startups)."
+
+        # Still attempt to populate analysis_data for existing rows (best-effort).
+        if [ -n "$GLOBAL_PERIOD" ]; then
+            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$GLOBAL_PERIOD" --region global || true
+        fi
+        if [ -n "$TR_PERIOD" ]; then
+            "$VENV_DIR/bin/python" "$REPO_DIR/scripts/populate-analysis-data.py" --period "$TR_PERIOD" --region turkey || true
+        fi
     fi
 else
     echo "WARN: DATABASE_URL not set; skipping DB populate."

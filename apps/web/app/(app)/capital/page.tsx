@@ -14,6 +14,7 @@ import {
 } from '@/lib/data/anomalies';
 import Link from 'next/link';
 import { PeriodNav } from '@/components/ui/period-nav';
+import { withRegionHref } from '@/lib/region-href';
 
 const FALLBACK_PERIOD = '2026-01';
 
@@ -177,7 +178,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
           </CardHeader>
           <CardContent className="space-y-4">
             <Link
-              href={`/dealbook?pattern=${encodeURIComponent('Agentic Architectures')}`}
+              href={withRegionHref(`/dealbook?pattern=${encodeURIComponent('Agentic Architectures')}`, region)}
               className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
             >
               <TrendingUp className="h-5 w-5 text-success mt-0.5" />
@@ -191,7 +192,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
             </Link>
 
             <Link
-              href="/dealbook"
+              href={withRegionHref('/dealbook', region)}
               className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
             >
               <TrendingUp className="h-5 w-5 text-success mt-0.5" />
@@ -205,7 +206,7 @@ async function CapitalContent({ selectedMonth, region }: { selectedMonth?: strin
             </Link>
 
             <Link
-              href={`/dealbook?pattern=${encodeURIComponent('Vertical Data Moats')}`}
+              href={withRegionHref(`/dealbook?pattern=${encodeURIComponent('Vertical Data Moats')}`, region)}
               className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
             >
               <ArrowRight className="h-5 w-5 text-primary mt-0.5" />

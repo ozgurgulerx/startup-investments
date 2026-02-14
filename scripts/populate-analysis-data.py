@@ -5,7 +5,7 @@ Populate analysis_data JSONB column from analysis store JSON files.
 This script reads individual startup analysis JSON files and populates
 the analysis_data column in the startups table for database-driven queries.
 
-Usage: python scripts/populate-analysis-data.py [--period 2026-01]
+Usage: python scripts/populate-analysis-data.py [--period 2026-01] [--region global|turkey]
 
 Requires DATABASE_URL environment variable to be set.
 """
@@ -35,6 +35,18 @@ if not DATABASE_URL:
 BASE_DIR = Path(__file__).parent.parent
 WEB_DATA_DIR = BASE_DIR / 'apps' / 'web' / 'data'
 
+def _data_dir_for_region(region: str) -> Path:
+    r = (region or "").strip().lower()
+    if r in ("turkey", "tr"):
+        return WEB_DATA_DIR / "tr"
+    return WEB_DATA_DIR
+
+def _db_region(region: str) -> str:
+    r = (region or "").strip().lower()
+    if r in ("turkey", "tr"):
+        return "turkey"
+    return "global"
+
 def slugify(name: str) -> str:
     """Convert name to slug format."""
     import re
@@ -44,9 +56,9 @@ def slugify(name: str) -> str:
     return slug
 
 
-def load_analysis_files(period: str) -> dict:
+def load_analysis_files(period: str, region: str) -> dict:
     """Load all analysis JSON files for a period."""
-    analysis_dir = WEB_DATA_DIR / period / 'output' / 'analysis_store' / 'base_analyses'
+    analysis_dir = _data_dir_for_region(region) / period / 'output' / 'analysis_store' / 'base_analyses'
 
     if not analysis_dir.exists():
         print(f"Analysis directory not found: {analysis_dir}")
@@ -65,7 +77,7 @@ def load_analysis_files(period: str) -> dict:
     return analyses
 
 
-def populate_analysis_data(conn, period: str, analyses: dict):
+def populate_analysis_data(conn, period: str, region: str, analyses: dict):
     """Populate analysis_data column for startups."""
     cur = conn.cursor()
 
@@ -90,7 +102,7 @@ def populate_analysis_data(conn, period: str, analyses: dict):
                     funding_stage = %s,
                     uses_genai = %s,
                     updated_at = NOW()
-                WHERE slug = %s
+                WHERE dataset_region = %s AND slug = %s
                 RETURNING id
             """, (
                 Json(analysis),
@@ -98,6 +110,7 @@ def populate_analysis_data(conn, period: str, analyses: dict):
                 funding_amount,
                 funding_stage,
                 uses_genai,
+                region,
                 slug
             ))
 
@@ -116,7 +129,7 @@ def populate_analysis_data(conn, period: str, analyses: dict):
                         funding_stage = %s,
                         uses_genai = %s,
                         updated_at = NOW()
-                    WHERE LOWER(name) = LOWER(%s)
+                    WHERE dataset_region = %s AND LOWER(name) = LOWER(%s)
                     RETURNING id
                 """, (
                     Json(analysis),
@@ -124,6 +137,7 @@ def populate_analysis_data(conn, period: str, analyses: dict):
                     funding_amount,
                     funding_stage,
                     uses_genai,
+                    region,
                     company_name
                 ))
 
@@ -145,14 +159,14 @@ def populate_analysis_data(conn, period: str, analyses: dict):
     return updated, not_found, errors
 
 
-def populate_from_csv(conn, period: str):
+def populate_from_csv(conn, period: str, region: str):
     """
     Alternative: Populate directly from enriched CSV if JSON files not available.
     Creates analysis_data from CSV columns.
     """
     import csv
 
-    csv_path = WEB_DATA_DIR / period / 'output' / 'startups_enriched_with_analysis.csv'
+    csv_path = _data_dir_for_region(region) / period / 'output' / 'startups_enriched_with_analysis.csv'
     if not csv_path.exists():
         print(f"Enriched CSV not found: {csv_path}")
         return 0, 0, 0
@@ -233,7 +247,7 @@ def populate_from_csv(conn, period: str):
                         funding_stage = %s,
                         uses_genai = %s,
                         updated_at = NOW()
-                    WHERE slug = %s OR LOWER(name) = LOWER(%s)
+                    WHERE dataset_region = %s AND (slug = %s OR LOWER(name) = LOWER(%s))
                     RETURNING id
                 """, (
                     Json(analysis),
@@ -241,6 +255,7 @@ def populate_from_csv(conn, period: str):
                     funding_amount,
                     funding_stage,
                     analysis['uses_genai'],
+                    region,
                     slug,
                     name
                 ))
@@ -264,13 +279,18 @@ def populate_from_csv(conn, period: str):
 def main():
     parser = argparse.ArgumentParser(description='Populate analysis_data JSONB column')
     parser.add_argument('--period', default='2026-01', help='Period to process (default: 2026-01)')
+    parser.add_argument('--region', default='global', help='Dataset region: global|turkey|tr (default: global)')
     parser.add_argument('--from-csv', action='store_true', help='Use CSV instead of JSON files')
     args = parser.parse_args()
+
+    # Region used in the database (turkey) differs from the on-disk folder name (tr).
+    region_db = _db_region(args.region)
 
     print("=" * 60)
     print("POPULATE ANALYSIS DATA")
     print("=" * 60)
     print(f"Period: {args.period}")
+    print(f"Region: {args.region} (db={region_db})")
     print(f"Database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
 
     try:
@@ -279,20 +299,20 @@ def main():
 
         if args.from_csv:
             print(f"\nLoading from enriched CSV...")
-            updated, not_found, errors = populate_from_csv(conn, args.period)
+            updated, not_found, errors = populate_from_csv(conn, args.period, region_db)
         else:
             # Load analysis files
             print(f"\nLoading analysis files...")
-            analyses = load_analysis_files(args.period)
+            analyses = load_analysis_files(args.period, args.region)
             print(f"  Found {len(analyses)} analysis files")
 
             if not analyses:
                 print("\nNo analysis files found. Trying CSV fallback...")
-                updated, not_found, errors = populate_from_csv(conn, args.period)
+                updated, not_found, errors = populate_from_csv(conn, args.period, region_db)
             else:
                 # Populate database
                 print(f"\nPopulating database...")
-                updated, not_found, errors = populate_analysis_data(conn, args.period, analyses)
+                updated, not_found, errors = populate_analysis_data(conn, args.period, region_db, analyses)
 
         print("\n" + "=" * 60)
         print("SUMMARY")
@@ -309,10 +329,10 @@ def main():
                    money_raised_usd,
                    funding_stage
             FROM startups
-            WHERE period = %s AND analysis_data IS NOT NULL
+            WHERE dataset_region = %s AND period = %s AND analysis_data IS NOT NULL
             ORDER BY money_raised_usd DESC NULLS LAST
             LIMIT 5
-        """, (args.period,))
+        """, (region_db, args.period))
 
         print("\nSample populated records:")
         for row in cur.fetchall():

@@ -114,6 +114,11 @@ export const newsSourcesQuerySchema = z.object({
   region: newsRegionParam,
 });
 
+export const newsDeltasQuerySchema = z.object({
+  region: newsRegionParam,
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
 // =============================================================================
 // Admin / POST schemas
 // =============================================================================

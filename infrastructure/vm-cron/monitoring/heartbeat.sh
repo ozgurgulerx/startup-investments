@@ -95,14 +95,14 @@ done
 #   overdue_minutes = alert if last run was more than this many minutes ago
 #   schedule:
 #     always           — checked 24/7
-#     weekday_business — only checked Mon-Fri 08:00-20:30 UTC (sync-data window + buffer)
+#     weekday_business — only checked Mon-Fri 08:00-20:30 UTC (legacy window; keep for future restricted jobs)
 # ---------------------------------------------------------------------------
 FRESHNESS_JOBS=(
     "keep-alive:40:always"
     "news-ingest:150:always"
     "crawl-frontier:90:always"
     "news-digest:3000:always"
-    "sync-data:90:weekday_business"
+    "sync-data:90:always"
     "code-update:800:always"
 )
 

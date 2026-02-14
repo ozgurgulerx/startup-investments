@@ -78,6 +78,7 @@ export const CompanyRow = React.memo(function CompanyRow({ startup }: CompanyRow
         size="sm"
         variant="muted"
         className="rounded-md"
+        region={selectedRegion}
       />
       <Link
         href={companyHref}

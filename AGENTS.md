@@ -9,7 +9,7 @@ Goals:
 - Make recovery/debug of "site is slow/down" deterministic.
 - Avoid accidental changes that break deploys, auth, or data pipelines.
 
-Last verified: 2026-02-07
+Last verified: 2026-02-08
 
 ## Repo Map
 
@@ -134,6 +134,28 @@ News:
     - Back-compat: `AZURE_OPENAI_DEPLOYMENT`
   - Verify in `/var/log/buildatlas/news-ingest.log`:
     - `[news-ingest] daily brief generated via Azure: "..."` and `Daily brief: generated`.
+- Additional diff-based sources (news-ingest):
+  - GitHub trending-like AI repos: `github_trending_ai` (GitHub Search API; no scraping)
+    - Optional: set `GITHUB_TOKEN` to improve rate limits.
+    - Tuning: `GITHUB_TRENDING_TOPICS`, `GITHUB_TRENDING_CREATED_DAYS`, `GITHUB_TRENDING_MIN_STARS`, `GITHUB_TRENDING_LIMIT`, `GITHUB_TRENDING_MIN_STAR_DELTA`.
+  - Amazon new releases AI books: `amazon_new_releases_ai` (Playwright scrape)
+    - Disabled unless `AMAZON_NEW_RELEASES_URLS` is set in `/etc/buildatlas/.env` (comma-separated category URLs).
+    - Tuning: `AMAZON_NEW_RELEASES_MAX_ITEMS`, `AMAZON_NEW_RELEASES_MIN_RANK_DELTA`, `AMAZON_PLAYWRIGHT_TIMEOUT_MS`.
+    - Note: Amazon may return CAPTCHA/robot checks; ingestion fails soft for this source.
+- VC / investor sources (news-ingest, RSS-only):
+  - Source list: `packages/analysis/src/automation/news_sources_vc.py`
+  - Enable: `NEWS_VC_SOURCES_ENABLED=true` (default is off for safety/cost)
+  - Add extra feeds without code changes: `NEWS_VC_EXTRA_SOURCES` (newline-separated `source_key|Display Name|feed_url|credibility`)
+  - AI-only prefilter: `NEWS_VC_AI_ONLY=true` (default on; uses title+snippet only)
+  - Per-source cap: `NEWS_VC_MAX_ITEMS_PER_SOURCE=12` (default 12)
+  - Quality gate (LLM, VC-only clusters only):
+    - `NEWS_VC_LLM_GATE_ENABLED=true` (default on when VC sources enabled)
+    - `NEWS_VC_LLM_MAX_CLUSTERS_PER_RUN=4` (hard cap per hourly run)
+    - Thresholds: `NEWS_VC_MIN_SIGNAL=0.75`, `NEWS_VC_MIN_CONFIDENCE=0.60`
+    - Default behavior: `NEWS_VC_REQUIRE_LLM=true` means VC-only clusters are ingested but **not promoted** into the top edition unless LLM scores exist (prevents low-signal VC posts from diluting `/news`).
+- News deltas (hourly run-to-run changes):
+  - Stored on each run under `news_ingestion_runs.stats_json.deltas`.
+  - Backend endpoint: `GET /api/v1/news/deltas?region=global|turkey&limit=20` (cached ~60s).
 
 ## Startups: Vertical Taxonomy + Dealbook Filters
 
@@ -155,13 +177,42 @@ Backend API support:
   - `vertical` (legacy exact-match, normalized)
   - `verticalId`, `subVerticalId`, `leafId` (taxonomy IDs; pulled from `analysis_data.vertical_taxonomy.primary.*`)
 
+### Startup Dataset Regions (Global vs Turkey)
+
+We support **two startup datasets** end-to-end:
+- Global: `region=global`
+- Turkey: `region=turkey` (disk folder is legacy `tr`)
+
+On disk (web repo data sync):
+- Global: `apps/web/data/<period>/...`
+- Turkey: `apps/web/data/tr/<period>/...`
+
+In Postgres:
+- Column: `startups.dataset_region` (`global|turkey`)
+- Uniqueness: slug is unique per dataset (index on `(dataset_region, slug)`).
+  - Migration: `database/migrations/022_startup_dataset_region.sql`
+
+Backend API (region-aware):
+- `/api/v1/periods?region=global|turkey`
+- `/api/v1/dealbook?region=global|turkey&...`
+- `/api/v1/dealbook/filters?region=global|turkey&period=...`
+- `/api/v1/companies/:slug?region=global|turkey&period=...`
+- `/api/v1/stats?region=global|turkey&period=...`
+- `/api/startups/:slug/logo?region=global|turkey` (public; default global)
+
 Materialization step (required for DB-driven filters):
 - The analysis pipeline writes JSON files under `apps/web/data/<period>/output/analysis_store/base_analyses/*.json`.
 - To make taxonomy filterable via the backend, we must copy those JSON blobs into Postgres:
-  - Command: `python scripts/populate-analysis-data.py --period YYYY-MM`
+  - Command (global): `python scripts/populate-analysis-data.py --period YYYY-MM --region global`
+  - Command (turkey): `python scripts/populate-analysis-data.py --period YYYY-MM --region turkey`
 - Primary automation:
-  - VM cron `sync-data` runs `apply-migrations.sh startups` and then `populate-analysis-data.py` after syncing blob data.
-  - GitHub fallback: `.github/workflows/sync-to-database.yml` applies required migrations and runs `populate-analysis-data.py`.
+  - VM cron `sync-data` runs:
+    - `apply-migrations.sh startups`
+    - upsert startups from `startups.csv` into Postgres via the backend admin API (global + turkey)
+      - Script: `scripts/sync-startups-to-api.py`
+      - Endpoint: `POST /api/admin/sync-startups?region=global|turkey`
+    - `scripts/populate-analysis-data.py` for both datasets to materialize `analysis_data` (incl. `vertical_taxonomy`)
+  - GitHub fallback: `.github/workflows/sync-to-database.yml` syncs CSV + materializes `analysis_data` for **global**. (If you need Turkey DB sync, prefer VM cron.)
   - Guardrail: `scripts/check-vertical-taxonomy.py` validates `vertical_taxonomy.primary.vertical_id/label` is present; VM `sync-data` will attempt `scripts/backfill-vertical-taxonomy.py --only-incomplete` and re-check before pushing.
 
 Quick verification (run on the DB):
@@ -273,9 +324,9 @@ On-disk data layout (file-based datasets):
 - Global: `apps/web/data/{YYYY-MM}/...`
 - Turkey: `apps/web/data/tr/{YYYY-MM}/...` (folder name stays `tr` for historical reasons)
 
-API limitations and performance implications:
-- Backend API serves **global** dataset only.
-- When `region != global`, the web app bypasses API calls and reads from files (slower; acceptable as a fallback/region mode).
+API behavior and performance implications:
+- Backend API is **region-aware** (supports `global` + `turkey`) via `startups.dataset_region`.
+- The web app is **API-first** when configured (for both regions) and **falls back to files** when the API is unavailable or the DB is behind deployed datasets.
 
 Quick checks:
 - `GET /api/periods?region=turkey` should return TR periods when `apps/web/data/tr/**` is deployed.

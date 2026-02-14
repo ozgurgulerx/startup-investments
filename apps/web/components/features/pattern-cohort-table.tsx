@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { X, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
+import { useRegion } from '@/lib/region-context';
+import { withRegionHref } from '@/lib/region-href';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
 
 export interface PatternCohortTableProps {
@@ -21,6 +23,7 @@ export function PatternCohortTable({
   patternName,
   companies,
 }: PatternCohortTableProps) {
+  const { region } = useRegion();
   const totalFunding = companies.reduce((sum, c) => sum + (c.funding_amount || 0), 0);
   const genaiCount = companies.filter(c => c.uses_genai).length;
 
@@ -109,7 +112,7 @@ export function PatternCohortTable({
                       </td>
                       <td className="py-3">
                         <Link
-                          href={`/company/${company.company_slug}`}
+                          href={withRegionHref(`/company/${company.company_slug}`, region)}
                           className="font-medium text-foreground hover:text-accent-info transition-colors"
                         >
                           {company.company_name}
@@ -151,7 +154,7 @@ export function PatternCohortTable({
           {/* Footer */}
           <div className="px-6 py-3 border-t border-border/50">
             <Link
-              href={`/signals?pattern=${encodeURIComponent(patternName)}`}
+              href={withRegionHref(`/signals?pattern=${encodeURIComponent(patternName)}`, region)}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               View full pattern analysis

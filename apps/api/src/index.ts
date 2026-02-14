@@ -22,6 +22,7 @@ import {
   newsTopicsQuerySchema,
   newsArchiveQuerySchema,
   newsSourcesQuerySchema,
+  newsDeltasQuerySchema,
 } from './validation';
 import { slugify, parseLocation, parseFundingAmount } from './utils';
 import { makeNewsService } from './services/news';
@@ -41,6 +42,7 @@ import {
   newsTopicsKey,
   newsArchiveKey,
   newsSourcesKey,
+  newsDeltasKey,
   hashObject,
   safeCacheParse,
   CACHE_TTL,
@@ -1371,6 +1373,58 @@ app.get('/api/v1/news/latest', async (req, res) => {
   } catch (error) {
     console.error('Error fetching latest news edition:', error);
     return res.status(500).json({ error: 'Failed to fetch latest news edition' });
+  }
+});
+
+app.get('/api/v1/news/deltas', async (req, res) => {
+  try {
+    const parsed = newsDeltasQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
+    }
+    const { region, limit } = parsed.data;
+
+    const cacheKey = newsDeltasKey(region, limit);
+    const redis = await getRedisClient();
+    if (redis) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          if (cachedData === 'null') {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120');
+            return res.status(404).json({ error: 'No news deltas available' });
+          }
+          const data = safeCacheParse<unknown>(cachedData, cacheKey, redis);
+          if (data !== null) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+            return res.json(data);
+          }
+        }
+      } catch (cacheErr) {
+        console.error('Redis cache read error:', cacheErr);
+      }
+    }
+    res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
+
+    const deltas = await newsService.getNewsDeltas({ region, limit });
+    if (!deltas) {
+      if (redis) {
+        try { await redis.setEx(cacheKey, 30, JSON.stringify(null)); } catch { /* best effort */ }
+      }
+      return res.status(404).json({ error: 'No news deltas available' });
+    }
+
+    if (redis) {
+      try { await redis.setEx(cacheKey, CACHE_TTL.NEWS_DELTAS, JSON.stringify(deltas)); } catch { /* best effort */ }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    return res.json(deltas);
+  } catch (error) {
+    console.error('Error fetching news deltas:', error);
+    return res.status(500).json({ error: 'Failed to fetch news deltas' });
   }
 });
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import Image, { type ImageLoader } from 'next/image';
+import { normalizeDatasetRegion } from '@/lib/region';
 
 const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net';
 const passthroughLoader: ImageLoader = ({ src }) => src;
@@ -14,6 +15,7 @@ interface CompanyLogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   variant?: 'default' | 'muted' | 'elevated';
+  region?: string;
 }
 
 const sizeClasses = {
@@ -48,12 +50,17 @@ export function CompanyLogo({
   className,
   size = 'md',
   variant = 'default',
+  region,
 }: CompanyLogoProps) {
   const [hasError, setHasError] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const initials = getInitials(companyName);
   const shouldShowFallback = hasError || !slug;
   const imageSize = pixelSizes[size];
+  const regionKey = normalizeDatasetRegion(region);
+  const logoSrc = regionKey === 'global'
+    ? `${apiUrl}/api/startups/${slug}/logo`
+    : `${apiUrl}/api/startups/${slug}/logo?region=${encodeURIComponent(regionKey)}`;
 
   return (
     <span
@@ -70,7 +77,7 @@ export function CompanyLogo({
         <Image
           loader={passthroughLoader}
           unoptimized
-          src={`${apiUrl}/api/startups/${slug}/logo`}
+          src={logoSrc}
           alt={`${companyName} logo`}
           className={cn(
             'h-full w-full object-contain p-1.5 transition-opacity duration-300',

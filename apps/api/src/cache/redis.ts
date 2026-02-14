@@ -196,6 +196,13 @@ export function newsSourcesKey(region: string): string {
   return `news:v1:sources:${region}`;
 }
 
+/**
+ * Generate cache key for news deltas (hourly run-to-run changes).
+ */
+export function newsDeltasKey(region: string, limit: number): string {
+  return `news:v1:deltas:${region}:l${limit}`;
+}
+
 // Sort keys recursively so logically equivalent objects hash consistently.
 // Note: we preserve array ordering (arrays are not sorted).
 function sortDeep(value: unknown): unknown {
@@ -390,4 +397,5 @@ export const CACHE_TTL = {
   NEWS_TOPICS: 300,      // 5 minutes
   NEWS_ARCHIVE: 900,     // 15 minutes
   NEWS_SOURCES: 1800,    // 30 minutes - very stable
+  NEWS_DELTAS: 60,       // 1 minute - changes on hourly ingestion runs
 } as const;
