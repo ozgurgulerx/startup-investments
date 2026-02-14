@@ -656,7 +656,8 @@ PY
     )"
     if [ -n "${INV_SAMPLE_ID:-}" ]; then
       INV_NEWS_JSON="$TMP_DIR/investor_news.json"
-      INV_NEWS_URL="$API_BASE_URL/api/v1/investors/${INV_SAMPLE_ID}/news?scope=global&days=30&limit=5&offset=0"
+      # All-time by default (no aging). Passing a fixed 30d window can be legitimately empty for many investors.
+      INV_NEWS_URL="$API_BASE_URL/api/v1/investors/${INV_SAMPLE_ID}/news?scope=global&limit=5&offset=0"
       INV_NEWS_HTTP="$(fetch "$INV_NEWS_URL" "$INV_NEWS_JSON" -H "X-API-Key: ${API_KEY}")"
       if [ "$INV_NEWS_HTTP" != "200" ]; then
         set_status_fail "investor news HTTP $INV_NEWS_HTTP"
@@ -671,9 +672,9 @@ except Exception:
     print(0)
 PY
         )"
-        add_info "investor funding news sample (30d): ${INV_NEWS_TOTAL:-0}"
+        add_info "investor news sample (all-time): ${INV_NEWS_TOTAL:-0}"
         if [ "${INV_NEWS_TOTAL:-0}" -le 0 ]; then
-          set_status_warn "investor news is empty for sample investor (30d total=0)"
+          set_status_warn "investor news is empty for sample investor (all-time total=0)"
         fi
       fi
     else

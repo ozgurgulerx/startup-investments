@@ -52,6 +52,53 @@ add_fail()    { RESULTS+=("fail $1"); ISSUES=$((ISSUES + 1)); }
 add_warn()    { RESULTS+=("warn $1"); }
 add_section() { RESULTS+=("section $1"); }
 
+list_contains_job() {
+    local job="${1:-}"
+    local raw="${2:-}"
+
+    raw="$(echo "$raw" | tr -d '[:space:]')"
+
+    if [ -z "$job" ] || [ -z "$raw" ]; then
+        return 1
+    fi
+    if [ "$raw" = "off" ] || [ "$raw" = "none" ] || [ "$raw" = "0" ]; then
+        return 1
+    fi
+    if [ "$raw" = "all" ]; then
+        return 0
+    fi
+    case ",$raw," in
+        *,"$job",*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+is_job_disabled() {
+    local job="${1:-}"
+    if [ -z "$job" ]; then
+        return 1
+    fi
+
+    if list_contains_job "$job" "${BUILDATLAS_DISABLED_JOBS:-}" || list_contains_job "$job" "${BUILDATLAS_VM_CRON_DISABLED_JOBS:-}"; then
+        return 0
+    fi
+
+    # Mirror runner.sh safety net: repo-managed list for jobs migrated to AKS.
+    local runner="${BUILDATLAS_RUNNER:-vm-cron}"
+    if [ "$runner" != "vm-cron" ]; then
+        return 1
+    fi
+
+    local file="${BUILDATLAS_VM_CRON_DISABLED_JOBS_FILE:-$REPO_DIR/infrastructure/vm-cron/vm-cron-disabled-jobs}"
+    if [ ! -f "$file" ]; then
+        return 1
+    fi
+
+    local raw=""
+    raw="$(sed -e 's/#.*$//' -e 's/[[:space:]]//g' "$file" | tr '\n' ',' | tr -s ',' | sed -e 's/^,//' -e 's/,$//')"
+    list_contains_job "$job" "$raw"
+}
+
 # =========================================================================
 # Infrastructure
 # =========================================================================
@@ -498,6 +545,41 @@ if [ -f "$SYNC_LOG" ]; then
     fi
 fi
 
+# Storage private endpoint sanity (best-effort; avoids silent blob degradation).
+STORAGE_ACCOUNT="${AZURE_STORAGE_ACCOUNT_NAME:-buildatlasstorage}"
+if [ -n "$STORAGE_ACCOUNT" ]; then
+    STORAGE_HOST="${STORAGE_ACCOUNT}.blob.core.windows.net"
+    STORAGE_IP=$(getent hosts "$STORAGE_HOST" 2>/dev/null | awk '{print $1}' | head -n 1 || echo "")
+
+    STORAGE_PRIVATE=0
+    if [ -n "$STORAGE_IP" ]; then
+        case "$STORAGE_IP" in
+            10.*|192.168.*) STORAGE_PRIVATE=1 ;;
+            172.*)
+                SECOND_OCTET="$(echo "$STORAGE_IP" | cut -d. -f2)"
+                if [ -n "$SECOND_OCTET" ] && [ "$SECOND_OCTET" -ge 16 ] 2>/dev/null && [ "$SECOND_OCTET" -le 31 ] 2>/dev/null; then
+                    STORAGE_PRIVATE=1
+                fi
+                ;;
+        esac
+    fi
+
+    if [ -n "$STORAGE_IP" ] && [ "$STORAGE_PRIVATE" -eq 1 ]; then
+        add_ok "Storage DNS: ${STORAGE_HOST} -> ${STORAGE_IP} (private)"
+    elif [ -n "$STORAGE_IP" ]; then
+        add_warn "Storage DNS: ${STORAGE_HOST} -> ${STORAGE_IP} (not private; private endpoint may be bypassed)"
+    else
+        add_warn "Storage DNS: could not resolve ${STORAGE_HOST}"
+    fi
+
+    # Ensure managed identity AAD access still works (shared key is disabled in prod).
+    if az storage container list --account-name "$STORAGE_ACCOUNT" --auth-mode login -o none 2>/dev/null; then
+        add_ok "Storage AAD: OK"
+    else
+        add_warn "Storage AAD: cannot list containers (RBAC/network/private endpoint)"
+    fi
+fi
+
 # =========================================================================
 # Cron Jobs (from log files)
 # =========================================================================
@@ -510,11 +592,113 @@ echo "[12/12] Cron jobs..."
 CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 onboarding-alerts:5 crawl-frontier:30 sync-data:30 news-digest:60 signal-aggregate:240 delta-generate:240 generate-alerts:240 code-update:15"
 NOW_EPOCH=$(date +%s)
 
+# Best-effort: read AKS CronJob lastScheduleTime so jobs migrated off the VM
+# don't show up as "stale" here.
+AKS_CRON_AVAILABLE=0
+declare -A AKS_CRON_SUSPEND
+declare -A AKS_CRON_LAST_SCHEDULE
+
+AKS_CRON_JSON=$(az aks command invoke \
+    --resource-group "$AKS_RG" \
+    --name "$AKS_NAME" \
+    --command "kubectl get cronjobs -n default -o json" \
+    --query "logs" -o tsv 2>/dev/null || echo "")
+
+if [ -n "$AKS_CRON_JSON" ]; then
+    AKS_CRON_INFO=$(python3 - <<'PY' 2>/dev/null || true
+import json
+import sys
+
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    d = {}
+
+items = d.get("items") or []
+if not isinstance(items, list):
+    items = []
+
+for cj in items:
+    if not isinstance(cj, dict):
+        continue
+    meta = cj.get("metadata") or {}
+    spec = cj.get("spec") or {}
+    status = cj.get("status") or {}
+    name = meta.get("name") or ""
+    if not name:
+        continue
+    suspend = spec.get("suspend")
+    suspend_s = "true" if suspend is True else "false"
+    last = status.get("lastScheduleTime") or ""
+    print(f"{name}|{suspend_s}|{last}")
+PY
+    <<< "$AKS_CRON_JSON")
+
+    if [ -n "$AKS_CRON_INFO" ]; then
+        AKS_CRON_AVAILABLE=1
+        while IFS='|' read -r N S L; do
+            [ -n "$N" ] || continue
+            AKS_CRON_SUSPEND["$N"]="$S"
+            AKS_CRON_LAST_SCHEDULE["$N"]="$L"
+        done <<< "$AKS_CRON_INFO"
+    fi
+fi
+
 for job_entry in $CRON_JOBS; do
     JOB_NAME="${job_entry%%:*}"
     EXPECTED_MIN="${job_entry##*:}"
     STALE_THRESHOLD=$((EXPECTED_MIN * 2))
     LOG_FILE="${LOG_DIR}/${JOB_NAME}.log"
+
+    if is_job_disabled "$JOB_NAME"; then
+        # Job is intentionally not running on the VM. Verify it exists on AKS (or at least don't page ourselves).
+        if [ "$AKS_CRON_AVAILABLE" = "1" ] && [ -n "${AKS_CRON_SUSPEND[$JOB_NAME]:-}" ]; then
+            SUSP="${AKS_CRON_SUSPEND[$JOB_NAME]}"
+            LAST="${AKS_CRON_LAST_SCHEDULE[$JOB_NAME]:-}"
+
+            if [ "$SUSP" = "true" ]; then
+                echo "  ${JOB_NAME}: AKS CronJob is suspended"
+                add_fail "${JOB_NAME}: AKS CronJob suspended (job disabled on VM)"
+                continue
+            fi
+
+            if [ -n "$LAST" ]; then
+                TS_EPOCH=$(date -d "$LAST" +%s 2>/dev/null || echo "0")
+                if [ "$TS_EPOCH" -gt 0 ] 2>/dev/null; then
+                    MINS_AGO=$(( (NOW_EPOCH - TS_EPOCH) / 60 ))
+                    if [ "$MINS_AGO" -lt 60 ]; then
+                        AGO_STR="${MINS_AGO}m ago"
+                    elif [ "$MINS_AGO" -lt 1440 ]; then
+                        AGO_STR="$(( MINS_AGO / 60 ))h ago"
+                    else
+                        AGO_STR="$(( MINS_AGO / 1440 ))d ago"
+                    fi
+
+                    echo "  ${JOB_NAME}: AKS last schedule ${AGO_STR}"
+                    if [ "$MINS_AGO" -le "$STALE_THRESHOLD" ]; then
+                        add_ok "${JOB_NAME} (AKS): ${AGO_STR}"
+                    else
+                        add_warn "${JOB_NAME} (AKS): ${AGO_STR} (stale)"
+                    fi
+                else
+                    echo "  ${JOB_NAME}: AKS last schedule unparseable"
+                    add_warn "${JOB_NAME} (AKS): unparseable lastScheduleTime"
+                fi
+            else
+                echo "  ${JOB_NAME}: AKS has no lastScheduleTime yet"
+                add_warn "${JOB_NAME} (AKS): no lastScheduleTime"
+            fi
+        else
+            echo "  ${JOB_NAME}: disabled on VM (AKS CronJob not found)"
+            add_fail "${JOB_NAME}: disabled on VM but missing AKS CronJob"
+        fi
+        continue
+    fi
+
+    # Guardrail: if the job isn't disabled on the VM but still exists in AKS, it may double-run.
+    if [ "$AKS_CRON_AVAILABLE" = "1" ] && [ -n "${AKS_CRON_SUSPEND[$JOB_NAME]:-}" ]; then
+        add_warn "${JOB_NAME}: also exists as AKS CronJob (duplicate run risk)"
+    fi
 
     if [ -f "$LOG_FILE" ]; then
         # Get the last SUCCESS timestamp from the log

@@ -6,6 +6,10 @@ Design goals:
 - No third-party dependencies (uses stdlib only)
 - Safe logs (never prints webhook URL)
 - Simple Block Kit formatting
+
+Fallback:
+- If no webhook is configured and we have GitHub credentials (repo + token),
+  we can forward via `repository_dispatch` to a GitHub Actions workflow that posts to Slack.
 """
 
 from __future__ import annotations
@@ -35,9 +39,51 @@ def _status_emoji(status: str) -> str:
     return ":information_source:"
 
 
+def _github_repository_dispatch(
+    *,
+    repo: str,
+    token: str,
+    event_type: str,
+    client_payload: dict,
+) -> int:
+    """
+    Trigger a repository_dispatch event.
+
+    Used as a fallback when running on the VM without a Slack webhook configured locally.
+    """
+    url = f"https://api.github.com/repos/{repo}/dispatches"
+    data = json.dumps({"event_type": event_type, "client_payload": client_payload}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "buildatlas-slack-notify",
+            "Content-Type": "application/json; charset=utf-8",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            # GitHub returns 204 No Content on success.
+            if resp.status not in (200, 201, 202, 204):
+                sys.stderr.write(f"GitHub dispatch returned HTTP {resp.status}\n")
+                return 1
+    except Exception as e:
+        sys.stderr.write(f"GitHub dispatch failed: {e}\n")
+        return 1
+
+    return 0
+
+
 def main() -> int:
     # Back-compat: some environments use SLACK_WEBHOOK instead of SLACK_WEBHOOK_URL.
     webhook_url = _env("SLACK_WEBHOOK_URL") or _env("SLACK_WEBHOOK")
+    github_repo = _env("GITHUB_REPOSITORY")
+    github_token = _env("GITHUB_TOKEN")
 
     title = _env("SLACK_TITLE", "BuildAtlas Notification") or "BuildAtlas Notification"
     status = _env("SLACK_STATUS", "info") or "info"
@@ -77,6 +123,48 @@ def main() -> int:
             pass
 
     if not webhook_url:
+        # Only attempt dispatch when we're not already inside GitHub Actions.
+        # This avoids recursive loops if Slack is misconfigured in CI.
+        if (os.environ.get("GITHUB_ACTIONS") or "").lower().strip() == "true":
+            return 0
+
+        runner = _env("BUILDATLAS_RUNNER") or ""
+        if runner != "vm-cron":
+            return 0
+
+        if github_repo and github_token:
+            host = _env("BUILDATLAS_HOST") or _env("HOSTNAME") or ""
+            job = _env("BUILDATLAS_JOB") or ""
+            log_path = _env("BUILDATLAS_LOG") or ""
+
+            try:
+                context_obj = json.loads(context_json) if context_json else {}
+            except Exception:
+                context_obj = {}
+            if not isinstance(context_obj, dict):
+                context_obj = {}
+
+            payload = {
+                "title": title,
+                "status": status,
+                "body": body,
+                "url": url or "",
+                "context": {
+                    "runner": runner,
+                    "job": job,
+                    "host": host,
+                    "log": log_path,
+                    **context_obj,
+                },
+            }
+
+            return _github_repository_dispatch(
+                repo=github_repo,
+                token=github_token,
+                event_type="vm-cron-slack-notify",
+                client_payload=payload,
+            )
+
         # Intentionally a no-op to keep scripts functional when Slack isn't configured.
         return 0
 
