@@ -168,6 +168,7 @@ VM cron runner:
 - VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
 - Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
   - `runner.sh` strips NUL bytes (`\000`) from job stdout/stderr before appending to logs so log-scanners don't treat them as binary.
+  - If you see intermittent `exit 141` in VM cron job logs: this is `SIGPIPE` (often from `tee` writing to a closed/unwritable stdout under cron). `runner.sh` now streams to stdout only for operator sessions (TTY/SSH) and otherwise discards `tee` stdout; it also logs `PIPESTATUS` on failures for faster root-cause.
   - `runner.sh` sets `AZURE_CONFIG_DIR` per job run to isolate Azure CLI auth state (prevents cross-job `az login` races).
   - `heartbeat.sh` scans logs in text mode (`grep -a`) so occasional NUL bytes won't break freshness detection.
   - Product surface canary:

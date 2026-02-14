@@ -295,6 +295,16 @@ cd "$REPO_DIR"
 # Also: avoid buffering in the filter stage so logs update in near-real-time
 # (e.g., when a job blocks on a lock or a long-running step). `tr` can fully
 # buffer when writing to a pipe, which makes log mtimes misleading.
+#
+# Cron/non-interactive runs can have stdout closed/unwritable, which can cause
+# `tee` to receive SIGPIPE and fail the whole pipeline (exit 141) due to
+# `set -o pipefail`. Stream to stdout only for operator sessions (TTY or SSH);
+# otherwise discard `tee` stdout and rely on the log file.
+if [ -t 1 ] || [ -n "${SSH_CONNECTION:-}" ]; then
+    exec 3>&1
+else
+    exec 3>/dev/null
+fi
 timeout "${TIMEOUT_MIN}m" bash "$SCRIPT_PATH" "$@" 2>&1 \
   | python3 -u -c '
 import sys
@@ -308,8 +318,9 @@ while True:
     sys.stdout.buffer.write(chunk)
     sys.stdout.buffer.flush()
 ' \
-  | tee -a "$LOG_FILE"
+  | tee -a "$LOG_FILE" >&3
 EXIT_CODE=$?
+PIPESTAT=("${PIPESTATUS[@]}")
 DURATION_SEC="$(( $(date +%s) - START_TS ))"
 ENDED_AT_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
@@ -335,6 +346,7 @@ if [ $EXIT_CODE -eq 0 ]; then
     fi
 elif [ $EXIT_CODE -eq 124 ]; then
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] TIMEOUT: $JOB_NAME (killed after ${TIMEOUT_MIN}m)" >> "$LOG_FILE"
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] PIPESTATUS: ${PIPESTAT[*]}" >> "$LOG_FILE"
     send_slack_event \
         "timeout" \
         "failure" \
@@ -349,6 +361,7 @@ elif [ $EXIT_CODE -eq 124 ]; then
         "$ENDED_AT_UTC"
 else
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] FAILED: $JOB_NAME (exit $EXIT_CODE)" >> "$LOG_FILE"
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] PIPESTATUS: ${PIPESTAT[*]}" >> "$LOG_FILE"
     # Use the true tail so we don't cut off the actual error (tracebacks, etc).
     TAIL_OUTPUT=$(tail -20 "$LOG_FILE" 2>/dev/null || echo "(no output)")
     send_slack_event \
