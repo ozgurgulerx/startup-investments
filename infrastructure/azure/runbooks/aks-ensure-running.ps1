@@ -74,7 +74,8 @@ function _Try-Get-ApiHealth([string]$BaseUrl) {
 
 function _Get-AksPowerState([string]$AksResourceId, [string]$ApiVersion) {
   $resp = Invoke-AzRestMethod -Method GET -Path ($AksResourceId + "?api-version=" + $ApiVersion)
-  $obj = $resp.Content | ConvertFrom-Json -Depth 50
+  # Windows PowerShell 5.1 ConvertFrom-Json does not support -Depth; keep parsing shallow fields only.
+  $obj = $resp.Content | ConvertFrom-Json
   $code = $null
   try { $code = $obj.properties.powerState.code } catch { $code = $null }
   if (-not $code) { $code = "UNKNOWN" }
@@ -93,7 +94,7 @@ function _Ensure-SystemNodepoolMin([string]$AksResourceId, [string]$ApiVersion) 
   $changes = New-Object System.Collections.Generic.List[string]
   try {
     $resp = Invoke-AzRestMethod -Method GET -Path ($AksResourceId + "/agentPools?api-version=" + $ApiVersion)
-    $obj = $resp.Content | ConvertFrom-Json -Depth 50
+    $obj = $resp.Content | ConvertFrom-Json
 
     $pools = @()
     if ($null -ne $obj.value) {
