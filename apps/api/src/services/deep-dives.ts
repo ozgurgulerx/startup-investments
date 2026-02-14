@@ -109,7 +109,7 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
   if (!error || typeof error !== 'object') return false;
   const message = (error as { message?: unknown }).message;
   if (typeof message !== 'string') return false;
-  return message.includes(`column \"${columnName}\"`) && message.toLowerCase().includes('does not exist');
+  return message.includes(`column "${columnName}"`) && message.toLowerCase().includes('does not exist');
 }
 
 // ---------------------------------------------------------------------------
