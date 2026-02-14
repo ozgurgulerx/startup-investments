@@ -85,7 +85,9 @@ resource varAksRg 'Microsoft.Automation/automationAccounts/variables@2023-11-01'
   name: 'AKS_RESOURCE_GROUP'
   properties: {
     isEncrypted: false
-    value: aksResourceGroupName
+    // Automation variables are persisted as typed values, but the ARM payload expects JSON.
+    // For strings, send a JSON string (with quotes) to avoid "Invalid JSON" errors.
+    value: '"${aksResourceGroupName}"'
   }
 }
 
@@ -94,7 +96,7 @@ resource varAksName 'Microsoft.Automation/automationAccounts/variables@2023-11-0
   name: 'AKS_CLUSTER_NAME'
   properties: {
     isEncrypted: false
-    value: aksClusterName
+    value: '"${aksClusterName}"'
   }
 }
 
@@ -103,7 +105,7 @@ resource varApiUrl 'Microsoft.Automation/automationAccounts/variables@2023-11-01
   name: 'API_URL'
   properties: {
     isEncrypted: false
-    value: apiUrl
+    value: '"${apiUrl}"'
   }
 }
 
@@ -112,7 +114,7 @@ resource varSlack 'Microsoft.Automation/automationAccounts/variables@2023-11-01'
   name: 'SLACK_WEBHOOK_URL'
   properties: {
     isEncrypted: true
-    value: slackWebhookUrl
+    value: '"${slackWebhookUrl}"'
   }
 }
 
