@@ -16,6 +16,12 @@ interface InvestorItem {
   thesis_shift_js: number | null;
   news_count: number;
   last_news_at?: string | null;
+  news_preview?: Array<{
+    cluster_id: string;
+    published_at: string;
+    title: string;
+    canonical_url: string | null;
+  }>;
 }
 
 function formatUsd(v: number | null): string {
@@ -158,6 +164,17 @@ export default function InvestorsPage() {
                     <span key={p} className="px-2 py-0.5 text-[10px] bg-muted/20 text-muted-foreground rounded">
                       {p}
                     </span>
+                  ))}
+                </div>
+              )}
+
+              {inv.news_preview && inv.news_preview.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-border/20 space-y-1">
+                  {inv.news_preview.slice(0, 3).map(n => (
+                    <div key={n.cluster_id} className="flex items-start justify-between gap-3 text-[11px] text-muted-foreground/80 min-w-0">
+                      <span className="flex-1 truncate">{n.title}</span>
+                      <span className="tabular-nums whitespace-nowrap">{formatShortDate(n.published_at)}</span>
+                    </div>
                   ))}
                 </div>
               )}

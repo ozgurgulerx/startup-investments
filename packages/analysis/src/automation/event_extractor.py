@@ -864,14 +864,44 @@ def _split_investor_names(raw: str) -> List[str]:
 
 
 def _event_graph_attrs(evt: ExtractedEvent) -> Dict[str, Any]:
+    amount_usd: Optional[float] = None
+    raw_amount_usd = evt.metadata.get("amount_usd")
+    if isinstance(raw_amount_usd, (int, float)):
+        amount_usd = float(raw_amount_usd)
+    elif raw_amount_usd:
+        amount_usd = _parse_funding_amount(str(raw_amount_usd))
+
+    if amount_usd is None:
+        for key in ("funding_amount", "mentioned_amount"):
+            raw = evt.metadata.get(key)
+            if raw:
+                amount_usd = _parse_funding_amount(str(raw))
+                if amount_usd is not None:
+                    break
+
+    valuation_usd: Optional[float] = None
+    raw_valuation_usd = evt.metadata.get("valuation_usd")
+    if isinstance(raw_valuation_usd, (int, float)):
+        valuation_usd = float(raw_valuation_usd)
+    elif raw_valuation_usd:
+        valuation_usd = _parse_funding_amount(str(raw_valuation_usd))
+
+    if valuation_usd is None:
+        raw_val = evt.metadata.get("valuation")
+        if raw_val:
+            valuation_usd = _parse_funding_amount(str(raw_val))
+
     attrs: Dict[str, Any] = {
         "event_type": evt.event_type,
         "round_type": evt.metadata.get("round_type"),
         "funding_amount": evt.metadata.get("funding_amount"),
+        "amount_usd": int(amount_usd) if amount_usd is not None else None,
         "valuation": evt.metadata.get("valuation"),
+        "valuation_usd": int(valuation_usd) if valuation_usd is not None else None,
         "cluster_id": evt.cluster_id,
         "cluster_key": evt.metadata.get("cluster_key"),
         "event_date": evt.event_date.isoformat() if evt.event_date else None,
+        "announced_date": evt.event_date.date().isoformat() if evt.event_date else None,
         "snippet": (evt.snippet or "")[:280],
     }
     return {k: v for k, v in attrs.items() if v not in (None, "", [], {})}

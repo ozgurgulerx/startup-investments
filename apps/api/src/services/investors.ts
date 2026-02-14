@@ -37,6 +37,14 @@ export interface InvestorScreenerItem {
   thesis_shift_js: number | null;
   news_count: number;
   last_news_at?: string | null;
+  news_preview?: InvestorScreenerNewsPreviewItem[];
+}
+
+export interface InvestorScreenerNewsPreviewItem {
+  cluster_id: string;
+  published_at: string;
+  title: string;
+  canonical_url: string | null;
 }
 
 export interface InvestorNewsItem {
@@ -426,7 +434,7 @@ export function makeInvestorsService(pool: Pool) {
 
     // Best-effort: attach all-time investor news activity (mentions + funding-linked clusters).
     // Keep this as a separate query to avoid expensive correlated subqueries on the screener path.
-    const newsStatsByInvestorId: Record<string, { count: number; last: string | null }> = {};
+    const newsStatsByInvestorId: Record<string, { count: number; last: string | null; preview: InvestorScreenerNewsPreviewItem[] }> = {};
     try {
       const investorIds = dataResult.rows.map(r => String(r.investor_id)).filter(Boolean);
       if (investorIds.length > 0) {
@@ -434,17 +442,49 @@ export function makeInvestorsService(pool: Pool) {
           investor_id: string;
           news_count: number;
           last_news_at: string | null;
+          news_preview: unknown;
         }>(
           `
+          WITH distinct_clusters AS (
+            SELECT DISTINCT
+              l.investor_id,
+              l.cluster_id,
+              c.published_at,
+              c.title,
+              c.canonical_url
+            FROM investor_news_links l
+            JOIN news_clusters c ON c.id = l.cluster_id
+            WHERE l.region = $1
+              AND l.investor_id = ANY($2::uuid[])
+          ),
+          ranked AS (
+            SELECT
+              investor_id,
+              cluster_id,
+              published_at,
+              title,
+              canonical_url,
+              row_number() OVER (PARTITION BY investor_id ORDER BY published_at DESC NULLS LAST) AS rn
+            FROM distinct_clusters
+          )
           SELECT
-            l.investor_id::text AS investor_id,
-            COUNT(DISTINCT l.cluster_id)::int AS news_count,
-            to_char(MAX(c.published_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_news_at
-          FROM investor_news_links l
-          JOIN news_clusters c ON c.id = l.cluster_id
-          WHERE l.region = $1
-            AND l.investor_id = ANY($2::uuid[])
-          GROUP BY l.investor_id
+            investor_id::text AS investor_id,
+            COUNT(*)::int AS news_count,
+            to_char(MAX(published_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_news_at,
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'cluster_id', cluster_id::text,
+                  'published_at', to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                  'title', title,
+                  'canonical_url', canonical_url
+                )
+                ORDER BY published_at DESC NULLS LAST
+              ) FILTER (WHERE rn <= 3),
+              '[]'::json
+            ) AS news_preview
+          FROM ranked
+          GROUP BY investor_id
           `,
           [scope, investorIds],
         );
@@ -453,6 +493,7 @@ export function makeInvestorsService(pool: Pool) {
           newsStatsByInvestorId[String(row.investor_id)] = {
             count: Number(row.news_count || 0),
             last: row.last_news_at ? String(row.last_news_at) : null,
+            preview: parseJsonArray<InvestorScreenerNewsPreviewItem>(row.news_preview),
           };
         }
       }
@@ -480,6 +521,7 @@ export function makeInvestorsService(pool: Pool) {
           thesis_shift_js: parseNumber(r.thesis_shift_js),
           news_count: newsStatsByInvestorId[String(r.investor_id)]?.count || 0,
           last_news_at: newsStatsByInvestorId[String(r.investor_id)]?.last || null,
+          news_preview: newsStatsByInvestorId[String(r.investor_id)]?.preview || [],
         };
       }),
       total,

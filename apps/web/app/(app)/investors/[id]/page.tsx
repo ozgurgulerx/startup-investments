@@ -74,6 +74,8 @@ interface InvestorNewsResponse {
   items: InvestorNewsItem[];
 }
 
+const NEWS_PAGE_SIZE = 25;
+
 const CHART_COLORS = [
   'hsl(220 10% 50%)', 'hsl(220 10% 40%)', 'hsl(220 10% 60%)',
   'hsl(220 10% 35%)', 'hsl(220 10% 55%)', 'hsl(220 10% 45%)',
@@ -103,6 +105,8 @@ export default function InvestorProfilePage() {
   const [network, setNetwork] = useState<InvestorNetwork | null>(null);
   const [news, setNews] = useState<InvestorNewsItem[]>([]);
   const [newsTotal, setNewsTotal] = useState(0);
+  const [newsLoadingMore, setNewsLoadingMore] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -111,6 +115,8 @@ export default function InvestorProfilePage() {
       setNetwork(null);
       setNews([]);
       setNewsTotal(0);
+      setNewsError(null);
+      setNewsLoadingMore(false);
       try {
         const scopeQs = region !== 'global' ? `scope=${region}` : '';
         const dnaUrl = `/api/investors/${investorId}/dna${scopeQs ? `?${scopeQs}` : ''}`;
@@ -119,10 +125,10 @@ export default function InvestorProfilePage() {
         const networkQs = new URLSearchParams();
         if (region !== 'global') networkQs.set('scope', region);
         networkQs.set('depth', '2');
-        networkQs.set('limit', '25');
+        networkQs.set('limit', String(NEWS_PAGE_SIZE));
         const networkUrl = `/api/investors/${investorId}/network?${networkQs.toString()}`;
 
-        const newsQs = new URLSearchParams({ scope: region, limit: '25', offset: '0' });
+        const newsQs = new URLSearchParams({ scope: region, limit: String(NEWS_PAGE_SIZE), offset: '0' });
         const newsUrl = `/api/investors/${investorId}/news?${newsQs.toString()}`;
 
         const [dnaRes, portRes, netRes, newsRes] = await Promise.all([
@@ -145,15 +151,56 @@ export default function InvestorProfilePage() {
           const data = (await newsRes.json()) as InvestorNewsResponse;
           setNews(data.items || []);
           setNewsTotal(data.total || 0);
+        } else {
+          setNewsError(`Failed to load investor news (${newsRes.status})`);
         }
       } catch (err) {
         console.error('Failed to load investor:', err);
+        setNewsError('Failed to load investor news');
       } finally {
         setLoading(false);
       }
     }
     load();
   }, [investorId, region]);
+
+  async function loadMoreNews() {
+    if (newsLoadingMore) return;
+    if (news.length >= newsTotal) return;
+    setNewsLoadingMore(true);
+    setNewsError(null);
+    try {
+      const qs = new URLSearchParams({
+        scope: region,
+        limit: String(NEWS_PAGE_SIZE),
+        offset: String(news.length),
+      });
+      const res = await fetch(`/api/investors/${investorId}/news?${qs.toString()}`);
+      if (!res.ok) {
+        setNewsError(`Failed to load more news (${res.status})`);
+        return;
+      }
+      const data = (await res.json()) as InvestorNewsResponse;
+      setNewsTotal(data.total || 0);
+      const incoming = data.items || [];
+      setNews(prev => {
+        const seen = new Set(prev.map(i => i.cluster_id));
+        const next = [...prev];
+        for (const item of incoming) {
+          if (!seen.has(item.cluster_id)) {
+            next.push(item);
+            seen.add(item.cluster_id);
+          }
+        }
+        return next;
+      });
+    } catch (err) {
+      console.error('Failed to load more investor news:', err);
+      setNewsError('Failed to load more news');
+    } finally {
+      setNewsLoadingMore(false);
+    }
+  }
 
   const patternChartData = useMemo(() => {
     if (!dna) return [];
@@ -385,6 +432,9 @@ export default function InvestorProfilePage() {
         <h3 className="text-sm font-medium text-foreground mb-3">
           News {newsTotal > 0 ? `(${newsTotal})` : ''}
         </h3>
+        {newsError && (
+          <p className="text-xs text-muted-foreground mb-2">{newsError}</p>
+        )}
         <div className="space-y-2">
           {news.map(item => (
             <div key={item.cluster_id} className="text-xs">
@@ -427,6 +477,19 @@ export default function InvestorProfilePage() {
             <p className="text-xs text-muted-foreground py-4 text-center">No news found.</p>
           )}
         </div>
+
+        {news.length > 0 && news.length < newsTotal && (
+          <div className="mt-4 flex justify-center">
+            <button
+              type="button"
+              onClick={loadMoreNews}
+              disabled={newsLoadingMore}
+              className="px-3 py-1.5 text-xs border border-border/30 rounded hover:border-accent-info/40 hover:text-accent-info transition-colors disabled:opacity-60"
+            >
+              {newsLoadingMore ? 'Loading...' : `Load more (${newsTotal - news.length} remaining)`}
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
