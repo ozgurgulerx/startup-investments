@@ -2031,6 +2031,7 @@ class DailyNewsIngestor:
 
         # Schema feature flags (resolved at runtime in `run()`).
         self._regional_clusters_supported = False
+        self._evidence_objects_supported = False
 
         # Diagnostic: log daily brief prerequisites on startup
         _bp = []
@@ -2069,6 +2070,15 @@ class DailyNewsIngestor:
                 """
             )
             return bool(val)
+        except Exception:
+            return False
+
+    async def _supports_evidence_objects(self, conn: asyncpg.Connection) -> bool:
+        """Whether canonical evidence_objects and pointer columns are available."""
+        try:
+            from .evidence_objects import supports_evidence_objects
+
+            return await supports_evidence_objects(conn)
         except Exception:
             return False
 
@@ -4088,6 +4098,52 @@ class DailyNewsIngestor:
         source_ids = await self._get_source_id_map(conn)
         inserted = 0
 
+        if not self._evidence_objects_supported:
+            for item in items:
+                source_id = source_ids.get(item.source_key)
+                if not source_id:
+                    continue
+
+                payload_json = json.dumps(item.payload or {})
+                engagement_json = json.dumps(item.engagement or {})
+
+                result = await conn.execute(
+                    """
+                    INSERT INTO news_items_raw (
+                        source_id, external_id, url, canonical_url, title, summary_raw,
+                        published_at, fetched_at, language, author, engagement_json, payload_json
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10::jsonb, $11::jsonb)
+                    ON CONFLICT (source_id, external_id) DO UPDATE
+                    SET title = EXCLUDED.title,
+                        summary_raw = EXCLUDED.summary_raw,
+                        published_at = COALESCE(EXCLUDED.published_at, news_items_raw.published_at),
+                        fetched_at = NOW(),
+                        language = EXCLUDED.language,
+                        author = EXCLUDED.author,
+                        engagement_json = EXCLUDED.engagement_json,
+                        payload_json = EXCLUDED.payload_json
+                    """,
+                    source_id,
+                    item.external_id,
+                    item.url,
+                    item.canonical_url,
+                    item.title,
+                    item.summary,
+                    item.published_at,
+                    item.language,
+                    item.author,
+                    engagement_json,
+                    payload_json,
+                )
+                if result.startswith("INSERT"):
+                    inserted += 1
+            return inserted
+
+        # Canonical Evidence Object contract: create evidence_objects and set
+        # news_items_raw.evidence_object_id pointers (idempotent).
+        from .evidence_objects import stable_hash, upsert_evidence_object
+
         for item in items:
             source_id = source_ids.get(item.source_key)
             if not source_id:
@@ -4096,7 +4152,7 @@ class DailyNewsIngestor:
             payload_json = json.dumps(item.payload or {})
             engagement_json = json.dumps(item.engagement or {})
 
-            result = await conn.execute(
+            row = await conn.fetchrow(
                 """
                 INSERT INTO news_items_raw (
                     source_id, external_id, url, canonical_url, title, summary_raw,
@@ -4112,6 +4168,7 @@ class DailyNewsIngestor:
                     author = EXCLUDED.author,
                     engagement_json = EXCLUDED.engagement_json,
                     payload_json = EXCLUDED.payload_json
+                RETURNING id::text, evidence_object_id::text, (xmax = 0) AS inserted
                 """,
                 source_id,
                 item.external_id,
@@ -4125,8 +4182,42 @@ class DailyNewsIngestor:
                 engagement_json,
                 payload_json,
             )
-            if result.startswith("INSERT"):
+            if row and row.get("inserted"):
                 inserted += 1
+
+            try:
+                raw_id = str(row["id"]) if row and row.get("id") else ""
+                existing_evidence_id = str(row["evidence_object_id"]) if row and row.get("evidence_object_id") else ""
+                if raw_id and not existing_evidence_id:
+                    h = stable_hash(["news_item", item.source_key, item.external_id, item.canonical_url])
+                    evidence_id = await upsert_evidence_object(
+                        conn,
+                        evidence_type="news_item",
+                        uri=item.canonical_url or item.url,
+                        captured_at=item.published_at,
+                        source_weight=float(item.source_weight or 0.5),
+                        language=item.language or "en",
+                        content_ref=f"db://news_items_raw/{raw_id}",
+                        hash_value=h,
+                        provenance={
+                            "source_key": item.source_key,
+                            "external_id": item.external_id,
+                            "url": item.url,
+                            "canonical_url": item.canonical_url,
+                        },
+                    )
+                    await conn.execute(
+                        """
+                        UPDATE news_items_raw
+                        SET evidence_object_id = $2::uuid
+                        WHERE id = $1::uuid AND evidence_object_id IS NULL
+                        """,
+                        raw_id,
+                        evidence_id,
+                    )
+            except Exception as exc:
+                # Best-effort: don't block ingestion if evidence_objects are misconfigured.
+                print(f"[evidence] raw item evidence persist failed for {item.source_key}:{item.external_id}: {exc}")
 
         return inserted
 
@@ -6606,6 +6697,76 @@ class DailyNewsIngestor:
                     member.source_weight,
                 )
 
+            # Canonical Evidence Object contract for the cluster itself + member mapping.
+            if self._evidence_objects_supported:
+                try:
+                    from .evidence_objects import replace_members, stable_hash, upsert_evidence_object
+
+                    primary_lang = "en"
+                    try:
+                        primary_lang = str(ranked_members[primary_idx].language or "en")
+                    except Exception:
+                        primary_lang = "en"
+
+                    h = stable_hash(["news_cluster", cluster.cluster_key, region])
+                    cluster_evidence_id = await upsert_evidence_object(
+                        conn,
+                        evidence_type="news_cluster",
+                        uri=cluster.canonical_url or f"news_cluster:{cluster.cluster_key}",
+                        captured_at=cluster.published_at,
+                        source_weight=float(cluster.trust_score or 0.5),
+                        language=primary_lang,
+                        content_ref=f"db://news_clusters/{str(cluster_id)}",
+                        hash_value=h,
+                        provenance={
+                            "cluster_key": cluster.cluster_key,
+                            "region": region,
+                            "cluster_id": str(cluster_id),
+                        },
+                    )
+
+                    await conn.execute(
+                        """
+                        UPDATE news_clusters
+                        SET evidence_object_id = $2::uuid
+                        WHERE id = $1::uuid AND evidence_object_id IS NULL
+                        """,
+                        str(cluster_id),
+                        cluster_evidence_id,
+                    )
+
+                    raw_ids = []
+                    for member in ranked_members:
+                        rid = raw_lookup.get((member.source_key, member.external_id))
+                        if rid:
+                            raw_ids.append(str(rid))
+
+                    member_rows = []
+                    if raw_ids:
+                        member_rows = await conn.fetch(
+                            """
+                            SELECT id::text, evidence_object_id::text AS evidence_id
+                            FROM news_items_raw
+                            WHERE id = ANY($1::uuid[])
+                              AND evidence_object_id IS NOT NULL
+                            """,
+                            raw_ids,
+                        )
+                    raw_to_evidence = {r["id"]: r["evidence_id"] for r in member_rows if r.get("evidence_id")}
+
+                    members = []
+                    for i, member in enumerate(ranked_members):
+                        rid = raw_lookup.get((member.source_key, member.external_id))
+                        if not rid:
+                            continue
+                        ev_id = raw_to_evidence.get(str(rid), "")
+                        if ev_id:
+                            members.append((str(ev_id), i == primary_idx))
+
+                    await replace_members(conn, evidence_id=cluster_evidence_id, members=members)
+                except Exception as exc:
+                    print(f"[evidence:{region}] cluster evidence persist failed for {cluster.cluster_key}: {exc}")
+
         return cluster_ids
 
     async def _load_research_context(
@@ -6944,6 +7105,10 @@ class DailyNewsIngestor:
                 await self._upsert_sources(conn, DEFAULT_SOURCES)
                 await self._sync_source_activity(conn, DEFAULT_SOURCES)
 
+                # Resolve schema capabilities early (used by persistence paths).
+                self._regional_clusters_supported = await self._supports_regional_clusters(conn)
+                self._evidence_objects_supported = await self._supports_evidence_objects(conn)
+
                 if not rebuild_only:
                     collected, collect_errors, sources_attempted, fetch_results = await self._collect_items(conn, lookback_hours)
                     errors.extend(collect_errors)
@@ -7062,9 +7227,6 @@ class DailyNewsIngestor:
                     if ed_src_adjusted:
                         editorial_stats["source_weights_adjusted"] = ed_src_adjusted
                         print(f"[editorial] adjusted {ed_src_adjusted} source weights via rules")
-
-                # Resolve schema capabilities early so pre-load queries can be region-aware.
-                self._regional_clusters_supported = await self._supports_regional_clusters(conn)
 
                 # Pre-load existing cluster_key → cluster_id mappings for signal scoring
                 existing_cids_global: Dict[str, str] = {}

@@ -134,6 +134,14 @@ function isMissingNewsSchemaError(error: unknown): boolean {
   return code === '42P01' || code === '42703';
 }
 
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const message = (error as { message?: unknown }).message;
+  if (typeof message !== 'string') return false;
+  // Postgres error text is typically: `column "evidence_object_id" does not exist`.
+  return message.includes(`column "${columnName}"`) && message.toLowerCase().includes('does not exist');
+}
+
 // ---------------------------------------------------------------------------
 // Service factory
 // ---------------------------------------------------------------------------
@@ -794,20 +802,40 @@ export function makeSignalsService(pool: Pool) {
       const evidenceLimit = Math.min(50, Math.max(1, params.evidence_limit || 10));
       const evidenceOffset = Math.max(0, params.evidence_offset || 0);
 
-      const evidenceResult = await pool.query(
-        `SELECT se.id::text, se.event_id::text, se.cluster_id::text,
-                se.startup_id::text, se.weight, se.evidence_type,
-                se.snippet, se.created_at,
-                nc.title AS cluster_title,
-                s.name AS startup_name, s.slug AS startup_slug
-         FROM signal_evidence se
-         LEFT JOIN news_clusters nc ON nc.id = se.cluster_id
-         LEFT JOIN startups s ON s.id = se.startup_id
-         WHERE se.signal_id = $1::uuid
-         ORDER BY se.created_at DESC
-         LIMIT $2 OFFSET $3`,
-        [params.id, evidenceLimit, evidenceOffset]
-      );
+      let evidenceResult;
+      try {
+        evidenceResult = await pool.query(
+          `SELECT se.id::text, se.event_id::text, se.cluster_id::text,
+                  se.startup_id::text, se.weight, se.evidence_type,
+                  se.snippet, se.created_at,
+                  se.evidence_object_id::text AS evidence_object_id,
+                  nc.title AS cluster_title,
+                  s.name AS startup_name, s.slug AS startup_slug
+           FROM signal_evidence se
+           LEFT JOIN news_clusters nc ON nc.id = se.cluster_id
+           LEFT JOIN startups s ON s.id = se.startup_id
+           WHERE se.signal_id = $1::uuid
+           ORDER BY se.created_at DESC
+           LIMIT $2 OFFSET $3`,
+          [params.id, evidenceLimit, evidenceOffset]
+        );
+      } catch (error) {
+        if (!isMissingColumnError(error, 'evidence_object_id')) throw error;
+        evidenceResult = await pool.query(
+          `SELECT se.id::text, se.event_id::text, se.cluster_id::text,
+                  se.startup_id::text, se.weight, se.evidence_type,
+                  se.snippet, se.created_at,
+                  nc.title AS cluster_title,
+                  s.name AS startup_name, s.slug AS startup_slug
+           FROM signal_evidence se
+           LEFT JOIN news_clusters nc ON nc.id = se.cluster_id
+           LEFT JOIN startups s ON s.id = se.startup_id
+           WHERE se.signal_id = $1::uuid
+           ORDER BY se.created_at DESC
+           LIMIT $2 OFFSET $3`,
+          [params.id, evidenceLimit, evidenceOffset]
+        );
+      }
 
       const evidence = evidenceResult.rows.map((r: any) => ({
         id: String(r.id),
@@ -817,6 +845,7 @@ export function makeSignalsService(pool: Pool) {
         weight: Number(r.weight),
         evidence_type: r.evidence_type,
         snippet: r.snippet,
+        evidence_object_id: r.evidence_object_id || null,
         created_at: r.created_at?.toISOString?.() ?? r.created_at,
         cluster_title: r.cluster_title || null,
         startup_name: r.startup_name || null,

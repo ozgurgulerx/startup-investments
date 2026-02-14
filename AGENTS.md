@@ -294,6 +294,19 @@ News:
   - `news-digest.sh` now posts per-run delivery totals to Slack (`sent/skipped/failed` for global+turkey).
 - Default sources are defined in `packages/analysis/src/automation/news_ingest.py` (`DEFAULT_SOURCES`).
   - SemiAnalysis is ingested via RSS as `source_key=semianalysis` (`https://semianalysis.com/feed/`).
+- Canonical Evidence Objects + hardened Event Objects (contract of truth):
+  - Migrations:
+    - `071_evidence_objects.sql` (canonical `evidence_objects` + `evidence_object_members`)
+    - `072_entity_nodes.sql` (unified `entity_nodes` namespace)
+    - `073_event_contract_hardening.sql` + `076_startup_events_evidence_ids_gin.sql` (harden `startup_events` contract)
+    - `074_evidence_links_news.sql` (news pointers)
+    - `075_signal_evidence_object_bridge.sql` (signal bridge)
+  - Canonical pointers:
+    - `news_items_raw.evidence_object_id` (`evidence_type='news_item'`)
+    - `news_clusters.evidence_object_id` (`evidence_type='news_cluster'`)
+    - `startup_events.evidence_ids` (UUID[] of canonical evidence ids)
+    - `signal_evidence.evidence_object_id` and `signal_moves.evidence_object_ids` (canonical traceability)
+  - Backfill (idempotent): `cd packages/analysis && python main.py backfill-evidence-objects --days 30 --region all`
 - X/Twitter trend + posting automation:
   - Migration: `database/migrations/061_x_social_automation.sql`
   - Trend sources are now first-class in news ingest:

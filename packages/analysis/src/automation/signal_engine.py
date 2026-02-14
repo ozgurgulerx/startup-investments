@@ -265,18 +265,34 @@ class SignalEngine:
         cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
 
         # Query recent structured events (using effective_date for real event timing)
-        rows = await conn.fetch(
-            """SELECT se.id::text, se.event_type, se.startup_id::text,
-                      se.metadata_json, se.cluster_id::text, se.confidence,
-                      se.detected_at, se.effective_date, se.event_title, se.event_key,
-                      er.domain
-               FROM startup_events se
-               JOIN event_registry er ON se.event_registry_id = er.id
-               WHERE se.region = $1
-                 AND se.effective_date >= $2::date
-               ORDER BY se.effective_date DESC""",
-            region, cutoff.date(),
-        )
+        try:
+            rows = await conn.fetch(
+                """SELECT se.id::text, se.event_type, se.startup_id::text,
+                          se.metadata_json, se.cluster_id::text, se.confidence,
+                          se.detected_at, se.effective_date, se.event_title, se.event_key,
+                          se.evidence_ids,
+                          er.domain
+                   FROM startup_events se
+                   JOIN event_registry er ON se.event_registry_id = er.id
+                   WHERE se.region = $1
+                     AND se.effective_date >= $2::date
+                   ORDER BY se.effective_date DESC""",
+                region, cutoff.date(),
+            )
+        except Exception:
+            # Back-compat: evidence_ids column may not exist yet.
+            rows = await conn.fetch(
+                """SELECT se.id::text, se.event_type, se.startup_id::text,
+                          se.metadata_json, se.cluster_id::text, se.confidence,
+                          se.detected_at, se.effective_date, se.event_title, se.event_key,
+                          er.domain
+                   FROM startup_events se
+                   JOIN event_registry er ON se.event_registry_id = er.id
+                   WHERE se.region = $1
+                     AND se.effective_date >= $2::date
+                   ORDER BY se.effective_date DESC""",
+                region, cutoff.date(),
+            )
 
         if not rows:
             return []
@@ -330,6 +346,14 @@ class SignalEngine:
                 }
 
             g = groups[group_key]
+            evidence_ids: list[str] = []
+            try:
+                raw_evidence = row.get("evidence_ids")
+                if isinstance(raw_evidence, list):
+                    evidence_ids = [str(x) for x in raw_evidence if x]
+            except Exception:
+                evidence_ids = []
+
             g["events"].append({
                 "event_id": row["id"],
                 "cluster_id": row["cluster_id"],
@@ -338,6 +362,7 @@ class SignalEngine:
                 "detected_at": row["detected_at"].isoformat() if row["detected_at"] else None,
                 "metadata": metadata,
                 "event_title": row["event_title"],
+                "evidence_ids": evidence_ids,
             })
             if row["startup_id"]:
                 g["companies"].add(row["startup_id"])
@@ -547,26 +572,62 @@ class SignalEngine:
         candidate: CandidateSignal,
     ) -> None:
         """Attach evidence events to a signal and update counts."""
+        supports_evidence_object_id = False
+        try:
+            supports_evidence_object_id = bool(
+                await conn.fetchval(
+                    """
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'signal_evidence' AND column_name = 'evidence_object_id'
+                    LIMIT 1
+                    """
+                )
+            )
+        except Exception:
+            supports_evidence_object_id = False
+
         for evt in candidate.evidence_events:
             # Extract snippet from event_title or metadata
             snippet = (
                 evt.get("event_title")
                 or evt.get("metadata", {}).get("snippet")
             )
+            evidence_object_id = None
+            if supports_evidence_object_id:
+                ev_list = evt.get("evidence_ids") or []
+                if isinstance(ev_list, list) and ev_list:
+                    evidence_object_id = ev_list[0]
             try:
-                await conn.execute(
-                    """INSERT INTO signal_evidence
-                           (signal_id, event_id, cluster_id, startup_id, weight, evidence_type, snippet)
-                       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
-                       ON CONFLICT (signal_id, event_id) WHERE event_id IS NOT NULL DO NOTHING""",
-                    signal_id,
-                    evt.get("event_id"),
-                    evt.get("cluster_id"),
-                    evt.get("startup_id"),
-                    evt.get("confidence", 1.0),
-                    "event",
-                    snippet,
-                )
+                if supports_evidence_object_id:
+                    await conn.execute(
+                        """INSERT INTO signal_evidence
+                               (signal_id, event_id, cluster_id, startup_id, weight, evidence_type, snippet, evidence_object_id)
+                           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8::uuid)
+                           ON CONFLICT (signal_id, event_id) WHERE event_id IS NOT NULL DO UPDATE
+                           SET evidence_object_id = COALESCE(signal_evidence.evidence_object_id, EXCLUDED.evidence_object_id)""",
+                        signal_id,
+                        evt.get("event_id"),
+                        evt.get("cluster_id"),
+                        evt.get("startup_id"),
+                        evt.get("confidence", 1.0),
+                        "event",
+                        snippet,
+                        evidence_object_id,
+                    )
+                else:
+                    await conn.execute(
+                        """INSERT INTO signal_evidence
+                               (signal_id, event_id, cluster_id, startup_id, weight, evidence_type, snippet)
+                           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
+                           ON CONFLICT (signal_id, event_id) WHERE event_id IS NOT NULL DO NOTHING""",
+                        signal_id,
+                        evt.get("event_id"),
+                        evt.get("cluster_id"),
+                        evt.get("startup_id"),
+                        evt.get("confidence", 1.0),
+                        "event",
+                        snippet,
+                    )
             except Exception:
                 logger.debug("Evidence attach failed for signal %s", signal_id, exc_info=True)
 

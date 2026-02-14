@@ -99,6 +99,7 @@ class EvidencePack:
     region: str = "global"
     snippets: List[Dict[str, Any]] = field(default_factory=list)
     evidence_ids: List[str] = field(default_factory=list)
+    evidence_object_by_evidence_id: Dict[str, str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -831,25 +832,48 @@ async def _build_evidence_pack(
     )
 
     # Get signal evidence (with enriched fields)
-    evidence_rows = await conn.fetch(
-        """SELECT se.id::text, se.snippet, se.evidence_type, se.source_url,
-                  se.tags, se.structured_json, se.created_at,
-                  nc.title AS cluster_title,
-                  nc.builder_takeaway
-           FROM signal_evidence se
-           LEFT JOIN news_clusters nc ON nc.id = se.cluster_id
-           WHERE se.signal_id = $1::uuid AND se.startup_id = $2::uuid
-           ORDER BY se.created_at DESC
-           LIMIT $3""",
-        signal_id,
-        startup_id,
-        MAX_EVIDENCE_PER_PACK,
-    )
+    try:
+        evidence_rows = await conn.fetch(
+            """SELECT se.id::text, se.snippet, se.evidence_type, se.source_url,
+                      se.tags, se.structured_json, se.created_at,
+                      se.evidence_object_id::text AS evidence_object_id,
+                      nc.title AS cluster_title,
+                      nc.builder_takeaway
+               FROM signal_evidence se
+               LEFT JOIN news_clusters nc ON nc.id = se.cluster_id
+               WHERE se.signal_id = $1::uuid AND se.startup_id = $2::uuid
+               ORDER BY se.created_at DESC
+               LIMIT $3""",
+            signal_id,
+            startup_id,
+            MAX_EVIDENCE_PER_PACK,
+        )
+    except Exception:
+        # Back-compat: evidence_object_id column may not exist yet.
+        evidence_rows = await conn.fetch(
+            """SELECT se.id::text, se.snippet, se.evidence_type, se.source_url,
+                      se.tags, se.structured_json, se.created_at,
+                      nc.title AS cluster_title,
+                      nc.builder_takeaway
+               FROM signal_evidence se
+               LEFT JOIN news_clusters nc ON nc.id = se.cluster_id
+               WHERE se.signal_id = $1::uuid AND se.startup_id = $2::uuid
+               ORDER BY se.created_at DESC
+               LIMIT $3""",
+            signal_id,
+            startup_id,
+            MAX_EVIDENCE_PER_PACK,
+        )
 
     for r in evidence_rows:
         snippet = r["snippet"] or r.get("cluster_title") or r.get("builder_takeaway") or ""
         if not snippet.strip():
             continue
+        ev_id = r["id"]
+        ev_obj = r.get("evidence_object_id")
+        if ev_id and ev_obj:
+            pack.evidence_object_by_evidence_id[str(ev_id)] = str(ev_obj)
+
         pack.snippets.append({
             "id": r["id"],
             "snippet": snippet[:500],
@@ -857,6 +881,7 @@ async def _build_evidence_pack(
             "source_url": r["source_url"],
             "tags": r["tags"] or [],
             "date": r["created_at"].isoformat() if r.get("created_at") else None,
+            "evidence_object_id": str(ev_obj) if ev_obj else None,
         })
         pack.evidence_ids.append(r["id"])
 
@@ -940,6 +965,20 @@ async def extract_moves_for_signal(
 
     model = settings.azure_openai.fast_model
     stats = {"extracted": 0, "skipped": 0, "errors": 0}
+
+    supports_evidence_object_ids = False
+    try:
+        supports_evidence_object_ids = bool(
+            await conn.fetchval(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'signal_moves' AND column_name = 'evidence_object_ids'
+                LIMIT 1
+                """
+            )
+        )
+    except Exception:
+        supports_evidence_object_ids = False
 
     # Build evidence packs
     packs: List[EvidencePack] = []
@@ -1033,26 +1072,58 @@ async def extract_moves_for_signal(
                     if not resolved_ids:
                         continue  # Hard rule: must cite evidence
 
-                    await conn.execute(
-                        """INSERT INTO signal_moves
-                           (signal_id, startup_id, move_type, what_happened,
-                            why_it_worked, unique_angle, timestamp_hint,
-                            evidence_ids, evidence_hash, extraction_model,
-                            confidence, extracted_at)
-                           VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7,
-                                   $8, $9, $10, $11, NOW())""",
-                        signal_id,
-                        pack.startup_id,
-                        move_type,
-                        move.get("what_happened", ""),
-                        move.get("why_it_worked"),
-                        move.get("unique_angle"),
-                        move.get("timestamp_hint"),
-                        resolved_ids,
-                        evidence_hash,
-                        model,
-                        move.get("confidence", 0.5),
-                    )
+                    evidence_object_ids: list[str] = []
+                    if supports_evidence_object_ids:
+                        seen = set()
+                        for eid in resolved_ids:
+                            obj = pack.evidence_object_by_evidence_id.get(eid)
+                            if obj and obj not in seen:
+                                evidence_object_ids.append(obj)
+                                seen.add(obj)
+
+                    if supports_evidence_object_ids:
+                        await conn.execute(
+                            """INSERT INTO signal_moves
+                               (signal_id, startup_id, move_type, what_happened,
+                                why_it_worked, unique_angle, timestamp_hint,
+                                evidence_ids, evidence_object_ids, evidence_hash, extraction_model,
+                                confidence, extracted_at)
+                               VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7,
+                                       $8, $9, $10, $11, $12, NOW())""",
+                            signal_id,
+                            pack.startup_id,
+                            move_type,
+                            move.get("what_happened", ""),
+                            move.get("why_it_worked"),
+                            move.get("unique_angle"),
+                            move.get("timestamp_hint"),
+                            resolved_ids,
+                            evidence_object_ids,
+                            evidence_hash,
+                            model,
+                            move.get("confidence", 0.5),
+                        )
+                    else:
+                        await conn.execute(
+                            """INSERT INTO signal_moves
+                               (signal_id, startup_id, move_type, what_happened,
+                                why_it_worked, unique_angle, timestamp_hint,
+                                evidence_ids, evidence_hash, extraction_model,
+                                confidence, extracted_at)
+                               VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7,
+                                       $8, $9, $10, $11, NOW())""",
+                            signal_id,
+                            pack.startup_id,
+                            move_type,
+                            move.get("what_happened", ""),
+                            move.get("why_it_worked"),
+                            move.get("unique_angle"),
+                            move.get("timestamp_hint"),
+                            resolved_ids,
+                            evidence_hash,
+                            model,
+                            move.get("confidence", 0.5),
+                        )
                     stats["extracted"] += 1
 
         except Exception as exc:

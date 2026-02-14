@@ -1841,6 +1841,51 @@ def memory_backfill(
         console.print("[yellow]Dry run — nothing was persisted[/yellow]")
 
 
+@app.command("backfill-evidence-objects")
+def backfill_evidence_objects(
+    days: int = typer.Option(30, "--days", help="Lookback window for news rows to backfill"),
+    region: str = typer.Option("all", "--region", help="Region filter for clusters: global|turkey|all"),
+    limit: int = typer.Option(2000, "--limit", help="Max rows per table to backfill"),
+):
+    """Backfill canonical evidence_objects for news items + clusters (idempotent).
+
+    Populates:
+    - news_items_raw.evidence_object_id (news_item evidence objects)
+    - news_clusters.evidence_object_id (news_cluster evidence objects)
+    - evidence_object_members (cluster -> member item mapping)
+    """
+    from src.automation.evidence_backfill import run_backfill_news_evidence_objects_sync
+
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        console.print("[red]DATABASE_URL not set[/red]")
+        raise typer.Exit(1)
+
+    try:
+        stats = run_backfill_news_evidence_objects_sync(
+            database_url=db_url,
+            days=max(1, int(days)),
+            region=str(region or "all"),
+            limit=max(1, int(limit)),
+        )
+    except Exception as exc:
+        console.print_exception()
+        console.print(f"[red]Evidence object backfill failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Evidence Objects Backfill Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Raw items seen:[/bold] {stats.get('raw_items_seen', 0)}")
+    console.print(f"[bold]Raw items backfilled:[/bold] {stats.get('raw_items_backfilled', 0)}")
+    console.print(f"[bold]Clusters seen:[/bold] {stats.get('clusters_seen', 0)}")
+    console.print(f"[bold]Clusters backfilled:[/bold] {stats.get('clusters_backfilled', 0)}")
+    console.print(f"[bold]Members written:[/bold] {stats.get('members_written', 0)}")
+    if stats.get("skipped"):
+        console.print(f"[yellow]Skipped:[/yellow] {stats.get('error')}")
+
+
 @app.command("embed-backfill")
 def embed_backfill(
     days: int = typer.Option(0, "--days", help="Limit to clusters from last N days (0 = all)"),

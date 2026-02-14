@@ -733,6 +733,8 @@ export interface EvidenceItem {
 
 export interface NewsItemCard {
   id: string;
+  /** Canonical Evidence Object id (news_cluster evidence). */
+  evidence_id?: string;
   title: string;
   summary: string;
   image_url?: string;
@@ -765,6 +767,46 @@ export interface NewsItemCard {
   ba_bullets?: string[];
   why_it_matters?: string;
   evidence?: EvidenceItem[];
+}
+
+// -----------------------------------------------------------------------------
+// Canonical Evidence + Event Contracts
+// -----------------------------------------------------------------------------
+
+export type EvidenceObjectType =
+  | 'news_cluster' | 'news_item' | 'page_snapshot' | 'page_diff'
+  | 'github_release' | 'job_post' | 'manual';
+
+export interface EvidenceObjectMember {
+  member_evidence_id: string;
+  is_primary: boolean;
+}
+
+export interface EvidenceObject {
+  evidence_id: string;
+  evidence_type: EvidenceObjectType;
+  uri: string;
+  captured_at: string;
+  source_weight: number;
+  language: string;
+  content_ref?: string | null;
+  hash: string;
+  canonicalization_version: number;
+  provenance_json?: Record<string, any>;
+  members?: EvidenceObjectMember[];
+}
+
+export interface EventObject {
+  id: string;
+  event_type: string;
+  effective_date: string;
+  detected_at: string;
+  confidence: number;
+  evidence_ids: string[];
+  actor_entity_id?: string | null;
+  target_entity_id?: string | null;
+  event_features_json?: Record<string, any>;
+  event_features_version?: number;
 }
 
 export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';

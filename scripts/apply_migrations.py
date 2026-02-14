@@ -108,6 +108,13 @@ SETS: dict[str, list[str]] = {
         "068_investor_onboarding.sql",
         # Investor-news links (all-time, includes mentions + funding-linked clusters)
         "070_investor_news_links.sql",
+        # Canonical evidence + event contracts (Evidence Object + hardened Event Object)
+        "071_evidence_objects.sql",
+        "072_entity_nodes.sql",
+        "073_event_contract_hardening.sql",
+        "074_evidence_links_news.sql",
+        "075_signal_evidence_object_bridge.sql",
+        "076_startup_events_evidence_ids_gin.sql",
         # X/Twitter trend intelligence + automated posting queue
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
@@ -124,6 +131,11 @@ SETS: dict[str, list[str]] = {
         "064_fix_onboarding_trace_dedupe_index.sql",
         "068_investor_onboarding.sql",
         "070_investor_news_links.sql",
+        # Canonical evidence + event contracts (crawler can emit snapshots/diffs as evidence)
+        "071_evidence_objects.sql",
+        "072_entity_nodes.sql",
+        "073_event_contract_hardening.sql",
+        "076_startup_events_evidence_ids_gin.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -174,6 +186,13 @@ SETS: dict[str, list[str]] = {
         "062_community_features.sql",
         # Investor-news links (all-time, includes mentions + funding-linked clusters)
         "070_investor_news_links.sql",
+        # Canonical evidence + event contracts
+        "071_evidence_objects.sql",
+        "072_entity_nodes.sql",
+        "073_event_contract_hardening.sql",
+        "074_evidence_links_news.sql",
+        "075_signal_evidence_object_bridge.sql",
+        "076_startup_events_evidence_ids_gin.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",
@@ -197,6 +216,11 @@ SETS: dict[str, list[str]] = {
         "062_community_features.sql",
         # Investor-news links (all-time, includes mentions + funding-linked clusters)
         "070_investor_news_links.sql",
+        # Canonical evidence + event contracts (shared system invariants)
+        "071_evidence_objects.sql",
+        "072_entity_nodes.sql",
+        "073_event_contract_hardening.sql",
+        "076_startup_events_evidence_ids_gin.sql",
     ],
     "performance": [
         "015_performance_indexes.sql",

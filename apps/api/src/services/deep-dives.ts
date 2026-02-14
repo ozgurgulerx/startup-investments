@@ -59,6 +59,7 @@ export interface MoveRow {
   unique_angle: string | null;
   timestamp_hint: string | null;
   evidence_ids: string[];
+  evidence_object_ids?: string[];
   confidence: number;
   extracted_at: string;
 }
@@ -102,6 +103,13 @@ function isMissingDeepDiveSchemaError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const code = (error as { code?: string }).code;
   return code === '42P01' || code === '42703';
+}
+
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const message = (error as { message?: unknown }).message;
+  if (typeof message !== 'string') return false;
+  return message.includes(`column \"${columnName}\"`) && message.toLowerCase().includes('does not exist');
 }
 
 // ---------------------------------------------------------------------------
@@ -387,19 +395,38 @@ export function makeDeepDivesService(pool: Pool) {
     const where = conditions.join(' AND ');
 
     try {
-      const result = await pool.query(
-        `SELECT sm.id, sm.signal_id, sm.startup_id,
-                s.name AS startup_name, s.slug AS startup_slug,
-                sm.move_type, sm.what_happened, sm.why_it_worked,
-                sm.unique_angle, sm.timestamp_hint, sm.evidence_ids,
-                sm.confidence, sm.extracted_at
-         FROM signal_moves sm
-         JOIN startups s ON s.id = sm.startup_id
-         WHERE ${where}
-         ORDER BY sm.confidence DESC
-         LIMIT $${idx}`,
-        [...values, limit]
-      );
+      let result;
+      try {
+        result = await pool.query(
+          `SELECT sm.id, sm.signal_id, sm.startup_id,
+                  s.name AS startup_name, s.slug AS startup_slug,
+                  sm.move_type, sm.what_happened, sm.why_it_worked,
+                  sm.unique_angle, sm.timestamp_hint, sm.evidence_ids,
+                  sm.evidence_object_ids,
+                  sm.confidence, sm.extracted_at
+           FROM signal_moves sm
+           JOIN startups s ON s.id = sm.startup_id
+           WHERE ${where}
+           ORDER BY sm.confidence DESC
+           LIMIT $${idx}`,
+          [...values, limit]
+        );
+      } catch (error) {
+        if (!isMissingColumnError(error, 'evidence_object_ids')) throw error;
+        result = await pool.query(
+          `SELECT sm.id, sm.signal_id, sm.startup_id,
+                  s.name AS startup_name, s.slug AS startup_slug,
+                  sm.move_type, sm.what_happened, sm.why_it_worked,
+                  sm.unique_angle, sm.timestamp_hint, sm.evidence_ids,
+                  sm.confidence, sm.extracted_at
+           FROM signal_moves sm
+           JOIN startups s ON s.id = sm.startup_id
+           WHERE ${where}
+           ORDER BY sm.confidence DESC
+           LIMIT $${idx}`,
+          [...values, limit]
+        );
+      }
 
       return result.rows.map(r => ({
         id: String(r.id),
@@ -413,6 +440,7 @@ export function makeDeepDivesService(pool: Pool) {
         unique_angle: r.unique_angle || null,
         timestamp_hint: r.timestamp_hint || null,
         evidence_ids: r.evidence_ids || [],
+        evidence_object_ids: r.evidence_object_ids || undefined,
         confidence: Number(r.confidence),
         extracted_at: r.extracted_at?.toISOString?.() ?? r.extracted_at,
       }));

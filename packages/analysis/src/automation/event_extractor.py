@@ -415,6 +415,91 @@ async def persist_events(
     if not events:
         return 0, [], {"persist_errors": 0, "first_error": None}
 
+    # Contract feature flags (best-effort; supports older DBs).
+    try:
+        contract_enabled = bool(
+            await conn.fetchval(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'startup_events' AND column_name = 'evidence_ids'
+                LIMIT 1
+                """
+            )
+        )
+    except Exception:
+        contract_enabled = False
+
+    # Prefetch cluster_id -> cluster evidence_object_id when available.
+    cluster_to_evidence: Dict[str, str] = {}
+    if contract_enabled:
+        try:
+            has_cluster_evidence = bool(
+                await conn.fetchval(
+                    """
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'news_clusters' AND column_name = 'evidence_object_id'
+                    LIMIT 1
+                    """
+                )
+            )
+        except Exception:
+            has_cluster_evidence = False
+
+        if has_cluster_evidence:
+            cluster_ids = list({e.cluster_id for e in events if getattr(e, "cluster_id", None)})
+            if cluster_ids:
+                try:
+                    rows = await conn.fetch(
+                        """
+                        SELECT id::text, evidence_object_id::text AS evidence_id
+                        FROM news_clusters
+                        WHERE id = ANY($1::uuid[])
+                          AND evidence_object_id IS NOT NULL
+                        """,
+                        cluster_ids,
+                    )
+                    cluster_to_evidence = {r["id"]: r["evidence_id"] for r in rows if r.get("evidence_id")}
+                except Exception:
+                    cluster_to_evidence = {}
+
+    # Best-effort actor/target entity_nodes mapping (startup-only for now).
+    actor_nodes: Dict[str, str] = {}
+    target_nodes: Dict[str, str] = {}
+    if contract_enabled:
+        try:
+            from .entity_nodes import ensure_entity_nodes, supports_entity_nodes
+
+            if await supports_entity_nodes(conn):
+                actor_startup_ids = {e.startup_id for e in events if getattr(e, "startup_id", None)}
+                target_startup_ids: set[str] = set()
+                for e in events:
+                    if e.event_type != "cap_acquisition_announced":
+                        continue
+                    participants = (e.metadata or {}).get("participants") or []
+                    if not isinstance(participants, list):
+                        continue
+                    for p in participants:
+                        if not isinstance(p, dict):
+                            continue
+                        if p.get("role") != "target":
+                            continue
+                        sid = str(p.get("startup_id") or "").strip()
+                        if sid:
+                            target_startup_ids.add(sid)
+                            break
+
+                startup_ids_all = set(actor_startup_ids) | set(target_startup_ids)
+                node_map = await ensure_entity_nodes(
+                    conn,
+                    entity_type="startup",
+                    entity_ids=startup_ids_all,
+                )
+                actor_nodes = node_map
+                target_nodes = node_map
+        except Exception:
+            actor_nodes = {}
+            target_nodes = {}
+
     inserted = 0
     inserted_events: List[Tuple[str, str, str]] = []
     persist_errors = 0
@@ -425,32 +510,91 @@ async def persist_events(
 
         event_date, effective_date = _normalize_event_date_for_db(evt.event_date)
 
+        evidence_ids = []
+        if contract_enabled and evt.cluster_id:
+            ev_id = cluster_to_evidence.get(evt.cluster_id)
+            if ev_id:
+                evidence_ids = [ev_id]
+
+        actor_entity_id = actor_nodes.get(evt.startup_id or "") if contract_enabled and evt.startup_id else None
+        target_entity_id = None
+        if contract_enabled and evt.event_type == "cap_acquisition_announced":
+            participants = (evt.metadata or {}).get("participants") or []
+            if isinstance(participants, list):
+                for p in participants:
+                    if not isinstance(p, dict):
+                        continue
+                    if p.get("role") != "target":
+                        continue
+                    sid = str(p.get("startup_id") or "").strip()
+                    if sid:
+                        target_entity_id = target_nodes.get(sid)
+                        break
+
         try:
-            row = await conn.fetchrow(
-                """INSERT INTO startup_events
-                       (startup_id, event_type, event_title, event_content,
-                        event_registry_id, confidence, source_type,
-                        metadata_json, cluster_id, region, event_key,
-                        event_date, effective_date)
-                   VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
-                           $12::timestamptz, COALESCE($13::date, CURRENT_DATE))
-                   ON CONFLICT (cluster_id, startup_id, event_type, event_key)
-                       WHERE cluster_id IS NOT NULL DO NOTHING
-                   RETURNING id""",
-                evt.startup_id,
-                evt.event_type,
-                evt.snippet[:255] if evt.snippet else None,
-                evt.snippet,
-                registry_id,
-                evt.confidence,
-                evt.source_type,
-                json.dumps(evt.metadata),
-                evt.cluster_id,
-                evt.region,
-                evt.event_key,
-                event_date,
-                effective_date,
-            )
+            if contract_enabled:
+                row = await conn.fetchrow(
+                    """INSERT INTO startup_events
+                           (startup_id, event_type, event_title, event_content,
+                            event_registry_id, confidence, source_type,
+                            metadata_json, cluster_id, region, event_key,
+                            event_date, effective_date,
+                            evidence_ids,
+                            actor_entity_id, target_entity_id,
+                            event_features_json, event_features_version)
+                       VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
+                               $12::timestamptz, COALESCE($13::date, CURRENT_DATE),
+                               $14::uuid[],
+                               $15::uuid, $16::uuid,
+                               $17::jsonb, $18::int)
+                       ON CONFLICT (cluster_id, startup_id, event_type, event_key)
+                           WHERE cluster_id IS NOT NULL DO NOTHING
+                       RETURNING id""",
+                    evt.startup_id,
+                    evt.event_type,
+                    evt.snippet[:255] if evt.snippet else None,
+                    evt.snippet,
+                    registry_id,
+                    evt.confidence,
+                    evt.source_type,
+                    json.dumps(evt.metadata),
+                    evt.cluster_id,
+                    evt.region,
+                    evt.event_key,
+                    event_date,
+                    effective_date,
+                    evidence_ids,
+                    actor_entity_id,
+                    target_entity_id,
+                    json.dumps(evt.metadata),
+                    1,
+                )
+            else:
+                row = await conn.fetchrow(
+                    """INSERT INTO startup_events
+                           (startup_id, event_type, event_title, event_content,
+                            event_registry_id, confidence, source_type,
+                            metadata_json, cluster_id, region, event_key,
+                            event_date, effective_date)
+                       VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
+                               $12::timestamptz, COALESCE($13::date, CURRENT_DATE))
+                       ON CONFLICT (cluster_id, startup_id, event_type, event_key)
+                           WHERE cluster_id IS NOT NULL DO NOTHING
+                       RETURNING id""",
+                    evt.startup_id,
+                    evt.event_type,
+                    evt.snippet[:255] if evt.snippet else None,
+                    evt.snippet,
+                    registry_id,
+                    evt.confidence,
+                    evt.source_type,
+                    json.dumps(evt.metadata),
+                    evt.cluster_id,
+                    evt.region,
+                    evt.event_key,
+                    event_date,
+                    effective_date,
+                )
             if row is not None:
                 inserted += 1
                 if evt.startup_id:
