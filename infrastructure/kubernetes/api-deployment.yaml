@@ -161,12 +161,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: startup-investments-api
-  annotations:
-    # Use static public IP created by Bicep template
-    # Replace with actual IP from: az network public-ip show -g <rg> -n pip-aks-startupinv-prod --query ipAddress
-    service.beta.kubernetes.io/azure-load-balancer-resource-group: "aistartuptr"
-    # Uncomment and set after deploying Bicep:
-    # service.beta.kubernetes.io/azure-load-balancer-ipv4: "<PUBLIC_IP_FROM_BICEP>"
+  # AKS manages the public IP in its managed resource group (mc_...)
+  # Do NOT set azure-load-balancer-resource-group — it causes cross-RG reconciliation failures
+  annotations: {}
 spec:
   selector:
     app: startup-investments-api
