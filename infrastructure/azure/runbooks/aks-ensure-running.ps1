@@ -85,6 +85,73 @@ function _Start-Aks([string]$AksResourceId, [string]$ApiVersion) {
   Invoke-AzRestMethod -Method POST -Path ($AksResourceId + "/start?api-version=" + $ApiVersion) | Out-Null
 }
 
+function _Ensure-SystemNodepoolMin([string]$AksResourceId, [string]$ApiVersion) {
+  # Enforce: system nodepool autoscaler minCount >= 1 (and maxCount >= minCount).
+  #
+  # Why: autoscaler drift or misconfig can scale system pools too low; we want at least one node.
+  # Implementation: agentPools does not support PATCH (405), so we round-trip via PUT only when needed.
+  $changes = New-Object System.Collections.Generic.List[string]
+  try {
+    $resp = Invoke-AzRestMethod -Method GET -Path ($AksResourceId + "/agentPools?api-version=" + $ApiVersion)
+    $obj = $resp.Content | ConvertFrom-Json -Depth 50
+
+    $pools = @()
+    if ($null -ne $obj.value) {
+      $pools = $obj.value
+    }
+
+    foreach ($p in $pools) {
+      $mode = $null
+      try { $mode = $p.properties.mode } catch { $mode = $null }
+      if ($mode -ne "System") { continue }
+
+      $enableAS = $false
+      try { $enableAS = [bool]$p.properties.enableAutoScaling } catch { $enableAS = $false }
+
+      if (-not $enableAS) {
+        $count = 0
+        try { $count = [int]$p.properties.count } catch { $count = 0 }
+        if ($count -lt 1) {
+          $p.properties.count = 1
+          $payload = $p | ConvertTo-Json -Depth 50
+          Invoke-AzRestMethod -Method PUT -Path ($p.id + "?api-version=" + $ApiVersion) -Payload $payload | Out-Null
+          $changes.Add("pool=$($p.name) set count=1 (autoscaling disabled)") | Out-Null
+        }
+        continue
+      }
+
+      $min = 0
+      $max = 0
+      $count = 0
+      try { $min = [int]$p.properties.minCount } catch { $min = 0 }
+      try { $max = [int]$p.properties.maxCount } catch { $max = 0 }
+      try { $count = [int]$p.properties.count } catch { $count = 0 }
+
+      $desiredMin = 1
+      $desiredMax = if ($max -lt $desiredMin) { $desiredMin } else { $max }
+      $desiredCount = if ($count -lt $desiredMin) { $desiredMin } else { $count }
+
+      $needs = $false
+      if ($min -lt $desiredMin) { $p.properties.minCount = $desiredMin; $needs = $true }
+      if ($max -lt $desiredMax) { $p.properties.maxCount = $desiredMax; $needs = $true }
+      if ($count -lt $desiredCount) { $p.properties.count = $desiredCount; $needs = $true }
+
+      if ($needs) {
+        $payload = $p | ConvertTo-Json -Depth 50
+        Invoke-AzRestMethod -Method PUT -Path ($p.id + "?api-version=" + $ApiVersion) -Payload $payload | Out-Null
+        $changes.Add("pool=$($p.name) set minCount=$desiredMin maxCount=$desiredMax count=$desiredCount") | Out-Null
+      }
+    }
+  } catch {
+    return @{ ok = $false; changed = $false; message = "nodepools_error=$($_.Exception.Message)" }
+  }
+
+  if ($changes.Count -gt 0) {
+    return @{ ok = $true; changed = $true; message = ($changes -join "; ") }
+  }
+  return @{ ok = $true; changed = $false; message = "nodepools_ok" }
+}
+
 try {
   if (-not $AksResourceGroup) { $AksResourceGroup = _Get-AutomationVar -Name "AKS_RESOURCE_GROUP" -Default "" }
   if (-not $AksClusterName) { $AksClusterName = _Get-AutomationVar -Name "AKS_CLUSTER_NAME" -Default "" }
@@ -106,6 +173,13 @@ try {
   $apiVersion = "2023-10-01"
   $subId = $ctx.Subscription.Id
   $aksId = "/subscriptions/$subId/resourceGroups/$AksResourceGroup/providers/Microsoft.ContainerService/managedClusters/$AksClusterName"
+
+  $nodepools = _Ensure-SystemNodepoolMin -AksResourceId $aksId -ApiVersion $apiVersion
+  if (-not $nodepools.ok) {
+    _Send-Slack -Title "AKS nodepool guard failed" -Status "warning" -Body "cluster=$AksClusterName | rg=$AksResourceGroup | $($nodepools.message) | ts_utc=$(Get-Date -Format o)"
+  } elseif ($nodepools.changed) {
+    _Send-Slack -Title "AKS nodepool settings auto-fixed" -Status "info" -Body "cluster=$AksClusterName | rg=$AksResourceGroup | $($nodepools.message) | ts_utc=$(Get-Date -Format o)"
+  }
 
   $initial = _Get-AksPowerState -AksResourceId $aksId -ApiVersion $apiVersion
   Write-Output "AKS powerState: $initial"
@@ -140,6 +214,7 @@ try {
   $detail = @(
     "cluster=$AksClusterName",
     "rg=$AksResourceGroup",
+    "nodepools=$($nodepools.message)",
     "initial=$initial",
     "final=$final",
     "action=$actionTaken",
@@ -167,4 +242,3 @@ try {
   }
   throw
 }
-
