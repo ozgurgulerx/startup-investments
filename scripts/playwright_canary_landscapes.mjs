@@ -97,6 +97,43 @@ async function slackPost({ title, status, body, url }) {
   }
 }
 
+const isRetryableGotoError = (message) => {
+  const msg = String(message || '');
+  return (
+    msg.includes('net::ERR_NETWORK_CHANGED')
+    || msg.includes('net::ERR_NETWORK_RESET')
+  );
+};
+
+async function gotoLandscapesWithRetry(page) {
+  const maxAttempts = clampInt(env('GOTO_MAX_ATTEMPTS', '3'), 3, 1, 5);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const waitForLandscapesApi = page
+      .waitForResponse((res) => {
+        const u = safeUrl(res.url());
+        if (!u) return false;
+        return u.origin === BASE_URL && u.pathname === '/api/landscapes';
+      }, { timeout: TIMEOUT_MS })
+      .catch(() => null);
+
+    try {
+      console.log(`[canary] goto ${TARGET_URL} (attempt ${attempt}/${maxAttempts})`);
+      await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+      return await waitForLandscapesApi;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!isRetryableGotoError(msg) || attempt === maxAttempts) {
+        throw err;
+      }
+      console.warn(`[canary] retrying goto after: ${truncate(msg, 220)}`);
+      await page.waitForTimeout(500 * attempt);
+    }
+  }
+
+  return null;
+}
+
 async function run() {
   const { chromium } = await import('playwright');
 
@@ -175,21 +212,11 @@ async function run() {
   });
 
   try {
-    const waitForLandscapesApi = page
-      .waitForResponse((res) => {
-        const u = safeUrl(res.url());
-        if (!u) return false;
-        return u.origin === BASE_URL && u.pathname === '/api/landscapes';
-      }, { timeout: TIMEOUT_MS })
-      .catch(() => null);
-
-    console.log(`[canary] goto ${TARGET_URL}`);
-    await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+    const landscapesRes = await gotoLandscapesWithRetry(page);
 
     const heading = page.getByRole('heading', { name: /pattern landscape map/i });
     await heading.waitFor({ timeout: TIMEOUT_MS });
 
-    const landscapesRes = await waitForLandscapesApi;
     if (!landscapesRes) {
       throw new Error('Timed out waiting for /api/landscapes response');
     }

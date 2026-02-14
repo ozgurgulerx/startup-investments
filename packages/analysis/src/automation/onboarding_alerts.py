@@ -8,6 +8,7 @@ import logging
 import os
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
@@ -256,6 +257,14 @@ async def run_onboarding_alert_dispatcher(batch_size: int = 25) -> Dict[str, int
             event = _coerce_event(raw_event)
             if not event:
                 failed += 1
+                preview = repr(raw_event)
+                if len(preview) > 400:
+                    preview = preview[:400] + "..."
+                print(
+                    "Onboarding alert dispatch: skipping malformed event "
+                    f"(type={type(raw_event).__name__}, preview={preview})",
+                    file=sys.stderr,
+                )
                 continue
 
             try:
@@ -264,9 +273,11 @@ async def run_onboarding_alert_dispatcher(batch_size: int = 25) -> Dict[str, int
                 failed += 1
                 trace_id = str(event.get("id") or "<unknown>")
                 print(
-                    f"Onboarding alert dispatch: unexpected error for trace_event_id={trace_id}: {exc}",
+                    "Onboarding alert dispatch: error building/sending Slack notification "
+                    f"for trace_event_id={trace_id}: {exc}",
                     file=sys.stderr,
                 )
+                traceback.print_exc(file=sys.stderr)
                 continue
 
             if ok:

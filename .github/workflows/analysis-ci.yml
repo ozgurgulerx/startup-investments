@@ -1,0 +1,40 @@
+name: Analysis CI (Pytest)
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    env:
+      # Avoid undefined DB config errors in modules that create a pool (tests do not connect).
+      DATABASE_URL: postgres://test:test@127.0.0.1:5432/test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            packages/analysis/requirements.txt
+            packages/analysis/pyproject.toml
+
+      - name: Install analysis dependencies
+        working-directory: packages/analysis
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Pytest (analysis)
+        working-directory: packages/analysis
+        run: pytest -q
+

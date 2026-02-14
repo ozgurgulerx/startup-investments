@@ -717,6 +717,7 @@ def dispatch_onboarding_alerts(
     try:
         stats = run_dispatcher_sync(batch_size=max(1, int(batch_size)))
     except Exception as exc:
+        console.print_exception()
         console.print(f"[red]Onboarding alert dispatch failed:[/red] {exc}")
         raise typer.Exit(1)
 

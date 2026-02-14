@@ -76,6 +76,14 @@ Important headers/invariants:
   - Cron jobs import `src.automation.*` submodules; an import-time crash here can take down unrelated jobs (e.g. `event-processor`).
 - When reading DB `*_json` columns in `packages/analysis` automation, tolerate both dict and JSON-string values:
   - Use `packages/analysis/src/automation/json_utils.py` `ensure_json_object(...)` (prevents cron crashes like `onboarding-alerts`).
+- Shell scripts must be LF-only (no CRLF / `\r` bytes):
+  - Enforced by `.gitattributes` (`*.sh text eol=lf`).
+  - Pipelines image hardens this at build time: `infrastructure/pipelines/Dockerfile` strips CR bytes and fails the build if any remain.
+  - Guardrail test: `packages/analysis/tests/test_no_crlf_shell_scripts.py`.
+  - CI: `.github/workflows/analysis-ci.yml` runs the `packages/analysis` pytest suite (includes this guardrail).
+- `embed-backfill` supports safe verification without embedding spend:
+  - Set `EMBED_BACKFILL_DRY_RUN=true` to only count unembedded clusters (DB read only; no Azure OpenAI calls).
+  - Optional tuning: `EMBED_BACKFILL_LIMIT`, `EMBED_BACKFILL_ORDER`, `EMBED_BACKFILL_SLEEP_MS`, `EMBED_BACKFILL_RELATED_*`.
 - News email subscriptions are **double opt-in**:
   - New signups are stored as `pending_confirmation` and must be activated via the emailed confirmation link.
   - Unsubscribe is token-based (`GET /api/news/subscriptions?token=...`); do not add raw email-based unsubscribe endpoints.
