@@ -120,7 +120,11 @@ async function gotoLandscapesWithRetry(page) {
     try {
       console.log(`[canary] goto ${TARGET_URL} (attempt ${attempt}/${maxAttempts})`);
       await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
-      return await waitForLandscapesApi;
+      const landscapesRes = await waitForLandscapesApi;
+      if (landscapesRes) return landscapesRes;
+      if (attempt === maxAttempts) return null;
+      console.warn(`[canary] retrying goto: no /api/landscapes response`);
+      await page.waitForTimeout(500 * attempt);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!isRetryableGotoError(msg) || attempt === maxAttempts) {
