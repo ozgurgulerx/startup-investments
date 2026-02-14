@@ -597,6 +597,10 @@ NOW_EPOCH=$(date +%s)
 AKS_CRON_AVAILABLE=0
 declare -A AKS_CRON_SUSPEND
 declare -A AKS_CRON_LAST_SCHEDULE
+AKS_JOBS_AVAILABLE=0
+declare -A AKS_JOB_LAST_NAME
+declare -A AKS_JOB_LAST_STATUS
+declare -A AKS_JOB_LAST_TIME
 
 AKS_CRON_INFO=$(az aks command invoke \
     --resource-group "$AKS_RG" \
@@ -614,6 +618,39 @@ if [ -n "$AKS_CRON_INFO" ] && ! echo "$AKS_CRON_INFO" | grep -qi '^error:'; then
         AKS_CRON_SUSPEND["$N"]="$S"
         AKS_CRON_LAST_SCHEDULE["$N"]="$L"
     done <<< "$AKS_CRON_INFO"
+fi
+
+# Also fetch last Job status per CronJob to detect "fresh but failing" cases.
+# We rely on the shared label schema in pipelines-cronjobs.yaml:
+#   metadata.labels.job=<cronjob-name>
+AKS_JOB_INFO=$(az aks command invoke \
+    --resource-group "$AKS_RG" \
+    --name "$AKS_NAME" \
+    --command "kubectl get jobs -n default -l app=buildatlas-pipelines --sort-by=.metadata.creationTimestamp -o jsonpath='{range .items[*]}{.metadata.labels.job}{\"|\"}{.metadata.name}{\"|\"}{.status.succeeded}{\"|\"}{.status.failed}{\"|\"}{.status.completionTime}{\"|\"}{.metadata.creationTimestamp}{\"\\n\"}{end}'" \
+    --query "logs" -o tsv 2>/dev/null || echo "")
+
+if [ -n "$AKS_JOB_INFO" ] && ! echo "$AKS_JOB_INFO" | grep -qi '^error:'; then
+    AKS_JOBS_AVAILABLE=1
+    while IFS='|' read -r CJ JOBNAME SUCC FAIL COMP CREATED; do
+        [ -n "$CJ" ] || continue
+
+        SUCC="${SUCC:-0}"
+        FAIL="${FAIL:-0}"
+        STATUS="Running"
+        TS="${CREATED:-}"
+
+        if [ "$SUCC" != "<none>" ] && [ "$SUCC" != "" ] && [ "$SUCC" != "0" ] 2>/dev/null; then
+            STATUS="Complete"
+            TS="${COMP:-$CREATED}"
+        elif [ "$FAIL" != "<none>" ] && [ "$FAIL" != "" ] && [ "$FAIL" != "0" ] 2>/dev/null; then
+            STATUS="Failed"
+            TS="${COMP:-$CREATED}"
+        fi
+
+        AKS_JOB_LAST_NAME["$CJ"]="$JOBNAME"
+        AKS_JOB_LAST_STATUS["$CJ"]="$STATUS"
+        AKS_JOB_LAST_TIME["$CJ"]="$TS"
+    done <<< "$AKS_JOB_INFO"
 fi
 
 for job_entry in $CRON_JOBS; do
@@ -634,7 +671,35 @@ for job_entry in $CRON_JOBS; do
                 continue
             fi
 
-            if [ -n "$LAST" ]; then
+            # Prefer last Job status if available; lastScheduleTime alone can be misleading if jobs are failing.
+            JOB_STATUS="${AKS_JOB_LAST_STATUS[$JOB_NAME]:-}"
+            JOB_TS="${AKS_JOB_LAST_TIME[$JOB_NAME]:-}"
+
+            if [ -n "$JOB_STATUS" ] && [ -n "$JOB_TS" ]; then
+                TS_EPOCH=$(date -d "$JOB_TS" +%s 2>/dev/null || echo "0")
+                if [ "$TS_EPOCH" -gt 0 ] 2>/dev/null; then
+                    MINS_AGO=$(( (NOW_EPOCH - TS_EPOCH) / 60 ))
+                    if [ "$MINS_AGO" -lt 60 ]; then
+                        AGO_STR="${MINS_AGO}m ago"
+                    elif [ "$MINS_AGO" -lt 1440 ]; then
+                        AGO_STR="$(( MINS_AGO / 60 ))h ago"
+                    else
+                        AGO_STR="$(( MINS_AGO / 1440 ))d ago"
+                    fi
+
+                    echo "  ${JOB_NAME}: AKS last job ${JOB_STATUS} ${AGO_STR}"
+                    if [ "$JOB_STATUS" = "Failed" ]; then
+                        add_fail "${JOB_NAME} (AKS): last job Failed ${AGO_STR}"
+                    elif [ "$MINS_AGO" -le "$STALE_THRESHOLD" ]; then
+                        add_ok "${JOB_NAME} (AKS): ${JOB_STATUS} ${AGO_STR}"
+                    else
+                        add_warn "${JOB_NAME} (AKS): ${JOB_STATUS} ${AGO_STR} (stale)"
+                    fi
+                else
+                    echo "  ${JOB_NAME}: AKS last job timestamp unparseable"
+                    add_warn "${JOB_NAME} (AKS): unparseable last job timestamp"
+                fi
+            elif [ -n "$LAST" ]; then
                 TS_EPOCH=$(date -d "$LAST" +%s 2>/dev/null || echo "0")
                 if [ "$TS_EPOCH" -gt 0 ] 2>/dev/null; then
                     MINS_AGO=$(( (NOW_EPOCH - TS_EPOCH) / 60 ))
@@ -648,9 +713,9 @@ for job_entry in $CRON_JOBS; do
 
                     echo "  ${JOB_NAME}: AKS last schedule ${AGO_STR}"
                     if [ "$MINS_AGO" -le "$STALE_THRESHOLD" ]; then
-                        add_ok "${JOB_NAME} (AKS): ${AGO_STR}"
+                        add_ok "${JOB_NAME} (AKS): scheduled ${AGO_STR}"
                     else
-                        add_warn "${JOB_NAME} (AKS): ${AGO_STR} (stale)"
+                        add_warn "${JOB_NAME} (AKS): scheduled ${AGO_STR} (stale)"
                     fi
                 else
                     echo "  ${JOB_NAME}: AKS last schedule unparseable"
