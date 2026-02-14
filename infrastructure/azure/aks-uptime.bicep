@@ -41,8 +41,8 @@ param slackWebhookUrl string
 @description('How often to run the guard runbook (minutes).')
 param scheduleIntervalMinutes int = 15
 
-@description('Schedule start time (ISO 8601). Default: now+1m.')
-param scheduleStartTime string = dateTimeAdd(utcNow(), 'PT1M')
+@description('Schedule start time (ISO 8601). Default: now+10m (Azure Automation may require >= 5m).')
+param scheduleStartTime string = dateTimeAdd(utcNow(), 'PT10M')
 
 var contributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
 
