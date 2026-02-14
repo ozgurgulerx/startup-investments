@@ -44,22 +44,6 @@ elif [ -f "$ENV_FILE_FALLBACK" ]; then
     set +a
 fi
 
-derive_github_repository() {
-    local origin=""
-    origin="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)"
-    origin="${origin%.git}"
-
-    if [[ "$origin" == https://github.com/* ]]; then
-        echo "${origin#https://github.com/}"
-        return 0
-    fi
-    if [[ "$origin" == git@github.com:* ]]; then
-        echo "${origin#git@github.com:}"
-        return 0
-    fi
-    return 1
-}
-
 list_contains_job() {
     local raw="${1:-}"
     raw="$(echo "$raw" | tr -d '[:space:]')"
@@ -234,12 +218,6 @@ send_slack_event() {
     python3 "$REPO_DIR/scripts/slack_notify.py" >> "$LOG_FILE" 2>&1 || true
 }
 
-# Ensure GITHUB_REPOSITORY is set so slack_notify.py can fall back to repository_dispatch.
-if [ -z "${GITHUB_REPOSITORY:-}" ]; then
-    GITHUB_REPOSITORY="$(derive_github_repository || true)"
-    export GITHUB_REPOSITORY
-fi
-
 # If the job is disabled, log a skip and exit cleanly.
 if is_disabled; then
     reason="$(disabled_reason || true)"
@@ -318,8 +296,7 @@ cd "$REPO_DIR"
 # (e.g., when a job blocks on a lock or a long-running step). `tr` can fully
 # buffer when writing to a pipe, which makes log mtimes misleading.
 timeout "${TIMEOUT_MIN}m" bash "$SCRIPT_PATH" "$@" 2>&1 \
-  | python3 -u - <<'PY' \
-  | tee -a "$LOG_FILE"
+  | python3 -u -c '
 import sys
 
 while True:
@@ -330,7 +307,8 @@ while True:
         chunk = chunk.replace(b"\x00", b"")
     sys.stdout.buffer.write(chunk)
     sys.stdout.buffer.flush()
-PY
+' \
+  | tee -a "$LOG_FILE"
 EXIT_CODE=$?
 DURATION_SEC="$(( $(date +%s) - START_TS ))"
 ENDED_AT_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
