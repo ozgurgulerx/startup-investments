@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRegion } from '@/lib/region-context';
-import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
+import { Treemap, ResponsiveContainer } from 'recharts';
 import { SectorFilter } from '@/components/features/sector-filter';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 
@@ -43,7 +43,7 @@ function formatUsd(v: number): string {
 }
 
 function TreemapContent(props: any) {
-  const { x, y, width, height, name, count, funding, index, depth } = props;
+  const { x, y, width, height, name, count, funding, index, depth, onSelectPattern } = props;
   // Recharts always renders an artificial root node (depth 0) without our custom fields.
   // Skip it to avoid "undefined.toFixed" crashes and prevent a full-size overlay tile.
   if (depth === 0) return null;
@@ -52,8 +52,13 @@ function TreemapContent(props: any) {
   const safeName = typeof name === 'string' ? name : '';
   const safeCount = typeof count === 'number' && Number.isFinite(count) ? count : 0;
   const safeFunding = typeof funding === 'number' && Number.isFinite(funding) ? funding : 0;
+  const handleClick = () => {
+    if (typeof onSelectPattern !== 'function') return;
+    const pattern = getSelectedPatternFromTreemapNodeLike(props);
+    if (pattern) onSelectPattern(pattern);
+  };
   return (
-    <g>
+    <g onClick={handleClick} style={{ cursor: typeof onSelectPattern === 'function' ? 'pointer' : 'default' }}>
       <rect x={x} y={y} width={width} height={height} fill={color} opacity={0.25} stroke="var(--border)" strokeWidth={1} rx={2} />
       {width > 60 && height > 40 && (
         <>
@@ -96,22 +101,22 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function getSelectedPatternFromTreemapClick(node: any): string | null {
+function getSelectedPatternFromTreemapNodeLike(node: any): string | null {
   if (!node) return null;
 
-  const depth = typeof node.depth === 'number' ? node.depth : undefined;
+  // Recharts' Treemap event payloads can wrap the original data node under one or more `.payload` levels.
+  // Keep the extraction logic permissive so clicking nested rectangles always resolves to the parent pattern.
+  const candidates = [node, node.payload, node.payload?.payload, node.payload?.payload?.payload];
 
-  const directPattern = [node.pattern, node.payload?.pattern].find(isNonEmptyString);
+  const directPattern = candidates.map((c) => c?.pattern).find(isNonEmptyString);
   if (directPattern) return directPattern.trim();
 
-  if (typeof depth === 'number' && depth > 1) {
-    // Nested tile click: prefer the parent pattern.
-    const parentName = [node.parent?.name, node.parent?.payload?.name].find(isNonEmptyString);
-    return parentName ? parentName.trim() : null;
-  }
+  const parentName = candidates
+    .map((c) => c?.parent?.name ?? c?.parent?.payload?.name ?? c?.parent?.payload?.payload?.name)
+    .find(isNonEmptyString);
+  if (parentName) return parentName.trim();
 
-  // Root/pattern tile click: use its name.
-  const name = [node.name, node.payload?.name].find(isNonEmptyString);
+  const name = candidates.map((c) => c?.name).find(isNonEmptyString);
   return name ? name.trim() : null;
 }
 
@@ -269,24 +274,20 @@ export default function LandscapesPage() {
       >
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
           {/* Treemap */}
-          <div className="border border-border/30 rounded-lg p-2 min-h-[400px]">
-            {treemapData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={420}>
-                <Treemap
-                  data={treemapData}
-                  dataKey="value"
-                  aspectRatio={4/3}
-                  stroke="var(--border)"
-                  content={<TreemapContent />}
-                  onClick={(node: any) => {
-                    const pattern = getSelectedPatternFromTreemapClick(node);
-                    if (pattern) setSelectedPattern(pattern);
-                  }}
-                />
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[420px] text-sm text-muted-foreground">
-                No landscape data available
+	          <div className="border border-border/30 rounded-lg p-2 min-h-[400px]">
+	            {treemapData.length > 0 ? (
+	              <ResponsiveContainer width="100%" height={420}>
+	                <Treemap
+	                  data={treemapData}
+	                  dataKey="value"
+	                  aspectRatio={4/3}
+	                  stroke="var(--border)"
+	                  content={<TreemapContent onSelectPattern={(pattern: string) => setSelectedPattern(pattern)} />}
+	                />
+	              </ResponsiveContainer>
+	            ) : (
+	              <div className="flex items-center justify-center h-[420px] text-sm text-muted-foreground">
+	                No landscape data available
               </div>
             )}
           </div>
