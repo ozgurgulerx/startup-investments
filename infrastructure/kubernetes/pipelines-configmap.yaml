@@ -66,3 +66,14 @@ data:
 
   # Digest QA preview
   DIGEST_QA_EMAIL: "343544@gmail.com"
+
+  # Paid headline leads (paywalled sources like The Information)
+  # NOTE: This only stores/uses metadata (headline/description/og:image/published time) and expands
+  # the headline into open-web corroborating coverage via GNews/NewsAPI. It never extracts article text.
+  PAID_HEADLINE_SEEDS_ENABLED: "true"
+  PAID_HEADLINE_METADATA_FETCH: "true"
+  PAID_HEADLINE_MAX_SEEDS_PER_RUN: "10"
+  PAID_HEADLINE_EXPAND_SOURCES: "gnews,newsapi"
+  PAID_HEADLINE_EXPAND_LOOKBACK_HOURS: "168"
+  PAID_HEADLINE_EXPAND_MAX_PER_SEED: "8"
+  PAID_HEADLINE_MAX_ATTEMPTS: "3"
