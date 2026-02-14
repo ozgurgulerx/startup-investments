@@ -124,7 +124,7 @@ async function gotoLandscapesWithRetry(page) {
   }
 }
 
-async function waitForUiLoadedOrError(page) {
+async function waitForUiLoadedOrError(page, consoleErrors) {
   const start = Date.now();
 
   const crashOverlay = page.getByText(/Application error: a client-side exception has occurred/i);
@@ -141,6 +141,11 @@ async function waitForUiLoadedOrError(page) {
     }
     if (await loadedText.isVisible().catch(() => false)) {
       return { state: 'loaded' };
+    }
+    const hasRetryableNetworkError = Array.isArray(consoleErrors)
+      && consoleErrors.some((s) => isRetryableGotoError(String(s)));
+    if (hasRetryableNetworkError) {
+      return { state: 'retry', reason: 'network_changed' };
     }
     await page.waitForTimeout(250);
   }
@@ -279,71 +284,100 @@ async function run() {
   });
 
   try {
-    await gotoLandscapesWithRetry(page);
+    const maxUiAttempts = clampInt(env('UI_MAX_ATTEMPTS', '2'), 2, 1, 5);
 
-    const heading = page.getByRole('heading', { name: /pattern landscape map/i });
-    await heading.waitFor({ timeout: TIMEOUT_MS });
+    for (let uiAttempt = 1; uiAttempt <= maxUiAttempts; uiAttempt++) {
+      // Reset per-attempt state so transient failures don't poison later retries.
+      pageErrors.length = 0;
+      consoleErrors.length = 0;
+      requestFailures.length = 0;
+      debug.landscapesRequest = null;
+      debug.landscapes = null;
+      debug.landscapesClusterRequest = null;
+      debug.landscapesCluster = null;
+      debug.uiState = null;
+      debug.directFetch = null;
+      debug.uiAttempt = uiAttempt;
+      debug.uiMaxAttempts = maxUiAttempts;
 
-    const crashOverlay = page.getByText(/Application error: a client-side exception has occurred/i);
-    if (await crashOverlay.isVisible().catch(() => false)) {
-      throw new Error('Detected Next.js client error overlay on /landscapes');
-    }
+      await gotoLandscapesWithRetry(page);
 
-    const uiState = await waitForUiLoadedOrError(page);
-    debug.uiState = uiState;
-    if (uiState.state === 'crash') {
-      throw new Error('Detected Next.js client error overlay on /landscapes');
-    }
-    if (uiState.state === 'error') {
-      throw new Error(`Landscapes UI error: ${uiState.errorText || 'unknown'}`);
-    }
-    if (uiState.state !== 'loaded') {
-      throw new Error('Timed out waiting for landscapes UI to load');
-    }
+      const heading = page.getByRole('heading', { name: /pattern landscape map/i });
+      await heading.waitFor({ timeout: TIMEOUT_MS });
 
-    if (pageErrors.length) {
-      throw new Error(`pageerror: ${pageErrors[0]?.message || String(pageErrors[0])}`);
-    }
-
-    const direct = await directFetchLandscapes();
-    debug.directFetch = direct;
-    if (!direct.ok) {
-      const suffix = direct.status ? ` (HTTP ${direct.status})` : '';
-      const errText = direct.error ? `: ${direct.error}` : '';
-      throw new Error(`Direct fetch /api/landscapes failed${suffix}${errText}`);
-    }
-    if (!direct.is_array) {
-      throw new Error('Direct fetch /api/landscapes returned non-array JSON');
-    }
-
-    // If the browser observed a non-2xx response, treat it as a failure.
-    if (debug.landscapes && !debug.landscapes.ok) {
-      throw new Error(`/api/landscapes HTTP ${debug.landscapes.status}${debug.landscapes.body ? `: ${debug.landscapes.body}` : ''}`);
-    }
-    if (!debug.landscapesRequest || !debug.landscapes) {
-      console.warn('[canary] WARN: did not observe /api/landscapes browser response event (UI loaded + direct fetch OK)');
-    }
-
-    // Best-effort click a visible label to ensure the detail panel can render.
-    const labelCandidates = [/agentic/i, /rag/i, /data moat/i, /micro-model/i];
-    for (const re of labelCandidates) {
-      const label = page.locator('svg text').filter({ hasText: re }).first();
-      if ((await label.count()) > 0) {
-        console.log(`[canary] click label ${re}`);
-        await label.click({ timeout: 5000 });
-        await page.getByText(/top startups/i).waitFor({ timeout: DETAIL_TIMEOUT_MS });
-        break;
+      const crashOverlay = page.getByText(/Application error: a client-side exception has occurred/i);
+      if (await crashOverlay.isVisible().catch(() => false)) {
+        throw new Error('Detected Next.js client error overlay on /landscapes');
       }
+
+      const uiState = await waitForUiLoadedOrError(page, consoleErrors);
+      debug.uiState = uiState;
+
+      if (uiState.state === 'retry' && uiAttempt < maxUiAttempts) {
+        console.warn(`[canary] retrying UI load after transient network change (${uiAttempt}/${maxUiAttempts})`);
+        await page.waitForTimeout(500 * uiAttempt);
+        continue;
+      }
+
+      // Always do the direct fetch when we aren't immediately retrying so failures include diagnostics.
+      const direct = await directFetchLandscapes();
+      debug.directFetch = direct;
+
+      if (uiState.state === 'crash') {
+        throw new Error('Detected Next.js client error overlay on /landscapes');
+      }
+      if (uiState.state === 'error') {
+        throw new Error(`Landscapes UI error: ${uiState.errorText || 'unknown'}`);
+      }
+      if (uiState.state !== 'loaded') {
+        throw new Error('Timed out waiting for landscapes UI to load');
+      }
+
+      if (pageErrors.length) {
+        throw new Error(`pageerror: ${pageErrors[0]?.message || String(pageErrors[0])}`);
+      }
+
+      if (!direct.ok) {
+        const suffix = direct.status ? ` (HTTP ${direct.status})` : '';
+        const errText = direct.error ? `: ${direct.error}` : '';
+        throw new Error(`Direct fetch /api/landscapes failed${suffix}${errText}`);
+      }
+      if (!direct.is_array) {
+        throw new Error('Direct fetch /api/landscapes returned non-array JSON');
+      }
+
+      // If the browser observed a non-2xx response, treat it as a failure.
+      if (debug.landscapes && !debug.landscapes.ok) {
+        throw new Error(`/api/landscapes HTTP ${debug.landscapes.status}${debug.landscapes.body ? `: ${debug.landscapes.body}` : ''}`);
+      }
+      if (!debug.landscapesRequest || !debug.landscapes) {
+        console.warn('[canary] WARN: did not observe /api/landscapes browser response event (UI loaded + direct fetch OK)');
+      }
+
+      // Best-effort click a visible label to ensure the detail panel can render.
+      const labelCandidates = [/agentic/i, /rag/i, /data moat/i, /micro-model/i];
+      for (const re of labelCandidates) {
+        const label = page.locator('svg text').filter({ hasText: re }).first();
+        if ((await label.count()) > 0) {
+          console.log(`[canary] click label ${re}`);
+          await label.click({ timeout: 5000 });
+          await page.getByText(/top startups/i).waitFor({ timeout: DETAIL_TIMEOUT_MS });
+          break;
+        }
+      }
+
+      if (await crashOverlay.isVisible().catch(() => false)) {
+        throw new Error('Detected Next.js client error overlay after interaction');
+      }
+      if (pageErrors.length) {
+        throw new Error(`pageerror: ${pageErrors[0]?.message || String(pageErrors[0])}`);
+      }
+
+      console.log('[canary] OK');
+      return { pageErrors, consoleErrors, debug };
     }
 
-    if (await crashOverlay.isVisible().catch(() => false)) {
-      throw new Error('Detected Next.js client error overlay after interaction');
-    }
-    if (pageErrors.length) {
-      throw new Error(`pageerror: ${pageErrors[0]?.message || String(pageErrors[0])}`);
-    }
-
-    console.log('[canary] OK');
+    throw new Error('Failed to load /landscapes after retries');
   } catch (err) {
     if (err && typeof err === 'object') {
       err.debug = debug;
@@ -372,6 +406,9 @@ async function main() {
       `*Target:* ${TARGET_URL}`,
       `*Error:* ${truncate(msg, 600)}`,
     ];
+    if (typeof debug?.uiAttempt === 'number' && typeof debug?.uiMaxAttempts === 'number') {
+      bodyLines.push(`*Attempt:* ${debug.uiAttempt}/${debug.uiMaxAttempts}`);
+    }
     if (debug?.uiState) {
       if (debug.uiState.state === 'loaded') bodyLines.push('*UI:* loaded');
       else if (debug.uiState.state === 'error') bodyLines.push(`*UI error:* ${truncate(debug.uiState.errorText || '', 600)}`);
@@ -407,6 +444,8 @@ async function main() {
     // Also print a compact debug snapshot to logs for post-mortems (Slack might be unreachable).
     try {
       const dbg = debug && typeof debug === 'object' ? {
+        uiAttempt: typeof debug.uiAttempt === 'number' ? debug.uiAttempt : null,
+        uiMaxAttempts: typeof debug.uiMaxAttempts === 'number' ? debug.uiMaxAttempts : null,
         uiState: debug.uiState || null,
         directFetch: debug.directFetch || null,
         landscapesRequest: debug.landscapesRequest || null,
