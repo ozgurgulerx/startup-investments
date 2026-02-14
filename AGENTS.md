@@ -29,7 +29,7 @@ When cron schedules change, update docs in the same commit and run:
 - `packages/analysis`: Python analysis/automation tooling used by workflows (news ingest/digest, etc).
 - `database/migrations`: SQL migrations for Postgres.
 - `infrastructure/kubernetes`: AKS manifests.
-- `.github/workflows`: GitHub Actions workflows (manual/backup only; primary automation runs via AKS CronJobs + VM cron).
+- `.github/workflows`: (intentionally removed) GitHub Actions is not part of the production control plane for this repo.
 
 ## Production Architecture (What Talks To What)
 
@@ -80,7 +80,6 @@ Important headers/invariants:
   - Enforced by `.gitattributes` (`*.sh text eol=lf`).
   - Pipelines image hardens this at build time: `infrastructure/pipelines/Dockerfile` strips CR bytes and fails the build if any remain.
   - Guardrail test: `packages/analysis/tests/test_no_crlf_shell_scripts.py`.
-  - CI: `.github/workflows/analysis-ci.yml` runs the `packages/analysis` pytest suite (includes this guardrail).
   - Local: `cd packages/analysis && pytest -q` (includes this guardrail).
 - `embed-backfill` supports safe verification without embedding spend:
   - Set `EMBED_BACKFILL_DRY_RUN=true` to only count unembedded clusters (DB read only; no Azure OpenAI calls).
@@ -140,7 +139,7 @@ Important headers/invariants:
 Primary scheduled automation is split:
 - **AKS CronJobs** for pipeline jobs (news/events/digests/briefs/benchmarks) to avoid VM availability issues.
 - **VM cron** for deploy orchestration + VM-only tasks (keep-alive, blob sync, crawl-frontier, release reconciliation, Slack summary, etc).
-GitHub Actions workflows remain **manual/backup**; do not treat them as primary automation (use AKS CronJobs + VM cron).
+GitHub Actions workflows are intentionally removed from this repo; do not treat GitHub as an automation control plane (use AKS CronJobs + VM cron).
 
 AKS pipelines CronJobs:
 - Manifests:
@@ -744,7 +743,7 @@ Operational notes:
 - `ADMIN_KEY` is not "provided by Azure". It is a strong random secret you set.
 - If you rotate `API_KEY`/`ADMIN_KEY`, you must update both:
   - AKS secret (via backend deploy) and/or App Service settings (web)
-- GitHub Actions workflows are backup-only; GitHub secrets/variables may exist, but primary secrets live in VM/K8s/App Service.
+- GitHub Secrets/Variables may still exist, but primary secrets live in VM/K8s/App Service.
 - X/Twitter automation secrets/env (VM):
   - Required for trend ingest: `X_API_BEARER_TOKEN`
   - Required for posting: `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
