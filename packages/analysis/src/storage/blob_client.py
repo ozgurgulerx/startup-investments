@@ -280,11 +280,15 @@ class BlobStorageClient:
             data = blob_client.download_blob().readall()
 
             if as_text:
+                self.last_error = ""
                 return data.decode("utf-8")
+            self.last_error = ""
             return data
         except ResourceNotFoundError:
+            self.last_error = ""
             return None
         except Exception as e:
+            self.last_error = str(e)
             print(f"Error downloading blob {blob_path}: {e}")
             return None
 
@@ -371,8 +375,10 @@ class BlobStorageClient:
                     info["metadata"] = blob.metadata
                 results.append(info)
 
+            self.last_error = ""
             return results
         except Exception as e:
+            self.last_error = str(e)
             print(f"Error listing blobs with prefix {prefix}: {e}")
             return []
 

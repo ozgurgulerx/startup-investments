@@ -13,6 +13,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -325,6 +326,8 @@ class BlobSyncManager:
             ContainerName.ANALYSIS_SNAPSHOTS,
             prefix="",
         )
+        if not blobs and self.storage_client.last_error:
+            raise RuntimeError(f"Blob listing failed: {self.storage_client.last_error}")
 
         current_slugs = set()
         for blob in blobs:
@@ -345,6 +348,8 @@ class BlobSyncManager:
                     ContainerName.ANALYSIS_SNAPSHOTS,
                     prefix=f"{slug}/latest.json",
                 )
+                if not blob_info and self.storage_client.last_error:
+                    raise RuntimeError(f"Blob metadata lookup failed for {slug}: {self.storage_client.last_error}")
                 if blob_info and blob_info[0]["last_modified"]:
                     blob_modified = blob_info[0]["last_modified"]
                     local_modified = datetime.fromtimestamp(
@@ -396,15 +401,34 @@ def main():
 
     # Verify blob storage is actually reachable (not just configured).
     # blob_service returns None when all auth methods fail.
+    #
+    # In VM cron, we sometimes run immediately after `az login --identity`. Warm token
+    # propagation can be flaky; retry a few times before declaring degraded.
     if sync_manager.storage_client.blob_service is None:
-        print("Error: Could not authenticate to Azure Blob Storage")
-        print("Check managed identity RBAC or AZURE_STORAGE_CONNECTION_STRING")
-        # Exit code 2 = auth/connectivity failure (distinguishable from general errors)
-        sys.exit(2)
+        for delay_s in (1, 2, 4):
+            time.sleep(delay_s)
+            if sync_manager.storage_client.blob_service is not None:
+                break
+        if sync_manager.storage_client.blob_service is None:
+            last_err = (sync_manager.storage_client.last_error or "").strip()
+            print("Error: Could not authenticate to Azure Blob Storage")
+            if last_err:
+                print(f"Last storage error: {last_err}")
+            print("Check managed identity RBAC, storage account network access, or AZURE_STORAGE_CONNECTION_STRING")
+            # Exit code 2 = auth/connectivity failure (distinguishable from general errors)
+            sys.exit(2)
 
     if args.check:
         print("\n[Sync] Checking for changes...")
-        changes = sync_manager.check_for_changes()
+        try:
+            changes = sync_manager.check_for_changes()
+        except Exception as e:
+            last_err = (sync_manager.storage_client.last_error or "").strip()
+            print(f"Error: change check failed: {e}")
+            if last_err:
+                print(f"Last storage error: {last_err}")
+                sys.exit(2)
+            sys.exit(1)
         print(f"\n  Added: {len(changes['added'])}")
         print(f"  Modified: {len(changes['modified'])}")
         print(f"  Removed: {len(changes['removed'])}")

@@ -539,8 +539,19 @@ fi
 SYNC_LOG="${LOG_DIR}/sync-data.log"
 if [ -f "$SYNC_LOG" ]; then
     # sync-data.sh prints a stable warning line when blob auth fails.
-    SYNC_BLOB_DEGRADED=$(tail -n 250 "$SYNC_LOG" 2>/dev/null | grep -a -c "WARN: Blob storage auth failed (exit code 2)" | tr -d '[:space:]' || echo "0")
-    if [ "$SYNC_BLOB_DEGRADED" -gt 0 ] 2>/dev/null; then
+    # Only consider the most recent run block (since the last START) to avoid
+    # persistent false positives after a transient auth/network blip.
+    SYNC_START_LINE=$(grep -a -n "START: sync-data" "$SYNC_LOG" 2>/dev/null | tail -1 | cut -d: -f1 || echo "")
+    if [ -n "$SYNC_START_LINE" ]; then
+        if sed -n "${SYNC_START_LINE},\$p" "$SYNC_LOG" 2>/dev/null | grep -a -q "WARN: Blob storage auth failed (exit code 2)"; then
+            SYNC_BLOB_DEGRADED=1
+        else
+            SYNC_BLOB_DEGRADED=0
+        fi
+    else
+        SYNC_BLOB_DEGRADED=0
+    fi
+    if [ "${SYNC_BLOB_DEGRADED:-0}" -gt 0 ] 2>/dev/null; then
         add_warn "Blob sync: storage auth/network failures in latest sync-data run (change detection degraded; may be stale)"
     fi
 fi

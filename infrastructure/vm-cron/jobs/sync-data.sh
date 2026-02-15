@@ -17,6 +17,8 @@ echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 az_login() {
     for i in 1 2 3; do
         if az login --identity --output none 2>/dev/null; then
+            # Warm the Storage token cache (helps avoid rare races right after login).
+            az account get-access-token --resource https://storage.azure.com/ -o none 2>/dev/null || true
             return 0
         fi
         sleep 2
@@ -33,9 +35,32 @@ cd "$REPO_DIR/packages/analysis"
 # Step 1: Check for changes
 echo "Checking blob storage for changes..."
 SYNC_CHECK_LOG="/tmp/sync-changes.txt"
+SYNC_CHECK_LOG_RETRY="/tmp/sync-changes.retry.txt"
 SYNC_CHECK_RC=0
 "$VENV_DIR/bin/python" -m src.sync.blob_sync --check --target "$REPO_DIR/apps/web/data" > "$SYNC_CHECK_LOG" 2>&1 || SYNC_CHECK_RC=$?
 cat "$SYNC_CHECK_LOG"
+
+# Intermittent storage auth/network issues can surface as exit code 2.
+# Retry once after re-auth to reduce flakiness without hiding persistent misconfigurations.
+if [ "$SYNC_CHECK_RC" -eq 2 ]; then
+    echo ""
+    echo "WARN: Blob storage auth failed (exit code 2). Retrying once after az login warmup..."
+    sleep 2
+    if az_login; then
+        SYNC_CHECK_RC_RETRY=0
+        "$VENV_DIR/bin/python" -m src.sync.blob_sync --check --target "$REPO_DIR/apps/web/data" > "$SYNC_CHECK_LOG_RETRY" 2>&1 || SYNC_CHECK_RC_RETRY=$?
+        echo "--- retry output ---"
+        cat "$SYNC_CHECK_LOG_RETRY"
+        if [ "$SYNC_CHECK_RC_RETRY" -eq 0 ]; then
+            SYNC_CHECK_LOG="$SYNC_CHECK_LOG_RETRY"
+            SYNC_CHECK_RC=0
+        else
+            SYNC_CHECK_RC="$SYNC_CHECK_RC_RETRY"
+        fi
+    else
+        echo "WARN: Retry az login failed; continuing in degraded mode."
+    fi
+fi
 
 if [ "$SYNC_CHECK_RC" -eq 2 ]; then
     echo "WARN: Blob storage auth failed (exit code 2). Change detection is degraded."
