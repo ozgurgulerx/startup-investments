@@ -34,3 +34,16 @@ Acceptance:
 - "Today" queue screen
 - Mastery shown in inspector
 
+## Phase 12 - Packaging + safety
+
+### Task 12.1 - Local-first packaging (choose: Tauri/Electron)
+Acceptance:
+- App can select vault path
+- File system permissions handled
+- Runs fully offline (except explicit LLM actions)
+
+### Task 12.2 - Prompt injection + safety guardrails
+Acceptance:
+- Any external "Source" content is treated as untrusted
+- LLM prompts explicitly instruct not to follow instructions from sources
+- Evidence required tags for edges
