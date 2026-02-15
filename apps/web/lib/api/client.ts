@@ -4,9 +4,12 @@
  *
  * IMPORTANT: API calls should only be made from Server Components or API routes
  * to keep the API key secure.
+ *
+ * We intentionally do NOT use `import 'server-only'` here because our Docker
+ * build runs Node-based scripts (tsx) that import file-backed data helpers
+ * which transitively import this module. The `server-only` package is not
+ * compatible with plain Node module resolution in that context.
  */
-
-import 'server-only';
 
 import type { PeriodInfo } from '@startup-intelligence/shared';
 
