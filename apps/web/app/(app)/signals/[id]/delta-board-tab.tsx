@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
-import type { SignalItem, DeepDiveContent } from '@/lib/api/client';
+import type { SignalItem, DeepDiveContent } from '@/lib/api/types';
 
 interface DeltaBoardTabProps {
   signal: SignalItem;

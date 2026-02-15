@@ -1,5 +1,5 @@
 import './telemetry';
-import express, { Express } from 'express';
+import express, { Express, type Request } from 'express';
 import compression from 'compression';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -129,7 +129,7 @@ const app: Express = express();
 const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.API_KEY;
 const FRONT_DOOR_ID = process.env.FRONT_DOOR_ID;
-const ADMIN_KEY = process.env.ADMIN_KEY || process.env.API_KEY;
+const ADMIN_KEY = process.env.ADMIN_KEY;
 const newsService = makeNewsService(pool);
 const signalsService = makeSignalsService(pool);
 const deepDivesService = makeDeepDivesService(pool);
@@ -159,7 +159,8 @@ if (process.env.NODE_ENV === 'production') {
     process.exit(1);
   }
   if (!process.env.ADMIN_KEY) {
-    console.warn('WARNING: ADMIN_KEY not set in production — falling back to API_KEY for admin endpoints.');
+    console.error('FATAL: ADMIN_KEY is required in production but not set. Exiting.');
+    process.exit(1);
   }
 }
 
@@ -212,6 +213,22 @@ app.get('/health', async (_req, res) => {
 function periodFilter(period: string | undefined) {
   if (!period || period === 'all') return undefined;
   return eq(startups.period, period);
+}
+
+function header(req: Request, name: string): string | null {
+  const raw = req.headers[name.toLowerCase()];
+  if (Array.isArray(raw)) {
+    for (const value of raw) {
+      const trimmed = String(value || '').trim();
+      if (trimmed) return trimmed;
+    }
+    return null;
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed ? trimmed : null;
+  }
+  return null;
 }
 
 function normalizeStageKey(value: string | undefined | null): string {
@@ -477,7 +494,7 @@ const limiter = rateLimit({
     // Skip rate limiting for authenticated server-to-server requests (e.g. frontend SSR).
     // The frontend App Service shares a single IP, so all SSR requests would otherwise
     // share one rate-limit bucket and get throttled quickly.
-    const key = req.headers['x-api-key'] as string | undefined;
+    const key = header(req, 'x-api-key');
     return !!key && key === API_KEY;
   },
 });
@@ -504,7 +521,7 @@ app.use((req, res, next) => {
 
   // In production, validate Front Door ID
   if (process.env.NODE_ENV === 'production') {
-    const frontDoorId = req.headers['x-azure-fdid'] as string;
+    const frontDoorId = header(req, 'x-azure-fdid');
 
     if (!frontDoorId || frontDoorId !== FRONT_DOOR_ID) {
       console.warn(`Request bypassing Front Door from ${req.ip} to ${req.path}`);
@@ -529,7 +546,7 @@ app.use((req, res, next) => {
 
   // In production, always require API key (fail-fast startup ensures API_KEY exists)
   if (process.env.NODE_ENV === 'production') {
-    const providedKey = req.headers['x-api-key'] as string;
+    const providedKey = header(req, 'x-api-key');
 
     if (!providedKey || providedKey !== API_KEY) {
       console.warn(`Unauthorized API access attempt from ${req.ip} to ${req.path}`);
@@ -864,8 +881,10 @@ app.get('/api/v1/startups/:slug/signals', async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(20, Number(req.query.limit || 5)));
     const days = Math.max(1, Math.min(90, Number(req.query.days || 30)));
+    const regionRaw = String(req.query.region || 'global').trim().toLowerCase();
+    const region = regionRaw === 'turkey' ? 'turkey' : 'global';
 
-    const cacheKey = `signals:company:${req.params.slug}:${limit}:${days}`;
+    const cacheKey = `signals:company:${req.params.slug}:${region}:${limit}:${days}`;
     const redis = await getRedisClient();
     if (redis) {
       try {
@@ -881,6 +900,7 @@ app.get('/api/v1/startups/:slug/signals', async (req, res) => {
       slug: req.params.slug,
       limit,
       days,
+      region,
     });
 
     if (redis) {
@@ -3702,7 +3722,7 @@ app.get('/api/v1/subscriptions', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const userId = req.headers['x-user-id'] as string;
+    const userId = header(req, 'x-user-id');
     if (!userId) return res.status(401).json({ error: 'User ID required' });
     const result = await subscriptionsService.getSubscriptions({ userId, scope: parsed.data.scope });
     res.json(result);
@@ -3718,7 +3738,7 @@ app.post('/api/v1/subscriptions', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const userId = req.headers['x-user-id'] as string;
+    const userId = header(req, 'x-user-id');
     if (!userId) return res.status(401).json({ error: 'User ID required' });
     const result = await subscriptionsService.createSubscription({
       userId, objectType: parsed.data.object_type, objectId: parsed.data.object_id, scope: parsed.data.scope,
@@ -3736,7 +3756,7 @@ app.delete('/api/v1/subscriptions', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const userId = req.headers['x-user-id'] as string;
+    const userId = header(req, 'x-user-id');
     if (!userId) return res.status(401).json({ error: 'User ID required' });
     await subscriptionsService.deleteSubscription({
       userId, objectType: parsed.data.object_type, objectId: parsed.data.object_id, scope: parsed.data.scope,
@@ -3754,7 +3774,7 @@ app.get('/api/v1/alerts', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const userId = req.headers['x-user-id'] as string;
+    const userId = header(req, 'x-user-id');
     if (!userId) return res.status(401).json({ error: 'User ID required' });
     const result = await subscriptionsService.getAlerts({
       userId, scope: parsed.data.scope, status: parsed.data.status,
@@ -3774,7 +3794,7 @@ app.patch('/api/v1/alerts/batch', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const userId = req.headers['x-user-id'] as string;
+    const userId = header(req, 'x-user-id');
     if (!userId) return res.status(401).json({ error: 'User ID required' });
     await subscriptionsService.batchUpdateAlertStatus({
       alertIds: parsed.data.ids, userId, status: parsed.data.status,
@@ -3792,7 +3812,7 @@ app.get('/api/v1/alerts/digest', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const userId = req.headers['x-user-id'] as string;
+    const userId = header(req, 'x-user-id');
     if (!userId) return res.status(401).json({ error: 'User ID required' });
     const result = await subscriptionsService.getLatestDigest({ userId, scope: parsed.data.scope });
     res.json(result || { digest: null });
@@ -3810,7 +3830,7 @@ app.patch('/api/v1/alerts/:id', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const userId = req.headers['x-user-id'] as string;
+    const userId = header(req, 'x-user-id');
     if (!userId) return res.status(401).json({ error: 'User ID required' });
     await subscriptionsService.updateAlertStatus({ alertId, userId, status: parsed.data.status });
     res.json({ ok: true });
@@ -3941,7 +3961,7 @@ app.post('/api/v1/briefs/regenerate', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -4079,7 +4099,7 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -4389,7 +4409,7 @@ app.post('/api/admin/v1/onboarding/context', async (req, res) => {
 // POST /api/admin/v1/headline-seeds — add a paid headline lead URL (metadata only)
 app.post('/api/admin/v1/headline-seeds', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = headlineSeedCreateSchema.safeParse(req.body);
@@ -4451,7 +4471,7 @@ app.post('/api/admin/v1/headline-seeds', async (req, res) => {
 // GET /api/admin/v1/headline-seeds — list seeds
 app.get('/api/admin/v1/headline-seeds', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = headlineSeedsQuerySchema.safeParse(req.query);
@@ -4507,7 +4527,7 @@ app.post('/api/admin/v1/investors/upsert', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -4575,7 +4595,7 @@ app.post('/api/admin/v1/founders/upsert', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -4698,7 +4718,7 @@ app.post('/api/admin/v1/graph-edges/upsert', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -4765,7 +4785,7 @@ app.post('/api/admin/v1/graph-edges/bulk', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -4843,7 +4863,7 @@ app.post('/api/admin/sync-startups', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -5165,7 +5185,7 @@ app.post('/api/admin/extract-logos', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -5204,7 +5224,7 @@ app.get('/api/admin/logo-status', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -5237,7 +5257,7 @@ app.get('/api/admin/monitoring/sources', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -5292,7 +5312,7 @@ app.get('/api/admin/monitoring/runtime', (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -5326,7 +5346,7 @@ app.get('/api/admin/monitoring/investor-onboarding', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -5404,7 +5424,7 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
   if (!ADMIN_KEY) {
     return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
   }
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
@@ -5711,7 +5731,7 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
 // GET /api/admin/editorial/review — recent clusters with gating decisions (review queue)
 app.get('/api/admin/editorial/review', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = editorialReviewQuerySchema.safeParse(req.query);
@@ -5758,7 +5778,7 @@ app.get('/api/admin/editorial/review', async (req, res) => {
 // POST /api/admin/editorial/actions — create editorial action (reject/approve/flag/pin)
 app.post('/api/admin/editorial/actions', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = editorialActionSchema.safeParse(req.body);
@@ -5833,7 +5853,7 @@ app.post('/api/admin/editorial/actions', async (req, res) => {
 // GET /api/admin/editorial/actions — list recent actions
 app.get('/api/admin/editorial/actions', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = editorialActionsQuerySchema.safeParse(req.query);
@@ -5876,7 +5896,7 @@ app.get('/api/admin/editorial/actions', async (req, res) => {
 // GET /api/admin/editorial/rules — list active + pending rules
 app.get('/api/admin/editorial/rules', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = editorialRulesQuerySchema.safeParse(req.query);
@@ -5912,7 +5932,7 @@ app.get('/api/admin/editorial/rules', async (req, res) => {
 // POST /api/admin/editorial/rules — create a manual rule
 app.post('/api/admin/editorial/rules', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = editorialRuleCreateSchema.safeParse(req.body);
@@ -5944,7 +5964,7 @@ app.post('/api/admin/editorial/rules', async (req, res) => {
 // PUT /api/admin/editorial/rules/:id — approve or deactivate a rule
 app.put('/api/admin/editorial/rules/:id', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const ruleId = req.params.id;
@@ -6001,7 +6021,7 @@ app.put('/api/admin/editorial/rules/:id', async (req, res) => {
 // GET /api/admin/editorial/stats — dashboard summary
 app.get('/api/admin/editorial/stats', async (req, res) => {
   if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY is not configured' });
-  const providedKey = req.headers['x-admin-key'] as string;
+  const providedKey = header(req, 'x-admin-key');
   if (!providedKey || providedKey !== ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = editorialStatsQuerySchema.safeParse(req.query);

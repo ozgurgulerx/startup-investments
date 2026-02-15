@@ -4,7 +4,7 @@ import type {
   OccurrenceItem,
   MoveItem,
   SignalItem,
-} from '@/lib/api/client';
+} from '@/lib/api/types';
 
 export type { DeepDiveContent, DeepDiveResponse, OccurrenceItem, MoveItem, SignalItem };
 

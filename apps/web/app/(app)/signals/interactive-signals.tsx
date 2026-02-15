@@ -16,7 +16,7 @@ import { ExplainPopover } from './explain-popover';
 import { EvidenceDrawer } from './evidence-drawer';
 import type { PatternData, EmergingPattern, CategoryData } from './page';
 import type { PatternCorrelation } from '@/lib/data/signals';
-import type { SignalItem, SignalsSummaryResponse, SignalsListResponse } from '@/lib/api/client';
+import type { SignalItem, SignalsSummaryResponse, SignalsListResponse } from '@/lib/api/types';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
 import { normalizeDatasetRegion } from '@/lib/region';
 import { trackEvent } from '@/lib/posthog';

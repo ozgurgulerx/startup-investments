@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
-import type { MoveItem, DeepDiveContent } from '@/lib/api/client';
+import type { MoveItem, DeepDiveContent } from '@/lib/api/types';
 import { MOVE_TYPE_LABELS } from './types';
 
 interface CaseStudyCardProps {

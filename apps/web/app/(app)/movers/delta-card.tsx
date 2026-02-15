@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { DeltaEvent } from '@/lib/api/client';
+import type { DeltaEvent } from '@/lib/api/types';
 
 /* ------------------------------------------------------------------
  * Delta-type icons (lightweight inline SVGs)

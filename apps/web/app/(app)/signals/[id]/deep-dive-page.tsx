@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { DeepDiveResponse } from '@/lib/api/client';
+import type { DeepDiveResponse } from '@/lib/api/types';
 import type { DeepDiveTab } from './types';
 import { DeepDiveHeader } from './deep-dive-header';
 import { TabNavigation } from './tab-navigation';

@@ -24,13 +24,14 @@ export function RecentSignals({ slug, region }: RecentSignalsProps) {
 
   useEffect(() => {
     const params = new URLSearchParams({ limit: '5', days: '30' });
-    fetch(`/api/v1/startups/${encodeURIComponent(slug)}/signals?${params}`)
+    if (region && region !== 'global') params.set('region', region);
+    fetch(`/api/startups/${encodeURIComponent(slug)}/signals?${params}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) setSignals(data);
       })
       .catch(() => {});
-  }, [slug]);
+  }, [slug, region]);
 
   if (signals.length === 0) return null;
 

@@ -49,6 +49,7 @@ Important headers/invariants:
 - API in production enforces auth:
   - `x-api-key` must match `API_KEY` for `/api/*` (except health and logo).
   - `x-admin-key` must match `ADMIN_KEY` for `/api/admin/*`.
+  - `ADMIN_KEY` is required in production (no fallback to `API_KEY`).
   - Watchlist intelligence endpoints (`/api/v1/subscriptions`, `/api/v1/alerts*`) also require
     `x-user-id` (UUID) per request to scope results to a single user.
 - Health endpoints are intentionally public:
@@ -59,8 +60,13 @@ Important headers/invariants:
 
 - Do not expose `API_KEY` or `ADMIN_KEY` to the browser.
   - Web uses `process.env.API_KEY` only in Server Components / API routes.
+- Client components must not call backend `/api/v1/*` endpoints directly (they require `X-API-Key`).
+  - Use same-origin Next route handlers under `apps/web/app/api/**` as proxies (e.g. `/api/movers`, `/api/startups/:slug/*`, `/api/brief/snapshot`).
 - Web admin proxy routes must send distinct auth headers:
   - `apps/web/app/api/monitoring/route.ts` and `apps/web/app/api/editorial/route.ts` call backend admin endpoints and must forward `X-API-Key: API_KEY` and `X-Admin-Key: ADMIN_KEY` (these may differ).
+- Web admin surfaces/proxies must be **admin-only** (defense-in-depth):
+  - `apps/web/middleware.ts` enforces JWT auth + `role=admin` for `/monitoring`, `/api/monitoring`, `/api/editorial`.
+  - The route handlers above also check `session.user.role === 'admin'` before proxying keys upstream.
 - Keep `/health` cheap and reachable (Front Door probe + diagnostics).
 - Keep the API deployable when AKS is running:
   - `infrastructure/vm-cron/jobs/backend-deploy.sh` must be able to connect to the AKS control plane.
@@ -711,6 +717,13 @@ Storage invariants:
 Common failure mode:
 - If the storage account has `publicNetworkAccess=Disabled` and there is no private endpoint/VNet routing,
   VM cron will not be able to reach the blob data-plane and jobs will log `AuthorizationFailure`.
+
+Operational behavior (debugging tips):
+- VM `sync-data` starts with a blob change-detection check (`python -m src.sync.blob_sync --check`).
+  - Exit code `2` means auth/connectivity issues (managed identity RBAC, storage firewall, token propagation).
+  - `infrastructure/vm-cron/jobs/sync-data.sh` retries the check once after re-auth + token warmup to reduce flakiness.
+- `infrastructure/vm-cron/jobs/health-report.sh` only flags "blob sync degraded" if the **latest** `sync-data` run block
+  contains `WARN: Blob storage auth failed (exit code 2)` (prevents old transient failures from paging forever).
 
 ## Secrets / Env Vars (What Must Exist)
 

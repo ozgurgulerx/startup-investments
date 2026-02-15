@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertTriangle, ShieldOff, Eye } from 'lucide-react';
-import type { DeepDiveContent } from '@/lib/api/client';
+import type { DeepDiveContent } from '@/lib/api/types';
 
 interface CounterevienceTabProps {
   content: DeepDiveContent;

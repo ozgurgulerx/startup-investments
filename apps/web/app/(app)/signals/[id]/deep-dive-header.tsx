@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { timeAgo } from '@/lib/news-utils';
-import type { SignalItem } from '@/lib/api/client';
+import type { SignalItem } from '@/lib/api/types';
 import { STATUS_STYLES, DOMAIN_LABELS } from './types';
 
 interface DeepDiveHeaderProps {

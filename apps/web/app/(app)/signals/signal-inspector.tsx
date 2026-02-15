@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { TrendingUp, TrendingDown, Activity, Users, BarChart3, Clock, ExternalLink, ChevronRight } from 'lucide-react';
-import type { SignalItem } from '@/lib/api/client';
+import type { SignalItem } from '@/lib/api/types';
 import { timeAgo } from '@/lib/news-utils';
 import { formatCurrency } from '@/lib/utils';
 

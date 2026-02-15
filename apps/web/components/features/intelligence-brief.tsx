@@ -111,7 +111,7 @@ export function IntelligenceBrief({
           params.set('period_key', newPeriod);
           let fetched = false;
           try {
-            const snapResponse = await fetch(`/api/v1/brief?${params.toString()}`);
+            const snapResponse = await fetch(`/api/brief/snapshot?${params.toString()}`);
             if (snapResponse.ok) {
               const snapData = await snapResponse.json();
               // Convert snapshot to MonthlyBrief format for rendering
@@ -169,7 +169,7 @@ export function IntelligenceBrief({
         params.set('period_key', validPeriod);
         let fetched = false;
         try {
-          const snapResponse = await fetch(`/api/v1/brief?${params.toString()}`);
+          const snapResponse = await fetch(`/api/brief/snapshot?${params.toString()}`);
           if (snapResponse.ok) {
             const snapData = await snapResponse.json();
             if (snapData && snapData.metrics) {

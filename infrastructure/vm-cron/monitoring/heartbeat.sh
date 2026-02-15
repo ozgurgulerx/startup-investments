@@ -264,10 +264,12 @@ RUNTIME_URL="${API_BASE_URL}/api/admin/monitoring/runtime?window_min=10"
 
 if [ -z "${API_KEY:-}" ]; then
     maybe_slo_alert "api-runtime-no-api-key" "- API runtime SLO check skipped: API_KEY missing"
+elif [ -z "${ADMIN_KEY:-}" ]; then
+    maybe_slo_alert "api-runtime-no-admin-key" "- API runtime SLO check skipped: ADMIN_KEY missing"
 else
     RUNTIME_JSON=$(curl -sf \
         -H "X-API-Key: ${API_KEY}" \
-        -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY}}" \
+        -H "X-Admin-Key: ${ADMIN_KEY}" \
         "$RUNTIME_URL" 2>/dev/null || echo "")
 
     if [ -z "$RUNTIME_JSON" ]; then

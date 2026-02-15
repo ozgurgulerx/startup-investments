@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { cn } from '@/lib/utils';
 import { CHART_PALETTE, CHART_GRID, CHART_AXIS, CHART_CURSOR } from '@/lib/chart-colors';
-import type { OccurrenceItem } from '@/lib/api/client';
+import type { OccurrenceItem } from '@/lib/api/types';
 import { STAGE_LABELS } from './types';
 
 interface ExplorerTabProps {
@@ -18,13 +18,15 @@ export function ExplorerTab({ signalId, region }: ExplorerTabProps) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [stageFilter, setStageFilter] = useState<string | null>(null);
-  const regionQS = region !== 'global' ? `?region=${encodeURIComponent(region)}` : '';
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
 
-    fetch(`/api/signals/${signalId}/occurrences?limit=100`)
+    const params = new URLSearchParams({ limit: '100' });
+    if (region !== 'global') params.set('region', region);
+
+    fetch(`/api/signals/${signalId}/occurrences?${params.toString()}`)
       .then(r => r.json())
       .then((data: { occurrences: OccurrenceItem[]; total: number }) => {
         if (!cancelled) {
@@ -38,7 +40,7 @@ export function ExplorerTab({ signalId, region }: ExplorerTabProps) {
       });
 
     return () => { cancelled = true; };
-  }, [signalId]);
+  }, [signalId, region]);
 
   // Score histogram
   const histogramData = useMemo(() => {
@@ -189,7 +191,9 @@ export function ExplorerTab({ signalId, region }: ExplorerTabProps) {
             {/* Company info */}
             <div className="flex-1 min-w-0">
               <Link
-                href={`/company/${occ.startup_slug}${regionQS}`}
+                href={region === 'global'
+                  ? `/company/${occ.startup_slug}`
+                  : `/company/${occ.startup_slug}?region=${encodeURIComponent(region)}`}
                 className="text-sm text-foreground hover:text-accent-info transition-colors font-medium"
               >
                 {occ.startup_name}

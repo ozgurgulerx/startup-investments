@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { AlertTriangle, Target, Gauge, Lightbulb } from 'lucide-react';
-import type { SignalItem, DeepDiveContent } from '@/lib/api/client';
+import type { SignalItem, DeepDiveContent } from '@/lib/api/types';
 
 interface HowItWorksTabProps {
   content: DeepDiveContent;

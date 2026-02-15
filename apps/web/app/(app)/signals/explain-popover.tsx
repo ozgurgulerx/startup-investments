@@ -2,7 +2,7 @@
 
 import * as Popover from '@radix-ui/react-popover';
 import { Info, X } from 'lucide-react';
-import type { SignalExplain } from '@/lib/api/client';
+import type { SignalExplain } from '@/lib/api/types';
 
 interface ExplainPopoverProps {
   explain: SignalExplain;

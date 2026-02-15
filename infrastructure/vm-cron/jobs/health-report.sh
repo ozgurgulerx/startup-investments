@@ -184,13 +184,20 @@ rm -f /tmp/ba-health-resp.json
 # --- 6. API runtime SLOs (rolling window) ---
 echo ""
 echo "[6/12] API runtime (10m)..."
-RUNTIME_JSON=$(curl -sf \
-    -H "X-API-Key: ${API_KEY:-}" \
-    -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY:-}}" \
-    "$RUNTIME_MONITOR_URL" 2>/dev/null || echo "")
+if [ -z "${API_KEY:-}" ]; then
+    echo "  API_KEY missing"
+    add_fail "API runtime: API_KEY missing"
+elif [ -z "${ADMIN_KEY:-}" ]; then
+    echo "  ADMIN_KEY missing"
+    add_fail "API runtime: ADMIN_KEY missing"
+else
+    RUNTIME_JSON=$(curl -sf \
+        -H "X-API-Key: ${API_KEY}" \
+        -H "X-Admin-Key: ${ADMIN_KEY}" \
+        "$RUNTIME_MONITOR_URL" 2>/dev/null || echo "")
 
-if [ -n "$RUNTIME_JSON" ]; then
-    RUNTIME_INFO=$(python3 -c "
+    if [ -n "$RUNTIME_JSON" ]; then
+        RUNTIME_INFO=$(python3 -c "
 import json, sys
 try:
     d = json.loads(sys.stdin.read())
@@ -218,23 +225,24 @@ elif rate >= 2.0 or p95 >= 2000 or waiting > 0:
 print(f\"{sev}|{total}|{err5xx}|{rate:.2f}|{p95}|{p99}|{waiting}\")
 " <<< "$RUNTIME_JSON" 2>/dev/null || echo "error")
 
-    if [ "$RUNTIME_INFO" != "error" ]; then
-        IFS='|' read -r SEV TOTAL ERR5XX RATE P95 P99 WAITING <<< "$RUNTIME_INFO"
-        echo "  total=${TOTAL} 5xx=${ERR5XX} (${RATE}%) p95=${P95}ms p99=${P99}ms waiting=${WAITING}"
-        if [ "$SEV" = "fail" ]; then
-            add_fail "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
-        elif [ "$SEV" = "warn" ]; then
-            add_warn "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
+        if [ "$RUNTIME_INFO" != "error" ]; then
+            IFS='|' read -r SEV TOTAL ERR5XX RATE P95 P99 WAITING <<< "$RUNTIME_INFO"
+            echo "  total=${TOTAL} 5xx=${ERR5XX} (${RATE}%) p95=${P95}ms p99=${P99}ms waiting=${WAITING}"
+            if [ "$SEV" = "fail" ]; then
+                add_fail "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
+            elif [ "$SEV" = "warn" ]; then
+                add_warn "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
+            else
+                add_ok "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
+            fi
         else
-            add_ok "API runtime: 5xx ${RATE}% p95 ${P95}ms waiting ${WAITING}"
+            echo "  Could not parse runtime monitoring response"
+            add_warn "API runtime: parse error"
         fi
     else
-        echo "  Could not parse runtime monitoring response"
-        add_warn "API runtime: parse error"
+        echo "  Runtime monitoring API unreachable"
+        add_warn "API runtime: unreachable"
     fi
-else
-    echo "  Runtime monitoring API unreachable"
-    add_warn "API runtime: unreachable"
 fi
 
 # --- 7. Frontend ---
@@ -294,10 +302,19 @@ add_section "News Pipeline"
 
 echo ""
 echo "[10/12] News pipeline..."
-MONITOR_JSON=$(curl -sf \
-    -H "X-API-Key: ${API_KEY:-}" \
-    -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY:-}}" \
-    "$MONITOR_URL" 2>/dev/null || echo "")
+MONITOR_JSON=""
+if [ -z "${API_KEY:-}" ]; then
+    echo "  API_KEY missing"
+    add_fail "Pipeline: API_KEY missing"
+elif [ -z "${ADMIN_KEY:-}" ]; then
+    echo "  ADMIN_KEY missing"
+    add_fail "Pipeline: ADMIN_KEY missing"
+else
+    MONITOR_JSON=$(curl -sf \
+        -H "X-API-Key: ${API_KEY}" \
+        -H "X-Admin-Key: ${ADMIN_KEY}" \
+        "$MONITOR_URL" 2>/dev/null || echo "")
+fi
 
 if [ -n "$MONITOR_JSON" ]; then
     # Parse with python3 (jq not guaranteed on VM)
@@ -434,8 +451,12 @@ print(';'.join(unhealthy))
         add_warn "Pipeline: could not parse API response"
     fi
 else
-    echo "  Monitoring API unreachable"
-    add_warn "Pipeline: monitoring API unreachable"
+    if [ -z "${API_KEY:-}" ] || [ -z "${ADMIN_KEY:-}" ]; then
+        : # Key failures already recorded above.
+    else
+        echo "  Monitoring API unreachable"
+        add_warn "Pipeline: monitoring API unreachable"
+    fi
 fi
 
 # =========================================================================
@@ -446,10 +467,19 @@ add_section "Crawler Frontier"
 echo ""
 echo "[11/12] Frontier..."
 
-FRONTIER_JSON=$(curl -sf \
-    -H "X-API-Key: ${API_KEY:-}" \
-    -H "X-Admin-Key: ${ADMIN_KEY:-${API_KEY:-}}" \
-    "$FRONTIER_MONITOR_URL" 2>/dev/null || echo "")
+FRONTIER_JSON=""
+if [ -z "${API_KEY:-}" ]; then
+    echo "  API_KEY missing"
+    add_fail "Frontier: API_KEY missing"
+elif [ -z "${ADMIN_KEY:-}" ]; then
+    echo "  ADMIN_KEY missing"
+    add_fail "Frontier: ADMIN_KEY missing"
+else
+    FRONTIER_JSON=$(curl -sf \
+        -H "X-API-Key: ${API_KEY}" \
+        -H "X-Admin-Key: ${ADMIN_KEY}" \
+        "$FRONTIER_MONITOR_URL" 2>/dev/null || echo "")
+fi
 
 if [ -n "$FRONTIER_JSON" ]; then
     FRONTIER_INFO=$(python3 -c "
@@ -522,8 +552,12 @@ print(f\"{due}|{total}|{stale}|{due_p95_min}|{success_pct}|{attempts}|{mode}|{cr
         add_warn "Frontier: could not parse API response"
     fi
 else
-    echo "  Frontier monitoring API unreachable"
-    add_warn "Frontier: monitoring API unreachable"
+    if [ -z "${API_KEY:-}" ] || [ -z "${ADMIN_KEY:-}" ]; then
+        : # Key failures already recorded above.
+    else
+        echo "  Frontier monitoring API unreachable"
+        add_warn "Frontier: monitoring API unreachable"
+    fi
 fi
 
 # Detect raw capture storage auth errors (best-effort log scan)

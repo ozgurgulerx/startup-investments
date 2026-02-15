@@ -102,7 +102,7 @@ export function EventTimeline({ slug, region }: EventTimelineProps) {
       if (region) params.set('region', region);
 
       const res = await fetch(
-        `/api/v1/startups/${encodeURIComponent(slug)}/timeline?${params}`
+        `/api/startups/${encodeURIComponent(slug)}/timeline?${params}`
       );
       if (!res.ok) return null;
       return res.json() as Promise<TimelineResponse>;

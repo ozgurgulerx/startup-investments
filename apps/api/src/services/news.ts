@@ -1444,23 +1444,46 @@ export function makeNewsService(pool: Pool) {
     slug: string;
     limit?: number;
     days?: number;
+    region?: string;
   }): Promise<Array<{ id: string; title: string; story_type: string; published_at: string; rank_score: number; delta_type: string }>> {
     const limit = Math.max(1, Math.min(20, Number(params.limit || 5)));
     const days = Math.max(1, Math.min(90, Number(params.days || 30)));
     try {
+      const region = params.region || 'global';
+
+      // Resolve slug → startup_id, scoped to region with alias fallback.
+      const slugResult = await pool.query(
+        `SELECT id::text FROM startups WHERE slug = $1 AND dataset_region = $2 AND COALESCE(onboarding_status, 'verified') != 'merged' LIMIT 1`,
+        [params.slug, region]
+      );
+      let startupId: string | null = null;
+      if (slugResult.rows.length > 0) {
+        startupId = slugResult.rows[0].id;
+      } else {
+        const aliasResult = await pool.query(
+          `SELECT s.id::text FROM startup_aliases sa
+           JOIN startups s ON s.id = sa.startup_id
+           WHERE sa.alias = $1 AND s.dataset_region = $2
+             AND COALESCE(s.onboarding_status, 'verified') != 'merged'
+           LIMIT 1`,
+          [params.slug, region]
+        );
+        if (aliasResult.rows.length > 0) startupId = aliasResult.rows[0].id;
+      }
+      if (!startupId) return [];
+
       const result = await pool.query(
         `SELECT DISTINCT c.id::text, c.title, c.story_type,
                 to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
                 c.rank_score, c.topic_tags
          FROM news_entity_facts nef
-         JOIN startups s ON s.id = nef.linked_startup_id
          JOIN news_clusters c ON c.id = nef.source_cluster_id
-         WHERE s.slug = $1
+         WHERE nef.linked_startup_id = $1::uuid
            AND nef.is_current = TRUE
            AND c.published_at > NOW() - make_interval(days => $2)
          ORDER BY c.published_at DESC
          LIMIT $3`,
-        [params.slug, days, limit]
+        [startupId, days, limit]
       );
       return result.rows.map((row) => ({
         id: String(row.id),

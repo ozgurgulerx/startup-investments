@@ -6,6 +6,8 @@
  * to keep the API key secure.
  */
 
+import 'server-only';
+
 import type { PeriodInfo } from '@startup-intelligence/shared';
 
 const DEFAULT_PROD_API_URL = 'https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net';

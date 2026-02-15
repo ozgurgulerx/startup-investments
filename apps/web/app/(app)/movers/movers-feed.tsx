@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { getDeltaFeed } from '@/lib/api/client';
-import type { MoversSummaryResponse, DeltaFeedResponse } from '@/lib/api/client';
+import type { MoversSummaryResponse, DeltaFeedResponse } from '@/lib/api/types';
 import { DeltaCard } from './delta-card';
 import { MoversFilters } from './movers-filters';
 import { SectorFilter } from '@/components/features/sector-filter';
@@ -13,9 +12,36 @@ interface Props {
   region: string;
 }
 
+async function fetchDeltaFeed(params: {
+  region: string;
+  delta_type?: string;
+  domain?: string;
+  sector?: string;
+  period?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<DeltaFeedResponse> {
+  const qs = new URLSearchParams();
+  qs.set('region', params.region);
+  if (params.delta_type) qs.set('delta_type', params.delta_type);
+  if (params.domain) qs.set('domain', params.domain);
+  if (params.sector) qs.set('sector', params.sector);
+  if (params.period) qs.set('period', params.period);
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  if (params.offset != null) qs.set('offset', String(params.offset));
+
+  const res = await fetch(`/api/movers?${qs.toString()}`, { cache: 'no-store' });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(detail || `API returned ${res.status}`);
+  }
+  return res.json();
+}
+
 export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
   const [events, setEvents] = useState(initialFeed.events);
   const [total, setTotal] = useState(initialFeed.total);
+  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<{
     delta_type?: string;
     domain?: string;
@@ -26,8 +52,9 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
 
   const loadMore = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const result = await getDeltaFeed({
+      const result = await fetchDeltaFeed({
         region,
         ...filters,
         offset: events.length,
@@ -35,6 +62,9 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
       });
       setEvents((prev) => [...prev, ...result.events]);
       setTotal(result.total);
+    } catch (err) {
+      console.error('Failed to load more movers:', err);
+      setError('Failed to load more events.');
     } finally {
       setLoading(false);
     }
@@ -45,8 +75,9 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
       const merged = { ...filters, ...newFilters };
       setFilters(merged);
       setLoading(true);
+      setError(null);
       try {
-        const result = await getDeltaFeed({
+        const result = await fetchDeltaFeed({
           region,
           ...merged,
           offset: 0,
@@ -54,6 +85,9 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
         });
         setEvents(result.events);
         setTotal(result.total);
+      } catch (err) {
+        console.error('Failed to apply movers filters:', err);
+        setError('Failed to apply filters.');
       } finally {
         setLoading(false);
       }
@@ -66,8 +100,9 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
       const merged = { ...filters, sector: sectorId || undefined };
       setFilters(merged);
       setLoading(true);
+      setError(null);
       try {
-        const result = await getDeltaFeed({
+        const result = await fetchDeltaFeed({
           region,
           ...merged,
           offset: 0,
@@ -75,6 +110,9 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
         });
         setEvents(result.events);
         setTotal(result.total);
+      } catch (err) {
+        console.error('Failed to apply movers sector filter:', err);
+        setError('Failed to apply sector filter.');
       } finally {
         setLoading(false);
       }
@@ -109,6 +147,11 @@ export function MoversFeed({ initialSummary, initialFeed, region }: Props) {
       </div>
 
       {/* Events feed */}
+      {error && (
+        <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       <div className="space-y-3 mt-4">
         {events.length === 0 && !loading && (
           <div className="text-sm text-muted-foreground py-8 text-center">

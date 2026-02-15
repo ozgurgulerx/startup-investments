@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { DeepDiveContent, MoveItem } from '@/lib/api/client';
+import type { DeepDiveContent, MoveItem } from '@/lib/api/types';
 import { CaseStudyCard } from './case-study-card';
 
 interface CaseStudiesTabProps {
