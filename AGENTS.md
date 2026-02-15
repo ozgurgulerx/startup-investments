@@ -207,6 +207,11 @@ VM cron runner:
     - `CRAWL_FRONTIER_SEED_MAX_SECONDS` (per-run seed budget, default 600)
     - `CRAWL_FRONTIER_SEED_TIMEOUT_MIN` (wrapper timeout, default 20)
     - optional force run: `CRAWL_FRONTIER_FORCE_SEED=true`
+  - Crawl throughput tuning (speed up without degrading crawl policy):
+    - `CRAWLER_FRONTIER_BATCH_SIZE` (URLs leased per worker loop; default 50)
+    - `CRAWL_FRONTIER_MAX_LOOPS` (number of worker loops per cron run; default 1)
+    - Prefer raising `CRAWL_FRONTIER_MAX_LOOPS` first to use the existing 40m cron window before increasing batch size.
+    - Roll back if `crawl-frontier` hits the 40m timeout or `/api/admin/monitoring/frontier` shows rising `staleLeases` / worsening `runSuccessRate24h`.
   - Daily `slack-summary` now includes subscription lifecycle metrics (created/confirmed/unsubscribed in 24h),
     segment breakdown (`region` × `digest_frequency`), masked newly-confirmed subscriber emails, and digest
     delivery totals by region.
