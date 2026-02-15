@@ -408,6 +408,18 @@ async function run() {
         && uiAttempt < maxUiAttempts
       ) {
         const reason = uiState.state === 'retry' ? 'network_changed' : 'timeout_with_network_changed';
+        const errHint = consoleErrors.find((s) => isRetryableGotoError(String(s)))
+          || requestFailures.find((f) => isRetryableGotoError(String(f?.failure || '')))?.failure
+          || reason;
+
+        try {
+          const snap = await getNetworkSnapshot({ stage: `ui_retry:${reason}`, attempt: uiAttempt, error: errHint });
+          console.warn(`[canary] netdiag: ${JSON.stringify(snap).slice(0, 2600)}`);
+        } catch (snapErr) {
+          const s = snapErr instanceof Error ? snapErr.message : String(snapErr);
+          console.warn(`[canary] netdiag failed: ${truncate(s, 220)}`);
+        }
+
         console.warn(`[canary] retrying UI load after transient network change (${reason}) (${uiAttempt}/${maxUiAttempts})`);
         await page.waitForTimeout(500 * uiAttempt);
         continue;
