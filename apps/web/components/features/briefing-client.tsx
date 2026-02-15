@@ -42,10 +42,13 @@ interface BriefingClientProps {
 // Simple number animation hook
 function useAnimatedNumber(target: number, duration: number = 400): number {
   const [current, setCurrent] = useState(target);
+  const currentRef = useRef(current);
+  // Keep the latest value available without making the animation effect depend on it.
+  currentRef.current = current;
 
   useEffect(() => {
     let rafId: number;
-    const startValue = current;
+    const startValue = currentRef.current;
     const startTime = performance.now();
 
     function animate(currentTime: number) {

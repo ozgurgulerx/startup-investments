@@ -84,9 +84,9 @@ export function PeriodicBriefView({
   const dateRange = formatDateRange(brief.period_start, brief.period_end, locale);
   const regionLabel = l.regionLabel;
 
-  const topStories = stats.top_stories || [];
-  const topTopics = stats.top_topics || [];
-  const storyTypes = stats.story_types || {};
+  const topStories = useMemo(() => stats.top_stories ?? [], [stats.top_stories]);
+  const topTopics = useMemo(() => stats.top_topics ?? [], [stats.top_topics]);
+  const storyTypes = useMemo(() => stats.story_types ?? {}, [stats.story_types]);
   const fundingTotal = stats.funding_total_usd;
 
   const archiveBasePath = region === 'turkey'
