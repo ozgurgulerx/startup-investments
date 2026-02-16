@@ -618,7 +618,11 @@ class LLMEnrichmentResult:
 def _build_evidence_json(cluster: StoryCluster) -> List[Dict[str, Any]]:
     """Build structured evidence from cluster members (deterministic, zero LLM cost)."""
     evidence: List[Dict[str, Any]] = []
+    seen_sources: set[str] = set()
     for member in cluster.members:
+        if member.source_key in seen_sources:
+            continue
+        seen_sources.add(member.source_key)
         entry: Dict[str, Any] = {
             "publisher": member.source_key,
             "url": member.url,
@@ -828,7 +832,19 @@ def _send_slack_notification(
 
 
 def normalize_text(value: str) -> str:
-    return re.sub(r"\s+", " ", (value or "").strip())
+    cleaned = (value or "").replace("\x00", "")
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _sanitize_for_pg(obj):
+    """Recursively strip null bytes from strings in a JSON-serializable structure."""
+    if isinstance(obj, str):
+        return obj.replace("\x00", "")
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_pg(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_for_pg(v) for v in obj]
+    return obj
 
 
 def _is_lead_only_item(item: "NormalizedNewsItem") -> bool:
@@ -877,6 +893,152 @@ def parse_entry_datetime(entry: Any) -> Optional[datetime]:
         except Exception:
             return None
     return None
+
+
+def _parse_open_datetime(raw: Any) -> Optional[datetime]:
+    """Best-effort parser for timestamp-like strings from HTML attrs/text."""
+    if raw is None:
+        return None
+    value = normalize_text(str(raw))
+    if not value:
+        return None
+
+    candidates = [value]
+    lower = value.lower()
+    if lower.endswith("z"):
+        candidates.append(value[:-1] + "+00:00")
+    if "." in value:
+        candidates.append(re.sub(r"\.(\d{3,})", ".000", value))
+        candidates.append(value.replace(".", "", 1))
+
+    for candidate in candidates:
+        try:
+            parsed = datetime.fromisoformat(candidate)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            else:
+                parsed = parsed.astimezone(timezone.utc)
+            return parsed
+        except Exception:
+            pass
+
+    # Common human-readable variants.
+    parsed_formats = [
+        "%Y-%m-%d %H:%M:%S%z",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%Y/%m/%d",
+        "%m/%d/%Y",
+        "%d %b %Y",
+    ]
+    for fmt in parsed_formats:
+        try:
+            dt = datetime.strptime(value, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except Exception:
+            continue
+    return None
+
+
+def parse_theinformation_technology_headlines(
+    html: str,
+    section_url: str,
+    max_items: int = 40,
+) -> List[Dict[str, Any]]:
+    """Extract headline links from The Information technology page HTML.
+
+    Returns a list of dicts with `url`, `canonical_url`, optional `title`, and
+    optional `published_at`.
+    """
+    html = html or ""
+    limit = max(1, int(max_items))
+    section = normalize_text(section_url)
+    if not section:
+        return []
+
+    seen: set[str] = set()
+    out: List[Dict[str, Any]] = []
+
+    def _record(raw_url: str, title: str = "", published_at: Optional[datetime] = None) -> None:
+        if len(out) >= limit:
+            return
+        url = normalize_text(raw_url)
+        if not url:
+            return
+        if any(fragment in url.lower() for fragment in ("javascript:", "mailto:", "tel:", "#")):
+            return
+        if url.startswith("/"):
+            url = urljoin(section, url)
+        if not url.startswith(("http://", "https://")):
+            return
+        parsed = urlparse(url)
+        host = (parsed.netloc or "").lower()
+        if not host.endswith("theinformation.com"):
+            return
+        path = normalize_text(parsed.path).lower()
+        if "/articles/" not in path:
+            return
+        canonical = canonicalize_url(url)
+        if canonical in seen:
+            return
+        safe_title = normalize_text(title or "")
+        seen.add(canonical)
+        out.append({
+            "url": url,
+            "canonical_url": canonical,
+            "title": safe_title,
+            "published_at": published_at,
+        })
+
+    if BeautifulSoup is None:
+        # Regex fallback if bs4 isn't installed.
+        for m in re.finditer(
+            r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+            html,
+            flags=re.I | re.S,
+        ):
+            if len(out) >= limit:
+                break
+            href = normalize_text(m.group(1))
+            text = re.sub(r"<[^>]+>", " ", m.group(2) or "")
+            title = normalize_text(text)
+            _record(href, title, None)
+        return out[:limit]
+
+    soup = BeautifulSoup(html, "html.parser")
+    for anchor in soup.find_all("a", href=True):
+        if len(out) >= limit:
+            break
+        href = str(anchor.get("href") or "")
+
+        # Prefer explicit publication date in/near anchor tag.
+        candidate_dt: Optional[datetime] = None
+        for probe in [anchor, getattr(anchor, "parent", None), getattr(getattr(anchor, "parent", None), "parent", None)]:
+            if not probe:
+                continue
+            if not hasattr(probe, "find"):
+                continue
+            time_node = probe.find("time")
+            if time_node:
+                candidate_dt = _parse_open_datetime(time_node.get("datetime") or time_node.get_text(" ", strip=True))
+            if candidate_dt is not None:
+                break
+
+        if candidate_dt is None:
+            candidate_dt = _parse_open_datetime(anchor.get("data-date") or anchor.get("data-time") or anchor.get("title"))
+
+        text = normalize_text(anchor.get_text(" ", strip=True))
+        _record(href, text, candidate_dt)
+
+        # A single page often includes duplicates in nested anchors; avoid extra loops.
+        if len(out) >= limit:
+            break
+
+    return out[:limit]
 
 
 def tokenize_title(title: str) -> List[str]:
@@ -7009,7 +7171,7 @@ class DailyNewsIngestor:
             edition_date,
             region,
             top_ids,
-            json.dumps(stats),
+            json.dumps(_sanitize_for_pg(stats)),
         )
 
         await conn.execute(
@@ -7604,8 +7766,8 @@ class DailyNewsIngestor:
                     items_fetched,
                     items_kept,
                     len(clusters),
-                    json.dumps(errors),
-                    json.dumps(stats),
+                    json.dumps(_sanitize_for_pg(errors)),
+                    json.dumps(_sanitize_for_pg(stats)),
                 )
 
                 return result
@@ -7621,8 +7783,8 @@ class DailyNewsIngestor:
                     WHERE id = $1::uuid
                     """,
                     str(run_id),
-                    json.dumps(errors),
-                    json.dumps({"edition_date": e_date.isoformat(), "llm": dict(self._llm_metrics)}),
+                    json.dumps(_sanitize_for_pg(errors)),
+                    json.dumps(_sanitize_for_pg({"edition_date": e_date.isoformat(), "llm": dict(self._llm_metrics)})),
                 )
                 raise
 
@@ -7650,6 +7812,115 @@ async def run_news_ingestion(
         )
     finally:
         await ingestor.close()
+
+
+async def run_seed_theinformation_headlines(
+    *,
+    section_url: str = "https://www.theinformation.com/technology",
+    max_items: int = 40,
+    dry_run: bool = False,
+    publisher_key: str = "theinformation",
+) -> Dict[str, Any]:
+    """Scrape The Information technology section and store headline-only seed URLs."""
+    if asyncpg is None:
+        raise RuntimeError("asyncpg is required for paid headline seeding. Install dependencies.")
+
+    section = normalize_text(section_url)
+    if not section:
+        raise ValueError("section_url is required")
+
+    limit = max(1, min(200, int(max_items)))
+    ua = "Mozilla/5.0 (compatible; BuildAtlasHeadlineSeed/1.0; +https://buildatlas.net)"
+    timeout = httpx.Timeout(30.0)
+
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers={"User-Agent": ua}) as client:
+        resp = await client.get(section)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"failed to fetch section page (status={resp.status_code})")
+
+    items = parse_theinformation_technology_headlines(resp.text or "", section, max_items=limit)
+    if not items:
+        return {
+            "status": "ok",
+            "section_url": section,
+            "fetched": 0,
+            "inserted": 0,
+            "skipped": 0,
+            "dry_run": bool(dry_run),
+        }
+
+    if dry_run:
+        return {
+            "status": "ok",
+            "section_url": section,
+            "fetched": len(items),
+            "inserted": 0,
+            "skipped": len(items),
+            "dry_run": True,
+        }
+
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    if not database_url:
+        raise RuntimeError("DATABASE_URL must be set for seeding paid headlines")
+
+    inserted = 0
+    skipped = 0
+    errors: List[str] = []
+
+    conn = await asyncpg.connect(database_url)
+    try:
+        for item in items:
+            canonical = normalize_text(item.get("canonical_url") or "")
+            raw_url = normalize_text(item.get("url") or "")
+            if not canonical or not raw_url:
+                skipped += 1
+                continue
+
+            title = normalize_text(item.get("title") or "")
+            summary = ""
+            published_at = item.get("published_at")
+
+            try:
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO paid_headline_seeds (
+                        publisher_key,
+                        url,
+                        canonical_url,
+                        title,
+                        summary,
+                        published_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (publisher_key, canonical_url) DO NOTHING
+                    RETURNING id
+                    """,
+                    publisher_key,
+                    raw_url,
+                    canonical,
+                    title or None,
+                    summary or None,
+                    published_at,
+                )
+                if row:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except Exception as exc:  # pragma: no cover - best-effort best-effort insertion.
+                errors.append(str(exc)[:240])
+                skipped += 1
+    finally:
+        await conn.close()
+
+    return {
+        "status": "ok",
+        "section_url": section,
+        "fetched": len(items),
+        "inserted": inserted,
+        "skipped": skipped,
+        "errors": errors,
+        "dry_run": False,
+    }
 
 
 def _parse_args() -> argparse.Namespace:

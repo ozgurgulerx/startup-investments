@@ -103,14 +103,18 @@ export function EvidenceExpander({
 
   if (!evidence || evidence.length === 0) return null;
 
+  const deduped = evidence.filter((item, idx, arr) =>
+    arr.findIndex((e) => e.publisher === item.publisher) === idx
+  );
+
   const previewCount = 2;
-  const hasMore = evidence.length > previewCount;
-  const visibleItems = expanded ? evidence : evidence.slice(0, previewCount);
+  const hasMore = deduped.length > previewCount;
+  const visibleItems = expanded ? deduped : deduped.slice(0, previewCount);
 
   return (
     <div className="mt-3">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-1">
-        {l.sources} ({evidence.length})
+        {l.sources} ({deduped.length})
       </div>
       <div className="divide-y divide-border/15">
         {visibleItems.map((item, i) => (
@@ -123,7 +127,7 @@ export function EvidenceExpander({
           onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
           className="mt-1 inline-flex items-center gap-1 text-[10px] text-accent-info/70 hover:text-accent-info transition-colors"
         >
-          +{evidence.length - previewCount} {l.more}
+          +{deduped.length - previewCount} {l.more}
           <ChevronDown className="h-3 w-3" />
         </button>
       )}

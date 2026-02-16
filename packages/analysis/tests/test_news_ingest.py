@@ -18,6 +18,9 @@ from src.automation.news_ingest import (
     _is_relevant_turkey_news_item,
     _is_relevant_turkey_news_item_strict,
     _parse_amazon_new_releases_html,
+    _sanitize_for_pg,
+    parse_theinformation_technology_headlines,
+    normalize_text,
     _stable_external_id,
     _utc_midnight,
     build_paid_headline_search_query,
@@ -51,6 +54,47 @@ def test_build_paid_headline_search_query_prefers_anchor_entity():
     query = build_paid_headline_search_query("Top-funded AI database startup Pinecone considers sale")
     assert '"Pinecone"' in query
     assert "sale" in query
+
+
+def test_parse_theinformation_technology_headlines_deduplicates_and_filters_articles_only():
+    html = """
+    <html>
+      <body>
+        <a href="/articles/seed-1">AI funding round</a>
+        <a href="/news/skip-this">Should be skipped</a>
+        <a href="https://www.theinformation.com/articles/seed-1?src=homepage#top">Duplicate same headline</a>
+      </body>
+    </html>
+    """
+    items = parse_theinformation_technology_headlines(
+        html,
+        section_url="https://www.theinformation.com/technology",
+        max_items=10,
+    )
+    assert len(items) == 1
+    assert items[0]["canonical_url"] == "https://theinformation.com/articles/seed-1"
+    assert items[0]["title"] == "AI funding round"
+
+
+def test_parse_theinformation_technology_headlines_parses_short_titles():
+    html = """
+    <html>
+      <body>
+        <div>
+          <a href="/articles/seed-2">AI IPO</a>
+          <time datetime="2026-02-14T12:34:00Z"></time>
+        </div>
+      </body>
+    </html>
+    """
+    items = parse_theinformation_technology_headlines(
+        html,
+        section_url="https://www.theinformation.com/technology",
+        max_items=10,
+    )
+    assert len(items) == 1
+    assert items[0]["title"] == "AI IPO"
+    assert items[0]["published_at"] is not None
 
 
 def test_compute_cluster_scores_ignores_lead_only_members():
@@ -781,3 +825,22 @@ def test_nexus_build_turkey_cluster_rejects_foreign_startup():
     result = _build_turkey_cluster(cluster, turkey_source_keys)
     # Naboo has no Turkey nexus → should be filtered out → cluster is None
     assert result is None
+
+
+# --- Null byte sanitization tests ---
+
+
+def test_normalize_text_strips_null_bytes():
+    assert normalize_text("hello\x00world") == "helloworld"
+    assert normalize_text("\x00") == ""
+    assert normalize_text("clean text") == "clean text"
+    assert normalize_text("  spaced \x00 out  ") == "spaced out"
+
+
+def test_sanitize_for_pg_strips_null_bytes_recursively():
+    assert _sanitize_for_pg("hello\x00world") == "helloworld"
+    assert _sanitize_for_pg({"key": "val\x00ue"}) == {"key": "value"}
+    assert _sanitize_for_pg(["a\x00b", "c"]) == ["ab", "c"]
+    assert _sanitize_for_pg({"nested": {"deep": "v\x00"}}) == {"nested": {"deep": "v"}}
+    assert _sanitize_for_pg(42) == 42
+    assert _sanitize_for_pg(None) is None
