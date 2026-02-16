@@ -268,19 +268,21 @@ class InvestigationPipeline:
         if not model_name.startswith(("gpt-5", "o1", "o3", "o4")):
             payload["temperature"] = 0.2
 
+        content = "{}"
         try:
             response = await self.azure_client.chat.completions.create(**payload)
             content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
+            print(f"[investigation] triage raw LLM response (first 800 chars): {content[:800]}")
             parsed = json.loads(content) if isinstance(content, str) else {}
             self._stats["llm_calls"] = self._stats["llm_calls"] + 1
 
             results = parsed.get("results") or []
             valid = [r for r in results if isinstance(r, dict)]
-            print(f"[investigation] triage LLM response: {len(valid)} results, scores={[r.get('score') for r in valid]}")
+            print(f"[investigation] triage parsed: {len(valid)} results, scores={[r.get('score') for r in valid]}")
             return valid
         except Exception as exc:
             print(f"[investigation] triage LLM failed: {exc}")
-            print(f"[investigation] raw content: {content[:500] if 'content' in dir() else 'N/A'}")
+            print(f"[investigation] raw content: {content[:500]}")
             return []
 
     # ------------------------------------------------------------------
