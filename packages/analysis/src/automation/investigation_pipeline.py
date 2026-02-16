@@ -275,9 +275,12 @@ class InvestigationPipeline:
             self._stats["llm_calls"] = self._stats["llm_calls"] + 1
 
             results = parsed.get("results") or []
-            return [r for r in results if isinstance(r, dict)]
+            valid = [r for r in results if isinstance(r, dict)]
+            print(f"[investigation] triage LLM response: {len(valid)} results, scores={[r.get('score') for r in valid]}")
+            return valid
         except Exception as exc:
             print(f"[investigation] triage LLM failed: {exc}")
+            print(f"[investigation] raw content: {content[:500] if 'content' in dir() else 'N/A'}")
             return []
 
     # ------------------------------------------------------------------
