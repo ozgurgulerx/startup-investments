@@ -243,6 +243,7 @@ class InvestigationPipeline:
         """Score headlines for AI relevance via a single LLM batch call.
 
         Returns list of dicts with 'index', 'score', 'reason', 'entities', 'topic_tags'.
+        Tries with response_format=json_object first, falls back to plain text parsing.
         """
         if not headlines or self.azure_client is None:
             return []
@@ -256,34 +257,47 @@ class InvestigationPipeline:
         model_name = (deployment or "").strip().lower()
         token_param = "max_completion_tokens" if model_name.startswith(("gpt-5", "o1", "o3", "o4")) else "max_tokens"
 
-        payload: Dict[str, Any] = {
-            "model": deployment,
-            "messages": [
-                {"role": "system", "content": _TRIAGE_PROMPT},
-                {"role": "user", "content": json.dumps({"headlines": headline_list})},
-            ],
-            "response_format": {"type": "json_object"},
-            token_param: 2048,
-        }
-        if not model_name.startswith(("gpt-5", "o1", "o3", "o4")):
-            payload["temperature"] = 0.2
+        for use_json_format in (True, False):
+            payload: Dict[str, Any] = {
+                "model": deployment,
+                "messages": [
+                    {"role": "system", "content": _TRIAGE_PROMPT},
+                    {"role": "user", "content": json.dumps({"headlines": headline_list})},
+                ],
+                token_param: 2048,
+            }
+            if use_json_format:
+                payload["response_format"] = {"type": "json_object"}
+            if not model_name.startswith(("gpt-5", "o1", "o3", "o4")):
+                payload["temperature"] = 0.2
 
-        content = "{}"
-        try:
-            response = await self.azure_client.chat.completions.create(**payload)
-            content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
-            print(f"[investigation] triage raw LLM response (first 800 chars): {content[:800]}")
-            parsed = json.loads(content) if isinstance(content, str) else {}
-            self._stats["llm_calls"] = self._stats["llm_calls"] + 1
+            content = "{}"
+            try:
+                response = await self.azure_client.chat.completions.create(**payload)
+                content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
+                mode = "json_object" if use_json_format else "plain"
+                print(f"[investigation] triage LLM ({mode}): {content[:600]}")
+                self._stats["llm_calls"] = self._stats["llm_calls"] + 1
 
-            results = parsed.get("results") or []
-            valid = [r for r in results if isinstance(r, dict)]
-            print(f"[investigation] triage parsed: {len(valid)} results, scores={[r.get('score') for r in valid]}")
-            return valid
-        except Exception as exc:
-            print(f"[investigation] triage LLM failed: {exc}")
-            print(f"[investigation] raw content: {content[:500]}")
-            return []
+                # Extract JSON from content (may be wrapped in markdown code fences)
+                text = content.strip()
+                if text.startswith("```"):
+                    text = re.sub(r"^```(?:json)?\s*", "", text)
+                    text = re.sub(r"\s*```\s*$", "", text)
+
+                parsed = json.loads(text) if text else {}
+                results = parsed.get("results") or []
+                valid = [r for r in results if isinstance(r, dict)]
+                if valid:
+                    print(f"[investigation] triage parsed: {len(valid)} results, scores={[r.get('score') for r in valid]}")
+                    return valid
+                print(f"[investigation] triage ({mode}) returned 0 valid results, trying next mode")
+            except Exception as exc:
+                mode = "json_object" if use_json_format else "plain"
+                print(f"[investigation] triage LLM ({mode}) failed: {exc}")
+
+        print("[investigation] triage: all attempts returned 0 results")
+        return []
 
     # ------------------------------------------------------------------
     # Step 2: Enqueue triaged seeds
