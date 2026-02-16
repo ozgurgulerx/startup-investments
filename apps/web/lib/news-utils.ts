@@ -19,10 +19,11 @@ export function timeAgo(iso: string, region: 'global' | 'turkey' = 'global'): st
 
 /** Shared story-type → color token map. */
 const STORY_TYPE_COLORS: Record<string, { border: string; bg: string; text: string }> = {
-  funding:    { border: 'success', bg: 'success', text: 'success' },
-  mna:        { border: 'delta',   bg: 'delta',   text: 'delta' },
-  regulation: { border: 'warning', bg: 'warning', text: 'warning' },
-  launch:     { border: 'accent-info', bg: 'accent-info', text: 'accent-info' },
+  funding:       { border: 'success', bg: 'success', text: 'success' },
+  mna:           { border: 'delta',   bg: 'delta',   text: 'delta' },
+  regulation:    { border: 'warning', bg: 'warning', text: 'warning' },
+  launch:        { border: 'accent-info', bg: 'accent-info', text: 'accent-info' },
+  investigation: { border: 'delta',   bg: 'delta',   text: 'delta' },
 };
 
 /** Badge-level flat colors for story type (used in StoryCard / radar list). */
@@ -40,6 +41,7 @@ const STORY_TYPE_LABELS_EN: Record<string, string> = {
   news: 'News',
   analysis: 'Analysis',
   opinion: 'Opinion',
+  investigation: 'Signal Watch',
 };
 
 const STORY_TYPE_LABELS_TR: Record<string, string> = {
@@ -50,6 +52,7 @@ const STORY_TYPE_LABELS_TR: Record<string, string> = {
   news: 'Haber',
   analysis: 'Analiz',
   opinion: 'Gorus',
+  investigation: 'Sinyal Izleme',
 };
 
 export function storyTypeLabel(storyType: string, region: 'global' | 'turkey' = 'global'): string {

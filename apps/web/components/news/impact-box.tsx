@@ -32,6 +32,37 @@ export function ImpactBox({ item, compact, region = 'global', viewMode }: Impact
   const hasBuilderOrigin = typeof item.builder_takeaway_is_llm === 'boolean';
   const builderOriginLabel = item.builder_takeaway_is_llm ? 'LLM' : 'AUTO';
 
+  // Investigation brief rendering (Signal Watch)
+  if (item.is_investigation && item.investigation_context) {
+    const ctx = item.investigation_context;
+    const findingsLabel = region === 'turkey' ? 'Bulgular' : 'Key Findings';
+    const briefLabel = region === 'turkey' ? 'Kamusal Istihbarat Ozeti' : 'Public Intelligence Brief';
+    const sourcesLabel = region === 'turkey' ? 'kaynak' : 'public sources';
+    return (
+      <div className={`group/brief rounded-md border border-delta/25 bg-delta/10 px-2.5 py-2 transition-all duration-200 ${compact ? 'mt-2' : 'mt-3'}`}>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <p className="text-[10px] uppercase tracking-wider text-delta font-medium">{briefLabel}</p>
+          {ctx.sources_used && ctx.sources_used.length > 0 && (
+            <span className="text-[10px] text-muted-foreground/60">
+              {ctx.sources_used.length} {sourcesLabel}
+            </span>
+          )}
+        </div>
+        {ctx.key_findings && ctx.key_findings.length > 0 && (
+          <div className={`space-y-0.5 ${compact ? 'text-[11px]' : 'text-xs'} leading-relaxed text-foreground/90`}>
+            <p className="text-[10px] uppercase tracking-wider text-delta/70 mb-0.5">{findingsLabel}</p>
+            {ctx.key_findings.slice(0, 4).map((finding, i) => (
+              <p key={i} className="flex items-start gap-1.5">
+                <span className="mt-1.5 inline-block h-1 w-1 rounded-full bg-delta/50 flex-shrink-0" />
+                <span className="line-clamp-2">{finding}</span>
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Structured impact rendering
   if (item.impact) {
     const { frame, kicker, builder_move, investor_angle, watchout, validation } = item.impact;

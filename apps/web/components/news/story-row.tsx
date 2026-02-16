@@ -111,6 +111,12 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
         <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${typeBadge}`}>
           {storyTypeLabel(item.story_type, region)}
         </span>
+        {item.is_investigation && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-delta/30 bg-delta/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-delta">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-delta" />
+            {region === 'turkey' ? 'Sinyal' : 'Signal Watch'}
+          </span>
+        )}
         <TrustBadge trustScore={item.trust_score} sourceCount={item.source_count} region={region} />
         <span className="inline-flex rounded-full border border-border/30 bg-muted/15 px-2 py-0.5 text-[10px] text-muted-foreground">
           {item.source_count >= 2 ? l.multiSource : l.singleSource}
@@ -167,7 +173,7 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
       <ImpactBox item={item} compact region={region} viewMode={viewMode} />
 
       {/* E. Evidence expander */}
-      <EvidenceExpander evidence={evidence} region={region} />
+      <EvidenceExpander evidence={evidence} region={region} isInvestigation={item.is_investigation} />
 
       {/* F. Open source CTA */}
       {safeHref(item.url) && (
@@ -292,7 +298,7 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
 
       <ImpactBox item={item} compact region={region} viewMode={viewMode} />
 
-      <EvidenceExpander evidence={evidence} region={region} />
+      <EvidenceExpander evidence={evidence} region={region} isInvestigation={item.is_investigation} />
 
       {safeHref(item.url) && (
         <div className="mt-2">

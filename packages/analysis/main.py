@@ -798,6 +798,48 @@ def ingest_news(
             console.print(f"  [dim]- {err}[/dim]")
 
 
+@app.command("seed-theinformation-headlines")
+def seed_theinformation_headlines(
+    section_url: str = typer.Option(
+        "https://www.theinformation.com/technology",
+        "--section-url",
+        help="The Information section URL to scrape",
+    ),
+    max_items: int = typer.Option(40, "--max-items", help="Maximum headlines to upsert"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Parse and report only; do not write to DB"),
+):
+    """Scrape The Information technology headlines and upsert them as paid-headline seeds."""
+    from src.automation.news_ingest import run_seed_theinformation_headlines
+
+    try:
+        result = asyncio.run(
+            run_seed_theinformation_headlines(
+                section_url=section_url,
+                max_items=max_items,
+                dry_run=bool(dry_run),
+            )
+        )
+    except Exception as exc:
+        console.print(f"[red]The Information seed run failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]The Information Headline Seed Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Status:[/bold] {result.get('status', 'unknown')}")
+    console.print(f"[bold]Section:[/bold] {result.get('section_url')}")
+    console.print(f"[bold]Fetched:[/bold] {result.get('fetched', 0)}")
+    console.print(f"[bold]Inserted:[/bold] {result.get('inserted', 0)}")
+    console.print(f"[bold]Skipped:[/bold] {result.get('skipped', 0)}")
+    if result.get("dry_run"):
+        console.print("[yellow]Dry run mode: no DB writes performed.[/yellow]")
+    if result.get("errors"):
+        console.print(f"[yellow]Warnings:[/yellow] {len(result.get('errors') or [])}")
+        for err in result.get("errors") or []:
+            console.print(f"  [dim]- {err}[/dim]")
+
+
 @app.command("test-ainews")
 def test_ainews(
     limit: int = typer.Option(5, "--limit", "-l", help="Max RSS entries to parse"),
@@ -2578,6 +2620,53 @@ def test_research(
             console.print(f"[bold]Sources:[/bold] {len(sources)}")
     else:
         console.print("[yellow]No LLM synthesis output (Azure client may not be configured)[/yellow]")
+
+
+@app.command("investigate-seeds")
+def investigate_seeds(
+    max_items: int = typer.Option(5, "--max-items", help="Max seeds to investigate per run"),
+):
+    """Triage paid headline seeds, investigate AI-relevant ones, promote to Signal Watch."""
+    from src.automation.investigation_pipeline import run_investigate_seeds
+
+    try:
+        stats = asyncio.run(run_investigate_seeds(max_items=max_items))
+    except Exception as exc:
+        console.print(f"[red]Investigation pipeline failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Investigation Pipeline Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Triaged:[/bold] {stats.get('triaged', 0)}")
+    console.print(f"[bold]Enqueued:[/bold] {stats.get('enqueued', 0)}")
+    console.print(f"[bold]Processed:[/bold] {stats.get('processed', 0)}")
+    console.print(f"[bold]Promoted:[/bold] {stats.get('promoted', 0)}")
+    console.print(f"[bold]Insufficient:[/bold] {stats.get('insufficient', 0)}")
+    console.print(f"[bold]Failed:[/bold] {stats.get('failed', 0)}")
+    console.print(f"[bold]Searches:[/bold] {stats.get('searches', 0)}")
+    console.print(f"[bold]Articles fetched:[/bold] {stats.get('articles_fetched', 0)}")
+    console.print(f"[bold]LLM calls:[/bold] {stats.get('llm_calls', 0)}")
+
+
+@app.command("recheck-corroboration")
+def recheck_corroboration():
+    """Re-check promoted investigations for open-web corroboration."""
+    from src.automation.investigation_pipeline import run_recheck_corroboration
+
+    try:
+        stats = asyncio.run(run_recheck_corroboration())
+    except Exception as exc:
+        console.print(f"[red]Corroboration recheck failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Corroboration Recheck Summary[/bold blue]",
+        border_style="blue"
+    ))
+    console.print(f"[bold]Rechecked:[/bold] {stats.get('corroboration_rechecked', 0)}")
+    console.print(f"[bold]Upgraded:[/bold] {stats.get('corroboration_upgraded', 0)}")
 
 
 @app.command("seed-signals")

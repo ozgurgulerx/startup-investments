@@ -120,7 +120,7 @@ TOPIC_KEYWORDS: Dict[str, Tuple[str, ...]] = {
     "security": ("security", "breach", "vulnerability", "cyber", "zero-day"),
 }
 
-ALLOWED_STORY_TYPES = {"funding", "launch", "mna", "regulation", "hiring", "news"}
+ALLOWED_STORY_TYPES = {"funding", "launch", "mna", "regulation", "hiring", "news", "investigation"}
 
 IMPACT_FRAMES = {
     "UNDERWRITING_TAKE", "ADOPTION_PLAY", "COST_CURVE", "LATENCY_LEVER",
@@ -6989,6 +6989,80 @@ class DailyNewsIngestor:
 
         return loaded
 
+    async def _load_investigation_clusters(
+        self,
+        conn: "asyncpg.Connection",
+        region: str = "global",
+    ) -> List[StoryCluster]:
+        """Load promoted investigation clusters (Signal Watch) from the last 48h.
+
+        Returns up to 5 StoryCluster objects ready to be mixed into the edition.
+        """
+        max_age_hours = _env_int("INVESTIGATION_MAX_AGE_HOURS", 48)
+        max_per_edition = 5
+
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    c.id::text AS cluster_id,
+                    c.title, c.summary, c.story_type, c.topic_tags, c.entities,
+                    c.rank_score, c.rank_reason, c.trust_score,
+                    c.canonical_url, c.published_at,
+                    c.builder_takeaway, c.llm_summary,
+                    c.research_context
+                FROM news_clusters c
+                WHERE c.story_type = 'investigation'
+                  AND c.published_at > NOW() - make_interval(hours => $1)
+                ORDER BY c.rank_score DESC, c.published_at DESC
+                LIMIT $2
+                """,
+                max_age_hours,
+                max_per_edition,
+            )
+        except Exception as exc:
+            print(f"[investigation] load investigation clusters failed: {exc}")
+            return []
+
+        result: List[StoryCluster] = []
+        for row in rows:
+            sc = StoryCluster(
+                cluster_key=f"investigation:{row['cluster_id']}",
+                primary_source_key="investigation_pipeline",
+                primary_external_id=row["cluster_id"],
+                canonical_url=str(row["canonical_url"] or ""),
+                title=str(row["title"] or ""),
+                summary=str(row["summary"] or ""),
+                published_at=row["published_at"] or datetime.now(timezone.utc),
+                topic_tags=list(row["topic_tags"] or []),
+                entities=list(row["entities"] or []),
+                story_type="investigation",
+                rank_score=float(row["rank_score"] or 0.3),
+                rank_reason=str(row["rank_reason"] or "investigation_pipeline"),
+                trust_score=float(row["trust_score"] or 0.5),
+                builder_takeaway=row["builder_takeaway"],
+                llm_summary=row["llm_summary"],
+                llm_model=None,
+                llm_signal_score=None,
+                llm_confidence_score=None,
+                llm_topic_tags=[],
+                llm_story_type="investigation",
+                members=[],
+            )
+            # Attach research_context if available
+            rc = row.get("research_context")
+            if rc:
+                if isinstance(rc, str):
+                    try:
+                        sc.research_context = json.loads(rc)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                elif isinstance(rc, dict):
+                    sc.research_context = rc
+            result.append(sc)
+
+        return result
+
     @staticmethod
     def _merge_entity_duplicates(ranked: List[StoryCluster]) -> List[StoryCluster]:
         """Merge clusters that share a primary entity + similar title.
@@ -7656,6 +7730,21 @@ class DailyNewsIngestor:
                     if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
                     and _count_non_lead_members(c.members) > 0
                 ]
+
+                # --- Load promoted investigation clusters (Signal Watch) ---
+                investigation_count = 0
+                if _env_bool("INVESTIGATION_PIPELINE_ENABLED", False):
+                    try:
+                        inv_clusters = await self._load_investigation_clusters(conn, "global")
+                        for ic in inv_clusters:
+                            ic.rank_score = max(0.01, ic.rank_score * 0.6)
+                        global_clusters_for_edition.extend(inv_clusters)
+                        investigation_count = len(inv_clusters)
+                        if inv_clusters:
+                            print(f"[investigation] added {len(inv_clusters)} Signal Watch clusters to global edition")
+                    except Exception as exc:
+                        print(f"[investigation] load investigation clusters failed (non-fatal): {exc}")
+
                 global_stats = await self._persist_edition(
                     conn,
                     edition_date=e_date,
@@ -7709,6 +7798,7 @@ class DailyNewsIngestor:
                         "graph_views_refreshed": graph_views_refreshed,
                     },
                     "research_enqueued": research_enqueued + research_enqueued_tr,
+                    "investigation_clusters": investigation_count,
                 }
 
                 # --- Turkey pipeline diagnostic summary ---

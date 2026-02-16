@@ -15,6 +15,10 @@ MAILTO=""
 # === News Ingest (hourly at :15) ===
 15 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh news-ingest 30 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-ingest.sh
 
+# === The Information Headline Seed (hourly at :10) ===
+# Harvests The Information technology headlines into paid_headline_seeds.
+10 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh theinformation-headlines 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/seed-theinformation-headlines.sh
+
 # === X Trend Ingest (hourly at :28) ===
 # Pulls recent X/Twitter trend signals and runs clustering via ingest-x-trends.
 28 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh x-trends 20 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/x-trends.sh
@@ -41,6 +45,10 @@ MAILTO=""
 # === Topic Research (hourly at :40, 25 min after news-ingest) ===
 # Processes hot topic research queue: web search + LLM synthesis
 40 * * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh research-topics 10 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/research-topics.sh
+
+# === Investigation Pipeline (every 2h at :50, after topic research at :40) ===
+# Triages paid headline seeds, deep-researches AI-relevant ones, rechecks corroboration
+50 */2 * * * /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh investigate-seeds 15 /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/investigate-seeds.sh
 
 # === News Digest (hourly at :45, timezone-aware) ===
 # Sends to subscribers whose local time is 08:xx. Each run only delivers to

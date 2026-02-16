@@ -53,6 +53,14 @@ export interface NewsItemCard {
   ba_bullets?: string[];
   why_it_matters?: string;
   evidence?: EvidenceItem[];
+  is_investigation?: boolean;
+  investigation_context?: {
+    enhanced_summary?: string;
+    key_findings?: string[];
+    entity_context?: Record<string, unknown>;
+    sources_used?: Array<{ url: string; title: string }>;
+    quality_score?: number;
+  };
 }
 
 export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';
@@ -209,6 +217,20 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard & { _linke
       if (!row.evidence_json) return undefined;
       const raw = safeJsonParse<unknown[]>(row.evidence_json) ?? (typeof row.evidence_json === 'object' ? row.evidence_json : undefined);
       return Array.isArray(raw) ? raw as EvidenceItem[] : undefined;
+    })(),
+    // Investigation (Signal Watch) fields
+    is_investigation: String(row.story_type || '') === 'investigation',
+    investigation_context: (() => {
+      if (String(row.story_type || '') !== 'investigation' || !row.research_context) return undefined;
+      const raw = safeJsonParse<Record<string, unknown>>(row.research_context) ?? (typeof row.research_context === 'object' ? row.research_context as Record<string, unknown> : undefined);
+      if (!raw) return undefined;
+      return {
+        enhanced_summary: raw.enhanced_summary ? String(raw.enhanced_summary) : undefined,
+        key_findings: Array.isArray(raw.key_findings) ? raw.key_findings.map(String) : undefined,
+        entity_context: typeof raw.entity_context === 'object' ? raw.entity_context as Record<string, unknown> : undefined,
+        sources_used: Array.isArray(raw.sources_used) ? (raw.sources_used as Array<{ url: string; title: string }>) : undefined,
+        quality_score: typeof raw.quality_score === 'number' ? raw.quality_score : undefined,
+      };
     })(),
     // Carry through raw linked_entities_json for enrichEntityLinks() post-processing
     _linked_entities_json: row.linked_entities_json ?? undefined,
@@ -432,6 +454,7 @@ export function makeNewsService(pool: Pool) {
           c.ba_bullets,
           c.why_it_matters,
           c.evidence_json,
+          c.research_context,
           to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
           c.story_type,
           c.topic_tags,
@@ -494,6 +517,7 @@ export function makeNewsService(pool: Pool) {
             c.ba_bullets,
             c.why_it_matters,
             c.evidence_json,
+            c.research_context,
             to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
             c.story_type,
             c.topic_tags,
@@ -601,6 +625,7 @@ export function makeNewsService(pool: Pool) {
           c.ba_bullets,
           c.why_it_matters,
           c.evidence_json,
+          c.research_context,
           to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
           c.story_type,
           c.topic_tags,
@@ -654,6 +679,7 @@ export function makeNewsService(pool: Pool) {
             c.ba_bullets,
             c.why_it_matters,
             c.evidence_json,
+            c.research_context,
             to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at,
             c.story_type,
             c.topic_tags,

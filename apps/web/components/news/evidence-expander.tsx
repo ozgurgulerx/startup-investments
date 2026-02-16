@@ -9,6 +9,7 @@ interface EvidenceExpanderProps {
   evidence: EvidenceItem[];
   defaultCollapsed?: boolean;
   region?: 'global' | 'turkey';
+  isInvestigation?: boolean;
 }
 
 function hostFromUrl(url: string): string {
@@ -85,6 +86,7 @@ export function EvidenceExpander({
   evidence,
   defaultCollapsed = true,
   region = 'global',
+  isInvestigation = false,
 }: EvidenceExpanderProps) {
   const [expanded, setExpanded] = useState(!defaultCollapsed);
   const l = region === 'turkey'
@@ -139,6 +141,13 @@ export function EvidenceExpander({
         >
           {l.showLess}
         </button>
+      )}
+      {isInvestigation && (
+        <p className="mt-2 text-[9px] italic text-muted-foreground/50 leading-relaxed">
+          {region === 'turkey'
+            ? 'Kamuya acik bilgilere dayanmaktadir. Ucretli icerige erisim saglanmamistir.'
+            : 'Based on publicly available information. Original paywalled content was not accessed.'}
+        </p>
       )}
       <p className="mt-2 text-[9px] text-muted-foreground/40 leading-relaxed">
         {l.note}

@@ -767,6 +767,14 @@ export interface NewsItemCard {
   ba_bullets?: string[];
   why_it_matters?: string;
   evidence?: EvidenceItem[];
+  is_investigation?: boolean;
+  investigation_context?: {
+    enhanced_summary?: string;
+    key_findings?: string[];
+    entity_context?: Record<string, unknown>;
+    sources_used?: Array<{ url: string; title: string }>;
+    quality_score?: number;
+  };
 }
 
 // -----------------------------------------------------------------------------
