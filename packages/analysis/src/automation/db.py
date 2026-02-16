@@ -884,6 +884,9 @@ class DatabaseConnection:
             error_category: Error type (transient, permanent, rate_limited, etc.)
             capture_id: Optional replay-capture reference
         """
+        # Truncate URLs to fit varchar(1000) column constraint
+        safe_url = url[:1000] if url else url
+        safe_canonical = canonical_url[:1000] if canonical_url else canonical_url
         await self.execute("""
             INSERT INTO crawl_logs
                 (startup_id, source_type, url, status, http_status,
@@ -891,10 +894,10 @@ class DatabaseConnection:
                  crawl_started_at, crawl_completed_at,
                  canonical_url, quality_score, content_type, error_category, capture_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, $12, $13, $14::uuid)
-        """, startup_id, source_type, url, status, http_status,
+        """, startup_id, source_type, safe_url, status, http_status,
              error_message, content_length, duration_ms,
              datetime.now(timezone.utc),
-             canonical_url, quality_score, content_type, error_category, capture_id)
+             safe_canonical, quality_score, content_type, error_category, capture_id)
 
     # =========================================================================
     # Domain Stats Operations (for throttling)

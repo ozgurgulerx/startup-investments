@@ -430,7 +430,7 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("daily_sabah_tech", "Daily Sabah Tech", "rss", "https://www.dailysabah.com/rss/business/tech", region="turkey", credibility_weight=0.58, language="en"),
     SourceDefinition("startups_watch", "Startups.watch", "rss", "https://medium.com/feed/startups-watch", region="turkey", credibility_weight=0.75, language="en"),
     # Turkey: VC & ecosystem RSS feeds
-    SourceDefinition("vc_212", "212 VC", "rss", "https://212.vc/feed", region="turkey", credibility_weight=0.70, language="en", lookback_hours_override=168),
+    SourceDefinition("vc_212", "212 VC", "rss", "https://212.vc/feed/", region="turkey", credibility_weight=0.70, language="en", lookback_hours_override=168),
     SourceDefinition("finberg", "Finberg", "rss", "https://finberg.com.tr/feed", region="turkey", credibility_weight=0.68, lookback_hours_override=168),
     SourceDefinition("endeavor_turkey", "Endeavor Türkiye", "rss", "https://turkiye.endeavor.org/feed", region="turkey", credibility_weight=0.68, lookback_hours_override=168),
     SourceDefinition("startupcentrum_tr", "StartupCentrum TR", "rss", "https://media.startupcentrum.com/tr/feed", region="turkey", credibility_weight=0.65, lookback_hours_override=168),
