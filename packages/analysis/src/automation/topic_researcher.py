@@ -256,8 +256,19 @@ async def web_search(
 
         for i, (link, link_title) in enumerate(links[:num_results]):
             snippet = snippets[i] if i < len(snippets) else ""
+            # DuckDuckGo wraps links in redirects — extract real URL from uddg param
+            resolved_url = link
+            if "duckduckgo.com" in link and "uddg=" in link:
+                try:
+                    from urllib.parse import parse_qs, urlparse as _urlparse
+                    parsed = _urlparse(link if link.startswith("http") else "https:" + link)
+                    uddg = parse_qs(parsed.query).get("uddg", [None])[0]
+                    if uddg:
+                        resolved_url = uddg
+                except Exception:
+                    pass
             results.append(SearchResult(
-                url=link,
+                url=resolved_url,
                 title=link_title.strip(),
                 snippet=snippet.strip(),
             ))
