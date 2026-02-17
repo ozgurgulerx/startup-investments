@@ -782,6 +782,7 @@ class InvestigationPipeline:
             entities[:10],
             rank_score,
             len(investigation.sources_used),
+            row["headline_url"][:1000],
             json.dumps(output_dict),
             row["seed_id"],
             investigation.builder_implications[:500] if investigation.builder_implications else None,
