@@ -2752,9 +2752,9 @@ class DailyNewsIngestor:
     @staticmethod
     def _get_digest_config(source_key: str) -> "DigestParserConfig":
         """Return parser config for a digest source."""
-        if not NewsIngestionPipeline._DIGEST_CONFIGS:
+        if not DailyNewsIngestor._DIGEST_CONFIGS:
             from .ainews_parser import DigestParserConfig
-            NewsIngestionPipeline._DIGEST_CONFIGS = {
+            DailyNewsIngestor._DIGEST_CONFIGS = {
                 "ainews_digest": DigestParserConfig(
                     source_key="ainews_digest",
                     source_name="AINews by swyx",
@@ -2768,9 +2768,9 @@ class DailyNewsIngestor:
                     source_weight=0.85,
                 ),
             }
-        return NewsIngestionPipeline._DIGEST_CONFIGS.get(
+        return DailyNewsIngestor._DIGEST_CONFIGS.get(
             source_key,
-            NewsIngestionPipeline._DIGEST_CONFIGS["ainews_digest"],
+            DailyNewsIngestor._DIGEST_CONFIGS["ainews_digest"],
         )
 
     async def _fetch_digest_rss(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
