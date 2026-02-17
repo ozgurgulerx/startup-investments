@@ -1,15 +1,16 @@
-"""AINews digest HTML parser.
+"""Digest RSS HTML parser.
 
-Parses the AINews newsletter (by swyx) HTML content into individual
-NormalizedNewsItem objects. Each newsletter contains 20-40 curated AI/startup
-stories organized by section (Twitter Recap, Reddit Recap, Discord Recap).
+Parses newsletter/digest HTML content (AINews, Latent Space, etc.) into
+individual NormalizedNewsItem objects. Each digest contains 20-40 curated
+AI/startup stories organized by section.
 
-RSS feed: https://news.smol.ai/rss.xml
+Supports multiple digest sources via DigestParserConfig.
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -18,6 +19,16 @@ try:
 except Exception:  # pragma: no cover
     BeautifulSoup = None
     Tag = None  # type: ignore[assignment,misc]
+
+
+@dataclass(frozen=True)
+class DigestParserConfig:
+    """Source metadata injected into every parsed item."""
+
+    source_key: str = "ainews_digest"
+    source_name: str = "AINews by swyx"
+    source_type: str = "rss"
+    source_weight: float = 0.88
 
 
 def _strip_html(html: str) -> str:
@@ -58,7 +69,7 @@ def _best_link(links: List[Dict[str, str]], fallback_url: str) -> str:
 
 
 class AINewsDigestParser:
-    """Parses AINews newsletter HTML into individual news items."""
+    """Parses digest newsletter HTML into individual news items."""
 
     # Section header patterns (case-insensitive)
     SECTION_PATTERNS = {
@@ -66,6 +77,9 @@ class AINewsDigestParser:
         "reddit": re.compile(r"reddit\s+recap", re.IGNORECASE),
         "discord": re.compile(r"discord\s+recap", re.IGNORECASE),
     }
+
+    def __init__(self, config: Optional[DigestParserConfig] = None) -> None:
+        self._config = config or DigestParserConfig()
 
     def parse_digest(
         self,
@@ -276,9 +290,9 @@ class AINewsDigestParser:
             payload["section_title"] = theme
 
         item = NormalizedNewsItem(
-            source_key="ainews_digest",
-            source_name="AINews by swyx",
-            source_type="newsletter",
+            source_key=self._config.source_key,
+            source_name=self._config.source_name,
+            source_type=self._config.source_type,
             title=normalize_text(title)[:300],
             url=url,
             canonical_url=canonical,
@@ -288,7 +302,7 @@ class AINewsDigestParser:
             author=author,
             engagement=engagement,
             payload=payload,
-            source_weight=0.88,
+            source_weight=self._config.source_weight,
         ).with_external_id()
 
         return item

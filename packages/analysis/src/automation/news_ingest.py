@@ -113,6 +113,33 @@ GENERIC_ENTITIES = {
 TOPIC_KEYWORDS: Dict[str, Tuple[str, ...]] = {
     "funding": ("raises", "raised", "funding", "series a", "series b", "series c", "seed", "pre-seed", "valuation"),
     "ai": ("ai", "genai", "llm", "model", "agent", "inference", "gpu", "foundation model"),
+    "ai_hardware": (
+        "hbm",
+        "nvlink",
+        "ualink",
+        "pcie",
+        "cxl",
+        "cowos",
+        "interconnect",
+        "infiniband",
+        "ethernet",
+        "ndr",
+        "xdr",
+        "liquid cooling",
+        "rack-scale",
+        "rack scale",
+        "power delivery",
+        "gpu",
+        "gpus",
+        "asic",
+        "asics",
+        "tpu",
+        "trainium",
+        "packaging",
+        "wafer",
+        "foundry",
+        "memory",
+    ),
     "launch": ("launch", "launched", "debut", "introduces", "release", "released", "product hunt"),
     "mna": ("acquire", "acquisition", "merger", "buys", "deal"),
     "hiring": ("hiring", "careers", "joins", "appointed", "head of"),
@@ -120,7 +147,65 @@ TOPIC_KEYWORDS: Dict[str, Tuple[str, ...]] = {
     "security": ("security", "breach", "vulnerability", "cyber", "zero-day"),
 }
 
-ALLOWED_STORY_TYPES = {"funding", "launch", "mna", "regulation", "hiring", "news", "investigation"}
+AI_HARDWARE_TOPIC_TAG = "AI Hardware"
+AI_HARDWARE_KEYWORDS: Tuple[str, ...] = (
+    "hbm",
+    "nvlink",
+    "ualink",
+    "pcie",
+    "cxl",
+    "cowos",
+    "wafer",
+    "foundry",
+    "interconnect",
+    "infiniband",
+    "ethernet",
+    "ndr",
+    "xdr",
+    "liquid cooling",
+    "rack-scale",
+    "rack scale",
+    "power delivery",
+    "gpus",
+    "gpu",
+    "asic",
+    "asics",
+    "tpu",
+    "trainium",
+    "packaging",
+    "memory",
+)
+
+ALLOWED_STORY_TYPES = {
+    "funding",
+    "launch",
+    "mna",
+    "regulation",
+    "hiring",
+    "news",
+    "investigation",
+    "research",
+    "analysis",
+    "interview",
+}
+
+AI_HARDWARE_SOURCE_KEYS: Tuple[str, ...] = (
+    "semianalysis",
+    "nextplatform",
+    "servethehome",
+    "chipsandcheese",
+    "eetimes_ai_accelerator",
+    "blocksandfiles",
+    "datacenterdynamics_ai",
+    "theregister_ai_datacenter",
+    "trendforce",
+    "reuters_technology",
+    "mlcommons_mlperf",
+    "nvidia_developer_blog",
+    "amd_ir",
+    "intel_newsroom_ai",
+)
+AI_HARDWARE_SOURCE_KEY_SET = frozenset(AI_HARDWARE_SOURCE_KEYS)
 
 IMPACT_FRAMES = {
     "UNDERWRITING_TAKE", "ADOPTION_PLAY", "COST_CURVE", "LATENCY_LEVER",
@@ -355,11 +440,16 @@ class SourceDefinition:
     source_type: str
     base_url: str
     region: str = "global"  # global|turkey
-    fetch_mode: str = "rss"  # rss|api|crawler|digest_rss|x_recent_search|paid_headlines
+    fetch_mode: str = "rss"  # rss|api|crawler|digest_rss|x_recent_search|paid_headlines|latest_posts
+    enabled: bool = True  # if False, source is kept in registry but skipped by collector
     credibility_weight: float = 0.65
     legal_mode: str = "headline_snippet"
     language: str = ""  # override auto-detection (e.g. "en" for English Turkey sources)
     lookback_hours_override: int = 0  # 0 = use global default; set >0 for low-frequency sources
+    topic_tags: Tuple[str, ...] = ()  # deterministic tags forced for all clusters sourced from this source
+    crawl_seed_urls: Tuple[str, ...] = ()  # optional alternate entry URLs (seed pages for latest-posts modes)
+    crawl_delay_ms: int = 500  # polite pacing between page fetches when frontier-style crawling
+    max_items_per_source: int = 0  # override max items for this source (0 = use self.max_per_source)
 
 
 @dataclass
@@ -401,7 +491,6 @@ def _env_float(name: str, default: float) -> float:
     except Exception:
         return float(default)
 
-
 # 30+ sources across publishers, community, and aggregators.
 DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("techcrunch", "TechCrunch", "rss", "https://techcrunch.com/feed/", credibility_weight=0.92),
@@ -412,7 +501,16 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("crunchbase_news", "Crunchbase News", "rss", "https://news.crunchbase.com/feed/", credibility_weight=0.85),
     # SemiAnalysis RSS appears low-frequency and may not reflect the most recent updates.
     # Keep a long lookback window so we still ingest the latest feed entries reliably.
-    SourceDefinition("semianalysis", "SemiAnalysis", "rss", "https://semianalysis.com/feed/", credibility_weight=0.90, language="en", lookback_hours_override=8760),
+    SourceDefinition(
+        "semianalysis",
+        "SemiAnalysis",
+        "rss",
+        "https://semianalysis.com/feed/",
+        credibility_weight=0.90,
+        language="en",
+        lookback_hours_override=8760,
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+    ),
     SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", region="turkey", credibility_weight=0.74),
     SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", region="turkey", credibility_weight=0.70),
     # Turkey: AI-focused feeds (keeps the Turkey edition AI-heavy without pulling in consumer-tech noise)
@@ -458,6 +556,102 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("devto_ai", "Dev.to AI", "community", "https://dev.to/feed/tag/ai", credibility_weight=0.62),
     SourceDefinition("prnewswire_tech", "PR Newswire Tech", "rss", "https://www.prnewswire.com/rss/technology-latest-news/technology-latest-news-list.rss", credibility_weight=0.68),
     SourceDefinition("businesswire_tech", "BusinessWire Tech", "rss", "https://feed.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFtWWQ==", credibility_weight=0.66),
+    # AI Hardware news pack (chip/AI infra + AI datacenter coverage)
+    SourceDefinition("nextplatform", "The Next Platform", "rss", "https://www.nextplatform.com/feed/", topic_tags=(AI_HARDWARE_TOPIC_TAG,), max_items_per_source=20, crawl_delay_ms=650),
+    SourceDefinition("servethehome", "ServeTheHome", "rss", "https://www.servethehome.com/feed/", topic_tags=(AI_HARDWARE_TOPIC_TAG,), max_items_per_source=20, crawl_delay_ms=700),
+    SourceDefinition("chipsandcheese", "Chips and Cheese", "rss", "https://chipsandcheese.com/feed/", topic_tags=(AI_HARDWARE_TOPIC_TAG,), max_items_per_source=20, crawl_delay_ms=650),
+    SourceDefinition(
+        "eetimes_ai_accelerator",
+        "EE Times (AI accelerator)",
+        "rss",
+        "https://www.eetimes.com/tag/ai-accelerator/feed/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        max_items_per_source=20,
+        crawl_delay_ms=800,
+    ),
+    SourceDefinition("blocksandfiles", "Blocks & Files", "rss", "https://blocksandfiles.com/feed/", topic_tags=(AI_HARDWARE_TOPIC_TAG,), max_items_per_source=20, crawl_delay_ms=700),
+    SourceDefinition(
+        "datacenterdynamics_ai",
+        "DataCenterDynamics (AI)",
+        "latest_posts",
+        "https://www.datacenterdynamics.com/en/news/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        crawl_seed_urls=("https://www.datacenterdynamics.com/en/news/", "https://www.datacenterdynamics.com/en/news/tag/semiconductor/"),
+        max_items_per_source=20,
+        crawl_delay_ms=850,
+    ),
+    SourceDefinition(
+        "theregister_ai_datacenter",
+        "The Register (AI/Datacenter)",
+        "latest_posts",
+        "https://www.theregister.com/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        crawl_seed_urls=("https://www.theregister.com", "https://www.theregister.com/AI/", "https://www.theregister.com/Datacenter/"),
+        max_items_per_source=20,
+        crawl_delay_ms=900,
+    ),
+    SourceDefinition(
+        "trendforce",
+        "TrendForce",
+        "latest_posts",
+        "https://www.trendforce.com/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        crawl_seed_urls=("https://www.trendforce.com/"),
+        max_items_per_source=20,
+        crawl_delay_ms=900,
+    ),
+    SourceDefinition(
+        "reuters_technology",
+        "Reuters (Technology) (manual-only)",
+        "community",
+        "https://www.reuters.com/technology/",
+        enabled=False,
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        crawl_seed_urls=(),
+        legal_mode="manual_only",
+        fetch_mode="manual_only",
+        max_items_per_source=0,
+    ),
+    SourceDefinition(
+        "mlcommons_mlperf",
+        "MLCommons MLPerf",
+        "latest_posts",
+        "https://mlcommons.org/benchmarks/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        crawl_seed_urls=("https://mlcommons.org/benchmarks/",),
+        max_items_per_source=20,
+        crawl_delay_ms=600,
+    ),
+    SourceDefinition(
+        "nvidia_developer_blog",
+        "NVIDIA Developer Blog",
+        "latest_posts",
+        "https://developer.nvidia.com/blog/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        crawl_seed_urls=("https://developer.nvidia.com/blog/",),
+        max_items_per_source=20,
+        crawl_delay_ms=500,
+    ),
+    SourceDefinition(
+        "amd_ir",
+        "AMD IR / Newsroom",
+        "latest_posts",
+        "https://ir.amd.com",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        crawl_seed_urls=("https://ir.amd.com",),
+        max_items_per_source=20,
+        crawl_delay_ms=700,
+    ),
+    SourceDefinition(
+        "intel_newsroom_ai",
+        "Intel Newsroom (AI)",
+        "latest_posts",
+        "https://newsroom.intel.com/artificial-intelligence/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        crawl_seed_urls=("https://newsroom.intel.com/artificial-intelligence/",),
+        max_items_per_source=20,
+        crawl_delay_ms=700,
+    ),
     # Big-tech startup program blogs
     SourceDefinition("ms_startups", "Microsoft for Startups", "rss", "https://www.microsoft.com/en-us/startups/blog/feed/", credibility_weight=0.68),
     SourceDefinition("aws_ml_blog", "AWS ML Blog", "rss", "https://aws.amazon.com/blogs/machine-learning/feed/", credibility_weight=0.65),
@@ -485,9 +679,54 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     SourceDefinition("startup_owned_feeds", "Startup-Owned Sources", "crawler", "startup://owned", fetch_mode="crawler", credibility_weight=0.79),
     # Newsletter digests (parsed into individual items)
     SourceDefinition("ainews_digest", "AINews by swyx", "rss", "https://news.smol.ai/rss.xml", fetch_mode="digest_rss", credibility_weight=0.88, language="en"),
+    SourceDefinition("latentspace_digest", "Latent Space by swyx", "rss", "https://www.latent.space/feed", fetch_mode="digest_rss", credibility_weight=0.85, language="en", lookback_hours_override=168),
     # Research papers (community-curated trending arXiv papers)
     SourceDefinition("huggingface_papers", "HF Daily Papers", "api", "https://huggingface.co/api/daily_papers", fetch_mode="api", credibility_weight=0.72),
 ]
+
+
+SOURCE_TOPIC_TAGS_BY_SOURCE: Dict[str, Tuple[str, ...]] = {
+    src.source_key: tuple(
+        str(tag).strip().lower()
+        for tag in src.topic_tags
+        if str(tag).strip()
+    )
+    for src in DEFAULT_SOURCES
+}
+
+
+def _source_topic_tags_for_members(members: Sequence["NormalizedNewsItem"]) -> Tuple[str, ...]:
+    tags: List[str] = []
+    seen: set[str] = set()
+    for item in members:
+        for tag in SOURCE_TOPIC_TAGS_BY_SOURCE.get(item.source_key, ()):
+            if tag and tag not in seen:
+                tags.append(tag)
+                seen.add(tag)
+    return tuple(tags)
+
+
+def _apply_source_topic_overrides(topic_tags: Sequence[str], members: Sequence["NormalizedNewsItem"]) -> List[str]:
+    ordered: List[str] = []
+    seen: set[str] = set()
+    for tag in topic_tags:
+        normalized = str(tag).strip().lower()
+        if normalized and normalized not in seen:
+            ordered.append(normalized)
+            seen.add(normalized)
+    for tag in _source_topic_tags_for_members(members):
+        if tag and tag not in seen:
+            ordered.append(tag)
+            seen.add(tag)
+    if not ordered:
+        ordered = ["startup"]
+    return ordered
+
+
+def _effective_source_limit(source: SourceDefinition, fallback: int) -> int:
+    if source.max_items_per_source and source.max_items_per_source > 0:
+        return int(source.max_items_per_source)
+    return int(fallback)
 
 
 # Turkish VC & ecosystem blog URLs (no usable RSS feed).
@@ -1267,6 +1506,22 @@ def compute_cluster_scores(
         points = float(item.engagement.get("points") or item.engagement.get("votes") or 0.0)
         engagement_raw = max(engagement_raw, min(1.0, points / 500.0))
 
+    member_text = " ".join(
+        [
+            item.title + " " + (item.summary or "")
+            for item in effective_members
+        ]
+    )
+    ai_hardware_source_hit = any(m.source_key in AI_HARDWARE_SOURCE_KEY_SET for m in effective_members)
+    ai_hardware_keyword_hit = bool(member_text) and _contains_ai_hardware_keywords(member_text)
+    cluster_tags = {str(tag).strip().lower() for tag in topic_tags}
+    has_ai_hardware_topic = AI_HARDWARE_TOPIC_TAG.lower() in cluster_tags
+    ai_hardware_boost = 0.0
+    if ai_hardware_keyword_hit and has_ai_hardware_topic:
+        ai_hardware_boost += 0.06
+    if ai_hardware_source_hit:
+        ai_hardware_boost += 0.04
+
     ai_boost = 0.12 if "ai" in topic_tags else 0.0
     funding_boost = 0.08 if "funding" in topic_tags else 0.0
     signal_boost = signal_score * 0.08  # 8% weight from community signals
@@ -1277,6 +1532,7 @@ def compute_cluster_scores(
         + diversity * 0.14
         + engagement_raw * 0.10
         + signal_boost
+        + ai_hardware_boost
         + ai_boost
         + funding_boost
     )
@@ -1294,6 +1550,8 @@ def compute_cluster_scores(
         reasons.append("funding signal")
     if "ai" in topic_tags:
         reasons.append("ai-priority")
+    if ai_hardware_boost:
+        reasons.append("ai-hardware signal")
     if engagement_raw >= 0.4:
         reasons.append("high community engagement")
     if signal_score > 0.6:
@@ -1707,6 +1965,10 @@ def _contains_any(haystack: str, needles: Sequence[str]) -> bool:
     return False
 
 
+def _contains_ai_hardware_keywords(haystack: str) -> bool:
+    return _contains_any(haystack, AI_HARDWARE_KEYWORDS)
+
+
 def _is_relevant_turkey_news_item_strict(item: "NormalizedNewsItem") -> bool:
     """
     Strict AI-required filter for Turkey news. Used for startup_owned_feeds
@@ -1926,7 +2188,10 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
     primary_candidates = [m for m in relevant_members if m.language == "tr"] or relevant_members
 
     primary = sorted(primary_candidates, key=lambda m: (m.source_weight, m.published_at), reverse=True)[0]
-    tags = classify_topic_tags(primary.title, primary.summary)
+    tags = _apply_source_topic_overrides(
+        classify_topic_tags(primary.title, primary.summary),
+        relevant_members,
+    )
     rank_score, trust_score, reason = compute_cluster_scores(
         published_at=max(m.published_at for m in relevant_members),
         topic_tags=tags,
@@ -2279,7 +2544,7 @@ class DailyNewsIngestor:
                     source_type = EXCLUDED.source_type,
                     base_url = EXCLUDED.base_url,
                     region = EXCLUDED.region,
-                    is_active = true,
+                    is_active = $8,
                     credibility_weight = EXCLUDED.credibility_weight,
                     legal_mode = EXCLUDED.legal_mode,
                     updated_at = NOW()
@@ -2291,6 +2556,7 @@ class DailyNewsIngestor:
                 src.region,
                 src.credibility_weight,
                 src.legal_mode,
+                bool(src.enabled),
             )
 
     async def _sync_source_activity(self, conn: asyncpg.Connection, sources: Sequence[SourceDefinition]) -> None:
@@ -2304,14 +2570,18 @@ class DailyNewsIngestor:
         """
         try:
             by_region: Dict[str, List[str]] = {}
+            active_by_region: Dict[str, List[str]] = {}
             for src in sources:
                 region = (src.region or "global").strip().lower() or "global"
                 by_region.setdefault(region, [])
+                active_by_region.setdefault(region, [])
                 if src.source_key not in by_region[region]:
                     by_region[region].append(src.source_key)
+                if src.enabled:
+                    active_by_region[region].append(src.source_key)
 
             for region, keys in by_region.items():
-                if not keys:
+                if not keys and not active_by_region.get(region):
                     continue
                 await conn.execute(
                     """
@@ -2320,7 +2590,7 @@ class DailyNewsIngestor:
                     WHERE region = $1
                     """,
                     region,
-                    keys,
+                    active_by_region.get(region, []),
                 )
         except Exception:
             # Back-compat: older schemas may not have is_active/region; don't fail ingestion.
@@ -2419,6 +2689,7 @@ class DailyNewsIngestor:
         if feedparser is None:
             return []
 
+        source_limit = _effective_source_limit(source, self.max_per_source)
         resp = await client.get(source.base_url)
         resp.raise_for_status()
         parsed = feedparser.parse(resp.text)
@@ -2426,7 +2697,7 @@ class DailyNewsIngestor:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
         items: List[NormalizedNewsItem] = []
 
-        for entry in parsed.entries[: self.max_per_source * 2]:
+        for entry in parsed.entries[: source_limit * 2]:
             title = normalize_text(entry.get("title", ""))
             link = entry.get("link", "")
             if not title or not link:
@@ -2463,13 +2734,40 @@ class DailyNewsIngestor:
                 source_weight=source.credibility_weight,
             ).with_external_id()
             items.append(item)
-            if len(items) >= self.max_per_source:
+            if len(items) >= source_limit:
                 break
 
         return items
 
-    async def _fetch_ainews_digest(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
-        """Fetch AINews newsletter via RSS and parse each digest into individual items."""
+    # Digest parser configs keyed by source_key
+    _DIGEST_CONFIGS: Dict[str, "DigestParserConfig"] = {}
+
+    @staticmethod
+    def _get_digest_config(source_key: str) -> "DigestParserConfig":
+        """Return parser config for a digest source."""
+        if not NewsIngestionPipeline._DIGEST_CONFIGS:
+            from .ainews_parser import DigestParserConfig
+            NewsIngestionPipeline._DIGEST_CONFIGS = {
+                "ainews_digest": DigestParserConfig(
+                    source_key="ainews_digest",
+                    source_name="AINews by swyx",
+                    source_type="rss",
+                    source_weight=0.88,
+                ),
+                "latentspace_digest": DigestParserConfig(
+                    source_key="latentspace_digest",
+                    source_name="Latent Space by swyx",
+                    source_type="rss",
+                    source_weight=0.85,
+                ),
+            }
+        return NewsIngestionPipeline._DIGEST_CONFIGS.get(
+            source_key,
+            NewsIngestionPipeline._DIGEST_CONFIGS["ainews_digest"],
+        )
+
+    async def _fetch_digest_rss(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        """Fetch a digest newsletter via RSS and parse each entry into individual items."""
         if feedparser is None:
             return []
 
@@ -2480,12 +2778,18 @@ class DailyNewsIngestor:
         parsed = feedparser.parse(resp.text)
 
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
-        parser = AINewsDigestParser()
+        config = self._get_digest_config(source.source_key)
+        parser = AINewsDigestParser(config)
         all_items: List[NormalizedNewsItem] = []
 
         for entry in parsed.entries[:5]:
             published = parse_entry_datetime(entry) or datetime.now(timezone.utc)
             if published < cutoff:
+                continue
+
+            # Latent Space: skip non-AINews posts (podcasts, interviews, etc.)
+            title = entry.get("title", "")
+            if source.source_key == "latentspace_digest" and not title.startswith("[AINews]"):
                 continue
 
             # Get full HTML content from content:encoded
@@ -2503,10 +2807,10 @@ class DailyNewsIngestor:
                 items = parser.parse_digest(html, published, link)
                 all_items.extend(items)
             except Exception as exc:
-                print(f"[news-ingest] ainews_digest: failed to parse entry {link}: {exc}")
+                print(f"[news-ingest] {source.source_key}: failed to parse entry {link}: {exc}")
                 continue
 
-        print(f"[news-ingest] ainews_digest: extracted {len(all_items)} items from {len(parsed.entries)} RSS entries")
+        print(f"[news-ingest] {source.source_key}: extracted {len(all_items)} items from {len(parsed.entries)} RSS entries")
         return all_items
 
     async def _fetch_hackernews_api(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
@@ -3891,6 +4195,101 @@ class DailyNewsIngestor:
 
         return out
 
+    async def _fetch_latest_posts(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+        if BeautifulSoup is None:
+            return []
+
+        source_limit = _effective_source_limit(source, self.max_per_source)
+        if source_limit <= 0:
+            return []
+
+        seeds = tuple(source.crawl_seed_urls) if source.crawl_seed_urls else (source.base_url,)
+        if not seeds:
+            return []
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        list_delay = max(0.0, float(source.crawl_delay_ms)) / 1000.0
+        candidate_urls: List[str] = []
+
+        for seed_url in seeds:
+            try:
+                resp = await client.get(seed_url)
+                if resp.status_code >= 400:
+                    continue
+                seed_html = resp.text or ""
+                soup = BeautifulSoup(seed_html, "html.parser")
+                seed_host = urlparse(seed_url).netloc.lower()
+                for anchor in soup.find_all("a", href=True):
+                    href = str(anchor.get("href") or "").strip()
+                    if not href:
+                        continue
+                    abs_url = canonicalize_url(urljoin(seed_url, href))
+                    if not abs_url.startswith("http"):
+                        continue
+                    parsed = urlparse(abs_url)
+                    if parsed.scheme not in {"http", "https"}:
+                        continue
+                    if parsed.netloc and parsed.netloc.lower() != seed_host:
+                        continue
+                    if not is_likely_content_url(abs_url):
+                        continue
+                    candidate_urls.append(abs_url)
+                if list_delay > 0:
+                    await asyncio.sleep(list_delay)
+            except Exception:
+                continue
+
+        deduped_candidates = [url for i, url in enumerate(dict.fromkeys(candidate_urls)) if i < max(source_limit * 3, 40)]
+        out: List[NormalizedNewsItem] = []
+        sem = asyncio.Semaphore(6)
+
+        async def fetch_article(url: str) -> Optional[NormalizedNewsItem]:
+            try:
+                if list_delay > 0:
+                    await asyncio.sleep(list_delay)
+                async with sem:
+                    resp = await client.get(url)
+                if resp.status_code >= 400:
+                    return None
+                title, summary, page_published, image_url = extract_html_title_summary(resp.text or "", source_url=url)
+                if not title:
+                    return None
+                published_at = page_published or datetime.now(timezone.utc)
+                if published_at < cutoff:
+                    return None
+                return NormalizedNewsItem(
+                    source_key=source.source_key,
+                    source_name=source.display_name,
+                    source_type=source.source_type,
+                    title=title[:300],
+                    url=url,
+                    canonical_url=canonicalize_url(url),
+                    summary=(summary or "")[:300],
+                    published_at=published_at,
+                    language=source.language or "en",
+                    payload={
+                        "origin": "latest_posts",
+                        "seed_urls": list(seeds)[:5],
+                        "image_url": normalize_image_url(image_url, base_url=url) if image_url else None,
+                    },
+                    source_weight=source.credibility_weight,
+                ).with_external_id()
+            except Exception:
+                return None
+
+        for idx in range(0, len(deduped_candidates), 12):
+            chunk = deduped_candidates[idx: idx + 12]
+            for item in await asyncio.gather(*[fetch_article(u) for u in chunk]):
+                if item is not None:
+                    out.append(item)
+                if len(out) >= source_limit:
+                    break
+            if len(out) >= source_limit:
+                break
+
+        out.sort(key=lambda item: item.published_at, reverse=True)
+        return out[:source_limit]
+
     async def _fetch_startup_owned_sources(self, conn: asyncpg.Connection, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
         startup_rows = await conn.fetch(
@@ -4177,6 +4576,8 @@ class DailyNewsIngestor:
         timeout = httpx.Timeout(self.http_timeout)
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers={"User-Agent": "BuildAtlasNewsBot/2026 (+https://buildatlas.net)"}) as client:
             for source in DEFAULT_SOURCES:
+                if not source.enabled:
+                    continue
                 attempted += 1
                 t0 = time.monotonic()
                 source_lookback = source.lookback_hours_override or lookback_hours
@@ -4208,9 +4609,11 @@ class DailyNewsIngestor:
                     elif source.source_key == "huggingface_papers":
                         items = await self._fetch_huggingface_papers(client, source, source_lookback)
                     elif source.fetch_mode == "digest_rss":
-                        items = await self._fetch_ainews_digest(client, source, source_lookback)
+                        items = await self._fetch_digest_rss(client, source, source_lookback)
                     elif source.fetch_mode == "paid_headlines":
                         items = await self._fetch_paid_headline_seeds(conn, client, source, source_lookback)
+                    elif source.fetch_mode == "latest_posts":
+                        items = await self._fetch_latest_posts(client, source, source_lookback)
                     elif source.fetch_mode == "crawler":
                         items = await self._fetch_frontier_candidates(conn, client, source, source_lookback)
                     else:
@@ -4578,7 +4981,10 @@ class DailyNewsIngestor:
                     members.append(item)
 
                     primary = sorted(members, key=lambda m: (m.source_weight, m.published_at), reverse=True)[0]
-                    tags = classify_topic_tags(primary.title, primary.summary)
+                    tags = _apply_source_topic_overrides(
+                        classify_topic_tags(primary.title, primary.summary),
+                        members,
+                    )
                     entities = extract_entities(primary.title)
                     rank_score, trust_score, reason = compute_cluster_scores(
                         published_at=max(m.published_at for m in members),
@@ -4617,7 +5023,10 @@ class DailyNewsIngestor:
             if placed:
                 continue
 
-            tags = classify_topic_tags(item.title, item.summary)
+            tags = _apply_source_topic_overrides(
+                classify_topic_tags(item.title, item.summary),
+                [item],
+            )
             rank_score, trust_score, reason = compute_cluster_scores(
                 published_at=item.published_at,
                 topic_tags=tags,
@@ -5992,8 +6401,11 @@ class DailyNewsIngestor:
             if llm_result.impact:
                 cluster.impact = llm_result.impact
             if llm_topic_tags:
-                cluster.llm_topic_tags = list(llm_topic_tags)
-                cluster.topic_tags = list(llm_topic_tags)
+                merged_tags = _apply_source_topic_overrides(llm_topic_tags, cluster.members)
+                cluster.llm_topic_tags = list(merged_tags)
+                cluster.topic_tags = list(merged_tags)
+            else:
+                cluster.topic_tags = _apply_source_topic_overrides(cluster.topic_tags, cluster.members)
             if llm_story_type:
                 cluster.llm_story_type = llm_story_type
                 cluster.story_type = llm_story_type

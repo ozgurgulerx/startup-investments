@@ -23,9 +23,24 @@ Sources → collect → cluster → MEMORY GATE → LLM enrich → persist → e
 - Entity facts build a structured knowledge base of startup claims over time
 - Contradiction detection surfaces genuinely newsworthy updates
 
+## Source Packs
+
+- AI Hardware source pack (`ai_hardware_news`) is registered in `packages/analysis/src/automation/news_ingest.py` as:
+  - `nextplatform`, `servethehome`, `chipsandcheese`, `eetimes_ai_accelerator`, `blocksandfiles`,
+    `datacenterdynamics_ai`, `theregister_ai_datacenter`, `trendforce`, `reuters_technology`,
+    `mlcommons_mlperf`, `nvidia_developer_blog`, `amd_ir`, `intel_newsroom_ai`.
+- All items originating from these sources receive deterministic topic tags that include **`AI Hardware`**
+  (`SOURCE_TOPIC_TAGS_BY_SOURCE` + `_apply_source_topic_overrides`).
+- `reuters_technology` is included as a disabled/manual-only source (`enabled=False`, `fetch_mode="manual_only"`,
+  comment `(manual-only)`), so it appears only when explicitly re-enabled.
+- To disable the pack temporarily, set `enabled=False` on the source entries and run the ingest job (this writes `news_sources.is_active` accordingly).
+- To re-enable, set `enabled=True` and rerun ingest so `is_active` is synced.
+
 ## Region-Aware Processing
 
 Turkey memory reads global+turkey facts (one-way merge); global reads only global. Turkish-language regex patterns (milyon dolar, seri A, liderliğinde, satın al) applied for `region="turkey"`. Memory gate runs per-region AFTER turkey cluster filtering.
+
+**Digest sources:** AINews by swyx (`news.smol.ai/rss.xml`, weight 0.88), Latent Space by swyx (`latent.space/feed`, weight 0.85, 7-day lookback, `[AINews]` posts only).
 
 **Turkey sources (9 total):** Webrazzi, Egirisim (trusted RSS), GNews Turkey, NewsAPI Turkey (API aggregators), FounderN, Swipeline, N24 Business, Daily Sabah Tech (English), Startups.watch (Medium).
 

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from src.automation.ainews_parser import (
     AINewsDigestParser,
+    DigestParserConfig,
     _best_link,
     _extract_activity_score,
     _extract_twitter_handle,
@@ -96,7 +97,7 @@ class TestAINewsDigestParser:
         first = twitter_items[0]
         assert first.source_key == "ainews_digest"
         assert first.source_name == "AINews by swyx"
-        assert first.source_type == "newsletter"
+        assert first.source_type == "rss"
         assert first.language == "en"
         assert first.published_at == PUBLISHED_AT
         assert first.source_weight == 0.88
@@ -193,3 +194,20 @@ class TestAINewsDigestParser:
         activities = [i.engagement.get("activity") for i in reddit_items if i.engagement.get("activity")]
         assert 491 in activities
         assert 1234 in activities
+
+    def test_custom_digest_parser_config(self):
+        config = DigestParserConfig(
+            source_key="latentspace_digest",
+            source_name="Latent Space by swyx",
+            source_type="rss",
+            source_weight=0.85,
+        )
+        parser = AINewsDigestParser(config)
+        items = parser.parse_digest(SAMPLE_DIGEST_HTML, PUBLISHED_AT, DIGEST_URL)
+        assert len(items) > 0
+
+        first = items[0]
+        assert first.source_key == "latentspace_digest"
+        assert first.source_name == "Latent Space by swyx"
+        assert first.source_type == "rss"
+        assert first.source_weight == 0.85
