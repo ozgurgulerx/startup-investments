@@ -7489,6 +7489,9 @@ class DailyNewsIngestor:
         Instead of silently dropping the lower-ranked duplicate, absorb its
         members/entities/tags into the higher-ranked surviving cluster so no
         source context is lost.
+
+        Checks all entities (not just the first) so that e.g. "Alphabet's
+        Waymo launches..." still merges with "Waymo expands...".
         """
         seen_entity_clusters: Dict[str, List[StoryCluster]] = {}
         merged: List[StoryCluster] = []
@@ -7497,63 +7500,67 @@ class DailyNewsIngestor:
         for c in ranked:
             if id(c) in absorbed:
                 continue
-            primary_ent = c.entities[0].lower() if c.entities else None
-            if primary_ent and primary_ent in seen_entity_clusters:
-                # Check if any previously-seen cluster is similar enough to merge into
-                target = None
-                for prev in seen_entity_clusters[primary_ent]:
-                    if title_similarity(c.title, prev.title) >= 0.30:
-                        target = prev
-                        break
+            c_ents = [e.lower() for e in c.entities] if c.entities else []
+            # Check all entities for a merge candidate
+            target = None
+            for ent in c_ents:
+                if ent in seen_entity_clusters:
+                    for prev in seen_entity_clusters[ent]:
+                        if title_similarity(c.title, prev.title) >= 0.30:
+                            target = prev
+                            break
                 if target is not None:
-                    # Merge c into target — target is higher-ranked (appeared first)
-                    existing_keys = {(m.source_key, m.external_id) for m in target.members}
-                    new_members = [m for m in c.members if (m.source_key, m.external_id) not in existing_keys]
-                    target.members = target.members + new_members
+                    break
 
-                    # Union entities (target-first ordering)
-                    seen_ents = {e.lower() for e in target.entities}
-                    for e in c.entities:
-                        if e.lower() not in seen_ents:
-                            target.entities.append(e)
-                            seen_ents.add(e.lower())
+            if target is not None:
+                # Merge c into target — target is higher-ranked (appeared first)
+                existing_keys = {(m.source_key, m.external_id) for m in target.members}
+                new_members = [m for m in c.members if (m.source_key, m.external_id) not in existing_keys]
+                target.members = target.members + new_members
 
-                    # Union topic_tags (target-first ordering)
-                    seen_tags = set(target.topic_tags)
-                    for t in c.topic_tags:
-                        if t not in seen_tags:
-                            target.topic_tags.append(t)
-                            seen_tags.add(t)
+                # Union entities (target-first ordering)
+                seen_ents = {e.lower() for e in target.entities}
+                for e in c.entities:
+                    if e.lower() not in seen_ents:
+                        target.entities.append(e)
+                        seen_ents.add(e.lower())
 
-                    # Fill-if-missing LLM fields (target wins)
-                    if not target.builder_takeaway and c.builder_takeaway:
-                        target.builder_takeaway = c.builder_takeaway
-                    if not target.llm_summary and c.llm_summary:
-                        target.llm_summary = c.llm_summary
-                    if not target.impact and c.impact:
-                        target.impact = c.impact
-                    if target.llm_signal_score is None and c.llm_signal_score is not None:
-                        target.llm_signal_score = c.llm_signal_score
-                    if target.llm_confidence_score is None and c.llm_confidence_score is not None:
-                        target.llm_confidence_score = c.llm_confidence_score
-                    if not target.llm_topic_tags and c.llm_topic_tags:
-                        target.llm_topic_tags = c.llm_topic_tags
-                    if not target.llm_story_type and c.llm_story_type:
-                        target.llm_story_type = c.llm_story_type
+                # Union topic_tags (target-first ordering)
+                seen_tags = set(target.topic_tags)
+                for t in c.topic_tags:
+                    if t not in seen_tags:
+                        target.topic_tags.append(t)
+                        seen_tags.add(t)
 
-                    # Rank boost for broader source coverage
-                    target.rank_score = min(1.0, target.rank_score + 0.02)
+                # Fill-if-missing LLM fields (target wins)
+                if not target.builder_takeaway and c.builder_takeaway:
+                    target.builder_takeaway = c.builder_takeaway
+                if not target.llm_summary and c.llm_summary:
+                    target.llm_summary = c.llm_summary
+                if not target.impact and c.impact:
+                    target.impact = c.impact
+                if target.llm_signal_score is None and c.llm_signal_score is not None:
+                    target.llm_signal_score = c.llm_signal_score
+                if target.llm_confidence_score is None and c.llm_confidence_score is not None:
+                    target.llm_confidence_score = c.llm_confidence_score
+                if not target.llm_topic_tags and c.llm_topic_tags:
+                    target.llm_topic_tags = c.llm_topic_tags
+                if not target.llm_story_type and c.llm_story_type:
+                    target.llm_story_type = c.llm_story_type
 
-                    absorbed.add(id(c))
-                    print(
-                        f"[edition-merge] merged '{c.title[:60]}' into "
-                        f"'{target.title[:60]}' (+{len(new_members)} members)"
-                    )
-                    continue
+                # Rank boost for broader source coverage
+                target.rank_score = min(1.0, target.rank_score + 0.02)
 
-            # Not merged — keep this cluster
-            if primary_ent:
-                seen_entity_clusters.setdefault(primary_ent, []).append(c)
+                absorbed.add(id(c))
+                print(
+                    f"[edition-merge] merged '{c.title[:60]}' into "
+                    f"'{target.title[:60]}' (+{len(new_members)} members)"
+                )
+                continue
+
+            # Not merged — keep this cluster and register under all its entities
+            for ent in c_ents:
+                seen_entity_clusters.setdefault(ent, []).append(c)
             merged.append(c)
 
         return merged
@@ -7587,7 +7594,21 @@ class DailyNewsIngestor:
             if c.cluster_key in cluster_ids
             and cluster_ids[c.cluster_key] not in excluded_cluster_ids
         ]
-        top = eligible[:50]
+
+        # Enforce per-entity diversity: max 2 stories per primary entity
+        MAX_PER_ENTITY = 2
+        entity_counts: Dict[str, int] = {}
+        diverse: List[StoryCluster] = []
+        for c in eligible:
+            ent = c.entities[0].lower() if c.entities else None
+            if ent:
+                count = entity_counts.get(ent, 0)
+                if count >= MAX_PER_ENTITY:
+                    continue
+                entity_counts[ent] = count + 1
+            diverse.append(c)
+
+        top = diverse[:50]
         top_ids = [cluster_ids[c.cluster_key] for c in top]
 
         # Persist merged members back to DB (new members absorbed from duplicates)
