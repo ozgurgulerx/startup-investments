@@ -6,6 +6,9 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 from src.automation.news_ingest import (
+    AI_HARDWARE_SOURCE_KEYS,
+    AI_HARDWARE_TOPIC_TAG,
+    ALLOWED_STORY_TYPES,
     DEFAULT_SOURCES,
     TR_ENDEMIC_SOURCES,
     DailyNewsIngestor,
@@ -14,12 +17,14 @@ from src.automation.news_ingest import (
     StoryCluster,
     _TURKEY_VC_BLOG_URLS,
     _build_turkey_cluster,
+    canonicalize_url,
     _has_turkey_nexus,
     _is_relevant_turkey_news_item,
     _is_relevant_turkey_news_item_strict,
     _parse_amazon_new_releases_html,
     _sanitize_for_pg,
     parse_theinformation_technology_headlines,
+    _apply_source_topic_overrides,
     normalize_text,
     _stable_external_id,
     _utc_midnight,
@@ -148,6 +153,157 @@ def test_semianalysis_source_in_default_sources():
     assert src.lookback_hours_override == 8760
 
 
+def test_ai_hardware_news_pack_sources_registered_and_tagged():
+    source_map = {s.source_key: s for s in DEFAULT_SOURCES}
+
+    for key in AI_HARDWARE_SOURCE_KEYS:
+        assert key in source_map, f"{key} missing from DEFAULT_SOURCES"
+        src = source_map[key]
+        assert src.region == "global"
+        assert src.enabled is not None
+        if key == "reuters_technology":
+            assert src.enabled is False
+            assert src.fetch_mode == "manual_only"
+            assert src.legal_mode == "manual_only"
+        else:
+            assert src.enabled is True
+            assert len(src.topic_tags) >= 1
+            assert src.topic_tags[0] == AI_HARDWARE_TOPIC_TAG
+
+
+def test_allowed_story_types_include_research_analysis_interview():
+    assert "analysis" in ALLOWED_STORY_TYPES
+    assert "research" in ALLOWED_STORY_TYPES
+    assert "interview" in ALLOWED_STORY_TYPES
+
+
+def test_ai_hardware_topic_override_for_cluster_items():
+    ingestor = DailyNewsIngestor("postgresql://local/test")
+    item = NormalizedNewsItem(
+        source_key="nextplatform",
+        source_name="The Next Platform",
+        source_type="rss",
+        title="NVIDIA adds more HBM channels to AI datacenter stack",
+        url="https://www.nextplatform.com/story",
+        canonical_url="https://www.nextplatform.com/story",
+        summary="Hardware updates and interconnect changes.",
+        published_at=datetime.now(timezone.utc),
+        language="en",
+        payload={},
+        source_weight=0.9,
+    ).with_external_id()
+    clusters = ingestor._cluster_items([item])
+    assert len(clusters) == 1
+    assert AI_HARDWARE_TOPIC_TAG.lower() in clusters[0].topic_tags
+
+
+def test_ai_hardware_scores_get_extra_boost():
+    now = datetime.now(timezone.utc)
+    hw_item = NormalizedNewsItem(
+        source_key="nextplatform",
+        source_name="The Next Platform",
+        source_type="rss",
+        title="Interconnect and CXL refresh for AI infra",
+        url="https://www.nextplatform.com/story-1",
+        canonical_url="https://www.nextplatform.com/story-1",
+        summary="HBM capacity, PCIe refresh, and power delivery changes.",
+        published_at=now,
+        language="en",
+        payload={},
+        source_weight=0.8,
+    ).with_external_id()
+    generic_item = NormalizedNewsItem(
+        source_key="techcrunch",
+        source_name="TechCrunch",
+        source_type="rss",
+        title="General software launch",
+        url="https://techcrunch.com/story-2",
+        canonical_url="https://techcrunch.com/story-2",
+        summary="A startup shipping new consumer app.",
+        published_at=now,
+        language="en",
+        payload={},
+        source_weight=0.8,
+    ).with_external_id()
+
+    hw_score, _, hw_reason = compute_cluster_scores(
+        published_at=now,
+        topic_tags=["startup"],
+        members=[hw_item],
+        now=now,
+    )
+    generic_score, _, generic_reason = compute_cluster_scores(
+        published_at=now,
+        topic_tags=["startup"],
+        members=[generic_item],
+        now=now,
+    )
+
+    assert hw_score > generic_score
+    assert "ai-hardware signal" in hw_reason
+    assert "ai-hardware signal" not in generic_reason
+
+
+def test_fetch_latest_posts_collects_seed_and_article_pages(monkeypatch):
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    seed_url = "https://latest-example.test/news"
+    article_1 = "https://latest-example.test/news/2026/03/01/ai-gpu-update"
+    article_2 = "https://latest-example.test/news/2026/03/01/cxl-link"
+    published = now.isoformat()
+
+    seed_page = f"""
+    <html>
+      <body>
+        <a href="/news/2026/03/01/ai-gpu-update">AI GPU update</a>
+        <a href="/news/2026/03/01/cxl-link">CXL link</a>
+      </body>
+    </html>
+    """
+    article_html = lambda title: f"""
+    <html>
+      <head>
+        <title>{title}</title>
+        <meta name=\"description\" content=\"{title} details and benchmark notes\" />
+        <meta property=\"article:published_time\" content=\"{published}\" />
+      </head>
+      <body></body>
+    </html>
+    """
+
+    class LatestClient:
+        def __init__(self):
+            self.calls = []
+
+        async def get(self, url):
+            self.calls.append(url)
+            if url == seed_url:
+                return _FakeResponse(text=seed_page, status_code=200)
+            if url in {article_1, article_2}:
+                return _FakeResponse(
+                    text=article_html(url.rsplit("/", 1)[1]),
+                    status_code=200,
+                )
+            raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://local/test")
+    ingestor = DailyNewsIngestor()
+    source = SourceDefinition(
+        source_key="nextplatform",
+        display_name="The Next Platform",
+        source_type="community",
+        base_url="https://www.nextplatform.com/",
+        fetch_mode="latest_posts",
+        crawl_seed_urls=(seed_url,),
+        crawl_delay_ms=0,
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        max_items_per_source=2,
+        credibility_weight=0.7,
+    )
+
+    items = asyncio.run(ingestor._fetch_latest_posts(LatestClient(), source, lookback_hours=24))
+    assert len(items) == 2
+    assert items[0].source_key == "nextplatform"
+    assert items[0].canonical_url in {canonicalize_url(article_1), canonicalize_url(article_2)}
 def test_turkey_relevance_excludes_domain_purchase_false_ai_positive():
     # Example: "ai.com domain bought" is not AI startup intelligence.
     item = NormalizedNewsItem(
@@ -204,13 +360,17 @@ def test_turkey_relevance_allows_ai_funding_signal():
 
 
 class _FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload=None, text="", status_code=200):
         self._payload = payload
+        self.text = text
+        self.status_code = status_code
 
     def raise_for_status(self):
         return None
 
     def json(self):
+        if self._payload is None:
+            return {}
         return self._payload
 
 
