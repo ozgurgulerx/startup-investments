@@ -16,6 +16,7 @@ public sources and surfaced as "Signal Watch" cards in the news feed.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -752,6 +753,10 @@ class InvestigationPipeline:
         entities = list(row.get("entities") or [])
         topic_tags = list(row.get("topic_tags") or [])
 
+        # Generate cluster_key (same pattern as news_ingest.py)
+        key_seed = f"investigation|{row['seed_id']}"
+        cluster_key = hashlib.sha1(key_seed.encode("utf-8")).hexdigest()[:28]
+
         # Compute discounted rank score (40% discount vs normal)
         base_rank = 0.50  # Moderate base rank
         rank_score = max(0.01, base_rank * 0.6)  # 40% discount
@@ -761,21 +766,23 @@ class InvestigationPipeline:
         cluster_id = await conn.fetchval(
             """
             INSERT INTO news_clusters (
-                title, summary, story_type, topic_tags, entities,
+                cluster_key, title, summary, story_type, topic_tags, entities,
                 rank_score, rank_reason, trust_score, source_count,
                 canonical_url, published_at,
                 research_context, investigation_seed_id,
                 builder_takeaway, llm_summary
             )
             VALUES (
-                $1, $2, 'investigation', $3::text[], $4::text[],
-                $5, 'investigation_pipeline', 0.5, $6,
-                $7, NOW(),
-                $8::jsonb, $9::uuid,
-                $10, $11
+                $1, $2, $3, 'investigation', $4::text[], $5::text[],
+                $6, 'investigation_pipeline', 0.5, $7,
+                $8, NOW(),
+                $9::jsonb, $10::uuid,
+                $11, $12
             )
+            ON CONFLICT (cluster_key, region) DO NOTHING
             RETURNING id::text
             """,
+            cluster_key,
             title[:500],
             investigation.enhanced_summary[:500],
             topic_tags[:10],
