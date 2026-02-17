@@ -1004,3 +1004,29 @@ def test_sanitize_for_pg_strips_null_bytes_recursively():
     assert _sanitize_for_pg({"nested": {"deep": "v\x00"}}) == {"nested": {"deep": "v"}}
     assert _sanitize_for_pg(42) == 42
     assert _sanitize_for_pg(None) is None
+
+
+# DB CHECK constraint: source_type IN ('rss', 'api', 'community', 'crawler')
+VALID_SOURCE_TYPES = {"rss", "api", "community", "crawler"}
+
+
+def test_all_source_types_match_db_check_constraint():
+    """Every SourceDefinition.source_type must be a value accepted by the
+    news_sources table CHECK constraint to prevent insertion failures."""
+    bad = [
+        s.source_key
+        for s in DEFAULT_SOURCES
+        if s.source_type not in VALID_SOURCE_TYPES
+    ]
+    assert bad == [], f"Sources with invalid source_type: {bad}"
+
+
+def test_latest_posts_sources_use_crawler_type_and_fetch_mode():
+    """Sources that crawl HTML pages via latest_posts should have
+    source_type='crawler' and fetch_mode='latest_posts'."""
+    for s in DEFAULT_SOURCES:
+        if s.fetch_mode == "latest_posts":
+            assert s.source_type == "crawler", (
+                f"{s.source_key}: fetch_mode='latest_posts' but "
+                f"source_type='{s.source_type}' (expected 'crawler')"
+            )
