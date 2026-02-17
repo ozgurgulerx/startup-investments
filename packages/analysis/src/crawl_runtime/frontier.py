@@ -214,6 +214,7 @@ class UrlFrontierStore:
                     WHERE q.leased_at IS NULL
                       AND q.available_at <= NOW()
                       AND u.next_crawl_at <= NOW()
+                      AND q.lease_attempts < 10
                       AND NOT EXISTS (
                           SELECT 1
                           FROM domain_policies p
@@ -355,7 +356,7 @@ class UrlFrontierStore:
         if status_code == 304:
             base = timedelta(days=7)
         elif status_code >= 500:
-            base = timedelta(hours=6)
+            base = timedelta(hours=24)
         elif status_code >= 400:
             base = timedelta(hours=8)
         else:

@@ -171,7 +171,13 @@ class ScrapyPlaywrightRuntime:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await proc.communicate()
+            spider_deadline = max(120, (settings.crawler.max_pages_per_startup * settings.crawler.timeout_ms // 1000) + 60)
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=spider_deadline)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                return [], f"Spider subprocess timed out after {spider_deadline}s"
 
             if proc.returncode != 0:
                 err = (stderr or stdout or b"crawler runtime failed").decode("utf-8", errors="ignore")
@@ -656,7 +662,7 @@ class ScrapyPlaywrightRuntime:
                 "errors": ["Frontier disabled: DATABASE_URL not configured"],
             }
 
-        recovered = await self.frontier.recover_stale_leases(30)
+        recovered = await self.frontier.recover_stale_leases(20)
         batch_limit = max(1, int(limit or settings.crawler.frontier_batch_size))
         leased = await self.frontier.lease_urls(batch_limit, worker_id)
 
@@ -678,60 +684,72 @@ class ScrapyPlaywrightRuntime:
         all_results: List[Dict[str, Any]] = []
         errors: List[str] = []
         failed = 0
+        processed_urls: set[str] = set()
 
-        for (startup_slug, domain), group_items in grouped.items():
-            policy = self._default_policy(domain)
-            get_policy = getattr(self.frontier, "get_domain_policy", None)
-            if callable(get_policy):
-                try:
-                    maybe_policy = await get_policy(domain)
-                    if isinstance(maybe_policy, DomainPolicy):
-                        policy = maybe_policy
-                except Exception:
-                    policy = self._default_policy(domain)
+        try:
+            for (startup_slug, domain), group_items in grouped.items():
+                policy = self._default_policy(domain)
+                get_policy = getattr(self.frontier, "get_domain_policy", None)
+                if callable(get_policy):
+                    try:
+                        maybe_policy = await get_policy(domain)
+                        if isinstance(maybe_policy, DomainPolicy):
+                            policy = maybe_policy
+                    except Exception:
+                        policy = self._default_policy(domain)
 
-            seed_targets = self._seed_targets_from_frontier(group_items, policy)
-            docs, err = await self._run_spider(
-                startup_name=startup_slug,
-                allowed_domain=domain,
-                seed_targets=seed_targets,
-                respect_robots=policy.respect_robots,
-                force_render=policy.render_required,
-                default_proxy_tier=policy.proxy_tier,
-            )
+                seed_targets = self._seed_targets_from_frontier(group_items, policy)
+                docs, err = await self._run_spider(
+                    startup_name=startup_slug,
+                    allowed_domain=domain,
+                    seed_targets=seed_targets,
+                    respect_robots=policy.respect_robots,
+                    force_render=policy.render_required,
+                    default_proxy_tier=policy.proxy_tier,
+                )
 
-            if err:
-                errors.append(err)
-                failed += len(group_items)
-                for item in group_items:
-                    await self.frontier.requeue_failed(item.canonical_url, backoff_seconds=600)
-                    await self._log_crawl_attempt(
-                        startup_slug=startup_slug,
-                        doc={
-                            "url": item.url,
-                            "canonical_url": item.canonical_url,
-                            "page_type": item.page_type,
-                            "status_code": 0,
-                            "content_type": "html",
-                            "fetch_method": "runtime_error",
-                            "response_time_ms": 0,
-                            "error_message": err[:500],
-                        },
-                        error_category="transient",
-                        capture_id=None,
-                    )
-                continue
+                if err:
+                    errors.append(err)
+                    failed += len(group_items)
+                    for item in group_items:
+                        await self.frontier.requeue_failed(item.canonical_url, backoff_seconds=600)
+                        processed_urls.add(item.canonical_url)
+                        await self._log_crawl_attempt(
+                            startup_slug=startup_slug,
+                            doc={
+                                "url": item.url,
+                                "canonical_url": item.canonical_url,
+                                "page_type": item.page_type,
+                                "status_code": 0,
+                                "content_type": "html",
+                                "fetch_method": "runtime_error",
+                                "response_time_ms": 0,
+                                "error_message": err[:500],
+                            },
+                            error_category="transient",
+                            capture_id=None,
+                        )
+                    continue
 
-            docs = await self._maybe_apply_provider(docs, policy=policy)
-            leased_map = {item.canonical_url: item for item in group_items}
-            await self._mark_frontier_results(
-                leased_by_canonical=leased_map,
-                docs=docs,
-                startup_slug=startup_slug,
-                policy=policy,
-            )
+                docs = await self._maybe_apply_provider(docs, policy=policy)
+                leased_map = {item.canonical_url: item for item in group_items}
+                await self._mark_frontier_results(
+                    leased_by_canonical=leased_map,
+                    docs=docs,
+                    startup_slug=startup_slug,
+                    policy=policy,
+                )
+                processed_urls.update(item.canonical_url for item in group_items)
 
-            all_results.extend(self._doc_to_result(doc) for doc in docs)
+                all_results.extend(self._doc_to_result(doc) for doc in docs)
+        finally:
+            # Requeue any leased items not yet processed (e.g. killed by SIGTERM)
+            for item in leased:
+                if item.canonical_url not in processed_urls:
+                    try:
+                        await self.frontier.requeue_failed(item.canonical_url, backoff_seconds=60)
+                    except Exception:
+                        pass
 
         processed = max(0, len(leased) - failed)
         return {

@@ -94,7 +94,7 @@ class BlobStorageClient:
         - auto: Tries connection string first, falls back to AAD
         """
         if self._blob_service is not None:
-            return self._blob_service
+            return self._blob_service if self._blob_service is not False else None
 
         auth_mode = self.config.auth_mode.lower()
 
@@ -135,9 +135,11 @@ class BlobStorageClient:
             except Exception as e:
                 self.last_error = str(e)
                 print(f"Error connecting with Azure AD: {e}")
+                self._blob_service = False  # sentinel: don't retry on every access
                 return None
 
-        return self._blob_service
+        self._blob_service = False  # sentinel: don't retry on every access
+        return None
 
     @property
     def is_configured(self) -> bool:

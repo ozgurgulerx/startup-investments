@@ -502,6 +502,7 @@ def main() -> int:
         "COOKIES_ENABLED": True,
         "ROBOTSTXT_OBEY": bool(args.respect_robots),
         "DOWNLOAD_TIMEOUT": int(args.timeout_seconds),
+        "CLOSESPIDER_TIMEOUT": int(args.timeout_seconds) * int(args.max_pages) + 30,
         "DOWNLOAD_DELAY": float(args.download_delay),
         "CONCURRENT_REQUESTS": int(args.concurrent_requests),
         "RETRY_ENABLED": True,
