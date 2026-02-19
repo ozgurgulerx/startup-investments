@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 import os
+import random
 import re
 import subprocess
 import sys
@@ -206,6 +207,7 @@ AI_HARDWARE_SOURCE_KEYS: Tuple[str, ...] = (
     "intel_newsroom_ai",
 )
 AI_HARDWARE_SOURCE_KEY_SET = frozenset(AI_HARDWARE_SOURCE_KEYS)
+VALID_NEWS_SOURCE_TYPES = frozenset({"rss", "api", "community", "crawler"})
 
 IMPACT_FRAMES = {
     "UNDERWRITING_TAKE", "ADOPTION_PLAY", "COST_CURVE", "LATENCY_LEVER",
@@ -462,6 +464,32 @@ class SourceFetchResult:
     error: str = ""
 
 
+def _partition_valid_sources(
+    sources: Sequence["SourceDefinition"],
+) -> Tuple[List["SourceDefinition"], List[str]]:
+    """Split sources into valid/invalid definitions.
+
+    Invalid definitions are skipped at runtime to keep ingest fail-open.
+    """
+    valid: List[SourceDefinition] = []
+    invalid: List[str] = []
+    for src in sources:
+        source_errors: List[str] = []
+        if src.source_type not in VALID_NEWS_SOURCE_TYPES:
+            source_errors.append(
+                f"source_type={src.source_type!r} not in {sorted(VALID_NEWS_SOURCE_TYPES)}"
+            )
+        if src.fetch_mode == "latest_posts" and src.source_type != "crawler":
+            source_errors.append(
+                f"fetch_mode='latest_posts' requires source_type='crawler' (got {src.source_type!r})"
+            )
+        if source_errors:
+            invalid.append(f"{src.source_key}: " + "; ".join(source_errors))
+            continue
+        valid.append(src)
+    return valid, invalid
+
+
 BOOL_TRUE = {"1", "true", "yes", "on"}
 
 
@@ -658,6 +686,19 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         crawl_seed_urls=("https://newsroom.intel.com/artificial-intelligence/",),
         max_items_per_source=20,
         crawl_delay_ms=700,
+    ),
+    # AI lab research pages (no official RSS; crawl latest post links)
+    SourceDefinition(
+        "anthropic_research",
+        "Anthropic Research",
+        "crawler",
+        "https://www.anthropic.com/research",
+        fetch_mode="latest_posts",
+        language="en",
+        credibility_weight=0.78,
+        crawl_seed_urls=("https://www.anthropic.com/research",),
+        max_items_per_source=20,
+        crawl_delay_ms=800,
     ),
     # Big-tech startup program blogs
     SourceDefinition("ms_startups", "Microsoft for Startups", "rss", "https://www.microsoft.com/en-us/startups/blog/feed/", credibility_weight=0.68),
@@ -1285,6 +1326,102 @@ def parse_theinformation_technology_headlines(
             break
 
     return out[:limit]
+
+
+
+THEINFORMATION_FETCH_HEADERS: Dict[str, str] = {
+    # Browser-like request profile to reduce Cloudflare challenge responses.
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/141.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Cache-Control": "max-age=0",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Referer": "https://www.theinformation.com/",
+}
+THEINFORMATION_RETRYABLE_STATUSES = frozenset({403, 408, 425, 429, 500, 502, 503, 504})
+THEINFORMATION_CLOUDFLARE_MARKERS = (
+    "just a moment",
+    "cf-chl",
+    "/cdn-cgi/challenge-platform",
+)
+
+
+def _is_cloudflare_challenge_page(html: str, *, status_code: int = 200) -> bool:
+    body = (html or "").lower()
+    if not body:
+        return False
+    if "cloudflare" not in body:
+        return False
+    has_just_a_moment = "just a moment" in body
+    has_cf_markers = any(marker in body for marker in THEINFORMATION_CLOUDFLARE_MARKERS)
+    has_article_links = "/articles/" in body
+
+    # 4xx/5xx + Cloudflare markers are generally explicit anti-bot blocks.
+    if status_code >= 400:
+        return has_just_a_moment or has_cf_markers
+
+    # For 2xx responses, challenge-platform snippets can appear in normal pages.
+    # Treat as blocked only when the explicit challenge title is present and no
+    # article links are visible.
+    return has_just_a_moment and not has_article_links
+
+
+async def _fetch_theinformation_section_page(
+    section_url: str,
+    *,
+    timeout_seconds: float = 30.0,
+    max_attempts: int = 4,
+    backoff_seconds: float = 1.0,
+) -> httpx.Response:
+    attempts = max(1, min(8, int(max_attempts)))
+    timeout = httpx.Timeout(max(5.0, float(timeout_seconds)))
+    backoff_base = max(0.1, float(backoff_seconds))
+
+    last_http_error: Optional[Exception] = None
+
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        follow_redirects=True,
+        headers=dict(THEINFORMATION_FETCH_HEADERS),
+    ) as client:
+        for attempt in range(1, attempts + 1):
+            try:
+                response = await client.get(section_url)
+            except httpx.HTTPError as exc:
+                last_http_error = exc
+                if attempt >= attempts:
+                    break
+                delay = (backoff_base * (2 ** (attempt - 1))) + (random.random() * 0.2)
+                await asyncio.sleep(delay)
+                continue
+
+            blocked = _is_cloudflare_challenge_page(response.text or "", status_code=response.status_code)
+            if response.status_code < 400 and not blocked:
+                return response
+
+            retryable = response.status_code in THEINFORMATION_RETRYABLE_STATUSES or blocked
+            if not retryable or attempt >= attempts:
+                if blocked:
+                    raise RuntimeError(
+                        f"failed to fetch section page (cloudflare challenge, status={response.status_code})"
+                    )
+                raise RuntimeError(f"failed to fetch section page (status={response.status_code})")
+
+            delay = (backoff_base * (2 ** (attempt - 1))) + (random.random() * 0.2)
+            await asyncio.sleep(delay)
+
+    if last_http_error is not None:
+        raise RuntimeError(f"failed to fetch section page ({last_http_error})")
+    raise RuntimeError("failed to fetch section page")
 
 
 def tokenize_title(title: str) -> List[str]:
@@ -4574,7 +4711,12 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
-    async def _collect_items(self, conn: asyncpg.Connection, lookback_hours: int) -> Tuple[List[NormalizedNewsItem], List[str], int, List[SourceFetchResult]]:
+    async def _collect_items(
+        self,
+        conn: asyncpg.Connection,
+        lookback_hours: int,
+        sources: Sequence[SourceDefinition],
+    ) -> Tuple[List[NormalizedNewsItem], List[str], int, List[SourceFetchResult]]:
         errors: List[str] = []
         attempted = 0
         collected: List[NormalizedNewsItem] = []
@@ -4582,7 +4724,7 @@ class DailyNewsIngestor:
 
         timeout = httpx.Timeout(self.http_timeout)
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers={"User-Agent": "BuildAtlasNewsBot/2026 (+https://buildatlas.net)"}) as client:
-            for source in DEFAULT_SOURCES:
+            for source in sources:
                 if not source.enabled:
                     continue
                 attempted += 1
@@ -7783,15 +7925,29 @@ class DailyNewsIngestor:
             sources_attempted = 0
 
             try:
-                await self._upsert_sources(conn, DEFAULT_SOURCES)
-                await self._sync_source_activity(conn, DEFAULT_SOURCES)
+                configured_sources = list(DEFAULT_SOURCES)
+                valid_sources, invalid_sources = _partition_valid_sources(configured_sources)
+                if invalid_sources:
+                    for err in invalid_sources:
+                        msg = f"source_validation: skipped {err}"
+                        errors.append(msg)
+                        print(f"[news-ingest] {msg}")
+                if not valid_sources:
+                    raise RuntimeError("No valid news sources configured after validation")
+
+                await self._upsert_sources(conn, valid_sources)
+                await self._sync_source_activity(conn, valid_sources)
 
                 # Resolve schema capabilities early (used by persistence paths).
                 self._regional_clusters_supported = await self._supports_regional_clusters(conn)
                 self._evidence_objects_supported = await self._supports_evidence_objects(conn)
 
                 if not rebuild_only:
-                    collected, collect_errors, sources_attempted, fetch_results = await self._collect_items(conn, lookback_hours)
+                    collected, collect_errors, sources_attempted, fetch_results = await self._collect_items(
+                        conn,
+                        lookback_hours,
+                        valid_sources,
+                    )
                     errors.extend(collect_errors)
                     items_fetched = len(collected)
                     items_kept = await self._insert_raw_items(conn, collected)
@@ -7805,7 +7961,7 @@ class DailyNewsIngestor:
                 # Build Turkey-specific cluster copies: Turkey-relevant members
                 # (Turkey sources + Turkey-context global coverage) with a TR-safe
                 # representative selection to prevent global leakage.
-                turkey_source_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
+                turkey_source_keys = {s.source_key for s in valid_sources if (s.region or "global") == "turkey"}
                 turkey_clusters: List[StoryCluster] = []
                 for c in clusters:
                     tc = _build_turkey_cluster(c, turkey_source_keys)
@@ -8242,7 +8398,7 @@ class DailyNewsIngestor:
                 }
 
                 # --- Turkey pipeline diagnostic summary ---
-                _tr_src_keys = {s.source_key for s in DEFAULT_SOURCES if (s.region or "global") == "turkey"}
+                _tr_src_keys = {s.source_key for s in valid_sources if (s.region or "global") == "turkey"}
                 _tr_fetched = [fr for fr in fetch_results if fr.source_key in _tr_src_keys] if not rebuild_only else []
                 _tr_src_ok = sum(1 for fr in _tr_fetched if fr.success)
                 _tr_src_fail = sum(1 for fr in _tr_fetched if not fr.success)
@@ -8360,13 +8516,14 @@ async def run_seed_theinformation_headlines(
         raise ValueError("section_url is required")
 
     limit = max(1, min(200, int(max_items)))
-    ua = "Mozilla/5.0 (compatible; BuildAtlasHeadlineSeed/1.0; +https://buildatlas.net)"
-    timeout = httpx.Timeout(30.0)
-
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers={"User-Agent": ua}) as client:
-        resp = await client.get(section)
-    if resp.status_code >= 400:
-        raise RuntimeError(f"failed to fetch section page (status={resp.status_code})")
+    fetch_attempts = max(1, min(8, int(os.getenv("THEINFORMATION_FETCH_MAX_ATTEMPTS", "4"))))
+    fetch_backoff = max(0.1, float(os.getenv("THEINFORMATION_FETCH_BACKOFF_SECONDS", "1.0")))
+    resp = await _fetch_theinformation_section_page(
+        section,
+        timeout_seconds=30.0,
+        max_attempts=fetch_attempts,
+        backoff_seconds=fetch_backoff,
+    )
 
     items = parse_theinformation_technology_headlines(resp.text or "", section, max_items=limit)
     if not items:
