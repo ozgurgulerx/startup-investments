@@ -142,6 +142,14 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
   return message.includes(`column "${columnName}"`) && message.toLowerCase().includes('does not exist');
 }
 
+function sanitizeClaimText(value: unknown): string {
+  const s = String(value || '').trim();
+  if (!s) return s;
+  return s
+    .replace(/\${2,}(?=\d)/g, '$')
+    .replace(/\$\s+(?=\d)/g, '$');
+}
+
 // ---------------------------------------------------------------------------
 // Service factory
 // ---------------------------------------------------------------------------
@@ -185,7 +193,7 @@ export function makeSignalsService(pool: Pool) {
       id: String(row.id),
       domain: row.domain,
       cluster_name: row.cluster_name || null,
-      claim: row.claim,
+      claim: sanitizeClaimText(row.claim),
       region: row.region,
       conviction: Number(row.conviction),
       momentum: Number(row.momentum),

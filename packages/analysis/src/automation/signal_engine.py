@@ -24,6 +24,7 @@ import json
 import logging
 import math
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
@@ -1242,6 +1243,18 @@ class SignalEngine:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _sanitize_claim_text(text: str) -> str:
+        """Normalize claim text formatting for display consistency."""
+        s = str(text or "").strip()
+        if not s:
+            return s
+        # Guard against duplicate "$" prefixes (e.g., "$$4.7B").
+        s = re.sub(r"\${2,}(?=\d)", "$", s)
+        # Normalize stray spaces between currency symbol and amount.
+        s = re.sub(r"\$\s+(?=\d)", "$", s)
+        return s
+
+    @staticmethod
     def _build_claim(
         event_type: str,
         discriminator: Optional[str],
@@ -1340,6 +1353,8 @@ class SignalEngine:
             for prefix in ("arch ", "cap ", "prod ", "gtm ", "org "):
                 readable = readable.replace(prefix, "", 1)
             claim = f"{readable}: {n_events} events across {n_companies} companies in {lookback_days} days"
+
+        claim = SignalEngine._sanitize_claim_text(claim)
 
         # Truncate to ~200 chars for DB readability
         if len(claim) > 200:

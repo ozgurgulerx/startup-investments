@@ -198,6 +198,12 @@ class TestRowToDigestSignal:
         sig = _row_to_digest_signal(row, cutoff=cutoff)
         assert sig.lifecycle_transition == "emerging → accelerating"
 
+    def test_row_claim_sanitizes_duplicate_currency_symbols(self):
+        row = _make_signal_row(claim="AI funding: $$4740.1B across 412 deals in 30 days")
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+        sig = _row_to_digest_signal(row, cutoff=cutoff)
+        assert sig.claim == "AI funding: $4740.1B across 412 deals in 30 days"
+
 
 # ---------------------------------------------------------------------------
 # DB query tests with mocked connections

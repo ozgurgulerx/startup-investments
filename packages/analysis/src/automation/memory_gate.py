@@ -445,7 +445,31 @@ _TR_LAUNCH_RE = re.compile(
 
 def _normalize_tr_amount(value_str: str, unit: str, currency: str) -> str:
     """Normalize a Turkish funding amount to USD standard format."""
-    cleaned = value_str.replace(",", "").replace(".", "")
+    cleaned = str(value_str or "").strip().replace("$", "").replace(" ", "")
+    if not cleaned:
+        return f"{value_str} {unit} {currency}"
+    if "," in cleaned and "." in cleaned:
+        # Use the right-most separator as decimal and strip the other.
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif "," in cleaned:
+        if cleaned.count(",") == 1:
+            left, right = cleaned.split(",", 1)
+            if len(right) == 3 and left.isdigit():
+                cleaned = left + right
+            else:
+                cleaned = f"{left}.{right}"
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif "." in cleaned:
+        if cleaned.count(".") == 1:
+            left, right = cleaned.split(".", 1)
+            if len(right) == 3 and left.isdigit():
+                cleaned = left + right
+        else:
+            cleaned = cleaned.replace(".", "")
     try:
         num = float(cleaned)
     except ValueError:
@@ -453,28 +477,28 @@ def _normalize_tr_amount(value_str: str, unit: str, currency: str) -> str:
     unit_lower = unit.lower()
     # Convert to standard $ format
     if unit_lower == "milyar":
-        return f"${num}B"
+        return f"${num:g}B"
     elif unit_lower == "milyon":
-        return f"${num}M"
-    return f"${value_str}{unit}"
+        return f"${num:g}M"
+    return f"${str(value_str).strip().lstrip('$')}{unit}"
 
 
 def _normalize_amount(value_str: str, unit: str) -> str:
     """Normalize a funding amount string to a standard format."""
-    cleaned = value_str.replace(",", "")
+    cleaned = str(value_str or "").strip().replace("$", "").replace(",", "")
     try:
         num = float(cleaned)
     except ValueError:
-        return f"${value_str}{unit}"
+        return f"${str(value_str).strip().lstrip('$')}{unit}"
 
     unit_lower = unit.lower()
     if unit_lower in ("b", "bn", "billion"):
-        return f"${num}B"
+        return f"${num:g}B"
     elif unit_lower in ("m", "mn", "million"):
-        return f"${num}M"
+        return f"${num:g}M"
     elif unit_lower in ("k",):
-        return f"${num}K"
-    return f"${value_str}{unit}"
+        return f"${num:g}K"
+    return f"${str(value_str).strip().lstrip('$')}{unit}"
 
 
 class FactExtractor:

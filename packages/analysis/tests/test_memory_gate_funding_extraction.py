@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.automation.memory_gate import FactExtractor
+from src.automation.memory_gate import FactExtractor, _normalize_amount, _normalize_tr_amount
 
 
 def _get_claim(claims, fact_key: str):
@@ -56,3 +56,10 @@ def test_funding_extracts_lead_investor_investors_include_fallback():
     assert "General Catalyst" in c.fact_value
     assert c.confidence >= 0.6
 
+
+def test_normalize_tr_amount_preserves_decimal_value():
+    assert _normalize_tr_amount("4,7", "milyar", "dolar") == "$4.7B"
+
+
+def test_normalize_amount_strips_existing_dollar_symbol():
+    assert _normalize_amount("$4.7", "billion") == "$4.7B"

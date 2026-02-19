@@ -7,6 +7,7 @@ and optionally generates an LLM narrative connecting stories to trends.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -47,6 +48,16 @@ class DigestSignalContext:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _sanitize_claim_text(text: str) -> str:
+    """Normalize claim text that can include malformed currency symbols."""
+    s = str(text or "").strip()
+    if not s:
+        return s
+    s = re.sub(r"\${2,}(?=\d)", "$", s)
+    s = re.sub(r"\$\s+(?=\d)", "$", s)
+    return s
+
 
 def _extract_lifecycle_transition(
     metadata_json: Any,
@@ -93,7 +104,7 @@ def _row_to_digest_signal(row: Any, *, cutoff: datetime) -> DigestSignal:
         id=str(row["id"]),
         domain=str(row["domain"]),
         cluster_name=row["cluster_name"],
-        claim=str(row["claim"]),
+        claim=_sanitize_claim_text(str(row["claim"])),
         status=str(row["status"]),
         conviction=float(row["conviction"]),
         momentum=float(row["momentum"]),

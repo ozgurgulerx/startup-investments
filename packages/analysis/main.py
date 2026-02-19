@@ -8,6 +8,7 @@ Analyze startups for GenAI usage patterns and build insights.
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 from typing import Optional, List
 
@@ -32,6 +33,20 @@ from src.reports.generator import (
 
 app = typer.Typer(help="Startup GenAI Analysis Tool")
 console = Console()
+
+
+_SIGNAL_CLAIM_DUP_DOLLAR_RE = re.compile(r"\${2,}(?=\d)")
+_SIGNAL_CLAIM_SPACED_DOLLAR_RE = re.compile(r"\$\s+(?=\d)")
+
+
+def _sanitize_signal_claim_text(text: str) -> str:
+    """Normalize signal claim currency formatting."""
+    s = str(text or "").strip()
+    if not s:
+        return s
+    s = _SIGNAL_CLAIM_DUP_DOLLAR_RE.sub("$", s)
+    s = _SIGNAL_CLAIM_SPACED_DOLLAR_RE.sub("$", s)
+    return s
 
 
 @app.command()
@@ -2841,6 +2856,88 @@ def diagnose_signals():
             console.print(t)
 
     asyncio.run(_diagnose())
+
+
+@app.command("repair-signal-claims")
+def repair_signal_claims(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview changes without writing updates",
+    ),
+    limit: int = typer.Option(
+        0,
+        "--limit",
+        help="Max malformed claims to process (0 = no limit)",
+    ),
+):
+    """Repair malformed signal claim currency syntax (e.g., '$$4.7B')."""
+    import asyncpg
+
+    async def _repair():
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            raise typer.Exit(1)
+
+        conn = await asyncpg.connect(database_url)
+        try:
+            malformed_where = (
+                "WHERE claim ~ '\\$\\$+[0-9]' "
+                "OR claim ~ '\\$\\s+[0-9]'"
+            )
+            if limit > 0:
+                rows = await conn.fetch(
+                    f"""SELECT id::text, claim
+                        FROM signals
+                        {malformed_where}
+                        ORDER BY updated_at DESC NULLS LAST
+                        LIMIT $1""",
+                    max(1, limit),
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""SELECT id::text, claim
+                        FROM signals
+                        {malformed_where}
+                        ORDER BY updated_at DESC NULLS LAST"""
+                )
+
+            scanned = len(rows)
+            updated = 0
+            unchanged = 0
+
+            for row in rows:
+                signal_id = str(row["id"])
+                old_claim = str(row["claim"] or "")
+                new_claim = _sanitize_signal_claim_text(old_claim)
+                if not new_claim or new_claim == old_claim:
+                    unchanged += 1
+                    continue
+
+                if not dry_run:
+                    await conn.execute(
+                        """UPDATE signals
+                           SET claim = $2, updated_at = NOW()
+                           WHERE id = $1::uuid""",
+                        signal_id,
+                        new_claim,
+                    )
+                updated += 1
+
+        finally:
+            await conn.close()
+
+        mode = "DRY RUN" if dry_run else "APPLIED"
+        console.print(Panel.fit(
+            f"[bold blue]Signal Claim Repair ({mode})[/bold blue]",
+            border_style="blue",
+        ))
+        console.print(f"  Scanned malformed claims: {scanned}")
+        console.print(f"  Updated: {updated}")
+        console.print(f"  Unchanged after sanitize: {unchanged}")
+
+    asyncio.run(_repair())
 
 
 @app.command("backfill-state")
