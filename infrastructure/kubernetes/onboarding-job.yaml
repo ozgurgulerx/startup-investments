@@ -1,0 +1,64 @@
+# One-shot K8s Job: full startup onboarding pipeline (crawl → analysis → DB → dossiers).
+#
+# Deploy tooling replaces __IMAGE_TAG__ with a concrete tag (git SHA or timestamp).
+#
+# Usage:
+#   bash infrastructure/vm-cron/jobs/onboarding-build-and-run.sh 2026-02
+#
+# Monitor:
+#   kubectl logs -n default -f job/global-onboarding-2026-02
+#
+# Recovery (crash mid-run):
+#   kubectl delete job global-onboarding-2026-02 -n default
+#   bash infrastructure/vm-cron/jobs/onboarding-build-and-run.sh 2026-02
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: global-onboarding-__PERIOD__
+  namespace: default
+  labels:
+    app: buildatlas-onboarding
+    job: global-onboarding
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 172800
+  activeDeadlineSeconds: 28800
+  template:
+    metadata:
+      labels:
+        app: buildatlas-onboarding
+        job: global-onboarding
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: job
+          image: aistartuptr.azurecr.io/buildatlas-onboarding:__IMAGE_TAG__
+          imagePullPolicy: Always
+          command:
+            - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
+          args:
+            - global-onboarding
+            - "480"
+            - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/global-onboarding.sh
+            - __PERIOD__
+            - "3"
+          envFrom:
+            - configMapRef:
+                name: buildatlas-pipelines-config
+            - secretRef:
+                name: buildatlas-pipelines-secrets
+          env:
+            - name: BUILDATLAS_RUNNER
+              value: "aks-job"
+            - name: CRAWLER_RUNTIME
+              value: "scrapy"
+            - name: CRAWLER_UNBLOCK_PROVIDER
+              value: "stealth"
+          resources:
+            requests:
+              cpu: "1500m"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "6Gi"
