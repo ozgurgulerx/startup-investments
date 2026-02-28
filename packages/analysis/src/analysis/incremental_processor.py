@@ -4,6 +4,16 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+from rich.progress import (
+    Progress,
+    BarColumn,
+    MofNCompleteColumn,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+
 from src.data.models import StartupInput, StartupAnalysis
 from src.data.store import AnalysisStore
 from src.config import settings
@@ -69,26 +79,36 @@ class IncrementalProcessor:
 
         semaphore = asyncio.Semaphore(max_concurrent)
 
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+        )
+        progress.start()
+        progress_task = progress.add_task("Processing startups...", total=len(delta))
+
         async def process_one(startup: StartupInput):
             async with semaphore:
                 try:
-                    print(f"\n[{startup.name}]")
-
                     # Ensure content is crawled
                     content = crawler.get_all_cached_content(startup.name)
                     if not content or len(content) < 500:
-                        print(f"  Crawling...")
+                        progress.update(progress_task, description=f"Crawling {startup.name}")
                         await crawler.crawl_startup(startup)
                         crawler.save_raw_content(startup.name)
                         content = crawler.get_all_cached_content(startup.name)
 
                     if not content:
+                        progress.update(progress_task, advance=1, description=f"No content: {startup.name}")
                         return {"name": startup.name, "error": "No content"}
 
                     # Base analysis
                     base_analysis = None
                     if run_base and analyzer:
-                        print(f"  Base analysis...")
+                        progress.update(progress_task, description=f"Analyzing {startup.name}")
                         base_analysis = await analyzer.analyze_startup(startup)
                         self.store.save_base_analysis(base_analysis, startup)
                         results["new_base_analyses"] += 1
@@ -98,7 +118,7 @@ class IncrementalProcessor:
 
                     # Viral analysis
                     if run_viral and viral_analyzer and base_analysis:
-                        print(f"  Viral analysis...")
+                        progress.update(progress_task, description=f"Viral: {startup.name}")
                         try:
                             viral_result = await viral_analyzer.analyze_for_viral_content(
                                 startup, base_analysis, content
@@ -106,19 +126,23 @@ class IncrementalProcessor:
                             self.store.save_viral_analysis(startup.name, viral_result)
                             results["new_viral_analyses"] += 1
                         except Exception as e:
-                            print(f"  Viral analysis error: {e}")
+                            print(f"  Viral analysis error for {startup.name}: {e}")
 
                     results["delta_processed"] += 1
+                    progress.update(progress_task, advance=1, description=f"Done: {startup.name}")
                     return {"name": startup.name, "success": True}
 
                 except Exception as e:
                     error = {"name": startup.name, "error": str(e)}
                     results["errors"].append(error)
+                    progress.update(progress_task, advance=1, description=f"Error: {startup.name}")
                     return error
 
         # Process all delta startups
         tasks = [process_one(s) for s in delta]
         await asyncio.gather(*tasks)
+
+        progress.stop()
 
         # Cleanup
         await crawler.close()
