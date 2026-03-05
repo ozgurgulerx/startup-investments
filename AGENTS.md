@@ -139,6 +139,23 @@ Important headers/invariants:
     - UI surfaces:
       - Signal inspector shows a compact "Relevance" section (rounds + patterns).
       - Signal deep dive adds a `Relevance` tab with the full bundle.
+  - Focused Signals UX + rollout flags:
+    - `/signals` is the primary decision surface (Detect -> Explain -> Act), with focused controls enabled by default.
+    - Signed-in default sort is `relevance`; anonymous default sort is `impact`.
+    - Default visible filters are `domain` and `status`; `sort`, `window`, and `sector` are in Advanced.
+    - Feature flags (web env / local override):
+      - `NEXT_PUBLIC_SIGNALS_UI_FOCUSED_MODE`
+      - `NEXT_PUBLIC_SIGNALS_DISABLE_STATIC_FALLBACK`
+      - `NEXT_PUBLIC_RECO_UX_SIMPLIFIED`
+  - Static fallback policy:
+    - Default `/signals` does not silently fall back to static monthly analysis.
+    - When stale/empty, the UI shows explicit stale metadata from `GET /api/v1/signals/summary` (`last_pipeline_run_at`, `stale`, `stale_reason`).
+    - Legacy static analysis is retained at `/signals/legacy`; if `NEXT_PUBLIC_SIGNALS_DISABLE_STATIC_FALLBACK=false`, `/signals` redirects to legacy when dynamic data is unavailable.
+  - Additive API fields (backward compatible):
+    - `GET /api/v1/signals` now includes optional:
+      `confidence_score`, `freshness_score`, `evidence_diversity_score`, `reason_short`, `linked_story_count`, `top_story_ids`, `claim_structured`.
+    - `GET /api/v1/signals/:id` may include:
+      `upstream_stories[]`, `signal_window_days`.
   - Smoke-test guardrail:
     - Playwright coverage is enforced via the ops canary jobs (AKS/VM) and should also be runnable locally before deploys.
 
@@ -331,6 +348,11 @@ News:
     - `news_clusters.evidence_object_id` (`evidence_type='news_cluster'`)
     - `startup_events.evidence_ids` (UUID[] of canonical evidence ids)
     - `signal_evidence.evidence_object_id` and `signal_moves.evidence_object_ids` (canonical traceability)
+  - News -> Signal linkage surface:
+    - News cards/context can expose optional linkage fields:
+      `signal_impact`, `linked_signal_count`, `top_linked_signal{id,claim,reason,freshness_score,last_evidence_at}`.
+    - `Open signal` CTAs preserve return context using `originStory`/`originRegion`/`originPath` query params.
+    - Signal inspector/deep dive can show `Back to originating story` when opened through this flow.
   - Backfill (idempotent): `cd packages/analysis && python main.py backfill-evidence-objects --days 30 --region all`
 - X/Twitter trend + posting automation:
   - Migration: `database/migrations/061_x_social_automation.sql`
@@ -366,6 +388,10 @@ News:
     - `deep-dive-catchup.sh` also runs the same migration preflight before backfill.
   - Runtime degradation behavior:
     - If deep-dive tables are unavailable, backend deep-dive endpoints should return empty payloads (not crash) so `/signals/[id]` can show "No deep dive available yet" instead of failing hard.
+  - Deep-dive IA (focused):
+    - Primary tabs are `Delta`, `Evidence`, and `Actions`.
+    - `Explorer`, `Relevance`, `Counterevidence`, `Community`, and `How It Works` are reachable via `More`.
+    - Legacy tab deep links are preserved via query remap (`tab=cases -> tab=evidence`, `tab=mechanism -> tab=actions`).
   - Coverage behavior (important for "empty deep dive" debugging):
     - Deep-dive generation prefers per-startup samples from `signal_occurrences` (requires startup-linked evidence).
     - If a signal cannot produce a per-startup sample set (e.g., evidence is mostly `startup_id=NULL` or too sparse), the pipeline falls back to a **trend-only deep dive** synthesized from recent `signal_evidence` rows.

@@ -51,6 +51,35 @@ export interface SignalRow {
     timeline_start: string;
     timeline_end: string;
   };
+  confidence_score?: number;
+  freshness_score?: number;
+  evidence_diversity_score?: number;
+  reason_short?: string;
+  linked_story_count?: number;
+  top_story_ids?: string[];
+  claim_structured?: {
+    what_changed?: string;
+    vs_previous_window?: string;
+    why_now?: string;
+  };
+}
+
+interface UpstreamStory {
+  id: string;
+  title: string;
+  trust_score: number;
+  published_at: string | null;
+  source_count: number;
+}
+
+interface SignalsSummaryResponse {
+  rising: SignalRow[];
+  established: SignalRow[];
+  decaying: SignalRow[];
+  stats: { total: number; by_status: Record<string, number>; by_domain: Record<string, number> };
+  last_pipeline_run_at?: string | null;
+  stale?: boolean;
+  stale_reason?: string | null;
 }
 
 export interface SignalRecommendation {
@@ -68,6 +97,7 @@ export interface SignalRecommendationsResponse {
 
 type NewsRegion = 'global' | 'turkey';
 const SIGNALS_RECOMMENDER_ALGORITHM_VERSION = 'signals_v2_graph_memory';
+const SIGNALS_SCORE_V3_ENABLED = process.env.SIGNALS_SCORE_V3 !== 'false';
 
 interface SignalRelevanceRound {
   funding_round_id: string;
@@ -162,32 +192,104 @@ export function makeSignalsService(pool: Pool) {
     let explainGeneratedAt: string | undefined;
     let evidenceTimeline: number[] | undefined;
     let evidenceTimelineMeta: SignalRow['evidence_timeline_meta'] | undefined;
-
+    let metadata: Record<string, any> = {};
     if (row.metadata_json) {
       try {
-        const meta = typeof row.metadata_json === 'string' ? JSON.parse(row.metadata_json) : row.metadata_json;
-        if (meta?.stage_context) {
-          stageContext = meta.stage_context as StageContext;
-        }
-        if (meta?.explain_json) {
-          explain = meta.explain_json as SignalExplain;
-          explainGeneratedAt = meta.explain_generated_at;
-        }
-        // Backwards-compatible: evidence_timeline can be array (old) or object (new)
-        if (meta?.evidence_timeline) {
-          if (Array.isArray(meta.evidence_timeline)) {
-            evidenceTimeline = meta.evidence_timeline;
-          } else if (meta.evidence_timeline.bins) {
-            evidenceTimeline = meta.evidence_timeline.bins;
-            evidenceTimelineMeta = {
-              bin_count: meta.evidence_timeline.bin_count || 8,
-              timeline_start: meta.evidence_timeline.timeline_start || '',
-              timeline_end: meta.evidence_timeline.timeline_end || '',
-            };
-          }
-        }
-      } catch { /* ignore parse errors */ }
+        metadata = typeof row.metadata_json === 'string' ? JSON.parse(row.metadata_json) : row.metadata_json;
+      } catch {
+        metadata = {};
+      }
     }
+    if (metadata?.stage_context) {
+      stageContext = metadata.stage_context as StageContext;
+    }
+    if (metadata?.explain_json) {
+      explain = metadata.explain_json as SignalExplain;
+      explainGeneratedAt = metadata.explain_generated_at;
+    }
+    // Backwards-compatible: evidence_timeline can be array (old) or object (new)
+    if (metadata?.evidence_timeline) {
+      if (Array.isArray(metadata.evidence_timeline)) {
+        evidenceTimeline = metadata.evidence_timeline;
+      } else if (metadata.evidence_timeline.bins) {
+        evidenceTimeline = metadata.evidence_timeline.bins;
+        evidenceTimelineMeta = {
+          bin_count: metadata.evidence_timeline.bin_count || 8,
+          timeline_start: metadata.evidence_timeline.timeline_start || '',
+          timeline_end: metadata.evidence_timeline.timeline_end || '',
+        };
+      }
+    }
+
+    const firstSeenIso = row.first_seen_at?.toISOString?.() ?? row.first_seen_at;
+    const lastEvidenceIso = row.last_evidence_at?.toISOString?.() ?? row.last_evidence_at ?? null;
+    const conviction = Number(row.conviction);
+    const impact = Number(row.impact);
+    const momentum = Number(row.momentum);
+
+    const freshnessScore = (() => {
+      const raw = Number(metadata?.freshness_score);
+      if (Number.isFinite(raw)) return clamp01(raw);
+      if (!lastEvidenceIso) return 0;
+      const ageDays = Math.max(0, (Date.now() - new Date(lastEvidenceIso).getTime()) / 86_400_000);
+      return clamp01(Math.exp(-ageDays / 14));
+    })();
+    const evidenceDiversityScore = (() => {
+      const raw = Number(metadata?.evidence_diversity_score);
+      if (Number.isFinite(raw)) return clamp01(raw);
+      const sourceTypeCount = Number(metadata?.source_type_count || metadata?.distinct_source_count || 1);
+      const sourceCountSpread = Number(metadata?.source_count_spread || 1);
+      if (Number.isFinite(sourceTypeCount) && Number.isFinite(sourceCountSpread)) {
+        const typeScore = clamp01(sourceTypeCount / 6);
+        const spreadScore = clamp01(sourceCountSpread / 4);
+        return clamp01(typeScore * 0.65 + spreadScore * 0.35);
+      }
+      const evidenceCount = Number(row.evidence_count || 0);
+      const companyCount = Number(row.unique_company_count || 0);
+      return clamp01(Math.min(1, evidenceCount / 18) * 0.55 + Math.min(1, companyCount / 15) * 0.45);
+    })();
+    const contradictionPenalty = (() => {
+      const raw = Number(metadata?.memory_contradiction_count);
+      if (!Number.isFinite(raw)) return 0;
+      return Math.min(0.25, raw * 0.03);
+    })();
+    const confidenceScore = (() => {
+      const raw = Number(metadata?.confidence_score);
+      if (Number.isFinite(raw)) return clamp01(raw);
+      return clamp01(
+        conviction * 0.48
+        + impact * 0.2
+        + freshnessScore * 0.17
+        + evidenceDiversityScore * 0.15
+        - contradictionPenalty
+      );
+    })();
+    const reasonShort = (() => {
+      if (typeof metadata?.reason_short === 'string' && metadata.reason_short.trim()) {
+        return metadata.reason_short.trim();
+      }
+      const momentumWord = momentum >= 0.2 ? 'accelerating' : momentum <= -0.2 ? 'cooling' : 'stable';
+      const freshnessWord = freshnessScore >= 0.7 ? 'fresh evidence' : freshnessScore >= 0.45 ? 'recent evidence' : 'aging evidence';
+      return `Signal is ${momentumWord} with ${freshnessWord}.`;
+    })();
+    const topStoryIds = Array.isArray(metadata?.top_story_ids)
+      ? metadata.top_story_ids.map((v: unknown) => String(v || '')).filter(Boolean).slice(0, 3)
+      : undefined;
+    const linkedStoryCount = (() => {
+      const raw = Number(metadata?.linked_story_count);
+      if (Number.isFinite(raw) && raw >= 0) return Math.floor(raw);
+      if (topStoryIds && topStoryIds.length > 0) return topStoryIds.length;
+      return undefined;
+    })();
+    const claimStructured = (() => {
+      const raw = metadata?.claim_structured;
+      if (!raw || typeof raw !== 'object') return undefined;
+      return {
+        what_changed: raw.what_changed ? String(raw.what_changed) : undefined,
+        vs_previous_window: raw.vs_previous_window ? String(raw.vs_previous_window) : undefined,
+        why_now: raw.why_now ? String(raw.why_now) : undefined,
+      };
+    })();
 
     return {
       id: String(row.id),
@@ -195,15 +297,22 @@ export function makeSignalsService(pool: Pool) {
       cluster_name: row.cluster_name || null,
       claim: sanitizeClaimText(row.claim),
       region: row.region,
-      conviction: Number(row.conviction),
-      momentum: Number(row.momentum),
-      impact: Number(row.impact),
+      conviction,
+      momentum,
+      impact,
       adoption_velocity: Number(row.adoption_velocity),
       status: row.status,
       evidence_count: row.evidence_count,
       unique_company_count: row.unique_company_count,
-      first_seen_at: row.first_seen_at?.toISOString?.() ?? row.first_seen_at,
-      last_evidence_at: row.last_evidence_at?.toISOString?.() ?? row.last_evidence_at ?? null,
+      first_seen_at: firstSeenIso,
+      last_evidence_at: lastEvidenceIso,
+      confidence_score: confidenceScore,
+      freshness_score: freshnessScore,
+      evidence_diversity_score: evidenceDiversityScore,
+      reason_short: reasonShort,
+      ...(typeof linkedStoryCount === 'number' ? { linked_story_count: linkedStoryCount } : {}),
+      ...(topStoryIds ? { top_story_ids: topStoryIds } : {}),
+      ...(claimStructured ? { claim_structured: claimStructured } : {}),
       ...(stageContext ? { stage_context: stageContext } : {}),
       ...(explain ? { explain, explain_generated_at: explainGeneratedAt } : {}),
       ...(evidenceTimeline ? { evidence_timeline: evidenceTimeline } : {}),
@@ -260,8 +369,14 @@ export function makeSignalsService(pool: Pool) {
       const sort = String(params.sort || 'conviction').trim() || 'conviction';
 
       // "Relevance" is a blended ranking + (optionally) user domain prefs.
-      // Keep it deterministic and cheap: no joins beyond user prefs (when provided).
-      const baseRelevanceExpr = `(0.45 * signals.impact + 0.35 * signals.conviction + 0.20 * signals.momentum)`;
+      // V3 includes freshness/diversity and contradiction penalty from metadata_json.
+      const freshnessExpr = `COALESCE((signals.metadata_json->>'freshness_score')::float,
+        LEAST(1.0, GREATEST(0.0, EXP(-EXTRACT(EPOCH FROM (NOW() - COALESCE(signals.last_evidence_at, signals.first_seen_at))) / 1209600.0))))`;
+      const diversityExpr = `COALESCE((signals.metadata_json->>'evidence_diversity_score')::float, LEAST(1.0, signals.evidence_count / 18.0))`;
+      const contradictionPenaltyExpr = `LEAST(0.25, COALESCE((signals.metadata_json->>'memory_contradiction_count')::float, 0) * 0.03)`;
+      const baseRelevanceExpr = SIGNALS_SCORE_V3_ENABLED
+        ? `(0.32 * signals.impact + 0.26 * signals.conviction + 0.18 * signals.momentum + 0.14 * ${freshnessExpr} + 0.10 * ${diversityExpr} - ${contradictionPenaltyExpr})`
+        : `(0.45 * signals.impact + 0.35 * signals.conviction + 0.20 * signals.momentum)`;
 
       const limit = Math.min(50, Math.max(1, params.limit || 20));
       const offset = Math.max(0, params.offset || 0);
@@ -772,7 +887,15 @@ export function makeSignalsService(pool: Pool) {
     region?: string;
     evidence_offset?: number;
     evidence_limit?: number;
-  }): Promise<{ signal: SignalRow | null; evidence: any[]; evidence_total: number; related: SignalRow[]; stage_context?: StageContext | null }> {
+  }): Promise<{
+    signal: SignalRow | null;
+    evidence: any[];
+    evidence_total: number;
+    related: SignalRow[];
+    stage_context?: StageContext | null;
+    upstream_stories?: UpstreamStory[];
+    signal_window_days?: number;
+  }> {
     try {
       const signalResult = await pool.query(
         `SELECT id::text, domain, cluster_name, claim, region,
@@ -791,11 +914,15 @@ export function makeSignalsService(pool: Pool) {
 
       // Extract stage_context from metadata_json if present
       let stageContext: StageContext | null = null;
+      let signalWindowDays = 90;
       try {
         const meta = signalResult.rows[0].metadata_json;
         const parsed = typeof meta === 'string' ? JSON.parse(meta) : meta;
         if (parsed?.stage_context) {
           stageContext = parsed.stage_context as StageContext;
+        }
+        if (Number.isFinite(Number(parsed?.signal_window_days))) {
+          signalWindowDays = Math.max(7, Math.min(365, Number(parsed.signal_window_days)));
         }
       } catch { /* ignore parse errors */ }
 
@@ -874,12 +1001,48 @@ export function makeSignalsService(pool: Pool) {
         [signal.region, signal.domain, params.id]
       );
 
+      let upstreamStories: UpstreamStory[] = [];
+      try {
+        const upstreamResult = await pool.query<{
+          id: string;
+          title: string;
+          trust_score: number;
+          published_at: Date | string | null;
+          source_count: number;
+        }>(
+          `SELECT c.id::text AS id,
+                  COALESCE(NULLIF(c.ba_title, ''), c.title) AS title,
+                  COALESCE(c.trust_score, 0)::float AS trust_score,
+                  c.published_at,
+                  COALESCE(c.source_count, 0)::int AS source_count
+           FROM signal_evidence se
+           JOIN news_clusters c ON c.id = se.cluster_id
+           WHERE se.signal_id = $1::uuid
+             AND se.cluster_id IS NOT NULL
+           GROUP BY c.id, c.ba_title, c.title, c.trust_score, c.published_at, c.source_count
+           ORDER BY c.trust_score DESC NULLS LAST, c.published_at DESC NULLS LAST
+           LIMIT 3`,
+          [params.id],
+        );
+        upstreamStories = upstreamResult.rows.map((r) => ({
+          id: String(r.id),
+          title: String(r.title || ''),
+          trust_score: Number(r.trust_score || 0),
+          published_at: isoDate(r.published_at),
+          source_count: Number(r.source_count || 0),
+        }));
+      } catch (error) {
+        if (!isMissingNewsSchemaError(error)) throw error;
+      }
+
       return {
         signal,
         evidence,
         evidence_total: evidenceTotal,
         related: relatedResult.rows.map(rowToSignal),
         stage_context: stageContext,
+        upstream_stories: upstreamStories,
+        signal_window_days: signalWindowDays,
       };
     } catch (error) {
       if (isMissingNewsSchemaError(error)) return { signal: null, evidence: [], evidence_total: 0, related: [] };
@@ -891,12 +1054,7 @@ export function makeSignalsService(pool: Pool) {
     region?: string;
     sector?: string;
     window?: number;
-  }): Promise<{
-    rising: SignalRow[];
-    established: SignalRow[];
-    decaying: SignalRow[];
-    stats: { total: number; by_status: Record<string, number>; by_domain: Record<string, number> };
-  }> {
+  }): Promise<SignalsSummaryResponse> {
     try {
       const region = normalizeRegion(params.region);
       const windowFilter = params.window
@@ -966,16 +1124,55 @@ export function makeSignalsService(pool: Pool) {
       for (const r of domainStats.rows) by_domain[r.domain] = parseInt(r.cnt, 10);
 
       const total = Object.values(by_status).reduce((a, b) => a + b, 0);
+      let pipelineRow;
+      try {
+        pipelineRow = await pool.query<{ last_pipeline_run_at: Date | string | null }>(
+          `SELECT MAX(COALESCE(last_scored_at, updated_at)) AS last_pipeline_run_at
+           FROM signals
+           WHERE region = $1`,
+          [region],
+        );
+      } catch (error) {
+        if (!isMissingNewsSchemaError(error)) throw error;
+        pipelineRow = await pool.query<{ last_pipeline_run_at: Date | string | null }>(
+          `SELECT MAX(updated_at) AS last_pipeline_run_at
+           FROM signals
+           WHERE region = $1`,
+          [region],
+        );
+      }
+      const lastPipelineRunAt = isoDate(pipelineRow.rows[0]?.last_pipeline_run_at);
+      const staleThresholdMs = 18 * 60 * 60 * 1000;
+      const stale = !lastPipelineRunAt
+        ? true
+        : (Date.now() - new Date(lastPipelineRunAt).getTime()) > staleThresholdMs;
+      let staleReason: string | null = null;
+      if (!lastPipelineRunAt) {
+        staleReason = 'No successful signal pipeline run found.';
+      } else if (stale) {
+        staleReason = 'Signal pipeline appears stale (older than 18 hours).';
+      }
 
       return {
         rising: risingResult.rows.map(rowToSignal),
         established: establishedResult.rows.map(rowToSignal),
         decaying: decayingResult.rows.map(rowToSignal),
         stats: { total, by_status, by_domain },
+        last_pipeline_run_at: lastPipelineRunAt,
+        stale,
+        stale_reason: staleReason,
       };
     } catch (error) {
       if (isMissingNewsSchemaError(error)) {
-        return { rising: [], established: [], decaying: [], stats: { total: 0, by_status: {}, by_domain: {} } };
+        return {
+          rising: [],
+          established: [],
+          decaying: [],
+          stats: { total: 0, by_status: {}, by_domain: {} },
+          last_pipeline_run_at: null,
+          stale: true,
+          stale_reason: 'Signal schema unavailable.',
+        };
       }
       throw error;
     }
@@ -1228,6 +1425,13 @@ export function makeSignalsService(pool: Pool) {
   }
 
   function computeRecommendationScore(signal: SignalRow, features: RecommendationFeatures): number {
+    // Keep an exploration floor: negative domain feedback should nudge, not fully suppress.
+    const boundedDomainWeight = Math.max(-2, Math.min(features.domain_pref_weight, 5));
+    const domainPreferenceNudge = boundedDomainWeight >= 0
+      ? boundedDomainWeight * 0.9
+      : boundedDomainWeight * 0.45;
+    const confidenceBoost = Math.max(0, Math.min(1, Number(signal.confidence_score || 0))) * 1.2;
+    const freshnessBoost = Math.max(0, Math.min(1, Number(signal.freshness_score || 0))) * 0.9;
     return (
       Math.min(features.overlap_count, 8) * 3.4
       + Math.min(features.graph_shared_investor_count, 8) * 1.6
@@ -1235,7 +1439,9 @@ export function makeSignalsService(pool: Pool) {
       + Math.min(features.memory_publish_like_count, 8) * 0.8
       + Math.max(0, features.memory_avg_composite) * 1.8
       + Math.min(features.domain_follow_count, 6) * 0.55
-      + Math.max(-5, Math.min(features.domain_pref_weight, 5)) * 0.9
+      + domainPreferenceNudge
+      + confidenceBoost
+      + freshnessBoost
       + signal.impact * 2.4
       + signal.conviction * 1.7
       + signal.momentum * 1.5
@@ -1248,18 +1454,25 @@ export function makeSignalsService(pool: Pool) {
     region: NewsRegion;
   }): Promise<Map<string, number>> {
     try {
-      const result = await pool.query<{ domain: string; weight: number }>(
-        `SELECT domain, weight::int
+      const result = await pool.query<{ domain: string; weight: number; updated_at: Date | string | null }>(
+        `SELECT domain, weight::int, updated_at
          FROM user_signal_domain_prefs
          WHERE user_id = $1::uuid
            AND region = $2`,
         [params.userId, params.region],
       );
       const prefs = new Map<string, number>();
+      const nowMs = Date.now();
       for (const row of result.rows) {
         const domain = String(row.domain || '').trim();
         if (!domain) continue;
-        prefs.set(domain, Number(row.weight || 0));
+        const weight = Number(row.weight || 0);
+        if (!Number.isFinite(weight)) continue;
+        const updatedAt = row.updated_at ? new Date(row.updated_at).getTime() : nowMs;
+        const ageDays = Number.isFinite(updatedAt) ? Math.max(0, (nowMs - updatedAt) / 86_400_000) : 0;
+        // Exponential decay: repeated negatives soften over time.
+        const effectiveWeight = weight * Math.exp(-ageDays / 21);
+        prefs.set(domain, Number(effectiveWeight.toFixed(3)));
       }
       return prefs;
     } catch (error) {
@@ -1723,7 +1936,13 @@ export function makeSignalsService(pool: Pool) {
         `INSERT INTO user_signal_domain_prefs (user_id, region, domain, weight, updated_at)
          VALUES ($1::uuid, $2, $3, $4, NOW())
          ON CONFLICT (user_id, region, domain) DO UPDATE
-         SET weight = LEAST(5, GREATEST(-5, user_signal_domain_prefs.weight + EXCLUDED.weight)),
+         SET weight = LEAST(
+               5,
+               GREATEST(
+                 -5,
+                 ROUND((user_signal_domain_prefs.weight * 0.85) + EXCLUDED.weight)::int
+               )
+             ),
              updated_at = NOW()`,
         [params.userId, region, domain, delta],
       );

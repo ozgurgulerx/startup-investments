@@ -46,6 +46,17 @@ LIFECYCLE_MIN_COMPANIES_EMERGING = 3
 LIFECYCLE_MIN_MOMENTUM_ACCELERATING = 0.4
 LIFECYCLE_MIN_COMPANIES_ESTABLISHED = 20
 LIFECYCLE_DECAYING_MOMENTUM_THRESHOLD = -0.3
+EVENT_IMPACT_WEIGHTS: Dict[str, float] = {
+    "cap_funding_raised": 1.0,
+    "cap_acquisition_announced": 0.9,
+    "prod_launched": 0.75,
+    "prod_major_update": 0.7,
+    "arch_pattern_adopted": 0.6,
+    "arch_migration_announced": 0.6,
+    "gtm_enterprise_tier_launched": 0.55,
+    "gtm_customer_signed": 0.5,
+    "org_key_hire": 0.35,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -747,6 +758,62 @@ class SignalEngine:
                 signal_id,
             )
             distinct_sources = ev_source_row["src_cnt"] if ev_source_row else 1
+            source_rows = await conn.fetch(
+                """SELECT se2.source_type, COUNT(*) AS cnt
+                   FROM signal_evidence sev
+                   JOIN startup_events se2 ON sev.event_id = se2.id
+                   WHERE sev.signal_id = $1::uuid AND se2.source_type IS NOT NULL
+                   GROUP BY se2.source_type""",
+                signal_id,
+            )
+            source_total = sum(int(r["cnt"] or 0) for r in source_rows)
+            max_source_share = 1.0
+            if source_total > 0 and source_rows:
+                max_source_share = max(int(r["cnt"] or 0) / source_total for r in source_rows)
+            source_count_spread = max(0.0, min(1.0, 1.0 - max_source_share))
+
+            last_evidence_row = await conn.fetchrow(
+                """SELECT MAX(created_at) AS last_evidence_at
+                   FROM signal_evidence
+                   WHERE signal_id = $1::uuid""",
+                signal_id,
+            )
+            last_evidence_at = last_evidence_row["last_evidence_at"] if last_evidence_row else None
+            if last_evidence_at:
+                age_days = max(0.0, (now - last_evidence_at).total_seconds() / 86400.0)
+                freshness_score = max(0.0, min(1.0, math.exp(-age_days / 14.0)))
+            else:
+                freshness_score = 0.0
+
+            contradiction_count = 0
+            try:
+                contradiction_row = await conn.fetchrow(
+                    """SELECT COUNT(*) AS contradiction_count
+                       FROM signal_evidence sev
+                       JOIN news_item_decisions nid ON nid.cluster_id = sev.cluster_id
+                       WHERE sev.signal_id = $1::uuid
+                         AND COALESCE(nid.has_contradiction, FALSE) = TRUE""",
+                    signal_id,
+                )
+                contradiction_count = int(contradiction_row["contradiction_count"] or 0) if contradiction_row else 0
+            except Exception:
+                contradiction_count = 0
+
+            event_rows = await conn.fetch(
+                """SELECT se2.event_type, COUNT(*) AS cnt
+                   FROM signal_evidence sev
+                   JOIN startup_events se2 ON se2.id = sev.event_id
+                   WHERE sev.signal_id = $1::uuid
+                   GROUP BY se2.event_type""",
+                signal_id,
+            )
+            total_event_count = max(1, sum(int(r["cnt"] or 0) for r in event_rows))
+            weighted_impact = 0.0
+            for er in event_rows:
+                event_type = str(er["event_type"] or "")
+                cnt = int(er["cnt"] or 0)
+                weighted_impact += EVENT_IMPACT_WEIGHTS.get(event_type, 0.25) * cnt
+            impact_breadth_score = max(0.0, min(1.0, weighted_impact / total_event_count))
 
             # Compute conviction with rarity bonus (3.2)
             conviction = compute_conviction(
@@ -780,11 +847,82 @@ class SignalEngine:
             momentum = max(-1.0, min(1.0, momentum))
 
             impact_score = compute_impact(funding_amounts, has_enterprise, has_hyperscaler)
+            impact_score = min(1.0, (impact_score * 0.78) + (impact_breadth_score * 0.22))
             velocity = compute_adoption_velocity(dates)
+            evidence_diversity_score = max(
+                0.0,
+                min(1.0, (min(1.0, distinct_sources / 6.0) * 0.65) + (source_count_spread * 0.35)),
+            )
+            contradiction_penalty = min(0.25, contradiction_count * 0.03)
+            confidence_score = max(
+                0.0,
+                min(
+                    1.0,
+                    (conviction * 0.48)
+                    + (impact_score * 0.2)
+                    + (freshness_score * 0.17)
+                    + (evidence_diversity_score * 0.15)
+                    - contradiction_penalty,
+                ),
+            )
+
+            momentum_label = "accelerating" if momentum > 0.2 else "cooling" if momentum < -0.2 else "stable"
+            freshness_label = "fresh evidence" if freshness_score >= 0.7 else "recent evidence" if freshness_score >= 0.45 else "aging evidence"
+            reason_short = f"Signal is {momentum_label} with {freshness_label}."
+            delta_events = recent_count - prev_count
+            if prev_count > 0:
+                delta_pct = (delta_events / prev_count) * 100.0
+                delta_text = f"{delta_events:+d} events ({delta_pct:+.0f}%)"
+            else:
+                delta_text = f"{delta_events:+d} events"
+            claim_structured = {
+                "what_changed": f"{recent_count} recent events across {sig['unique_company_count']} companies.",
+                "vs_previous_window": f"{recent_count} vs {prev_count} events ({delta_text}).",
+                "why_now": f"{reason_short} Impact breadth score {impact_breadth_score:.2f}.",
+            }
+
+            linked_story_total = 0
+            top_story_ids: List[str] = []
+            try:
+                linked_story_total_row = await conn.fetchrow(
+                    """SELECT COUNT(DISTINCT cluster_id) AS cnt
+                       FROM signal_evidence
+                       WHERE signal_id = $1::uuid
+                         AND cluster_id IS NOT NULL""",
+                    signal_id,
+                )
+                linked_story_total = int(linked_story_total_row["cnt"] or 0) if linked_story_total_row else 0
+
+                linked_story_rows = await conn.fetch(
+                    """SELECT se.cluster_id::text AS cluster_id, COUNT(*) AS cnt
+                       FROM signal_evidence se
+                       WHERE se.signal_id = $1::uuid
+                         AND se.cluster_id IS NOT NULL
+                       GROUP BY se.cluster_id
+                       ORDER BY COUNT(*) DESC, se.cluster_id
+                       LIMIT 3""",
+                    signal_id,
+                )
+                top_story_ids = [str(r["cluster_id"]) for r in linked_story_rows if r["cluster_id"]]
+            except Exception:
+                linked_story_total = 0
+                top_story_ids = []
 
             # Persist smoothed values in metadata
             metadata["prev_momentum"] = round(momentum, 4)
             metadata["prev_conviction"] = round(conviction, 4)
+            metadata["freshness_score"] = round(freshness_score, 4)
+            metadata["evidence_diversity_score"] = round(evidence_diversity_score, 4)
+            metadata["memory_contradiction_count"] = contradiction_count
+            metadata["impact_breadth_score"] = round(impact_breadth_score, 4)
+            metadata["confidence_score"] = round(confidence_score, 4)
+            metadata["reason_short"] = reason_short
+            metadata["source_type_count"] = int(distinct_sources or 0)
+            metadata["source_count_spread"] = round(source_count_spread, 4)
+            metadata["linked_story_count"] = linked_story_total
+            metadata["top_story_ids"] = top_story_ids
+            metadata["signal_window_days"] = SCORING_LOOKBACK_DAYS
+            metadata["claim_structured"] = claim_structured
 
             await conn.execute(
                 """UPDATE signals SET

@@ -61,6 +61,15 @@ export interface NewsItemCard {
     sources_used?: Array<{ url: string; title: string }>;
     quality_score?: number;
   };
+  signal_impact?: 'creates' | 'updates' | 'none';
+  linked_signal_count?: number;
+  top_linked_signal?: {
+    id: string;
+    claim: string;
+    reason?: string;
+    freshness_score?: number;
+    last_evidence_at?: string | null;
+  };
 }
 
 export type SignalActionType = 'upvote' | 'save' | 'hide' | 'not_useful';
@@ -230,6 +239,28 @@ export function rowToCard(row: Record<string, unknown>): NewsItemCard & { _linke
         entity_context: typeof raw.entity_context === 'object' ? raw.entity_context as Record<string, unknown> : undefined,
         sources_used: Array.isArray(raw.sources_used) ? (raw.sources_used as Array<{ url: string; title: string }>) : undefined,
         quality_score: typeof raw.quality_score === 'number' ? raw.quality_score : undefined,
+      };
+    })(),
+    signal_impact: (() => {
+      const raw = String(row.signal_impact || '').toLowerCase();
+      if (raw === 'creates' || raw === 'updates' || raw === 'none') return raw;
+      return undefined;
+    })(),
+    linked_signal_count: row.linked_signal_count === null || row.linked_signal_count === undefined
+      ? undefined
+      : toNumber(row.linked_signal_count),
+    top_linked_signal: (() => {
+      if (!row.top_linked_signal_id || !row.top_linked_signal_claim) return undefined;
+      return {
+        id: String(row.top_linked_signal_id),
+        claim: String(row.top_linked_signal_claim),
+        reason: row.top_linked_signal_reason ? String(row.top_linked_signal_reason) : undefined,
+        freshness_score: row.top_linked_signal_freshness_score === null || row.top_linked_signal_freshness_score === undefined
+          ? undefined
+          : toNumber(row.top_linked_signal_freshness_score),
+        last_evidence_at: row.top_linked_signal_last_evidence_at
+          ? String(row.top_linked_signal_last_evidence_at)
+          : null,
       };
     })(),
     // Carry through raw linked_entities_json for enrichEntityLinks() post-processing
@@ -510,6 +541,13 @@ export function makeNewsService(pool: Pool) {
           c.rank_reason,
           c.trust_score,
           c.source_count,
+          COALESCE(slink.linked_signal_count, 0) AS linked_signal_count,
+          COALESCE(slink.signal_impact, 'none') AS signal_impact,
+          slink.top_linked_signal_id::text AS top_linked_signal_id,
+          slink.top_linked_signal_claim,
+          slink.top_linked_signal_reason,
+          slink.top_linked_signal_freshness_score,
+          slink.top_linked_signal_last_evidence_at,
           COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
           COALESCE(
             MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
@@ -523,8 +561,35 @@ export function makeNewsService(pool: Pool) {
         LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
         LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
         LEFT JOIN news_sources ns ON ns.id = nir.source_id
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(DISTINCT s.id)::int AS linked_signal_count,
+            (
+              CASE
+                WHEN COUNT(DISTINCT s.id) = 0 THEN 'none'
+                WHEN BOOL_OR(s.first_seen_at >= c.published_at - INTERVAL '24 hours'
+                         AND s.first_seen_at <= c.published_at + INTERVAL '72 hours') THEN 'creates'
+                ELSE 'updates'
+              END
+            )::text AS signal_impact,
+            (ARRAY_AGG(s.id ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_id,
+            (ARRAY_AGG(s.claim ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_claim,
+            (ARRAY_AGG(COALESCE(s.metadata_json->>'reason_short', '') ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_reason,
+            (ARRAY_AGG(COALESCE((s.metadata_json->>'freshness_score')::float, 0) ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_freshness_score,
+            to_char(
+              (ARRAY_AGG(s.last_evidence_at ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AT TIME ZONE 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+            ) AS top_linked_signal_last_evidence_at
+          FROM signal_evidence se
+          JOIN signals s ON s.id = se.signal_id
+          WHERE se.cluster_id = c.id
+            AND s.region = $2
+        ) slink ON TRUE
         LEFT JOIN news_item_extractions nie ON nie.cluster_id = c.id
-        GROUP BY c.id, o.ord, nie.linked_entities_json
+        GROUP BY c.id, o.ord, nie.linked_entities_json,
+                 slink.linked_signal_count, slink.signal_impact, slink.top_linked_signal_id,
+                 slink.top_linked_signal_claim, slink.top_linked_signal_reason,
+                 slink.top_linked_signal_freshness_score, slink.top_linked_signal_last_evidence_at
         ORDER BY o.ord ASC
         LIMIT $3
         `,
@@ -573,6 +638,13 @@ export function makeNewsService(pool: Pool) {
             c.rank_reason,
             c.trust_score,
             c.source_count,
+            COALESCE(slink.linked_signal_count, 0) AS linked_signal_count,
+            COALESCE(slink.signal_impact, 'none') AS signal_impact,
+            slink.top_linked_signal_id::text AS top_linked_signal_id,
+            slink.top_linked_signal_claim,
+            slink.top_linked_signal_reason,
+            slink.top_linked_signal_freshness_score,
+            slink.top_linked_signal_last_evidence_at,
             COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
             COALESCE(
               MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
@@ -586,8 +658,35 @@ export function makeNewsService(pool: Pool) {
           LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
           LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
           LEFT JOIN news_sources ns ON ns.id = nir.source_id
+          LEFT JOIN LATERAL (
+            SELECT
+              COUNT(DISTINCT s.id)::int AS linked_signal_count,
+              (
+                CASE
+                  WHEN COUNT(DISTINCT s.id) = 0 THEN 'none'
+                  WHEN BOOL_OR(s.first_seen_at >= c.published_at - INTERVAL '24 hours'
+                           AND s.first_seen_at <= c.published_at + INTERVAL '72 hours') THEN 'creates'
+                  ELSE 'updates'
+                END
+              )::text AS signal_impact,
+              (ARRAY_AGG(s.id ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_id,
+              (ARRAY_AGG(s.claim ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_claim,
+              (ARRAY_AGG(COALESCE(s.metadata_json->>'reason_short', '') ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_reason,
+              (ARRAY_AGG(COALESCE((s.metadata_json->>'freshness_score')::float, 0) ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_freshness_score,
+              to_char(
+                (ARRAY_AGG(s.last_evidence_at ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+              ) AS top_linked_signal_last_evidence_at
+            FROM signal_evidence se
+            JOIN signals s ON s.id = se.signal_id
+            WHERE se.cluster_id = c.id
+              AND s.region = 'global'
+          ) slink ON TRUE
           LEFT JOIN news_item_extractions nie ON nie.cluster_id = c.id
-          GROUP BY c.id, o.ord, nie.linked_entities_json
+          GROUP BY c.id, o.ord, nie.linked_entities_json,
+                   slink.linked_signal_count, slink.signal_impact, slink.top_linked_signal_id,
+                   slink.top_linked_signal_claim, slink.top_linked_signal_reason,
+                   slink.top_linked_signal_freshness_score, slink.top_linked_signal_last_evidence_at
           ORDER BY o.ord ASC
           LIMIT $2
           `,
@@ -681,6 +780,13 @@ export function makeNewsService(pool: Pool) {
           c.rank_reason,
           c.trust_score,
           c.source_count,
+          COALESCE(slink.linked_signal_count, 0) AS linked_signal_count,
+          COALESCE(slink.signal_impact, 'none') AS signal_impact,
+          slink.top_linked_signal_id::text AS top_linked_signal_id,
+          slink.top_linked_signal_claim,
+          slink.top_linked_signal_reason,
+          slink.top_linked_signal_freshness_score,
+          slink.top_linked_signal_last_evidence_at,
           COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
           COALESCE(
             MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
@@ -694,11 +800,38 @@ export function makeNewsService(pool: Pool) {
         LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
         LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
         LEFT JOIN news_sources ns ON ns.id = nir.source_id
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(DISTINCT s.id)::int AS linked_signal_count,
+            (
+              CASE
+                WHEN COUNT(DISTINCT s.id) = 0 THEN 'none'
+                WHEN BOOL_OR(s.first_seen_at >= c.published_at - INTERVAL '24 hours'
+                         AND s.first_seen_at <= c.published_at + INTERVAL '72 hours') THEN 'creates'
+                ELSE 'updates'
+              END
+            )::text AS signal_impact,
+            (ARRAY_AGG(s.id ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_id,
+            (ARRAY_AGG(s.claim ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_claim,
+            (ARRAY_AGG(COALESCE(s.metadata_json->>'reason_short', '') ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_reason,
+            (ARRAY_AGG(COALESCE((s.metadata_json->>'freshness_score')::float, 0) ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_freshness_score,
+            to_char(
+              (ARRAY_AGG(s.last_evidence_at ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AT TIME ZONE 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+            ) AS top_linked_signal_last_evidence_at
+          FROM signal_evidence se
+          JOIN signals s ON s.id = se.signal_id
+          WHERE se.cluster_id = c.id
+            AND s.region = $2
+        ) slink ON TRUE
         LEFT JOIN news_item_extractions nie ON nie.cluster_id = c.id
         WHERE nti.edition_date = $1::date
           AND nti.region = $2
           AND nti.topic = $3
-        GROUP BY c.id, nti.rank_score, nie.linked_entities_json
+        GROUP BY c.id, nti.rank_score, nie.linked_entities_json,
+                 slink.linked_signal_count, slink.signal_impact, slink.top_linked_signal_id,
+                 slink.top_linked_signal_claim, slink.top_linked_signal_reason,
+                 slink.top_linked_signal_freshness_score, slink.top_linked_signal_last_evidence_at
         ORDER BY nti.rank_score DESC, c.published_at DESC
         LIMIT $4
         `,
@@ -735,6 +868,13 @@ export function makeNewsService(pool: Pool) {
             c.rank_reason,
             c.trust_score,
             c.source_count,
+            COALESCE(slink.linked_signal_count, 0) AS linked_signal_count,
+            COALESCE(slink.signal_impact, 'none') AS signal_impact,
+            slink.top_linked_signal_id::text AS top_linked_signal_id,
+            slink.top_linked_signal_claim,
+            slink.top_linked_signal_reason,
+            slink.top_linked_signal_freshness_score,
+            slink.top_linked_signal_last_evidence_at,
             COALESCE(MAX(CASE WHEN nci.is_primary THEN nir.url END), c.canonical_url) AS primary_url,
             COALESCE(
               MAX(CASE WHEN nci.is_primary THEN NULLIF(nir.payload_json->>'image_url', '') END),
@@ -748,10 +888,37 @@ export function makeNewsService(pool: Pool) {
           LEFT JOIN news_cluster_items nci ON nci.cluster_id = c.id
           LEFT JOIN news_items_raw nir ON nir.id = nci.raw_item_id
           LEFT JOIN news_sources ns ON ns.id = nir.source_id
+          LEFT JOIN LATERAL (
+            SELECT
+              COUNT(DISTINCT s.id)::int AS linked_signal_count,
+              (
+                CASE
+                  WHEN COUNT(DISTINCT s.id) = 0 THEN 'none'
+                  WHEN BOOL_OR(s.first_seen_at >= c.published_at - INTERVAL '24 hours'
+                           AND s.first_seen_at <= c.published_at + INTERVAL '72 hours') THEN 'creates'
+                  ELSE 'updates'
+                END
+              )::text AS signal_impact,
+              (ARRAY_AGG(s.id ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_id,
+              (ARRAY_AGG(s.claim ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_claim,
+              (ARRAY_AGG(COALESCE(s.metadata_json->>'reason_short', '') ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_reason,
+              (ARRAY_AGG(COALESCE((s.metadata_json->>'freshness_score')::float, 0) ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AS top_linked_signal_freshness_score,
+              to_char(
+                (ARRAY_AGG(s.last_evidence_at ORDER BY s.impact DESC NULLS LAST, s.conviction DESC NULLS LAST))[1] AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+              ) AS top_linked_signal_last_evidence_at
+            FROM signal_evidence se
+            JOIN signals s ON s.id = se.signal_id
+            WHERE se.cluster_id = c.id
+              AND s.region = 'global'
+          ) slink ON TRUE
           LEFT JOIN news_item_extractions nie ON nie.cluster_id = c.id
           WHERE nti.edition_date = $1::date
             AND nti.topic = $2
-          GROUP BY c.id, nti.rank_score, nie.linked_entities_json
+          GROUP BY c.id, nti.rank_score, nie.linked_entities_json,
+                   slink.linked_signal_count, slink.signal_impact, slink.top_linked_signal_id,
+                   slink.top_linked_signal_claim, slink.top_linked_signal_reason,
+                   slink.top_linked_signal_freshness_score, slink.top_linked_signal_last_evidence_at
           ORDER BY nti.rank_score DESC, c.published_at DESC
           LIMIT $3
           `,

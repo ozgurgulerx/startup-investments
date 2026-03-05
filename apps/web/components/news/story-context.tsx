@@ -9,6 +9,7 @@ import { TrustBadge } from './trust-badge';
 import { ReactionBar } from './reaction-bar';
 import { ImpactBox } from './impact-box';
 import { EvidenceExpander } from './evidence-expander';
+import { isNewsSignalLinksEnabled } from '@/lib/radar-flags';
 
 interface StoryContextProps {
   item: NewsItemCard;
@@ -30,6 +31,8 @@ const EN_COPY = {
   entities: 'Entities',
   topics: 'Topics',
   related: 'Related',
+  topSignal: 'Top linked signal',
+  openSignal: 'Open signal',
 };
 
 const TR_COPY = {
@@ -45,7 +48,21 @@ const TR_COPY = {
   entities: 'Varliklar',
   topics: 'Konular',
   related: 'Ilgili',
+  topSignal: 'Bagli ana sinyal',
+  openSignal: 'Sinyali ac',
 };
+
+function getOpenSignalHref(item: NewsItemCard, region: 'global' | 'turkey'): string | null {
+  const signalId = item.top_linked_signal?.id;
+  if (!signalId) return null;
+  const qs = new URLSearchParams();
+  if (region !== 'global') qs.set('region', region);
+  qs.set('id', signalId);
+  qs.set('originStory', item.id);
+  qs.set('originRegion', region);
+  qs.set('originPath', `/news?${region !== 'global' ? `region=${region}&` : ''}story=${item.id}`);
+  return `/signals?${qs.toString()}`;
+}
 
 function buildFallbackEvidence(item: NewsItemCard): EvidenceItem[] {
   const evidence: EvidenceItem[] = [];
@@ -69,6 +86,8 @@ function buildFallbackEvidence(item: NewsItemCard): EvidenceItem[] {
 
 export function StoryContext({ item, onClose, relatedSignals, region = 'global' }: StoryContextProps) {
   const l = region === 'turkey' ? TR_COPY : EN_COPY;
+  const linksEnabled = isNewsSignalLinksEnabled();
+  const openSignalHref = linksEnabled ? getOpenSignalHref(item, region) : null;
   const summary = item.llm_summary || item.summary;
   const displayTitle = item.ba_title || item.title;
   const whyItMatters = item.why_it_matters || item.builder_takeaway;
@@ -173,6 +192,27 @@ export function StoryContext({ item, onClose, relatedSignals, region = 'global' 
 
         {/* Impact */}
         <ImpactBox item={item} region={region} />
+
+        {linksEnabled && item.top_linked_signal && (
+          <div className="rounded-lg border border-border/30 bg-muted/10 p-3 space-y-1.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{l.topSignal}</p>
+            <p className="text-xs text-foreground leading-relaxed">{item.top_linked_signal.claim}</p>
+            {(item.top_linked_signal.reason || item.top_linked_signal.last_evidence_at) && (
+              <p className="text-[10px] text-muted-foreground">
+                {item.top_linked_signal.reason || ''}
+                {item.top_linked_signal.last_evidence_at ? ` · ${timeAgo(item.top_linked_signal.last_evidence_at, region)}` : ''}
+              </p>
+            )}
+            {openSignalHref && (
+              <Link
+                href={openSignalHref}
+                className="inline-flex items-center rounded-md border border-accent-info/30 bg-accent-info/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-accent-info hover:bg-accent-info/20 transition-colors"
+              >
+                {l.openSignal}
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* Evidence */}
         <EvidenceExpander evidence={evidence} defaultCollapsed={false} region={region} />

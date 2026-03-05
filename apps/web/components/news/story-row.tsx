@@ -13,6 +13,7 @@ import { DecisionHeader } from './decision-header';
 import { ContextBar } from './context-bar';
 import { EvidenceExpander } from './evidence-expander';
 import type { ViewMode } from './view-toggle';
+import { isNewsSignalLinksEnabled } from '@/lib/radar-flags';
 
 interface StoryCardProps {
   item: NewsItemCard;
@@ -31,6 +32,10 @@ const EN_COPY = {
   openSource: 'Open source',
   topImpact: 'Top Impact',
   new: 'New',
+  signalImpactCreates: 'Signal impact: Creates',
+  signalImpactUpdates: 'Signal impact: Updates',
+  signalImpactNone: 'Signal impact: No strong signal',
+  openSignal: 'Open signal',
 };
 
 const TR_COPY = {
@@ -40,7 +45,30 @@ const TR_COPY = {
   openSource: 'Kaynagi ac',
   topImpact: 'En yuksek etki',
   new: 'Yeni',
+  signalImpactCreates: 'Sinyal etkisi: Olusturur',
+  signalImpactUpdates: 'Sinyal etkisi: Gunceller',
+  signalImpactNone: 'Sinyal etkisi: Guclu degil',
+  openSignal: 'Sinyali ac',
 };
+
+function getSignalImpactLabel(item: NewsItemCard, region: 'global' | 'turkey'): string {
+  const isTR = region === 'turkey';
+  if (item.signal_impact === 'creates') return isTR ? TR_COPY.signalImpactCreates : EN_COPY.signalImpactCreates;
+  if (item.signal_impact === 'updates') return isTR ? TR_COPY.signalImpactUpdates : EN_COPY.signalImpactUpdates;
+  return isTR ? TR_COPY.signalImpactNone : EN_COPY.signalImpactNone;
+}
+
+function getOpenSignalHref(item: NewsItemCard, region: 'global' | 'turkey'): string | null {
+  const signalId = item.top_linked_signal?.id;
+  if (!signalId) return null;
+  const qs = new URLSearchParams();
+  if (region !== 'global') qs.set('region', region);
+  qs.set('id', signalId);
+  qs.set('originStory', item.id);
+  qs.set('originRegion', region);
+  qs.set('originPath', `/news?${region !== 'global' ? `region=${region}&` : ''}story=${item.id}`);
+  return `/signals?${qs.toString()}`;
+}
 
 /** Build fallback evidence from legacy sources + url fields when evidence_json is not yet populated. */
 function buildFallbackEvidence(item: NewsItemCard): EvidenceItem[] {
@@ -65,6 +93,8 @@ function buildFallbackEvidence(item: NewsItemCard): EvidenceItem[] {
 
 export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global', viewMode }: StoryCardProps) {
   const l = region === 'turkey' ? TR_COPY : EN_COPY;
+  const linksEnabled = isNewsSignalLinksEnabled();
+  const openSignalHref = linksEnabled ? getOpenSignalHref(item, region) : null;
   const typeBadge = storyTypeBadgeClass(item.story_type);
   const tags = item.topic_tags.slice(0, 2);
   const imageUrl = item.image_url && /^https?:\/\//i.test(item.image_url) ? item.image_url : null;
@@ -135,6 +165,23 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
           {timeAgo(item.published_at, region)}
         </span>
       </div>
+
+      {linksEnabled && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex rounded-full border border-border/35 bg-muted/15 px-2 py-0.5 text-[10px] text-muted-foreground">
+            {getSignalImpactLabel(item, region)}
+          </span>
+          {openSignalHref && (
+            <Link
+              href={openSignalHref}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex rounded-full border border-accent-info/35 bg-accent-info/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent-info hover:bg-accent-info/20 transition-colors"
+            >
+              {l.openSignal}
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* B. Hero block — ba_title as primary, plain text (not a link) */}
       <h3 className={`mt-2 text-sm font-medium leading-snug tracking-tight line-clamp-2 ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}`}>
@@ -217,6 +264,8 @@ export function StoryCard({ item, isSelected, onSelect, isNew, onHide, region = 
 
 export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, region = 'global', viewMode }: StoryCardProps) {
   const l = region === 'turkey' ? TR_COPY : EN_COPY;
+  const linksEnabled = isNewsSignalLinksEnabled();
+  const openSignalHref = linksEnabled ? getOpenSignalHref(item, region) : null;
   const typeBadge = storyTypeBadgeClass(item.story_type);
   const displayTitle = item.ba_title || item.title;
   const whyItMatters = item.why_it_matters || item.builder_takeaway;
@@ -265,6 +314,23 @@ export function PinnedStoryCard({ item, isSelected, onSelect, isNew, onHide, reg
           {timeAgo(item.published_at, region)}
         </span>
       </div>
+
+      {linksEnabled && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex rounded-full border border-border/35 bg-muted/15 px-2 py-0.5 text-[10px] text-muted-foreground">
+            {getSignalImpactLabel(item, region)}
+          </span>
+          {openSignalHref && (
+            <Link
+              href={openSignalHref}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex rounded-full border border-accent-info/35 bg-accent-info/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-accent-info hover:bg-accent-info/20 transition-colors"
+            >
+              {l.openSignal}
+            </Link>
+          )}
+        </div>
+      )}
 
       <h3 className={`text-base font-medium leading-snug tracking-tight line-clamp-2 ${isSelected ? 'text-accent-info' : 'text-foreground group-hover:text-accent-info'}`}>
         {displayTitle}

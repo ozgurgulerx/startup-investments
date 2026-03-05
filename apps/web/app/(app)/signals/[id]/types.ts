@@ -8,17 +8,35 @@ import type {
 
 export type { DeepDiveContent, DeepDiveResponse, OccurrenceItem, MoveItem, SignalItem };
 
-export type DeepDiveTab = 'delta' | 'mechanism' | 'cases' | 'explorer' | 'relevance' | 'counter' | 'community';
+export type DeepDivePrimaryTab = 'delta' | 'evidence' | 'actions';
+export type DeepDiveMoreTab = 'explorer' | 'relevance' | 'counter' | 'community' | 'mechanism';
+export type DeepDiveTab = DeepDivePrimaryTab | DeepDiveMoreTab;
 
-export const TAB_CONFIG: Array<{ id: DeepDiveTab; label: string }> = [
-  { id: 'delta', label: 'Delta Board' },
-  { id: 'mechanism', label: 'How It Works' },
-  { id: 'cases', label: 'Case Studies' },
+export const PRIMARY_TAB_CONFIG: Array<{ id: DeepDivePrimaryTab; label: string }> = [
+  { id: 'delta', label: 'Delta' },
+  { id: 'evidence', label: 'Evidence' },
+  { id: 'actions', label: 'Actions' },
+];
+
+export const MORE_TAB_CONFIG: Array<{ id: DeepDiveMoreTab; label: string }> = [
   { id: 'explorer', label: 'Explorer' },
   { id: 'relevance', label: 'Relevance' },
   { id: 'counter', label: 'Counterevidence' },
   { id: 'community', label: 'Community' },
+  { id: 'mechanism', label: 'How It Works' },
 ];
+
+export const LEGACY_TAB_REDIRECT: Record<string, DeepDiveTab> = {
+  delta: 'delta',
+  cases: 'evidence',
+  evidence: 'evidence',
+  actions: 'actions',
+  mechanism: 'actions',
+  explorer: 'explorer',
+  relevance: 'relevance',
+  counter: 'counter',
+  community: 'community',
+};
 
 export const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   candidate: { bg: 'bg-muted/30', text: 'text-muted-foreground', label: 'Candidate' },

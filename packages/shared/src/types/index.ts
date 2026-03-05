@@ -775,6 +775,15 @@ export interface NewsItemCard {
     sources_used?: Array<{ url: string; title: string }>;
     quality_score?: number;
   };
+  signal_impact?: 'creates' | 'updates' | 'none';
+  linked_signal_count?: number;
+  top_linked_signal?: {
+    id: string;
+    claim: string;
+    reason?: string;
+    freshness_score?: number;
+    last_evidence_at?: string | null;
+  };
 }
 
 // -----------------------------------------------------------------------------

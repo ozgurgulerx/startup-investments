@@ -422,6 +422,17 @@ export interface SignalItem {
     timeline_start: string;
     timeline_end: string;
   };
+  confidence_score?: number;
+  freshness_score?: number;
+  evidence_diversity_score?: number;
+  reason_short?: string;
+  linked_story_count?: number;
+  top_story_ids?: string[];
+  claim_structured?: {
+    what_changed?: string;
+    vs_previous_window?: string;
+    why_now?: string;
+  };
 }
 
 export interface SignalsSummaryResponse {
@@ -433,6 +444,9 @@ export interface SignalsSummaryResponse {
     by_status: Record<string, number>;
     by_domain: Record<string, number>;
   };
+  last_pipeline_run_at?: string | null;
+  stale?: boolean;
+  stale_reason?: string | null;
 }
 
 export interface SignalsListResponse {
