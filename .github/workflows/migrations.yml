@@ -1,0 +1,30 @@
+name: Database Migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "database/migrations/**"
+  workflow_dispatch:
+
+concurrency:
+  group: migrations
+
+jobs:
+  migrate:
+    name: Apply Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install asyncpg
+
+      - name: Apply all migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/apply_migrations.py all

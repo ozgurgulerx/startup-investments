@@ -1,0 +1,61 @@
+name: Slack Notify
+description: Post a structured message to Slack via incoming webhook
+
+inputs:
+  webhook-url:
+    description: Slack incoming webhook URL
+    required: true
+  title:
+    description: Message title
+    required: true
+  status:
+    description: "Status: success, failure, or info"
+    required: true
+    default: info
+  body:
+    description: Message body (markdown)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook-url }}
+        TITLE: ${{ inputs.title }}
+        STATUS: ${{ inputs.status }}
+        BODY: ${{ inputs.body }}
+      run: |
+        if [ -z "$WEBHOOK_URL" ]; then
+          echo "No webhook URL; skipping Slack notification."
+          exit 0
+        fi
+
+        case "$STATUS" in
+          success) COLOR="#36a64f" ; EMOJI=":white_check_mark:" ;;
+          failure) COLOR="#dc3545" ; EMOJI=":x:" ;;
+          *)       COLOR="#1f78d1" ; EMOJI=":information_source:" ;;
+        esac
+
+        PAYLOAD=$(jq -n \
+          --arg color "$COLOR" \
+          --arg title "$EMOJI $TITLE" \
+          --arg body "$BODY" \
+          --arg repo "${{ github.repository }}" \
+          --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          --arg sha "${{ github.sha }}" \
+          '{
+            attachments: [{
+              color: $color,
+              blocks: [
+                { type: "section", text: { type: "mrkdwn", text: ("*" + $title + "*") } },
+                ( if $body != "" then { type: "section", text: { type: "mrkdwn", text: $body } } else empty end ),
+                { type: "context", elements: [
+                  { type: "mrkdwn", text: ("Repo: `" + $repo + "` | SHA: `" + ($sha[:7]) + "` | <" + $run_url + "|View run>") }
+                ]}
+              ]
+            }]
+          }')
+
+        curl -sfS -X POST -H 'Content-Type: application/json' -d "$PAYLOAD" "$WEBHOOK_URL" || echo "WARN: Slack notification failed"

@@ -1,0 +1,46 @@
+name: Health Check
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Check Services
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check API health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+            "https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health" || echo '000')
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::API health check failed (HTTP $STATUS)"
+            echo "API_DOWN=true" >> "$GITHUB_ENV"
+          else
+            echo "API OK (HTTP 200)"
+          fi
+
+      - name: Check frontend
+        run: |
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+            "https://buildatlas.net" || echo '000')
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Frontend health check failed (HTTP $STATUS)"
+            echo "WEB_DOWN=true" >> "$GITHUB_ENV"
+          else
+            echo "Frontend OK (HTTP 200)"
+          fi
+
+      - name: Slack alert on failure
+        if: env.API_DOWN == 'true' || env.WEB_DOWN == 'true'
+        uses: ./.github/actions/slack-notify
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: "Health check failed"
+          status: failure
+          body: |
+            API: ${{ env.API_DOWN == 'true' && 'DOWN' || 'OK' }}
+            Frontend: ${{ env.WEB_DOWN == 'true' && 'DOWN' || 'OK' }}

@@ -1,6 +1,6 @@
 # BuildAtlas Operating Model
 
-Last updated: 2026-02-14
+Last updated: 2026-03-05
 Document owner: Platform/Operations
 Review cadence: Monthly or immediately after architecture/deploy/schedule changes.
 
@@ -114,24 +114,34 @@ AKS availability is primarily protected via an Azure Automation runbook (indepen
 - Deploy: apply the Bicep from an operator environment (typically the VM) using `az deployment group create ...` (see `infrastructure/azure/aks-uptime.bicep` for params/variables).
 - Slack: webhook is stored as an encrypted Automation variable `SLACK_WEBHOOK_URL` (runbook posts only on changes/failures)
 
-### Deploy/orchestration control plane: VM cron
+### Deploy/orchestration control plane: VM cron (legacy, being decommissioned)
 
-`infrastructure/vm-cron/deploy.sh` (`code-update` job) is the default release orchestrator.
+Deploy orchestration has moved to GitHub Actions (see below). The VM cron deploy jobs
+(`code-update`, `backend-deploy`, `frontend-deploy`, `pipelines-deploy`, `functions-deploy`)
+are disabled via `infrastructure/vm-cron/vm-cron-disabled-jobs`.
 
-- Pulls latest `main` every 15 minutes.
-- Reinstalls cron if drift is detected.
-- Triggers:
-  - `backend-deploy.sh` for API/shared/k8s changes.
-  - `frontend-deploy.sh` for web/shared changes.
-  - `functions-deploy.sh` for `infrastructure/azure-functions/**` and `packages/analysis/**` changes.
-  - `pipelines-deploy.sh` for pipeline runtime changes (`packages/analysis/**`, `database/migrations/**`, `infrastructure/vm-cron/**`, `scripts/**`, `infrastructure/pipelines/**`, `infrastructure/kubernetes/pipelines-*.yaml`).
-- Applies migrations when migration files changed.
+The VM still runs:
+- `sync-data.sh` — blob sync + git commit + triggers `gh workflow run deploy-frontend.yml`
+- `keep-alive.sh` — starts stopped Azure resources
+- `heartbeat.sh` — VM self-monitoring
+- `health-report.sh` — periodic health summary
+- `product-canary.sh` — browser canary checks
 
 ### GitHub Actions
 
-GitHub Actions workflows are intentionally removed from this repo. Deploy and automation run via:
-- AKS CronJobs (`buildatlas-pipelines`, `buildatlas-ops`)
-- VM cron (`infrastructure/vm-cron/**`)
+GitHub Actions is the primary CI/CD control plane for deploys and checks:
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `ci.yml` | PR to `main` | Lint, typecheck, tests, build check |
+| `deploy-backend.yml` | Push to `main` (`apps/api/**`, `packages/shared/**`) | Build API image, deploy to AKS, health check + rollback |
+| `deploy-frontend.yml` | Push to `main` (`apps/web/**`, `packages/shared/**`) + `workflow_dispatch` | Build web image, deploy to App Service, smoke check |
+| `deploy-pipelines.yml` | Push to `main` (`packages/analysis/**`, `scripts/**`, etc.) | Build pipeline images, apply CronJobs to AKS |
+| `deploy-functions.yml` | Push to `main` (`infrastructure/azure-functions/**`) | Package and deploy Azure Functions |
+| `migrations.yml` | Push to `main` (`database/migrations/**`) | Apply database migrations |
+| `health-check.yml` | Every 15 min + `workflow_dispatch` | API and frontend health monitoring |
+
+Authentication: Azure OIDC (federated credentials from GitHub to Azure AD app registration `github-actions-buildatlas`).
 
 ## 6) Configuration and Secrets Model
 
@@ -249,6 +259,7 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `onboarding-alerts` | `*/2 * * * *` | 5 | `infrastructure/vm-cron/jobs/onboarding-alerts.sh` |
 | `crawl-frontier` | `0,30 * * * *` | 40 | `infrastructure/vm-cron/jobs/crawl-frontier.sh` |
 | `research-topics` | `40 * * * *` | 10 | `infrastructure/vm-cron/jobs/research-topics.sh` |
+| `investigate-seeds` | `50 */2 * * *` | 15 | `infrastructure/vm-cron/jobs/investigate-seeds.sh` |
 | `news-digest` | `45 * * * *` | 15 | `infrastructure/vm-cron/jobs/news-digest.sh` |
 | `x-post-generate` | `35 */4 * * *` | 10 | `infrastructure/vm-cron/jobs/x-post-generate.sh` |
 | `x-post-publish` | `55 * * * *` | 10 | `infrastructure/vm-cron/jobs/x-post-publish.sh` |
@@ -279,16 +290,18 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `heartbeat` | `*/5 * * * *` | N/A (direct) | `infrastructure/vm-cron/monitoring/heartbeat.sh` |
 
 Notes:
+- `theinformation-headlines` is intentionally disabled in VM cron while source fetch reliability is being hardened; run manually via `infrastructure/vm-cron/jobs/seed-theinformation-headlines.sh` when needed.
 - `onboarding-eod-report` runs as an AKS CronJob (primary) and posts to Slack; it can also email the same report (best-effort) when `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO` are configured (AKS secret or VM env). The VM schedule is fallback-only and should be disabled via `infrastructure/vm-cron/vm-cron-disabled-jobs` to avoid duplicate posts.
 
 ### Triggered (not scheduled) jobs
 
 | Job | Trigger |
 |---|---|
-| `frontend-deploy` | Called by `sync-data.sh`, `deploy.sh`, or manual runner invocation |
-| `backend-deploy` | Called by `deploy.sh` or manual runner invocation |
-| `functions-deploy` | Called by `deploy.sh` or manual runner invocation |
-| `pipelines-deploy` | Called by `deploy.sh` or manual runner invocation |
+| `deploy-backend.yml` | Push to `main` (`apps/api/**`, `packages/shared/**`) or `workflow_dispatch` |
+| `deploy-frontend.yml` | Push to `main` (`apps/web/**`, `packages/shared/**`), `workflow_dispatch`, or `sync-data.sh` via `gh workflow run` |
+| `deploy-functions.yml` | Push to `main` (`infrastructure/azure-functions/**`) or `workflow_dispatch` |
+| `deploy-pipelines.yml` | Push to `main` (analysis/scripts/infra paths) or `workflow_dispatch` |
+| `migrations.yml` | Push to `main` (`database/migrations/**`) or `workflow_dispatch` |
 
 ## 9) Pipeline Maps
 

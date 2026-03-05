@@ -258,9 +258,13 @@ git push origin main
 # Release lock early (deploy can take time).
 exec 201>&-
 
-echo "Pushed $TOTAL changes. Triggering frontend deploy..."
+echo "Pushed $TOTAL changes. Triggering frontend deploy via GitHub Actions..."
 
-# Deploy frontend directly on VM (no longer relies on GitHub Actions)
-"$SCRIPT_DIR/../lib/runner.sh" frontend-deploy 20 "$SCRIPT_DIR/frontend-deploy.sh"
+# Trigger frontend deploy via GitHub Actions (replaces local VM deploy)
+if command -v gh >/dev/null 2>&1; then
+    gh workflow run deploy-frontend.yml --ref main || echo "WARN: gh workflow run failed; frontend deploy must be triggered manually."
+else
+    echo "WARN: gh CLI not available; frontend deploy must be triggered manually."
+fi
 
 echo "=== Sync Data complete ==="

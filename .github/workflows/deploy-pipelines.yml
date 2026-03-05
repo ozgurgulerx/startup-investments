@@ -1,0 +1,148 @@
+name: Deploy Pipelines
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/analysis/**"
+      - "scripts/**"
+      - "database/migrations/**"
+      - "infrastructure/pipelines/**"
+      - "infrastructure/ops/**"
+      - "infrastructure/kubernetes/pipelines-*"
+      - "infrastructure/kubernetes/posthog-*"
+      - "infrastructure/kubernetes/playwright-canary-*"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-pipelines
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_NAME: aistartuptr
+  AKS_CLUSTER: aks-aistartuptr
+  AKS_RG: aistartuptr
+
+jobs:
+  deploy:
+    name: Build & Deploy Pipelines
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure OIDC Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build pipelines image
+        run: |
+          COMMIT_SHA="${GITHUB_SHA::7}"
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "buildatlas-pipelines:$COMMIT_SHA" \
+            --image "buildatlas-pipelines:latest" \
+            --file infrastructure/pipelines/Dockerfile \
+            .
+          echo "IMAGE_TAG=$COMMIT_SHA" >> "$GITHUB_ENV"
+
+      - name: Build ops image (best effort)
+        id: ops-build
+        continue-on-error: true
+        run: |
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "buildatlas-ops:$IMAGE_TAG" \
+            --image "buildatlas-ops:latest" \
+            --file infrastructure/ops/Dockerfile \
+            .
+
+      - name: Build playwright canary image (best effort)
+        id: canary-build
+        continue-on-error: true
+        run: |
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "buildatlas-playwright-canary:$IMAGE_TAG" \
+            --image "buildatlas-playwright-canary:latest" \
+            --file infrastructure/ops/playwright-canary/Dockerfile \
+            .
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.AKS_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
+
+      - name: Create/update pipelines secrets
+        run: |
+          kubectl create secret generic buildatlas-pipelines-secrets \
+            --from-literal=DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            --from-literal=SLACK_WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL }}" \
+            --from-literal=API_URL="https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net" \
+            --from-literal=API_KEY="${{ secrets.API_KEY }}" \
+            --from-literal=ADMIN_KEY="${{ secrets.ADMIN_KEY }}" \
+            --from-literal=RESEND_API_KEY="${{ secrets.RESEND_API_KEY }}" \
+            --from-literal=NEWS_DIGEST_FROM_EMAIL="${{ secrets.NEWS_DIGEST_FROM_EMAIL }}" \
+            --from-literal=NEWS_DIGEST_REPLY_TO="${{ secrets.NEWS_DIGEST_REPLY_TO }}" \
+            --from-literal=PUBLIC_BASE_URL="https://buildatlas.net" \
+            --from-literal=AZURE_OPENAI_ENDPOINT="${{ secrets.AZURE_OPENAI_ENDPOINT }}" \
+            --from-literal=AZURE_OPENAI_API_KEY="${{ secrets.AZURE_OPENAI_API_KEY }}" \
+            --from-literal=AZURE_OPENAI_DEPLOYMENT_NAME="${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}" \
+            --from-literal=AZURE_OPENAI_EMBEDDING_DEPLOYMENT="${{ secrets.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}" \
+            --from-literal=OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            --from-literal=AZURE_STORAGE_CONNECTION_STRING="${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply configmap and CronJobs
+        run: |
+          kubectl apply -f infrastructure/kubernetes/pipelines-configmap.yaml
+
+          sed "s/__IMAGE_TAG__/$IMAGE_TAG/g" infrastructure/kubernetes/pipelines-cronjobs.yaml | kubectl apply -f -
+
+      - name: Apply ops CronJobs (if builds succeeded)
+        run: |
+          if ! kubectl get secret buildatlas-ops-secrets >/dev/null 2>&1; then
+            echo "WARNING: buildatlas-ops-secrets not found; skipping ops CronJobs."
+            exit 0
+          fi
+
+          if [ "${{ steps.ops-build.outcome }}" = "success" ]; then
+            for f in posthog-usage-cronjob.yaml posthog-exceptions-cronjob.yaml; do
+              sed "s/__IMAGE_TAG__/$IMAGE_TAG/g" "infrastructure/kubernetes/$f" | kubectl apply -f -
+            done
+          fi
+
+          if [ "${{ steps.canary-build.outcome }}" = "success" ]; then
+            sed "s/__IMAGE_TAG__/$IMAGE_TAG/g" infrastructure/kubernetes/playwright-canary-cronjob.yaml | kubectl apply -f -
+          fi
+
+      - name: Verify CronJob images
+        run: |
+          echo "=== Pipelines CronJobs ==="
+          kubectl get cronjobs -l app=buildatlas-pipelines \
+            -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.jobTemplate.spec.template.spec.containers[0].image}{"\n"}{end}'
+
+          EXPECTED="$ACR_NAME.azurecr.io/buildatlas-pipelines:$IMAGE_TAG"
+          REPORT=$(kubectl get cronjobs -l app=buildatlas-pipelines \
+            -o jsonpath='{range .items[*]}{.spec.jobTemplate.spec.template.spec.containers[0].image}{"\n"}{end}' || true)
+
+          if echo "$REPORT" | grep -v "^$" | grep -qv "$EXPECTED"; then
+            echo "::warning::Some CronJobs are not pinned to $EXPECTED"
+          else
+            echo "All pipelines CronJobs pinned to $EXPECTED"
+          fi
+
+      - name: Slack — deploy result
+        if: always()
+        uses: ./.github/actions/slack-notify
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: "Pipelines deploy ${{ job.status }}"
+          status: ${{ job.status == 'success' && 'success' || 'failure' }}
+          body: "Image tag: `${{ env.IMAGE_TAG }}`"

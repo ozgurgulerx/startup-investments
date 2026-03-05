@@ -1,0 +1,154 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "packages/shared/**"
+      - "infrastructure/kubernetes/api-deployment.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_NAME: aistartuptr
+  AKS_CLUSTER: aks-aistartuptr
+  AKS_RG: aistartuptr
+  IMAGE_NAME: startup-investments-api
+  API_URL: https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net
+
+jobs:
+  deploy:
+    name: Build & Deploy API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Slack — deploy started
+        uses: ./.github/actions/slack-notify
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: "Backend deploy started"
+          status: info
+          body: "Deploying `${{ github.sha }}` to AKS"
+
+      - name: Validate root package.json has no dependencies
+        run: |
+          if grep -qE '"dependencies"\s*:' package.json; then
+            echo "::error::Root package.json has 'dependencies' — move them to the appropriate workspace package."
+            exit 1
+          fi
+
+      - name: Azure OIDC Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push image to ACR
+        run: |
+          COMMIT_SHA="${GITHUB_SHA::7}"
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "$IMAGE_NAME:$COMMIT_SHA" \
+            --image "$IMAGE_NAME:latest" \
+            --file apps/api/Dockerfile \
+            --build-arg "API_BUILD_SHA=$COMMIT_SHA" \
+            .
+          echo "IMAGE_TAG=$COMMIT_SHA" >> "$GITHUB_ENV"
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.AKS_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
+
+      - name: Update Kubernetes secrets
+        run: |
+          kubectl create secret generic startup-investments-secrets \
+            --from-literal=database-url="${{ secrets.DATABASE_URL }}" \
+            --from-literal=api-key="${{ secrets.API_KEY }}" \
+            --from-literal=admin-key="${{ secrets.ADMIN_KEY }}" \
+            --from-literal=front-door-id="${{ secrets.FRONT_DOOR_ID }}" \
+            --from-literal=redis-url="${{ secrets.REDIS_URL }}" \
+            --from-literal=applicationinsights-connection-string="${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}" \
+            --from-literal=azure-openai-endpoint="${{ secrets.AZURE_OPENAI_ENDPOINT }}" \
+            --from-literal=azure-openai-api-key="${{ secrets.AZURE_OPENAI_API_KEY }}" \
+            --from-literal=azure-openai-embedding-deployment="${{ secrets.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}" \
+            --from-literal=openai-api-key="${{ secrets.OPENAI_API_KEY }}" \
+            --from-literal=azure-storage-connection-string="${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Save previous image for rollback
+        id: previous
+        run: |
+          PREV=$(kubectl get deployment startup-investments-api \
+            -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+          echo "image=$PREV" >> "$GITHUB_OUTPUT"
+          echo "Previous image: $PREV"
+
+      - name: Deploy to AKS
+        run: |
+          DEPLOY_IMAGE="$ACR_NAME.azurecr.io/$IMAGE_NAME:$IMAGE_TAG"
+          sed "s/__IMAGE_TAG__/$IMAGE_TAG/g" infrastructure/kubernetes/api-deployment.yaml | kubectl apply -f -
+
+          # Force restart if image unchanged (picks up rotated secrets)
+          PREV="${{ steps.previous.outputs.image }}"
+          if [ -n "$PREV" ] && [ "$PREV" = "$DEPLOY_IMAGE" ]; then
+            echo "Image unchanged; forcing rollout restart..."
+            kubectl rollout restart deployment/startup-investments-api
+          fi
+
+      - name: Wait for rollout
+        id: rollout
+        run: |
+          if ! kubectl rollout status deployment/startup-investments-api --timeout=600s; then
+            echo "rollout_failed=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Health check — verify build SHA
+        id: health
+        run: |
+          EXPECTED="${GITHUB_SHA::7}"
+          for i in $(seq 1 20); do
+            RESP=$(curl -fsS --max-time 10 "$API_URL/health" 2>/dev/null || true)
+            if [ -n "$RESP" ]; then
+              LIVE_SHA=$(echo "$RESP" | jq -r '.build_sha // .sha // empty' 2>/dev/null || true)
+              LIVE_SHA_LC=$(echo "$LIVE_SHA" | tr '[:upper:]' '[:lower:]')
+              EXPECTED_LC=$(echo "$EXPECTED" | tr '[:upper:]' '[:lower:]')
+              if [ -n "$LIVE_SHA_LC" ] && [[ "$LIVE_SHA_LC" == "$EXPECTED_LC"* || "$EXPECTED_LC" == "$LIVE_SHA_LC"* ]]; then
+                echo "API healthy (build_sha=$LIVE_SHA)"
+                exit 0
+              fi
+              echo "Attempt $i: build_sha mismatch (got '$LIVE_SHA', expected '$EXPECTED')"
+            else
+              echo "Attempt $i: no response, waiting..."
+            fi
+            sleep 5
+          done
+          echo "health_failed=true" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure() && steps.previous.outputs.image != ''
+        run: |
+          echo "Rolling back to: ${{ steps.previous.outputs.image }}"
+          kubectl set image deployment/startup-investments-api api="${{ steps.previous.outputs.image }}"
+          kubectl rollout status deployment/startup-investments-api --timeout=300s || true
+
+      - name: Slack — deploy result
+        if: always()
+        uses: ./.github/actions/slack-notify
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: "Backend deploy ${{ job.status }}"
+          status: ${{ job.status == 'success' && 'success' || 'failure' }}
+          body: "Image: `${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}`"
