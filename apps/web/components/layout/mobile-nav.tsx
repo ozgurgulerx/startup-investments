@@ -9,30 +9,40 @@ import { cn } from '@/lib/utils';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { useRegion } from '@/lib/region-context';
-
-interface NavItem {
-  label: string;
-  href: string;
-  showBadge?: boolean;
-  regionAware?: boolean;
-}
-
-const navItems: NavItem[] = [
-  { label: 'Brief', href: '/brief', regionAware: true },
-  { label: 'Dossiers', href: '/dealbook', regionAware: true },
-  { label: 'Signals', href: '/signals', regionAware: true },
-  { label: 'Capital', href: '/capital', regionAware: true },
-  { label: 'Benchmarks', href: '/benchmarks', regionAware: true },
-  { label: 'Landscapes', href: '/landscapes', regionAware: true },
-  { label: 'Investors', href: '/investors', regionAware: true },
-  { label: 'Library', href: '/library' },
-  { label: 'Watchlist', href: '/watchlist', showBadge: true },
-];
+import { PRIMARY_NAV_ITEMS, SECONDARY_NAV_ITEMS, CANONICAL_LABELS, type NavItemConfig } from '@/lib/copy';
 
 export function MobileNavTrigger() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const { region } = useRegion();
+
+  const renderNavItem = (item: NavItemConfig) => {
+    const isActive = pathname === item.href ||
+      (item.href !== '/' && pathname.startsWith(item.href));
+    const href = item.regionAware && region !== 'global'
+      ? `${item.href}?region=${region}`
+      : item.href;
+    const showBadge = item.href === '/watchlist';
+
+    return (
+      <Link
+        key={item.href}
+        href={href}
+        onClick={() => setOpen(false)}
+        className={cn(
+          'block px-4 py-3 text-base rounded-md transition-colors',
+          isActive
+            ? 'text-foreground bg-muted/60 font-medium'
+            : 'text-foreground/80 hover:text-foreground hover:bg-muted/40'
+        )}
+      >
+        <div className="flex items-center justify-between">
+          <span>{item.label}</span>
+          {showBadge && <WatchlistBadge />}
+        </div>
+      </Link>
+    );
+  };
 
   return (
     <>
@@ -64,58 +74,44 @@ export function MobileNavTrigger() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-4 py-6">
           <div className="space-y-2">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href ||
-                (item.href !== '/' && pathname.startsWith(item.href));
-              const href = item.regionAware && region !== 'global'
-                ? `${item.href}?region=${region}`
-                : item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    'block px-4 py-3 text-base rounded-md transition-colors',
-                    isActive
-                      ? 'text-foreground bg-muted/60 font-medium'
-                      : 'text-foreground/80 hover:text-foreground hover:bg-muted/40'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span>{item.label}</span>
-                    {item.showBadge && <WatchlistBadge />}
-                  </div>
-                </Link>
-              );
-            })}
+            {PRIMARY_NAV_ITEMS.map(renderNavItem)}
           </div>
-	        </nav>
-	
-	        {/* Footer */}
-	        <div className="px-6 py-6 border-t border-border/50 shrink-0">
-	          <div className="flex flex-col gap-2">
-	            <Link
-	              href="/support"
-	              onClick={() => setOpen(false)}
-	              className="text-sm text-muted-foreground/80 hover:text-accent-info transition-colors"
-	            >
-	              Support
-	            </Link>
-	            <a
-	              href="mailto:support@graph-atlas.com"
-	              onClick={() => setOpen(false)}
-	              className="text-sm text-muted-foreground/80 hover:text-accent-info transition-colors truncate"
-	              title="support@graph-atlas.com"
-	            >
-	              support@graph-atlas.com
-	            </a>
-	            <p className="pt-2 text-xs text-muted-foreground/70">
-	              January 2026
-	            </p>
-	          </div>
-	        </div>
-	      </Sheet>
-	    </>
-	  );
-	}
+          {SECONDARY_NAV_ITEMS.length > 0 && (
+            <div className="mt-6 space-y-2">
+              <p className="px-4 text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                {CANONICAL_LABELS.researchTools}
+              </p>
+              <div className="space-y-2 opacity-85">
+                {SECONDARY_NAV_ITEMS.map(renderNavItem)}
+              </div>
+            </div>
+          )}
+        </nav>
+
+        {/* Footer */}
+        <div className="px-6 py-6 border-t border-border/50 shrink-0">
+          <div className="flex flex-col gap-2">
+            <Link
+              href="/support"
+              onClick={() => setOpen(false)}
+              className="text-sm text-muted-foreground/80 hover:text-accent-info transition-colors"
+            >
+              Support
+            </Link>
+            <a
+              href="mailto:support@graph-atlas.com"
+              onClick={() => setOpen(false)}
+              className="text-sm text-muted-foreground/80 hover:text-accent-info transition-colors truncate"
+              title="support@graph-atlas.com"
+            >
+              support@graph-atlas.com
+            </a>
+            <p className="pt-2 text-xs text-muted-foreground/70">
+              January 2026
+            </p>
+          </div>
+        </div>
+      </Sheet>
+    </>
+  );
+}

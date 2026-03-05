@@ -169,7 +169,7 @@ export function NewsSubscriptionCard({ className, region = 'global' }: NewsSubsc
   return (
     <section className={`rounded-2xl border border-accent-info/25 bg-gradient-to-br from-accent-info/10 via-card/85 to-card/70 p-5 ${className || ''}`}>
       <p className="label-xs text-accent-info">
-        {region === 'turkey' ? 'Turkiye Sinyal Akisi' : 'Daily Radar Digest'}
+        {region === 'turkey' ? 'Turkiye Sinyal Akisi' : 'Daily Signal Feed Digest'}
       </p>
       <h3 className="mt-2 text-xl font-medium tracking-tight text-foreground">{l.title}</h3>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">

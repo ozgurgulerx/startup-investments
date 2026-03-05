@@ -36,7 +36,7 @@ export default async function DailyNewsPage() {
         <div className="flex flex-1 items-center justify-center px-6">
           <div className="max-w-md rounded-2xl border border-border/40 bg-card/60 p-10 text-center">
             <p className="label-xs text-accent-info">Signal Feed</p>
-            <h1 className="mt-3 text-3xl font-light tracking-tight text-foreground">No edition available</h1>
+            <h1 className="mt-3 text-3xl font-light tracking-tight text-foreground">No Signal Feed edition available</h1>
             <p className="mt-4 text-sm text-muted-foreground">
               The ingestion workflow has not produced a daily edition yet.
             </p>

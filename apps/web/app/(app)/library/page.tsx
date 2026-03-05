@@ -41,7 +41,7 @@ async function LibraryContent({ selectedMonth, region }: { selectedMonth?: strin
         <div className="flex items-start justify-between pb-4 border-b border-border/30">
           <div>
             <p className="label-xs text-accent-info">Deep Dives</p>
-            <h1 className="headline-lg">Library</h1>
+            <h1 className="headline-lg">Deep Dives</h1>
             <p className="body-md mt-1">AI Landscape Briefs Archive</p>
           </div>
           <PeriodNav availableMonths={availableMonths} currentMonth={period} />
@@ -65,7 +65,7 @@ async function LibraryContent({ selectedMonth, region }: { selectedMonth?: strin
         <div>
           <div className="mb-2">
             <p className="label-xs text-accent-info">Deep Dives</p>
-            <h1 className="headline-lg">Library</h1>
+            <h1 className="headline-lg">Deep Dives</h1>
             <p className="body-md mt-1">AI Landscape Briefs Archive</p>
           </div>
           <div className="flex items-center gap-4 mt-3">

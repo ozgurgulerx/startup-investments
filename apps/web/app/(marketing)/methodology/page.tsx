@@ -16,7 +16,7 @@ export default function MethodologyPage() {
               Methodology
             </h1>
             <p className="body-lg mt-4 max-w-xl">
-              BuildAtlas is an AI intelligence radar — designed to separate signal from noise.
+              BuildAtlas is an AI intelligence signal feed — designed to separate signal from noise.
               Our goal is simple: when the internet produces 1,000 &ldquo;updates,&rdquo; we want to surface the <em>few</em> that
               actually change what a builder, investor, or operator should believe or do.
             </p>
@@ -191,7 +191,7 @@ export default function MethodologyPage() {
                 Each story cluster displays a trust score derived from source reliability, cross-source
                 agreement, and evidence quality. Multi-source clusters — where two or more independent
                 publishers report the same event — receive a higher trust score than single-source items.
-                Use the &ldquo;High trust&rdquo; filter on the Radar to surface only well-corroborated stories.
+                Use the &ldquo;High trust&rdquo; filter on the Signal Feed to surface only well-corroborated stories.
               </p>
             </section>
 

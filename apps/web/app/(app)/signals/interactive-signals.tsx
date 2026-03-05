@@ -22,6 +22,7 @@ import { normalizeDatasetRegion } from '@/lib/region';
 import { trackEvent } from '@/lib/posthog';
 import { isRecoUxSimplifiedEnabled, isSignalsUiFocusedModeEnabled } from '@/lib/radar-flags';
 import { safeInternalPath } from '@/lib/url';
+import { ROUTE_MESSAGING } from '@/lib/copy';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -627,8 +628,9 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   const recoUxSimplified = isRecoUxSimplifiedEnabled();
   const l = isTR
     ? {
-      title: 'Sinyal Istihbarati',
-      headline: 'AI altyapisinda canli pattern benimseme sinyalleri',
+      title: 'Sinyaller',
+      headline: 'Underwriting kararlarini etkileyen pattern momentumunu takip edin',
+      subhead: 'Sirketler arasi mimari, GTM ve sermaye sinyallerindeki kaymalari teziniz icin erken yakalayin.',
       tracked: 'aktif sinyal izleniyor',
       domains: 'alan',
       rising: 'sinyal yukseliste',
@@ -649,8 +651,9 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       legacy: 'Legacy gorunumu',
     }
     : {
-      title: 'Signal Intelligence',
-      headline: 'Live pattern adoption signals across AI infrastructure',
+      title: ROUTE_MESSAGING.signals.label,
+      headline: ROUTE_MESSAGING.signals.headline,
+      subhead: ROUTE_MESSAGING.signals.subhead,
       tracked: 'active signals tracked across',
       domains: 'domains',
       rising: 'signals rising',
@@ -1173,6 +1176,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
         <h1 className="briefing-headline">
           {l.headline}
         </h1>
+        <p className="briefing-subhead">{l.subhead}</p>
         <p className="briefing-subhead">
           {stats.total} {l.tracked} {Object.keys(stats.by_domain).length} {l.domains}.
           {dynamicSignals.rising.length > 0 && (
@@ -1602,8 +1606,11 @@ function StaticSignalsView({
       <header className="briefing-header">
         <span className="briefing-date">Signals</span>
         <h1 className="briefing-headline">
-          Architectural patterns shaping the next generation of AI infrastructure
+          {ROUTE_MESSAGING.signals.headline}
         </h1>
+        <p className="briefing-subhead">
+          {ROUTE_MESSAGING.signals.subhead}
+        </p>
         <p className="briefing-subhead">
           Analysis of {totalDeals} deals reveals conviction levels across{' '}
           {patterns.length} distinct build patterns.

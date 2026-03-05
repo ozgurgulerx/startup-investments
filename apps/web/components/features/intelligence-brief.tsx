@@ -1446,7 +1446,7 @@ function FooterCTA() {
         href="/library"
         className="inline-flex items-center gap-2 text-accent-info hover:text-accent-info/80 transition-colors"
       >
-        Read the full report in Library
+        Read the full report in Deep Dives
         <span>→</span>
       </Link>
     </div>

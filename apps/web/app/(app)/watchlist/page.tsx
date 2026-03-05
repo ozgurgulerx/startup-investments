@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useWatchlist } from '@/lib/watchlist';
 import { Bookmark, Loader2, X, Bell, Settings, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { trackEvent } from '@/lib/posthog';
+import { ROUTE_MESSAGING } from '@/lib/copy';
 
 type Tab = 'alerts' | 'subscriptions' | 'digest';
 
@@ -78,6 +79,7 @@ function SeverityDots({ severity }: { severity: number }) {
 
 export default function WatchlistPage() {
   const { watchlist, isLoading: watchlistLoading, removeFromWatchlist, requiresAuth } = useWatchlist();
+  const watchlistCopy = ROUTE_MESSAGING.watchlist;
   const [activeTab, setActiveTab] = useState<Tab>('alerts');
   const [alerts, setAlerts] = useState<UserAlert[]>([]);
   const [alertsTotal, setAlertsTotal] = useState(0);
@@ -224,7 +226,8 @@ export default function WatchlistPage() {
       <>
         <div className="briefing-header">
           <span className="briefing-date">Watchlist</span>
-          <h1 className="briefing-headline">Intelligence Center</h1>
+          <h1 className="briefing-headline">{watchlistCopy.headline}</h1>
+          <p className="briefing-subhead">{watchlistCopy.subhead}</p>
         </div>
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -238,7 +241,8 @@ export default function WatchlistPage() {
       <>
         <div className="briefing-header">
           <span className="briefing-date">Watchlist</span>
-          <h1 className="briefing-headline">Intelligence Center</h1>
+          <h1 className="briefing-headline">{watchlistCopy.headline}</h1>
+          <p className="briefing-subhead">{watchlistCopy.subhead}</p>
         </div>
         <div className="text-center py-16 border border-border/30 rounded-lg">
           <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-accent-info/10 flex items-center justify-center">
@@ -260,10 +264,9 @@ export default function WatchlistPage() {
     <>
       <div className="briefing-header">
         <span className="briefing-date">Watchlist</span>
-        <h1 className="briefing-headline">Intelligence Center</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {watchlistItems.length} companies tracked · {alertsTotal} alerts
-        </p>
+        <h1 className="briefing-headline">{watchlistCopy.headline}</h1>
+        <p className="briefing-subhead">{watchlistCopy.subhead}</p>
+        <p className="text-sm text-muted-foreground mt-2">{watchlistItems.length} companies tracked · {alertsTotal} alerts</p>
       </div>
 
       {/* Tabs */}

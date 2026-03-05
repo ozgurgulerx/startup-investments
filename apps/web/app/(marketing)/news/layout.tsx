@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Build Atlas Radar — Live startup signals',
+  title: 'Build Atlas Signal Feed — Live startup signals',
   description: 'Corroborated signals ranked by impact, confidence, and sources.',
 };
 

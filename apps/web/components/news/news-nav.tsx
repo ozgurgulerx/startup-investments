@@ -36,22 +36,22 @@ export function NewsNav({ activeRegion = 'global', activePeriod = 'daily', archi
   const locale = isTR ? 'tr-TR' : 'en-US';
   const l = isTR
     ? {
-      latestLabel: 'En yeni Turkiye baskisi',
+      latestLabel: 'En yeni Signal Feed',
       methodology: 'Metodoloji',
       global: 'Global',
       turkey: 'Turkiye',
-      daily: 'Gunluk',
+      daily: 'Signal Feed',
       weekly: 'Haftalik',
       monthly: 'Aylik',
       search: 'Ara',
       archive: 'Arsiv',
     }
     : {
-      latestLabel: 'Latest Edition',
+      latestLabel: 'Latest Signal Feed',
       methodology: 'Methodology',
       global: 'Global',
       turkey: 'Turkey',
-      daily: 'Daily',
+      daily: 'Signal Feed',
       weekly: 'Weekly',
       monthly: 'Monthly',
       search: 'Search',

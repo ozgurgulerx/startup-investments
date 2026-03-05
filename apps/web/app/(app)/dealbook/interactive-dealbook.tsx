@@ -13,6 +13,7 @@ import { useRegion, type Region } from '@/lib/region-context';
 import { X } from 'lucide-react';
 import Link from 'next/link';
 import { trackEvent } from '@/lib/posthog';
+import { ROUTE_MESSAGING } from '@/lib/copy';
 
 /**
  * Resolve a URL slug value (e.g. "series_a") to the canonical display name
@@ -377,6 +378,14 @@ export function InteractiveDealbook({
     router.push(queryString ? `/dealbook/?${queryString}` : '/dealbook/');
   }, [router]);
 
+  const headerSummary = selectedMonth === 'all'
+    ? (isFiltered
+      ? `${filteredTotals.count} deals match your filters in all-time scope`
+      : `${filteredTotals.count} deals in the all-time archive`)
+    : (isFiltered
+      ? `${filteredTotals.count} of ${stats.deal_summary.total_deals} deals match your filters this period`
+      : `${stats.deal_summary.total_deals} deals tracked this period`);
+
   return (
     <>
       {/* Page Header */}
@@ -390,15 +399,9 @@ export function InteractiveDealbook({
             />
           )}
         </div>
-        <h1 className="briefing-headline">
-          {selectedMonth === 'all'
-            ? (isFiltered
-              ? `${filteredTotals.count} deals match your filters (all-time)`
-              : `${filteredTotals.count} deals in the all-time archive`)
-            : (isFiltered
-              ? `${filteredTotals.count} of ${stats.deal_summary.total_deals} deals match your filters`
-              : `${stats.deal_summary.total_deals} deals tracked this period`)}
-        </h1>
+        <h1 className="briefing-headline">{ROUTE_MESSAGING.dealbook.headline}</h1>
+        <p className="briefing-subhead">{ROUTE_MESSAGING.dealbook.subhead}</p>
+        <p className="text-sm text-muted-foreground mt-2">{headerSummary}</p>
       </header>
 
       {/* Stats Strip with month-over-month delta */}

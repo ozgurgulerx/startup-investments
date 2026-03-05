@@ -6,29 +6,34 @@ import { cn } from '@/lib/utils';
 import { WatchlistBadge } from '@/components/ui/watchlist-button';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { useRegion } from '@/lib/region-context';
-
-interface NavItem {
-  label: string;
-  href: string;
-  showBadge?: boolean;
-  regionAware?: boolean;
-}
-
-const navItems: NavItem[] = [
-  { label: 'Brief', href: '/brief', regionAware: true },
-  { label: 'Dossiers', href: '/dealbook', regionAware: true },
-  { label: 'Signals', href: '/signals', regionAware: true },
-  { label: 'Capital', href: '/capital', regionAware: true },
-  { label: 'Benchmarks', href: '/benchmarks', regionAware: true },
-  { label: 'Landscapes', href: '/landscapes', regionAware: true },
-  { label: 'Investors', href: '/investors', regionAware: true },
-  { label: 'Deep Dives', href: '/library' },
-  { label: 'Watchlist', href: '/watchlist', showBadge: true },
-];
+import { PRIMARY_NAV_ITEMS, SECONDARY_NAV_ITEMS, CANONICAL_LABELS, type NavItemConfig } from '@/lib/copy';
 
 export function Sidebar() {
   const pathname = usePathname();
   const { region } = useRegion();
+
+  const renderNavItem = (item: NavItemConfig) => {
+    const isActive = pathname === item.href ||
+      (item.href !== '/' && pathname.startsWith(item.href));
+    const href = item.regionAware && region !== 'global'
+      ? `${item.href}?region=${region}`
+      : item.href;
+    const showBadge = item.href === '/watchlist';
+
+    return (
+      <Link
+        key={item.href}
+        href={href}
+        className={cn(
+          'nav-item rounded-sm flex items-center justify-between',
+          isActive && 'active'
+        )}
+      >
+        <span>{item.label}</span>
+        {showBadge && <WatchlistBadge />}
+      </Link>
+    );
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-56 border-r border-border/50 bg-background/95 backdrop-blur-sm">
@@ -43,27 +48,19 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 px-4">
           <div className="space-y-0.5">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href ||
-                (item.href !== '/' && pathname.startsWith(item.href));
-              const href = item.regionAware && region !== 'global'
-                ? `${item.href}?region=${region}`
-                : item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={href}
-                  className={cn(
-                    'nav-item rounded-sm flex items-center justify-between',
-                    isActive && 'active'
-                  )}
-                >
-                  <span>{item.label}</span>
-                  {item.showBadge && <WatchlistBadge />}
-                </Link>
-              );
-            })}
+            {PRIMARY_NAV_ITEMS.map(renderNavItem)}
           </div>
+
+          {SECONDARY_NAV_ITEMS.length > 0 && (
+            <div className="mt-6">
+              <p className="px-2 pb-2 text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                {CANONICAL_LABELS.researchTools}
+              </p>
+              <div className="space-y-0.5 opacity-85">
+                {SECONDARY_NAV_ITEMS.map(renderNavItem)}
+              </div>
+            </div>
+          )}
         </nav>
 
         {/* Footer */}
