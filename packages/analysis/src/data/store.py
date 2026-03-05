@@ -357,7 +357,7 @@ class AnalysisStore:
             "with_base_analysis": has_base,
             "with_viral_analysis": has_viral,
             "missing_viral": has_base - has_viral,
-            "last_updated": self.index["stats"].get("last_updated"),
+            "last_updated": self.index.get("stats", {}).get("last_updated"),
         }
 
     def export_summary(self) -> str:
