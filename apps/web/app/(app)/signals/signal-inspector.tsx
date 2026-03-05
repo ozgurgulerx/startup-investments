@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, Activity, Users, BarChart3, Clock, ExternalLink, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Users, BarChart3, Clock, ExternalLink, ChevronRight, ArrowLeft } from 'lucide-react';
 import type { SignalItem } from '@/lib/api/types';
 import { timeAgo } from '@/lib/news-utils';
 import { formatCurrency } from '@/lib/utils';
+import { safeInternalPath } from '@/lib/url';
 
 // ---------------------------------------------------------------------------
 // Types for signal detail API response
@@ -29,6 +30,14 @@ export interface SignalDetailResponse {
   signal: SignalItem | null;
   evidence: SignalEvidence[];
   related: SignalItem[];
+  upstream_stories?: Array<{
+    id: string;
+    title: string;
+    trust_score: number;
+    published_at: string | null;
+    source_count: number;
+  }>;
+  signal_window_days?: number;
   stage_context?: {
     adoption_by_stage: Record<string, { adopters: number; total: number; pct: number }>;
     stage_acceleration: string | null;
@@ -249,17 +258,21 @@ export function InspectorEmpty({ region = 'global' }: { region?: 'global' | 'tur
 interface SignalInspectorProps {
   signalId: string;
   listSignal?: SignalItem;
-  allSignals?: SignalItem[];
   onSelectSignal?: (id: string) => void;
   region?: 'global' | 'turkey';
+  originStoryId?: string;
+  originRegion?: 'global' | 'turkey';
+  originPath?: string;
 }
 
 export function SignalInspector({
   signalId,
   listSignal,
-  allSignals = [],
   onSelectSignal,
   region = 'global',
+  originStoryId,
+  originRegion = 'global',
+  originPath,
 }: SignalInspectorProps) {
   const isTR = region === 'turkey';
   const l = isTR
@@ -268,11 +281,17 @@ export function SignalInspector({
       momentum: 'Momentum',
       impact: 'Etki',
       velocity: 'Hiz',
+      confidence: 'Guven skoru',
+      freshness: 'Tazelik',
+      diversity: 'Cesitlilik',
       evidence: 'kanit',
       company: 'sirket',
       companies: 'sirket',
       deepDive: 'Derin Inceleme',
-      deepDiveMeta: 'Tam analiz · Vaka calismalari · Karsi kanitlar',
+      deepDiveMeta: 'Delta · Kanit · Aksiyonlar',
+      backToStory: 'Habere geri don',
+      upstreamStories: 'Kaynak Haberler',
+      signalWindow: 'Sinyal penceresi',
       recentEvidence: 'Son Kanitlar',
       moreEvidence: 'derin incelemede daha fazla kanit',
       relatedSignals: 'Ilgili Sinyaller',
@@ -285,11 +304,17 @@ export function SignalInspector({
       momentum: 'Momentum',
       impact: 'Impact',
       velocity: 'Velocity',
+      confidence: 'Confidence',
+      freshness: 'Freshness',
+      diversity: 'Diversity',
       evidence: 'evidence',
       company: 'company',
       companies: 'companies',
       deepDive: 'Deep Dive',
-      deepDiveMeta: 'Full analysis · Case studies · Counterevidence',
+      deepDiveMeta: 'Delta · Evidence · Actions',
+      backToStory: 'Back to story',
+      upstreamStories: 'Upstream Stories',
+      signalWindow: 'Signal window',
       recentEvidence: 'Recent Evidence',
       moreEvidence: 'more evidence items in deep dive',
       relatedSignals: 'Related Signals',
@@ -354,7 +379,23 @@ export function SignalInspector({
   const relatedFromRelevance = relevance?.related_signals?.map((r) => r.signal).filter(Boolean) || [];
   const related = relatedFromRelevance.length > 0 ? relatedFromRelevance : (detail?.related || []);
   const stageContext = detail?.stage_context || signal.stage_context;
-  const regionQS = region !== 'global' ? `?region=${encodeURIComponent(region)}` : '';
+  const upstreamStories = detail?.upstream_stories || [];
+  const safeOriginPath = safeInternalPath(originPath, { allowedPrefixes: ['/news'] });
+  const regionSuffix = region !== 'global' ? `?region=${encodeURIComponent(region)}` : '';
+  const deepDiveParams = new URLSearchParams();
+  if (region !== 'global') deepDiveParams.set('region', region);
+  if (originStoryId) deepDiveParams.set('fromStory', originStoryId);
+  if (originRegion) deepDiveParams.set('fromNewsRegion', originRegion);
+  if (safeOriginPath) deepDiveParams.set('originPath', safeOriginPath);
+  const deepDiveHref = `/signals/${signal.id}${deepDiveParams.toString() ? `?${deepDiveParams.toString()}` : ''}`;
+  const backToStoryHref = (() => {
+    if (safeOriginPath) return safeOriginPath;
+    if (!originStoryId) return null;
+    const qs = new URLSearchParams();
+    if (originRegion && originRegion !== 'global') qs.set('region', originRegion);
+    qs.set('story', originStoryId);
+    return `/news?${qs.toString()}`;
+  })();
 
   return (
     <div className="p-5 space-y-6 overflow-y-auto">
@@ -380,10 +421,17 @@ export function SignalInspector({
             {signal.explain.definition}
           </p>
         )}
+        {signal.reason_short && (
+          <p className="text-xs text-muted-foreground/80 leading-relaxed mt-1">
+            {signal.reason_short}
+          </p>
+        )}
       </div>
 
       {/* Metrics */}
       <div className="grid grid-cols-2 gap-3">
+        <MetricBadge label={l.confidence} value={signal.confidence_score ?? signal.conviction} format="percent" />
+        <MetricBadge label={l.freshness} value={signal.freshness_score ?? 0} format="percent" />
         <MetricBadge label={l.conviction} value={signal.conviction} format="percent" />
         <MetricBadge
           label={l.momentum}
@@ -391,8 +439,6 @@ export function SignalInspector({
           format="delta"
           icon={signal.momentum > 0 ? TrendingUp : signal.momentum < 0 ? TrendingDown : Activity}
         />
-        <MetricBadge label={l.impact} value={signal.impact} format="percent" />
-        <MetricBadge label={l.velocity} value={signal.adoption_velocity} format="delta" />
       </div>
 
       {/* Counts */}
@@ -405,11 +451,29 @@ export function SignalInspector({
           <Users className="w-3 h-3" />
           {signal.unique_company_count} {signal.unique_company_count === 1 ? l.company : l.companies}
         </span>
+        <span className="flex items-center gap-1.5">
+          <Activity className="w-3 h-3" />
+          {l.signalWindow}: {detail?.signal_window_days ?? 90}d
+        </span>
+        <span className="flex items-center gap-1.5">
+          <BarChart3 className="w-3 h-3" />
+          {l.diversity} {Math.round((signal.evidence_diversity_score ?? 0) * 100)}%
+        </span>
       </div>
+
+      {backToStoryHref && (
+        <Link
+          href={backToStoryHref}
+          className="inline-flex items-center gap-1.5 text-xs text-accent-info hover:text-accent-info/80 transition-colors"
+        >
+          <ArrowLeft className="w-3 h-3" />
+          {l.backToStory}
+        </Link>
+      )}
 
       {/* Deep Dive CTA */}
       <Link
-        href={`/signals/${signal.id}${regionQS}`}
+        href={deepDiveHref}
         className="flex items-center gap-3 px-3 py-3 rounded-lg border border-border/30 hover:border-accent-info/30 hover:bg-muted/10 transition-colors group"
       >
         <div className="flex-1 min-w-0">
@@ -420,6 +484,36 @@ export function SignalInspector({
         </div>
         <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-accent-info transition-colors shrink-0" />
       </Link>
+
+      {upstreamStories.length > 0 && (
+        <>
+          <div className="h-px bg-border/20" />
+          <div className="space-y-2">
+            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+              {l.upstreamStories}
+            </span>
+            <div className="space-y-2">
+              {upstreamStories.slice(0, 3).map((story) => {
+                const storyParams = new URLSearchParams();
+                if (region !== 'global') storyParams.set('region', region);
+                storyParams.set('story', story.id);
+                return (
+                  <Link
+                    key={story.id}
+                    href={`/news?${storyParams.toString()}`}
+                    className="block p-2.5 rounded-lg border border-border/20 hover:border-border/40 transition-colors"
+                  >
+                    <p className="text-xs text-foreground line-clamp-2">{story.title}</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground/70">
+                      Trust {(story.trust_score * 100).toFixed(0)}% · {story.source_count} src · {story.published_at ? timeAgo(story.published_at, region) : ''}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Stage Breakdown */}
       {stageContext?.adoption_by_stage && (
@@ -449,7 +543,7 @@ export function SignalInspector({
                     </span>
                     {ev.startup_slug && (
                       <Link
-                        href={`/company/${ev.startup_slug}${regionQS}`}
+                        href={`/company/${ev.startup_slug}${regionSuffix}`}
                         className="text-[10px] text-accent-info hover:text-accent-info/80 ml-auto flex items-center gap-0.5"
                       >
                         {ev.startup_name}
@@ -502,7 +596,7 @@ export function SignalInspector({
                       <div className="flex items-center gap-2">
                         {r.startup_slug ? (
                           <Link
-                            href={`/company/${r.startup_slug}${regionQS}`}
+                            href={`/company/${r.startup_slug}${regionSuffix}`}
                             className="text-xs text-foreground hover:text-accent-info transition-colors font-medium truncate"
                           >
                             {r.startup_name}

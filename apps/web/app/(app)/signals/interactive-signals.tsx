@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock, ChevronRight, Info, Bell, X } from 'lucide-react';
+import { Users, ArrowRight, Lightbulb, ExternalLink, Sparkles, TrendingUp, TrendingDown, Activity, BarChart3, Clock, ChevronRight, Bell, X, MoreHorizontal, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { PatternCohortTable } from '@/components/features/pattern-cohort-table';
 import { SectorFilter } from '@/components/features/sector-filter';
@@ -11,15 +11,17 @@ import { CoOccurrenceMatrix } from '@/components/charts/co-occurrence-matrix';
 import { Sheet, SheetHeader, SheetContent } from '@/components/ui/sheet';
 import { useIsDesktop } from '@/lib/hooks/use-media-query';
 import { cn } from '@/lib/utils';
-import { SignalInspector, InspectorSkeleton, InspectorEmpty } from './signal-inspector';
+import { SignalInspector, InspectorEmpty } from './signal-inspector';
 import { ExplainPopover } from './explain-popover';
 import { EvidenceDrawer } from './evidence-drawer';
-import type { PatternData, EmergingPattern, CategoryData } from './page';
+import type { PatternData, EmergingPattern, CategoryData } from './signal-page-types';
 import type { PatternCorrelation } from '@/lib/data/signals';
 import type { SignalItem, SignalsSummaryResponse, SignalsListResponse } from '@/lib/api/types';
 import type { StartupAnalysis } from '@startup-intelligence/shared';
 import { normalizeDatasetRegion } from '@/lib/region';
 import { trackEvent } from '@/lib/posthog';
+import { isRecoUxSimplifiedEnabled, isSignalsUiFocusedModeEnabled } from '@/lib/radar-flags';
+import { safeInternalPath } from '@/lib/url';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +68,7 @@ interface RecommendationFollowContext {
 }
 
 type RecommendationFeedbackType = 'not_relevant' | 'more_like_this' | 'less_from_domain';
+type WindowKey = '7' | '30' | '90';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -124,17 +127,11 @@ const SORT_OPTIONS_TR = [
 ] as const;
 
 type SortKey = typeof SORT_OPTIONS[number]['value'];
-
-const STAGE_LABELS: Record<string, string> = {
-  pre_seed: 'Pre-Seed',
-  seed: 'Seed',
-  series_a: 'Series A',
-  series_b: 'Series B',
-  series_c: 'Series C',
-  series_d_plus: 'Series D+',
-  late_stage: 'Late',
-  unknown: 'Unknown',
-};
+const WINDOW_OPTIONS: Array<{ value: WindowKey; label: string; labelTR: string }> = [
+  { value: '7', label: '7d', labelTR: '7g' },
+  { value: '30', label: '30d', labelTR: '30g' },
+  { value: '90', label: '90d', labelTR: '90g' },
+];
 
 // ---------------------------------------------------------------------------
 // Shared sub-components
@@ -164,46 +161,6 @@ function MetricBadge({
       {Icon && <Icon className={`w-3 h-3 ${colorClass}`} />}
       <span className="text-[10px] text-muted-foreground/60 uppercase">{label}</span>
       <span className={`text-xs font-medium ${colorClass}`}>{displayValue}</span>
-    </div>
-  );
-}
-
-function StageBreakdown({ signal }: { signal: SignalItem }) {
-  const ctx = signal.stage_context;
-  if (!ctx?.adoption_by_stage) return null;
-
-  const stages = Object.entries(ctx.adoption_by_stage)
-    .filter(([, v]) => v.total >= 2)
-    .sort((a, b) => b[1].pct - a[1].pct)
-    .slice(0, 4);
-
-  if (stages.length === 0) return null;
-
-  const maxPct = Math.max(...stages.map(([, v]) => v.pct), 1);
-
-  return (
-    <div className="mt-3 pt-3 border-t border-border/20">
-      <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-        Adoption by Stage
-      </span>
-      <div className="mt-1.5 space-y-1">
-        {stages.map(([stage, data]) => (
-          <div key={stage} className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground w-16 shrink-0 truncate">
-              {STAGE_LABELS[stage] || stage}
-            </span>
-            <div className="flex-1 h-1.5 bg-muted/20 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-accent-info/40 rounded-full"
-                style={{ width: `${Math.max(2, (data.pct / maxPct) * 100)}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
-              {data.pct.toFixed(0)}%
-            </span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -319,6 +276,9 @@ function SignalCard({
   onToggleFollow,
   isAuthenticated,
   region,
+  originStoryId,
+  originRegion,
+  originPath,
   isTR,
 }: {
   signal: SignalItem;
@@ -329,13 +289,22 @@ function SignalCard({
   onToggleFollow?: (id: string) => void;
   isAuthenticated?: boolean;
   region?: string;
+  originStoryId?: string | null;
+  originRegion?: string;
+  originPath?: string | null;
   isTR: boolean;
 }) {
   const style = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
   const domainLabel = (isTR ? DOMAIN_LABELS_TR : DOMAIN_LABELS)[signal.domain] || signal.domain;
   const statusLabel = isTR ? (STATUS_LABELS_TR[signal.status] || style.label) : style.label;
   const regionKey = normalizeDatasetRegion(region);
-  const regionQS = regionKey !== 'global' ? `?region=${encodeURIComponent(regionKey)}` : '';
+  const safeOriginPath = safeInternalPath(originPath, { allowedPrefixes: ['/news'] });
+  const deepDiveParams = new URLSearchParams();
+  if (regionKey !== 'global') deepDiveParams.set('region', regionKey);
+  if (originStoryId) deepDiveParams.set('fromStory', originStoryId);
+  if (originRegion) deepDiveParams.set('fromNewsRegion', normalizeDatasetRegion(originRegion));
+  if (safeOriginPath) deepDiveParams.set('originPath', safeOriginPath);
+  const regionQS = deepDiveParams.toString() ? `?${deepDiveParams.toString()}` : '';
 
   const timeSinceFirstSeen = useMemo(() => {
     const first = new Date(signal.first_seen_at);
@@ -380,6 +349,11 @@ function SignalCard({
       <p className="text-sm text-foreground leading-snug mb-2 line-clamp-2">
         {signal.claim}
       </p>
+      {signal.reason_short && (
+        <p className="text-[11px] text-muted-foreground/80 leading-snug mb-2 line-clamp-2">
+          {signal.reason_short}
+        </p>
+      )}
 
       {/* Metrics + action icons */}
       <div className="flex items-center gap-3">
@@ -459,41 +433,42 @@ function PillButton({
 function FilterBar({
   sort,
   onSortChange,
+  windowKey,
+  onWindowChange,
   domain,
   onDomainChange,
   status,
   onStatusChange,
+  sector,
+  onSectorChange,
   stats,
   isAuthenticated,
   isTR,
+  focusedMode,
+  region,
 }: {
   sort: SortKey;
   onSortChange: (s: SortKey) => void;
+  windowKey: WindowKey;
+  onWindowChange: (w: WindowKey) => void;
   domain: string | null;
   onDomainChange: (d: string | null) => void;
   status: string | null;
   onStatusChange: (s: string | null) => void;
+  sector: string | null;
+  onSectorChange: (s: string | null) => void;
   stats: SignalsSummaryResponse['stats'];
   isAuthenticated: boolean;
   isTR: boolean;
+  focusedMode: boolean;
+  region?: string;
 }) {
   const sortOptions = (isTR ? SORT_OPTIONS_TR : SORT_OPTIONS)
     .filter((opt) => opt.value !== 'relevance' || isAuthenticated);
   const domainLabels = isTR ? DOMAIN_LABELS_TR : DOMAIN_LABELS;
+  const [showAdvanced, setShowAdvanced] = useState(false);
   return (
     <div className="space-y-3 pb-4 border-b border-border/30">
-      {/* Sort */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider w-10 shrink-0">{isTR ? 'Sirala' : 'Sort'}</span>
-        <div className="flex flex-wrap gap-1">
-          {sortOptions.map(opt => (
-            <PillButton key={opt.value} active={sort === opt.value} onClick={() => onSortChange(opt.value)}>
-              {opt.label}
-            </PillButton>
-          ))}
-        </div>
-      </div>
-
       {/* Domain */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider w-10 shrink-0">{isTR ? 'Odak' : 'Lens'}</span>
@@ -529,6 +504,64 @@ function FilterBar({
           })}
         </div>
       </div>
+
+      {!focusedMode && (
+        <>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider w-10 shrink-0">{isTR ? 'Sirala' : 'Sort'}</span>
+            <div className="flex flex-wrap gap-1">
+              {sortOptions.map(opt => (
+                <PillButton key={opt.value} active={sort === opt.value} onClick={() => onSortChange(opt.value)}>
+                  {opt.label}
+                </PillButton>
+              ))}
+            </div>
+          </div>
+          <SectorFilter region={region} value={sector} onChange={onSectorChange} />
+        </>
+      )}
+
+      {focusedMode && (
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((prev) => !prev)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-full border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+            {isTR ? 'Gelismis' : 'Advanced'}
+          </button>
+          {showAdvanced && (
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider w-10 shrink-0">{isTR ? 'Sirala' : 'Sort'}</span>
+                <div className="flex flex-wrap gap-1">
+                  {sortOptions.map(opt => (
+                    <PillButton key={opt.value} active={sort === opt.value} onClick={() => onSortChange(opt.value)}>
+                      {opt.label}
+                    </PillButton>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider w-10 shrink-0">{isTR ? 'Aralik' : 'Window'}</span>
+                <div className="flex flex-wrap gap-1">
+                  {WINDOW_OPTIONS.map(opt => (
+                    <PillButton
+                      key={opt.value}
+                      active={windowKey === opt.value}
+                      onClick={() => onWindowChange(opt.value)}
+                    >
+                      {isTR ? opt.labelTR : opt.label}
+                    </PillButton>
+                  ))}
+                </div>
+              </div>
+              <SectorFilter region={region} value={sector} onChange={onSectorChange} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -590,6 +623,8 @@ function getRecommendationReasonTag(params: {
 
 function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: SignalsSummaryResponse; region?: string }) {
   const isTR = normalizeDatasetRegion(region) === 'turkey';
+  const focusedMode = isSignalsUiFocusedModeEnabled();
+  const recoUxSimplified = isRecoUxSimplifiedEnabled();
   const l = isTR
     ? {
       title: 'Sinyal Istihbarati',
@@ -605,6 +640,13 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       lessFromDomain: 'Bu alandan daha az',
       noMatches: 'Filtrelere uyan sinyal yok',
       signalDetail: 'Sinyal Detayi',
+      staleTitle: 'Sinyal verisi guncel degil',
+      staleFallback: 'Sinyal boru hatti gecikiyor. Son basarili calisma:',
+      notAvailable: 'bilinmiyor',
+      followPrimary: 'Takip et',
+      overflow: 'Daha fazla',
+      lastPipeline: 'Son boru hatti',
+      legacy: 'Legacy gorunumu',
     }
     : {
       title: 'Signal Intelligence',
@@ -620,6 +662,13 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       lessFromDomain: 'Less from this domain',
       noMatches: 'No signals match your filters',
       signalDetail: 'Signal Detail',
+      staleTitle: 'Signal data is stale',
+      staleFallback: 'Signal pipeline appears delayed. Last successful run:',
+      notAvailable: 'unavailable',
+      followPrimary: 'Follow',
+      overflow: 'More',
+      lastPipeline: 'Last pipeline run',
+      legacy: 'Legacy view',
     };
   const isDesktop = useIsDesktop();
   const { data: session } = useSession();
@@ -630,6 +679,9 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
 
   // URL-persisted selection (2.1)
   const selectedId = searchParams.get('id');
+  const originStoryId = searchParams.get('originStory');
+  const originRegion = normalizeDatasetRegion(searchParams.get('originRegion') || region);
+  const originPath = safeInternalPath(searchParams.get('originPath'), { allowedPrefixes: ['/news'] });
 
   // Build initial flat list from summary (all three arrays)
   const initialSignals = useMemo(() => {
@@ -644,10 +696,12 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   }, [dynamicSignals]);
 
   // Filter / sort state
-  const [sort, setSort] = useState<SortKey>('momentum');
+  const [sort, setSort] = useState<SortKey>(focusedMode ? 'impact' : 'momentum');
+  const [windowKey, setWindowKey] = useState<WindowKey>('90');
   const [domain, setDomain] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [sector, setSector] = useState<string | null>(null);
+  const appliedAuthDefaultRef = useRef(false);
 
   // Fetched signals (null = using initial data)
   const [fetchedSignals, setFetchedSignals] = useState<SignalItem[] | null>(null);
@@ -672,6 +726,22 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   const [domainRecommendationWeights, setDomainRecommendationWeights] = useState<Record<string, number>>({});
   const trackedRecommendationListViewsRef = useRef<Set<string>>(new Set());
   const trackedRecommendationImpressionsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!focusedMode) {
+      if (sort === 'relevance') setSort('momentum');
+      return;
+    }
+    if (!isAuthenticated) {
+      appliedAuthDefaultRef.current = false;
+      if (sort === 'relevance') setSort('impact');
+      return;
+    }
+    if (isAuthenticated && !appliedAuthDefaultRef.current) {
+      setSort('relevance');
+      appliedAuthDefaultRef.current = true;
+    }
+  }, [focusedMode, isAuthenticated, sort]);
 
   // Fetch user follows on mount (auth-gated)
   useEffect(() => {
@@ -821,7 +891,13 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
   }, [newCount, region]);
 
   // Determine if we need to re-fetch (filters changed from default)
-  const isDefaultFilters = sort === 'momentum' && domain === null && status === null && sector === null;
+  const isDefaultFilters =
+    !focusedMode
+    && sort === 'momentum'
+    && windowKey === '90'
+    && domain === null
+    && status === null
+    && sector === null;
 
   // Fetch signals when filters change
   useEffect(() => {
@@ -839,6 +915,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
     if (status) params.set('status', status);
     if (sector) params.set('sector', sector);
     params.set('sort', sort);
+    if (windowKey) params.set('window', windowKey);
     params.set('limit', '50');
 
     fetch(`/api/signals?${params.toString()}`)
@@ -854,7 +931,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       });
 
     return () => { cancelled = true; };
-  }, [sort, domain, status, sector, region, isDefaultFilters]);
+  }, [sort, windowKey, domain, status, sector, region, isDefaultFilters]);
 
   // Current signals list (use fetched or initial)
   const signals = fetchedSignals || initialSignals;
@@ -950,6 +1027,14 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
         request_id: requestId,
         is_authenticated: true,
       });
+      trackEvent('reason_depth_rendered', {
+        surface: RECOMMENDATION_SURFACE,
+        region: region || 'global',
+        item_id: rec.signal.id,
+        request_id: requestId,
+        reason_type: rec.reason_type || 'watchlist_overlap',
+        reason_depth_rendered: rec.reason ? 2 : 1,
+      });
     });
   }, [
     isAuthenticated,
@@ -983,6 +1068,7 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
     rec: SignalRecommendation,
     position: number,
     feedbackType: RecommendationFeedbackType,
+    fromOverflow?: boolean,
   ) => {
     const requestId = recommendationRequestId || 'unknown';
     const algorithmVersion = recommendationAlgorithmVersion || RECOMMENDATION_ALGO_FALLBACK;
@@ -999,6 +1085,15 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
       algorithm_version: algorithmVersion,
       is_authenticated: true,
     });
+    if (fromOverflow) {
+      trackEvent('feedback_overflow_used', {
+        surface: RECOMMENDATION_SURFACE,
+        region: region || 'global',
+        item_id: rec.signal.id,
+        feedback_type: feedbackType,
+        request_id: requestId,
+      });
+    }
 
     // Best-effort persistence (server-side auth + API key); UI remains responsive even if this fails.
     void fetch('/api/signals/recommendations/feedback', {
@@ -1086,21 +1181,51 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
         </p>
       </header>
 
+      {dynamicSignals.stale && (
+        <div className="mb-3 rounded-lg border border-warning/35 bg-warning/10 px-3 py-2">
+          <div className="flex items-start gap-2 text-xs text-foreground">
+            <AlertTriangle className="w-3.5 h-3.5 text-warning mt-0.5 shrink-0" />
+            <div className="space-y-0.5">
+              <p className="font-medium">{l.staleTitle}</p>
+              <p className="text-muted-foreground">
+                {dynamicSignals.stale_reason || `${l.staleFallback} ${dynamicSignals.last_pipeline_run_at || l.notAvailable}`}
+              </p>
+              <div className="flex items-center gap-3">
+                <span className="text-muted-foreground/80">
+                  {l.lastPipeline}: {dynamicSignals.last_pipeline_run_at || l.notAvailable}
+                </span>
+                <Link
+                  href={isTR ? '/signals/legacy?region=turkey' : '/signals/legacy'}
+                  className="text-accent-info hover:text-accent-info/80 transition-colors"
+                >
+                  {l.legacy}
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filter bar + notification pill */}
       <div className="flex items-start gap-3">
         <div className="flex-1">
           <FilterBar
             sort={sort}
             onSortChange={setSort}
+            windowKey={windowKey}
+            onWindowChange={setWindowKey}
             domain={domain}
             onDomainChange={setDomain}
             status={status}
             onStatusChange={setStatus}
+            sector={sector}
+            onSectorChange={setSector}
             stats={stats}
             isAuthenticated={isAuthenticated}
             isTR={isTR}
+            focusedMode={focusedMode}
+            region={region}
           />
-          <SectorFilter region={region} value={sector} onChange={setSector} />
         </div>
         {isAuthenticated && newCount > 0 && (
           <div className="pt-1">
@@ -1134,31 +1259,32 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
                       >
                         {rec.signal.claim}
                       </button>
-                      <FollowButton
-                        signalId={rec.signal.id}
-                        isFollowing={followedIds.has(rec.signal.id)}
-                        onToggle={(id) => handleToggleFollow(id, {
-                          source: 'recommendation',
-                          recommendation_request_id: recommendationRequestId || 'unknown',
-                          recommendation_position: index + 1,
-                          recommendation_reason_type: rec.reason_type || 'watchlist_overlap',
-                          recommendation_algorithm_version: recommendationAlgorithmVersion || RECOMMENDATION_ALGO_FALLBACK,
-                        })}
-                        isAuthenticated={isAuthenticated}
-                        isTR={isTR}
-                      />
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span className="px-1.5 py-0.5 text-[9px] rounded-full border border-accent-info/30 bg-accent-info/10 text-accent-info">
                         {l.whyForYou}
                       </span>
-                      <span className="px-1.5 py-0.5 text-[9px] rounded-full border border-border/40 text-muted-foreground">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          trackEvent('rationale_anchor_clicked', {
+                            surface: RECOMMENDATION_SURFACE,
+                            region: region || 'global',
+                            item_id: rec.signal.id,
+                            request_id: recommendationRequestId || 'unknown',
+                            reason_type: rec.reason_type || 'watchlist_overlap',
+                            position: index + 1,
+                          });
+                          handleRecommendationClick(rec, index + 1);
+                        }}
+                        className="px-1.5 py-0.5 text-[9px] rounded-full border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                      >
                         {getRecommendationReasonTag({
                           reasonType: rec.reason_type,
                           overlapCount: rec.overlap_count,
                           isTR,
                         })}
-                      </span>
+                      </button>
                     </div>
                     <p className="mt-1 text-[11px] text-muted-foreground">{rec.reason}</p>
                     <div className="mt-1.5 flex items-center gap-1.5">
@@ -1169,29 +1295,76 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
                         {(isTR ? DOMAIN_LABELS_TR : DOMAIN_LABELS)[rec.signal.domain] || domainLabel}
                       </span>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleRecommendationFeedback(rec, index + 1, 'not_relevant')}
-                        className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
-                      >
-                        {l.notRelevant}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRecommendationFeedback(rec, index + 1, 'more_like_this')}
-                        className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
-                      >
-                        {l.moreLikeThis}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRecommendationFeedback(rec, index + 1, 'less_from_domain')}
-                        className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
-                      >
-                        {l.lessFromDomain}
-                      </button>
-                    </div>
+                    {recoUxSimplified ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFollow(rec.signal.id, {
+                            source: 'recommendation',
+                            recommendation_request_id: recommendationRequestId || 'unknown',
+                            recommendation_position: index + 1,
+                            recommendation_reason_type: rec.reason_type || 'watchlist_overlap',
+                            recommendation_algorithm_version: recommendationAlgorithmVersion || RECOMMENDATION_ALGO_FALLBACK,
+                          })}
+                          className="px-2.5 py-1 text-[10px] rounded border border-accent-info/35 bg-accent-info/10 text-accent-info hover:bg-accent-info/15 transition-colors"
+                        >
+                          {l.followPrimary}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRecommendationFeedback(rec, index + 1, 'not_relevant')}
+                          className="px-2 py-1 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                        >
+                          {l.notRelevant}
+                        </button>
+                        <details className="relative">
+                          <summary className="list-none cursor-pointer px-2 py-1 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors inline-flex items-center gap-1">
+                            {l.overflow}
+                            <MoreHorizontal className="w-3 h-3" />
+                          </summary>
+                          <div className="absolute right-0 mt-1 w-44 rounded-md border border-border/40 bg-background shadow-lg p-1 z-20">
+                            <button
+                              type="button"
+                              onClick={() => handleRecommendationFeedback(rec, index + 1, 'more_like_this', true)}
+                              className="w-full text-left px-2 py-1.5 text-[10px] rounded hover:bg-muted/20 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              {l.moreLikeThis}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRecommendationFeedback(rec, index + 1, 'less_from_domain', true)}
+                              className="w-full text-left px-2 py-1.5 text-[10px] rounded hover:bg-muted/20 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              {l.lessFromDomain}
+                            </button>
+                          </div>
+                        </details>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleRecommendationFeedback(rec, index + 1, 'not_relevant')}
+                          className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                        >
+                          {l.notRelevant}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRecommendationFeedback(rec, index + 1, 'more_like_this')}
+                          className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                        >
+                          {l.moreLikeThis}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRecommendationFeedback(rec, index + 1, 'less_from_domain')}
+                          className="px-1.5 py-0.5 text-[10px] rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                        >
+                          {l.lessFromDomain}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1254,6 +1427,9 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
                       onToggleFollow={handleToggleFollow}
                       isAuthenticated={isAuthenticated}
                       region={region}
+                      originStoryId={originStoryId}
+                      originRegion={originRegion}
+                      originPath={originPath}
                       isTR={isTR}
                     />
                   ))}
@@ -1270,9 +1446,11 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
               <SignalInspector
                 signalId={selectedId}
                 listSignal={selectedSignal}
-                allSignals={signals}
                 onSelectSignal={handleSelectSignal}
                 region={isTR ? 'turkey' : 'global'}
+                originStoryId={originStoryId || undefined}
+                originRegion={originRegion}
+                originPath={originPath || undefined}
               />
             ) : (
               <InspectorEmpty region={isTR ? 'turkey' : 'global'} />
@@ -1297,9 +1475,11 @@ function DynamicSignalsView({ dynamicSignals, region }: { dynamicSignals: Signal
               <SignalInspector
                 signalId={selectedId}
                 listSignal={selectedSignal}
-                allSignals={signals}
                 onSelectSignal={handleSelectSignal}
                 region={isTR ? 'turkey' : 'global'}
+                originStoryId={originStoryId || undefined}
+                originRegion={originRegion}
+                originPath={originPath || undefined}
               />
             ) : (
               <InspectorEmpty region={isTR ? 'turkey' : 'global'} />

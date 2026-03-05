@@ -5,6 +5,7 @@ import { DeepDivePage } from './deep-dive-page';
 import { STATUS_STYLES, DOMAIN_LABELS } from './types';
 import { ExplorerTab } from './explorer-tab';
 import { cn } from '@/lib/utils';
+import { safeInternalPath } from '@/lib/url';
 
 function DeepDiveLoading() {
   return (
@@ -29,7 +30,17 @@ function DeepDiveLoading() {
   );
 }
 
-async function DeepDiveContent({ id }: { id: string }) {
+async function DeepDiveContent({
+  id,
+  fromStory,
+  fromNewsRegion,
+  originPath,
+}: {
+  id: string;
+  fromStory?: string;
+  fromNewsRegion?: string;
+  originPath?: string;
+}) {
   try {
     const data = await getDeepDive(id);
 
@@ -44,11 +55,20 @@ async function DeepDiveContent({ id }: { id: string }) {
     if (!data.deep_dive) {
       const signal = data.signal;
       const meta = data.meta || null;
+      const safeOriginPath = safeInternalPath(originPath, { allowedPrefixes: ['/news'] });
       const statusStyle = STATUS_STYLES[signal.status] || STATUS_STYLES.candidate;
       const domainLabel = DOMAIN_LABELS[signal.domain] || signal.domain;
-      const backHref = signal.region && signal.region !== 'global'
+      const fallbackSignalsHref = signal.region && signal.region !== 'global'
         ? `/signals?region=${encodeURIComponent(signal.region)}`
         : '/signals';
+      const storyHref = (() => {
+        if (safeOriginPath) return safeOriginPath;
+        if (!fromStory) return null;
+        const qs = new URLSearchParams();
+        if (fromNewsRegion && fromNewsRegion !== 'global') qs.set('region', fromNewsRegion);
+        qs.set('story', fromStory);
+        return `/news?${qs.toString()}`;
+      })();
 
       const startupsEligible = meta?.startups_eligible ?? 0;
       const startupsWithEvidence = meta?.startups_with_evidence ?? signal.unique_company_count ?? 0;
@@ -81,10 +101,10 @@ async function DeepDiveContent({ id }: { id: string }) {
         <div className="max-w-6xl mx-auto py-10 space-y-8">
           <div className="space-y-4">
             <Link
-              href={backHref}
+              href={storyHref || fallbackSignalsHref}
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              Signals
+              {storyHref ? 'Back to originating story' : 'Signals'}
             </Link>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -159,13 +179,21 @@ async function DeepDiveContent({ id }: { id: string }) {
 
 export default async function SignalDeepDivePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ fromStory?: string; fromNewsRegion?: string; originPath?: string }>;
 }) {
   const { id } = await params;
+  const { fromStory, fromNewsRegion, originPath } = await searchParams;
   return (
     <Suspense fallback={<DeepDiveLoading />}>
-      <DeepDiveContent id={id} />
+      <DeepDiveContent
+        id={id}
+        fromStory={fromStory}
+        fromNewsRegion={fromNewsRegion}
+        originPath={originPath}
+      />
     </Suspense>
   );
 }
