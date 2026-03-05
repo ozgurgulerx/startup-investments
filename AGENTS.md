@@ -432,6 +432,13 @@ News:
   - Ingest hook: `packages/analysis/src/automation/news_ingest.py` calls `onboard_unknown_startups(...)` for unlinked startup entities.
   - Ordering invariant: onboarding runs before funding-round + graph upserts inside `_extract_events(...)`, so newly discovered startups can be connected to funding events and investor graph edges in the same ingest run.
   - Event persistence invariant: `_extract_events(...)` persists only **actionable** events (those with a resolved `startup_id`) to avoid noisy `missing_startup_id` blocks in `event-processor` and to keep the `(cluster_id, startup_id, event_type, event_key)` dedupe index effective.
+  - Funding timeline dedupe invariant (migration: `database/migrations/077_funding_timeline_dedupe.sql`):
+    - Canonical exact fingerprint for `startup_events.event_type='cap_funding_raised'` is:
+      `startup_id + coalesce(region,'global') + normalized round_type + effective_date + normalized amount token + normalized lead_investor token`.
+    - DB guardrail: unique partial index `uq_startup_events_funding_fingerprint` enforces this fingerprint regardless of cluster/source.
+    - Writer behavior: `event_extractor.persist_events(...)` uses `ON CONFLICT DO NOTHING` for funding events so both cluster dedupe and fingerprint dedupe indexes can be honored.
+    - Read-side defense: dossier timeline service (`apps/api/src/services/news.ts`) dedupes funding events by the same fingerprint before returning timeline rows.
+    - Migration rollout requirement: include `077_funding_timeline_dedupe.sql` in `scripts/apply_migrations.py` sets for `news`, `news-digest`, `startups`, and `crawl`.
   - Stub creation behavior:
     - Inserts startup rows with `onboarding_status='stub'` (not immediately visible in Dealbook/company API).
     - Attempts website inference from cluster evidence URLs and stores inferred website when confidence is sufficient.

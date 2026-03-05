@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rowToCard, extractBrief } from './news';
+import { rowToCard, extractBrief, dedupeFundingTimelineEvents, getFundingTimelineFingerprint } from './news';
 import {
   newsItemCardOutputSchema,
   dailyBriefOutputSchema,
@@ -231,6 +231,97 @@ describe('extractBrief output contract', () => {
     expect(brief!.themes).toBeUndefined();
     const result = dailyBriefOutputSchema.safeParse(brief);
     expect(result.success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Timeline funding dedupe (defense-in-depth)
+// ---------------------------------------------------------------------------
+
+describe('dedupeFundingTimelineEvents', () => {
+  const baseFundingEvent = {
+    event_type: 'cap_funding_raised',
+    event_key: 'Series A',
+    domain: 'capital',
+    display_name: 'Funding Raised',
+    confidence: 0.9,
+    effective_date: '2026-03-01',
+    detected_at: '2026-03-01T10:00:00Z',
+    event_title: 'Raises Series A',
+    event_content: 'Company raised funding',
+    cluster_id: '11111111-1111-1111-1111-111111111111',
+    source_type: 'news',
+    region: 'global',
+  } as const;
+
+  it('builds same fingerprint for normalized funding tokens', () => {
+    const a = getFundingTimelineFingerprint({
+      id: 'a',
+      ...baseFundingEvent,
+      metadata_json: {
+        funding_amount: '$ 10,000,000',
+        lead_investor: 'Sequoia   Capital',
+      },
+    });
+    const b = getFundingTimelineFingerprint({
+      id: 'b',
+      ...baseFundingEvent,
+      event_key: ' series a ',
+      metadata_json: {
+        mentioned_amount: '$10000000',
+        lead_investor: 'sequoia capital',
+      },
+    });
+    expect(a).toBe(b);
+  });
+
+  it('removes exact duplicate funding events while preserving order', () => {
+    const events = [
+      {
+        id: '1',
+        ...baseFundingEvent,
+        metadata_json: { funding_amount: '$10,000,000', lead_investor: 'Sequoia Capital' },
+      },
+      {
+        id: '2',
+        ...baseFundingEvent,
+        event_key: 'series a',
+        cluster_id: '22222222-2222-2222-2222-222222222222',
+        metadata_json: { mentioned_amount: '$ 10 000 000', lead_investor: 'sequoia   capital' },
+      },
+      {
+        id: '3',
+        ...baseFundingEvent,
+        event_type: 'prod_launched',
+        event_key: '',
+        metadata_json: { product_launched: 'Studio v2' },
+      },
+    ];
+
+    const deduped = dedupeFundingTimelineEvents(events);
+    expect(deduped.map((e) => e.id)).toEqual(['1', '3']);
+  });
+
+  it('keeps non-funding events untouched', () => {
+    const events = [
+      {
+        id: 'a',
+        ...baseFundingEvent,
+        event_type: 'prod_launched',
+        event_key: '',
+        metadata_json: { product_launched: 'Launch' },
+      },
+      {
+        id: 'b',
+        ...baseFundingEvent,
+        event_type: 'prod_launched',
+        event_key: '',
+        metadata_json: { product_launched: 'Launch' },
+      },
+    ];
+
+    const deduped = dedupeFundingTimelineEvents(events);
+    expect(deduped.map((e) => e.id)).toEqual(['a', 'b']);
   });
 });
 

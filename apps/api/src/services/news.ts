@@ -347,6 +347,53 @@ export interface TimelineEvent {
   region: string;
 }
 
+function normalizeFundingAmountToken(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value).trim().toLowerCase().replace(/[,\s]+/g, '');
+}
+
+function normalizeLeadInvestorToken(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+export function getFundingTimelineFingerprint(event: TimelineEvent): string | null {
+  if (event.event_type !== 'cap_funding_raised') return null;
+  const roundType = String(
+    event.event_key || (event.metadata_json?.['round_type'] ?? '')
+  ).trim().toLowerCase();
+  if (!roundType || !event.effective_date) return null;
+
+  const amountToken = normalizeFundingAmountToken(
+    event.metadata_json?.['funding_amount'] ?? event.metadata_json?.['mentioned_amount']
+  );
+  const leadInvestorToken = normalizeLeadInvestorToken(event.metadata_json?.['lead_investor']);
+  return [
+    String(event.region || 'global').trim().toLowerCase() || 'global',
+    roundType,
+    event.effective_date,
+    amountToken,
+    leadInvestorToken,
+  ].join('|');
+}
+
+export function dedupeFundingTimelineEvents(events: TimelineEvent[]): TimelineEvent[] {
+  if (events.length <= 1) return events;
+  const seen = new Set<string>();
+  const deduped: TimelineEvent[] = [];
+  for (const event of events) {
+    const fingerprint = getFundingTimelineFingerprint(event);
+    if (!fingerprint) {
+      deduped.push(event);
+      continue;
+    }
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    deduped.push(event);
+  }
+  return deduped;
+}
+
 export function makeNewsService(pool: Pool) {
   async function getLatestEditionDate(params?: { region?: unknown }): Promise<string | null> {
     const region = normalizeRegion(params?.region);
@@ -1650,15 +1697,17 @@ export function makeNewsService(pool: Pool) {
 
       const rows = result.rows;
       const hasMore = rows.length > limit;
-      const events: TimelineEvent[] = rows.slice(0, limit).map(rowToTimelineEvent);
+      const rawPageEvents: TimelineEvent[] = rows.slice(0, limit).map(rowToTimelineEvent);
+      const events: TimelineEvent[] = dedupeFundingTimelineEvents(rawPageEvents);
 
       console.log('[timeline]', {
         startup_id: startupId,
         results: events.length,
+        raw_results: rawPageEvents.length,
         has_more: hasMore,
       });
 
-      const lastEvent = hasMore && events.length > 0 ? events[events.length - 1] : null;
+      const lastEvent = hasMore && rawPageEvents.length > 0 ? rawPageEvents[rawPageEvents.length - 1] : null;
       const next_cursor = lastEvent
         ? `${lastEvent.effective_date}|${lastEvent.id}`
         : null;
@@ -1835,7 +1884,8 @@ export function makeNewsService(pool: Pool) {
         values,
       );
 
-      const events: TimelineEvent[] = result.rows.map(rowToTimelineEvent);
+      const rawEvents: TimelineEvent[] = result.rows.map(rowToTimelineEvent);
+      const events: TimelineEvent[] = dedupeFundingTimelineEvents(rawEvents);
 
       console.log('[timeline-search]', {
         startup_id: startupId,
@@ -1844,6 +1894,7 @@ export function makeNewsService(pool: Pool) {
         text_hits: textFallbackIds.length,
         merged_clusters: allClusterIds.length,
         final_results: events.length,
+        raw_final_results: rawEvents.length,
       });
 
       // No cursor-based pagination in search mode — results are ranked

@@ -400,6 +400,80 @@ def _normalize_event_date_for_db(
     return None, None
 
 
+def _normalize_funding_amount_token(value: Any) -> str:
+    """Normalize funding amount tokens for exact duplicate detection."""
+    if value is None:
+        return ""
+    # Exact-token normalization policy: trim + lowercase + remove spaces/commas.
+    token = str(value).strip().lower()
+    token = token.replace(" ", "").replace(",", "")
+    return token
+
+
+def _normalize_lead_investor_token(value: Any) -> str:
+    """Normalize lead investor tokens for exact duplicate detection."""
+    if value is None:
+        return ""
+    return re.sub(r"\s+", " ", str(value).strip().lower())
+
+
+def compute_funding_event_fingerprint(
+    event: ExtractedEvent,
+    effective_date: Optional[date] = None,
+) -> Optional[str]:
+    """Build exact funding fingerprint used for in-memory dedupe.
+
+    Returns None when required components are missing (conservative behavior).
+    """
+    if event.event_type != "cap_funding_raised":
+        return None
+    if not event.startup_id:
+        return None
+
+    round_type_norm = str(event.event_key or event.metadata.get("round_type") or "").strip().lower()
+    if not round_type_norm:
+        return None
+
+    if effective_date is None:
+        _, effective_date = _normalize_event_date_for_db(event.event_date)
+    if effective_date is None:
+        return None
+
+    region_norm = str(event.region or "global").strip().lower() or "global"
+    amount_raw = event.metadata.get("funding_amount") or event.metadata.get("mentioned_amount")
+    amount_norm = _normalize_funding_amount_token(amount_raw)
+    lead_investor_norm = _normalize_lead_investor_token(event.metadata.get("lead_investor"))
+    return "|".join([
+        str(event.startup_id),
+        region_norm,
+        round_type_norm,
+        effective_date.isoformat(),
+        amount_norm,
+        lead_investor_norm,
+    ])
+
+
+def dedupe_funding_events(events: List[ExtractedEvent]) -> List[ExtractedEvent]:
+    """Drop exact duplicate funding events while preserving input order."""
+    seen: set[str] = set()
+    deduped: List[ExtractedEvent] = []
+    for evt in events:
+        if evt.event_type != "cap_funding_raised":
+            deduped.append(evt)
+            continue
+        _, effective_date = _normalize_event_date_for_db(evt.event_date)
+        fingerprint = compute_funding_event_fingerprint(evt, effective_date)
+        # Keep conservative behavior for incomplete fingerprints.
+        if not fingerprint:
+            deduped.append(evt)
+            continue
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        deduped.append(evt)
+    return deduped
+
+
 async def persist_events(
     conn: "asyncpg.Connection",
     events: List[ExtractedEvent],
@@ -414,6 +488,10 @@ async def persist_events(
     """
     if not events:
         return 0, [], {"persist_errors": 0, "first_error": None}
+
+    # Defensive in-memory dedupe for funding events so repeated cluster extracts
+    # with the same normalized funding fingerprint don't attempt redundant writes.
+    events = dedupe_funding_events(events)
 
     # Contract feature flags (best-effort; supports older DBs).
     try:
@@ -532,8 +610,25 @@ async def persist_events(
                         break
 
         try:
+            is_funding_event = evt.event_type == "cap_funding_raised"
             if contract_enabled:
                 row = await conn.fetchrow(
+                    """INSERT INTO startup_events
+                           (startup_id, event_type, event_title, event_content,
+                            event_registry_id, confidence, source_type,
+                            metadata_json, cluster_id, region, event_key,
+                            event_date, effective_date,
+                            evidence_ids,
+                            actor_entity_id, target_entity_id,
+                            event_features_json, event_features_version)
+                       VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
+                               $12::timestamptz, COALESCE($13::date, CURRENT_DATE),
+                               $14::uuid[],
+                               $15::uuid, $16::uuid,
+                               $17::jsonb, $18::int)
+                       ON CONFLICT DO NOTHING
+                       RETURNING id"""
+                    if is_funding_event else
                     """INSERT INTO startup_events
                            (startup_id, event_type, event_title, event_content,
                             event_registry_id, confidence, source_type,
@@ -571,6 +666,16 @@ async def persist_events(
                 )
             else:
                 row = await conn.fetchrow(
+                    """INSERT INTO startup_events
+                           (startup_id, event_type, event_title, event_content,
+                            event_registry_id, confidence, source_type,
+                            metadata_json, cluster_id, region, event_key,
+                            event_date, effective_date)
+                       VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8::jsonb, $9::uuid, $10, $11,
+                               $12::timestamptz, COALESCE($13::date, CURRENT_DATE))
+                       ON CONFLICT DO NOTHING
+                       RETURNING id"""
+                    if is_funding_event else
                     """INSERT INTO startup_events
                            (startup_id, event_type, event_title, event_content,
                             event_registry_id, confidence, source_type,
