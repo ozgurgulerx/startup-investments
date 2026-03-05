@@ -1,5 +1,5 @@
 import './telemetry';
-import express, { Express, type Request } from 'express';
+import express, { Express } from 'express';
 import compression from 'compression';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -96,6 +96,7 @@ import { makeLandscapesService } from './services/landscapes';
 import { CURATED_SECTORS, findSector, sectorFilterForStartups } from './shared/sectors';
 import { makeSubscriptionsService } from './services/subscriptions';
 import { runtimeMetricsMiddleware, getRuntimeMetricsSnapshot } from './monitoring/runtime_metrics';
+import { header, userIdFromHeader } from './http/headers';
 import {
   getRedisClient,
   closeRedisClient,
@@ -213,22 +214,6 @@ app.get('/health', async (_req, res) => {
 function periodFilter(period: string | undefined) {
   if (!period || period === 'all') return undefined;
   return eq(startups.period, period);
-}
-
-function header(req: Request, name: string): string | null {
-  const raw = req.headers[name.toLowerCase()];
-  if (Array.isArray(raw)) {
-    for (const value of raw) {
-      const trimmed = String(value || '').trim();
-      if (trimmed) return trimmed;
-    }
-    return null;
-  }
-  if (typeof raw === 'string') {
-    const trimmed = raw.trim();
-    return trimmed ? trimmed : null;
-  }
-  return null;
 }
 
 function normalizeStageKey(value: string | undefined | null): string {
@@ -3722,8 +3707,11 @@ app.get('/api/v1/subscriptions', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const userId = header(req, 'x-user-id');
-    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const userIdentity = userIdFromHeader(req);
+    if (!userIdentity.userId) {
+      return res.status(userIdentity.status || 400).json({ error: userIdentity.error || 'Invalid user_id' });
+    }
+    const userId = userIdentity.userId;
     const result = await subscriptionsService.getSubscriptions({ userId, scope: parsed.data.scope });
     res.json(result);
   } catch (error) {
@@ -3738,8 +3726,11 @@ app.post('/api/v1/subscriptions', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const userId = header(req, 'x-user-id');
-    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const userIdentity = userIdFromHeader(req);
+    if (!userIdentity.userId) {
+      return res.status(userIdentity.status || 400).json({ error: userIdentity.error || 'Invalid user_id' });
+    }
+    const userId = userIdentity.userId;
     const result = await subscriptionsService.createSubscription({
       userId, objectType: parsed.data.object_type, objectId: parsed.data.object_id, scope: parsed.data.scope,
     });
@@ -3756,8 +3747,11 @@ app.delete('/api/v1/subscriptions', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const userId = header(req, 'x-user-id');
-    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const userIdentity = userIdFromHeader(req);
+    if (!userIdentity.userId) {
+      return res.status(userIdentity.status || 400).json({ error: userIdentity.error || 'Invalid user_id' });
+    }
+    const userId = userIdentity.userId;
     await subscriptionsService.deleteSubscription({
       userId, objectType: parsed.data.object_type, objectId: parsed.data.object_id, scope: parsed.data.scope,
     });
@@ -3774,8 +3768,11 @@ app.get('/api/v1/alerts', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const userId = header(req, 'x-user-id');
-    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const userIdentity = userIdFromHeader(req);
+    if (!userIdentity.userId) {
+      return res.status(userIdentity.status || 400).json({ error: userIdentity.error || 'Invalid user_id' });
+    }
+    const userId = userIdentity.userId;
     const result = await subscriptionsService.getAlerts({
       userId, scope: parsed.data.scope, status: parsed.data.status,
       severityMin: parsed.data.severity_min, type: parsed.data.type,
@@ -3794,8 +3791,11 @@ app.patch('/api/v1/alerts/batch', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const userId = header(req, 'x-user-id');
-    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const userIdentity = userIdFromHeader(req);
+    if (!userIdentity.userId) {
+      return res.status(userIdentity.status || 400).json({ error: userIdentity.error || 'Invalid user_id' });
+    }
+    const userId = userIdentity.userId;
     await subscriptionsService.batchUpdateAlertStatus({
       alertIds: parsed.data.ids, userId, status: parsed.data.status,
     });
@@ -3812,8 +3812,11 @@ app.get('/api/v1/alerts/digest', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.issues });
     }
-    const userId = header(req, 'x-user-id');
-    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const userIdentity = userIdFromHeader(req);
+    if (!userIdentity.userId) {
+      return res.status(userIdentity.status || 400).json({ error: userIdentity.error || 'Invalid user_id' });
+    }
+    const userId = userIdentity.userId;
     const result = await subscriptionsService.getLatestDigest({ userId, scope: parsed.data.scope });
     res.json(result || { digest: null });
   } catch (error) {
@@ -3830,8 +3833,11 @@ app.patch('/api/v1/alerts/:id', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
     }
-    const userId = header(req, 'x-user-id');
-    if (!userId) return res.status(401).json({ error: 'User ID required' });
+    const userIdentity = userIdFromHeader(req);
+    if (!userIdentity.userId) {
+      return res.status(userIdentity.status || 400).json({ error: userIdentity.error || 'Invalid user_id' });
+    }
+    const userId = userIdentity.userId;
     await subscriptionsService.updateAlertStatus({ alertId, userId, status: parsed.data.status });
     res.json({ ok: true });
   } catch (error) {
@@ -6163,3 +6169,4 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;
+// CI test
