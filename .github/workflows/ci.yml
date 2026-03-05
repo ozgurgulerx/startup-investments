@@ -56,8 +56,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install -r packages/analysis/requirements.txt
-      - run: cd packages/analysis && pytest tests/ -x
+      - run: pip install -r packages/analysis/requirements.txt pytest pytest-asyncio
+      - run: cd packages/analysis && python -m pytest tests/ -x
 
   build-check:
     name: Build Check
