@@ -49,7 +49,25 @@ const INVESTOR_STEPS = [
   },
 ] as const;
 
-const SURFACE_MAP = [
+const BUILDER_STEPS = [
+  {
+    step: 'Step 1',
+    title: 'Find proven product wedges quickly',
+    body: 'Start in Dossiers to compare similar companies by stage, category, and execution context before roadmap commitments.',
+  },
+  {
+    step: 'Step 2',
+    title: 'Stress-test moat and GTM assumptions',
+    body: 'Use source-backed evidence and confidence signals to separate durable advantages from narrative-heavy positioning.',
+  },
+  {
+    step: 'Step 3',
+    title: 'Track pattern shifts in your market',
+    body: 'Follow Signals and Capital to spot adoption and funding changes that should influence product and go-to-market bets.',
+  },
+] as const;
+
+const INVESTOR_SURFACE_MAP = [
   {
     title: 'Dossiers',
     body: 'Company-level breakdowns of wedge, moat, execution, and momentum for diligence decisions.',
@@ -76,6 +94,33 @@ const SURFACE_MAP = [
   },
 ] as const;
 
+const BUILDER_SURFACE_MAP = [
+  {
+    title: 'Dossiers',
+    body: 'Company-level breakdowns of wedge, moat, execution, and momentum to benchmark strategic choices.',
+    href: '/dealbook',
+    cta: 'Open Dossiers',
+  },
+  {
+    title: 'Signals',
+    body: 'Cross-company pattern momentum that shows where adoption is accelerating or stalling.',
+    href: '/signals',
+    cta: 'Open Signals',
+  },
+  {
+    title: 'Capital',
+    body: 'Funding context and concentration shifts to understand where market conviction is forming.',
+    href: '/capital',
+    cta: 'Open Capital',
+  },
+  {
+    title: 'Brief',
+    body: 'Periodic synthesis of what changed, why it matters, and what to watch next.',
+    href: '/brief',
+    cta: 'Open Brief',
+  },
+] as const;
+
 export default function LandingContent({ metrics, latestPeriod }: LandingContentProps) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -83,6 +128,18 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
 
   const copy = INVESTOR_COPY_IA_V1_ENABLED ? COPY.investors : COPY.builders;
   const homeMessaging = ROUTE_MESSAGING.home;
+  const workflowLabel = INVESTOR_COPY_IA_V1_ENABLED ? 'Investor Workflow' : 'Builder Workflow';
+  const workflowHeadline = INVESTOR_COPY_IA_V1_ENABLED
+    ? 'How investors use Build Atlas'
+    : 'How builders use Build Atlas';
+  const workflowSteps = INVESTOR_COPY_IA_V1_ENABLED ? INVESTOR_STEPS : BUILDER_STEPS;
+  const surfaceHeadline = INVESTOR_COPY_IA_V1_ENABLED
+    ? 'Product surfaces mapped to investor jobs'
+    : 'Product surfaces mapped to builder jobs';
+  const surfaceDescription = INVESTOR_COPY_IA_V1_ENABLED
+    ? 'Each surface answers a distinct decision question and links into the same evidence chain.'
+    : 'Each surface supports a specific product or GTM decision with linked evidence.';
+  const surfaceMap = INVESTOR_COPY_IA_V1_ENABLED ? INVESTOR_SURFACE_MAP : BUILDER_SURFACE_MAP;
   const periodLabel = formatPeriodLabel(latestPeriod).toUpperCase();
 
   return (
@@ -102,7 +159,7 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
 
       <section className="relative overflow-hidden pt-10 pb-12 px-6 border-b border-border/20">
         <div className="max-w-6xl mx-auto">
-          <p className="label-xs text-accent-info mb-4">Investor Workflow</p>
+          <p className="label-xs text-accent-info mb-4">{workflowLabel}</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-foreground mb-5 leading-tight max-w-5xl">
             {INVESTOR_COPY_IA_V1_ENABLED ? homeMessaging.headline : copy.heroHeadline}
           </h1>
@@ -159,11 +216,11 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       <section className="py-16 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-10">
-            <h2 className="headline-lg text-foreground mb-4">How investors use Build Atlas</h2>
+            <h2 className="headline-lg text-foreground mb-4">{workflowHeadline}</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">{SUPPORTING_LINE}</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            {INVESTOR_STEPS.map((item) => (
+            {workflowSteps.map((item) => (
               <article key={item.title} className="rounded-xl border border-border/40 bg-card/40 p-5">
                 <p className="label-xs text-accent-info mb-2">{item.step}</p>
                 <h3 className="headline-sm text-foreground mb-2">{item.title}</h3>
@@ -177,13 +234,11 @@ export default function LandingContent({ metrics, latestPeriod }: LandingContent
       <section className="py-16 px-6 border-y border-border/30">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-10">
-            <h2 className="headline-lg text-foreground mb-4">Product surfaces mapped to investor jobs</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Each surface answers a distinct decision question and links into the same evidence chain.
-            </p>
+            <h2 className="headline-lg text-foreground mb-4">{surfaceHeadline}</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">{surfaceDescription}</p>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            {SURFACE_MAP.map((surface) => (
+            {surfaceMap.map((surface) => (
               <article key={surface.title} className="rounded-xl border border-border/40 p-5 bg-card/50">
                 <h3 className="headline-sm text-foreground mb-2">{surface.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed mb-4">{surface.body}</p>
