@@ -19,9 +19,12 @@ from src.automation.news_ingest import (
     _build_turkey_cluster,
     canonicalize_url,
     _has_turkey_nexus,
+    _is_cloudflare_challenge_page,
+    _fetch_theinformation_section_page,
     _is_relevant_turkey_news_item,
     _is_relevant_turkey_news_item_strict,
     _parse_amazon_new_releases_html,
+    _partition_valid_sources,
     _sanitize_for_pg,
     parse_theinformation_technology_headlines,
     _apply_source_topic_overrides,
@@ -33,6 +36,7 @@ from src.automation.news_ingest import (
     ensure_json_object,
     is_likely_content_url,
 )
+from src.automation import news_ingest as news_ingest_module
 
 
 def test_ensure_json_object_handles_dict_and_json_string():
@@ -102,6 +106,117 @@ def test_parse_theinformation_technology_headlines_parses_short_titles():
     assert items[0]["published_at"] is not None
 
 
+def test_is_cloudflare_challenge_page_detects_known_markers():
+    html = """
+    <html>
+      <head><title>Just a moment...</title></head>
+      <body>cloudflare /cdn-cgi/challenge-platform</body>
+    </html>
+    """
+    assert _is_cloudflare_challenge_page(html) is True
+    assert _is_cloudflare_challenge_page("<html><body>ok</body></html>") is False
+
+
+def test_is_cloudflare_challenge_page_ignores_normal_pages_with_challenge_script():
+    html = """
+    <html>
+      <head><title>The Information</title></head>
+      <body>cloudflare /cdn-cgi/challenge-platform <a href="/articles/seed-1">A</a></body>
+    </html>
+    """
+    assert _is_cloudflare_challenge_page(html, status_code=200) is False
+
+
+def test_fetch_theinformation_section_page_retries_cloudflare_block(monkeypatch):
+    responses = [
+        _FakeResponse(
+            text="<html><title>Just a moment...</title><body>cloudflare cf-chl</body></html>",
+            status_code=403,
+        ),
+        _FakeResponse(text="<html><body>ok</body></html>", status_code=200),
+    ]
+
+    class _FakeAsyncClient:
+        def __init__(self, queued):
+            self.queued = list(queued)
+            self.calls = 0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url):
+            index = self.calls
+            self.calls += 1
+            return self.queued[index]
+
+    client_holder = {"client": None, "headers": None}
+
+    def _fake_async_client(*_args, **kwargs):
+        client_holder["headers"] = kwargs.get("headers")
+        client_holder["client"] = _FakeAsyncClient(responses)
+        return client_holder["client"]
+
+    async def _no_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(news_ingest_module.httpx, "AsyncClient", _fake_async_client)
+    monkeypatch.setattr(news_ingest_module.asyncio, "sleep", _no_sleep)
+
+    result = asyncio.run(
+        _fetch_theinformation_section_page(
+            "https://www.theinformation.com/technology",
+            max_attempts=3,
+            backoff_seconds=0.01,
+        )
+    )
+
+    assert result.status_code == 200
+    assert client_holder["client"] is not None
+    assert client_holder["client"].calls == 2
+    assert isinstance(client_holder["headers"], dict)
+    assert "Sec-Fetch-Mode" in client_holder["headers"]
+
+
+def test_fetch_theinformation_section_page_raises_on_non_retryable_status(monkeypatch):
+    responses = [_FakeResponse(text="<html><body>missing</body></html>", status_code=404)]
+
+    class _FakeAsyncClient:
+        def __init__(self, queued):
+            self.queued = list(queued)
+            self.calls = 0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url):
+            index = self.calls
+            self.calls += 1
+            return self.queued[index]
+
+    def _fake_async_client(*_args, **_kwargs):
+        return _FakeAsyncClient(responses)
+
+    monkeypatch.setattr(news_ingest_module.httpx, "AsyncClient", _fake_async_client)
+
+    try:
+        asyncio.run(
+            _fetch_theinformation_section_page(
+                "https://www.theinformation.com/technology",
+                max_attempts=2,
+                backoff_seconds=0.01,
+            )
+        )
+        assert False, "expected RuntimeError for 404 response"
+    except RuntimeError as exc:
+        assert "status=404" in str(exc)
+
+
 def test_compute_cluster_scores_ignores_lead_only_members():
     now = datetime.now(timezone.utc)
     real = NormalizedNewsItem(
@@ -151,6 +266,19 @@ def test_semianalysis_source_in_default_sources():
     assert src.base_url == "https://semianalysis.com/feed/"
     assert src.language == "en"
     assert src.lookback_hours_override == 8760
+
+
+def test_anthropic_research_source_in_default_sources():
+    source_map = {s.source_key: s for s in DEFAULT_SOURCES}
+    assert "anthropic_research" in source_map
+    src = source_map["anthropic_research"]
+    assert src.region == "global"
+    assert src.fetch_mode == "latest_posts"
+    assert src.source_type == "crawler"
+    assert src.base_url == "https://www.anthropic.com/research"
+    assert src.language == "en"
+    assert src.credibility_weight == 0.78
+    assert src.crawl_seed_urls == ("https://www.anthropic.com/research",)
 
 
 def test_ai_hardware_news_pack_sources_registered_and_tagged():
@@ -1030,3 +1158,40 @@ def test_latest_posts_sources_use_crawler_type_and_fetch_mode():
                 f"{s.source_key}: fetch_mode='latest_posts' but "
                 f"source_type='{s.source_type}' (expected 'crawler')"
             )
+
+
+def test_partition_valid_sources_skips_invalid_definitions():
+    sources = [
+        SourceDefinition("ok_rss", "OK RSS", "rss", "https://example.com/feed"),
+        SourceDefinition("bad_type", "Bad Type", "latest_posts", "https://example.com/news"),
+        SourceDefinition(
+            "bad_latest_posts_type",
+            "Bad Latest Posts Type",
+            "community",
+            "https://example.com/blog",
+            fetch_mode="latest_posts",
+        ),
+    ]
+
+    valid, invalid = _partition_valid_sources(sources)
+    assert [s.source_key for s in valid] == ["ok_rss"]
+    assert len(invalid) == 2
+    assert "bad_type" in invalid[0]
+    assert "bad_latest_posts_type" in invalid[1]
+    assert "requires source_type='crawler'" in invalid[1]
+
+
+def test_partition_valid_sources_accepts_latest_posts_with_crawler():
+    sources = [
+        SourceDefinition(
+            "ok_latest_posts",
+            "OK Latest Posts",
+            "crawler",
+            "https://example.com/news",
+            fetch_mode="latest_posts",
+        )
+    ]
+
+    valid, invalid = _partition_valid_sources(sources)
+    assert [s.source_key for s in valid] == ["ok_latest_posts"]
+    assert invalid == []

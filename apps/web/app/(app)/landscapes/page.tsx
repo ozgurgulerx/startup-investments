@@ -30,16 +30,18 @@ interface ClusterDetail {
 // NOTE: theme tokens like `--chart-1` store HSL channels (e.g. `192 60% 38%`),
 // so SVG attributes must wrap them in `hsl(...)` to become a valid CSS color.
 const COLORS = [
-  'hsl(var(--chart-1) / 0.45)',
-  'hsl(var(--chart-2) / 0.45)',
-  'hsl(var(--chart-3) / 0.45)',
-  'hsl(var(--chart-4) / 0.45)',
-  'hsl(var(--chart-5) / 0.45)',
-  'hsl(var(--accent) / 0.35)',
-  'hsl(var(--success) / 0.35)',
-  'hsl(var(--delta) / 0.30)',
-  'hsl(var(--muted-foreground) / 0.22)',
-  'hsl(var(--foreground) / 0.10)',
+  // Use fully-opaque colors and control transparency via SVG `fillOpacity` for
+  // better cross-browser support than CSS Color 4 `hsl(... / a)` in attributes.
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+  'hsl(var(--accent))',
+  'hsl(var(--success))',
+  'hsl(var(--delta))',
+  'hsl(var(--warning))',
+  'hsl(var(--destructive))',
 ];
 
 function formatUsd(v: number): string {
@@ -73,16 +75,18 @@ function TreemapContent(props: any) {
         width={width}
         height={height}
         fill={color}
-        stroke="hsl(var(--border) / 0.8)"
+        fillOpacity={0.65}
+        stroke="hsl(var(--border))"
+        strokeOpacity={0.85}
         strokeWidth={1}
         rx={2}
       />
       {width > 60 && height > 40 && (
         <>
-          <text x={x + 6} y={y + 16} fill="hsl(var(--foreground))" fontSize={11} fontWeight={500}>
+          <text x={x + 6} y={y + 16} style={{ fill: 'hsl(var(--foreground))' }} fontSize={11} fontWeight={500}>
             {safeName.length > width / 7 ? safeName.slice(0, Math.floor(width / 7)) + '...' : safeName}
           </text>
-          <text x={x + 6} y={y + 30} fill="hsl(var(--muted-foreground))" fontSize={9}>
+          <text x={x + 6} y={y + 30} style={{ fill: 'hsl(var(--muted-foreground))' }} fontSize={9}>
             {safeCount} startups · {formatUsd(safeFunding)}
           </text>
         </>
@@ -298,7 +302,7 @@ export default function LandscapesPage() {
 	                  data={treemapData}
 	                  dataKey="value"
 	                  aspectRatio={4/3}
-	                  stroke="hsl(var(--border) / 0.7)"
+	                  stroke="hsl(var(--border))"
 	                  content={<TreemapContent onSelectPattern={(pattern: string) => setSelectedPattern(pattern)} />}
 	                />
 	              </ResponsiveContainer>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { resolveEditorialPath } from '@/lib/api/editorial-path';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,10 @@ async function proxyRequest(req: NextRequest, method: string) {
   }
 
   const { searchParams } = new URL(req.url);
-  const path = searchParams.get('path') || 'review';
+  const path = resolveEditorialPath(searchParams.get('path'));
+  if (!path) {
+    return NextResponse.json({ error: 'Invalid path parameter' }, { status: 400 });
+  }
 
   // Build upstream URL: /api/admin/editorial/{path}?remaining_params
   const upstreamParams = new URLSearchParams();

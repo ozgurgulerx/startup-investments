@@ -307,5 +307,34 @@ if kubectl get secret -n "$NAMESPACE" buildatlas-ops-secrets >/dev/null 2>&1; th
     fi
 fi
 
+SMOKE_ENABLED_RAW="$(echo "${PIPELINES_DEPLOY_SMOKE_NEWS_INGEST:-true}" | tr '[:upper:]' '[:lower:]')"
+if [ "$SMOKE_ENABLED_RAW" = "0" ] || [ "$SMOKE_ENABLED_RAW" = "false" ] || [ "$SMOKE_ENABLED_RAW" = "no" ] || [ "$SMOKE_ENABLED_RAW" = "off" ]; then
+    echo ""
+    echo "[5.1/5] Skipping post-deploy news-ingest smoke check (PIPELINES_DEPLOY_SMOKE_NEWS_INGEST=${PIPELINES_DEPLOY_SMOKE_NEWS_INGEST:-true})"
+else
+    echo ""
+    echo "[5.1/5] Running post-deploy news-ingest smoke check..."
+    SMOKE_TIMEOUT="${PIPELINES_DEPLOY_SMOKE_TIMEOUT:-35m}"
+    SMOKE_JOB="news-ingest-smoke-${COMMIT_SHA}-$(date +%s)"
+    kubectl create job "$SMOKE_JOB" --from=cronjob/news-ingest -n "$NAMESPACE" >/dev/null
+    echo "  Triggered job: $SMOKE_JOB (timeout: $SMOKE_TIMEOUT)"
+
+    if kubectl wait -n "$NAMESPACE" --for=condition=complete --timeout="$SMOKE_TIMEOUT" "job/$SMOKE_JOB" >/dev/null 2>&1; then
+        echo "  OK: news-ingest smoke check succeeded."
+    else
+        echo "ERROR: news-ingest smoke check failed or timed out."
+        echo ""
+        echo "Smoke job status:"
+        kubectl get job -n "$NAMESPACE" "$SMOKE_JOB" -o wide || true
+        echo ""
+        echo "Smoke pod(s):"
+        kubectl get pods -n "$NAMESPACE" -l "job-name=$SMOKE_JOB" -o wide || true
+        echo ""
+        echo "Smoke logs:"
+        kubectl logs -n "$NAMESPACE" "job/$SMOKE_JOB" --all-containers=true || true
+        exit 1
+    fi
+fi
+
 echo ""
 echo "Pipelines deploy complete at $(date -u '+%Y-%m-%d %H:%M UTC')"

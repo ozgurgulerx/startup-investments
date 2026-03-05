@@ -646,6 +646,8 @@ AKS_JOBS_AVAILABLE=0
 declare -A AKS_JOB_LAST_NAME
 declare -A AKS_JOB_LAST_STATUS
 declare -A AKS_JOB_LAST_TIME
+declare -A AKS_JOB_PREV_STATUS
+declare -A AKS_JOB_PREV_TIME
 
 AKS_CRON_INFO=$(az aks command invoke \
     --resource-group "$AKS_RG" \
@@ -692,6 +694,10 @@ if [ -n "$AKS_JOB_INFO" ] && ! echo "$AKS_JOB_INFO" | grep -qi '^error:'; then
             TS="${COMP:-$CREATED}"
         fi
 
+        # Input list is sorted by creationTimestamp ASC, so this tracks the
+        # most recent and immediately previous job outcomes per CronJob.
+        AKS_JOB_PREV_STATUS["$CJ"]="${AKS_JOB_LAST_STATUS[$CJ]:-}"
+        AKS_JOB_PREV_TIME["$CJ"]="${AKS_JOB_LAST_TIME[$CJ]:-}"
         AKS_JOB_LAST_NAME["$CJ"]="$JOBNAME"
         AKS_JOB_LAST_STATUS["$CJ"]="$STATUS"
         AKS_JOB_LAST_TIME["$CJ"]="$TS"
@@ -719,6 +725,8 @@ for job_entry in $CRON_JOBS; do
             # Prefer last Job status if available; lastScheduleTime alone can be misleading if jobs are failing.
             JOB_STATUS="${AKS_JOB_LAST_STATUS[$JOB_NAME]:-}"
             JOB_TS="${AKS_JOB_LAST_TIME[$JOB_NAME]:-}"
+            JOB_PREV_STATUS="${AKS_JOB_PREV_STATUS[$JOB_NAME]:-}"
+            JOB_PREV_TS="${AKS_JOB_PREV_TIME[$JOB_NAME]:-}"
 
             if [ -n "$JOB_STATUS" ] && [ -n "$JOB_TS" ]; then
                 TS_EPOCH=$(date -d "$JOB_TS" +%s 2>/dev/null || echo "0")
@@ -734,7 +742,24 @@ for job_entry in $CRON_JOBS; do
 
                     echo "  ${JOB_NAME}: AKS last job ${JOB_STATUS} ${AGO_STR}"
                     if [ "$JOB_STATUS" = "Failed" ]; then
-                        add_fail "${JOB_NAME} (AKS): last job Failed ${AGO_STR}"
+                        if [ "$JOB_PREV_STATUS" = "Failed" ]; then
+                            PREV_EPOCH=$(date -d "$JOB_PREV_TS" +%s 2>/dev/null || echo "0")
+                            if [ "$PREV_EPOCH" -gt 0 ] 2>/dev/null; then
+                                PREV_MINS_AGO=$(( (NOW_EPOCH - PREV_EPOCH) / 60 ))
+                                if [ "$PREV_MINS_AGO" -lt 60 ]; then
+                                    PREV_AGO_STR="${PREV_MINS_AGO}m ago"
+                                elif [ "$PREV_MINS_AGO" -lt 1440 ]; then
+                                    PREV_AGO_STR="$(( PREV_MINS_AGO / 60 ))h ago"
+                                else
+                                    PREV_AGO_STR="$(( PREV_MINS_AGO / 1440 ))d ago"
+                                fi
+                                add_fail "${JOB_NAME} (AKS): consecutive failures (latest ${AGO_STR}, previous ${PREV_AGO_STR})"
+                            else
+                                add_fail "${JOB_NAME} (AKS): consecutive failures (latest ${AGO_STR})"
+                            fi
+                        else
+                            add_fail "${JOB_NAME} (AKS): last job Failed ${AGO_STR}"
+                        fi
                     elif [ "$MINS_AGO" -le "$STALE_THRESHOLD" ]; then
                         add_ok "${JOB_NAME} (AKS): ${JOB_STATUS} ${AGO_STR}"
                     else

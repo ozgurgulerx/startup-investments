@@ -64,6 +64,7 @@ Important headers/invariants:
   - Use same-origin Next route handlers under `apps/web/app/api/**` as proxies (e.g. `/api/movers`, `/api/startups/:slug/*`, `/api/brief/snapshot`).
 - Web admin proxy routes must send distinct auth headers:
   - `apps/web/app/api/monitoring/route.ts` and `apps/web/app/api/editorial/route.ts` call backend admin endpoints and must forward `X-API-Key: API_KEY` and `X-Admin-Key: ADMIN_KEY` (these may differ).
+  - `apps/web/app/api/editorial/route.ts` must allowlist `path` (`review`, `actions`, `rules`, `stats`, `rules/:id`) and reject all other upstream path values.
 - Web admin surfaces/proxies must be **admin-only** (defense-in-depth):
   - `apps/web/middleware.ts` enforces JWT auth + `role=admin` for `/monitoring`, `/api/monitoring`, `/api/editorial`.
   - The route handlers above also check `session.user.role === 'admin'` before proxying keys upstream.
@@ -86,7 +87,7 @@ Important headers/invariants:
   - Enforced by `.gitattributes` (`*.sh text eol=lf`).
   - Pipelines image hardens this at build time: `infrastructure/pipelines/Dockerfile` strips CR bytes and fails the build if any remain.
   - Guardrail test: `packages/analysis/tests/test_no_crlf_shell_scripts.py`.
-  - Local: `cd packages/analysis && pytest -q` (includes this guardrail).
+  - Local: `./venv/bin/python -m pytest -q packages/analysis/tests` (uses repo venv; includes this guardrail).
 - `embed-backfill` supports safe verification without embedding spend:
   - Set `EMBED_BACKFILL_DRY_RUN=true` to only count unembedded clusters (DB read only; no Azure OpenAI calls).
   - Optional tuning: `EMBED_BACKFILL_LIMIT`, `EMBED_BACKFILL_ORDER`, `EMBED_BACKFILL_SLEEP_MS`, `EMBED_BACKFILL_RELATED_*`.
@@ -96,6 +97,7 @@ Important headers/invariants:
 - Web watchlist-intelligence API proxies must forward identity:
   - `apps/web/app/api/subscriptions/route.ts` and `apps/web/app/api/alerts/**` resolve NextAuth session and pass
     `X-User-Id` to backend; missing this causes 401s and empty watchlist intelligence UI.
+  - Backend watchlist-intelligence handlers treat malformed `X-User-Id` as client error (`400`) and must not allow invalid UUID values to reach DB UUID casts.
 - News reaction identity precedence:
   - `apps/web/app/api/news/signals/**` uses `user_id` when signed in; anonymous users use `ba_anon_id` cookie fallback.
 - Community feature migration + routing invariants:
@@ -162,6 +164,8 @@ AKS pipelines CronJobs:
     - Kubelet object id: `AZURE_CLI_DISABLE_LOGFILE=1 az aks show -g aistartuptr -n aks-aistartuptr --query identityProfile.kubeletidentity.objectId -o tsv`
     - Account scope: `/subscriptions/.../resourceGroups/rg-openai/providers/Microsoft.CognitiveServices/accounts/aoai-ep-swedencentral02`
 - Deploy: VM job `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (runner: `pipelines-deploy`) (typically auto-triggered by `infrastructure/vm-cron/deploy.sh`).
+  - Post-deploy guardrail: `pipelines-deploy.sh` triggers a `news-ingest` smoke Job (`kubectl create job --from=cronjob/news-ingest ...`)
+    and fails deploy on smoke failure/timeout. Override with `PIPELINES_DEPLOY_SMOKE_NEWS_INGEST=false` (timeout default `35m`, override via `PIPELINES_DEPLOY_SMOKE_TIMEOUT`).
 - VM cutover guardrail: set `BUILDATLAS_VM_CRON_DISABLED_JOBS` in `/etc/buildatlas/.env` (enforced by `infrastructure/vm-cron/lib/runner.sh`)
   - Additional safety net: `infrastructure/vm-cron/vm-cron-disabled-jobs` can disable jobs on the VM even if `/etc/buildatlas/.env` is misconfigured (prevents accidental double-runs).
 
@@ -197,7 +201,8 @@ VM cron runner:
   - API runtime telemetry (admin-only):
     - Middleware: `apps/api/src/monitoring/runtime_metrics.ts` records rolling per-minute request counts/status/latency buckets.
     - Admin endpoint: `/api/admin/monitoring/runtime?window_min=10` returns a snapshot plus DB pool stats (`getPoolStats()`).
-    - VM `infrastructure/vm-cron/monitoring/heartbeat.sh` and `infrastructure/vm-cron/jobs/health-report.sh` consume this endpoint for SLO-style alerting.
+  - VM `infrastructure/vm-cron/monitoring/heartbeat.sh` and `infrastructure/vm-cron/jobs/health-report.sh` consume this endpoint for SLO-style alerting.
+  - AKS Cron health diagnostics in `health-report.sh` track latest and previous Job outcomes per CronJob and explicitly flag consecutive failures.
   - Raw captures (WARC-lite):
     - `crawl_raw_captures` stores envelope metadata for replay and optionally uploads the compressed body to Blob Storage under `crawl-snapshots/raw-captures/...`.
     - If Blob upload auth is misconfigured (e.g., `AuthorizationFailure`), the worker **fail-opens**: it disables further blob uploads for that run (to avoid log spam) and continues recording DB metadata with `body_blob_path=NULL`.
@@ -311,6 +316,8 @@ News:
   - `infrastructure/vm-cron/jobs/news-digest.sh`
   - `news-digest.sh` now posts per-run delivery totals to Slack (`sent/skipped/failed` for global+turkey).
 - Default sources are defined in `packages/analysis/src/automation/news_ingest.py` (`DEFAULT_SOURCES`).
+  - Ingest source validation is fail-open: invalid `SourceDefinition` entries are logged and skipped (not fatal),
+    but ingestion hard-fails if zero valid sources remain after validation.
   - SemiAnalysis is ingested via RSS as `source_key=semianalysis` (`https://semianalysis.com/feed/`).
 - Canonical Evidence Objects + hardened Event Objects (contract of truth):
   - Migrations:
@@ -386,10 +393,20 @@ News:
     - `POST /api/admin/v1/headline-seeds` (create seed) (`x-admin-key` required)
     - `GET /api/admin/v1/headline-seeds` (list seeds) (`x-admin-key` required)
   - Ingest integration: `packages/analysis/src/automation/news_ingest.py` adds source `theinformation` with `fetch_mode=paid_headlines`.
-  - Env gates:
+- Env gates:
     - `PAID_HEADLINE_SEEDS_ENABLED=true` enables processing.
     - `PAID_HEADLINE_METADATA_FETCH=true` enables metadata-only HTML fetch (title/description/og:image/article:published_time).
     - `PAID_HEADLINE_EXPAND_SOURCES=gnews,newsapi`, `PAID_HEADLINE_EXPAND_LOOKBACK_HOURS=168`, `PAID_HEADLINE_EXPAND_MAX_PER_SEED=8`, `PAID_HEADLINE_MAX_SEEDS_PER_RUN=10`, `PAID_HEADLINE_MAX_ATTEMPTS=3`.
+  - Seeders:
+    - Scheduled `theinformation-headlines` is currently **disabled** in VM and AKS cron while source reliability is being hardened.
+    - Manual runner: `infrastructure/vm-cron/lib/runner.sh theinformation-headlines 15 infrastructure/vm-cron/jobs/seed-theinformation-headlines.sh`.
+    - CLI: `python main.py seed-theinformation-headlines --section-url https://www.theinformation.com/technology --max-items 40`.
+    - Fetch behavior: the seeder now uses browser-like request headers and retries transient/Cloudflare challenge responses before failing.
+    - Optional envs:
+      - `THEINFORMATION_SECTION_URL` (defaults to `https://www.theinformation.com/technology`)
+      - `THEINFORMATION_SEED_MAX_ITEMS` (defaults to `40`, passed to `main.py` wrapper).
+      - `THEINFORMATION_FETCH_MAX_ATTEMPTS` (defaults to `4`).
+      - `THEINFORMATION_FETCH_BACKOFF_SECONDS` (defaults to `1.0`).
   - Guardrail: lead-only clusters are excluded from editions/events/research/LLM; a seed only influences published news via corroborating non-paywalled sources.
 - Memory-Gated Editorial Intelligence (Phase 1: entity linking + fact extraction):
   - Migration: `database/migrations/023_memory_system.sql`
