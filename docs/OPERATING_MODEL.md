@@ -521,3 +521,4 @@ Treat this script as the canonical guardrail (also runnable via `pnpm ops:verify
 - `infrastructure/vm-cron/jobs/news-ingest.sh`
 - `infrastructure/vm-cron/jobs/news-digest.sh`
 - `AGENTS.md`
+
