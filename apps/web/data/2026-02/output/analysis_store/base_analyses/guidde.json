@@ -1,0 +1,574 @@
+{
+  "company_name": "Guidde",
+  "company_slug": "guidde",
+  "website": "https://www.guidde.com",
+  "logo_url": null,
+  "description": "Guidde provides an AI-powered platform for creating and sharing instructional videos for software workflows.",
+  "funding_amount": 50000000.0,
+  "funding_stage": "series_b",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [
+    "OpenAI",
+    "Anthropic"
+  ],
+  "build_patterns": [
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.8,
+      "evidence": [
+        "we'll always display playbooks based on their view count and ranking, which will change organically over time",
+        "automatically labels each one of the playbooks",
+        "personalizes the playbooks that are presented to you according to labels, your role, your geo-location and more",
+        "auto-updates across platforms",
+        "content recommendations"
+      ],
+      "description": "Guidde surfaces and ranks content using usage signals (views/rankings) and metadata (role, geo, app). These signals and the platform's automated tagging/labeling form a feedback loop: captured content is indexed and surfaced, user interactions inform ranking and recommendations, and popular/updated content is prioritized\u2014driving continual improvement in what is shown and prompting more content capture and refinement."
+    },
+    {
+      "name": "Guardrail-as-LLM (Safety & Compliance Layer)",
+      "confidence": 0.75,
+      "evidence": [
+        "Blur sensitive info instantly and automatically",
+        "Guidde is SOC 2 Type II certified and supports SSO, role-based access, and global delivery",
+        "permission levels within the app to be set for your teammates",
+        "All data sent to or from Guidde is encrypted in transit using 256 bit encryption",
+        "we produce audit logs for all activity and use GCP for archival purposes"
+      ],
+      "description": "The product includes automated privacy/compliance checks applied to captured content (automatic blurring of sensitive info) plus RBAC, SSO, audit logs and encryption. This implies a guardrail tier that detects PII/sensitive fields (likely via models or heuristics) and enforces access/compliance policies before storing or surfacing content."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.7,
+      "evidence": [
+        "AI automatically produces a polished step-by-step video with synced narration and text",
+        "adds voiceover, captions, highlights, and multi-language options automatically",
+        "Guidde understands and transcribes what's being said and shown in your video content",
+        "Choose from over 100 voices and languages for perfect narration",
+        "Easily repurpose Zoom recordings, presentations, and YouTube content into controlled, searchable walkthroughs"
+      ],
+      "description": "Multiple specialized models are implied: ASR/transcription, TTS/voice synthesis, translation/localization, summarization/step extraction, and likely computer-vision/UI-detection for segmenting screen recordings. Those task-specific models are composed into a pipeline (mesh) to transform raw recordings into searchable, localized, narrated video SOPs."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.9,
+      "evidence": [
+        "turn NetSuite expertise into on-demand video guides inside the platform",
+        "turn your team's Workday expertise into searchable video libraries",
+        "Every organization uses SAP differently \u2014 Guidde lets subject-matter experts capture those workflows",
+        "Capture process knowledge once and reuse it across teams, departments, and regions",
+        "playbooks live on-app for posterity"
+      ],
+      "description": "Guidde captures company- and product-specific process videos and metadata, creating proprietary corpora of organizational know-how. Those collections (NetSuite, SAP, Workday playbooks) form a vertical/tenant-specific dataset that is hard for competitors to replicate and can be leveraged for tailored search, recommendations, and possibly fine-tuning."
+    },
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.5,
+      "evidence": [
+        "searchable text",
+        "Guidde understands and transcribes what's being said and shown in your video content",
+        "automatically labels each one of the playbooks according to the app, the location, topics or features it's relevant for",
+        "search for playbooks the same way you search Google",
+        "AI-Generated Descriptions Automatically generate step-by-step descriptions"
+      ],
+      "description": "The product clearly indexes/transcribes videos and supports search and auto-generated descriptions. While explicit mention of vector stores or embeddings is absent, the functionality suggests a retrieval layer that returns relevant playbooks and may be used to contextualize or summarize content (i.e., a light RAG pattern: retrieval of indexed segments + generation of descriptions/summaries)."
+    },
+    {
+      "name": "Knowledge Graphs / Metadata Indexing",
+      "confidence": 0.3,
+      "evidence": [
+        "automatically labels each one of the playbooks according to the app, the location, topics or features it's relevant for",
+        "personalizes the playbooks that are presented to you according to labels, your role, your geo-location and more",
+        "multi-tenant spaces approach where each space is fully isolated across companies and teams",
+        "Permissions can be set to include app settings, billing, user data or the ability to send or edit messages"
+      ],
+      "description": "There is heavy use of structured metadata, labels and role-based access that could be implemented as a permission-aware graph or metadata index tying users, roles, apps, locations and playbooks together. The text implies such relational indexing but does not explicitly describe a graph database or entity relationship layer."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.2,
+      "evidence": [
+        "send a video request to your subject matter experts... The right person in your team will immediately get notified, create a new playbook and send it straight back to your inbox",
+        "opens up exactly where it's needed and can be watched while using the app"
+      ],
+      "description": "There is workflow automation and notifications (human-in-the-loop orchestration) but no clear evidence of autonomous agents that plan, chain tools, or take multi-step actions autonomously. The system orchestrates tasks but appears primarily event-driven with human authorship."
+    },
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.1,
+      "evidence": [
+        "AI-Generated Descriptions Automatically generate step-by-step descriptions",
+        "Guidde instantly turns them into step-by-step, narrated walkthroughs"
+      ],
+      "description": "The content highlights automated description/summarization of recorded workflows but does not indicate converting natural language into executable rules, scripts or code. This pattern is largely absent."
+    }
+  ],
+  "discovered_patterns": [],
+  "pattern_category_scores": {},
+  "novel_approaches": [],
+  "model_details": {
+    "primary_models": [],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": false,
+      "orchestration_pattern": ""
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "enterprise_saas",
+  "sub_vertical": "ERP user enablement and in-app training for enterprise software suites",
+  "sub_sub_vertical": "in-app AI-powered walkthroughs for ERP/HRIS/CRM (NetSuite, SAP S/4HANA, Workday, etc.)",
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "it_enterprise_software",
+      "vertical_label": "Information Technology & Enterprise Software",
+      "sub_vertical_id": "business_productivity_software",
+      "sub_vertical_label": "Business Productivity Software",
+      "leaf_id": "business_productivity_software",
+      "leaf_label": "Business Productivity Software"
+    },
+    "path": [
+      {
+        "id": "it_enterprise_software",
+        "label": "Information Technology & Enterprise Software",
+        "confidence": 0.82
+      },
+      {
+        "id": "business_productivity_software",
+        "label": "Business Productivity Software",
+        "confidence": 0.78
+      }
+    ]
+  },
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [
+      "unknown"
+    ],
+    "llm_models": [
+      "unknown"
+    ],
+    "vector_databases": [
+      "unknown"
+    ],
+    "frameworks": [
+      "unknown"
+    ],
+    "hosting": [
+      "Google Cloud Platform (GCP)"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 5,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "SOC 2 Type II certification and security controls",
+      "SSO, role-based access, and multi-language delivery",
+      "Data encrypted in transit (256-bit) and at rest (AES-256)",
+      "Regular security practices: penetration testing, audit logs, disaster recovery",
+      "Hosting on Google Cloud Platform with multi-tenant spaces and isolated projects",
+      "Guidde Create offering AI-generated, narration-enabled video documentation",
+      "Guidde Broadcast and in-app guidance to surface in-workflow assistance"
+    ]
+  },
+  "implementation_maturity": "unknown",
+  "team_analysis": {
+    "founders": [],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [],
+      "team_size_indicators": "small",
+      "remote_distributed": true
+    },
+    "founder_market_fit": "insufficient information to assess",
+    "team_strengths": [
+      "AI-driven, in-workflow guidance embedding across ERP/HR/CRM platforms",
+      "In-product video documentation platform enabling rapid content creation and localization",
+      "Security and compliance posture (SOC 2 Type II, SSO, 2FA, encryption, audit logs)"
+    ],
+    "team_red_flags": [
+      "No disclosed founders or leadership bios in available data; reliance on marketing materials for credibility",
+      "Limited public information about team scale and exact engineering leadership"
+    ],
+    "team_confidence": 0.42
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "subscription",
+      "pricing_evidence": [
+        "Free plan with usage limits; upgrade to paid plan",
+        "No credit card required to start Guidde Create",
+        "Usage-based unit limits mentioned (units usage limit under our free plan)"
+      ],
+      "free_tier_available": true,
+      "enterprise_focus": true,
+      "price_points": [
+        "No explicit prices; enterprise pricing by negotiation; trial with free tier; implied tiered plans"
+      ]
+    },
+    "gtm_strategy": {
+      "primary_channel": "product_led",
+      "evidence": [
+        "In-app, context-specific guidance embedded in ERP/workflow apps (NetSuite, Workday, SAP)",
+        "Guidde Create allows self-serve creation of content; no IT escalation",
+        "\"Guidde Broadcast works everywhere you do\" indicates distribution across apps and ecosystems",
+        "Case studies and enterprise customers; content marketing with success stories"
+      ],
+      "target_segment": "enterprise",
+      "sales_motion": "hybrid"
+    },
+    "revenue_model": {
+      "monetization_approach": "subscription licenses with usage-based tiers; enterprise pricing via negotiation; in-app add-ons",
+      "unit_economics_signals": [
+        "free plan with usage limits",
+        "upgrade path to paid plan"
+      ],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "Deep integrations with major ERP/HR/CRM platforms (NetSuite, SAP, Workday) enabling in-context guidance",
+      "In-app, context-aware video guidance eliminating context-switching",
+      "AI-driven content creation enabling rapid content refresh and consistency"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "in-product discovery and onboarding (product-led growth)",
+        "content marketing with case studies and testimonials",
+        "enterprise sales for larger deals",
+        "integration partnerships and app ecosystems"
+      ],
+      "customer_proof_points": [
+        "Emerson case study (ERP training across 150 countries) showing 80% reduction in documentation time",
+        "Nezasa's onboarding journey with Guidde",
+        "Perforce case: significant reduction in video production time",
+        "FloQast case: accelerated content creation workflow",
+        "SentinelOne case: reduced content creation time"
+      ]
+    },
+    "business_model_clarity": "clear",
+    "business_model_confidence": 0.75
+  },
+  "product_analysis": {
+    "product_stage": "general_availability",
+    "stage_evidence": [
+      "Multiple enterprise case studies (Emerson, Nezasa, Perforce, SentinelOne, FloQast) showing real-world deployments",
+      "SOC 2 Type II certification, SSO, 2FA, multi-language delivery",
+      "Global deployment claims and support across large organizations (e.g., Emerson across 150 countries)",
+      "Embedded, in-context video SOPs across major ERP/CRM platforms (NetSuite, SAP, Workday, Ariba, Concur, SAP Ariba, SAP ERP)",
+      "Guidde Create with AI-generated narration, auto translation, and auto-updates; extensive integration ecosystem"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "AI-powered video SOP creation from screen capture (Guidde Create)",
+        "In-context, bite-sized video guidance embedded inside enterprise apps",
+        "Multilingual voiceover and automatic translations",
+        "Auto-generated narration and searchable text",
+        "Auto updates and cross-platform distribution",
+        "One-click capture; no video editing required",
+        "Automatic blur of sensitive data",
+        "Embedding in popular tools (Confluence, Salesforce, Zendesk, LMS, Notion, SharePoint)",
+        "LMS integration and content distribution",
+        "Security features: SOC 2 Type II, SSO, 2FA, encryption at rest/in transit"
+      ],
+      "differentiating_features": [
+        "ADAP concept: AI Digital Adoption Platform vs traditional DAPs",
+        "Content capture once, update everywhere across ecosystems",
+        "Contextual, role-specific guidance within workflows",
+        "AI-generated narration + 40+ language localization",
+        "Guidde Broadcast for distribution across platforms",
+        "Global, multi-workspace content segregation for large organizations"
+      ],
+      "roadmap_signals": [
+        "Expansion across key ERP/CRM ecosystems (NetSuite, SAP, Workday, SAP Ariba/Concur)",
+        "Enhanced AI-driven content updates and broader localization capabilities",
+        "Expanded distribution channels (Guidde Broadcast, deeper LMS and collaboration tool integrations)",
+        "Broader applicability to customer onboarding and external training scenarios"
+      ],
+      "feature_completeness": "comprehensive"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "NetSuite",
+        "Salesforce",
+        "Zendesk",
+        "Intercom",
+        "Freshdesk",
+        "Confluence",
+        "Notion",
+        "SharePoint",
+        "LMS platforms (Docebo, LearnUpon, WorkRamp)",
+        "SAP/SAP Ariba/Concur",
+        "Workday",
+        "Zoom/PowerPoint/YouTube content repurposing"
+      ],
+      "api_maturity": "none",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "In-context, AI-generated video SOPs to standardize and accelerate ERP/CRM workflows and onboarding",
+      "secondary_use_cases": [
+        "Onboarding new hires and enabling self-service training",
+        "Internal knowledge capture and process documentation",
+        "Customer onboarding and reducing support tickets",
+        "Content creation automation for policy/process guidance"
+      ],
+      "customer_stories": [
+        "Emerson case study: 80% reduction in documentation time across 150 countries; improved onboarding and reconciliation",
+        "Nezasa: Mastering Customer Onboarding with Guidde",
+        "Perforce: 90% reduction in video production time",
+        "SentinelOne: content creation time reduction",
+        "FloQast: optimizes content creation workflow"
+      ],
+      "industry_focus": [
+        "Enterprise ERP/Finance (NetSuite, SAP, Workday, Ariba/Concur)",
+        "HR and Talent/Workforce (Workday)",
+        "Accounts Payable/Finance (Emerson, SAP)",
+        "Software and security (SentinelOne, FloQast, Perforce)"
+      ]
+    },
+    "product_risks": [
+      "Content maintenance risk: processes change with releases; risk content becomes outdated if not continuously updated (though claims auto-updates exist)",
+      "Reliance on SMEs for initial content creation; potential bottlenecks if SMEs are unavailable",
+      "AI-generated narration quality and translation accuracy may require human review",
+      "API maturity and developer support not explicitly disclosed; potential integration friction",
+      "Security/compliance risks in content hosting and data exposure if not properly restricted"
+    ],
+    "product_strengths": [
+      "In-context, role-specific guidance directly within workflows",
+      "AI-driven content creation and localization at scale",
+      "Wide integration ecosystem within enterprise tools",
+      "Strong security posture (SOC 2 Type II, SSO, encryption, 2FA)",
+      "Rapid content creation and updates (minutes, not days/weeks)",
+      "Global, multi-language support and scalable deployment",
+      "Evidence from real customer outcomes (Emerson, Nezasa, Perforce, SentinelOne, FloQast)"
+    ],
+    "product_confidence": 0.78
+  },
+  "unique_findings": [
+    "End-to-end screen-capture \u2192 polished SOP pipeline: Guidde is not just hosting videos \u2014 they claim an automated pipeline that ingests raw screen/voice recordings (and uploads like Zoom), runs ASR, segments the recording into discrete steps, extracts UI actions, generates step-by-step text, produces captions and synthetic voiceovers, then renders a synchronized narrated video with highlights and annotations. That orchestration across CV/OCR, ASR, LLM-level instruction extraction and TTS is a nontrivial, integrated engineering stack.",
+    "Contextual, role-aware in-app surface: they emphasize surfacing bite-sized, role-specific guidance directly inside enterprise apps (NetSuite, SAP, Workday). That implies per-app connectors or an overlay/extension that can detect user role, current screen/context, and map the right playbook \u2014 a much deeper integration than typical iframe-embeds or KB links.",
+    "Automatic PII blurring at capture-time: Guidde claims automatic and instant blurring of sensitive information in videos. Practically this requires frame-level OCR + named-entity recognition (NER) or pattern detection (SSNs, credit card numbers, customer names) and either on-device or tightly controlled cloud processing to avoid exposing sensitive data \u2014 a high-difficulty feature for enterprise compliance.",
+    "Multi-channel distribution + auto-updates: videos are created once and automatically distributed/updated across many endpoints (LMS, Confluence, Zendesk, in-app). That means a content packaging/versioning system, webhooks/connector adapters per destination, and a canonical source of truth with update propagation and deprecation logic.",
+    "Multi-tenant, space-isolation architecture: they call out a multi-tenant spaces model with full isolation for companies/teams. For a video-first product that stores screen captures (potentially with PII), isolation at storage, access controls, RBAC, audit logs, and per-space keys/encryption are essential \u2014 an architectural choice oriented toward large enterprises.",
+    "Change detection and content recommendations: marketing mentions automated content recommendations and updates in minutes vs. days. To do that at scale requires either heuristics or ML to detect UI changes (DOM diffs for web, CV-based detection for non-web) and suggest re-records or automated patching of step text \u2014 a complex feedback loop that surfaces non-obvious engineering work.",
+    "Handling heavily customized ERPs/CRMs: their target (NetSuite, SAP, Workday) are highly customized per customer. Creating step-aligned guidance that remains valid requires robust methods to localize and normalize UI elements (mapping labels/fields across instances), which is a thorny engineering and ML problem seldom solved by simple screen-record pipelines.",
+    "Implicit dataset and model opportunity: by capturing thousands of annotated process recordings paired with structured step metadata, Guidde likely accumulates a unique dataset linking UI sequences \u2192 human narration \u2192 canonical SOP text. That dataset could be used to fine-tune models that perform more accurate step extraction, UI element identification, and auto-localization \u2014 a defensible technical asset if properly retained."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Guidde stitches real-time, in-app video SOPs into NetSuite, SAP and Workday without breaking workflow",
+      "summary": "Behind the polished UX is an architecture that captures user workflows in-browser, runs AI transforms, and surfaces context-aware video guidance inside heavy enterprise apps. Engineers will want to know how Guidde balances client-side capture, secure server-side processing, low-latency in-app delivery, and role-aware access controls across multi-tenant customers.",
+      "evidence": [
+        "Guidde uses a browser extension and desktop app to record workflows and embeds guidance directly inside NetSuite, SAP, Workday and other tools.",
+        "Guidde is SOC 2 Type II certified, supports SSO and role-based access, and hosts services on Google Cloud Platform with per-space isolation."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "data",
+      "headline": "Their secret weapon: company\u2011specific workflow recordings as a vertical data moat for retrieval\u2011augmented guidance",
+      "summary": "Guidde accumulates labeled, role-specific video+text pairs that map exact UI states to narrated procedures \u2014 a potentially unique corpus for RAG, indexing, and personalized help. The real story isn't just 'video' but how those workflow traces become searchable embeddings, metadata graphs and recommendation signals that let ADAP surface the right clip at the right moment.",
+      "evidence": [
+        "Guidde turns subject-matter-expert screen captures into searchable video SOPs with synced narration and text that surface in-context in ERP apps.",
+        "They claim automated generation of step-by-step descriptions, captions, multi-language voiceovers, and auto-updates across platforms \u2014 all of which imply indexed, structured metadata behind the scenes."
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Guidde doubled down on video-first ADAP when the market went all-in on tooltip click\u2011tours",
+      "summary": "Most DAPs focused on fragile, linear click tours; Guidde bets on capturing real human workflows as short videos and using AI to make them actionable. For builders, the contrarian bet raises questions: is video-plus-RAG more robust to UI churn than click scripts, and does it scale without centralized content teams?",
+      "evidence": [
+        "Guidde contrasts 'Video SOPs + searchable text' with 'Tooltip-based click tours', positioning video as visual, action-based and resilient to dynamic ERP workflows.",
+        "They emphasize minutes-to-create content by SMEs rather than days/weeks from centralized teams, signaling a distributed content model instead of centralized scripting."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Claim vs reality: Guidde promises 11x faster content creation \u2014 can that operationally cut month\u2011end chaos?",
+      "summary": "Guidde advertises dramatic efficiency gains (11x faster content creation, 80% drop in documentation time, fewer support tickets), but technical scrutiny is needed: how are accuracy, freshness and compliance validated at scale, and what SLOs/backups protect against stale or misleading guidance inside critical finance workflows?",
+      "evidence": [
+        "Marketing claims include '11x Faster Content Creation' and Emerson reporting an 80% reduction in documentation time with perfect usefulness ratings.",
+        "Guidde offers features like auto-blurring sensitive info, multi-language voiceovers, and auto-updates across embedded platforms \u2014 all positioned as time-savers for creators and users."
+      ],
+      "uniqueness_score": 6
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "The product reads like a thin orchestration layer that stitches together screen recording, TTS/translation, and embed capabilities driven by third\u2011party AI and cloud infra rather than proprietary core models or IP.",
+      "severity": "medium",
+      "evidence": [
+        "Repeated claims of AI-generated voiceovers, captions, and translations without disclosure of proprietary models: \"Guidde Create lets your NetSuite experts record a process once, and AI automatically produces a polished step-by-step video with synced narration and text.\"",
+        "Feature set focuses on automation of common capabilities (record, transcribe, TTS, blur sensitive info, multi-language) that can be implemented using widely available APIs and cloud services: \"Add AI-generated voiceovers, blur sensitive info automatically, and localize in 40+ languages\".",
+        "No technical detail on unique model training, proprietary datasets, or novel ML components; LLMs listed as 'unknown' in context."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Core value (embedded, AI-processed video SOPs) could be positioned as a single feature that incumbents (LMS, DAP vendors, or platform providers) can add to their offerings, making it vulnerable to being absorbed.",
+      "severity": "medium",
+      "evidence": [
+        "Messaging compares Guidde to incumbents and frames the advantage as video + embed vs tooltip tours \u2014 a capability incumbent platforms can add: \"ADAP Traditional DAPs Video SOPs + searchable text Tooltip-based click tours\".",
+        "Frequent callsout of embedding into existing tools and LMSs: \"Embed videos in Confluence, Salesforce, Zendesk, your LMS, or wherever work gets done\" \u2014 suggests the product is additive rather than a system of record.",
+        "Prominent integrations and embedding are core to value; if those become standard features in major suites, differentiation declines."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is limited evidence of a defensible technical moat \u2014 no mention of proprietary, company\u2011specific training data, verticalized models, unique knowledge graphs, or network effects that produce a lasting advantage.",
+      "severity": "high",
+      "evidence": [
+        "Claims focus on speed and convenience rather than unique algorithims or exclusive datasets: \"Minutes to create and update\" and \"11x Faster Content Creation\" without describing how.",
+        "No description of proprietary retrieval systems, knowledge graphs, or continual learning from vast customer corpora that would form a vertical data moat.",
+        "Tech stack and LLM provenance are unspecified; absence of RAG/metadata/indexing description limits argument for differentiated capabilities."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing-heavy language and broad, strong claims about outcomes (fast onboarding, huge reductions in tickets) are presented without supporting metrics methodology or technical transparency.",
+      "severity": "medium",
+      "evidence": [
+        "Broad effectiveness claims: \"New hires become SAP-proficient in days, not weeks\" and \"Documentation time dropped 80%\" (Emerson case) presented without detailed measurement context.",
+        "Frequent use of buzzwords and superlatives: \"first-of-its-kind AI Digital Adoption Platform (ADAP)\", \"capture know-how at unprecedented speeds\" and \"AI automatically produces a polished step-by-step video\".",
+        "Multiple generic ROI statements: \"fewer support tickets\", \"faster onboarding\" without quantified baselines or methodology."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "Position sits in a crowded space (digital adoption, in-app guidance, video training) and while video-first is a differentiator, the core components are common and competing vendors already target the same enterprise pain points.",
+      "severity": "medium",
+      "evidence": [
+        "Frequent comparisons to DAPs and LMSs and statements like \"Your LMS, knowledge base, help center, and internal portals aren\u2019t going anywhere\" imply overlap with many existing categories.",
+        "Feature list (recording, auto-transcription, embedding, translations, SSO, RBAC, SOC2) matches typical enterprise checklist and does not on its face show a unique technical angle.",
+        "Market claim of broad applicability across NetSuite, Workday, SAP, etc. \u2014 useful but also where many incumbents already focus."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "WalkMe",
+        "similarity": "Digital adoption platform (in-app guidance) targeting enterprise software adoption and support",
+        "how_different": "Guidde is video-first and AI-driven \u2014 it captures SME workflows as narrated videos, auto-edits and localizes them in minutes and embeds them contextually inside complex ERP/HR/CRM apps. WalkMe focuses on tooltip/step guides and rule-based flows rather than polished, searchable video SOPs."
+      },
+      {
+        "name": "Whatfix",
+        "similarity": "Digital adoption and in-app guidance for enterprise apps (including SAP, Workday, Salesforce) and focus on improving onboarding and reducing support tickets",
+        "how_different": "Whatfix emphasizes interactive click-through walkthroughs and automation of flows; Guidde emphasizes capturing real expert actions as short video playbooks with AI-generated narration, searchable transcripts, auto-blur and multi-language voiceovers \u2014 positioned for complex, dynamic ERP workflows rather than linear UI tours."
+      },
+      {
+        "name": "Pendo",
+        "similarity": "In-app guidance and product analytics to drive adoption and feature usage",
+        "how_different": "Pendo provides analytics-first tooling and lightweight in-app messaging and guides. Guidde provides producer-focused, AI-automated video documentation that is embedded into the workflow and optimized for teaching processes (esp. multi-step ERP tasks) rather than analytics-driven banners/tooltips."
+      },
+      {
+        "name": "Appcues",
+        "similarity": "User onboarding and in-app guidance aimed at improving adoption and onboarding flows",
+        "how_different": "Appcues is optimized for web-product onboarding flows and no-code creation of modals/tooltips. Guidde targets enterprise process documentation across complex tools (NetSuite, SAP, Workday) with a recorded-video playbook model and AI post-production, enabling SMEs to create content in minutes."
+      },
+      {
+        "name": "Spekit",
+        "similarity": "Contextual learning and in-app enablement (notably strong in Salesforce/CRM enablement) and searchable knowledge in context of the app",
+        "how_different": "Spekit focuses on CRM-specific microlearning and text-based playbooks inside the app. Guidde\u2019s differentiator is narrated, step-by-step video playbooks that are auto-generated, localized and surfaced by role/context across many enterprise apps \u2014 more multimedia and less manual content authoring."
+      },
+      {
+        "name": "Loom",
+        "similarity": "Screen + voice recording for quick how-to videos and asynchronous knowledge sharing",
+        "how_different": "Loom is a general-purpose recorder for ad-hoc video messages and lacks built-in AI auto-editing, enterprise-grade in-app surfacing across ERP tools, role-based contextual delivery, and automated multi-language voiceovers and content tagging that Guidde offers."
+      },
+      {
+        "name": "Descript",
+        "similarity": "AI-assisted video/audio editing, transcription and repurposing of recordings",
+        "how_different": "Descript is focused on editing workflows and creators; Guidde adds a complete capture-to-distribution pipeline tailored to enterprise knowledge (in-app embedding, searchable playbooks, role personalization, auto-blur sensitive info, SOC2-grade multi-tenant controls)."
+      },
+      {
+        "name": "Vidyard",
+        "similarity": "Enterprise video platform for sales/training with hosting, analytics and integrations",
+        "how_different": "Vidyard targets sales/marketing/video-hosting and interaction analytics; Guidde focuses specifically on process documentation and embedded, contextual video guidance inside operational enterprise apps with automated generation and localization."
+      },
+      {
+        "name": "Guru / Confluence / Notion (knowledge base providers)",
+        "similarity": "Centralized knowledge storage, searchable documentation and integrations with enterprise apps",
+        "how_different": "KB platforms are text-first and require manual authoring. Guidde layers continually updated, in-context video SOPs into those same workflows and can ingest existing recordings to auto-generate video playbooks with voiceovers, captions, and localization."
+      },
+      {
+        "name": "Apty / Userlane",
+        "similarity": "Digital adoption platforms focused on enterprise app guidance and process compliance",
+        "how_different": "Apty/Userlane provide in-app guidance and process analytics via step automation and monitoring. Guidde\u2019s unique approach is SME-recorded video playbooks with AI-driven production and localization, prioritizing real-expert demonstrations over scripted click flows."
+      }
+    ],
+    "differentiation": {
+      "primary": "Video-first AI Digital Adoption Platform (ADAP) that captures subject-matter experts performing real workflows, then auto-produces polished, searchable, localized video SOPs and surfaces them in-context inside enterprise systems (ERP/CRM/HCM) \u2014 enabling minutes-to-create training vs days/weeks for traditional DAPs.",
+      "technical": "Automated pipeline: browser/desktop capture \u2192 AI transcription + step extraction \u2192 auto-editing (narration sync, captions, highlights) \u2192 auto-blur sensitive info \u2192 multi-language voiceovers/localization \u2192 metadata tagging and contextual indexing for in-app surfacing. Multi-tenant, space-isolated architecture, SOC 2 Type II, SSO, role-based access and integrations to embed videos inside target enterprise apps (NetSuite, SAP, Workday, HubSpot etc.).",
+      "business": "GTM focused on enterprise customers with complex, dynamic ERP/HR/finance workflows (NetSuite, SAP, Workday). Sells to enablement, operations, finance and HR teams as a way to reduce tickets, accelerate onboarding and lock-in process compliance. Offers rapid content creation (minutes), repurposing of existing recordings, and auto-updates across platforms \u2014 lowering the friction and cost of maintaining training content.",
+      "positioning": "Positions itself as the first/only 'AI Digital Adoption Platform (ADAP)' that captures real expertise as video and surfaces it in the flow of work, deliberately contrasting with traditional DAPs that rely on tooltip/click tours and centralized authoring teams. Emphasizes speed-to-content, contextuality inside complex enterprise systems, security and multi-language support."
+    },
+    "secret_sauce": {
+      "core_advantage": "An integrated AI-driven capture-to-deliver pipeline that turns SME screen recordings into production-ready, role-personalized, localized video SOPs in minutes and then surfaces those videos contextually inside target enterprise applications.",
+      "defensibility": "Moderate \u2014 defensibility stems from a combination of: (1) customer-specific libraries of proprietary process videos (sticky content and high switching cost); (2) integrations and in-app surfacing for complex enterprise systems (implementation/configuration effort and relationships); (3) enterprise security/compliance (SOC 2, SSO, tenant isolation); and (4) operational expertise in automating transcription, step extraction, auto-blur and localization workflows. These together raise the bar for quick replication, though core AI techniques are broadly accessible.",
+      "evidence": [
+        "\"Guidde Create lets your NetSuite experts record a process once, and AI automatically produces a polished step-by-step video with synced narration and text.\"",
+        "\"Minutes to create and update vs Days or weeks (Traditional DAPs).\"",
+        "\"11x Faster Content Creation\" and \"multi-language support\" claims.",
+        "\"SOC 2 Type II certified and supports SSO, role-based access, and global delivery.\"",
+        "\"Multi-tenant spaces approach where each space is fully isolated across companies and teams.\"",
+        "$50,000,000 Series B funding (signals resources to build integrations, product and enterprise GTM)."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Guidde's moat is anchored in enterprise fit and content stickiness: once organizations build a library of role-specific, localized video SOPs embedded in their operational apps, switching costs rise. The company also leverages security/compliance (SOC 2), multi-tenant isolation and deep integrations with ERP/HCM systems which require setup and trust. The AI automation that accelerates content creation reduces churn risk and increases usage. However, core capabilities (screen capture, transcription, auto-editing) and in-app surfacing can be replicated by larger DAP vendors (WalkMe, Whatfix), video platforms (Loom/Descript) or new entrants, so the moat is not unassailable \u2014 it depends on execution, enterprise relationships, and growth of a customer-specific content network.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "AI-powered video documentation that revolutionizes your content creation process",
+    "One-Click Capture Start recording with a single click and perform your workflow. Our AI does the rest.",
+    "AI-Generated Descriptions Automatically generate step-by-step descriptions",
+    "AI builds short, polished videos with step-by-step instructions that reflect your company\u2019s exact way of working",
+    "Guidde AI Digital Adoption Platform (ADAP) vs Traditional Digital Adoption Platforms (DAPs)",
+    "Guiddes show up alongside the task at hand \u2014 whether that\u2019s entering an invoice, approving an expense, or onboarding a new hire",
+    "Guidde understands and transcribes what's being said and shown in your video content",
+    "Hence it automatically labels each one of the playbooks according to the app, the location, topics or features it's relevant for",
+    "Add AI-generated voiceovers, blur sensitive info automatically, and localize in 40+ languages",
+    "Automated pipeline that converts screen recordings into synchronized narrated, captioned, and segmented video SOPs (single-click capture -> AI polish -> multi-language TTS) combining ASR, summarization and video editing automation.",
+    "Automatic sensitive-information blurring applied to captured videos (privacy-first video processing) integrated with RBAC and tenant isolation.",
+    "ADAP positioning: embedding contextual, role-specific video guidance directly into enterprise apps (NetSuite/Workday/SAP) rather than only offering tooltip-based click tours\u2014delivering multimedia, in-context SOPs.",
+    "Cross-platform auto-update and embed propagation: single source of truth video assets that update across LMS, helpdesk, Confluence, and in-app surfaces.",
+    "Playbook surfacing driven by simple behavioral signals (view counts/ranking) plus metadata personalization (role, geo, app) to prioritize content organically."
+  ],
+  "crawl_diagnostics": null,
+  "analyzed_at": "2026-03-05 17:48:40.070415+00:00",
+  "confidence_score": 0.84,
+  "raw_content_analyzed": 97033
+}

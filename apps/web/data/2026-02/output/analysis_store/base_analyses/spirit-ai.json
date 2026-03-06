@@ -1,0 +1,646 @@
+{
+  "company_name": "Spirit AI",
+  "company_slug": "spirit-ai",
+  "website": "https://www.spirit-ai.com/en",
+  "logo_url": null,
+  "description": "Spirit AI builds 'universal brain' for real-world robots.",
+  "funding_amount": 290006380.0,
+  "funding_stage": "series_a",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [
+    "PI05 base model",
+    "pi05_base checkpoint",
+    "pi05_moz",
+    "pi05_pickplace",
+    "spirit-ai/pickplace dataset",
+    "JAX models",
+    "PyTorch",
+    "transformers"
+  ],
+  "build_patterns": [
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.95,
+      "evidence": [
+        "\"Build data quality assessment and quality control models tailored to embodied data collection and usage needs, enabling a closed-loop data quality process.\"",
+        "\"Develop an intelligent data factory platform to manage the full lifecycle of data collection task dispatch, personnel/equipment scheduling, data annotation, and quality monitoring.\"",
+        "\"Support continuous evolution of multi-modal perception, motion control, and task planning systems.\""
+      ],
+      "description": "Explicit organization-level emphasis on closed-loop data pipelines, pre-annotation models, data quality control, and continuous optimization indicates a productized feedback loop where deployed data collection and annotation feed iterative model improvement."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.92,
+      "evidence": [
+        "\"--default_prompt='Pick up the marker pen.'\"",
+        "\"\u5f53\u524d\u6a21\u578b\u4e00\u6b21\u63a8\u7406\u8fd4\u56de 50 \u5e27\u52a8\u4f5c\uff0830 Hz\uff09\uff0c\u901a\u8fc7\u63d2\u503c\u65b9\u5f0f\u53ef\u5f97\u5230 200 \u5e27\u52a8\u4f5c\uff08\u5339\u914d\u673a\u5668\u4eba\u63a7\u5236\u9891\u7387 120 Hz\uff09.\"",
+        "\"args.action-horizon \uff1a\u6267\u884c\u591a\u5c11\u4e2a action \u540e\uff08\u4ee5\u673a\u5668\u4eba\u63a7\u5236\u9891\u7387\u4e3a\u51c6\uff09\u89e6\u53d1\u4e0b\u4e00\u6b21\u63a8\u7406\uff1b\"",
+        "\"Use system Python to start robot inference... python3 examples/moz1_real/main.py\""
+      ],
+      "description": "The model is used as an autonomous decision-making policy that issues sequences of timed actions to control a robot, with a runtime loop (action_horizon) and tool integrations (mozrobot SDK, ROS2). This is an agentic setup: LLM/model -> tool/sensors -> action -> environment -> next inference."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.86,
+      "evidence": [
+        "\"Design high-performance custom operators and efficient quantization/compression schemes to maximize hardware theoretical performance.\"",
+        "\"Explore multimodal (Vision-Language-Action) representation alignment and fusion\"",
+        "\"develop pre-annotation models to improve data production efficiency\"",
+        "\"post-processing fusion algorithms for embodied VLA models, integrating information from cameras, motors, and other sensors\""
+      ],
+      "description": "Multiple specialized models and components (perception, pre-annotation, VLA alignment, post-processing fusion, quantized/optimized inference kernels) suggest a modular ensemble of smaller task-specialized models rather than a single monolithic model."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.93,
+      "evidence": [
+        "\"\u57fa\u4e8e\u5343\u5bfb\u5f00\u6e90\u6570\u636e\u96c6\u5fae\u8c03 PI05 base \u6a21\u578b\"",
+        "\"\u8bf7\u4e0b\u8f7dTOS Browser\uff0c\u5e76\u8054\u7cfb\u5343\u5bfb\u552e\u540e\u83b7\u53d6\u79d8\u94a5\uff0c\u4e0b\u8f7d\u6e90\u7801\u3002\"",
+        "\"\u9ed8\u8ba4\u6570\u636e\u96c6\u8def\u5f84\u4e3a ~/.cache/huggingface/lerobot/spirit-ai/pickplace\"",
+        "\"Design and iterate on annotation and pre-annotation schemes for embodied AI pre-training data; develop corresponding pre-annotation models\""
+      ],
+      "description": "The project centers on proprietary/controlled robotics datasets, specialized embodied-data pipelines and tooling (TOS key access, Spirit datasets, pickplace repo). That domain-specific dataset and tooling form a vertical moat for robotic VLA capabilities."
+    },
+    {
+      "name": "Natural-Language-to-Code (NL -> Action/Policy)",
+      "confidence": 0.7,
+      "evidence": [
+        "\"--default_prompt='Pick up the marker pen.'\"",
+        "\"The above command will load the model...\" (implying prompt-driven behavior)",
+        "\"policy:checkpoint --policy.config=pi05_moz\""
+      ],
+      "description": "User-level natural-language prompts are used to specify tasks the policy should execute; the model maps prompts to executable action sequences. This is NL\u2192action mapping (close to NL\u2192code/commands), though not explicitly described as code generation."
+    },
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.05,
+      "evidence": [
+        "No explicit mention of vector search, embeddings, or runtime document retrieval in the inference workflow."
+      ],
+      "description": "There is no clear evidence of retrieval augmentation for runtime generation; assets and checkpoints are downloaded, but no runtime retrieval/embedding/RAG pipeline is described."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.08,
+      "evidence": [
+        "No references to secondary safety/compliance LLMs, content filters, or automated output validators are present in the text."
+      ],
+      "description": "While there are safety procedures (emergency stops, hardware safety), there is no explicit software guardrail model layer described that validates model outputs before actuation."
+    },
+    {
+      "name": "Knowledge Graphs",
+      "confidence": 0.02,
+      "evidence": [
+        "No mention of entity graphs, RBAC indexes, or graph databases in the material."
+      ],
+      "description": "No indicators of knowledge-graph usage for reasoning or entity linking were found."
+    }
+  ],
+  "discovered_patterns": [
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "PI05 base (JAX) converted to PyTorch with custom transformers patch",
+      "confidence": 0.95,
+      "evidence": [
+        "Refer to the \"Converting JAX Models to PyTorch\" section in the official repository to convert the JAX model to a PyTorch model.",
+        "from openpi.shared import download checkpoint_dir = download.maybe_download(\"gs://openpi-assets/checkpoints/pi05_base\")",
+        "\u66ff\u6362\u5df2\u5b89\u88c5\u7684 transformers \u5e93 uv pip show transformers cp -r ./src/openpi/models_pytorch/transformers_replace/* .venv/lib/python3.11/site-packages/transformers/"
+      ],
+      "description": "Spirit provides a PI05 base model originally in JAX. Their pipeline explicitly converts that JAX checkpoint to PyTorch, then patches or replaces parts of the Hugging Face transformers package with local replacements prior to training/inference. Checkpoints are stored in GCS (gs://openpi-assets) and served from openpi_assets directories.",
+      "novelty_score": 3,
+      "why_notable": "Converting JAX models to PyTorch is a pragmatic engineering step and patching transformers shows they needed custom operator/behavior compatibility \u2014 common in production when migrating frameworks, but indicates hands-on engineering to integrate custom model code."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Sequence-output policy model (action-sequence forecasting)",
+      "confidence": 0.9,
+      "evidence": [
+        "\u5f53\u524d\u6a21\u578b\u4e00\u6b21\u63a8\u7406\u8fd4\u56de 50 \u5e27\u52a8\u4f5c\uff0830 Hz\uff09\uff0c\u901a\u8fc7\u63d2\u503c\u65b9\u5f0f\u53ef\u5f97\u5230 200 \u5e27\u52a8\u4f5c\uff08\u5339\u914d\u673a\u5668\u4eba\u63a7\u5236\u9891\u7387 120 Hz\uff09\u3002",
+        "\u5efa\u8bae\u5c06 args.action-horizon \u53c2\u6570\u8bbe\u7f6e\u5728 100\u2013200 \u4e4b\u95f4\u3002",
+        "--default_prompt='Pick up the marker pen.' uv run scripts/serve_policy.py --env=MOZ"
+      ],
+      "description": "The policy model predicts a short trajectory / action sequence per inference (50 frames at 30Hz). The system performs interpolation to upsample to the robot's control frequency (120Hz) and uses an action_horizon parameter to determine how many predicted frames/actions are executed before the next inference. This is a sequence-to-control policy rather than single-step action prediction.",
+      "novelty_score": 6,
+      "why_notable": "Predicting multi-frame action sequences and then interpolating to match control frequency is an effective way to reduce inference frequency and amortize model latency; it's a practical closed-loop receding-horizon control pattern blending learned policies with real-time control."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Service-oriented policy serving + robot-side client with Docker/ROS2 integration",
+      "confidence": 0.98,
+      "evidence": [
+        "uv run scripts/serve_policy.py --env=MOZ --default_prompt='Pick up the marker pen.'",
+        "args.host \uff1a\u63a8\u7406\u670d\u52a1\u7684 IP\uff1bargs.port \uff1a\u63a8\u7406\u670d\u52a1\u7684\u7aef\u53e3\uff1b",
+        "\u5efa\u8bae\u76f4\u63a5\u5b89\u88c5\u5230\u7cfb\u7edf Python\uff0c\u6216\u4f18\u5148\u8003\u8651\u4f7f\u7528 Docker \u8fdb\u884c\u73af\u5883\u9694\u79bb\u3002",
+        "docker compose -f examples/moz1_real/compose.yml build",
+        "docker compose -f examples/moz1_real/compose.yml up",
+        "Use system Python to start robot inference... python3 examples/moz1_real/main.py"
+      ],
+      "description": "Inference is delivered as a networked policy service (serve_policy.py) that loads checkpoints. Robot-side code is a separate client (openpi-client / examples/moz1_real/main.py) which connects over host/port to the policy server. Deployment supports Docker (docker-compose images) for isolation, while the robot runtime requires ROS2 and the mozrobot SDK. Training and serving artifacts live in openpi_assets and can be overridden via config flags.",
+      "novelty_score": 4,
+      "why_notable": "This is a standard and robust architecture for embodied systems: separate model-serving microservice and a robot runtime client that handles sensors/actuators and ROS integration. The explicit recommendation to avoid installing SDK into the same venv and to prefer Docker shows operational hardening for dependency conflicts."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Multimodal embodied pipeline: sensor stack + SLAM + relocalization + policy server + controller",
+      "confidence": 0.98,
+      "evidence": [
+        "The LiDAR MID360 is responsible for outputting LiDAR and IMU data. Lidar SLAM completes the positioning and mapping functions. The relocalization module is responsible for calculating the robot's position in the offline map, and sends the converted map and pose data to the navigation algorithm.",
+        "\u5bfc\u822a\u5305\u76ee\u5f55\u7ed3\u6784... run_mapping.sh # Start mapping script ... run_nav.sh # Start navigation script",
+        "Head Camera (Intel D455) ... Wrist Camera (Intel D405) ...",
+        "\u6267\u884c\u673a\u5668\u4eba\u63a8\u7406 \u4f7f\u7528\u7cfb\u7edf Python \u542f\u52a8\u673a\u5668\u4eba\u63a8\u7406... args.realsense-serials \uff1aRealsense \u7684\u5e8f\u5217\u53f7 ... args.structure \uff1a\u673a\u5668\u4eba\u6784\u578b ... args.action-horizon \uff1a\u6267\u884c\u591a\u5c11\u4e2a action \u540e\u89e6\u53d1\u4e0b\u4e00\u6b21\u63a8\u7406"
+      ],
+      "description": "The system composes multiple specialized modules: raw sensors (head and wrist cameras, LiDAR, IMU), a LiDAR SLAM and relocalization stack for mapping/pose, a navigation algorithm that issues base-level commands, and a separate policy server that predicts multi-frame manipulator actions. These pieces are integrated through ROS2 and the mozrobot SDK; the policy server is networked and fed perception/state preprocessed by the robot-side pipeline.",
+      "novelty_score": 5,
+      "why_notable": "While multimodal pipelines are common in robotics, the explicit split between navigation SLAM/relocalization and a learned policy that returns multi-frame action sequences is a clear, modular design enabling independent iteration of mapping/navigation and manipulation policies."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Dataset normalization stats computed and saved; sampling-based stats approximation",
+      "confidence": 0.95,
+      "evidence": [
+        "\u6267\u884c python scripts/compute_norm_stats.py --config-name=pi05_moz \u8ba1\u7b97\u5f97\u5230\u7684 norm stats \u4f1a\u5199\u5165 openpi/assets/pi05_moz\u3002",
+        "P.S.: \u82e5\u6570\u636e\u96c6\u8f83\u5927\uff0c\u8ba1\u7b97\u5168\u90e8\u6570\u636e\u7684 norm stats \u8017\u65f6\u8f83\u957f\uff0c\u5728\u6b64\u60c5\u51b5\u4e0b\u53ef\u4ee5 sample \u4e00\u5b9a\u6570\u91cf\u7684 batch \u8fdb\u884c norm \u53c2\u6570\u7684\u8ba1\u7b97\uff0c\u800c\u975e\u4f7f\u7528\u5168\u90e8\u6570\u636e\u96c6: max_batches = 20000 // config.batch_size limit = min(num_batches, max_batches) ..."
+      ],
+      "description": "Before training they compute normalization statistics (norm stats) for the dataset and persist them in assets. For very large datasets they provide a sampling-based method to approximate stats, limiting to a max number of batches to speed up preprocessing.",
+      "novelty_score": 3,
+      "why_notable": "Computing and saving dataset normalization stats is standard practice; explicitly exposing a sampling heuristic for very large datasets is practical and shows attention to scalable preprocessing."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Distributed multi-GPU training via torchrun and explicit checkpoint path override",
+      "confidence": 0.97,
+      "evidence": [
+        "CUDA_VISIBLE_DEVICES=1,2,3,4 uv run torchrun --standalone --nnodes=1 --nproc_per_node=4 scripts/train_pytorch.py pi05_moz --exp_name YOUR_EXP_NAME --data.repo-id \"PATH_TO_YOUR_DATASET\"",
+        "If the downloaded base model is not in the default location, you can specify the model loading path by setting pytorch_weight_path in TrainConfig."
+      ],
+      "description": "Training uses PyTorch's torchrun distributed launcher for multi-GPU single-node runs. Configuration (TrainConfig) supports overriding the path to pytorch weights and dataset repo_id, enabling custom checkpoint loading and dataset locations.",
+      "novelty_score": 2,
+      "why_notable": "This is industry-standard for scalable training; the presence of config hooks for checkpoint paths shows attention to operational flexibility."
+    },
+    {
+      "category": "Inference & Optimization",
+      "pattern_name": "PyTorch compile at first inference and explicit mitigation guidance",
+      "confidence": 0.9,
+      "evidence": [
+        "\u7b2c\u4e00\u6b21\u7ed9\u6a21\u578b\u63a8\u7406\u670d\u52a1\u53d1\u9001\u8bf7\u6c42\u65f6\u51fa\u73b0\u8d85\u65f6\u95ee\u9898 \u9996\u6b21\u63a8\u7406\u65f6\u670d\u52a1\u4f1a\u6267\u884c torch.compile\uff0c\u53ef\u80fd\u5bfc\u81f4\u7b2c\u4e00\u6b21\u8bf7\u6c42\u8017\u65f6\u8f83\u957f\u3002 \u5efa\u8bae\u7b49\u5f85\u7247\u523b\u540e\u518d\u6b21\u5411\u63a8\u7406\u670d\u52a1\u53d1\u9001\u8bf7\u6c42\u3002",
+        "The service will execute torch.compile during the first inference, which may cause the first request to take a long time."
+      ],
+      "description": "They rely on PyTorch's torch.compile (likely PyTorch 2.0/torch.compile) to optimize the model at runtime; they document that the first request triggers compilation, which increases latency, and advise retrying after the initial compile completes.",
+      "novelty_score": 4,
+      "why_notable": "Using torch.compile is an emerging optimization; documenting and operationalizing its cold-start behavior is practical and necessary for low-latency embodied systems."
+    },
+    {
+      "category": "Data Strategy",
+      "pattern_name": "Proprietary dataset distribution via gated download and GCS/huggingface cache",
+      "confidence": 0.95,
+      "evidence": [
+        "Please download TOS Browser, and contact Spirit after-sales support to obtain the key and download the source code.",
+        "from openpi.shared import download checkpoint_dir = download.maybe_download(\"gs://openpi-assets/checkpoints/pi05_base\")",
+        "\u9ed8\u8ba4\u6570\u636e\u96c6\u8def\u5f84\u4e3a ~/.cache/huggingface/lerobot/spirit-ai/pickplace \u3002 \u5982\u9700\u4fee\u6539\uff0c\u8bf7\u5c06 src/openpi/training/config.py \u4e2d \u201cpi05_moz\u201d \u5bf9\u5e94\u7684 TrainConfig \u7684 repo_id \uff0c\u4ece spirit-ai/pickplace \u6539\u4e3a\u5b9e\u9645\u6570\u636e\u96c6\u7684\u7edd\u5bf9\u8def\u5f84\u3002"
+      ],
+      "description": "The dataset and checkpoints are distributed through gated downloads (TOS Browser + key) and stored in GCS and a huggingface-style cache path. Training configs reference a repo_id (spirit-ai/pickplace) which can be overridden to local absolute paths.",
+      "novelty_score": 3,
+      "why_notable": "This indicates a proprietary vertical data asset controlled via gated access and standard cloud storage; typical for companies with a data moat for embodied data."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Operational troubleshooting and pipeline-first safety recommendations (no explicit guardrails)",
+      "confidence": 0.85,
+      "evidence": [
+        "\u5982\u679c\u673a\u5668\u4eba\u4e0d\u52a8\uff0c\u6216\u8005\u52a8\u4f5c\u5f02\u5e38 \u8bf7\u4f18\u5148\u6839\u636e mozrobot SDK \u6587\u6863\u6392\u67e5\uff1a\u673a\u5668\u4eba\u6570\u636e\u662f\u5426\u6b63\u5e38\u56de\u4f20\u3001\u6444\u50cf\u5934\u56fe\u50cf\u662f\u5426\u6b63\u5e38\u83b7\u53d6\uff1b\u968f\u540e\u68c0\u67e5\u6570\u636e\u5904\u7406\u6d41\u6c34\u7ebf\uff08pipeline\uff09\uff0c\u6700\u540e\u518d\u5b9a\u4f4d\u5230\u6a21\u578b\u672c\u8eab\u7684\u95ee\u9898\u3002",
+        "\u5efa\u8bae\u4ece\u7b80\u5355\u4efb\u52a1\u5165\u624b\u9010\u6b65\u9a8c\u8bc1\u3002"
+      ],
+      "description": "The documentation emphasizes operational troubleshooting and validating each pipeline stage (sensor data, data processing pipeline, model) but does not document explicit input sanitization, prompt injection defenses, or output content filters for the policy model.",
+      "novelty_score": 2,
+      "why_notable": "This reflects practical operational safety (test pipeline stages first) but lacks explicit ML-specific guardrails or automated safety components in the public docs."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Predicting short action trajectories (multi-frame outputs) and performing interpolation to match robot control frequency",
+      "why_novel": "Instead of single-step action prediction or high-frequency inference, the model emits multiple frames per inference and the system upsamples via interpolation. This reduces inference frequency and mitigates runtime latency while enabling smooth high-frequency control.",
+      "potential_impact": "Enables using heavier neural policies on embodied systems with hard real-time control by amortizing inference cost and hiding compile/latency overhead; improves robustness to transient inference stalls."
+    },
+    {
+      "approach": "JAX-to-PyTorch conversion plus in-repo transformers replacements for compatibility",
+      "why_novel": "Rather than reimplementing the model or rebuilding training code in JAX, they convert model weights and patch Hugging Face packages to adapt runtime behavior, which is an engineering-first approach to reuse models across frameworks.",
+      "potential_impact": "Faster engineering iteration across teams that prefer PyTorch; allows using PyTorch ecosystem (torchrun, torch.compile) for deployment and acceleration while retaining research artifacts produced in JAX."
+    },
+    {
+      "approach": "Sampling-limited computation of dataset normalization stats",
+      "why_novel": "They provide an explicit, code-level heuristic to bound the number of batches used when computing normalization stats (max_batches = 20000 // batch_size), trading exactness for speed on very large embodied datasets.",
+      "potential_impact": "Practical scalability for massive embodied datasets; reduces preprocessing time while producing sufficiently-good normalization parameters for training."
+    }
+  ],
+  "model_details": {
+    "primary_models": [
+      "pi05_base (originally a JAX checkpoint, converted to PyTorch)",
+      "pi05_pickplace (fine-tuned pick-place checkpoint under /openpi_assets/checkpoints/pi05_pickplace/)"
+    ],
+    "fine_tuning": {
+      "uses_fine_tuning": true,
+      "fine_tuning_approach": "Not specified in detail; training uses scripts/train_pytorch.py with torchrun multi-GPU. No mention of LoRA or parameter-efficient recipes, so likely full/fine-tune or custom PyTorch training loop derived from converted JAX model.",
+      "training_data_source": "spirit-ai/pickplace dataset (proprietary), stored by default in ~/.cache/huggingface/lerobot/spirit-ai/pickplace or via a provided absolute path; checkpoints available on gs://openpi-assets"
+    },
+    "inference_optimization": [
+      "torch.compile (PyTorch compile) \u2014 cold-start compile observed at first request",
+      "predict multi-frame action sequences to amortize inference frequency",
+      "temporal interpolation to upsample predicted frames (50@30Hz \u2192 200@120Hz)",
+      "action_horizon parameter to batch execute predicted frames before next inference (100\u2013200 recommended)"
+    ],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": "No evidence of mixture-of-experts, model ensembles, or dynamic routing between models in the provided docs."
+    },
+    "compound_ai": {
+      "is_compound_system": true,
+      "orchestration_pattern": "Sensors (cameras, LiDAR, IMU) -> sensor drivers/ROS2 -> SLAM + relocalization -> navigation algorithm (for base) -> policy server predicting manipulator action sequences -> openpi-client connects to policy server and interfaces with mozrobot SDK -> robot controller. Navigation and mapping are containerized; policy serving is a network service that can be run separately."
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "industrial",
+  "sub_vertical": "Robotics automation for manufacturing and logistics (industrial/manufacturing and warehouse tasks)",
+  "sub_sub_vertical": "manual/assisted manipulation and pick-and-place tasks in industrial settings (e.g., warehouses, assembly lines) using humanoid robot platforms",
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "industrial_manufacturing",
+      "vertical_label": "Industrial & Manufacturing",
+      "sub_vertical_id": "robotics_automation",
+      "sub_vertical_label": "Robotics & Automation",
+      "leaf_id": "robotics_automation",
+      "leaf_label": "Robotics & Automation"
+    },
+    "path": [
+      {
+        "id": "industrial_manufacturing",
+        "label": "Industrial & Manufacturing",
+        "confidence": 0.72
+      },
+      {
+        "id": "robotics_automation",
+        "label": "Robotics & Automation",
+        "confidence": 0.85
+      }
+    ]
+  },
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [
+      "PyTorch",
+      "JAX",
+      "Transformers"
+    ],
+    "hosting": [
+      "Self-hosted",
+      "Docker"
+    ],
+    "approach": "fine_tuning",
+    "uses_open_source_models": true,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 7,
+    "has_public_api": true,
+    "has_sdk": true,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "End-to-end ML training workflow documented (stats computation, norm stats, training, evaluation)",
+      "Detailed inference environment guidance including Docker-based deployment",
+      "Clear CLI-based inference interfaces and script examples (serve_policy.py, main.py)",
+      "GPU/scaling guidance (CUDA_VISIBLE_DEVICES, multi-GPU training)",
+      "ROS 2 integration notes and mozrobot SDK mention",
+      "Versioned components and checkpoints (pi05_base, pi05_moz, pi05_pickplace)"
+    ]
+  },
+  "implementation_maturity": "production",
+  "team_analysis": {
+    "founders": [],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [
+        "Embodied AI Inference & Deployment Engineer",
+        "Embodied AI Training Acceleration Engineer",
+        "Data Algorithm Engineer",
+        "Embodied AI Algorithm Engineer (Pre-training)",
+        "Machine Learning Platform Engineer",
+        "Robot Teleoperation / System Engineer",
+        "Embedded Software Engineer"
+      ],
+      "team_size_indicators": "medium",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "insufficient information; no founder names or backgrounds provided in the available content to assess fit",
+    "team_strengths": [
+      "Strong focus on embodied AI and robotics with end-to-end ML-inference, training, deployment pipelines",
+      "Diverse roles spanning hardware integration (ROS 2, Mozrobot SDK), perception (head/wrist cameras, LiDAR), and control (motion planning, impedance control)"
+    ],
+    "team_red_flags": [
+      "Lack of publicly identifiable founders or leadership bios in the provided content"
+    ],
+    "team_confidence": 0.32
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "unknown",
+      "pricing_evidence": [],
+      "free_tier_available": false,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "developer_first",
+      "evidence": [
+        "extensive developer-oriented setup steps and tutorials",
+        "open-source datasets and source-code access",
+        "Moz SDK installation and example workflows",
+        "\u9700\u8981\u901a\u8fc7\u552e\u540e\u83b7\u53d6\u79d8\u94a5\u7684 gated access",
+        "\u63d0\u4f9b Docker \u5316\u548c\u793a\u4f8b\u7528\u4f8b\u4ee5\u652f\u6301\u5f00\u53d1\u8005\u90e8\u7f72"
+      ],
+      "target_segment": "developer",
+      "sales_motion": "hybrid"
+    },
+    "revenue_model": {
+      "monetization_approach": "Not specified in provided content",
+      "unit_economics_signals": [],
+      "recurring_revenue": false
+    },
+    "distribution_advantages": [
+      "Open-source data and tooling ecosystem (Spirit AI OpenPI)",
+      "MozRobot SDK \u548c\u5b98\u65b9\u68c0\u67e5\u70b9\uff08checkpoints\uff09",
+      "ROS 2 \u517c\u5bb9\u6027\u4e0e Docker \u5316\u90e8\u7f72\u80fd\u529b"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "\u5f00\u53d1\u8005\u6587\u6863\u4e0e\u6559\u7a0b",
+        "SDK \u4e0e\u6e90\u4ee3\u7801\u4e0b\u8f7d\u6e20\u9053",
+        "\u901a\u8fc7\u552e\u540e\u79d8\u94a5\u7684\u95e8\u69db\u83b7\u53d6\u8bbf\u95ee",
+        "\u5b98\u65b9\u4ed3\u5e93\u548c\u8d44\u6e90\u9875\u9762\u7684\u4fe1\u606f\u6d41"
+      ],
+      "customer_proof_points": []
+    },
+    "business_model_clarity": "unclear",
+    "business_model_confidence": 0.25
+  },
+  "product_analysis": {
+    "product_stage": "beta",
+    "stage_evidence": [
+      "Explicit end-to-end workflow from model fine-tuning to offline/deployable inference",
+      "Multiple MozRobot SDK versions (0.1.0, 0.1.1, 0.1.2) with changelog",
+      "Docker-based inference options and system integration steps",
+      "Detailed environment setup, training config, and norm stats computation",
+      "Mention of 404 Not Found pages indicating incomplete public docs",
+      "No pricing or customer case studies publicly presented"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Fine-tuning PI05 base model on Spirit open-source dataset for Moz control",
+        "Prepare official checkpoint and dataset download",
+        "Stats computation for training normalization",
+        "Single-machine/multi-GPU training commands",
+        "Inference service with serve_policy.py and default prompts",
+        "Robot control via moz1_real example and Python client",
+        "Docker-based inference with mozrobot SDK integration",
+        "System integration notes (ROS 2, network, Realsense, etc.)",
+        "Hardware specifications and mechanical structure overview"
+      ],
+      "differentiating_features": [
+        "Integrated PI05 Moz-specific fine-tuning pipeline with Spirit open dataset",
+        "Conversion flow from JAX models to PyTorch for Moz training",
+        "End-to-end deployment path including norm stats saved to assets",
+        "Explicit multi-environment options (virtualenv uv, system Python, Docker)"
+      ],
+      "roadmap_signals": [
+        "Action-horizon guidance (100-200) suggests planned improvements to control frequency",
+        "Changelogs imply ongoing SDK maintenance and bug fixes",
+        "Reference to future model loading path customization (pytorch_weight_path)"
+      ],
+      "feature_completeness": "growing"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "MozRobot SDK",
+        "ROS 2",
+        "Realsense cameras",
+        "HuggingFace datasets/cache",
+        "JAX to PyTorch conversion workflow",
+        "openpi repository and scripts",
+        "Docker"
+      ],
+      "api_maturity": "basic",
+      "sdk_availability": [
+        "Python (MozRobot SDK integration)"
+      ],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Fine-tuned model controlling Moz robot for manipulation tasks (e.g., pick/place, marker pen)",
+      "secondary_use_cases": [
+        "Perception-driven robotics control using Moz sensors (head/wrist cameras, LiDAR)",
+        "End-to-end robotic task execution with policy-based inference",
+        "Edge/dockerized inference deployment for robotics applications"
+      ],
+      "customer_stories": [],
+      "industry_focus": [
+        "industrial and service environments"
+      ]
+    },
+    "product_risks": [
+      "Incomplete/public docs (404 pages) potentially impede adoption",
+      "Complex setup across multiple environments (uv, system Python, Docker, ROS2)",
+      "Dependency on proprietary TOS keys and official checkpoints",
+      "First-inference latency due to torch.compile",
+      "Hardware requirements (4 GPUs; ROS 2 compatibility; Realsense integration) may limit accessibility"
+    ],
+    "product_strengths": [
+      "End-to-end pipeline from model training to robot inference",
+      "Multi-GPU training and PyTorch/JAX conversion guidance",
+      "Clear artifact storage and norm stats workflow",
+      "Docker-based deployment, system Python vs virtualenv flexibility",
+      "Active SDK maintenance evidenced by changelogs"
+    ],
+    "product_confidence": 0.65
+  },
+  "unique_findings": [
+    "Trajectory-first control: the PI05-based policy outputs multi-frame action sequences (50 frames @30Hz) and relies on interpolation to match the robot control loop (up to 200 frames @120Hz). This treats manipulation as long-horizon sequence prediction rather than per-step action selection \u2014 an architectural choice that smooths control and decouples model inference cadence from actuator frequency.",
+    "Hybrid toolchain and runtime pragmatism: models are authored/hosted in JAX upstream, converted to PyTorch for training/serving, and served using PyTorch 2's torch.compile. That conversion pipeline (JAX -> PyTorch -> torch.compile) is an unusual, pragmatic stack that trades research flexibility (JAX) for deployment ecosystem advantages (PyTorch) \u2014 and incurs real engineering work (conversion, custom transformer patching).",
+    "Custom transformers patching: the repository ships a local 'transformers_replace' tree that must be copied into the venv to override the installed HuggingFace transformers. That signals non-trivial changes to the standard transformer implementation (likely to support action/MoCap-style outputs, custom tokenization/IO, or operator semantics) instead of relying on upstream APIs.",
+    "Explicit dataset-normalization engineering: they compute and persist dataset 'norm stats' as a first-class step for training, and provide a sampled-batches heuristic to approximate statistics on enormous embodied datasets. This shows awareness that embodied datasets' data-distribution normalization is a brittle, costly, and model-significant preprocessing problem.",
+    "Operational-first deployment pattern: the docs surface concrete infra pain points (GIT_LFS skip tricks, uv virtualenv tool, avoiding installing robot SDK in the same venv, ROS2 networking, docker recommendations) and runtime pitfalls (torch.compile first-request latency). This reads like an operations playbook rather than a pure research paper.",
+    "Tight hardware-software coupling and safety engineering baked into workflow: action-horizon tuning, interpolated frame counts, ROS2 integration, camera serial mapping, and emergency-stop/hoisting instructions indicate the system is built around real safety and synchronization constraints \u2014 not just simulated performance.",
+    "End-to-end staffing blueprint revealed: multiple job descriptions (inference engineers, custom op/quantization, teleoperation, data algorithm engineers) show a deliberate build of capabilities that are required to scale embodied AI \u2014 revealing the company\u2019s playbook for reproducible productization of VLA models on hardware."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "From JAX to the factory floor: how Spirit AI turned a PI05 base into a sequence-output policy server that controls a humanoid robot",
+      "summary": "Spirit AI pairs a converted JAX PI05 base (migrated to PyTorch) with a service-oriented policy server and a lightweight robot client to run closed-loop embodied policies on real humanoid hardware. The stack \u2014 custom transformers patching, torch.compile-aware serving, Docker/ROS2 deployment, and a client that ingests multi-camera Realsense feeds \u2014 exposes many practical engineering tradeoffs for deploying large embodied models.",
+      "evidence": [
+        "Official PI05 base is a JAX checkpoint that the docs instruct to convert to PyTorch before fine\u2011tuning and deployment",
+        "serve_policy.py exposes a policy server (env=MOZ) and recommendations about torch.compile first-inference latency",
+        "Robot-side client examples (examples/moz1_real/main.py) and Docker compose manifest tie the server to mozrobot SDK and ROS2 for real-robot control"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical data moat: Spirit\u2019s gated Pi dataset and smart sampling for dataset normalization",
+      "summary": "Spirit relies on a proprietary Pi dataset distributed via TOS/gated downloads to bootstrap policies and normalisation stats; they also provide pragmatic sampling code to approximate norm stats when datasets are too large to compute exhaustively. This reveals how embodied model teams balance dataset access control, compute cost, and reproducible preprocessing in production training pipelines.",
+      "evidence": [
+        "Dataset download requires TOS Browser and a key from Spirit; default cache path points to a guarded huggingface-like repo (~/.cache/huggingface/lerobot/spirit-ai/pickplace)",
+        "compute_norm_stats.py writes norm stats to openpi/assets/pi05_moz and the docs include a sampling snippet (max_batches = 20000 // config.batch_size) to speed up stats calculation"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "They intentionally broke the \u2018one-venv-fits-all\u2019 rule \u2014 and recommend system Python or Docker for robot SDKs",
+      "summary": "Rather than shoehorning the mozrobot SDK into the project's Python virtualenv, Spirit warns of dependency conflicts and advises system Python or Docker for isolation. They also patch the installed transformers package manually and suggest converting JAX weights to PyTorch \u2014 choices that prioritize deployment reliability and operational pragmatism over idealized reproducibility.",
+      "evidence": [
+        "Docs explicitly advise against installing mozrobot into the pre-created uv virtual environment due to dependency conflicts and recommend system Python or Docker",
+        "Install instructions include copying a local transformers_replace into the venv site-packages and converting JAX weights to PyTorch before training/serving"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Action-sequence forecasting + interpolation: how Spirit squeezes robot control from 50-frame model outputs",
+      "summary": "The policy model emits 50 frames at 30Hz per inference, which Spirit interpolates to 200 frames to match the robot\u2019s 120Hz control loop; combined with recommended action_horizon tuning (100\u2013200), this approach trades longer-horizon predictions for lower inference frequency and smoother control. It\u2019s a practical pattern for reducing inference load while preserving high-frequency motor commands.",
+      "evidence": [
+        "Model returns 50 frames of actions at 30Hz which can be interpolated to 200 frames to match 120Hz robot control frequency",
+        "Documentation recommends setting args.action-horizon between 100\u2013200 and explains tradeoffs in action_horizon"
+      ],
+      "uniqueness_score": 6
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "no_moat",
+      "description": "The repository and instructions rely on standard open frameworks and ad-hoc engineering fixes rather than clearly proprietary, hard-to-replicate core IP. Key pieces (model conversion, training loop, inference serving) follow community patterns and depend on external toolchains and gated assets whose availability appears brittle.",
+      "severity": "medium",
+      "evidence": [
+        "Workflow relies on converting a public PI05 JAX checkpoint to PyTorch and applying a local 'transformers_replace' patch (cp -r ./src/openpi/models_pytorch/transformers_replace/* .venv/lib/.../transformers/), indicating no deep proprietary runtime.",
+        "Training and serving use standard tooling: torchrun, PyTorch, torch.compile, Docker, ROS2, and common dataset norms scripts (compute_norm_stats.py).",
+        "Critical assets are gated behind TOS Browser + sales keys and hosted on GS:// or cache paths; gate can be a distribution control but is not the same as a defensible algorithmic moat."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Documentation reads like a collection of integration recipes, scripts and manual steps rather than a hardened product with packaged, reproducible releases, CI, and robust dependency management.",
+      "severity": "medium",
+      "evidence": [
+        "Multiple manual, fragile steps: copying into site-packages to 'replace' transformers, running GIT_LFS_SKIP_SMUDGE workarounds, and explicit instructions not to install mozrobot into the uv virtualenv.",
+        "Advice to use system Python or Docker for isolation, and multiple ad-hoc environment commands (uv run, uv pip compile, pip install -r /tmp/requirements.txt) rather than a single tested installer or container image.",
+        "Presence of 404 Not Found nginx entries suggests artifact hosting or documentation pages are broken/misaligned with releases."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "Approach is broadly similar to many embodied AI stacks (sensor -> pipeline -> policy server -> robot client) and lacks clear technical differentiators (novel algorithms, quantization, or safety subsystems) in the provided material.",
+      "severity": "low",
+      "evidence": [
+        "Architecture described is the common multimodal embodied pipeline: camera + SLAM + policy server + controller + docker/ROS2 integration.",
+        "Model is a sequence-output policy (action-sequence forecasting) served over a service and consumed by a robot client\u2014an established pattern in robotics research and products."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Some operational and safety-critical gaps are not addressed in documentation (e.g., lack of model-level safety guardrails, no recommended simulation-first validation), which risks implying readiness for physical deployment that may not be justified.",
+      "severity": "low",
+      "evidence": [
+        "Guidance acknowledges first-inference torch.compile timeouts and suggests 'wait and retry' rather than robust service readiness checks or fallbacks.",
+        "No explicit model-level safety constraints, sandboxing, verification, or simulation-to-real validation steps are provided before running policy on hardware.",
+        "Instruction to interpolate 50 frames to 200 frames to match 120Hz control is given without discussion of closed-loop stability or safety checks."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "NVIDIA (Isaac / Omniverse / Jetson/TX/Drive ecosystem)",
+        "similarity": "Provides end-to-end robotics software stack, simulation, inference acceleration, SDKs and tools for deploying models to edge devices/robots; strong focus on optimized inference, custom operators and quantization for robot workloads.",
+        "how_different": "Spirit AI pairs a proprietary embodied VLA model family (PI05), an open/curated robot dataset (pickplace), and its own humanoid robot (Moz1) with an SDK (mozrobot) and deployment recipes; Spirit emphasizes model\u2011first control of high-DOF humanoid robots and data pipelines for embodied AI rather than primarily offering general-purpose GPU/hardware and simulation infrastructure."
+      },
+      {
+        "name": "OpenAI (robotics research / RT-1 style approaches)",
+        "similarity": "Research and production work on foundation models and using them to control robot manipulation tasks and multimodal embodied policies.",
+        "how_different": "Spirit is framing a commercial product that bundles hardware (Moz1), a production SDK, and a dataset + fine-tuning/deployment toolchain for enterprise customers; Spirit appears more vertically integrated into physical robot deployment, manufacturing and edge inference, while OpenAI focuses more on model research and cloud APIs."
+      },
+      {
+        "name": "Google / DeepMind (robotics and embodied AI research)",
+        "similarity": "Work on multimodal, vision-language-action (VLA) models and large\u2011scale embodied learning research; strong labs-level expertise and tooling for training complex models.",
+        "how_different": "Spirit markets a packaged, deployable 'universal brain' for actual deployed humanoid robots (Moz1) with operational SDKs/ROS2 integration and data pipelines. Spirit emphasizes production engineering (robot controllers, inference engines, teleoperation data collection) and commercial deployment rather than pure research outputs."
+      },
+      {
+        "name": "Boston Dynamics (hardware and control stack)",
+        "similarity": "Advanced robotics hardware with mobile platforms, perception and navigation capabilities and integration between sensors and controllers.",
+        "how_different": "Boston Dynamics is primarily a hardware/mechanical platform company; Spirit positions itself as a combined soft\u2011and\u2011hard stack with a focus on large multimodal models, dataset-driven fine\u2011tuning and an inference/teleoperation ecosystem to provide a higher\u2011level 'brain' for humanoid robots."
+      },
+      {
+        "name": "Covariant / RightHand / Dexterity (industrial pick-and-place automation)",
+        "similarity": "Commercial solutions that combine vision, perception and learned policies for pick/place and warehouse automation; emphasis on training models on real-world data for operational pick tasks.",
+        "how_different": "Those competitors generally target constrained industrial pick/place tasks and custom end\u2011effector setups; Spirit targets high-DOF humanoid robotics and broader embodied tasks (navigation, teleoperation, multimodal inference), offering an extensible VLA foundation model and integrated hardware/software stack rather than a task-specific automation appliance."
+      },
+      {
+        "name": "Tesla / Agility Robotics / Other humanoid/legged robot vendors",
+        "similarity": "Developing humanoid or advanced mobile robots and building software stacks for locomotion, manipulation and autonomy.",
+        "how_different": "Tesla/Agility have large hardware-first programs; Spirit differentiates by emphasizing an embodied AI 'universal brain' approach \u2014 models, datasets, SDK, and tooling to enable third\u2011party or Spirit hardware to run advanced VLA policies and easier fine\u2011tuning/deployment workflows."
+      }
+    ],
+    "differentiation": {
+      "primary": "A vertically integrated, model\u2011centric robotics stack that combines an embodied multimodal foundation model family (PI05), curated embodied datasets, robot hardware (Moz1), an SDK (mozrobot), and deployment/inference recipes \u2014 positioning Spirit as provider of a 'universal brain' for real-world humanoid robots rather than only hardware or only software.",
+      "technical": "Key technical differentiators include: (1) A dedicated VLA (vision-language-action) model family (PI05) and explicit fine\u2011tuning pipelines for robot control; (2) An openpi codebase and dataset (spirit-ai/pickplace) and tooling for JAX\u2192PyTorch conversion and training; (3) Real\u2011time action sequence outputs (50 frame chunks at 30Hz, interpolated to 200 frames at 120Hz) tailored to robot control loops; (4) Integration with ROS2, LiDAR/IMU/camera sensor stacks and a robot SDK (mozrobot); (5) Emphasis on inference acceleration (custom operators, quantization, edge/cloud split) and deployment recipes (Docker, system Python, torch.compile mitigation guidance).",
+      "business": "GTM and business differentiators include selling an integrated hardware+software product (Moz1 robot + model + SDK), controlling access to source/assets via a support/TOS key (gated dataset and SDK), enterprise services for deployment and engineering (inference/edge accelerations, teleoperation/data capture pipelines), and recruiting teams to own both data pipelines and industrialization (data factory, teleoperation, embedded/firmware, mechanical).",
+      "positioning": "Spirit positions itself as the provider of the 'universal brain' for real-world robots \u2014 a vertically integrated supplier enabling humanoid/high-DOF robots to run foundation models for perception, planning and control \u2014 framed against hardware-centric robotics vendors and general-purpose AI/inference providers."
+    },
+    "secret_sauce": {
+      "core_advantage": "A combined stack of proprietary/gated embodied datasets + fine\u2011tuned multimodal VLA foundation models (PI05) specifically aligned to high\u2011DOF humanoid control, tightly integrated with their own robot hardware (Moz1) and an engineering stack (mozrobot SDK, ROS2 integration, inference recipes) that spans data acquisition, training, quantized inference and teleoperation.",
+      "defensibility": "Defensible because: (1) High\u2011quality embodied datasets for humanoid tasks are expensive and slow to collect (teleoperation, wearable capture, real robot trials) and Spirit is explicitly building the data factory and tooling to scale that; (2) Co\u2011design of models, inference operators, and hardware/system integration yields practical, production\u2011grade deployment advantages (latency, safety, action\u2011horizon tuning) that are nontrivial to replicate quickly; (3) Operational know\u2011how (mapping/navigation stack, LiDAR/SLAM integration, ROS2/realSense pipelines, safety/hoisting/charging procedures) plus hardware IP for Moz1 create switching costs for customers implementing a full robot solution; (4) Gatekeeping of source/checkpoints and enterprise support (TOS keys) allows them to control usage and monetize support/updates.",
+      "evidence": [
+        "References to PI05 base model checkpoints and fine\u2011tuning recipes (download.maybe_download(\"gs://openpi-assets/checkpoints/pi05_base\"))",
+        "Openpi codebase, dataset path spirit-ai/pickplace and scripts for compute_norm_stats.py and training (scripts/train_pytorch.py pi05_moz...)",
+        "Moz1 robot hardware documentation (sensors, LiDAR MID-360, Realsense cameras, two-finger grippers) and detailed mechanical/electrical specs",
+        "MozRobot SDK, dockerized deployment recipes and explicit ROS2 integration instructions",
+        "Job listings describing build-out of an 'intelligent data factory', teleoperation/wearable data acquisition, inference acceleration and custom operators/quantization"
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Spirit's moat derives from integration of specialized embodied datasets, a tailored VLA model family, and a hardware+software stack for humanoid robots \u2014 creating practical deployment advantages and customer switching costs. However, the moat is not impregnable: large, well-resourced competitors (NVIDIA, Google, OpenAI, major robotics OEMs) can invest heavily to replicate datasets, open-source tooling, inference optimization and hardware integration. The sustainability of Spirit's advantage will depend on (a) the continued growth and uniqueness of its embodied dataset and data\u2011capture tooling, (b) successful commercial adoption of Moz1 and the Spirit stack by customers, and (c) ability to keep improving model-to-hardware co\u2011optimization (custom operators, quantization, edge inference).",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "\u5982\u4f55\u57fa\u4e8e\u5343\u5bfb\u5f00\u6e90\u6570\u636e\u96c6\u5fae\u8c03 PI05 base \u6a21\u578b\uff0c\u4f7f\u5fae\u8c03\u540e\u7684\u6a21\u578b\u80fd\u591f\u64cd\u63a7 Moz \u673a\u5668\u4eba",
+    "checkpoint_dir = download.maybe_download(\"gs://openpi-assets/checkpoints/pi05_base\")",
+    "Converting JAX Models to PyTorch",
+    "\u6267\u884c\u8bad\u7ec3: python scripts/train_pytorch.py pi05_moz",
+    "\u52a0\u8f7d /openpi_assets/checkpoints/pi05_pickplace/",
+    "serve_policy.py --policy.config=pi05_moz",
+    "Action-frame batching + interpolation: the model emits 50 frames at 30 Hz and the system interpolates to 200 frames at 120 Hz to match robot control frequency \u2014 a practical temporal upsampling strategy to reconcile model output rate and actuator control loop.",
+    "First-inference torch.compile tradeoff: using torch.compile at first request with explicit operational guidance (expect initial timeout) \u2014 indicates JIT/compile-on-demand deployment optimization.",
+    "Sampling-limited dataset stat computation: computing norm stats by sampling up to max_batches (max_batches = 20000 // config.batch_size) to speed preprocessing for very large datasets.",
+    "Tight infra + SDK coupling: explicit integration pattern where model serving (serve_policy.py) is paired with a robot SDK (mozrobot) and ROS2, including dockerized containers and system-Python installation guidance to avoid virtualenv conflicts.",
+    "JAX-to-PyTorch conversion as a standard step in build pipeline: explicit conversion step from JAX checkpoints to PyTorch weights before fine-tuning/deployment to match preferred runtime.",
+    "Replacing transformers package files at install-time: shipping project-specific overrides into the installed transformers site-packages to customize behavior without forking the whole package."
+  ],
+  "crawl_diagnostics": null,
+  "analyzed_at": "2026-03-05 15:53:41.902894+00:00",
+  "confidence_score": 0.78,
+  "raw_content_analyzed": 168284
+}
