@@ -10,9 +10,10 @@ import os
 import re
 import sys
 import time
+from urllib.parse import urlparse, urljoin
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Ensure local src imports resolve when run as `python -m src.crawl_runtime.run_spider`
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -29,6 +30,7 @@ from src.crawl_runtime.frontier import canonicalize_url, extract_domain, classif
 from src.crawl_runtime.models import estimate_quality_score
 from src.crawl_runtime.pdf_parser import extract_pdf_text
 from src.crawl_runtime.unblock_provider import is_probably_blocked
+from bs4 import BeautifulSoup
 
 
 def is_same_site(url1: str, url2: str) -> bool:
@@ -54,6 +56,16 @@ JS_SHELL_MARKERS = [
 
 
 MAX_RAW_BODY_BYTES = max(4096, int(os.getenv("CRAWLER_RAW_CAPTURE_MAX_BODY_BYTES", "1048576")))
+
+PRIORITY_PAGE_TYPES = {"docs", "pricing", "changelog", "security"}
+SECONDARY_PAGE_TYPES = {"blog", "news"}
+DISCOVERY_DENY_PATTERNS = [
+    re.compile(r"/(login|logout|signup|sign-up|register|account|cart|checkout)(/|$)", re.I),
+    re.compile(r"/(privacy|terms|cookie)(/|$)", re.I),
+    re.compile(r"/(tag|author|category)/", re.I),
+    re.compile(r"/(calendar|events)/\d{4}(/\d{1,2})?/?", re.I),
+    re.compile(r"/wp-json/", re.I),
+]
 
 
 def headers_to_dict(headers: Any) -> Dict[str, str]:
@@ -86,6 +98,152 @@ def detect_js_shell(html: str) -> bool:
         return True
 
     return False
+
+
+def _bucket_for_url(url: str, page_type: str) -> str:
+    if page_type in PRIORITY_PAGE_TYPES:
+        return "priority"
+    if page_type in SECONDARY_PAGE_TYPES or any(x in url.lower() for x in ["/product", "/platform", "/features"]):
+        return "secondary"
+    return "generic"
+
+
+def _score_discovered_url(url: str, page_type: str) -> int:
+    base_scores = {
+        "pricing": 100,
+        "docs": 95,
+        "changelog": 90,
+        "security": 85,
+        "blog": 70,
+        "news": 65,
+        "careers": 50,
+        "generic": 40,
+    }
+    score = base_scores.get(page_type, 40)
+    lower = url.lower()
+    if "/api" in lower or "/reference" in lower or "/developer" in lower:
+        score = max(score, 92)
+    if "/product" in lower or "/platform" in lower:
+        score = max(score, 72)
+    depth = max(1, len([segment for segment in urlparse(url).path.split("/") if segment]))
+    score -= min(10, depth)
+    return score
+
+
+def _is_denied_discovery_url(url: str) -> bool:
+    lower = url.lower()
+    parsed = urlparse(lower)
+    path = parsed.path or "/"
+    query = parsed.query or ""
+    if any(p.search(path) for p in DISCOVERY_DENY_PATTERNS):
+        return True
+    if "sort=" in query or "filter=" in query or "sessionid=" in query:
+        return True
+    return False
+
+
+def _extract_structured_metadata(html: str, current_url: str) -> Dict[str, Any]:
+    if not html:
+        return {
+            "canonical_tag": None,
+            "meta_description": None,
+            "h1": None,
+            "lang": None,
+            "jsonld_types": [],
+            "published_at_hint": None,
+            "outbound_links_sample": [],
+        }
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    canonical_tag = None
+    canonical_link = soup.find("link", rel=lambda v: v and "canonical" in str(v).lower())
+    if canonical_link and canonical_link.get("href"):
+        href = str(canonical_link.get("href")).strip()
+        canonical_tag = canonicalize_url(href if href.startswith(("http://", "https://")) else urljoin(current_url, href))
+
+    meta_description = None
+    meta_desc = soup.find("meta", attrs={"name": re.compile(r"^description$", re.I)})
+    if meta_desc and meta_desc.get("content"):
+        meta_description = str(meta_desc.get("content")).strip()[:400]
+
+    h1 = None
+    h1_tag = soup.find("h1")
+    if h1_tag:
+        h1 = h1_tag.get_text(" ", strip=True)[:300]
+
+    html_tag = soup.find("html")
+    lang = str((html_tag.attrs or {}).get("lang", "")).strip()[:32] if html_tag else ""
+    lang = lang or None
+
+    published_at_hint = None
+    for key in ["article:published_time", "og:published_time", "pubdate", "publishdate", "date"]:
+        meta_tag = soup.find("meta", attrs={"property": key}) or soup.find("meta", attrs={"name": key})
+        if meta_tag and meta_tag.get("content"):
+            published_at_hint = str(meta_tag.get("content")).strip()[:100]
+            break
+    if published_at_hint is None:
+        time_tag = soup.find("time")
+        if time_tag and (time_tag.get("datetime") or time_tag.get_text(strip=True)):
+            published_at_hint = str(time_tag.get("datetime") or time_tag.get_text(strip=True)).strip()[:100]
+
+    jsonld_types: Set[str] = set()
+    for script in soup.find_all("script", attrs={"type": re.compile(r"application/ld\+json", re.I)}):
+        body = script.string or script.get_text() or ""
+        if not body.strip():
+            continue
+        try:
+            data = json.loads(body)
+        except Exception:
+            continue
+        stack: List[Any] = [data]
+        while stack:
+            item = stack.pop()
+            if isinstance(item, list):
+                stack.extend(item)
+                continue
+            if not isinstance(item, dict):
+                continue
+            raw_type = item.get("@type")
+            if isinstance(raw_type, str) and raw_type.strip():
+                jsonld_types.add(raw_type.strip())
+            elif isinstance(raw_type, list):
+                for t in raw_type:
+                    if isinstance(t, str) and t.strip():
+                        jsonld_types.add(t.strip())
+            stack.extend(item.values())
+
+    current_domain = extract_domain(current_url)
+    outbound_links: List[str] = []
+    seen: Set[str] = set()
+    for tag in soup.find_all("a", href=True):
+        href = str(tag.get("href") or "").strip()
+        if not href:
+            continue
+        if href.startswith(("#", "mailto:", "tel:", "javascript:")):
+            continue
+        absolute = canonicalize_url(href if href.startswith(("http://", "https://")) else urljoin(current_url, href))
+        if not absolute:
+            continue
+        domain = extract_domain(absolute)
+        if not domain or domain == current_domain:
+            continue
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        outbound_links.append(absolute)
+        if len(outbound_links) >= 20:
+            break
+
+    return {
+        "canonical_tag": canonical_tag,
+        "meta_description": meta_description,
+        "h1": h1,
+        "lang": lang,
+        "jsonld_types": sorted(jsonld_types)[:20],
+        "published_at_hint": published_at_hint,
+        "outbound_links_sample": outbound_links,
+    }
 
 
 class StartupSpider(scrapy.Spider):
@@ -126,6 +284,25 @@ class StartupSpider(scrapy.Spider):
                 self.seed_targets.append(item)
         self.seen: set[str] = set()
         self.documents: List[Dict[str, Any]] = []
+        self.bucket_limits = {
+            "priority": max(1, int(self.max_pages * 0.5)),
+            "secondary": max(1, int(self.max_pages * 0.3)),
+        }
+        self.bucket_limits["generic"] = max(1, self.max_pages - self.bucket_limits["priority"] - self.bucket_limits["secondary"])
+        self.bucket_counts = {"priority": 0, "secondary": 0, "generic": 0}
+
+    def _reserve_bucket(self, url: str, page_type: str) -> bool:
+        bucket = _bucket_for_url(url, page_type)
+        used = sum(self.bucket_counts.values())
+        if used >= self.max_pages:
+            return False
+        if self.bucket_counts[bucket] < self.bucket_limits[bucket]:
+            self.bucket_counts[bucket] += 1
+            return True
+        # Soft quotas: never strand remaining crawl budget when the URL mix is skewed
+        # toward one bucket (e.g., docs/pricing heavy websites).
+        self.bucket_counts[bucket] += 1
+        return True
 
     def _build_meta(self, rendered: bool = False, proxy_tier: Optional[str] = None) -> Dict[str, Any]:
         selected_proxy_tier = proxy_tier or self.default_proxy_tier
@@ -150,16 +327,25 @@ class StartupSpider(scrapy.Spider):
         return meta
 
     def start_requests(self):
-        for target in self.seed_targets:
+        ordered_targets = sorted(
+            self.seed_targets,
+            key=lambda target: -_score_discovered_url(
+                canonicalize_url(str(target.get("url", "")).strip()) or "",
+                str(target.get("page_type") or classify_page_type(str(target.get("url", "")).strip())),
+            ),
+        )
+        for target in ordered_targets:
             url = str(target.get("url", "")).strip()
             if not url:
                 continue
             canonical = canonicalize_url(url)
             if not canonical or canonical in self.seen:
                 continue
+            page_type = target.get("page_type") or classify_page_type(url)
+            if not self._reserve_bucket(canonical, str(page_type)):
+                continue
             self.seen.add(canonical)
             headers = target.get("headers") or {}
-            page_type = target.get("page_type") or classify_page_type(url)
             proxy_tier = target.get("proxy_tier") or self.default_proxy_tier
             render_required = bool(target.get("render_required", False) or self.force_render)
             meta = self._build_meta(rendered=render_required, proxy_tier=proxy_tier)
@@ -200,6 +386,14 @@ class StartupSpider(scrapy.Spider):
         raw_body_encoding: str = "utf-8",
         proxy_tier: str = "none",
         provider: str = "none",
+        canonical_tag: Optional[str] = None,
+        meta_description: Optional[str] = None,
+        h1: Optional[str] = None,
+        lang: Optional[str] = None,
+        jsonld_types: Optional[List[str]] = None,
+        published_at_hint: Optional[str] = None,
+        outbound_links_sample: Optional[List[str]] = None,
+        discovered_urls: Optional[List[str]] = None,
     ):
         canonical = canonicalize_url(url)
         if not canonical:
@@ -209,6 +403,7 @@ class StartupSpider(scrapy.Spider):
         html_hash = hashlib.sha256((html or "").encode("utf-8", errors="ignore")).hexdigest()[:32]
         content_hash = hashlib.sha256((clean_text or "").lower().encode("utf-8", errors="ignore")).hexdigest()[:32]
         quality_score = estimate_quality_score(clean_text, title=title)
+        rendered = fetch_method == "browser"
 
         self.documents.append(
             {
@@ -234,6 +429,27 @@ class StartupSpider(scrapy.Spider):
                 "error_message": error_message,
                 "proxy_tier": proxy_tier,
                 "provider": provider,
+                "canonical_tag": canonical_tag,
+                "meta_description": meta_description,
+                "h1": h1,
+                "lang": lang,
+                "jsonld_types": jsonld_types or [],
+                "published_at_hint": published_at_hint,
+                "outbound_links_sample": outbound_links_sample or [],
+                "discovered_urls": discovered_urls or [],
+                "rendered": rendered,
+                "extraction_meta": {
+                    "canonical_tag": canonical_tag,
+                    "meta_description": meta_description,
+                    "h1": h1,
+                    "lang": lang,
+                    "jsonld_types": jsonld_types or [],
+                    "published_at_hint": published_at_hint,
+                    "outbound_links_sample": outbound_links_sample or [],
+                    "discovered_urls": discovered_urls or [],
+                    "rendered": rendered,
+                    "js_shell_detected": js_shell_detected,
+                },
                 "raw_capture": {
                     "request_method": "GET",
                     "request_headers": request_headers or {},
@@ -359,7 +575,46 @@ class StartupSpider(scrapy.Spider):
 
             clean_text, clean_markdown = extract_main_content(html)
             blocked_detected = is_probably_blocked(int(response.status), html)
+            structured = _extract_structured_metadata(html, response.url)
             clipped_html = html[:MAX_RAW_BODY_BYTES]
+            discovered_urls: List[str] = []
+            candidates: List[Tuple[int, str, str]] = []
+            if len(self.seen) < self.max_pages:
+                for href in response.css("a::attr(href)").getall():
+                    href = str(href or "").strip()
+                    if not href:
+                        continue
+                    if href.startswith(("#", "mailto:", "tel:", "javascript:")):
+                        continue
+                    abs_url = response.urljoin(href)
+                    canonical = canonicalize_url(abs_url)
+                    if not canonical:
+                        continue
+                    if canonical in self.seen:
+                        continue
+                    if self.allowed_domain and not is_same_site(canonical, f"https://{self.allowed_domain}"):
+                        continue
+                    if _is_denied_discovery_url(canonical):
+                        continue
+                    candidate_type = classify_page_type(canonical)
+                    score = _score_discovered_url(canonical, candidate_type)
+                    candidates.append((score, canonical, candidate_type))
+
+                candidates.sort(key=lambda item: (-item[0], len(item[1]), item[1]))
+                for _score, canonical, candidate_type in candidates:
+                    if len(self.seen) >= self.max_pages:
+                        break
+                    if canonical in self.seen:
+                        continue
+                    if not self._reserve_bucket(canonical, candidate_type):
+                        continue
+                    self.seen.add(canonical)
+                    discovered_urls.append(canonical)
+                    meta = self._build_meta(rendered=self.force_render, proxy_tier=self.default_proxy_tier)
+                    meta["seed_page_type"] = candidate_type
+                    meta["requested_url"] = canonical
+                    yield scrapy.Request(url=canonical, callback=self.parse, meta=meta, errback=self.errback)
+
             self._record_doc(
                 url=response.url,
                 requested_url=requested_url,
@@ -379,28 +634,15 @@ class StartupSpider(scrapy.Spider):
                 raw_body=clipped_html,
                 raw_body_encoding="utf-8",
                 proxy_tier=proxy_tier,
+                canonical_tag=structured.get("canonical_tag"),
+                meta_description=structured.get("meta_description"),
+                h1=structured.get("h1"),
+                lang=structured.get("lang"),
+                jsonld_types=structured.get("jsonld_types"),
+                published_at_hint=structured.get("published_at_hint"),
+                outbound_links_sample=structured.get("outbound_links_sample"),
+                discovered_urls=discovered_urls,
             )
-
-            if len(self.seen) >= self.max_pages:
-                return
-
-            for href in response.css("a::attr(href)").getall():
-                if len(self.seen) >= self.max_pages:
-                    break
-
-                abs_url = response.urljoin(href)
-                canonical = canonicalize_url(abs_url)
-                if not canonical:
-                    continue
-                if canonical in self.seen:
-                    continue
-                if self.allowed_domain and not is_same_site(canonical, f"https://{self.allowed_domain}"):
-                    continue
-
-                self.seen.add(canonical)
-                meta = self._build_meta(rendered=self.force_render, proxy_tier=self.default_proxy_tier)
-                meta["seed_page_type"] = classify_page_type(canonical)
-                yield scrapy.Request(url=abs_url, callback=self.parse, meta=meta, errback=self.errback)
         except Exception as exc:  # pragma: no cover - defensive extraction
             http_status = int(getattr(response, "status", 0) or 0)
             err = f"ParseError (http_status={http_status}): {exc.__class__.__name__}: {exc}".strip()

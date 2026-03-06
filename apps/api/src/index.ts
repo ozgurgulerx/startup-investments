@@ -5512,6 +5512,94 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
           )::float AS due_age_p95_seconds
         FROM crawl_frontier_queue
         `);
+        const coverageByPageTypeResult = await pgClient.query(`
+          SELECT
+            COALESCE(NULLIF(page_type, ''), 'generic') AS page_type,
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE last_crawled_at IS NOT NULL)::int AS crawled,
+            COUNT(*) FILTER (WHERE last_crawled_at >= NOW() - INTERVAL '24 hours')::int AS crawled_24h
+          FROM crawl_frontier_urls
+          GROUP BY COALESCE(NULLIF(page_type, ''), 'generic')
+          ORDER BY total DESC
+          LIMIT 30
+        `);
+        const discoveryYieldResult = await pgClient.query(`
+          SELECT
+            COUNT(*) FILTER (
+              WHERE discovered_at >= NOW() - INTERVAL '24 hours'
+            )::int AS total_new_urls_24h,
+            COUNT(*) FILTER (
+              WHERE discovered_at >= NOW() - INTERVAL '24 hours'
+                AND (
+                  canonical_url ~* '^https?://[^/]+/?$'
+                  OR canonical_url ~* '/(pricing|docs|blog|changelog|security|careers)$'
+                  OR canonical_url ~* '/(sitemap\\.xml|feed|rss\\.xml|atom\\.xml)$'
+                )
+            )::int AS seeded_urls_24h
+          FROM crawl_frontier_urls
+        `);
+        let unblockConversionResult;
+        try {
+          unblockConversionResult = await pgClient.query(`
+            SELECT
+              COUNT(*) FILTER (
+                WHERE (
+                  COALESCE(js_shell_detected, FALSE) = TRUE
+                  OR status = 'blocked'
+                  OR http_status IN (403, 429, 503)
+                )
+              )::int AS provider_opportunities,
+              COUNT(*) FILTER (
+                WHERE COALESCE(fetch_method, '') LIKE 'provider_%'
+                  AND COALESCE(status, '') = 'success'
+                  AND COALESCE(http_status, 200) < 400
+              )::int AS provider_successes
+            FROM crawl_logs cl
+            WHERE cl.created_at >= NOW() - INTERVAL '24 hours'
+              AND cl.source_type IN ('website', 'docs')
+              AND cl.canonical_url IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM crawl_frontier_urls u WHERE u.canonical_url = cl.canonical_url
+              )
+          `);
+        } catch (err) {
+          unblockConversionResult = await pgClient.query(`
+            SELECT
+              COUNT(*) FILTER (
+                WHERE status = 'blocked' OR http_status IN (403, 429, 503)
+              )::int AS provider_opportunities,
+              COUNT(*) FILTER (
+                WHERE COALESCE(fetch_method, '') LIKE 'provider_%'
+                  AND COALESCE(status, '') = 'success'
+                  AND COALESCE(http_status, 200) < 400
+              )::int AS provider_successes
+            FROM crawl_logs
+            WHERE COALESCE(crawl_started_at, created_at) >= NOW() - INTERVAL '24 hours'
+          `);
+        }
+        const domainStarvationResult = await pgClient.query(`
+          SELECT
+            u.domain,
+            COUNT(*)::int AS due_count,
+            COALESCE(
+              ROUND(
+                (
+                  PERCENTILE_CONT(0.95) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (NOW() - q.available_at)) / 60.0
+                  )
+                )::numeric,
+                1
+              ),
+              0
+            )::float AS due_age_p95_minutes
+          FROM crawl_frontier_queue q
+          JOIN crawl_frontier_urls u ON u.canonical_url = q.canonical_url
+          WHERE q.leased_at IS NULL
+            AND q.available_at <= NOW()
+          GROUP BY u.domain
+          ORDER BY due_age_p95_minutes DESC, due_count DESC
+          LIMIT 20
+        `);
         let runMode: 'crawl_logs' | 'frontier_urls' = 'crawl_logs';
         let runStatsResult: any;
         try {
@@ -5658,6 +5746,37 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
       const successRatePct = totalAttempts > 0
         ? Number(((success / totalAttempts) * 100).toFixed(1))
         : 0;
+      const discoveryRow = discoveryYieldResult.rows[0] || {};
+      const seededUrls24h = toInt(discoveryRow.seeded_urls_24h);
+      const totalNewUrls24h = toInt(discoveryRow.total_new_urls_24h);
+      const discoveredUrls24h = Math.max(0, totalNewUrls24h - seededUrls24h);
+      const discoveryInternalPct = totalNewUrls24h > 0
+        ? Number(((discoveredUrls24h / totalNewUrls24h) * 100).toFixed(1))
+        : 0;
+      const unblockRow = unblockConversionResult.rows[0] || {};
+      const providerOpportunities = toInt(unblockRow.provider_opportunities);
+      const providerSuccesses = Math.min(providerOpportunities, toInt(unblockRow.provider_successes));
+      const providerSuccessRatePct = providerOpportunities > 0
+        ? Number(((providerSuccesses / providerOpportunities) * 100).toFixed(1))
+        : 0;
+      const coverageByPageType = (coverageByPageTypeResult.rows || []).map((row: any) => {
+        const total = toInt(row.total);
+        const crawled = toInt(row.crawled);
+        return {
+          pageType: String(row.page_type || 'generic'),
+          total,
+          crawled,
+          crawled24h: toInt(row.crawled_24h),
+          crawledPct: total > 0 ? Number(((crawled / total) * 100).toFixed(1)) : 0,
+        };
+      });
+      const starvationThresholdMinutes = 240;
+      const starvationTopDomains = (domainStarvationResult.rows || []).map((row: any) => ({
+        domain: String(row.domain || ''),
+        dueCount: toInt(row.due_count),
+        dueAgeP95Minutes: Number(toFloat(row.due_age_p95_minutes).toFixed(1)),
+      }));
+      const starvedDomainCount = starvationTopDomains.filter((d: any) => d.dueAgeP95Minutes > starvationThresholdMinutes).length;
 
       res.json({
         summary: {
@@ -5678,6 +5797,7 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
             ? Number(((toInt(coverageRow.crawled_urls) / toInt(coverageRow.total_urls)) * 100).toFixed(1))
             : 0,
           minsSinceLatestCrawl: coverageRow.mins_since_latest_crawl == null ? null : Number(toFloat(coverageRow.mins_since_latest_crawl).toFixed(1)),
+          starvedDomainCount,
         },
         queue: {
           total: toInt(queueStatsRow.total),
@@ -5706,6 +5826,23 @@ app.get('/api/admin/monitoring/frontier', async (req, res) => {
           successRatePct,
           avgDurationMs: Number(toFloat(runStatsRow.avg_duration_ms).toFixed(1)),
           p95DurationMs: Number(toFloat(runStatsRow.p95_duration_ms).toFixed(1)),
+        },
+        coverageByPageType,
+        discoveryYield24h: {
+          totalNewUrls: totalNewUrls24h,
+          seededUrls: seededUrls24h,
+          discoveredInternalUrls: discoveredUrls24h,
+          discoveredInternalPct: discoveryInternalPct,
+        },
+        unblockConversion24h: {
+          providerOpportunities,
+          providerSuccesses,
+          providerSuccessRatePct,
+        },
+        domainStarvation: {
+          thresholdMinutes: starvationThresholdMinutes,
+          starvedDomainCount,
+          topDomains: starvationTopDomains,
         },
         http24h: {
           status2xx: toInt(runStatsRow.http_2xx),
