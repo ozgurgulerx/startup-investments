@@ -17,7 +17,7 @@ except Exception:  # pragma: no cover
 
 from src.config import settings
 from src.crawl_runtime.discovery import discover_seed_urls
-from src.crawl_runtime.frontier import UrlFrontierStore, canonicalize_url
+from src.crawl_runtime.frontier import UrlFrontierStore, canonicalize_url, classify_page_type
 
 
 COMMON_PATHS = [
@@ -39,6 +39,17 @@ DISCOVERY_HINT_PATHS = [
     "/rss.xml",
     "/atom.xml",
 ]
+
+PAGE_TYPE_PRIORITY = {
+    "pricing": 100,
+    "docs": 95,
+    "changelog": 90,
+    "security": 85,
+    "blog": 70,
+    "news": 65,
+    "careers": 50,
+    "generic": 40,
+}
 
 
 @dataclass
@@ -72,6 +83,30 @@ def build_seed_urls(website: str, include_discovery_hints: bool = False) -> List
             if canonical and canonical not in urls:
                 urls.append(canonical)
     return urls
+
+
+def _seed_url_priority(url: str) -> int:
+    page_type = classify_page_type(url)
+    score = PAGE_TYPE_PRIORITY.get(page_type, PAGE_TYPE_PRIORITY["generic"])
+    lower = url.lower()
+    if "/api" in lower or "/reference" in lower or "/developer" in lower:
+        score = max(score, 92)
+    if "/product" in lower or "/platform" in lower:
+        score = max(score, 72)
+    return score
+
+
+def prioritize_seed_urls(urls: Iterable[str]) -> List[str]:
+    deduped: List[str] = []
+    seen: set[str] = set()
+    for raw in urls:
+        canonical = canonicalize_url(raw)
+        if not canonical or canonical in seen:
+            continue
+        seen.add(canonical)
+        deduped.append(canonical)
+
+    return sorted(deduped, key=lambda url: (-_seed_url_priority(url), len(url), url))
 
 
 def parse_cursor(cursor: Optional[str]) -> int:
@@ -173,6 +208,7 @@ class FrontierSeeder:
                 except Exception:
                     # Seeder must stay robust; discovery failures should not block baseline seeding.
                     pass
+            urls = prioritize_seed_urls(urls)
             if not urls:
                 continue
             count = await self.frontier.enqueue_urls(item.slug, urls)

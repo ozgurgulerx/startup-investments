@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -34,6 +34,17 @@ class CrawledDocumentV2:
     blocked_detected: bool = False
     provider: str = "none"
     capture_id: Optional[str] = None
+    canonical_tag: Optional[str] = None
+    meta_description: Optional[str] = None
+    h1: Optional[str] = None
+    lang: Optional[str] = None
+    jsonld_types: Optional[List[str]] = None
+    published_at_hint: Optional[str] = None
+    outbound_links_sample: Optional[List[str]] = None
+    discovered_urls: Optional[List[str]] = None
+    rendered: bool = False
+    js_shell_detected: bool = False
+    extraction_meta: Optional[Dict[str, Any]] = None
 
     @classmethod
     def now_iso(cls) -> str:

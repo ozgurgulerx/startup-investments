@@ -116,6 +116,8 @@ class ScrapyPlaywrightRuntime:
         respect_robots: bool,
         force_render: bool,
         default_proxy_tier: str,
+        crawl_delay_ms: int,
+        max_concurrent: int,
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """Run subprocess spider and return `(documents, error)`.
 
@@ -131,6 +133,8 @@ class ScrapyPlaywrightRuntime:
             seed_file = Path(tmp_dir) / "seed_targets.json"
             seed_file.write_text(json.dumps(seed_targets), encoding="utf-8")
 
+            effective_download_delay = min(5.0, max(0.2, float(crawl_delay_ms or 350) / 1000.0))
+            effective_concurrent_requests = min(24, max(4, int(max_concurrent or settings.crawler.max_concurrent) * 4))
             cmd = [
                 sys.executable,
                 "-m",
@@ -146,9 +150,9 @@ class ScrapyPlaywrightRuntime:
                 "--timeout-seconds",
                 str(max(10, settings.crawler.timeout_ms // 1000)),
                 "--download-delay",
-                "0.35",
+                str(effective_download_delay),
                 "--concurrent-requests",
-                str(max(4, settings.crawler.max_concurrent * 4)),
+                str(effective_concurrent_requests),
                 "--depth-limit",
                 str(max(1, settings.crawler.depth_limit)),
                 "--max-pages",
@@ -221,6 +225,17 @@ class ScrapyPlaywrightRuntime:
             "blocked_detected": bool(doc.get("blocked_detected", False)),
             "provider": doc.get("provider", "none"),
             "capture_id": doc.get("capture_id"),
+            "canonical_tag": doc.get("canonical_tag"),
+            "meta_description": doc.get("meta_description"),
+            "h1": doc.get("h1"),
+            "lang": doc.get("lang"),
+            "jsonld_types": doc.get("jsonld_types") or [],
+            "published_at_hint": doc.get("published_at_hint"),
+            "outbound_links_sample": doc.get("outbound_links_sample") or [],
+            "discovered_urls": doc.get("discovered_urls") or [],
+            "rendered": bool(doc.get("rendered", False)),
+            "js_shell_detected": bool(doc.get("js_shell_detected", False)),
+            "extraction_meta": doc.get("extraction_meta") or {},
         }
 
     @staticmethod
@@ -337,6 +352,9 @@ class ScrapyPlaywrightRuntime:
                         error_category,
                         etag,
                         last_modified,
+                        page_type,
+                        rendered,
+                        js_shell_detected,
                         proxy_tier,
                         fetch_method,
                         capture_id
@@ -360,7 +378,10 @@ class ScrapyPlaywrightRuntime:
                         $14,
                         $15,
                         $16,
-                        $17::uuid
+                        $17,
+                        $18,
+                        $19,
+                        $20::uuid
                     )
                     """,
                     startup_id,
@@ -377,6 +398,9 @@ class ScrapyPlaywrightRuntime:
                     error_category,
                     doc.get("etag"),
                     doc.get("last_modified"),
+                    str(doc.get("page_type") or "generic"),
+                    bool(doc.get("rendered", False)),
+                    bool(doc.get("js_shell_detected", False)),
                     str(doc.get("proxy_tier") or "none"),
                     str(doc.get("fetch_method") or "http"),
                     safe_capture_id,
@@ -416,7 +440,13 @@ class ScrapyPlaywrightRuntime:
         upgraded["provider"] = provider_name
         upgraded["blocked_detected"] = False
         upgraded["error_category"] = None
+        upgraded["rendered"] = True
+        upgraded["js_shell_detected"] = False
         upgraded["quality_score"] = estimate_quality_score(clean_text, title=title)
+        extraction_meta = dict(upgraded.get("extraction_meta") or {})
+        extraction_meta["rendered"] = True
+        extraction_meta["js_shell_detected"] = False
+        upgraded["extraction_meta"] = extraction_meta
         upgraded["raw_capture"] = {
             "request_method": "GET",
             "request_headers": {},
@@ -486,6 +516,9 @@ class ScrapyPlaywrightRuntime:
                 continue
 
             discovered.append(canonical)
+            for extra in doc.get("discovered_urls") or []:
+                if isinstance(extra, str) and extra.strip():
+                    discovered.append(canonicalize_url(extra))
             status_code = int(doc.get("status_code") or 0)
             content_hash = doc.get("content_hash")
 
@@ -533,6 +566,7 @@ class ScrapyPlaywrightRuntime:
                 fetch_method=str(doc.get("fetch_method") or "http"),
                 proxy_tier=str(doc.get("proxy_tier") or policy.proxy_tier),
                 capture_id=capture_id,
+                last_content_sample=" ".join(str(doc.get("clean_text") or "").split())[:2000],
             )
 
         missing = 0
@@ -554,7 +588,7 @@ class ScrapyPlaywrightRuntime:
             )
 
         if discovered:
-            await self.frontier.enqueue_urls(startup_slug, discovered)
+            await self.frontier.enqueue_urls(startup_slug, [url for url in discovered if url])
 
     async def crawl_startup(self, startup: StartupInput, seed_urls: List[str]) -> List[Dict[str, Any]]:
         """Ad-hoc startup crawl used by existing DeltaProcessor/analysis pipeline."""
@@ -594,6 +628,8 @@ class ScrapyPlaywrightRuntime:
             respect_robots=policy.respect_robots,
             force_render=policy.render_required,
             default_proxy_tier=policy.proxy_tier,
+            crawl_delay_ms=policy.crawl_delay_ms,
+            max_concurrent=policy.max_concurrent,
         )
 
         if err:
@@ -706,6 +742,8 @@ class ScrapyPlaywrightRuntime:
                     respect_robots=policy.respect_robots,
                     force_render=policy.render_required,
                     default_proxy_tier=policy.proxy_tier,
+                    crawl_delay_ms=policy.crawl_delay_ms,
+                    max_concurrent=policy.max_concurrent,
                 )
 
                 if err:

@@ -7,11 +7,13 @@ Design:
 - Supports versioning and history
 """
 
-import json
-from pathlib import Path
-from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Set
 import hashlib
+import json
+import os
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 
 from src.config import settings
 from src.data.models import StartupInput, StartupAnalysis
@@ -26,6 +28,7 @@ class AnalysisStore:
 
         # Main index file
         self.index_file = self.store_dir / "index.json"
+        self.progress_file = self.store_dir / "progress.json"
 
         # Subdirectories
         self.base_dir = self.store_dir / "base_analyses"
@@ -52,16 +55,23 @@ class AnalysisStore:
             "version": 2,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "startups": {},  # name -> metadata
-            "stats": {
-                "total_analyzed": 0,
-                "last_updated": None,
-            }
+            "stats": self._default_stats(),
+        }
+
+    def _default_stats(self) -> Dict[str, Any]:
+        return {
+            "total_analyzed": 0,
+            "last_updated": None,
         }
 
     def _migrate_index(self, index: Dict[str, Any]) -> Dict[str, Any]:
         """Migrate index from older versions."""
         version = index.get("version", 1)
         changed = False
+
+        if not isinstance(index.get("stats"), dict):
+            index["stats"] = self._default_stats()
+            changed = True
 
         if version < 2:
             # v1 → v2: Normalize metadata field names (has_base_analysis → has_base)
@@ -132,9 +142,6 @@ class AnalysisStore:
 
     def _save_index(self):
         """Save the store index atomically (write-to-temp + rename)."""
-        import tempfile
-        import os
-
         self.index["stats"]["last_updated"] = datetime.now(timezone.utc).isoformat()
         fd, tmp_path = tempfile.mkstemp(
             dir=str(self.store_dir), suffix=".index.tmp"
@@ -200,8 +207,69 @@ class AnalysisStore:
         """Get set of already processed startup names."""
         return set(self.index["startups"].keys())
 
+    def count_base_analysis_files(self) -> int:
+        """Count base-analysis artifacts on disk."""
+        return sum(1 for path in self.base_dir.iterdir() if path.is_file() and path.suffix == ".json")
+
+    def _read_saved_input_hash(self, file_path: Path) -> str:
+        """Read the saved startup hash from a base-analysis artifact when available."""
+        if not file_path.exists():
+            return ""
+        try:
+            payload = json.loads(file_path.read_text(encoding="utf-8"))
+        except Exception:
+            return ""
+        saved_hash = str(payload.get("input_hash") or "").strip()
+        return saved_hash if len(saved_hash) >= 16 else ""
+
+    def reconcile_startups(self, startups: List[StartupInput]) -> int:
+        """Backfill index entries for startups that already have on-disk artifacts."""
+        reconciled = 0
+
+        for startup in startups:
+            name = startup.name
+            if name in self.index["startups"]:
+                continue
+
+            slug = self._get_slug(name)
+            base_file = self.base_dir / f"{slug}.json"
+            has_base = base_file.exists()
+            has_viral = (self.viral_dir / f"{slug}.json").exists()
+            has_enrichment = (self.enrichment_dir / f"{slug}.json").exists()
+
+            # Base analysis is the durable source of truth for restart-safe reconciliation.
+            # Viral/enrichment artifacts can exist only after or alongside base analysis.
+            if not has_base:
+                continue
+
+            self.index["startups"][name] = {
+                "slug": slug,
+                "hash": self._read_saved_input_hash(base_file),
+                "base_analysis_at": datetime.now(timezone.utc).isoformat() if has_base else None,
+                "viral_analysis_at": datetime.now(timezone.utc).isoformat() if has_viral else None,
+                "enrichment_at": datetime.now(timezone.utc).isoformat() if has_enrichment else None,
+                "has_base": has_base,
+                "has_viral": has_viral,
+                "has_enrichment": has_enrichment,
+                "website": startup.website,
+                "funding": startup.funding_amount,
+                "funding_stage": startup.funding_stage.value if startup.funding_stage else None,
+                "description": startup.description,
+                "industries": startup.industries or [],
+                "lead_investors": startup.lead_investors or [],
+            }
+            reconciled += 1
+
+        if reconciled:
+            self.index["stats"]["total_analyzed"] = len(self.index["startups"])
+            self._save_index()
+
+        return reconciled
+
     def get_delta(self, startups: List[StartupInput]) -> List[StartupInput]:
         """Get startups that haven't been processed or have changed."""
+        self.reconcile_startups(startups)
+
         delta = []
         for startup in startups:
             name = startup.name
@@ -220,15 +288,18 @@ class AnalysisStore:
         """Save a base analysis result."""
         slug = self._get_slug(analysis.company_name)
         file_path = self.base_dir / f"{slug}.json"
+        startup_hash = self._get_startup_hash(startup)
 
         # Save analysis
         with open(file_path, "w") as f:
-            json.dump(analysis.model_dump(), f, indent=2, default=str)
+            payload = analysis.model_dump()
+            payload["input_hash"] = startup_hash
+            json.dump(payload, f, indent=2, default=str)
 
         # Update index
         self.index["startups"][analysis.company_name] = {
             "slug": slug,
-            "hash": self._get_startup_hash(startup),
+            "hash": startup_hash,
             "base_analysis_at": datetime.now(timezone.utc).isoformat(),
             "has_base": True,
             "has_viral": False,
@@ -270,6 +341,25 @@ class AnalysisStore:
             self.index["startups"][company_name]["has_enrichment"] = True
             self.index["startups"][company_name]["enrichment_at"] = datetime.now(timezone.utc).isoformat()
             self._save_index()
+
+    def write_progress_checkpoint(self, payload: Dict[str, Any]) -> None:
+        """Persist a run-progress checkpoint atomically."""
+        snapshot = dict(payload)
+        snapshot["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.store_dir), suffix=".progress.tmp"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(snapshot, f, indent=2, default=str)
+            os.replace(tmp_path, str(self.progress_file))
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def get_base_analysis(self, company_name: str) -> Optional[StartupAnalysis]:
         """Load a base analysis by company name."""
@@ -351,13 +441,14 @@ class AnalysisStore:
         """Get store statistics."""
         has_base = sum(1 for m in self.index["startups"].values() if m.get("has_base"))
         has_viral = sum(1 for m in self.index["startups"].values() if m.get("has_viral"))
+        stats = self.index.get("stats") or self._default_stats()
 
         return {
             "total_startups": len(self.index["startups"]),
             "with_base_analysis": has_base,
             "with_viral_analysis": has_viral,
             "missing_viral": has_base - has_viral,
-            "last_updated": self.index.get("stats", {}).get("last_updated"),
+            "last_updated": stats.get("last_updated"),
         }
 
     def export_summary(self) -> str:

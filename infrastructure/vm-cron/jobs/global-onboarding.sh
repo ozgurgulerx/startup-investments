@@ -66,8 +66,13 @@ processor = IncrementalProcessor(store)
 startups = load_startups_from_csv(csv_path)
 print(f'Total in CSV: {len(startups)}', flush=True)
 
+reconciled = store.reconcile_startups(startups)
+print(f'Reconciled existing analyses into index: {reconciled}', flush=True)
+
 stats = store.get_stats()
 print(f'Already in store: {stats[\"total_startups\"]}', flush=True)
+print(f'Base analysis files on disk: {store.count_base_analysis_files()}', flush=True)
+print(f'Progress checkpoint file: {store.progress_file}', flush=True)
 
 delta = store.get_delta(startups)
 print(f'Delta to process: {len(delta)}', flush=True)

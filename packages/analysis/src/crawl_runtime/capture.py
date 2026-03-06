@@ -32,6 +32,7 @@ class RawCaptureRecord:
     blocked_detected: bool
     error_category: Optional[str]
     latency_ms: int
+    extraction_meta: Dict[str, Any]
 
 
 class RawCaptureRecorder:
@@ -146,6 +147,7 @@ class RawCaptureRecorder:
             blocked_detected=bool(doc.get("blocked_detected", False)),
             error_category=doc.get("error_category"),
             latency_ms=int(doc.get("response_time_ms") or 0),
+            extraction_meta=doc.get("extraction_meta") or {},
         )
 
         async with self.frontier.pool.acquire() as conn:
@@ -170,6 +172,7 @@ class RawCaptureRecorder:
                     blocked_detected,
                     error_category,
                     latency_ms,
+                    extraction_meta_json,
                     captured_at
                 )
                 VALUES (
@@ -178,7 +181,9 @@ class RawCaptureRecorder:
                     $6::jsonb,
                     $7, $8, $9, $10,
                     $11, $12, $13, $14, $15,
-                    $16, $17, $18, NOW()
+                    $16, $17, $18,
+                    $19::jsonb,
+                    NOW()
                 )
                 RETURNING id
                 """,
@@ -200,6 +205,7 @@ class RawCaptureRecorder:
                 record.blocked_detected,
                 record.error_category,
                 record.latency_ms,
+                json.dumps(record.extraction_meta or {}),
             )
 
         return str(capture_id) if capture_id else None

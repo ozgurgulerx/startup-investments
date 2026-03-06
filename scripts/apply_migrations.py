@@ -116,6 +116,7 @@ SETS: dict[str, list[str]] = {
         "075_signal_evidence_object_bridge.sql",
         "076_startup_events_evidence_ids_gin.sql",
         "077_funding_timeline_dedupe.sql",
+        "078_crawl_frontier_depth_telemetry.sql",
         # X/Twitter trend intelligence + automated posting queue
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
@@ -138,6 +139,7 @@ SETS: dict[str, list[str]] = {
         "073_event_contract_hardening.sql",
         "076_startup_events_evidence_ids_gin.sql",
         "077_funding_timeline_dedupe.sql",
+        "078_crawl_frontier_depth_telemetry.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -196,6 +198,7 @@ SETS: dict[str, list[str]] = {
         "075_signal_evidence_object_bridge.sql",
         "076_startup_events_evidence_ids_gin.sql",
         "077_funding_timeline_dedupe.sql",
+        "078_crawl_frontier_depth_telemetry.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",

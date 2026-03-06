@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Set
+from typing import List, Set, Tuple
 from urllib.parse import urljoin
 import xml.etree.ElementTree as ET
 
@@ -21,6 +21,9 @@ FEED_HINTS = [
     "/atom.xml",
 ]
 
+MAX_SITEMAP_FILES = 10
+MAX_SITEMAP_CANDIDATE_URLS = 2000
+
 
 @dataclass
 class DiscoveryResult:
@@ -29,25 +32,94 @@ class DiscoveryResult:
     sitemap_url: str = ""
 
 
+def _parse_sitemap_xml_nodes(
+    xml_text: str,
+    max_urls: int = 200,
+    max_sitemaps: int = 100,
+) -> Tuple[List[str], List[str]]:
+    if not xml_text:
+        return [], []
+
+    try:
+        root = ET.fromstring(xml_text)
+    except Exception:
+        return [], []
+
+    urls: List[str] = []
+    sitemaps: List[str] = []
+    lower_root = root.tag.lower()
+    is_urlset = lower_root.endswith("urlset")
+    is_sitemapindex = lower_root.endswith("sitemapindex")
+
+    for elem in root.iter():
+        tag = elem.tag.lower()
+        if not tag.endswith("loc") or not elem.text:
+            continue
+        value = elem.text.strip()
+        if not value:
+            continue
+
+        if is_sitemapindex:
+            sitemaps.append(value)
+            if len(sitemaps) >= max_sitemaps:
+                break
+            continue
+        if is_urlset:
+            urls.append(value)
+            if len(urls) >= max_urls:
+                break
+            continue
+
+        # Heuristic fallback when root tags are unexpected.
+        if value.lower().endswith(".xml"):
+            sitemaps.append(value)
+            if len(sitemaps) >= max_sitemaps:
+                break
+        else:
+            urls.append(value)
+            if len(urls) >= max_urls:
+                break
+    return urls, sitemaps
+
+
 def _parse_sitemap_xml(xml_text: str, max_urls: int = 200) -> List[str]:
+    urls, _ = _parse_sitemap_xml_nodes(xml_text, max_urls=max_urls)
+    return urls
+
+
+def _parse_feed_entry_urls(xml_text: str, max_urls: int = 200) -> List[str]:
     if not xml_text:
         return []
-
     try:
         root = ET.fromstring(xml_text)
     except Exception:
         return []
 
     urls: List[str] = []
-    # Namespaced and non-namespaced loc tags
     for elem in root.iter():
         tag = elem.tag.lower()
-        if tag.endswith("loc") and elem.text:
-            value = elem.text.strip()
-            if value:
-                urls.append(value)
-                if len(urls) >= max_urls:
+        value = ""
+        # RSS item/link
+        if tag.endswith("item"):
+            for child in list(elem):
+                if child.tag.lower().endswith("link") and child.text:
+                    value = child.text.strip()
                     break
+        # Atom entry/link href
+        elif tag.endswith("entry"):
+            for child in list(elem):
+                if child.tag.lower().endswith("link"):
+                    href = (child.attrib or {}).get("href", "").strip()
+                    if href:
+                        value = href
+                        break
+                    if child.text:
+                        value = child.text.strip()
+                        break
+        if value:
+            urls.append(value)
+            if len(urls) >= max_urls:
+                break
     return urls
 
 
@@ -78,6 +150,8 @@ async def discover_seed_urls(
 
     domain = extract_domain(base)
     seen: Set[str] = set()
+    max_urls = max(1, int(max_urls))
+    max_candidates = max(max_urls, MAX_SITEMAP_CANDIDATE_URLS)
 
     async with httpx.AsyncClient(timeout=max(1.0, timeout_seconds), follow_redirects=True) as client:
         robots_url = f"{base}/robots.txt"
@@ -92,14 +166,42 @@ async def discover_seed_urls(
         if not sitemap_candidates:
             sitemap_candidates.append(f"{base}/sitemap.xml")
 
-        for sitemap_url in sitemap_candidates[:3]:
+        sitemap_queue = [canonicalize_url(url) for url in sitemap_candidates if canonicalize_url(url)]
+        seen_sitemaps: Set[str] = set()
+        sitemap_selected = ""
+
+        while sitemap_queue and len(seen_sitemaps) < MAX_SITEMAP_FILES and len(seen) < max_urls:
+            sitemap_url = sitemap_queue.pop(0)
+            if not sitemap_url or sitemap_url in seen_sitemaps:
+                continue
+            seen_sitemaps.add(sitemap_url)
+            if domain and extract_domain(sitemap_url) != domain:
+                continue
             try:
                 sresp = await client.get(sitemap_url)
                 if sresp.status_code >= 400:
                     continue
-                discovered = _parse_sitemap_xml(sresp.text, max_urls=max_urls * 5)
+                discovered, child_sitemaps = _parse_sitemap_xml_nodes(
+                    sresp.text,
+                    max_urls=max_candidates,
+                    max_sitemaps=MAX_SITEMAP_CANDIDATE_URLS,
+                )
+                if not sitemap_selected:
+                    sitemap_selected = sitemap_url
             except Exception:
-                discovered = []
+                discovered, child_sitemaps = [], []
+
+            for child in child_sitemaps:
+                canonical_child = canonicalize_url(child)
+                if not canonical_child:
+                    continue
+                if domain and extract_domain(canonical_child) != domain:
+                    continue
+                if canonical_child in seen_sitemaps:
+                    continue
+                sitemap_queue.append(canonical_child)
+                if len(sitemap_queue) >= MAX_SITEMAP_CANDIDATE_URLS:
+                    break
 
             for raw in discovered:
                 canonical = canonicalize_url(raw)
@@ -109,7 +211,11 @@ async def discover_seed_urls(
                     continue
                 seen.add(canonical)
                 if len(seen) >= max_urls:
-                    return DiscoveryResult(urls=sorted(seen), robots_url=robots_url, sitemap_url=sitemap_url)
+                    return DiscoveryResult(
+                        urls=sorted(seen),
+                        robots_url=robots_url,
+                        sitemap_url=sitemap_selected or f"{base}/sitemap.xml",
+                    )
 
         for suffix in FEED_HINTS:
             candidate = canonicalize_url(urljoin(f"{base}/", suffix.lstrip("/")))
@@ -121,9 +227,22 @@ async def discover_seed_urls(
                 looks_feed = any(x in ctype for x in ["xml", "rss", "atom"]) or "<rss" in fresp.text[:500].lower() or "<feed" in fresp.text[:500].lower()
                 if fresp.status_code < 400 and looks_feed:
                     seen.add(candidate)
+                    for entry_url in _parse_feed_entry_urls(fresp.text, max_urls=max_candidates):
+                        canonical_entry = canonicalize_url(entry_url)
+                        if not canonical_entry:
+                            continue
+                        if domain and extract_domain(canonical_entry) != domain:
+                            continue
+                        seen.add(canonical_entry)
+                        if len(seen) >= max_urls:
+                            break
             except Exception:
                 continue
             if len(seen) >= max_urls:
                 break
 
-    return DiscoveryResult(urls=sorted(seen), robots_url=f"{base}/robots.txt", sitemap_url=f"{base}/sitemap.xml")
+    return DiscoveryResult(
+        urls=sorted(seen)[:max_urls],
+        robots_url=f"{base}/robots.txt",
+        sitemap_url=f"{base}/sitemap.xml",
+    )

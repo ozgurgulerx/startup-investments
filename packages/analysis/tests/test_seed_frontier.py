@@ -13,6 +13,7 @@ from src.crawl_runtime.seed_frontier import (
     StartupSeed,
     build_seed_urls,
     parse_cursor,
+    prioritize_seed_urls,
 )
 
 
@@ -54,6 +55,19 @@ def test_build_seed_urls_returns_canonical_paths():
 
 def test_build_seed_urls_returns_empty_for_invalid_input():
     assert build_seed_urls("") == []
+
+
+def test_prioritize_seed_urls_promotes_high_value_paths():
+    ordered = prioritize_seed_urls(
+        [
+            "https://acme.com/blog/post-1",
+            "https://acme.com/pricing",
+            "https://acme.com/docs/getting-started",
+            "https://acme.com/company",
+        ]
+    )
+    assert ordered.index("https://acme.com/pricing") < ordered.index("https://acme.com/company")
+    assert ordered.index("https://acme.com/docs/getting-started") < ordered.index("https://acme.com/company")
 
 
 def test_seeder_reads_startups_and_enqueues_urls():

@@ -214,6 +214,7 @@ VM cron runner:
   - Frontier telemetry:
     - Each frontier URL crawl attempt is persisted to `crawl_logs` (with `canonical_url`, `fetch_method`, `proxy_tier`, `error_category`, and optional `capture_id`) so `/api/admin/monitoring/frontier` can report 24h success/error rates.
     - `/api/admin/monitoring/frontier` computes `runs24h` from frontier-related `crawl_logs` (canonical URLs present in `crawl_frontier_urls`) and excludes synthetic `fetch_method=runtime_missing_output` rows.
+    - `/api/admin/monitoring/frontier` also reports `coverageByPageType`, `discoveryYield24h`, `unblockConversion24h`, and `domainStarvation` for depth-focused tuning.
     - If `crawl_logs` is empty (older deployments), monitoring falls back to `crawl_frontier_urls.last_*` fields as an approximation.
   - API runtime telemetry (admin-only):
     - Middleware: `apps/api/src/monitoring/runtime_metrics.ts` records rolling per-minute request counts/status/latency buckets.
@@ -231,9 +232,11 @@ VM cron runner:
     - optional force run: `CRAWL_FRONTIER_FORCE_SEED=true`
   - Crawl throughput tuning (speed up without degrading crawl policy):
     - `CRAWLER_FRONTIER_BATCH_SIZE` (URLs leased per worker loop; default 50)
-    - `CRAWL_FRONTIER_MAX_LOOPS` (number of worker loops per cron run; default 1)
+    - `CRAWLER_FRONTIER_DOMAIN_CAP` (max leases per domain per batch; default 5)
+    - `CRAWL_FRONTIER_MAX_LOOPS` (number of worker loops per cron run; default 4)
+    - `CRAWLER_FEED_DISCOVERY_MAX_URLS` (seed discovery cap per startup; default 40)
     - Prefer raising `CRAWL_FRONTIER_MAX_LOOPS` first to use the existing 40m cron window before increasing batch size.
-    - Roll back if `crawl-frontier` hits the 40m timeout or `/api/admin/monitoring/frontier` shows rising `staleLeases` / worsening `runSuccessRate24h`.
+    - Roll back if `crawl-frontier` hits the 40m timeout or `/api/admin/monitoring/frontier` shows rising `staleLeases`, worsening `runSuccessRate24h`, or worsening `domainStarvation`.
   - Daily `slack-summary` now includes subscription lifecycle metrics (created/confirmed/unsubscribed in 24h),
     segment breakdown (`region` × `digest_frequency`), masked newly-confirmed subscriber emails, and digest
     delivery totals by region.
@@ -549,6 +552,17 @@ Backend API support:
 
 Materialization step (required for DB-driven filters):
 - The analysis pipeline writes JSON files under `apps/web/data/<period>/output/analysis_store/base_analyses/*.json`.
+  - One-shot global onboarding Step 1 now also writes `apps/web/data/<period>/output/analysis_store/progress.json`
+    with durable counters (`already_processed`, `delta_total`, `completed`, `successful`, `error_count`,
+    `remaining`, `base_analysis_files`, `latest_startup`, `latest_status`, `elapsed_sec`, `eta_sec`).
+  - Restart safety: `packages/analysis/src/data/store.py` reconciles existing `base_analyses/*.json`
+    back into `analysis_store/index.json` before computing delta, so relaunches can skip already-analyzed startups
+    even if the baked index is stale.
+    - Reconciled base-analysis artifacts now persist `input_hash`; `reconcile_startups(...)` only trusts base artifacts
+      with a saved hash for skip decisions. Legacy base files without `input_hash` reprocess once to avoid silently
+      keeping stale analyses after CSV edits.
+  - AKS one-shot jobs set `BUILDATLAS_RUNNER=aks-job`; `infrastructure/vm-cron/lib/runner.sh` must stream stdout
+    for both `aks-job` and `aks-cronjob` so `kubectl logs` shows live job output without `kubectl exec`.
 - To make taxonomy filterable via the backend, we must copy those JSON blobs into Postgres:
   - Command: `python scripts/populate-analysis-data.py --period YYYY-MM`
 - Primary automation:

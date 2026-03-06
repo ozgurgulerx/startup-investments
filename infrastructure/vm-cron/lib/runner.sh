@@ -300,8 +300,8 @@ cd "$REPO_DIR"
 # can cause `tee` to receive SIGPIPE and fail the whole pipeline (exit 141) due
 # to `set -o pipefail`. Stream to stdout only for:
 # - operator sessions (TTY or SSH), or
-# - AKS CronJobs (stdout is the primary log sink; kubectl logs must work).
-if [ -t 1 ] || [ -n "${SSH_CONNECTION:-}" ] || [ "${BUILDATLAS_RUNNER:-}" = "aks-cronjob" ]; then
+# - AKS jobs/CronJobs (stdout is the primary log sink; kubectl logs must work).
+if [ -t 1 ] || [ -n "${SSH_CONNECTION:-}" ] || [ "${BUILDATLAS_RUNNER:-}" = "aks-cronjob" ] || [ "${BUILDATLAS_RUNNER:-}" = "aks-job" ]; then
     exec 3>&1
 else
     exec 3>/dev/null

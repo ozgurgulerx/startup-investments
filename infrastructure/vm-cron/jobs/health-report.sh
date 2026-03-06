@@ -495,6 +495,8 @@ summary = data.get('summary') or {}
 queue = data.get('queue') or {}
 runs = data.get('runs24h') or {}
 urls = data.get('urls') or {}
+domains = data.get('domains') or []
+unblock = data.get('unblockConversion24h') or {}
 
 due = int(queue.get('due') or 0)
 total = int(queue.get('total') or 0)
@@ -504,7 +506,18 @@ success_pct = float(runs.get('successRatePct') or 0)
 attempts = int(runs.get('totalAttempts') or 0)
 mode = str(runs.get('mode') or '')
 crawled_pct = float(urls.get('crawledPct') or 0)
+never_crawled = int(urls.get('neverCrawled') or 0)
+provider_opp = int(unblock.get('providerOpportunities') or 0)
+provider_success_pct = float(unblock.get('providerSuccessRatePct') or 0)
 latest_min = urls.get('minsSinceLatestCrawl', None)
+
+top_domains = sorted(
+    [d for d in domains if d.get('domain')],
+    key=lambda d: float(d.get('block_rate') or 0),
+    reverse=True
+)[:20]
+blocked_gt_20 = sum(1 for d in top_domains if float(d.get('block_rate') or 0) > 0.2)
+top20_blocked_rate_pct = (blocked_gt_20 * 100.0 / len(top_domains)) if top_domains else 0.0
 
 latest_str = 'unknown'
 try:
@@ -512,20 +525,23 @@ try:
 except Exception:
     latest_str = 'unknown'
 
-print(f\"{due}|{total}|{stale}|{due_p95_min}|{success_pct}|{attempts}|{mode}|{crawled_pct}|{latest_str}\")
+print(f\"{due}|{total}|{stale}|{due_p95_min}|{success_pct}|{attempts}|{mode}|{crawled_pct}|{latest_str}|{never_crawled}|{top20_blocked_rate_pct:.1f}|{provider_opp}|{provider_success_pct:.1f}\")
 " <<< "$FRONTIER_JSON" 2>/dev/null || echo "error")
 
     if [ "$FRONTIER_INFO" != "error" ] && [ -n "$FRONTIER_INFO" ]; then
-        IFS='|' read -r F_DUE F_TOTAL F_STALE F_DUE_P95_MIN F_SUCCESS_PCT F_ATTEMPTS F_MODE F_CRAWLED_PCT F_LATEST <<< "$FRONTIER_INFO"
+        IFS='|' read -r F_DUE F_TOTAL F_STALE F_DUE_P95_MIN F_SUCCESS_PCT F_ATTEMPTS F_MODE F_CRAWLED_PCT F_LATEST F_NEVER_CRAWLED F_TOP20_BLOCKED_PCT F_PROVIDER_OPP F_PROVIDER_SUCCESS_PCT <<< "$FRONTIER_INFO"
 
         echo "  Queue: due ${F_DUE}/${F_TOTAL} (stale ${F_STALE}), due_age_p95=${F_DUE_P95_MIN}m"
         echo "  Runs: ${F_SUCCESS_PCT}% success (${F_ATTEMPTS} attempts, mode=${F_MODE:-unknown})"
-        echo "  Coverage: ${F_CRAWLED_PCT}% crawled, latest=${F_LATEST}"
+        echo "  Coverage: ${F_CRAWLED_PCT}% crawled, never=${F_NEVER_CRAWLED}, latest=${F_LATEST}"
+        echo "  Top20 blocked-rate share: ${F_TOP20_BLOCKED_PCT}%  Provider success: ${F_PROVIDER_SUCCESS_PCT}% (${F_PROVIDER_OPP} opportunities)"
 
         add_ok "Frontier queue: due ${F_DUE}/${F_TOTAL}, stale ${F_STALE}, p95 ${F_DUE_P95_MIN}m"
 
         SUCCESS_INT="${F_SUCCESS_PCT%.*}"
         DUE_P95_INT="${F_DUE_P95_MIN%.*}"
+        TOP20_BLOCKED_INT="${F_TOP20_BLOCKED_PCT%.*}"
+        PROVIDER_SUCCESS_INT="${F_PROVIDER_SUCCESS_PCT%.*}"
         # Heuristic thresholds (aim for fast detection without paging on known backlog)
         if [ "${F_STALE:-0}" -gt 0 ] 2>/dev/null; then
             add_warn "Frontier: stale leases detected (${F_STALE})"
@@ -544,8 +560,36 @@ print(f\"{due}|{total}|{stale}|{due_p95_min}|{success_pct}|{attempts}|{mode}|{cr
 
         if [ "${DUE_P95_INT:-0}" -gt 4320 ] 2>/dev/null; then
             add_fail "Frontier due age p95: ${F_DUE_P95_MIN}m"
-        elif [ "${DUE_P95_INT:-0}" -gt 1440 ] 2>/dev/null; then
+        elif [ "${DUE_P95_INT:-0}" -gt 240 ] 2>/dev/null; then
             add_warn "Frontier due age p95: ${F_DUE_P95_MIN}m"
+        fi
+
+        if [ "${TOP20_BLOCKED_INT:-0}" -gt 20 ] 2>/dev/null; then
+            add_warn "Frontier top20 blocked-rate share: ${F_TOP20_BLOCKED_PCT}% (>20%)"
+        fi
+
+        if [ "${F_PROVIDER_OPP:-0}" -gt 0 ] 2>/dev/null && [ "${PROVIDER_SUCCESS_INT:-0}" -lt 40 ] 2>/dev/null; then
+            add_warn "Frontier provider success: ${F_PROVIDER_SUCCESS_PCT}% with ${F_PROVIDER_OPP} opportunities (<40%)"
+        fi
+
+        FRONTIER_STATE_DIR="${FRONTIER_STATE_DIR:-/var/lib/buildatlas}"
+        if ! mkdir -p "$FRONTIER_STATE_DIR" 2>/dev/null; then
+            FRONTIER_STATE_DIR="/tmp/buildatlas"
+            mkdir -p "$FRONTIER_STATE_DIR" 2>/dev/null || true
+        fi
+        NEVER_STATE_FILE="${FRONTIER_NEVER_CRAWLED_STATE_FILE:-$FRONTIER_STATE_DIR/frontier-never-crawled.state}"
+        NOW_TS="$(date +%s)"
+        if [ -f "$NEVER_STATE_FILE" ]; then
+            PREV_TS="$(awk '{print $1}' "$NEVER_STATE_FILE" 2>/dev/null || echo 0)"
+            PREV_VAL="$(awk '{print $2}' "$NEVER_STATE_FILE" 2>/dev/null || echo -1)"
+            if [ "${PREV_TS:-0}" -gt 0 ] 2>/dev/null && [ $((NOW_TS - PREV_TS)) -ge 604800 ] 2>/dev/null; then
+                if [ "${F_NEVER_CRAWLED:-0}" -ge "${PREV_VAL:-0}" ] 2>/dev/null; then
+                    add_warn "Frontier never-crawled not improving week-over-week (${PREV_VAL} -> ${F_NEVER_CRAWLED})"
+                fi
+                echo "${NOW_TS} ${F_NEVER_CRAWLED}" > "$NEVER_STATE_FILE" 2>/dev/null || true
+            fi
+        else
+            echo "${NOW_TS} ${F_NEVER_CRAWLED}" > "$NEVER_STATE_FILE" 2>/dev/null || true
         fi
     else
         echo "  Could not parse frontier monitoring response"

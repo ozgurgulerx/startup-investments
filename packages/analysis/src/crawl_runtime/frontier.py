@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from src.config import settings
+
 try:
     import asyncpg
 except Exception:  # pragma: no cover - optional at import time
@@ -203,27 +205,42 @@ class UrlFrontierStore:
         """Lease due URLs for worker execution."""
         if not self.pool or limit <= 0:
             return []
+        domain_cap = max(1, int(settings.crawler.frontier_domain_cap))
 
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """
                 WITH due AS (
-                    SELECT q.canonical_url
-                    FROM crawl_frontier_queue q
-                    JOIN crawl_frontier_urls u ON u.canonical_url = q.canonical_url
-                    WHERE q.leased_at IS NULL
-                      AND q.available_at <= NOW()
-                      AND u.next_crawl_at <= NOW()
-                      AND q.lease_attempts < 10
-                      AND NOT EXISTS (
-                          SELECT 1
-                          FROM domain_policies p
-                          WHERE p.domain = u.domain
-                            AND p.blocked = TRUE
-                      )
-                    ORDER BY u.priority_score DESC, q.available_at ASC
+                    SELECT q2.canonical_url
+                    FROM (
+                        SELECT
+                            q.canonical_url,
+                            u.domain,
+                            u.priority_score,
+                            q.available_at,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY u.domain
+                                ORDER BY u.priority_score DESC, q.available_at ASC
+                            ) AS domain_rank
+                        FROM crawl_frontier_queue q
+                        JOIN crawl_frontier_urls u ON u.canonical_url = q.canonical_url
+                        WHERE q.leased_at IS NULL
+                          AND q.available_at <= NOW()
+                          AND u.next_crawl_at <= NOW()
+                          AND q.lease_attempts < 10
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM domain_policies p
+                              WHERE p.domain = u.domain
+                                AND p.blocked = TRUE
+                          )
+                    ) ranked
+                    JOIN crawl_frontier_queue q2
+                      ON q2.canonical_url = ranked.canonical_url
+                    WHERE ranked.domain_rank <= $3
+                    ORDER BY ranked.priority_score DESC, ranked.available_at ASC
                     LIMIT $1
-                    FOR UPDATE SKIP LOCKED
+                    FOR UPDATE OF q2 SKIP LOCKED
                 )
                 UPDATE crawl_frontier_queue q
                 SET leased_at = NOW(),
@@ -235,6 +252,7 @@ class UrlFrontierStore:
                 """,
                 limit,
                 worker_id,
+                domain_cap,
             )
 
             if not rows:
@@ -386,6 +404,7 @@ class UrlFrontierStore:
         fetch_method: str = "http",
         proxy_tier: str = "none",
         capture_id: Optional[str] = None,
+        last_content_sample: Optional[str] = None,
     ) -> None:
         if not self.pool:
             return
@@ -398,6 +417,8 @@ class UrlFrontierStore:
         )
 
         quality_score = max(0.0, min(float(quality_score or 0.0), 1.0))
+        should_update_sample = bool(changed and quality_score >= 0.2 and (last_content_sample or "").strip())
+        sample = (last_content_sample or "")[:2000] if should_update_sample else None
         quality_delta = 3 if quality_score >= 0.75 else (-2 if quality_score < 0.2 else 0)
         block_delta = -6 if blocked_detected else 0
         change_delta = 4 if changed else -1
@@ -423,6 +444,10 @@ class UrlFrontierStore:
                     last_proxy_tier = $12,
                     last_blocked_detected = $13,
                     last_capture_id = COALESCE($14::uuid, last_capture_id),
+                    last_content_sample = CASE
+                        WHEN $18 THEN COALESCE($19, last_content_sample)
+                        ELSE last_content_sample
+                    END,
                     priority_score = LEAST(
                         120,
                         GREATEST(10, COALESCE(priority_score, 40) + $15 + $16 + $17)
@@ -447,6 +472,8 @@ class UrlFrontierStore:
                 quality_delta,
                 block_delta,
                 change_delta,
+                should_update_sample,
+                sample,
             )
 
             # Keep URL in queue for recurring crawl; just release lease and schedule next execution.

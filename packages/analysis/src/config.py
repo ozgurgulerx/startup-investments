@@ -48,6 +48,7 @@ class CrawlerConfig(BaseModel):
     depth_limit: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_DEPTH_LIMIT", "2")))
     max_pages_per_startup: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_MAX_PAGES_PER_STARTUP", "80")))
     frontier_batch_size: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_FRONTIER_BATCH_SIZE", "50")))
+    frontier_domain_cap: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_FRONTIER_DOMAIN_CAP", "5")))
 
     # Proxy strategy (lean by default: datacenter first, optional residential fallback)
     datacenter_proxy_url: str = Field(default_factory=lambda: os.getenv("CRAWLER_PROXY_URL", ""))
@@ -68,7 +69,7 @@ class CrawlerConfig(BaseModel):
 
     # Feed/sitemap-first discovery
     feed_discovery_enabled: bool = Field(default_factory=lambda: os.getenv("CRAWLER_FEED_DISCOVERY_ENABLED", "true").lower() == "true")
-    feed_discovery_max_urls_per_startup: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_FEED_DISCOVERY_MAX_URLS", "20")))
+    feed_discovery_max_urls_per_startup: int = Field(default_factory=lambda: int(os.getenv("CRAWLER_FEED_DISCOVERY_MAX_URLS", "40")))
     feed_discovery_timeout_seconds: float = Field(default_factory=lambda: float(os.getenv("CRAWLER_FEED_DISCOVERY_TIMEOUT_SECONDS", "6")))
 
     # Data enrichment sources
