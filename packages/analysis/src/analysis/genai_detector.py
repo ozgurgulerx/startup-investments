@@ -1,9 +1,12 @@
 """GenAI detection and analysis using Azure OpenAI."""
 
+import asyncio
 import json
+import os
 import re
+import threading
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, Awaitable, Callable, List
 from openai import AzureOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -66,18 +69,28 @@ from src.analysis.prompts import (
 from src.crawler.engine import StartupCrawler
 
 
+class AnalysisStageTimeoutError(RuntimeError):
+    """Raised when an analysis stage exceeds the configured LLM timeout."""
+
+
 class GenAIAnalyzer:
     """Analyzes startups for GenAI usage and build patterns."""
 
-    def __init__(self):
+    def __init__(self, stage_concurrency: int = 0, stage_timeout_sec: int = 0):
         self._using_aad = False
         self._aad_credential = None
         self._aad_token_provider = None
+        self._client_lock = threading.Lock()
         self.client = self._create_azure_client(prefer_key=True)
         self.fast_model = settings.azure_openai.fast_model
         self.reasoning_model = settings.azure_openai.reasoning_model
         self.crawler = StartupCrawler()
         self._vertical_taxonomy_ontology = self._load_vertical_taxonomy_ontology()
+        configured_concurrency = stage_concurrency or int(os.getenv("GENAI_ANALYZER_STAGE_CONCURRENCY", "2"))
+        configured_timeout = stage_timeout_sec or int(os.getenv("GENAI_ANALYZER_STAGE_TIMEOUT_SEC", "180"))
+        self.stage_concurrency = max(1, configured_concurrency)
+        self.stage_timeout_sec = max(1, configured_timeout)
+        self._stage_semaphore = asyncio.Semaphore(self.stage_concurrency)
 
     def _create_azure_client(self, prefer_key: bool) -> AzureOpenAI:
         """
@@ -283,36 +296,51 @@ OUTPUT (JSON only):
         funding_info = f"${startup.funding_amount:,.0f} {startup.funding_type}" if startup.funding_amount else ""
         industries_str = ", ".join(startup.industries)
 
-        # Core analyses
-        genai_result = await self._detect_genai(startup.name, content)
-        patterns_result = await self._detect_patterns(startup.name, content)
-        insights_result = await self._discover_insights(startup.name, content, funding_info)
-        market_result = await self._classify_market(
-            startup.name, content, startup.description or "", industries_str
-        )
-        competitive_result = await self._analyze_competitive(
-            startup.name, content, startup.description or "", industries_str, funding_info
-        )
-
-        # Enhanced analyses
-        tech_stack_result = await self._detect_tech_stack(startup.name, content)
-        engineering_result = await self._assess_engineering_quality(startup.name, content)
-        vertical_result = await self._analyze_vertical(
-            startup.name, content, startup.description or "", industries_str
-        )
-        try:
-            vertical_taxonomy_result = await self._classify_vertical_taxonomy(
+        first_pass_stages: Dict[str, Callable[[], Awaitable[Dict[str, Any]]]] = {
+            "genai": lambda: self._detect_genai(startup.name, content),
+            "patterns": lambda: self._detect_patterns(startup.name, content),
+            "insights": lambda: self._discover_insights(startup.name, content, funding_info),
+            "market": lambda: self._classify_market(
                 startup.name, content, startup.description or "", industries_str
-            )
-        except Exception as e:
-            print(f"Vertical taxonomy classification failed for {startup.name}: {e}")
-            vertical_taxonomy_result = {}
+            ),
+            "competitive": lambda: self._analyze_competitive(
+                startup.name, content, startup.description or "", industries_str, funding_info
+            ),
+            "tech_stack": lambda: self._detect_tech_stack(startup.name, content),
+            "engineering": lambda: self._assess_engineering_quality(startup.name, content),
+            "vertical": lambda: self._analyze_vertical(
+                startup.name, content, startup.description or "", industries_str
+            ),
+            "vertical_taxonomy": lambda: self._classify_vertical_taxonomy(
+                startup.name, content, startup.description or "", industries_str
+            ),
+            "pattern_discovery": lambda: self._discover_patterns(startup.name, content),
+            "team": lambda: self._analyze_team(startup.name, content),
+            "business_model": lambda: self._analyze_business_model(startup.name, content, funding_info),
+            "product": lambda: self._analyze_product(startup.name, content),
+        }
 
-        # NEW: Dynamic pattern discovery and business analysis
-        pattern_discovery_result = await self._discover_patterns(startup.name, content)
-        team_result = await self._analyze_team(startup.name, content)
-        business_model_result = await self._analyze_business_model(startup.name, content, funding_info)
-        product_result = await self._analyze_product(startup.name, content)
+        first_pass_results = await asyncio.gather(
+            *[
+                self._run_stage(startup.name, stage_name, stage_factory)
+                for stage_name, stage_factory in first_pass_stages.items()
+            ]
+        )
+        stage_result_map = dict(zip(first_pass_stages.keys(), first_pass_results))
+
+        genai_result = stage_result_map["genai"]
+        patterns_result = stage_result_map["patterns"]
+        insights_result = stage_result_map["insights"]
+        market_result = stage_result_map["market"]
+        competitive_result = stage_result_map["competitive"]
+        tech_stack_result = stage_result_map["tech_stack"]
+        engineering_result = stage_result_map["engineering"]
+        vertical_result = stage_result_map["vertical"]
+        vertical_taxonomy_result = stage_result_map["vertical_taxonomy"]
+        pattern_discovery_result = stage_result_map["pattern_discovery"]
+        team_result = stage_result_map["team"]
+        business_model_result = stage_result_map["business_model"]
+        product_result = stage_result_map["product"]
 
         # Parse intermediate results for story angles
         patterns_str = ", ".join([p.get("name", "") for p in patterns_result.get("patterns_detected", [])])
@@ -325,14 +353,28 @@ OUTPUT (JSON only):
         eng_quality_str = f"Score: {engineering_result.get('score', 0)}/10"
 
         # Generate story angles based on all analyses
-        story_angles_result = await self._generate_story_angles(
-            startup.name, content, all_patterns_str, tech_stack_str, vertical_str, funding_info, eng_quality_str
+        story_angles_result = await self._run_stage(
+            startup.name,
+            "story_angles",
+            lambda: self._generate_story_angles(
+                startup.name,
+                content,
+                all_patterns_str,
+                tech_stack_str,
+                vertical_str,
+                funding_info,
+                eng_quality_str,
+            ),
         )
 
         # Detect anti-patterns
         competitive_str = f"Moat: {competitive_result.get('competitive_moat', 'unknown')}"
-        anti_patterns_result = await self._detect_anti_patterns(
-            startup.name, content, all_patterns_str, tech_stack_str, competitive_str
+        anti_patterns_result = await self._run_stage(
+            startup.name,
+            "anti_patterns",
+            lambda: self._detect_anti_patterns(
+                startup.name, content, all_patterns_str, tech_stack_str, competitive_str
+            ),
         )
 
         # Build the analysis result
@@ -497,6 +539,40 @@ OUTPUT (JSON only):
         prompt = get_product_depth_prompt(company_name, content)
         return await self._call_llm(prompt, use_reasoning=False)
 
+    async def _run_stage(
+        self,
+        startup_name: str,
+        stage_name: str,
+        stage_factory: Callable[[], Awaitable[Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        """Run a single analysis stage with bounded concurrency and timeout."""
+        stage_started_at = asyncio.get_running_loop().time()
+        try:
+            async with self._stage_semaphore:
+                result = await stage_factory()
+            elapsed = asyncio.get_running_loop().time() - stage_started_at
+            print(
+                f"[analysis-stage] startup={startup_name} stage={stage_name} status=ok duration_sec={elapsed:.1f}",
+                flush=True,
+            )
+            return result if isinstance(result, dict) else {}
+        except AnalysisStageTimeoutError as exc:
+            elapsed = asyncio.get_running_loop().time() - stage_started_at
+            print(
+                f"[analysis-stage] startup={startup_name} stage={stage_name} status=timeout"
+                f" category=timeout duration_sec={elapsed:.1f} error={exc}",
+                flush=True,
+            )
+            raise
+        except Exception as exc:
+            elapsed = asyncio.get_running_loop().time() - stage_started_at
+            print(
+                f"[analysis-stage] startup={startup_name} stage={stage_name} status=error"
+                f" category=exception duration_sec={elapsed:.1f} error={exc}",
+                flush=True,
+            )
+            return {}
+
     async def _call_llm(self, prompt: str, use_reasoning: bool = False) -> Dict[str, Any]:
         """Call Azure OpenAI and parse JSON response."""
         model = self.reasoning_model if use_reasoning else self.fast_model
@@ -509,6 +585,7 @@ OUTPUT (JSON only):
                         {"role": "system", "content": "You are a technical analyst. Always respond with valid JSON only."},
                         {"role": "user", "content": prompt}
                     ],
+                    timeout=float(self.stage_timeout_sec),
                     **llm_kwargs(model, max_tokens=2000, temperature=0.3),
                 )
                 content = r.choices[0].message.content
@@ -516,19 +593,44 @@ OUTPUT (JSON only):
                     return self._parse_json_response(content)
                 return {}
 
-            try:
-                return _do_request()
-            except Exception as e:
-                msg = str(e)
-                # If the resource disables API keys, fall back to AAD automatically and retry once.
-                if ("AuthenticationTypeDisabled" in msg or "Key based authentication is disabled" in msg) and not self._using_aad:
-                    self._ensure_aad_client()
+            def _request_with_fallback() -> Dict[str, Any]:
+                try:
                     return _do_request()
-                raise
+                except Exception as e:
+                    msg = str(e)
+                    # If the resource disables API keys, fall back to AAD automatically and retry once.
+                    if ("AuthenticationTypeDisabled" in msg or "Key based authentication is disabled" in msg) and not self._using_aad:
+                        with self._client_lock:
+                            if not self._using_aad:
+                                self._ensure_aad_client()
+                        return _do_request()
+                    raise
+
+            return await asyncio.to_thread(_request_with_fallback)
 
         except Exception as e:
+            if self._is_timeout_exception(e):
+                raise AnalysisStageTimeoutError(
+                    f"LLM call timed out after {self.stage_timeout_sec}s"
+                ) from e
             print(f"LLM call failed: {e}")
             return {}
+
+    async def close(self):
+        await self.crawler.close()
+
+    @staticmethod
+    def _is_timeout_exception(exc: Exception) -> bool:
+        """Best-effort timeout detection across OpenAI/httpx exception types."""
+        current: Exception | None = exc
+        while current is not None:
+            if isinstance(current, (TimeoutError, asyncio.TimeoutError)):
+                return True
+            text = f"{type(current).__name__}: {current}".lower()
+            if "timeout" in text or "timed out" in text:
+                return True
+            current = current.__cause__ if isinstance(current.__cause__, Exception) else None
+        return False
 
     def _parse_json_response(self, content: str) -> Dict[str, Any]:
         """Parse JSON from LLM response, handling markdown code blocks."""
