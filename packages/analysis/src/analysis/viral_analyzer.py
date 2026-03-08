@@ -22,6 +22,7 @@ from src.analysis.viral_prompts import (
     get_builder_takeaways_prompt,
     get_story_arc_prompt,
 )
+from src.pattern_validation import filter_pattern_items
 
 
 class ViralContentAnalyzer:
@@ -209,9 +210,11 @@ class ViralContentAnalyzer:
         base_analysis: StartupAnalysis
     ) -> Dict[str, Any]:
         """Generate builder takeaways."""
+        validated_patterns = self._validated_build_patterns(base_analysis)
+
         # Compile technical analysis
         tech_analysis = f"""
-        Build Patterns: {', '.join([p.name for p in base_analysis.build_patterns])}
+        Build Patterns: {', '.join([p.name for p in validated_patterns])}
         Tech Stack: LLMs: {base_analysis.tech_stack.llm_models}, Frameworks: {base_analysis.tech_stack.frameworks}
         Approach: {base_analysis.tech_stack.approach}
         Engineering Quality: {base_analysis.engineering_quality.score}/10
@@ -238,7 +241,8 @@ class ViralContentAnalyzer:
     ) -> Dict[str, Any]:
         """Generate viral hooks/headlines."""
         funding_info = f"${startup.funding_amount:,.0f}" if startup.funding_amount else ""
-        patterns = ", ".join([p.name for p in base_analysis.build_patterns[:3]])
+        validated_patterns = self._validated_build_patterns(base_analysis)
+        patterns = ", ".join([p.name for p in validated_patterns[:3]])
         unique_angle = base_analysis.unique_findings[0] if base_analysis.unique_findings else ""
         contrarian_take = contrarian.get("honest_take", "")
 
@@ -271,7 +275,8 @@ class ViralContentAnalyzer:
         Industries: {industries_str}
         """
 
-        patterns = [p.name for p in base_analysis.build_patterns] if base_analysis.build_patterns else []
+        validated_patterns = self._validated_build_patterns(base_analysis)
+        patterns = [p.name for p in validated_patterns] if validated_patterns else []
         findings = base_analysis.unique_findings[:3] if base_analysis.unique_findings else []
         moat = base_analysis.competitive_analysis.competitive_moat if base_analysis.competitive_analysis else "unknown"
 
@@ -303,7 +308,8 @@ class ViralContentAnalyzer:
 
         # Safe extraction of base_analysis fields
         genai_intensity = base_analysis.genai_intensity.value if base_analysis.genai_intensity else "unknown"
-        build_patterns = ', '.join([p.name for p in base_analysis.build_patterns]) if base_analysis.build_patterns else "None detected"
+        validated_patterns = self._validated_build_patterns(base_analysis)
+        build_patterns = ', '.join([p.name for p in validated_patterns]) if validated_patterns else "None detected"
         unique_findings = base_analysis.unique_findings[:5] if base_analysis.unique_findings else []
         findings_str = chr(10).join(['- ' + f for f in unique_findings]) if unique_findings else "- None documented"
 
@@ -384,6 +390,10 @@ class ViralContentAnalyzer:
         except Exception as e:
             print(f"LLM call failed: {e}")
             return {}
+
+    @staticmethod
+    def _validated_build_patterns(base_analysis: StartupAnalysis) -> List[Any]:
+        return filter_pattern_items(base_analysis.build_patterns)
 
     def _parse_json_response(self, content: str) -> Dict[str, Any]:
         """Parse JSON from LLM response."""

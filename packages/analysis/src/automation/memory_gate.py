@@ -21,6 +21,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
+from src.pattern_validation import (
+    MICRO_MODEL_MESHES_NAME,
+    micro_model_meshes_evidence_is_strong,
+)
+
 if TYPE_CHECKING:
     import asyncpg
 
@@ -1172,8 +1177,8 @@ _PATTERN_KEYWORDS: Dict[str, Tuple[str, ...]] = {
         "exclusive dataset", "data advantage",
     ),
     "Micro-model Meshes": (
-        "micro-model", "small model", "specialized model", "distill",
-        "model ensemble", "mixture of experts", "moe",
+        "micro-model", "model ensemble", "mixture of experts", "moe",
+        "model routing", "router",
     ),
     "Continuous-learning Flywheels": (
         "continuous learning", "online learning", "reinforcement",
@@ -1327,6 +1332,12 @@ class PatternMatcher:
         matches: List[Tuple[str, float]] = []
 
         for pattern_name, keywords in _PATTERN_KEYWORDS.items():
+            if pattern_name == MICRO_MODEL_MESHES_NAME:
+                mesh_score = self._micro_model_mesh_score(text)
+                if mesh_score >= 0.5:
+                    matches.append((pattern_name, mesh_score))
+                continue
+
             matched = sum(1 for kw in keywords if _text_contains(text, kw))
             # Bonus for topic_tag matches
             pattern_tokens = {t.lower() for t in pattern_name.split() if len(t) > 2}
@@ -1339,6 +1350,28 @@ class PatternMatcher:
 
         matches.sort(key=lambda x: x[1], reverse=True)
         return matches
+
+    @staticmethod
+    def _micro_model_mesh_score(text: str) -> float:
+        if not micro_model_meshes_evidence_is_strong(text):
+            return 0.0
+
+        direct_hits = 0
+        for needle in (
+            "mixture of experts",
+            "moe",
+            "model routing",
+            "model router",
+            "router",
+            "ensemble",
+            "route to",
+            "routes to",
+            "routing",
+        ):
+            if _text_contains(text, needle):
+                direct_hits += 1
+
+        return round(min(1.0, 0.5 + direct_hits * 0.1), 3)
 
     def get_novelty_score(self, pattern_name: str) -> int:
         """Return novelty score (0-5) based on mention_count in the library."""

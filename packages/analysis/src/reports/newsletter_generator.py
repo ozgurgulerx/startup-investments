@@ -7,6 +7,8 @@ import json
 import math
 import re
 
+from src.pattern_validation import filter_pattern_items
+
 
 def generate_viral_newsletter(
     analyses: List[Dict[str, Any]],
@@ -172,6 +174,17 @@ def generate_viral_newsletter(
     return output_file
 
 
+def _validated_build_patterns(analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return filter_pattern_items(analysis.get("build_patterns", []))
+
+
+def _validated_discovered_patterns(analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return filter_pattern_items(
+        analysis.get("discovered_patterns", []),
+        name_key="pattern_name",
+    )
+
+
 def _rank_stories(analyses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Rank stories by viral potential."""
     scored = []
@@ -256,13 +269,13 @@ def _extract_theme(analyses: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     for analysis in analyses:
         # Count from legacy build_patterns
-        for pattern in analysis.get("build_patterns", []):
+        for pattern in _validated_build_patterns(analysis):
             name = pattern.get("name", "")
             if name:
                 pattern_counts[name] = pattern_counts.get(name, 0) + 1
 
         # Count from new discovered_patterns
-        for pattern in analysis.get("discovered_patterns", []):
+        for pattern in _validated_discovered_patterns(analysis):
             name = pattern.get("pattern_name", "")
             category = pattern.get("category", "Other")
             if name:
@@ -420,7 +433,7 @@ def _format_base_story_markdown(story: Dict[str, Any], kind: str) -> str:
     company = (story.get("company_name") or "Unknown").strip()
     description = (story.get("description") or "").strip()
     angle = _pick_best_story_angle(story)
-    build_patterns = story.get("build_patterns") or []
+    build_patterns = _validated_build_patterns(story)
     novel = story.get("novel_approaches") or []
     findings = story.get("unique_findings") or []
 
@@ -791,7 +804,7 @@ def _extract_watches(analyses: List[Dict[str, Any]]) -> List[Dict[str, str]]:
 
     for analysis in analyses:
         # Extract from discovered patterns
-        for pattern in analysis.get("discovered_patterns", []):
+        for pattern in _validated_discovered_patterns(analysis):
             novelty = pattern.get("novelty_score", 5)
             if novelty >= 7:
                 name = pattern.get("pattern_name", "")

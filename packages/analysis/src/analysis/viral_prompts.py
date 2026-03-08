@@ -71,6 +71,8 @@ UNIQUE ANGLE: {unique_angle}
 BUILD PATTERNS: {patterns}
 CONTRARIAN TAKE: {contrarian_take}
 
+Constraint: do not introduce named build-pattern labels that are not explicitly present in BUILD PATTERNS.
+
 Generate 5 different headline styles. Each must be:
 - Specific (no generic "AI startup does AI things")
 - Intriguing (creates curiosity gap)
@@ -133,6 +135,8 @@ COMPANY: {company_name}
 RAW ANALYSIS: {analysis}
 CONTRARIAN TAKE: {contrarian_take}
 TECHNICAL DETAILS: {tech_details}
+
+Constraint: do not introduce named build-pattern labels unless they are explicitly present in RAW ANALYSIS.
 
 Rewrite this analysis in your unique voice. Include:
 
@@ -239,6 +243,8 @@ ARCHITECTURE DECISIONS:
 WHAT WORKED:
 {what_worked}
 
+Constraint: do not introduce named build-pattern labels that are not explicitly present in TECHNICAL ANALYSIS or ARCHITECTURE DECISIONS.
+
 Extract actionable takeaways that readers can apply MONDAY MORNING.
 
 For each takeaway:
@@ -299,6 +305,8 @@ CONTRARIAN VIEW:
 
 BUILDER TAKEAWAYS:
 {takeaways}
+
+Constraint: do not introduce named build-pattern labels that are not explicitly present in TECHNICAL ANALYSIS.
 
 Create a narrative structure that keeps readers engaged:
 

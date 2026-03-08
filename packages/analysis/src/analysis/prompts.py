@@ -49,8 +49,9 @@ PATTERNS TO DETECT:
 3. **Guardrail-as-LLM** - Secondary models checking outputs for safety/compliance
    - Indicators: content filtering, safety checks, compliance validation, moderation layers
 
-4. **Micro-model Meshes** - Multiple small specialized models instead of one large model
-   - Indicators: model routing, specialized models, ensemble approaches, task-specific models
+4. **Micro-model Meshes** - Explicit multi-model systems with routing, ensembles, MoE, or named orchestration across models
+   - Strong indicators: mixture-of-experts (MoE), model routing/router, ensembles, routed task-specific models, distilled task-specific models, small language models selected by a router/orchestrator
+   - Non-examples: multiple modalities, multiple products, multiple agents, multiple workflows, many integrations, many use cases, or many domain modules by themselves do NOT imply a mesh
 
 5. **Continuous-learning Flywheels** - Usage data continuously improving models
    - Indicators: feedback loops, A/B testing models, user corrections, model updates from usage
@@ -191,6 +192,7 @@ IMPORTANT:
 - High novelty_score (8-10) = genuinely unusual approach, not seen in typical implementations
 - Low novelty_score (1-3) = standard, widely-used approach
 - If content lacks technical depth, say so
+- Do NOT infer model routing, model meshes, or multi-model orchestration from product surface area alone (multiple features, modalities, products, or workflows are not enough)
 
 Return ONLY valid JSON."""
 

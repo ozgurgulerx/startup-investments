@@ -83,6 +83,9 @@ Important headers/invariants:
   - Cron jobs import `src.automation.*` submodules; an import-time crash here can take down unrelated jobs (e.g. `event-processor`).
 - When reading DB `*_json` columns in `packages/analysis` automation, tolerate both dict and JSON-string values:
   - Use `packages/analysis/src/automation/json_utils.py` `ensure_json_object(...)` (prevents cron crashes like `onboarding-alerts`).
+- `Micro-model Meshes` is evidence-gated across startup analysis + news memory matching:
+  - Only emit the pattern when there is explicit evidence of MoE, ensembles, model routing/routers, or routed/distilled task-specific models.
+  - Do not infer it from multiple modalities, products, agents, workflows, integrations, or domain modules alone.
 - Shell scripts must be LF-only (no CRLF / `\r` bytes):
   - Enforced by `.gitattributes` (`*.sh text eol=lf`).
   - Pipelines image hardens this at build time: `infrastructure/pipelines/Dockerfile` strips CR bytes and fails the build if any remain.

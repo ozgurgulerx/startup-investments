@@ -66,6 +66,7 @@ from src.analysis.prompts import (
     get_business_model_prompt,
     get_product_depth_prompt,
 )
+from src.pattern_validation import filter_pattern_items
 from src.crawler.engine import StartupCrawler
 
 
@@ -343,10 +344,22 @@ OUTPUT (JSON only):
         product_result = stage_result_map["product"]
 
         # Parse intermediate results for story angles
-        patterns_str = ", ".join([p.get("name", "") for p in patterns_result.get("patterns_detected", [])])
-        discovered_patterns_str = ", ".join([
-            p.get("pattern_name", "") for p in pattern_discovery_result.get("discovered_patterns", [])
-        ])
+        validated_build_patterns = filter_pattern_items(
+            patterns_result.get("patterns_detected", []),
+            content=content,
+        )
+        validated_discovered_patterns = filter_pattern_items(
+            pattern_discovery_result.get("discovered_patterns", []),
+            content=content,
+            name_key="pattern_name",
+        )
+
+        patterns_str = ", ".join(
+            p.get("name", "") for p in validated_build_patterns if p.get("name")
+        )
+        discovered_patterns_str = ", ".join(
+            p.get("pattern_name", "") for p in validated_discovered_patterns if p.get("pattern_name")
+        )
         all_patterns_str = f"{patterns_str}, {discovered_patterns_str}".strip(", ")
         tech_stack_str = f"LLMs: {tech_stack_result.get('llm_models', [])}, Approach: {tech_stack_result.get('approach', 'unknown')}"
         vertical_str = vertical_result.get("vertical", "other")
@@ -388,7 +401,7 @@ OUTPUT (JSON only):
             uses_genai=genai_result.get("uses_genai", False),
             genai_intensity=self._parse_intensity(genai_result.get("genai_intensity", "unclear")),
             models_mentioned=genai_result.get("models_mentioned", []),
-            build_patterns=self._parse_patterns(patterns_result.get("patterns_detected", [])),
+            build_patterns=self._parse_patterns(validated_build_patterns),
             market_type=self._parse_market_type(market_result.get("market_type", "horizontal")),
             vertical=self._parse_vertical(vertical_result.get("vertical", "other")),
             sub_vertical=vertical_result.get("sub_vertical") or market_result.get("sub_vertical"),
@@ -408,7 +421,7 @@ OUTPUT (JSON only):
             raw_content_analyzed=len(content),
             # NEW: Dynamic pattern discovery fields
             discovered_patterns=self._parse_discovered_patterns(
-                pattern_discovery_result.get("discovered_patterns", [])
+                validated_discovered_patterns
             ),
             model_details=self._parse_model_details(
                 pattern_discovery_result.get("model_details", {})

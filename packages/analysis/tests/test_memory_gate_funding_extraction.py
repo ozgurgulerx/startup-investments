@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.automation.memory_gate import FactExtractor, _normalize_amount, _normalize_tr_amount
+from src.automation.memory_gate import FactExtractor, PatternMatcher, _normalize_amount, _normalize_tr_amount
 
 
 def _get_claim(claims, fact_key: str):
@@ -63,3 +63,28 @@ def test_normalize_tr_amount_preserves_decimal_value():
 
 def test_normalize_amount_strips_existing_dollar_symbol():
     assert _normalize_amount("$4.7", "billion") == "$4.7B"
+
+
+def test_pattern_matcher_rejects_weak_micro_model_mesh_inference():
+    matcher = PatternMatcher()
+
+    matches = matcher.match(
+        title="ListenHub launches multimodal content studio",
+        summary="Turns PDFs into voice, video, and slide workflows with many integrations.",
+        topic_tags=["voice-ai", "creator-tools"],
+    )
+
+    assert "Micro-model Meshes" not in {name for name, _score in matches}
+
+
+def test_pattern_matcher_accepts_explicit_micro_model_mesh_evidence():
+    matcher = PatternMatcher()
+
+    matches = matcher.match(
+        title="Acme ships model router for mixture-of-experts stack",
+        summary="The platform uses a model router to dispatch requests across an ensemble of task-specific models.",
+        topic_tags=["model-routing", "moe"],
+    )
+
+    match_map = {name: score for name, score in matches}
+    assert match_map["Micro-model Meshes"] >= 0.5
