@@ -138,14 +138,9 @@ class BlobStorageClient:
         return None
 
     def _test_connection(self) -> None:
-        """Test blob connectivity using a container-level operation.
-
-        Uses exists() on the periods container instead of list_containers
-        which requires account-level permissions that Storage Blob Data
-        Contributor does not grant.
-        """
-        container = self._blob_service.get_container_client(ContainerName.PERIODS.value)
-        container.exists()  # blob-level auth is sufficient
+        """Test blob connectivity by listing containers (take first only)."""
+        for _ in self._blob_service.list_containers(results_per_page=1):
+            break
 
     @property
     def is_configured(self) -> bool:
