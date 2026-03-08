@@ -101,13 +101,15 @@ class BlobStorageClient:
         # Try connection string first (if configured and mode allows)
         if auth_mode in ("connection_string", "auto") and self.config.connection_string:
             try:
-                self._blob_service = BlobServiceClient.from_connection_string(
+                svc = BlobServiceClient.from_connection_string(
                     self.config.connection_string
                 )
+                self._blob_service = svc
                 self._test_connection()
                 self.last_error = ""
                 return self._blob_service
             except Exception as e:
+                self._blob_service = None  # clear so AAD path starts fresh
                 self.last_error = str(e)
                 if auth_mode == "connection_string":
                     print(f"Error connecting with connection string: {e}")
