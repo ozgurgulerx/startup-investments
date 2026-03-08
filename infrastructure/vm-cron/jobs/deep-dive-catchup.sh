@@ -1,7 +1,7 @@
 #!/bin/bash
 # deep-dive-catchup.sh — Backfill missing deep dives so the UI isn't empty.
 # Strategy: coverage-first (trend-only synthesis) + optional deep-research enqueue.
-# Schedule: see infrastructure/vm-cron/crontab (UTC)
+# Schedule: see infrastructure/kubernetes/pipelines-cronjobs.yaml
 set -euo pipefail
 
 VENV_DIR="/opt/buildatlas/venv"
@@ -25,4 +25,3 @@ echo "Backfilling missing deep dives (coverage mode)..."
   --research-depth quick
 
 echo "=== Deep Dive Catchup complete ==="
-

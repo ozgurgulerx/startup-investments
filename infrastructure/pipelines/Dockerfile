@@ -37,7 +37,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 # - git: optional (runner derives SHA/repo when available)
 # - libxml2/libxslt/libffi: runtime libs for lxml stack
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash curl git util-linux ca-certificates \
+    bash curl git util-linux ca-certificates postgresql-client \
     libxml2 libxslt1.1 libffi8 \
     && rm -rf /var/lib/apt/lists/*
 

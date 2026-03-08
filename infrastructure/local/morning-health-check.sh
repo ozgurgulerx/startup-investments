@@ -1,6 +1,6 @@
 #!/bin/bash
 # morning-health-check.sh — Daily 08:00 AM (local) infra health check
-# Runs on macOS laptop via launchd. Checks all Azure services, starts
+# Runs on macOS laptop via launchd. Checks the live Azure services, starts
 # anything that's down, sends Slack + email report.
 set -uo pipefail
 
@@ -16,7 +16,6 @@ FRONTEND_URL="https://buildatlas.net"
 RG_AKS="aistartuptr"
 RG_PG="aistartupstr"
 RG_WEB="rg-startup-analysis"
-VM_NAME="vm-buildatlas-cron"
 AKS_NAME="aks-aistartuptr"
 PG_NAME="aistartupstr"
 REDIS_NAME="aistartupstr-redis-cache"
@@ -50,45 +49,12 @@ echo "=== BuildAtlas Morning Health Check ==="
 echo "Timestamp: $TIMESTAMP"
 echo ""
 
-# 1. VM
-echo "Checking VM..."
-VM_STATE="$(az vm show -g "$RG_AKS" -n "$VM_NAME" -d --query powerState -o tsv 2>/dev/null || echo "unknown")"
-if echo "$VM_STATE" | grep -qi "running"; then
-    checks_passed=$((checks_passed + 1))
-    echo "  OK: VM ($VM_STATE)"
-else
-    echo "  WARN: VM is $VM_STATE — starting..."
-    if az vm start -g "$RG_AKS" -n "$VM_NAME" --no-wait 2>/dev/null; then
-        actions_taken+=("Started VM (was $VM_STATE)")
-        echo "  ACTION: VM start initiated"
-        # Wait up to 90s for VM to come up
-        for i in $(seq 1 6); do
-            sleep 15
-            NEW_STATE="$(az vm show -g "$RG_AKS" -n "$VM_NAME" -d --query powerState -o tsv 2>/dev/null || echo "unknown")"
-            if echo "$NEW_STATE" | grep -qi "running"; then
-                checks_passed=$((checks_passed + 1))
-                echo "  OK: VM now running after ${i}x15s"
-                break
-            fi
-            if [ "$i" -eq 6 ]; then
-                checks_failed=$((checks_failed + 1))
-                failures+=("VM: still $NEW_STATE after 90s wait")
-                echo "  FAIL: VM still $NEW_STATE"
-            fi
-        done
-    else
-        checks_failed=$((checks_failed + 1))
-        failures+=("VM: failed to start (was $VM_STATE)")
-        echo "  FAIL: Could not start VM"
-    fi
-fi
-
-# 2. AKS
+# 1. AKS
 echo "Checking AKS..."
 AKS_STATE="$(az aks show -g "$RG_AKS" -n "$AKS_NAME" --query 'powerState.code' -o tsv 2>/dev/null || echo "unknown")"
 check "AKS" "$AKS_STATE" "Running"
 
-# 3. PostgreSQL
+# 2. PostgreSQL
 echo "Checking PostgreSQL..."
 PG_STATE="$(az postgres flexible-server show -g "$RG_PG" -n "$PG_NAME" --query state -o tsv 2>/dev/null || echo "unknown")"
 if echo "$PG_STATE" | grep -qi "Ready"; then
@@ -106,12 +72,12 @@ else
     fi
 fi
 
-# 4. Redis
+# 3. Redis
 echo "Checking Redis..."
 REDIS_STATE="$(az redis show -g "$RG_PG" -n "$REDIS_NAME" --query provisioningState -o tsv 2>/dev/null || echo "unknown")"
 check "Redis" "$REDIS_STATE" "Succeeded"
 
-# 5. App Service (Frontend)
+# 4. App Service (Frontend)
 echo "Checking App Service..."
 WEBAPP_STATE="$(az webapp show -g "$RG_WEB" -n "$WEBAPP_NAME" --query state -o tsv 2>/dev/null || echo "unknown")"
 if echo "$WEBAPP_STATE" | grep -qi "Running"; then
@@ -129,7 +95,7 @@ else
     fi
 fi
 
-# 6. API Health (HTTP)
+# 5. API Health (HTTP)
 echo "Checking API health endpoint..."
 API_RESPONSE="$(curl -s -o /tmp/ba-health.json -w '%{http_code}' --max-time 10 "$API_URL/health" 2>/dev/null || echo "000")"
 if [ "$API_RESPONSE" = "200" ]; then
@@ -142,12 +108,12 @@ else
     echo "  FAIL: API health returned $API_RESPONSE"
 fi
 
-# 7. Frontend (HTTP)
+# 6. Frontend (HTTP)
 echo "Checking frontend..."
 FE_RESPONSE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_URL" 2>/dev/null || echo "000")"
 check "Frontend HTTP" "$FE_RESPONSE" "200"
 
-# 8. Storage Account
+# 7. Storage Account
 echo "Checking Storage..."
 STORAGE_STATE="$(az storage account show -g "$RG_AKS" -n buildatlasstorage --query provisioningState -o tsv 2>/dev/null || echo "unknown")"
 check "Storage" "$STORAGE_STATE" "Succeeded"
@@ -190,7 +156,7 @@ if [ ${#failures[@]} -gt 0 ]; then
     BODY="$BODY\n\n*Failures:*"
     for f in "${failures[@]}"; do BODY="$BODY\n• $f"; done
 fi
-BODY="$BODY\n\n_Ran at $TIMESTAMP from laptop_"
+BODY="$BODY\n\n_Ran at $TIMESTAMP from laptop (VM checks removed; AKS-only ops)_"
 
 # --- Send Slack ---
 echo ""

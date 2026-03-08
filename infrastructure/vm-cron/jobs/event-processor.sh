@@ -2,9 +2,10 @@
 # event-processor.sh — Process startup_events and enqueue gated deep-research work.
 set -euo pipefail
 
-VENV_DIR="/opt/buildatlas/venv"
-REPO_DIR="/opt/buildatlas/startup-analysis"
+VENV_DIR="${VENV_DIR:-/opt/buildatlas/venv}"
+REPO_DIR="${REPO_DIR:-/opt/buildatlas/startup-analysis}"
 BATCH_SIZE="${EVENT_PROCESSOR_BATCH_SIZE:-100}"
+export LOG_LEVEL="${LOG_LEVEL:-INFO}"
 
 echo "=== Event Processor ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -17,4 +18,3 @@ cd "$REPO_DIR/packages/analysis"
 "$VENV_DIR/bin/python" main.py process-events --batch-size "$BATCH_SIZE"
 
 echo "=== Event Processor complete ==="
-

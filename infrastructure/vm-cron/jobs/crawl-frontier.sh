@@ -23,8 +23,23 @@ if ! mkdir -p "$STATE_DIR" 2>/dev/null; then
     mkdir -p "$STATE_DIR"
 fi
 
-SEED_CURSOR_FILE="$STATE_DIR/crawl-frontier.seed.cursor"
-SEED_LAST_FILE="$STATE_DIR/crawl-frontier.seed.last"
+state_get() {
+    local field="$1"
+    "$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+        get --job crawl-frontier --field "$field" --default ""
+}
+
+state_set() {
+    local field="$1"
+    local value="$2"
+    "$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+        set --job crawl-frontier --field "$field" --value "$value" >/dev/null
+}
+
+state_delete() {
+    "$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+        delete --job crawl-frontier >/dev/null || true
+}
 
 is_true() {
     local value
@@ -58,15 +73,15 @@ if is_true "$SEED_ENABLED_RAW"; then
     if is_true "$SEED_FORCE_RAW"; then
         RUN_SEED=1
         echo "Seed mode: forced"
-    elif [ -s "$SEED_CURSOR_FILE" ]; then
+    elif [ -n "$(state_get seed_cursor)" ]; then
         RUN_SEED=1
-        echo "Seed mode: resuming from existing cursor"
-    elif [ ! -f "$SEED_LAST_FILE" ]; then
+        echo "Seed mode: resuming from persisted cursor"
+    elif [ -z "$(state_get seed_last_epoch)" ]; then
         RUN_SEED=1
         echo "Seed mode: first run (no last-seed marker)"
     else
         NOW_EPOCH="$(date +%s)"
-        LAST_EPOCH="$(cat "$SEED_LAST_FILE" 2>/dev/null || echo 0)"
+        LAST_EPOCH="$(state_get seed_last_epoch)"
         if [ $((NOW_EPOCH - LAST_EPOCH)) -ge $((SEED_INTERVAL_HOURS * 3600)) ]; then
             RUN_SEED=1
             echo "Seed mode: interval elapsed (${SEED_INTERVAL_HOURS}h)"
@@ -79,7 +94,7 @@ else
 fi
 
 if [ "$RUN_SEED" -eq 1 ]; then
-    CURRENT_CURSOR="$(cat "$SEED_CURSOR_FILE" 2>/dev/null || true)"
+    CURRENT_CURSOR="$(state_get seed_cursor)"
     echo "Seeding frontier..."
     echo "  cursor=${CURRENT_CURSOR:-0} limit=${SEED_LIMIT} max_startups=${SEED_MAX_STARTUPS} max_seconds=${SEED_MAX_SECONDS} timeout=${SEED_TIMEOUT_MIN}m"
 
@@ -135,12 +150,12 @@ PY
         fi
 
         if [ "$EXHAUSTED" = "true" ]; then
-            rm -f "$SEED_CURSOR_FILE"
-            date +%s > "$SEED_LAST_FILE"
+            state_delete
+            state_set seed_last_epoch "$(date +%s)"
             echo "  Seed chunk reached end of dataset; cursor cleared"
         elif [ -n "$NEXT_CURSOR" ]; then
-            echo "$NEXT_CURSOR" > "$SEED_CURSOR_FILE"
-            date +%s > "$SEED_LAST_FILE"
+            state_set seed_cursor "$NEXT_CURSOR"
+            state_set seed_last_epoch "$(date +%s)"
             echo "  Seed chunk incomplete; next cursor=$NEXT_CURSOR"
         else
             echo "  Seed output had no next cursor; keeping previous cursor state"

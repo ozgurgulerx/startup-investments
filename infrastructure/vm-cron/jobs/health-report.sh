@@ -10,6 +10,7 @@ set -uo pipefail
 
 REPO_DIR="/opt/buildatlas/startup-analysis"
 LOG_DIR="/var/log/buildatlas"
+VENV_DIR="/opt/buildatlas/venv"
 
 # --- Azure resource names (match .env / setup-azure-alerts.sh) ---
 PG_SERVER="${POSTGRES_SERVER_NAME:-aistartupstr}"
@@ -25,6 +26,13 @@ MONITOR_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/api
 FRONTIER_MONITOR_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/api/admin/monitoring/frontier"
 RUNTIME_MONITOR_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}/api/admin/monitoring/runtime?window_min=10"
 FRONTEND_URL="https://buildatlas.net"
+
+detect_latest_period() {
+    find "$REPO_DIR/apps/web/data" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null \
+        | grep -E '^[0-9]{4}-[0-9]{2}$' \
+        | sort \
+        | tail -n 1
+}
 
 echo "=== Infrastructure Health Report ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -605,6 +613,118 @@ else
 fi
 
 # Detect raw capture storage auth errors (best-effort log scan)
+add_section "CSV Onboarding"
+
+echo ""
+echo "[12/12] CSV onboarding..."
+ONBOARDING_PERIOD="${ONBOARDING_HEALTH_PERIOD:-latest}"
+if [ -z "$ONBOARDING_PERIOD" ] || [ "$ONBOARDING_PERIOD" = "latest" ]; then
+    ONBOARDING_PERIOD="$(detect_latest_period)"
+fi
+
+if [ -z "$ONBOARDING_PERIOD" ]; then
+    echo "  Could not determine latest onboarding period"
+    add_warn "CSV onboarding: latest period not found"
+else
+    ONBOARDING_JSON=$(cd "$REPO_DIR/packages/analysis" && \
+        "$VENV_DIR/bin/python" -m main onboarding-preflight --period "$ONBOARDING_PERIOD" --region global --json 2>/dev/null || echo "")
+    if [ -n "$ONBOARDING_JSON" ]; then
+        ONBOARDING_INFO=$(python3 -c "
+import json, sys
+
+try:
+    data = json.loads(sys.stdin.read())
+except Exception:
+    print('error')
+    raise SystemExit(0)
+
+csv_info = data.get('csv') or {}
+store = data.get('analysis_store') or {}
+progress = data.get('progress') or {}
+db = data.get('database') or {}
+health = data.get('health') or {}
+alerts = health.get('alerts') or []
+
+alert_blob = ';'.join(
+    f\"{a.get('severity', 'warn')}|{str(a.get('message', '')).replace(';', ',')}\"
+    for a in alerts
+)
+
+print(
+    f\"{data.get('period') or ''}|{health.get('status') or 'ok'}|{csv_info.get('rows') or 0}|{csv_info.get('unique_startups') or 0}\"
+    f\"|{store.get('analyzed_unique_startups') or 0}|{store.get('backlog_unique') or 0}|{store.get('rows_without_base_analysis') or 0}\"
+    f\"|{store.get('index_hash_coverage_pct') or 0}|{progress.get('status') or 'missing'}|{progress.get('stale_minutes')}\"
+    f\"|{progress.get('latest_startup') or ''}|{progress.get('latest_stage') or ''}|{db.get('stub') if db.get('available') else ''}|{db.get('with_analysis_data') if db.get('available') else ''}\"
+)
+print(alert_blob)
+" <<< "$ONBOARDING_JSON" 2>/dev/null || echo "error")
+
+        O_LINE1=$(echo "$ONBOARDING_INFO" | head -1)
+        O_LINE2=$(echo "$ONBOARDING_INFO" | sed -n '2p')
+        if [ "$O_LINE1" != "error" ] && [ -n "$O_LINE1" ]; then
+            IFS='|' read -r O_PERIOD O_STATUS O_ROWS O_UNIQUE O_ANALYZED O_BACKLOG O_ROWS_MISSING O_HASH_PCT O_PROGRESS O_STALE O_LATEST O_STAGE O_STUB O_WITH_ANALYSIS <<< "$O_LINE1"
+
+            echo "  Period: ${O_PERIOD} rows=${O_ROWS} unique=${O_UNIQUE} analyzed=${O_ANALYZED} backlog=${O_BACKLOG}"
+            echo "  Coverage: rows_missing=${O_ROWS_MISSING} index_hash_pct=${O_HASH_PCT}"
+            echo "  Progress: status=${O_PROGRESS} stale_min=${O_STALE:-n/a} latest=${O_LATEST:-n/a} stage=${O_STAGE:-n/a}"
+            if [ -n "${O_STUB:-}" ]; then
+                echo "  DB: with_analysis=${O_WITH_ANALYSIS:-0} stub=${O_STUB}"
+            fi
+
+            if [ "$O_STATUS" = "fail" ]; then
+                add_fail "CSV onboarding (${O_PERIOD}): backlog ${O_BACKLOG}, missing rows ${O_ROWS_MISSING}, hash coverage ${O_HASH_PCT}%"
+            elif [ "$O_STATUS" = "warn" ]; then
+                add_warn "CSV onboarding (${O_PERIOD}): backlog ${O_BACKLOG}, missing rows ${O_ROWS_MISSING}, hash coverage ${O_HASH_PCT}%"
+            else
+                add_ok "CSV onboarding (${O_PERIOD}): backlog ${O_BACKLOG}, missing rows ${O_ROWS_MISSING}, hash coverage ${O_HASH_PCT}%"
+            fi
+
+            if [ -n "$O_LINE2" ]; then
+                IFS=';' read -ra O_ALERTS <<< "$O_LINE2"
+                for onboarding_alert in "${O_ALERTS[@]}"; do
+                    [ -n "$onboarding_alert" ] || continue
+                    A_SEV="${onboarding_alert%%|*}"
+                    A_MSG="${onboarding_alert#*|}"
+                    if [ "$A_SEV" = "fail" ]; then
+                        add_fail "CSV onboarding: ${A_MSG}"
+                    else
+                        add_warn "CSV onboarding: ${A_MSG}"
+                    fi
+                done
+            fi
+
+            ONBOARDING_STATE_DIR="${ONBOARDING_STATE_DIR:-/var/lib/buildatlas}"
+            if ! mkdir -p "$ONBOARDING_STATE_DIR" 2>/dev/null; then
+                ONBOARDING_STATE_DIR="/tmp/buildatlas"
+                mkdir -p "$ONBOARDING_STATE_DIR" 2>/dev/null || true
+            fi
+            STUB_STATE_FILE="${ONBOARDING_STUB_STATE_FILE:-$ONBOARDING_STATE_DIR/onboarding-stub-count.state}"
+            NOW_TS="$(date +%s)"
+            if [ -n "${O_STUB:-}" ]; then
+                if [ -f "$STUB_STATE_FILE" ]; then
+                    PREV_TS="$(awk '{print $1}' "$STUB_STATE_FILE" 2>/dev/null || echo 0)"
+                    PREV_STUBS="$(awk '{print $2}' "$STUB_STATE_FILE" 2>/dev/null || echo -1)"
+                    if [ "${PREV_TS:-0}" -gt 0 ] 2>/dev/null && [ $((NOW_TS - PREV_TS)) -ge 604800 ] 2>/dev/null; then
+                        if [ "${O_STUB:-0}" -ge "${PREV_STUBS:-0}" ] 2>/dev/null; then
+                            add_warn "CSV onboarding: DB stub count not improving week-over-week (${PREV_STUBS} -> ${O_STUB})"
+                        fi
+                        echo "${NOW_TS} ${O_STUB}" > "$STUB_STATE_FILE" 2>/dev/null || true
+                    fi
+                else
+                    echo "${NOW_TS} ${O_STUB}" > "$STUB_STATE_FILE" 2>/dev/null || true
+                fi
+            fi
+        else
+            echo "  Could not parse onboarding preflight output"
+            add_warn "CSV onboarding: preflight parse error"
+        fi
+    else
+        echo "  Onboarding preflight failed"
+        add_warn "CSV onboarding: preflight command failed"
+    fi
+fi
+
+# Detect raw capture storage auth errors (best-effort log scan)
 CRAWL_LOG="${LOG_DIR}/crawl-frontier.log"
 if [ -f "$CRAWL_LOG" ]; then
     CAPTURE_AUTH_ERRORS=$(grep -a -E "\\[raw-capture\\] disabling blob upload|Error uploading blob raw-captures/.*(AuthorizationFailure|AuthorizationPermissionMismatch|AuthenticationFailed|KeyBasedAuthenticationNotPermitted)" "$CRAWL_LOG" | tail -n 200 | wc -l | tr -d '[:space:]' || echo "0")
@@ -678,7 +798,7 @@ echo ""
 echo "[12/12] Cron jobs..."
 
 # job_name:expected_interval_minutes
-CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 onboarding-alerts:5 crawl-frontier:30 sync-data:30 news-digest:60 signal-aggregate:240 delta-generate:240 generate-alerts:240 code-update:15"
+CRON_JOBS="news-ingest:60 event-processor:15 deep-research:15 onboarding-alerts:5 crawl-frontier:30 global-analysis:30 sync-data:30 news-digest:60 signal-aggregate:240 delta-generate:240 generate-alerts:240 code-update:15"
 NOW_EPOCH=$(date +%s)
 
 # Best-effort: read AKS CronJob lastScheduleTime so jobs migrated off the VM

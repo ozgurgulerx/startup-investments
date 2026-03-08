@@ -13,6 +13,7 @@
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+VENV_DIR="/opt/buildatlas/venv"
 TMP_DIR="$(mktemp -d 2>/dev/null || echo "")"
 if [ -z "$TMP_DIR" ] || [ ! -d "$TMP_DIR" ]; then
   TMP_DIR="/tmp/buildatlas-product-canary.$$"
@@ -23,51 +24,19 @@ trap 'rm -rf "$TMP_DIR" 2>/dev/null || true' EXIT
 API_BASE_URL="${API_URL:-https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net}"
 FRONTEND_URL="${PUBLIC_BASE_URL:-https://buildatlas.net}"
 
-STATE_FILE_PRIMARY="/var/lib/buildatlas/product-canary.state"
-STATE_FILE_FALLBACK="$ROOT_DIR/.tmp/product-canary.state"
-STATE_FILE_TMP="/tmp/buildatlas-product-canary.state"
-
-choose_state_file() {
-  local candidate=""
-
-  candidate="$STATE_FILE_PRIMARY"
-  if mkdir -p "$(dirname "$candidate")" 2>/dev/null && touch "$candidate" 2>/dev/null; then
-    echo "$candidate"
-    return 0
-  fi
-
-  candidate="$STATE_FILE_FALLBACK"
-  if mkdir -p "$(dirname "$candidate")" 2>/dev/null && touch "$candidate" 2>/dev/null; then
-    echo "$candidate"
-    return 0
-  fi
-
-  # Last resort: /tmp (may not survive reboot).
-  candidate="$STATE_FILE_TMP"
-  if mkdir -p "$(dirname "$candidate")" 2>/dev/null && touch "$candidate" 2>/dev/null; then
-    echo "$candidate"
-    return 0
-  fi
-
-  # If nothing is writable, fall back to a temp file (no persistence).
-  echo "$TMP_DIR/product-canary.state"
-}
-
-STATE_FILE="$(choose_state_file)"
+STATE_JSON="$("$VENV_DIR/bin/python" "$ROOT_DIR/scripts/pipeline_job_state.py" \
+  get --job product-canary --default "{}" 2>/dev/null || echo "{}")"
 
 NOW_TS="$(date +%s)"
 PREV_STATUS=""
 LAST_NOTIFIED_AT="0"
-
-if [ -s "$STATE_FILE" ]; then
-  STATE_RAW="$(python3 - "$STATE_FILE" <<'PY' 2>/dev/null || true
+STATE_RAW="$(STATE_JSON="$STATE_JSON" python3 - <<'PY' 2>/dev/null || true
 import json
-import sys
+import os
 
-path = sys.argv[1]
+raw = os.environ.get("STATE_JSON", "{}")
 try:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    data = json.loads(raw)
 except Exception:
     data = {}
 
@@ -82,9 +51,8 @@ print(status)
 print(notified_at)
 PY
 )"
-  PREV_STATUS="$(printf '%s\n' "$STATE_RAW" | sed -n '1p')"
-  LAST_NOTIFIED_AT="$(printf '%s\n' "$STATE_RAW" | sed -n '2p')"
-fi
+PREV_STATUS="$(printf '%s\n' "$STATE_RAW" | sed -n '1p')"
+LAST_NOTIFIED_AT="$(printf '%s\n' "$STATE_RAW" | sed -n '2p')"
 
 STATUS="ok"
 # With `set -u`, empty-but-undeclared arrays can raise "unbound variable" on `${#arr[@]}`.
@@ -127,7 +95,7 @@ PY
 
 echo "=== Product Canary ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-echo "State file: $STATE_FILE"
+echo "State backend: pipeline runtime state"
 echo "API base: $API_BASE_URL"
 echo "Frontend: $FRONTEND_URL"
 echo ""
@@ -868,30 +836,16 @@ if [ "$should_notify" = true ]; then
 fi
 
 # Persist state (best effort).
-python3 - "$STATE_FILE" <<PY 2>/dev/null || true
+python3 - <<PY 2>/dev/null | "$VENV_DIR/bin/python" "$ROOT_DIR/scripts/pipeline_job_state.py" set --job product-canary >/dev/null || true
 import json
-import os
-import sys
 import time
 
-path = sys.argv[1]
-try:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        data = {}
-except Exception:
-    data = {}
-
-data["status"] = "${STATUS}"
-data["last_run_at"] = int(time.time())
-if "${notified}" == "true":
-    data["notified_at"] = int(time.time())
-
-tmp = f"{path}.tmp"
-with open(tmp, "w", encoding="utf-8") as f:
-    json.dump(data, f, ensure_ascii=True, sort_keys=True)
-os.replace(tmp, path)
+payload = {
+    "status": "${STATUS}",
+    "last_run_at": int(time.time()),
+    "notified_at": int(time.time()) if "${notified}" == "true" else int("${LAST_NOTIFIED_AT:-0}"),
+}
+print(json.dumps(payload, ensure_ascii=True, sort_keys=True))
 PY
 
 exit 0

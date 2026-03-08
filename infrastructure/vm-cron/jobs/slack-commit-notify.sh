@@ -15,6 +15,7 @@
 set -euo pipefail
 
 REPO_DIR="/opt/buildatlas/startup-analysis"
+VENV_DIR="/opt/buildatlas/venv"
 
 BRANCH="${SLACK_COMMIT_NOTIFY_BRANCH:-main}"
 MAX_COMMITS="${SLACK_COMMIT_NOTIFY_MAX:-12}"
@@ -38,26 +39,19 @@ git fetch --quiet origin "$BRANCH" || exit 0
 
 HEAD_SHA="$(git rev-parse "$REMOTE_REF")"
 
-STATE_DIR="${BUILDATLAS_STATE_DIR:-/var/lib/buildatlas}"
-if ! mkdir -p "$STATE_DIR" 2>/dev/null; then
-  STATE_DIR="$REPO_DIR/.tmp"
-  mkdir -p "$STATE_DIR" 2>/dev/null || STATE_DIR="/tmp"
-fi
-STATE_FILE="$STATE_DIR/slack-commit-notify.${BRANCH}.last"
-
-LAST_SHA=""
-if [ -f "$STATE_FILE" ]; then
-  LAST_SHA="$(cat "$STATE_FILE" 2>/dev/null || true)"
-fi
+LAST_SHA="$("$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+  get --job slack-commit-notify --scope "$BRANCH" --field last_sha --default "")"
 
 if [ -z "$LAST_SHA" ]; then
   # First run: don't backfill history. Start from current head.
-  echo "$HEAD_SHA" > "$STATE_FILE" 2>/dev/null || true
+  "$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+    set --job slack-commit-notify --scope "$BRANCH" --json "{\"last_sha\":\"$HEAD_SHA\"}" >/dev/null || true
   exit 0
 fi
 
 if ! git cat-file -e "${LAST_SHA}^{commit}" 2>/dev/null; then
-  echo "$HEAD_SHA" > "$STATE_FILE" 2>/dev/null || true
+  "$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+    set --job slack-commit-notify --scope "$BRANCH" --json "{\"last_sha\":\"$HEAD_SHA\"}" >/dev/null || true
   exit 0
 fi
 
@@ -67,7 +61,8 @@ fi
 
 mapfile -t NEW_SHAS < <(git rev-list --reverse "${LAST_SHA}..${REMOTE_REF}" || true)
 if [ "${#NEW_SHAS[@]}" -eq 0 ]; then
-  echo "$HEAD_SHA" > "$STATE_FILE" 2>/dev/null || true
+  "$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+    set --job slack-commit-notify --scope "$BRANCH" --json "{\"last_sha\":\"$HEAD_SHA\"}" >/dev/null || true
   exit 0
 fi
 
@@ -122,4 +117,5 @@ export SLACK_URL="${COMPARE_URL:-}"
 python3 "$REPO_DIR/scripts/slack_notify.py"
 
 # Only advance the cursor if Slack post succeeded.
-echo "$HEAD_SHA" > "$STATE_FILE" 2>/dev/null || true
+"$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+  set --job slack-commit-notify --scope "$BRANCH" --json "{\"last_sha\":\"$HEAD_SHA\"}" >/dev/null || true

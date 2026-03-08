@@ -5,7 +5,7 @@
 #   1. Log Analytics workspace (for App Insights)
 #   2. Application Insights resource
 #   3. Action Group with Slack webhook
-#   4. Metric alert rules for: AKS, PostgreSQL, Redis, App Service, Front Door, Storage, VM
+#   4. Metric alert rules for: AKS, PostgreSQL, Redis, App Service, Front Door, Storage
 #
 # Usage:
 #   ./setup-azure-alerts.sh --slack-webhook https://hooks.slack.com/services/... [--dry-run]
@@ -34,7 +34,6 @@ PG_NAME="aistartupstr"
 REDIS_NAME="aistartupstr-redis-cache"
 APP_SERVICE_NAME="buildatlas-web"
 STORAGE_NAME="buildatlasstorage"
-VM_NAME="vm-buildatlas-cron"
 
 # ─── Parse arguments ────────────────────────────────────────────────────────
 SLACK_WEBHOOK=""
@@ -254,8 +253,6 @@ PG_ID=$(az postgres flexible-server show -g "$RG_DB" -n "$PG_NAME" --query "id" 
 REDIS_ID=$(az redis show -g "$RG_DB" -n "$REDIS_NAME" --query "id" -o tsv 2>/dev/null || echo "")
 APP_SERVICE_ID=$(az webapp show -g "$RG_WEB" -n "$APP_SERVICE_NAME" --query "id" -o tsv 2>/dev/null || echo "")
 STORAGE_ID=$(az storage account show -g "$RG_INFRA" -n "$STORAGE_NAME" --query "id" -o tsv 2>/dev/null || echo "")
-VM_ID=$(az vm show -g "$RG_INFRA" -n "$VM_NAME" --query "id" -o tsv 2>/dev/null || echo "")
-
 # Front Door (Standard/Premium = Microsoft.Cdn/profiles)
 FD_ID=$(az afd profile list -g "$RG_INFRA" --query "[0].id" -o tsv 2>/dev/null || echo "")
 
@@ -409,68 +406,6 @@ if [[ -n "$STORAGE_ID" ]]; then
     echo ""
 else
     warn "Storage resource not found: $STORAGE_NAME in $RG_INFRA"
-fi
-
-# ─── VM Alerts ───────────────────────────────────────────────────────────────
-if [[ -n "$VM_ID" ]]; then
-    log "--- VM alerts ---"
-
-    create_alert "alert-vm-cpu" "$RG_INFRA" "$VM_ID" \
-        "avg Percentage CPU > 90" \
-        2 "VM CPU exceeds 90% for 10 minutes" "PT10M" "PT5M"
-
-    create_alert "alert-vm-memory" "$RG_INFRA" "$VM_ID" \
-        "avg Available Memory Bytes < 209715200" \
-        2 "VM available memory below 200MB"
-    echo ""
-else
-    warn "VM resource not found: $VM_NAME in $RG_INFRA"
-fi
-
-# ─── Activity Log Alert: VM Deallocate ────────────────────────────────────────
-# Activity Log Alerts are free and fire at the platform level even when the VM is off.
-# This catches external actors (e.g., MCAPSGov-AutomationApp) deallocating the VM.
-if [[ -n "$VM_ID" ]]; then
-    log "--- Activity Log alerts ---"
-
-    ALERT_NAME="alert-vm-deallocated"
-    if az monitor activity-log alert show --name "$ALERT_NAME" --resource-group "$RG_INFRA" &>/dev/null; then
-        skip "$ALERT_NAME (already exists)"
-    else
-        info "Creating activity log alert: $ALERT_NAME"
-        if run_az monitor activity-log alert create \
-            --name "$ALERT_NAME" \
-            --resource-group "$RG_INFRA" \
-            --action-group "$ACTION_GROUP_ID" \
-            --condition "category=Administrative and operationName=Microsoft.Compute/virtualMachines/deallocate/action and resourceId=$VM_ID" \
-            --description "VM vm-buildatlas-cron was deallocated — all cron jobs are down. Auto-recovery via vm-watchdog workflow." \
-            --output none 2>/dev/null; then
-            ok "$ALERT_NAME"
-        else
-            fail "$ALERT_NAME"
-        fi
-    fi
-
-    ALERT_NAME="alert-vm-stopped"
-    if az monitor activity-log alert show --name "$ALERT_NAME" --resource-group "$RG_INFRA" &>/dev/null; then
-        skip "$ALERT_NAME (already exists)"
-    else
-        info "Creating activity log alert: $ALERT_NAME"
-        if run_az monitor activity-log alert create \
-            --name "$ALERT_NAME" \
-            --resource-group "$RG_INFRA" \
-            --action-group "$ACTION_GROUP_ID" \
-            --condition "category=Administrative and operationName=Microsoft.Compute/virtualMachines/powerOff/action and resourceId=$VM_ID" \
-            --description "VM vm-buildatlas-cron was powered off — all cron jobs are down." \
-            --output none 2>/dev/null; then
-            ok "$ALERT_NAME"
-        else
-            fail "$ALERT_NAME"
-        fi
-    fi
-    echo ""
-else
-    warn "Skipping Activity Log alerts — VM resource not found"
 fi
 
 # ─── Summary ─────────────────────────────────────────────────────────────────

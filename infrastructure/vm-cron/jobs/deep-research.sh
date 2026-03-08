@@ -2,10 +2,11 @@
 # deep-research.sh — Consume deep_research_queue with budget caps.
 set -euo pipefail
 
-VENV_DIR="/opt/buildatlas/venv"
-REPO_DIR="/opt/buildatlas/startup-analysis"
+VENV_DIR="${VENV_DIR:-/opt/buildatlas/venv}"
+REPO_DIR="${REPO_DIR:-/opt/buildatlas/startup-analysis}"
 BATCH_SIZE="${DEEP_RESEARCH_BATCH_SIZE:-8}"
 MAX_CONCURRENT="${DEEP_RESEARCH_MAX_CONCURRENT:-3}"
+export LOG_LEVEL="${LOG_LEVEL:-INFO}"
 
 echo "=== Deep Research ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -24,4 +25,3 @@ cd "$REPO_DIR/packages/analysis"
 "$VENV_DIR/bin/python" main.py consume-deep-research --batch-size "$BATCH_SIZE" --max-concurrent "$MAX_CONCURRENT"
 
 echo "=== Deep Research complete ==="
-

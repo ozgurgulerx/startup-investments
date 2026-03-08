@@ -1,7 +1,7 @@
 #!/bin/bash
 # apply-migrations.sh — Shared database migration runner.
 # Usage: apply-migrations.sh <migration-set>
-# Sets: news, crawl, news-digest, startups, performance, research, benchmarks, all
+# Sets: news, crawl, news-digest, startups, performance, research, benchmarks, investigation, all
 set -uo pipefail
 
 VENV_DIR="${VENV_DIR:-/opt/buildatlas/venv}"
@@ -26,4 +26,3 @@ fi
 
 # Single source of truth for migration sets lives in scripts/apply_migrations.py
 "$VENV_DIR/bin/python" "$REPO_DIR/scripts/apply_migrations.py" "$MIGRATION_SET"
-

@@ -10,6 +10,7 @@ on:
       - "infrastructure/pipelines/**"
       - "infrastructure/ops/**"
       - "infrastructure/kubernetes/pipelines-*"
+      - "infrastructure/kubernetes/global-analysis-job.yaml"
       - "infrastructure/kubernetes/posthog-*"
       - "infrastructure/kubernetes/playwright-canary-*"
   workflow_dispatch:
@@ -97,6 +98,8 @@ jobs:
             --from-literal=AZURE_OPENAI_EMBEDDING_DEPLOYMENT="${{ secrets.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}" \
             --from-literal=OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
             --from-literal=AZURE_STORAGE_CONNECTION_STRING="${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+            --from-literal=AZURE_STORAGE_ACCOUNT_NAME="${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}" \
+            --from-literal=GITHUB_ACTIONS_WORKFLOW_TOKEN="${{ secrets.GITHUB_ACTIONS_WORKFLOW_TOKEN }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply configmap and CronJobs

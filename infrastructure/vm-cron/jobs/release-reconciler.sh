@@ -15,6 +15,7 @@
 set -uo pipefail
 
 REPO_DIR="/opt/buildatlas/startup-analysis"
+VENV_DIR="/opt/buildatlas/venv"
 STATE_DIR_DEFAULT="/var/lib/buildatlas"
 STATE_FILE_BASENAME="release-reconciler.state"
 GIT_LOCK_FILE="/tmp/buildatlas-git.lock"
@@ -224,8 +225,6 @@ format_component_line() {
     echo "- *${label}:* \`${live_sha:-unknown}\` (${detail})"
 }
 
-STATE_DIR="$(resolve_state_dir)"
-STATE_FILE="${STATE_DIR}/${STATE_FILE_BASENAME}"
 NOW_EPOCH="$(date +%s)"
 
 # State defaults
@@ -235,10 +234,34 @@ FRONTEND_MISMATCH_SINCE=""
 BACKEND_MISMATCH_SINCE=""
 STATE_DESIRED_FULL_SHA=""
 
-if [ -f "$STATE_FILE" ]; then
-    # shellcheck disable=SC1090
-    source "$STATE_FILE" || true
-fi
+STATE_JSON="$("$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" \
+    get --job release-reconciler --default "{}" 2>/dev/null || echo "{}")"
+STATE_RAW="$(STATE_JSON="$STATE_JSON" python3 - <<'PY' 2>/dev/null || true
+import json
+import os
+
+raw = os.environ.get("STATE_JSON", "{}")
+try:
+    data = json.loads(raw)
+except Exception:
+    data = {}
+
+for key in (
+    "last_status_key",
+    "last_alert_epoch",
+    "frontend_mismatch_since",
+    "backend_mismatch_since",
+    "state_desired_full_sha",
+):
+    value = data.get(key, "")
+    print("" if value is None else value)
+PY
+)"
+LAST_STATUS_KEY="$(printf '%s\n' "$STATE_RAW" | sed -n '1p')"
+LAST_ALERT_EPOCH="$(printf '%s\n' "$STATE_RAW" | sed -n '2p')"
+FRONTEND_MISMATCH_SINCE="$(printf '%s\n' "$STATE_RAW" | sed -n '3p')"
+BACKEND_MISMATCH_SINCE="$(printf '%s\n' "$STATE_RAW" | sed -n '4p')"
+STATE_DESIRED_FULL_SHA="$(printf '%s\n' "$STATE_RAW" | sed -n '5p')"
 
 cd "$REPO_DIR"
 
@@ -413,15 +436,18 @@ if [ "$NEEDS_POST" = "true" ]; then
     LAST_ALERT_EPOCH="$NOW_EPOCH"
 fi
 
-TMP_STATE="${STATE_FILE}.tmp"
-{
-    printf 'LAST_STATUS_KEY=%q\n' "$STATUS_KEY"
-    printf 'LAST_ALERT_EPOCH=%q\n' "$LAST_ALERT_EPOCH"
-    printf 'FRONTEND_MISMATCH_SINCE=%q\n' "${FRONTEND_MISMATCH_SINCE:-}"
-    printf 'BACKEND_MISMATCH_SINCE=%q\n' "${BACKEND_MISMATCH_SINCE:-}"
-    printf 'STATE_DESIRED_FULL_SHA=%q\n' "$DESIRED_FULL_SHA"
-} > "$TMP_STATE"
-mv "$TMP_STATE" "$STATE_FILE"
+python3 - <<PY 2>/dev/null | "$VENV_DIR/bin/python" "$REPO_DIR/scripts/pipeline_job_state.py" set --job release-reconciler >/dev/null || true
+import json
+
+payload = {
+    "last_status_key": "${STATUS_KEY}",
+    "last_alert_epoch": "${LAST_ALERT_EPOCH}",
+    "frontend_mismatch_since": "${FRONTEND_MISMATCH_SINCE:-}",
+    "backend_mismatch_since": "${BACKEND_MISMATCH_SINCE:-}",
+    "state_desired_full_sha": "${DESIRED_FULL_SHA}",
+}
+print(json.dumps(payload, ensure_ascii=True, sort_keys=True))
+PY
 
 echo "Release reconcile complete: desired=${DESIRED_SHA} frontend=${FRONTEND_LIVE_SHA:-unknown} backend=${BACKEND_LIVE_SHA:-unknown} pending=${PENDING_COMPONENTS}"
 exit 0
