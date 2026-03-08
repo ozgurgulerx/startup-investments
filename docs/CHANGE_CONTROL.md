@@ -14,9 +14,9 @@ Mark all that apply:
 - API runtime (`apps/api/**`)
 - Shared contract/types (`packages/shared/**`)
 - Analysis/pipeline logic (`packages/analysis/**`)
-- Cron schedule/runner/deploy (`infrastructure/vm-cron/**`)
+- Cron schedule/runner/deploy (`infrastructure/kubernetes/**`, `infrastructure/vm-cron/**`, `.github/workflows/**`)
 - Kubernetes/deploy config (`infrastructure/kubernetes/**`)
-- GitHub workflows (deprecated; removed from this repo) (`.github/workflows/**`)
+- GitHub workflows (`.github/workflows/**`)
 - Database migration (`database/migrations/**`)
 - Data sync behavior (`scripts/sync-startups-to-db.py`, `scripts/populate-analysis-data.py`, `infrastructure/vm-cron/jobs/sync-data.sh`)
 
@@ -46,7 +46,11 @@ pnpm --filter @startup-investments/api build
 
 ### Cron/schedule changes
 
-- Update `infrastructure/vm-cron/crontab` and `docs/OPERATING_MODEL.md` together.
+- Update the owning schedule surface and `docs/OPERATING_MODEL.md` together:
+  - AKS jobs: `infrastructure/kubernetes/pipelines-cronjobs.yaml`
+  - Azure Automation uptime guard: `infrastructure/azure/aks-uptime.bicep`
+  - Legacy script/archive references only when needed: `infrastructure/vm-cron/**`
+- If the change affects CSV onboarding ownership, also update `AGENTS.md` so `global-analysis` vs `sync-data` responsibilities stay explicit.
 - Run:
 
 ```bash
@@ -65,7 +69,7 @@ pnpm ops:verify-docs
 
 Confirm before release:
 
-- Affected control plane is known (VM cron vs AKS CronJobs).
+- Affected control plane is known (AKS CronJobs vs Azure Automation vs GitHub Actions).
 - Required env vars/secrets are present for affected surface.
 - Rollback path is prepared (known-good image/commit or automated rollback script).
 
@@ -78,12 +82,11 @@ curl -i https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health
 curl -I https://buildatlas.net
 ```
 
-Then verify relevant job logs:
+Then verify relevant logs/status:
 
-- `/var/log/buildatlas/code-update.log`
-- `/var/log/buildatlas/backend-deploy.log`
-- `/var/log/buildatlas/frontend-deploy.log`
-- pipeline-specific logs (`news-ingest`, `news-digest`, `sync-data`, etc.)
+- AKS: `kubectl get cronjobs,jobs` and `kubectl logs job/<name>`
+- GitHub Actions: workflow run status/logs
+- Azure Automation: runbook execution history
 
 ## 5) Incident-Ready Rollback Trigger
 

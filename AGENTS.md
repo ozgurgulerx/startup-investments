@@ -9,14 +9,14 @@ Goals:
 - Make recovery/debug of "site is slow/down" deterministic.
 - Avoid accidental changes that break deploys, auth, or data pipelines.
 
-Last verified: 2026-02-14
+Last verified: 2026-03-07
 
 ## Documentation Source of Truth
 
 Before changing deploy/ops/schedule behavior, read in this order:
 - `docs/OPERATING_MODEL.md` (canonical operating model)
 - `docs/CHANGE_CONTROL.md` (release/change checklist)
-- `infrastructure/vm-cron/crontab` (actual schedule)
+- `infrastructure/kubernetes/pipelines-cronjobs.yaml` (actual AKS schedule)
 
 When cron schedules change, update docs in the same commit and run:
 - `./scripts/verify-operating-model.sh`
@@ -29,7 +29,7 @@ When cron schedules change, update docs in the same commit and run:
 - `packages/analysis`: Python analysis/automation tooling used by workflows (news ingest/digest, etc).
 - `database/migrations`: SQL migrations for Postgres.
 - `infrastructure/kubernetes`: AKS manifests.
-- `.github/workflows`: (intentionally removed) GitHub Actions is not part of the production control plane for this repo.
+- `.github/workflows`: GitHub Actions deploy/control-plane workflows (frontend/backend/functions/pipelines + health checks).
 
 ## Production Architecture (What Talks To What)
 
@@ -161,13 +161,19 @@ Important headers/invariants:
       `upstream_stories[]`, `signal_window_days`.
   - Smoke-test guardrail:
     - Playwright coverage is enforced via the ops canary jobs (AKS/VM) and should also be runnable locally before deploys.
+- Funding timeline dedupe invariants:
+  - `cap_funding_raised` duplicates must be collapsed even when `round_type`/`event_key` is missing.
+  - Fallback fingerprint is startup + region + effective date + normalized funding amount + normalized lead investor.
+  - Keep read-path and write-path dedupe rules aligned (`packages/analysis/src/automation/event_extractor.py` and `apps/api/src/services/news.ts`).
 
 ## Automation (Source of Truth)
 
 Primary scheduled automation is split:
-- **AKS CronJobs** for pipeline jobs (news/events/digests/briefs/benchmarks) to avoid VM availability issues.
-- **VM cron** for deploy orchestration + VM-only tasks (keep-alive, blob sync, crawl-frontier, release reconciliation, Slack summary, etc).
-GitHub Actions workflows are intentionally removed from this repo; do not treat GitHub as an automation control plane (use AKS CronJobs + VM cron).
+- **AKS CronJobs** for pipeline jobs and recurring ops jobs, including `crawl-frontier`, `global-analysis`, `sync-data`,
+  `investigate-seeds`, `daily-observability`, `product-canary`, `slack-summary`, `slack-commit-notify`, and `release-reconciler`.
+- **Azure Automation** for AKS uptime/keep-alive.
+- **GitHub Actions** for deploy orchestration (`deploy-backend.yml`, `deploy-frontend.yml`, `deploy-functions.yml`, `deploy-pipelines.yml`, `migrations.yml`).
+- **VM cron** is decommissioned. `infrastructure/vm-cron/**` remains only as the shared shell-script path reused inside the AKS pipelines image.
 
 AKS pipelines CronJobs:
 - Manifests:
@@ -183,36 +189,26 @@ AKS pipelines CronJobs:
     GPT-5 `responses.*` calls will fail with `PermissionDenied` (missing `.../responses/write`).
     - Kubelet object id: `AZURE_CLI_DISABLE_LOGFILE=1 az aks show -g aistartuptr -n aks-aistartuptr --query identityProfile.kubeletidentity.objectId -o tsv`
     - Account scope: `/subscriptions/.../resourceGroups/rg-openai/providers/Microsoft.CognitiveServices/accounts/aoai-ep-swedencentral02`
-- Deploy: VM job `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (runner: `pipelines-deploy`) (typically auto-triggered by `infrastructure/vm-cron/deploy.sh`).
-  - Post-deploy guardrail: `pipelines-deploy.sh` triggers a `news-ingest` smoke Job (`kubectl create job --from=cronjob/news-ingest ...`)
-    and fails deploy on smoke failure/timeout. Override with `PIPELINES_DEPLOY_SMOKE_NEWS_INGEST=false` (timeout default `35m`, override via `PIPELINES_DEPLOY_SMOKE_TIMEOUT`).
-- VM cutover guardrail: set `BUILDATLAS_VM_CRON_DISABLED_JOBS` in `/etc/buildatlas/.env` (enforced by `infrastructure/vm-cron/lib/runner.sh`)
-  - Additional safety net: `infrastructure/vm-cron/vm-cron-disabled-jobs` can disable jobs on the VM even if `/etc/buildatlas/.env` is misconfigured (prevents accidental double-runs).
-
-VM cron runner:
-- Config: `infrastructure/vm-cron/crontab`
-- Wrapper (locks, timeouts, logs, structured Slack lifecycle events): `infrastructure/vm-cron/lib/runner.sh`
-- Code updater (git pull + triggers deploys): `infrastructure/vm-cron/deploy.sh`
-- Release drift monitor (desired vs live SHA): `infrastructure/vm-cron/jobs/release-reconciler.sh`
-- One-time setup/bootstrap (packages, venv, logrotate, crontab): `infrastructure/vm-cron/setup.sh`
-- VM sanity checks (cron service + crontab contents): `infrastructure/vm-cron/verify.sh`
-- Logs: `/var/log/buildatlas/*.log` on the VM (see `scripts/slack_daily_summary.py` for parsing expectations)
-  - `runner.sh` strips NUL bytes (`\000`) from job stdout/stderr before appending to logs so log-scanners don't treat them as binary.
-  - If you see intermittent `exit 141` in VM cron job logs: this is `SIGPIPE` (often from `tee` writing to a closed/unwritable stdout under cron). `runner.sh` streams to stdout only for operator sessions (TTY/SSH) on the VM; for AKS CronJobs (`BUILDATLAS_RUNNER=aks-cronjob`), it also streams to stdout so `kubectl logs` works. `runner.sh` logs `PIPESTATUS` on failures for faster root-cause.
-  - `runner.sh` sets `AZURE_CONFIG_DIR` per job run to isolate Azure CLI auth state (prevents cross-job `az login` races).
-  - `heartbeat.sh` scans logs in text mode (`grep -a`) so occasional NUL bytes won't break freshness detection.
-  - Product surface canary:
-    - `product-canary` runs every 30 minutes (`17,47 * * * *`) and validates:
-      - brief snapshot schema (includes `verticalLandscape` + `capitalGraph`),
-      - landscapes surfaces (`/api/v1/landscapes` + `/api/v1/landscapes/cluster`) (global must return data; Turkey warn-only),
-      - Investor DNA screener (`/api/v1/investors/screener`) (warn if empty),
-      - deep dives have at least one `ready` item (`/api/v1/deep-dives`).
-    - State file: `/var/lib/buildatlas/product-canary.state` (fallback: `$REPO_DIR/.tmp/product-canary.state`).
+- Deploy: GitHub Actions `deploy-pipelines.yml`.
+  - The workflow also keeps `buildatlas-pipelines-secrets` current, applies `pipelines-configmap.yaml` +
+    `pipelines-cronjobs.yaml`, and deploys the manual `global-analysis` Job template.
+AKS runner/runtime notes:
+- Shared wrapper: `infrastructure/vm-cron/lib/runner.sh`
+- `runner.sh` strips NUL bytes (`\000`) from job stdout/stderr before appending to logs so log-scanners don't treat them as binary.
+- For AKS CronJobs (`BUILDATLAS_RUNNER=aks-cronjob`), `runner.sh` streams stdout so `kubectl logs` works and logs `PIPESTATUS` on failures for faster root-cause.
+- `runner.sh` sets `AZURE_CONFIG_DIR` per job run to isolate Azure CLI auth state (prevents cross-job `az login` races when Azure CLI is available).
+- Product surface canary:
+  - `product-canary` runs every 30 minutes (`17,47 * * * *`) on AKS and validates:
+    - brief snapshot schema (includes `verticalLandscape` + `capitalGraph`),
+    - landscapes surfaces (`/api/v1/landscapes` + `/api/v1/landscapes/cluster`) (global must return data; Turkey warn-only),
+    - Investor DNA screener (`/api/v1/investors/screener`) (warn if empty),
+    - deep dives have at least one `ready` item (`/api/v1/deep-dives`).
+  - State is persisted in `pipeline_runtime_state` (migration `079_pipeline_runtime_state.sql`) with file fallback only if DB is unavailable.
   - `crawl-frontier` runs every 30 minutes with a **40 minute** runner timeout (`runner.sh crawl-frontier 40 ...`) to avoid recurring timeout kills during large frontier seeding windows.
   - `crawl-frontier` now uses **chunked resumable seeding**:
     - full reseed is not attempted on every cycle,
     - seed runs on interval (`CRAWL_FRONTIER_SEED_INTERVAL_HOURS`, default 6h) or resume cursor,
-    - state files live under `/var/lib/buildatlas` (`crawl-frontier.seed.cursor`, `crawl-frontier.seed.last`),
+    - seed cursor/last-run state now lives in `pipeline_runtime_state` (with file fallback only when DB is unavailable),
     - worker execution still proceeds if seed chunk fails/times out.
   - Frontier telemetry:
     - Each frontier URL crawl attempt is persisted to `crawl_logs` (with `canonical_url`, `fetch_method`, `proxy_tier`, `error_category`, and optional `capture_id`) so `/api/admin/monitoring/frontier` can report 24h success/error rates.
@@ -222,8 +218,7 @@ VM cron runner:
   - API runtime telemetry (admin-only):
     - Middleware: `apps/api/src/monitoring/runtime_metrics.ts` records rolling per-minute request counts/status/latency buckets.
     - Admin endpoint: `/api/admin/monitoring/runtime?window_min=10` returns a snapshot plus DB pool stats (`getPoolStats()`).
-  - VM `infrastructure/vm-cron/monitoring/heartbeat.sh` and `infrastructure/vm-cron/jobs/health-report.sh` consume this endpoint for SLO-style alerting.
-  - AKS Cron health diagnostics in `health-report.sh` track latest and previous Job outcomes per CronJob and explicitly flag consecutive failures.
+  - AKS Cron health diagnostics remain visible via `kubectl get cronjobs,jobs` and the admin monitoring endpoints.
   - Raw captures (WARC-lite):
     - `crawl_raw_captures` stores envelope metadata for replay and optionally uploads the compressed body to Blob Storage under `crawl-snapshots/raw-captures/...`.
     - If Blob upload auth is misconfigured (e.g., `AuthorizationFailure`), the worker **fail-opens**: it disables further blob uploads for that run (to avoid log spam) and continues recording DB metadata with `body_blob_path=NULL`.
@@ -272,66 +267,50 @@ VM cron runner:
     - Manifest: `infrastructure/kubernetes/posthog-usage-cronjob.yaml`
     - Image: `aistartuptr.azurecr.io/buildatlas-ops:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time) (built from `infrastructure/ops/Dockerfile`)
     - Secrets: Kubernetes `buildatlas-ops-secrets` (`slack-webhook-url`, `posthog-project-id`, `posthog-personal-api-key`, optional `posthog-host`)
-    - Deploy (primary): VM job `pipelines-deploy` (best effort) builds `buildatlas-ops` + `buildatlas-playwright-canary` and applies ops CronJobs.
-    - Deploy (manual fallback): apply the manifest from an operator environment that can reach the AKS control plane (typically the VM).
-- VM time: the VM is configured to `Etc/UTC` and `infrastructure/vm-cron/crontab` times are **UTC** (Istanbul is `UTC+3`).
-- Git safety: git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock` to avoid races (e.g. `code-update` vs `slack-commit-notify`).
-- Cron safety: the BuildAtlas schedule must be installed only for the `buildatlas` user. Root crontab must not contain the BuildAtlas block (detect via `sudo crontab -l`; clear via `sudo crontab -r` only if it contains only BuildAtlas entries).
-- VM repo safety: run git operations as `buildatlas` (avoid `sudo git ...`). If `deploy.sh` fails to stash/pull with `Cannot save the current status`, it is often due to root-owned `.git/refs/stash` or other `.git/**` paths; fix with `sudo chown -R buildatlas:buildatlas /opt/buildatlas/startup-analysis/.git`. Consider `git config core.filemode false` on the VM to avoid local `chmod +x` making the repo perpetually dirty.
+    - Deploy (primary): GitHub Actions `deploy-pipelines.yml` builds `buildatlas-ops` + `buildatlas-playwright-canary` and applies ops CronJobs.
+    - Deploy (manual fallback): apply the manifest from an operator environment that can reach the AKS control plane.
 - DB migration safety:
   - `infrastructure/vm-cron/jobs/apply-migrations.sh` provides a VM-local `flock` lock (defaults to `$REPO_DIR/.tmp/db-migrations.lock`, configurable via `BUILDATLAS_MIGRATIONS_LOCK_FILE` + `BUILDATLAS_MIGRATIONS_LOCK_WAIT_SECONDS`).
   - `scripts/apply_migrations.py` is the single source of truth for migration sets and enforces a Postgres advisory lock + transient DDL retry (works across VM + AKS CronJobs).
-- VM access (for manual deploy/debug):
-  - Preferred: `./infrastructure/vm-cron/ssh-update-ip.sh`
-    - Auto-discovers the VM’s NIC/subnet NSGs and creates/updates an `AllowSSH` rule to your current public IP, then SSHs into the VM.
-  - Manual SSH:
-    - Get IP: `AZURE_CLI_DISABLE_LOGFILE=1 az vm show -g aistartuptr -n vm-buildatlas-cron --show-details --query publicIps -o tsv`
-    - Connect: `ssh buildatlas@<vm_ip>`
-  - No-SSH option (run a command remotely):
-    - `AZURE_CLI_DISABLE_LOGFILE=1 az vm run-command invoke -g aistartuptr -n vm-buildatlas-cron --command-id RunShellScript --scripts "<cmd>" --query "value[0].message" -o tsv`
-    - If it returns `(Conflict) Run command extension execution is in progress`, use SSH instead (RunCommand can get stuck busy).
 - Slack notifications:
-  - Set `SLACK_WEBHOOK_URL` (or legacy `SLACK_WEBHOOK`) in `/etc/buildatlas/.env`.
-  - Optional success notifications for selected jobs via `SLACK_NOTIFY_SUCCESS_JOBS` (see `infrastructure/vm-cron/.env.example`). In production we typically keep this as a high-signal subset (often excluding `keep-alive` / `crawl-frontier`) to avoid spam; add them if you want “continuous” Slack pings.
-  - Optional start notifications via `SLACK_NOTIFY_START_JOBS` (default: `frontend-deploy,backend-deploy,functions-deploy,sync-data,code-update,news-digest`).
+  - Set `SLACK_WEBHOOK_URL` (or legacy `SLACK_WEBHOOK`) in the relevant runtime secret source (AKS pipelines secret or GitHub Actions secret).
+  - Optional success notifications for selected jobs via `SLACK_NOTIFY_SUCCESS_JOBS` (see `infrastructure/vm-cron/.env.example` for env naming; the same vars are consumed in AKS).
+  - Optional start notifications via `SLACK_NOTIFY_START_JOBS`.
   - Runner sends structured context (`event_type`, `phase`, `run_id`, `job`, `sha`, `duration_sec`, `exit_code`, `log`) in `SLACK_CONTEXT_JSON`.
   - Commit notifications (primary path):
-    - VM cron job `slack-commit-notify` (see `infrastructure/vm-cron/jobs/slack-commit-notify.sh`) polls `origin/main` and posts Slack notifications.
-    - Cursor file is stored under `/var/lib/buildatlas/slack-commit-notify.main.last` (or `$REPO_DIR/.tmp` fallback).
+    - AKS CronJob `slack-commit-notify` (using `infrastructure/vm-cron/jobs/slack-commit-notify.sh`) polls `origin/main` and posts Slack notifications.
+    - Cursor state is stored in `pipeline_runtime_state` (with file fallback only when DB is unavailable).
     - Opt-out per commit: include `[skip slack]` (or `[no-slack]`) in the commit message.
-  - GitHub dispatch fallback has been removed; ensure a VM Slack webhook is configured.
-  - Quick test (VM -> Slack):
-    - `SLACK_TITLE="Slack test" SLACK_STATUS=info SLACK_BODY="Hello from VM" python3 scripts/slack_notify.py`
-  - VM debugging:
-    - Slack-post failures are appended into the job log (e.g. `/var/log/buildatlas/news-ingest.log`) and `heartbeat.log`.
+  - GitHub dispatch fallback has been removed.
+  - Quick test:
+    - `SLACK_TITLE="Slack test" SLACK_STATUS=info SLACK_BODY="Hello from BuildAtlas" python3 scripts/slack_notify.py`
   - Release reconciliation state:
-    - Cursor/state file: `/var/lib/buildatlas/release-reconciler.state` (or `$REPO_DIR/.tmp` fallback).
+    - Cursor/state is stored in `pipeline_runtime_state` (with file fallback only when DB is unavailable).
     - Drift reminders are controlled by `RELEASE_RECONCILE_ALERT_AFTER_MINUTES` and `RELEASE_RECONCILE_REMINDER_MINUTES`.
 
 Frontend:
-- VM job: `infrastructure/vm-cron/jobs/frontend-deploy.sh` (deploys to App Service `buildatlas-web`).
+- GitHub Actions `deploy-frontend.yml` builds and deploys App Service `buildatlas-web`.
 - Library datasets:
   - `/library` reads file-based newsletters from `DATA_PATH` (default `./data`, see `apps/web/lib/data/index.ts`).
   - `/library` only offers months that have newsletter markdown on disk (`output/comprehensive_newsletter.md` or `output/viral_newsletter.md`) to avoid API/data mismatches.
   - Docker-based App Service deploy must include datasets at `/app/data` (see `apps/web/Dockerfile`).
 
 Backend:
-- VM job: `infrastructure/vm-cron/jobs/backend-deploy.sh` (ACR remote build + `kubectl apply`).
+- GitHub Actions `deploy-backend.yml` builds the API image and deploys to AKS.
   - Common failure modes:
     - Missing secrets (`ADMIN_KEY`, etc).
     - AKS control plane unreachable if the cluster is stopped.
 
 Functions:
-- VM fallback job: `infrastructure/vm-cron/jobs/functions-deploy.sh` (zip deploy + health check).
-  - Auto-triggered by VM `code-update` when `infrastructure/azure-functions/**` or `packages/analysis/**` changes.
+- GitHub Actions `deploy-functions.yml` packages and deploys Azure Functions.
 
 Uptime automation:
 - Azure-native (primary): Azure Automation runbook `buildatlas-aks-ensure-running` (scheduled) starts AKS if stopped and checks API health.
   - IaC: `infrastructure/azure/aks-uptime.bicep` (Automation Account + variables + schedule) + `infrastructure/azure/runbooks/aks-ensure-running.ps1` (runbook content).
-  - Deploy: apply the Bicep from an operator environment (typically the VM) via `az deployment group create ...`.
+  - Deploy: apply the Bicep from an operator environment via `az deployment group create ...`.
   - Automation account: `aa-buildatlas-aks-uptime` (RG `aistartuptr`).
   - Note: `SLACK_WEBHOOK_URL` is stored as an encrypted Automation variable; the runbook only posts to Slack on changes/failures.
-- VM cron fallback: `infrastructure/vm-cron/jobs/keep-alive.sh` (every 15 min) starts AKS if stopped and verifies API health.
+  - Local helper `infrastructure/local/morning-health-check.sh` no longer checks or starts any VM; it only touches live AKS/App Service/Postgres/Redis/storage surfaces.
 
 News:
 - VM jobs:
@@ -445,11 +424,11 @@ News:
   - Runtime: `packages/analysis/src/automation/memory_gate.py` (zero-LLM; regex + DB lookups)
   - Ingest integration: `packages/analysis/src/automation/news_ingest.py` runs the memory gate after clustering and persists results after cluster IDs are created.
   - Deployment invariant:
-    - VM cron `news-ingest` runs `apply-migrations.sh news`; ensure `023_memory_system.sql` is included in the `news` migration set (see `scripts/apply_migrations.py`).
+    - AKS CronJob `news-ingest` runs `apply-migrations.sh news`; ensure `023_memory_system.sql` is included in the `news` migration set (see `scripts/apply_migrations.py`).
     - If the migration is not applied, the pipeline will log `[memory_gate] Load failed (tables may not exist yet)` and skip memory persistence (graceful degradation).
-  - One-time rollout (prod VM):
-    - Apply migrations (after code update): `infrastructure/vm-cron/jobs/apply-migrations.sh news`
-    - Trigger an ingest run: `infrastructure/vm-cron/lib/runner.sh news-ingest 30 infrastructure/vm-cron/jobs/news-ingest.sh`
+  - One-time rollout (prod AKS):
+    - Apply migrations (after code update): GitHub Actions `migrations.yml` or `infrastructure/vm-cron/jobs/apply-migrations.sh news` from an operator environment.
+    - Trigger an ingest run: `kubectl create job --from=cronjob/news-ingest news-ingest-manual-$(date +%s)`.
     - Optional backfill (last N days): `cd packages/analysis && python main.py memory-backfill --days 30 --dry-run` then re-run without `--dry-run`.
   - Verification queries (DB):
     - Tables exist:
@@ -477,10 +456,10 @@ News:
     - Writes attempt telemetry to `startup_onboarding_attempts` (migration: `database/migrations/058_onboarding_pipeline_activation.sql`).
   - Event/crawl/research chain:
     - `onboard_unknown_startups` enqueues refresh jobs (`reason='news_onboard'`) → `crawl-frontier` processes them.
-    - Pipeline scheduler (AKS CronJob `event-processor` via `buildatlas-pipelines`; VM cron fallback) runs `main.py process-events`
+    - Pipeline scheduler (AKS CronJob `event-processor` via `buildatlas-pipelines`) runs `main.py process-events`
       (gated enqueue to `deep_research_queue`).
-    - Pipeline scheduler (AKS CronJob `deep-research`; VM cron fallback) runs `main.py consume-deep-research` (Azure chat-based worker).
-    - Pipeline scheduler (AKS CronJob `onboarding-alerts`; VM cron fallback) runs `main.py dispatch-onboarding-alerts`
+    - Pipeline scheduler (AKS CronJob `deep-research`) runs `main.py consume-deep-research` (Azure chat-based worker).
+    - Pipeline scheduler (AKS CronJob `onboarding-alerts`) runs `main.py dispatch-onboarding-alerts`
       (near-real-time Slack notifications for actionable trace events).
   - Trace + context tables (migration: `database/migrations/063_onboarding_trace_and_context.sql`):
     - `onboarding_trace_events` stores onboarding/deep-research lifecycle events + Slack notification state.
@@ -557,7 +536,10 @@ Materialization step (required for DB-driven filters):
 - The analysis pipeline writes JSON files under `apps/web/data/<period>/output/analysis_store/base_analyses/*.json`.
   - One-shot global onboarding Step 1 now also writes `apps/web/data/<period>/output/analysis_store/progress.json`
     with durable counters (`already_processed`, `delta_total`, `completed`, `successful`, `error_count`,
-    `remaining`, `base_analysis_files`, `latest_startup`, `latest_status`, `elapsed_sec`, `eta_sec`).
+    `remaining`, `base_analysis_files`, `latest_startup`, `latest_stage`, `latest_stage_started_at`,
+    `latest_stage_elapsed_sec`, `elapsed_sec`, `eta_sec`).
+  - `IncrementalProcessor` writes `raw_content/` beside the period-scoped `analysis_store/` (`apps/web/data/<period>/output/raw_content`)
+    so resumable analysis batches stay period-local before the Blob publish step.
   - Restart safety: `packages/analysis/src/data/store.py` reconciles existing `base_analyses/*.json`
     back into `analysis_store/index.json` before computing delta, so relaunches can skip already-analyzed startups
     even if the baked index is stale.
@@ -569,9 +551,12 @@ Materialization step (required for DB-driven filters):
 - To make taxonomy filterable via the backend, we must copy those JSON blobs into Postgres:
   - Command: `python scripts/populate-analysis-data.py --period YYYY-MM`
 - Primary automation:
-  - VM cron `sync-data` runs `apply-migrations.sh startups` and then `populate-analysis-data.py` after syncing blob data.
-  - No GitHub Actions fallback: prefer the VM cron job (or run the command manually on the VM).
-  - Guardrail: `scripts/check-vertical-taxonomy.py` validates `vertical_taxonomy.primary.vertical_id/label` is present; VM `sync-data` will attempt `scripts/backfill-vertical-taxonomy.py --only-incomplete` and re-check before pushing.
+  - AKS CronJob `global-analysis` hydrates the latest global period into scratch space, writes resumable `analysis_store`
+    checkpoints/base analyses back to Blob during the run, and republishes the finished period tree to Blob.
+  - AKS CronJob `sync-data` hydrates all period datasets from Blob into scratch space, runs taxonomy guardrails +
+    Postgres sync, and dispatches `deploy-frontend.yml` via the GitHub API when the Blob dataset manifest changes.
+  - Guardrail: `scripts/check-vertical-taxonomy.py` validates `vertical_taxonomy.primary.vertical_id/label` is present; `sync-data`
+    will attempt `scripts/backfill-vertical-taxonomy.py --only-incomplete` and re-check before syncing DB/frontend.
 
 Quick verification (run on the DB):
 - Count rows with taxonomy:
@@ -659,7 +644,7 @@ Population model/invariants:
 - Legacy fallback (older environments only): `funding_rounds` + `investments` join.
 
 Automation:
-- VM cron job: `infrastructure/vm-cron/jobs/compute-investor-dna.sh` (scheduled in `infrastructure/vm-cron/crontab`)
+- AKS CronJob `compute-investor-dna` runs `infrastructure/vm-cron/jobs/compute-investor-dna.sh`
 - The job computes both **previous** and **current** month for `global` + `turkey` to avoid “empty month” behavior early in the month.
 
 Investor news + onboarding (all-time, no aging):
@@ -677,7 +662,7 @@ Investor news + onboarding (all-time, no aging):
   - Profile table: `investor_profiles`
   - Operator context: `investor_onboarding_context`
   - Enqueue gate (news ingest): `INVESTOR_ONBOARDING_ENQUEUE_ENABLED=true`
-  - Consumer gate: `INVESTOR_ONBOARDING_ENABLED=true` (AKS CronJob `investor-onboarding`, VM fallback script exists)
+  - Consumer gate: `INVESTOR_ONBOARDING_ENABLED=true` (AKS CronJob `investor-onboarding`)
   - Admin context endpoint now accepts either `startupId` or `investorId`:
     `POST /api/admin/v1/onboarding/context` (requires `X-API-Key` + `X-Admin-Key`)
   - Admin monitoring: `GET /api/admin/monitoring/investor-onboarding` (`X-Admin-Key` required)
@@ -727,9 +712,9 @@ Web/UI surfaces:
 
 The daily news email is a **separate pipeline** from ingestion:
 - Ingest/build editions:
-  - VM: `infrastructure/vm-cron/jobs/news-ingest.sh` (primary)
+  - AKS CronJob `news-ingest` using `infrastructure/vm-cron/jobs/news-ingest.sh`
 - Send email:
-  - VM: `infrastructure/vm-cron/jobs/news-digest.sh` (primary)
+  - AKS CronJob `news-digest` using `infrastructure/vm-cron/jobs/news-digest.sh`
 
 Entry points:
 - CLI: `cd packages/analysis && python main.py send-news-digest --region global|turkey|all`
@@ -746,15 +731,15 @@ Common failure mode:
   - Fix: ensure `_resolve_edition_date()` returns `date` objects and DB calls use that date.
 - **Missing subscriber timezone column** (timezone-aware sending):
   - Symptom: `column "timezone" does not exist`
-  - Fix: apply `database/migrations/027_subscriber_timezone.sql` (VM: `infrastructure/vm-cron/jobs/apply-migrations.sh news-digest`)
+  - Fix: apply `database/migrations/027_subscriber_timezone.sql` (`infrastructure/vm-cron/jobs/apply-migrations.sh news-digest`)
 
 Safe test mode:
 - Use `dry_run` to validate the pipeline without sending emails or writing deliveries:
   - CLI: `cd packages/analysis && python main.py send-news-digest --region global --dry-run`
 
 Debug commands:
-- Latest runs (VM):
-  - `tail -200 /var/log/buildatlas/news-digest.log`
+- Latest AKS jobs:
+  - `kubectl logs -n default job/<news-digest-job-name>`
 
 ## Watchlist Intelligence (Alerts + Digests)
 
@@ -766,36 +751,34 @@ Schema/migrations:
 - `database/migrations/055_watchlist_intelligence.sql` (subscriptions + alerts + digests)
 - `database/migrations/065_watchlist_intelligence_dedupe.sql` (idempotency guards; unique indexes)
 
-VM cron jobs:
-- `infrastructure/vm-cron/jobs/delta-generate.sh` (every 4h, staggered after `signal-aggregate`)
-- `infrastructure/vm-cron/jobs/generate-alerts.sh` (every 4h; materializes `user_alerts`)
-- `infrastructure/vm-cron/jobs/generate-weekly-digest.sh` (Mondays 06:35 UTC; creates/updates digest threads)
+AKS CronJobs:
+- `delta-generate` (every 4h, staggered after `signal-aggregate`)
+- `generate-alerts` (every 4h; materializes `user_alerts`)
+- `generate-weekly-digest` (Mondays 06:35 UTC; creates/updates digest threads)
 
 LLM cost guardrail:
 - Alert narratives are **disabled by default** in cron (`--no-narratives`) and can be enabled via:
   - `ALERT_NARRATIVES_ENABLED=true` in `/etc/buildatlas/.env`
   - The UI still shows a deterministic explanation block (`explain`) even without narratives.
 
-## Blob Storage Auth (VM Cron)
+## Blob Storage Auth (AKS Pipelines)
 
 Storage invariants:
 - `buildatlasstorage` has **shared key access disabled** (`allowSharedKeyAccess=false`), so key-based auth
   via `AZURE_STORAGE_CONNECTION_STRING` will fail with `KeyBasedAuthenticationNotPermitted`.
-- VM cron must use **managed identity** (AAD) for blob operations (`DefaultAzureCredential` in `BlobStorageClient`).
-- The VM managed identity needs RBAC:
+- AKS pipelines must use **managed identity** (AAD) for blob operations (`DefaultAzureCredential` in `BlobStorageClient`).
+- The AKS workload identity path (currently kubelet identity) needs RBAC:
   - `Storage Blob Data Reader` (required for `sync-data` reads)
   - `Storage Blob Data Contributor` (required for raw-capture/snapshot writes)
 
 Common failure mode:
 - If the storage account has `publicNetworkAccess=Disabled` and there is no private endpoint/VNet routing,
-  VM cron will not be able to reach the blob data-plane and jobs will log `AuthorizationFailure`.
+  AKS jobs will not be able to reach the blob data-plane and jobs will log `AuthorizationFailure`.
 
 Operational behavior (debugging tips):
-- VM `sync-data` starts with a blob change-detection check (`python -m src.sync.blob_sync --check`).
-  - Exit code `2` means auth/connectivity issues (managed identity RBAC, storage firewall, token propagation).
-  - `infrastructure/vm-cron/jobs/sync-data.sh` retries the check once after re-auth + token warmup to reduce flakiness.
-- `infrastructure/vm-cron/jobs/health-report.sh` only flags "blob sync degraded" if the **latest** `sync-data` run block
-  contains `WARN: Blob storage auth failed (exit code 2)` (prevents old transient failures from paging forever).
+- AKS `sync-data` starts by hashing the Blob period manifest and hydrating datasets into scratch space.
+  - Failures here usually mean identity/RBAC or storage-network reachability problems.
+  - `infrastructure/vm-cron/jobs/sync-data.sh` only dispatches the frontend rebuild when the Blob manifest hash changes.
 
 ## Secrets / Env Vars (What Must Exist)
 
@@ -821,7 +804,7 @@ Frontend (App Service / Next server-side):
 - Microsoft Clarity (public project id): `CLARITY_PROJECT_ID` (repo variable recommended; or a secret if you prefer).
 - `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, etc.
 
-VM cron (`/etc/buildatlas/.env`):
+Pipelines/ops runtime (Kubernetes secrets / App Service settings / GitHub workflow secrets):
 - `SLACK_WEBHOOK_URL` (required for job notifications)
 - Job-specific creds (PostHog query keys, X/Twitter tokens, etc.)
 
@@ -829,8 +812,8 @@ Operational notes:
 - `ADMIN_KEY` is not "provided by Azure". It is a strong random secret you set.
 - If you rotate `API_KEY`/`ADMIN_KEY`, you must update both:
   - AKS secret (via backend deploy) and/or App Service settings (web)
-- GitHub Secrets/Variables may still exist, but primary secrets live in VM/K8s/App Service.
-- X/Twitter automation secrets/env (VM):
+- GitHub Secrets/Variables are active for deploy workflows; runtime secrets live in K8s/App Service.
+- X/Twitter automation secrets/env (AKS pipelines):
   - Required for trend ingest: `X_API_BEARER_TOKEN`
   - Required for posting: `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
   - Feature gates / guardrails:
@@ -861,10 +844,15 @@ On-disk data layout (file-based datasets):
 API behavior and performance implications:
 - Backend API is **region-aware** (`global` + `turkey`) via `startups.dataset_region`.
 - The web app is **API-first** when configured (for both regions) and **falls back to files** when the API is unavailable or the DB is behind deployed datasets.
-- VM cron `sync-data` keeps Postgres in sync with disk datasets (when `DATABASE_URL` is set):
+- AKS CronJob `sync-data` keeps Postgres in sync with Blob-backed period datasets (when `DATABASE_URL` is set):
   - Upsert `startups` + `funding_rounds` from `apps/web/data/**/input/startups.csv` via `scripts/sync-startups-to-db.py` (direct Postgres; avoids Front Door timeouts on admin HTTP sync)
   - The same CSV sync pass also upserts lead-investor graph edges into `capital_graph_edges` and refreshes materialized views when needed.
   - Populate `startups.analysis_data` from `analysis_store` via `scripts/populate-analysis-data.py --region ...`
+  - `sync-data` is publish/sync only; it does not create new base analyses.
+  - The owner job for latest global CSV hydration is AKS CronJob `global-analysis` (every 30 minutes, bounded batches) via
+    `infrastructure/vm-cron/jobs/global-analysis.sh`. It runs `incremental`-style delta processing in scratch space,
+    regenerates `analysis_results.csv`, `startups_enriched_with_analysis.csv`, and `monthly_stats.json`, and republishes
+    the refreshed period snapshot to Blob instead of committing it to git.
 
 Quick checks:
 - `GET /api/periods?region=turkey` should return TR periods when `apps/web/data/tr/**` is deployed.

@@ -3,80 +3,36 @@
 Canonical reference: `docs/OPERATING_MODEL.md`
 Change gate reference: `docs/CHANGE_CONTROL.md`
 
-This file is a quick operational cheatsheet. If anything conflicts, use the canonical document and the scripts themselves.
+This file is a quick operational cheatsheet. If anything conflicts, use the canonical document and the live workflows/manifests.
 
 ## Deployment Ownership
 
-| Surface | Primary Path | Backup Path |
+| Surface | Primary Path | Manual Fallback |
 |---|---|---|
-| Frontend (`apps/web`) | VM cron `infrastructure/vm-cron/jobs/frontend-deploy.sh` | Manual VM run (same job via `runner.sh`) |
-| Backend (`apps/api`) | VM cron `infrastructure/vm-cron/jobs/backend-deploy.sh` | Manual VM run (same job via `runner.sh`) |
-| Functions (`infrastructure/azure-functions`) | VM cron `infrastructure/vm-cron/jobs/functions-deploy.sh` | Manual VM run (same job via `runner.sh`) |
-| Pipelines (`buildatlas-pipelines`) | VM job `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (build+apply) | Manual `kubectl apply` from the VM (patch `__IMAGE_TAG__`) |
-| Data refresh + web publish | VM cron `infrastructure/vm-cron/jobs/sync-data.sh` | Manual VM run (same job via `runner.sh`) |
-| News ingest | AKS CronJob `news-ingest` | `kubectl create job --from=cronjob/news-ingest ...` (or re-enable VM fallback job) |
-| News digest | AKS CronJob `news-digest` | `kubectl create job --from=cronjob/news-digest ...` (or re-enable VM fallback job) |
+| Frontend (`apps/web`) | GitHub Actions `deploy-frontend.yml` | `workflow_dispatch` or manual App Service image update |
+| Backend (`apps/api`) | GitHub Actions `deploy-backend.yml` | `workflow_dispatch` or manual `kubectl apply` with a pinned image tag |
+| Functions (`infrastructure/azure-functions`) | GitHub Actions `deploy-functions.yml` | `workflow_dispatch` or manual Azure Functions deploy |
+| Pipelines (`buildatlas-pipelines`) | GitHub Actions `deploy-pipelines.yml` | Build/push image, then apply `infrastructure/kubernetes/pipelines-*.yaml` with a pinned tag |
+| Database migrations | GitHub Actions `migrations.yml` | `workflow_dispatch` or run `scripts/apply_migrations.py` from an operator environment |
+| Data refresh + publish | AKS CronJob `sync-data` | `kubectl create job --from=cronjob/sync-data ...` |
 
-## VM-triggered Deploy Flow
+## AKS CronJobs
 
-- `infrastructure/vm-cron/deploy.sh` runs every 15 minutes.
-- It pulls latest `main`, ensures crontab drift is corrected, and conditionally triggers:
-  - backend deploy for `apps/api`, `packages/shared`, `infrastructure/kubernetes` changes
-  - frontend deploy for `apps/web`, `packages/shared` changes
-  - functions deploy for `infrastructure/azure-functions/**`, `packages/analysis/**` changes (if enabled)
-  - pipelines deploy for pipeline runtime changes (`packages/analysis/**`, `scripts/**`, `database/migrations/**`, `infrastructure/pipelines/**`, relevant `infrastructure/kubernetes/*.yaml`, `infrastructure/vm-cron/**`)
-
-## Manual Commands (VM)
+- Runtime schedules live in `infrastructure/kubernetes/pipelines-cronjobs.yaml`.
+- One-off execution pattern:
 
 ```bash
-# Backend
-/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
-  backend-deploy 20 \
-  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/backend-deploy.sh
-
-# Frontend
-/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
-  frontend-deploy 25 \
-  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/frontend-deploy.sh
-
-# Functions
-/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
-  functions-deploy 25 \
-  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/functions-deploy.sh
-
-# Pipelines (AKS CronJobs)
-/opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh \
-  pipelines-deploy 30 \
-  /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/pipelines-deploy.sh
+kubectl create job --from=cronjob/product-canary product-canary-manual-$(date +%s)
+kubectl logs -f job/product-canary-manual-<timestamp>
 ```
-
-## Required Backend Deploy Env
-
-- `DATABASE_URL`
-- `API_KEY`
-- `ADMIN_KEY`
-- `FRONT_DOOR_ID`
-
-Optional but recommended:
-- `REDIS_URL`
-- `APPLICATIONINSIGHTS_CONNECTION_STRING`
-- Azure/OpenAI settings used by API features
 
 ## Post-deploy Verification
 
 ```bash
-# API health
+kubectl get cronjobs
 curl -i https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health
-
-# Frontend live
 curl -I https://buildatlas.net
 ```
-
-Logs:
-- `/var/log/buildatlas/backend-deploy.log`
-- `/var/log/buildatlas/frontend-deploy.log`
-- `/var/log/buildatlas/functions-deploy.log`
-- `/var/log/buildatlas/pipelines-deploy.log`
 
 ## Do Not Break
 

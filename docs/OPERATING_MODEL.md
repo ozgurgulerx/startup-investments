@@ -1,6 +1,6 @@
 # BuildAtlas Operating Model
 
-Last updated: 2026-03-05
+Last updated: 2026-03-07
 Document owner: Platform/Operations
 Review cadence: Monthly or immediately after architecture/deploy/schedule changes.
 
@@ -24,8 +24,9 @@ Use this priority order when debugging drift:
   - `apps/api/**`
   - `apps/web/**`
 2. Schedules/workflow definitions:
-  - `infrastructure/vm-cron/crontab`
   - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
+  - `infrastructure/azure/aks-uptime.bicep`
+  - `.github/workflows/*.yml`
 3. Operational memory and invariants:
   - `AGENTS.md`
 4. Human-friendly summaries:
@@ -44,7 +45,9 @@ Use this priority order when debugging drift:
 | Primary data store | Azure Postgres Flexible Server | Private | Application and pipeline state |
 | Cache (optional) | Azure Redis | Internal | API response caching |
 | Pipeline automation | AKS CronJobs (`buildatlas-pipelines`) | Internal | Primary scheduled jobs (news/events/digests/briefs/benchmarks) |
-| Deploy + VM-only automation | Azure VM cron (`vm-buildatlas-cron`) | Internal | Deploy orchestration, keep-alive, blob sync, crawl-frontier, Slack summaries |
+| Scheduled pipelines + ops | AKS CronJobs (`buildatlas-pipelines`) | Internal | News/events/digests plus crawl-frontier, global-analysis, sync-data, observability, release reconciliation |
+| Uptime guard | Azure Automation | Internal | Starts AKS when stopped and verifies API health |
+| Deploy orchestration | GitHub Actions | Internal | Frontend/backend/functions/pipelines deploy control plane |
 | Image build/registry | Azure Container Registry | Internal | Remote image builds for web/api |
 | Dataset ingress | Azure Blob Storage | Internal | Source of `apps/web/data/**` sync jobs |
 
@@ -61,7 +64,7 @@ Use this priority order when debugging drift:
 - Product experience chain:
   - App Service -> Front Door -> AKS API -> Postgres.
 - Data freshness chain:
-  - Blob data -> `sync-data` cron -> Postgres + `apps/web/data/**` commit -> `frontend-deploy`.
+  - `global-analysis` AKS CronJob -> Blob-backed period dataset + resumable `analysis_store` checkpoints -> `sync-data` AKS CronJob -> Postgres sync + frontend rebuild dispatch.
 - News delivery chain:
   - `news-ingest` -> enrich/cluster -> `news-digest` -> subscriber delivery.
 
@@ -103,7 +106,7 @@ Pipelines are deployed into AKS as CronJobs to avoid VM availability issues:
   - Azure OpenAI is AAD-only in production (`disableLocalAuth=true`). Pipelines must run with an identity that has the
     `Cognitive Services OpenAI User` role on the Azure OpenAI account scope (AKS defaults to the kubelet identity).
 - Deploy:
-  - VM job: `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (runner: `pipelines-deploy`)
+  - GitHub Actions `deploy-pipelines.yml`
 
 ### Azure-native uptime guard (preferred)
 
@@ -111,21 +114,18 @@ AKS availability is primarily protected via an Azure Automation runbook (indepen
 
 - IaC: `infrastructure/azure/aks-uptime.bicep` (Automation Account + variables + schedule)
 - Runbook: `infrastructure/azure/runbooks/aks-ensure-running.ps1`
-- Deploy: apply the Bicep from an operator environment (typically the VM) using `az deployment group create ...` (see `infrastructure/azure/aks-uptime.bicep` for params/variables).
+- Deploy: apply the Bicep from an operator environment using `az deployment group create ...` (see `infrastructure/azure/aks-uptime.bicep` for params/variables).
 - Slack: webhook is stored as an encrypted Automation variable `SLACK_WEBHOOK_URL` (runbook posts only on changes/failures)
 
-### Deploy/orchestration control plane: VM cron (legacy, being decommissioned)
+### VM decommission status
 
-Deploy orchestration has moved to GitHub Actions (see below). The VM cron deploy jobs
-(`code-update`, `backend-deploy`, `frontend-deploy`, `pipelines-deploy`, `functions-deploy`)
-are disabled via `infrastructure/vm-cron/vm-cron-disabled-jobs`.
+`vm-buildatlas-cron` is decommissioned. Production ownership is split across:
 
-The VM still runs:
-- `sync-data.sh` — blob sync + git commit + triggers `gh workflow run deploy-frontend.yml`
-- `keep-alive.sh` — starts stopped Azure resources
-- `heartbeat.sh` — VM self-monitoring
-- `health-report.sh` — periodic health summary
-- `product-canary.sh` — browser canary checks
+- AKS CronJobs for recurring data/pipeline/ops execution,
+- Azure Automation for AKS uptime,
+- GitHub Actions for deploy orchestration and health checks.
+
+The `infrastructure/vm-cron/**` paths remain in-repo because the AKS pipelines image reuses the shared shell jobs and runner.
 
 ### GitHub Actions
 
@@ -135,7 +135,7 @@ GitHub Actions is the primary CI/CD control plane for deploys and checks:
 |---|---|---|
 | `ci.yml` | PR to `main` | Lint, typecheck, tests, build check |
 | `deploy-backend.yml` | Push to `main` (`apps/api/**`, `packages/shared/**`) | Build API image, deploy to AKS, health check + rollback |
-| `deploy-frontend.yml` | Push to `main` (`apps/web/**`, `packages/shared/**`) + `workflow_dispatch` | Build web image, deploy to App Service, smoke check |
+| `deploy-frontend.yml` | Push to `main` (`apps/web/**`, `packages/shared/**`) + `workflow_dispatch` | Hydrate Blob-backed datasets, build web image, deploy to App Service, smoke check |
 | `deploy-pipelines.yml` | Push to `main` (`packages/analysis/**`, `scripts/**`, etc.) | Build pipeline images, apply CronJobs to AKS |
 | `deploy-functions.yml` | Push to `main` (`infrastructure/azure-functions/**`) | Package and deploy Azure Functions |
 | `migrations.yml` | Push to `main` (`database/migrations/**`) | Apply database migrations |
@@ -149,7 +149,6 @@ Authentication: Azure OIDC (federated credentials from GitHub to Azure AD app re
 
 | Surface | Secret source | Notes |
 |---|---|---|
-| VM cron jobs | `/etc/buildatlas/.env` | Loaded by `runner.sh` |
 | API pods | Kubernetes secret `startup-investments-secrets` | Refreshed in `backend-deploy.sh` |
 | AKS ops CronJobs | Kubernetes secret `buildatlas-ops-secrets` | Ops-only scheduled tasks (keep isolated from API secrets) |
 | AKS pipelines CronJobs | Kubernetes secret `buildatlas-pipelines-secrets` + configmap `buildatlas-pipelines-config` | Pipeline runtime env + toggles |
@@ -162,9 +161,9 @@ Authentication: Azure OIDC (federated credentials from GitHub to Azure AD app re
 - Frontend deploy path:
   - `DATABASE_URL`, `API_KEY`, auth/email vars as required by deployed features.
 
-## 7) VM Cron Operations
+## 7) Shared Runner Operations
 
-Source schedule: `infrastructure/vm-cron/crontab` (all UTC).
+Primary schedule source: `infrastructure/kubernetes/pipelines-cronjobs.yaml` (UTC).
 
 ### Wrapper guarantees (`infrastructure/vm-cron/lib/runner.sh`)
 
@@ -175,15 +174,10 @@ Source schedule: `infrastructure/vm-cron/crontab` (all UTC).
 - Azure CLI state isolation per job run (`AZURE_CONFIG_DIR`) to avoid cross-job races,
 - Slack lifecycle notifications.
 
-### Git race prevention
-
-Git operations across cron jobs are serialized via `/tmp/buildatlas-git.lock`.
-
 ### Logging and telemetry
 
-- Job logs: `/var/log/buildatlas/*.log`
-- VM health telemetry: `/var/log/buildatlas/heartbeat.log`
-- Drift/availability alerts: heartbeat + release reconciler + health report + product canary + Slack dispatch.
+- AKS job logs: `kubectl logs job/<name>`
+- Drift/availability alerts: Azure Automation uptime guard + GitHub `health-check.yml` + AKS `product-canary` + release reconciliation + browser canary.
 
 ## 7.1) AKS Ops CronJobs
 
@@ -199,8 +193,8 @@ Some ops tasks run as AKS CronJobs to avoid VM availability issues.
     - `posthog-project-id`
     - `posthog-personal-api-key`
     - optional: `posthog-host`
-  - Deploy (primary): `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (best effort) builds `buildatlas-ops` and applies the rendered CronJob manifests.
-  - Deploy (manual fallback): apply `infrastructure/kubernetes/posthog-usage-cronjob.yaml` from an operator environment that can reach the AKS control plane (typically the VM), patching `__IMAGE_TAG__` to a concrete image tag.
+  - Deploy (primary): GitHub Actions `deploy-pipelines.yml` builds `buildatlas-ops` and applies the rendered CronJob manifests.
+  - Deploy (manual fallback): apply `infrastructure/kubernetes/posthog-usage-cronjob.yaml` from an operator environment that can reach the AKS control plane, patching `__IMAGE_TAG__` to a concrete image tag.
   - One-off run:
     - `kubectl create job -n default --from=cronjob/posthog-usage-summary posthog-usage-summary-manual-<id>`
 
@@ -213,7 +207,7 @@ Some ops tasks run as AKS CronJobs to avoid VM availability issues.
   - Reliability behavior:
     - Best-effort telemetry: if PostHog times out / is temporarily unavailable, the job logs a warning and exits `0` (to avoid noisy failed Jobs).
     - Query knobs: `POSTHOG_TIMEOUT_SEC`, `POSTHOG_RETRIES` (set in the manifest).
-  - Deploy: same as PostHog usage summary (via `pipelines-deploy.sh`, or manual apply)
+  - Deploy: same as PostHog usage summary (via `deploy-pipelines.yml`, or manual apply)
 
 - Browser canary (Landscapes):
   - Resource: `CronJob/browser-canary-landscapes` (namespace `default`)
@@ -223,8 +217,8 @@ Some ops tasks run as AKS CronJobs to avoid VM availability issues.
   - Secret: `Secret/buildatlas-ops-secrets` with:
     - `slack-webhook-url`
   - Retry knobs (set in the manifest): `UI_MAX_ATTEMPTS`, `GOTO_MAX_ATTEMPTS`
-  - Deploy (primary): `infrastructure/vm-cron/jobs/pipelines-deploy.sh` (best effort) builds `buildatlas-playwright-canary` and applies the rendered CronJob manifest.
-  - Deploy (manual fallback): apply `infrastructure/kubernetes/playwright-canary-cronjob.yaml` from an operator environment that can reach the AKS control plane (typically the VM), patching `__IMAGE_TAG__` to a concrete image tag.
+  - Deploy (primary): GitHub Actions `deploy-pipelines.yml` builds `buildatlas-playwright-canary` and applies the rendered CronJob manifest.
+  - Deploy (manual fallback): apply `infrastructure/kubernetes/playwright-canary-cronjob.yaml` from an operator environment that can reach the AKS control plane, patching `__IMAGE_TAG__` to a concrete image tag.
 
 ## 7.2) AKS Pipelines CronJobs
 
@@ -236,21 +230,17 @@ run in AKS as CronJobs.
   - `infrastructure/kubernetes/pipelines-cronjobs.yaml`
 - Image: `aistartuptr.azurecr.io/buildatlas-pipelines:<git-sha>` (pinned; manifest uses `__IMAGE_TAG__` patched at deploy time; VM layout under `/opt/buildatlas/...` to reuse scripts)
 - Runner semantics: uses `infrastructure/vm-cron/lib/runner.sh` for locks/timeouts + Slack lifecycle notifications.
-- VM duplicate-run prevention:
-  - Set `BUILDATLAS_VM_CRON_DISABLED_JOBS=<comma-separated job names>` in `/etc/buildatlas/.env`
-  - `runner.sh` exits early with `SKIP:` for disabled jobs.
 
 ## 8) Cron Schedule Inventory (UTC)
 
-Note: the same job names appear in both the VM crontab and AKS CronJobs manifests.
-After AKS cutover, the VM schedule should be treated as fallback-only and disabled via
-`BUILDATLAS_VM_CRON_DISABLED_JOBS` to prevent duplicate runs.
+This inventory is derived from `infrastructure/kubernetes/pipelines-cronjobs.yaml`.
+`keep-alive` is owned separately by Azure Automation, and the legacy VM-only `health-report` / `heartbeat`
+checks are retired.
 
 ### Scheduled jobs
 
 | Job | Schedule (UTC) | Timeout (min) | Script |
 |---|---|---:|---|
-| `keep-alive` | `*/15 * * * *` | 20 | `infrastructure/vm-cron/jobs/keep-alive.sh` |
 | `news-ingest` | `15 * * * *` | 30 | `infrastructure/vm-cron/jobs/news-ingest.sh` |
 | `x-trends` | `28 * * * *` | 20 | `infrastructure/vm-cron/jobs/x-trends.sh` |
 | `event-processor` | `5,20,35,50 * * * *` | 10 | `infrastructure/vm-cron/jobs/event-processor.sh` |
@@ -279,29 +269,27 @@ After AKS cutover, the VM schedule should be treated as fallback-only and disabl
 | `compute-investor-dna` | `0 5 2 * *` | 30 | `infrastructure/vm-cron/jobs/compute-investor-dna.sh` |
 | `digest-qa` | `50 */3 * * *` | 10 | `infrastructure/vm-cron/jobs/digest-qa.sh` |
 | `product-canary` | `17,47 * * * *` | 5 | `infrastructure/vm-cron/jobs/product-canary.sh` |
-| `health-report` | `45 0,4,8,12,16,20 * * *` | 10 | `infrastructure/vm-cron/jobs/health-report.sh` |
 | `daily-observability` | `0 9 * * *` | 10 | `infrastructure/vm-cron/jobs/daily-observability.sh` |
 | `onboarding-eod-report` | `0 20 * * *` | 10 | `infrastructure/vm-cron/jobs/onboarding-eod-report.sh` |
 | `slack-summary` | `0 */3 * * *` | 10 | `infrastructure/vm-cron/jobs/slack-summary.sh` |
 | `slack-commit-notify` | `*/2 * * * *` | 5 | `infrastructure/vm-cron/jobs/slack-commit-notify.sh` |
 | `release-reconciler` | `*/5 * * * *` | 5 | `infrastructure/vm-cron/jobs/release-reconciler.sh` |
+| `global-analysis` | `10,40 * * * *` | 20 | `infrastructure/vm-cron/jobs/global-analysis.sh` |
 | `sync-data` | `0,30 * * * *` | 45 | `infrastructure/vm-cron/jobs/sync-data.sh` |
-| `code-update` | `7,22,37,52 * * * *` | 45 | `infrastructure/vm-cron/deploy.sh` |
-| `heartbeat` | `*/5 * * * *` | N/A (direct) | `infrastructure/vm-cron/monitoring/heartbeat.sh` |
 
 Notes:
-- `theinformation-headlines` is intentionally disabled in VM cron while source fetch reliability is being hardened; run manually via `infrastructure/vm-cron/jobs/seed-theinformation-headlines.sh` when needed.
-- `onboarding-eod-report` runs as an AKS CronJob (primary) and posts to Slack; it can also email the same report (best-effort) when `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO` are configured (AKS secret or VM env). The VM schedule is fallback-only and should be disabled via `infrastructure/vm-cron/vm-cron-disabled-jobs` to avoid duplicate posts.
+- `theinformation-headlines` is intentionally unscheduled while source fetch reliability is being hardened; run manually via `infrastructure/vm-cron/jobs/seed-theinformation-headlines.sh` when needed.
+- `onboarding-eod-report` runs as an AKS CronJob and can also email the same report (best-effort) when `RESEND_API_KEY` + `METRICS_REPORT_EMAIL_TO` are configured.
 
 ### Triggered (not scheduled) jobs
 
 | Job | Trigger |
 |---|---|
-| `deploy-backend.yml` | Push to `main` (`apps/api/**`, `packages/shared/**`) or `workflow_dispatch` |
-| `deploy-frontend.yml` | Push to `main` (`apps/web/**`, `packages/shared/**`), `workflow_dispatch`, or `sync-data.sh` via `gh workflow run` |
-| `deploy-functions.yml` | Push to `main` (`infrastructure/azure-functions/**`) or `workflow_dispatch` |
-| `deploy-pipelines.yml` | Push to `main` (analysis/scripts/infra paths) or `workflow_dispatch` |
-| `migrations.yml` | Push to `main` (`database/migrations/**`) or `workflow_dispatch` |
+| deploy-backend.yml | Push to `main` (`apps/api/**`, `packages/shared/**`) or `workflow_dispatch` |
+| deploy-frontend.yml | Push to `main` (`apps/web/**`, `packages/shared/**`), `workflow_dispatch`, or `sync-data.sh` via `gh workflow run` |
+| deploy-functions.yml | Push to `main` (`infrastructure/azure-functions/**`) or `workflow_dispatch` |
+| deploy-pipelines.yml | Push to `main` (analysis/scripts/infra paths) or `workflow_dispatch` |
+| migrations.yml | Push to `main` (`database/migrations/**`) or `workflow_dispatch` |
 
 ## 9) Pipeline Maps
 
@@ -320,7 +308,7 @@ Flow:
 Key risk controls:
 - migration idempotency in `apply-migrations.sh`,
 - digest metrics reporting for sent/skipped/failed,
-- hourly ingest cadence + keep-alive/health-report monitoring.
+- hourly ingest cadence + GitHub/AKS monitoring.
 
 ### B) Event -> deep research pipeline
 
@@ -354,7 +342,7 @@ Flow:
    - when forced (`CRAWL_FRONTIER_FORCE_SEED=true`),
    - when resuming cursor state,
    - or when interval elapsed (`CRAWL_FRONTIER_SEED_INTERVAL_HOURS`, default 6h).
-4. Persist/advance seed cursor in `/var/lib/buildatlas/crawl-frontier.seed.cursor`.
+4. Persist/advance seed cursor in `pipeline_runtime_state` (file fallback only if DB is unavailable).
 5. Run frontier worker (`src.crawl_runtime.worker`) every cycle.
 
 Key risk controls:
@@ -425,10 +413,11 @@ Key risk controls:
 ### Standard release path
 
 1. Merge to `main`.
-2. Wait for `code-update` cron (or run manual job).
-3. Confirm deploy logs:
-   - `/var/log/buildatlas/frontend-deploy.log`
-   - `/var/log/buildatlas/backend-deploy.log`
+2. Confirm the relevant GitHub Actions deploy workflow succeeds.
+3. Confirm runtime health and AKS CronJob status:
+   - `gh run list --workflow deploy-backend.yml --limit 1`
+   - `gh run list --workflow deploy-frontend.yml --limit 1`
+   - `kubectl get cronjobs,jobs -n default`
 4. Verify health:
    - `curl -i https://startupapi-f7gfbpbtbtfqdmdv.b02.azurefd.net/health`
    - `curl -I https://buildatlas.net`
@@ -446,9 +435,9 @@ Key risk controls:
   - automatic rollback is attempted by `backend-deploy.sh` when health checks fail.
   - if needed manually: set previous image on deployment and monitor rollout.
 - Frontend:
-  - redeploy a known good commit/image via VM deploy path.
+  - redeploy a known good commit/image via GitHub Actions or App Service container rollback.
 - Data:
-  - use git history for `apps/web/data/**` and rerun `sync-data` path carefully.
+  - use Blob-backed period artifacts plus the `sync-data` path carefully.
 
 Always prefer restoring service availability first, then perform root-cause analysis.
 
@@ -464,7 +453,7 @@ Always prefer restoring service availability first, then perform root-cause anal
 
 1. Confirm symptom with direct checks (`/health`, frontend HTTP status).
 2. Identify failing layer (web, edge, AKS, DB, cron, pipeline).
-3. Check latest relevant logs under `/var/log/buildatlas/`.
+3. Check latest relevant GitHub Actions logs, `kubectl logs`, and admin monitoring endpoints.
 4. Mitigate quickly (restart/redeploy/start stopped service).
 5. Post incident status in Slack.
 
@@ -474,15 +463,15 @@ Always prefer restoring service availability first, then perform root-cause anal
 |---|---|
 | Frontend slow due API fallback | Verify API health and AKS power state; restore API path |
 | API unreachable | Check AKS state and rollout health; verify secrets/header invariants |
-| Cron jobs stale | Check cron service, heartbeat alerts, and lock files |
-| Data not refreshing | Inspect `sync-data.log`, git push status, and triggered frontend deploy |
-| Digest not sending | Inspect `news-digest.log` metrics and email env variables |
+| Cron jobs stale | Check `kubectl get cronjobs,jobs`, CronJob events, and `product-canary` / `release-reconciler` signals |
+| Data not refreshing | Inspect `sync-data` / `global-analysis` job logs, Blob period artifacts, and the triggered frontend deploy |
+| Digest not sending | Inspect `news-digest` job logs and email env variables |
 
 ## 12) Change Management and Safe Delivery
 
 Before merging production-impacting changes:
 
-1. Identify impacted control plane(s): VM cron, workflows, runtime service(s).
+1. Identify impacted control plane(s): AKS CronJobs, Azure Automation, GitHub Actions, runtime service(s).
 2. Validate invariants in Section 4.
 3. Run area-specific checks:
    - web: `pnpm --filter web type-check` and `pnpm --filter web build`
@@ -492,7 +481,7 @@ Before merging production-impacting changes:
    - ensure idempotent behavior,
    - ensure inclusion in `apply-migrations.sh` path.
 5. For cron changes:
-   - update `infrastructure/vm-cron/crontab`,
+   - update `infrastructure/kubernetes/pipelines-cronjobs.yaml`,
    - update this document,
    - run doc drift check script.
 6. Update docs in same PR when behavior/ops expectations change.
@@ -507,16 +496,16 @@ Run this before merging schedule-related changes:
 ./scripts/verify-operating-model.sh
 ```
 
-This checks that cron job names in `infrastructure/vm-cron/crontab` are represented in `docs/OPERATING_MODEL.md`.
+This checks that CronJob names in `infrastructure/kubernetes/pipelines-cronjobs.yaml` are represented in `docs/OPERATING_MODEL.md`.
 Treat this script as the canonical guardrail (also runnable via `pnpm ops:verify-docs`).
 
 ## 14) Canonical Files for Validation
 
-- `infrastructure/vm-cron/crontab`
+- `infrastructure/kubernetes/pipelines-cronjobs.yaml`
 - `infrastructure/vm-cron/lib/runner.sh`
-- `infrastructure/vm-cron/deploy.sh`
-- `infrastructure/vm-cron/jobs/frontend-deploy.sh`
-- `infrastructure/vm-cron/jobs/backend-deploy.sh`
+- `.github/workflows/deploy-frontend.yml`
+- `.github/workflows/deploy-backend.yml`
+- `.github/workflows/deploy-pipelines.yml`
 - `infrastructure/vm-cron/jobs/sync-data.sh`
 - `infrastructure/vm-cron/jobs/news-ingest.sh`
 - `infrastructure/vm-cron/jobs/news-digest.sh`
