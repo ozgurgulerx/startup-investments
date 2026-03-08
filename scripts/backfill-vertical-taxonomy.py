@@ -14,17 +14,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 
+WEB_DATA_ROOT = Path(os.environ.get("WEB_DATA_ROOT_OVERRIDE") or "apps/web/data")
+
+
 def _analysis_dir(period: str, region: str) -> Path:
     region = region.strip().lower()
     if region in ("tr", "turkey"):
-        return Path("apps/web/data/tr") / period / "output" / "analysis_store" / "base_analyses"
+        return WEB_DATA_ROOT / "tr" / period / "output" / "analysis_store" / "base_analyses"
     if region in ("global", ""):
-        return Path("apps/web/data") / period / "output" / "analysis_store" / "base_analyses"
+        return WEB_DATA_ROOT / period / "output" / "analysis_store" / "base_analyses"
     raise SystemExit(f"Unsupported region: {region} (expected global|tr)")
 
 

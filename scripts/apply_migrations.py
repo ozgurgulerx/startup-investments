@@ -8,7 +8,7 @@ Usage:
   python scripts/apply_migrations.py <migration-set>
 
 Sets:
-  news, crawl, news-digest, startups, performance, research, benchmarks, all
+  news, crawl, news-digest, startups, performance, research, benchmarks, investigation, all
 """
 
 from __future__ import annotations
@@ -117,6 +117,8 @@ SETS: dict[str, list[str]] = {
         "076_startup_events_evidence_ids_gin.sql",
         "077_funding_timeline_dedupe.sql",
         "078_crawl_frontier_depth_telemetry.sql",
+        "079_pipeline_runtime_state.sql",
+        "080_funding_timeline_missing_round_dedupe.sql",
         # X/Twitter trend intelligence + automated posting queue
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
@@ -140,6 +142,8 @@ SETS: dict[str, list[str]] = {
         "076_startup_events_evidence_ids_gin.sql",
         "077_funding_timeline_dedupe.sql",
         "078_crawl_frontier_depth_telemetry.sql",
+        "079_pipeline_runtime_state.sql",
+        "080_funding_timeline_missing_round_dedupe.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -199,6 +203,8 @@ SETS: dict[str, list[str]] = {
         "076_startup_events_evidence_ids_gin.sql",
         "077_funding_timeline_dedupe.sql",
         "078_crawl_frontier_depth_telemetry.sql",
+        "079_pipeline_runtime_state.sql",
+        "080_funding_timeline_missing_round_dedupe.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",
@@ -228,6 +234,8 @@ SETS: dict[str, list[str]] = {
         "073_event_contract_hardening.sql",
         "076_startup_events_evidence_ids_gin.sql",
         "077_funding_timeline_dedupe.sql",
+        "079_pipeline_runtime_state.sql",
+        "080_funding_timeline_missing_round_dedupe.sql",
     ],
     "performance": [
         "015_performance_indexes.sql",
@@ -237,6 +245,11 @@ SETS: dict[str, list[str]] = {
     "research": [
         "012_daily_news.sql",
         "032_topic_research.sql",
+    ],
+    "investigation": [
+        "067_paid_headline_seeds.sql",
+        "077_investigation_queue.sql",
+        "079_pipeline_runtime_state.sql",
     ],
     "benchmarks": [
         "039_startup_state_snapshot.sql",
@@ -248,6 +261,7 @@ SETS: dict[str, list[str]] = {
         "069_capital_graph_coinvest_edges.sql",
         # Investor-news links (all-time, includes mentions + funding-linked clusters)
         "070_investor_news_links.sql",
+        "079_pipeline_runtime_state.sql",
     ],
 }
 

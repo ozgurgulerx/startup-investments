@@ -39,7 +39,7 @@ if [ -z "$CHANGED_FILES" ]; then
   exit 0
 fi
 
-CRONTAB_PATH="infrastructure/vm-cron/crontab"
+CRONTAB_PATH="infrastructure/kubernetes/pipelines-cronjobs.yaml"
 DOC_A="docs/OPERATING_MODEL.md"
 DOC_B="docs/CHANGE_CONTROL.md"
 

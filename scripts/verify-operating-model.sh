@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CRONTAB_FILE="$ROOT_DIR/infrastructure/vm-cron/crontab"
+CRONJOBS_FILE="$ROOT_DIR/infrastructure/kubernetes/pipelines-cronjobs.yaml"
 DOC_FILE="$ROOT_DIR/docs/OPERATING_MODEL.md"
 
-if [ ! -f "$CRONTAB_FILE" ]; then
-  echo "ERROR: Missing crontab file: $CRONTAB_FILE"
+if [ ! -f "$CRONJOBS_FILE" ]; then
+  echo "ERROR: Missing pipelines cronjobs file: $CRONJOBS_FILE"
   exit 1
 fi
 
@@ -20,21 +20,25 @@ DOC_JOBS_FILE="$(mktemp)"
 DOC_JOBS_FILTERED_FILE="$(mktemp)"
 trap 'rm -f "$CRON_JOBS_FILE" "$DOC_JOBS_FILE" "$DOC_JOBS_FILTERED_FILE"' EXIT
 
-# Extract scheduled jobs executed via runner.sh.
-awk '
-  $0 !~ /^#/ && $0 ~ /runner\.sh/ {
-    for (i = 1; i <= NF; i++) {
-      if ($i ~ /runner\.sh$/) {
-        print $(i + 1)
-      }
-    }
-  }
-' "$CRONTAB_FILE" > "$CRON_JOBS_FILE"
+python3 - "$CRONJOBS_FILE" > "$CRON_JOBS_FILE" <<'PY'
+import sys
+from pathlib import Path
 
-# Add heartbeat (direct invocation, not via runner.sh).
-if awk '$0 !~ /^#/ && $0 ~ /heartbeat\.sh/' "$CRONTAB_FILE" >/dev/null; then
-  echo "heartbeat" >> "$CRON_JOBS_FILE"
-fi
+path = Path(sys.argv[1])
+docs = path.read_text(encoding="utf-8").split("\n---\n")
+for doc in docs:
+    lines = doc.splitlines()
+    if "kind: CronJob" not in lines:
+        continue
+    in_metadata = False
+    for line in lines:
+        if line.startswith("metadata:"):
+            in_metadata = True
+            continue
+        if in_metadata and line.startswith("  name: "):
+            print(line.split("  name: ", 1)[1].strip().strip('"'))
+            break
+PY
 
 sort -u "$CRON_JOBS_FILE" -o "$CRON_JOBS_FILE"
 
@@ -50,15 +54,13 @@ awk '
   }
 ' "$DOC_FILE" | sort -u > "$DOC_JOBS_FILE"
 
-# Keep only scheduled job names for strict comparison.
-# Deploy jobs below are intentionally documented as triggered jobs.
-grep -Ev '^(frontend-deploy|backend-deploy|functions-deploy|pipelines-deploy)$' "$DOC_JOBS_FILE" > "$DOC_JOBS_FILTERED_FILE" || true
+cp "$DOC_JOBS_FILE" "$DOC_JOBS_FILTERED_FILE"
 
 MISSING_FROM_DOC="$(comm -23 "$CRON_JOBS_FILE" "$DOC_JOBS_FILTERED_FILE" || true)"
 EXTRA_IN_DOC="$(comm -13 "$CRON_JOBS_FILE" "$DOC_JOBS_FILTERED_FILE" || true)"
 
 if [ -n "$MISSING_FROM_DOC" ] || [ -n "$EXTRA_IN_DOC" ]; then
-  echo "ERROR: docs/OPERATING_MODEL.md cron inventory is out of sync with infrastructure/vm-cron/crontab"
+  echo "ERROR: docs/OPERATING_MODEL.md cron inventory is out of sync with infrastructure/kubernetes/pipelines-cronjobs.yaml"
   if [ -n "$MISSING_FROM_DOC" ]; then
     echo
     echo "Jobs in crontab but missing from docs:"
@@ -72,9 +74,5 @@ if [ -n "$MISSING_FROM_DOC" ] || [ -n "$EXTRA_IN_DOC" ]; then
   exit 1
 fi
 
-echo "OK: docs/OPERATING_MODEL.md cron inventory matches infrastructure/vm-cron/crontab"
-
-# Optional: ensure AKS pipelines CronJobs stay aligned with the VM schedule/timeout.
-if [ -f "$ROOT_DIR/infrastructure/kubernetes/pipelines-cronjobs.yaml" ]; then
-  python3 "$ROOT_DIR/scripts/verify_pipelines_cronjobs.py"
-fi
+echo "OK: docs/OPERATING_MODEL.md cron inventory matches infrastructure/kubernetes/pipelines-cronjobs.yaml"
+python3 "$ROOT_DIR/scripts/verify_pipelines_cronjobs.py"

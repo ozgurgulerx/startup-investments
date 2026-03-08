@@ -33,7 +33,7 @@ if not DATABASE_URL:
 
 # Data paths
 BASE_DIR = Path(__file__).parent.parent
-WEB_DATA_ROOT = BASE_DIR / 'apps' / 'web' / 'data'
+WEB_DATA_ROOT = Path(os.environ.get("WEB_DATA_ROOT_OVERRIDE") or (BASE_DIR / 'apps' / 'web' / 'data'))
 
 
 def normalize_region(value: str) -> str:
