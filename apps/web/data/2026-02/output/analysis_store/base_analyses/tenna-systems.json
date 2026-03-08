@@ -1,0 +1,658 @@
+{
+  "company_name": "Tenna Systems",
+  "company_slug": "tenna-systems",
+  "website": "https://tennasys.com/",
+  "logo_url": null,
+  "description": "Tenna Systems provides software solutions focused on electromagnetic spectrum intelligence for defense and critical mobility sectors.",
+  "funding_amount": 13500000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "enhancement",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.95,
+      "evidence": [
+        "\"AI models trained on billions of data points\"",
+        "\"ingesting and analyzing vast amounts of radio frequency (RF) data from millions of commercial and military sources worldwide\"",
+        "\"connects you to global data silos you couldn\u2019t otherwise reach\"",
+        "references to active deployments with U.S. DoD, IMOD and other allied militaries"
+      ],
+      "description": "Tenna aggregates proprietary, domain-specific RF telemetry and operational signals from commercial and military sources (including active operational deployments). This dataset scope and privileged access form a vertical, industry-specific data advantage used to train models and provide differentiated spectrum intelligence."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.8,
+      "evidence": [
+        "multiple references to \"AI models\" in plural and \"novel algorithms\"",
+        "job posting references: \"TDOA, crowdsourced sensing, and statistical estimation\" alongside ML",
+        "product descriptions separating tasks (Arena for monitoring, Tracer for geolocation, Halo for middleware/resilience)"
+      ],
+      "description": "The stack appears to use a collection of specialized algorithms and models (classical signal-processing modules, statistical estimators, and purpose-built ML classifiers/regressors) routed to specific tasks (detection, classification, geolocation, confidence scoring). Different components (Arena, Tracer, Halo) imply task-specific modelization rather than a single monolithic model."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.85,
+      "evidence": [
+        "\"treating every connected device as a potential sensor\"",
+        "\"crowdsourced sensing\"",
+        "\"real-time\" ingestion and claims of models trained on very large datasets",
+        "language about connecting to global data silos and producing operational feedback (route planning, live warnings)"
+      ],
+      "description": "Tenna's architecture implies streaming ingestion and operational feedback from distributed sensors (crowdsourced and partner platforms). This enables iterative retraining/updates driven by new telemetry and operational outcomes\u2014a feedback loop that continuously improves models and detection/geolocation accuracy."
+    },
+    {
+      "name": "Guardrail-as-LLM (validation/secondary check layer)",
+      "confidence": 0.7,
+      "evidence": [
+        "\"intelligently trust or reject signals\"",
+        "\"confidence-scored geolocation\"",
+        "Halo described as middleware that enables receivers to \"reject jamming and spoofing\""
+      ],
+      "description": "There is a distinct validation/decisioning layer that assesses incoming signals and model outputs for trustworthiness (reject spoofed signals, provide confidence scores). Functionally this acts as a guardrail/verification model or rule layer that filters or corrects upstream inferences before acting on them."
+    },
+    {
+      "name": "Retrieval-Augmented (sensor-data) Generation / Retrieval + Fusion",
+      "confidence": 0.6,
+      "evidence": [
+        "\"fuses airborne, space, and terrestrial data into a real-time spectrum picture\"",
+        "\"API integration\" and \"connects you to global data silos\"",
+        "descriptions of leveraging historical/global sensor feeds to inform real-time geolocation and mapping"
+      ],
+      "description": "While not RAG in the classic text-LLM sense, Tenna retrieves heterogeneous sensor and historical records (via APIs/data silos) and fuses them with models/algorithms to produce enriched, context-aware inferences (geolocation, denial-zone maps). This is functionally analogous to retrieval-augmented inference for sensor domains."
+    },
+    {
+      "name": "Knowledge Graphs (inferred)",
+      "confidence": 0.4,
+      "evidence": [
+        "\"Map adversary jamming/spoofing patterns (Electronic Order of Battle)\"",
+        "repeated language about fusing disparate data into a \"unified spectrum picture\" and mapping relationships between emitters, platforms, and locations"
+      ],
+      "description": "The product use-cases (Electronic Order of Battle, mapping jamming patterns, relating emitters to platforms/locations) suggest the possible use of entity-relationship or graph representations to link emitters, events, assets, and locations. The content does not explicitly call out graph DBs or KG tooling, so this is an inferred pattern."
+    },
+    {
+      "name": "Agentic Architectures (weak evidence)",
+      "confidence": 0.2,
+      "evidence": [
+        "\"real-time RF interference awareness and route planning\"",
+        "\"responds faster than any standalone system\"",
+        "language about enabling operational decisions and taking action 'in seconds'"
+      ],
+      "description": "There are references to automated, time-sensitive decisioning (route planning, dynamic denial-zone avoidance) that could be implemented with orchestrated agents. However, there is no explicit mention of autonomous agents, tool use, or multi-step planner/executor frameworks\u2014so this is speculative and low-confidence."
+    }
+  ],
+  "discovered_patterns": [
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Proprietary ML models trained on large-scale sensor telemetry",
+      "confidence": 0.85,
+      "evidence": [
+        "\"AI models trained on billions of data points to deliver a spectrum picture that sees farther and responds faster than any standalone system.\"",
+        "\"By ingesting and analyzing vast amounts of radio frequency (RF) data from millions of commercial and military sources worldwide, Tenna transforms existing signals into actionable spectrum intelligence instantly and at global scale.\""
+      ],
+      "description": "Tenna operates proprietary ML/AI models (not named) trained on very large, multi-source RF telemetry datasets. These models are used for detection, classification and confidence-scored geolocation rather than low-level signal demodulation. The language implies large-scale supervised or self-supervised training on aggregated telemetry from terrestrial, airborne and space-based receivers.",
+      "novelty_score": 5,
+      "why_notable": "Large-scale, domain-specific models trained on cross-domain RF telemetry are a specialized vertical moat, but the approach (train custom models on proprietary data) is a common pattern for industry ML products."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Hybrid multi-component system (edge middleware + cloud analytics + on-board algorithms)",
+      "confidence": 0.95,
+      "evidence": [
+        "\"Arena delivers precise, real-time monitoring...\"",
+        "\"Tracer utilizes novel algorithms to transform existing receiver networks into a high-precision ISR capability.\"",
+        "\"Halo is the middleware that transforms legacy receivers into smart, networked systems... enabling both embedded (on-device) and remote (off-board) spectrum intelligence workflows.\"",
+        "\"software-only approach embeds RF awareness and resilience directly into your current systems.\""
+      ],
+      "description": "Tenna's platform is a compound system consisting of (1) an embedded/on-device middleware (Halo) that augments legacy receivers, (2) a cloud/central analytics plane (Arena) that fuses global sensor telemetry and produces real-time spectrum pictures, and (3) task-specific geolocation algorithms/services (Tracer). These components coordinate: sensors provide telemetry (crowdsourced and partner feeds), cloud services perform large-scale fusion and model inference, and Halo consumes intelligence or runs lightweight inference locally to reject spoofing in real time.",
+      "novelty_score": 7,
+      "why_notable": "The tight product trio (middleware that upgrades legacy sensors + cloud fusion + precision geolocation algorithms) that explicitly avoids new hardware offers an unusual, software-first route to electronic warfare capabilities."
+    },
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "Geometry-driven sensor fusion and probabilistic geolocation (TDOA & crowdsourced sensing)",
+      "confidence": 0.98,
+      "evidence": [
+        "\"We prioritize persistent, geometry-driven geolocation rather than signal-level analysis (e.g., modulation details or ESM parameters).\"",
+        "\"This role focuses on building production-grade software in a Linux environment, applying techniques such as TDOA, crowdsourced sensing, and statistical estimation to enable real-time situational awareness, spectrum monitoring, and resilience in contested RF environments.\"",
+        "\"Tracer utilizes novel algorithms to transform existing receiver networks into a high-precision ISR capability. It detects and identifies the exact coordinates of interference...\"",
+        "\"You gain a ubiquitous spectrum picture using your existing sensors...\""
+      ],
+      "description": "Tenna emphasizes geometrical/time-based geolocation approaches (e.g., TDOA/time difference of arrival), statistical estimation and sensor geometry over deep signal-level feature extraction. The system fuses heterogeneous, crowdsourced telemetry from many existing receivers and computes confidence-scored geolocations (50\u2013200m CEP claims).",
+      "novelty_score": 6,
+      "why_notable": "Focusing on geometry and sensor crowdsourcing to achieve tactical CEPs with no new hardware is a distinctive tradeoff in EW/SIGINT \u2014 prioritizing scalable sensor-agnostic fusion over classical high-fidelity ESM."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Operational/evidence-driven validation (field-proven, confidence-scored outputs)",
+      "confidence": 0.88,
+      "evidence": [
+        "\"Proven in active combat operations and high profile contested battlespaces...\"",
+        "\"confidence-scored geolocation\"",
+        "\"Our software was born from real-world combat and lived experience. We built it because it had to work when failure was not an option.\""
+      ],
+      "description": "Tenna emphasizes operational validation (deployments with DoD allies and combat usage) and outputs that include confidence metrics. This implies measurement against real-world ground truth and continuous operational feedback loops rather than purely simulated benchmarks.",
+      "novelty_score": 5,
+      "why_notable": "Field-proven metrics (combat-deployed validation) are a strong indicator of production readiness in defense contexts, but the exact EvalOps practices (automated tests, A/B, human-in-the-loop) are not described."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Cloud-native microservices + containerized deployments with edge/embedded integration",
+      "confidence": 0.99,
+      "evidence": [
+        "\"Experience building and deploying cloud-native applications in AWS, including Docker and Kubernetes\" (job posting)",
+        "\"Experience working with microservices architecture and distributed systems\" (job posting)",
+        "\"Full Stack Engineer... Strong backend experience with .NET Core, Node.js, or Python, including RESTful API design Frontend expertise in React (preferred)\" (job posting)",
+        "\"Halo acts as embedded software 'armor'... enabling both embedded (on-device) and remote (off-board) spectrum intelligence workflows.\""
+      ],
+      "description": "The platform uses cloud-native microservices (AWS), containerization (Docker), orchestration (Kubernetes) and REST APIs. Frontend stacks include React; backends use .NET Core, Node.js or Python. There is an explicit edge/embedded tier \u2014 Halo \u2014 that integrates into device firmware or on-board software to run local logic or accept remote commands.",
+      "novelty_score": 3,
+      "why_notable": "A standard modern cloud + edge architecture, but applied to the specialized RF/SIGINT domain with strict real-time and operational constraints."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Operational resilience and signal-rejection middleware (domain-specific safety)",
+      "confidence": 0.92,
+      "evidence": [
+        "\"Halo embeds RF resilience directly into fielded assets, turning legacy sensors into hardened, collaborative defenders.\"",
+        "\"transform legacy GNSS receivers into smart, networked systems that intelligently trust or reject signals, gaining EW resilience without a single technician touching the airframe.\"",
+        "\"confidence-scored geolocation\""
+      ],
+      "description": "Tenna implements domain-specific safety via middleware that enforces signal trust policies and rejection logic on-device or remotely, providing operational guardrails to maintain mission continuity under spoofing/jamming. They produce confidence scores to support automated or human-in-the-loop trust decisions.",
+      "novelty_score": 7,
+      "why_notable": "Embedding automated signal acceptance/rejection policies directly into legacy receivers (without hardware changes) is an impactful, operationally oriented safety approach uncommon outside specialized EW fields."
+    },
+    {
+      "category": "Learning & Improvement",
+      "pattern_name": "Continuous ingestion-driven model improvement (implied data flywheel)",
+      "confidence": 0.6,
+      "evidence": [
+        "\"By ingesting and analyzing vast amounts of radio frequency (RF) data from millions of commercial and military sources worldwide...\"",
+        "\"connects you to global data silos you couldn\u2019t otherwise reach.\"",
+        "\"AI models trained on billions of data points\""
+      ],
+      "description": "The platform continuously ingests telemetry from many sources which likely feeds ongoing model training and refinement (a data flywheel). However, there is no explicit mention of the retraining cadence, active learning, or on-device model updates.",
+      "novelty_score": 5,
+      "why_notable": "Continuous sensor ingestion as a model-improvement mechanism is a strong strategic asset for EW, though details on active learning or automation are not provided."
+    },
+    {
+      "category": "Data Strategy",
+      "pattern_name": "Sensor-agnostic proprietary data aggregation & partnerships (vertical data moat)",
+      "confidence": 0.96,
+      "evidence": [
+        "\"convert the sensors already embedded in these platforms into a shared, real-time map of the invisible spectrum\"",
+        "\"connecting you to global data silos you couldn\u2019t otherwise reach\"",
+        "\"sensor-agnostic... seamless API integration\"",
+        "\"trusted by the organizations operating the world\u2019s most critical systems\""
+      ],
+      "description": "Tenna builds a proprietary dataset by aggregating telemetry from a broad set of partner and customer receivers (terrestrial, airborne, space-based) and commercial sources. They emphasize API-first integration to ingest partner feeds and create a vertical data moat across defense and aerospace customers.",
+      "novelty_score": 6,
+      "why_notable": "Assembling a large, heterogeneous RF telemetry corpus via partnerships and retrofit middleware creates a defensible dataset for EW-specific ML, enabling capabilities not feasible with isolated sensors."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Software-only retrofit of legacy receivers (Halo) to provide EW resilience without hardware changes",
+      "why_novel": "Converting existing GNSS/RF receivers into smart, collaborative sensors via middleware that can accept/reject signals is a high-leverage alternative to costly hardware refresh cycles.",
+      "potential_impact": "Rapid, low-cost deployment of EW resilience across a fleet; reduced procurement timelines and immediate operational improvements for legacy systems."
+    },
+    {
+      "approach": "Geometry-first, crowdsourced sensor fusion for tactical geolocation",
+      "why_novel": "Prioritizing geometry/TDOA and sensor geometry over signal-level ESM allows Tenna to scale spatial accuracy using many low-cost sensors rather than a few high-fidelity platforms.",
+      "potential_impact": "Enables distributed, ubiquitous spectrum awareness with tactical CEPs (50\u2013200m claimed) at a fraction of the cost of bespoke SIGINT infrastructure."
+    },
+    {
+      "approach": "Product triad (Arena/Tracer/Halo) mapping to cloud fusion, precision services, and local resilience",
+      "why_novel": "Packaging cloud fusion, specialized geolocation, and embedded resilience as an integrated product stack targeted at defense customers provides an operationally coherent solution that is uncommon in commercial RF analytics vendors.",
+      "potential_impact": "Facilitates rapid adoption by defense customers who cannot perform hardware swaps and need operational continuity in contested environments."
+    }
+  ],
+  "model_details": {
+    "primary_models": [
+      "proprietary AI/ML models trained on large-scale RF telemetry (unnamed)",
+      "statistical estimation and TDOA-based geolocation algorithms (classical + ML hybrid)"
+    ],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "No explicit evidence of fine-tuning (LoRA/full) for LLMs or other models; claims only reference models trained on billions of data points.",
+      "training_data_source": "Aggregated RF telemetry from commercial, military, airborne, terrestrial, and space-based sensors (described as 'millions' of sources and 'global data silos')"
+    },
+    "inference_optimization": [
+      "containerized inference (Docker)",
+      "orchestration (Kubernetes)",
+      "cloud-native deployment on AWS",
+      "edge/embedded lightweight inference or rule engines (Halo on-device middleware)"
+    ],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": "No evidence of model-of-model routing or MoE. The system routes data between edge (Halo), cloud fusion (Arena), and geolocation services (Tracer) but not multiple ML models in a routing ensemble."
+    },
+    "compound_ai": {
+      "is_compound_system": true,
+      "orchestration_pattern": "Hybrid orchestration: heterogeneous telemetry ingestion -> cloud-scale fusion & ML inference -> task services (geolocation) -> downstream policy/actuation via middleware (Halo) on devices. Orchestration likely uses microservices and APIs rather than multi-model LLM chains."
+    }
+  },
+  "market_type": "vertical",
+  "vertical": "cybersecurity",
+  "sub_vertical": "Electromagnetic spectrum intelligence and electronic warfare resilience",
+  "sub_sub_vertical": "Software-defined spectrum awareness and threat geolocation (EW/EMS) for defense",
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "government_public",
+      "vertical_label": "Government & Public Sector",
+      "sub_vertical_id": "defense_military_tech",
+      "sub_vertical_label": "Defense/Military Tech",
+      "leaf_id": "defense_military_tech",
+      "leaf_label": "Defense/Military Tech"
+    },
+    "path": [
+      {
+        "id": "government_public",
+        "label": "Government & Public Sector",
+        "confidence": 0.72
+      },
+      {
+        "id": "defense_military_tech",
+        "label": "Defense/Military Tech",
+        "confidence": 0.78
+      }
+    ]
+  },
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "Cloud-native",
+      "Edge/On-device"
+    ],
+    "approach": "hybrid",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 4,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Software-first, hardware-light, data-fusion architecture implied by marketing content (software-driven spectrum platform, Halo middleware, API integration emphasis)",
+      "Mentions cloud-native microservices and production-grade software roles in job postings",
+      "Claims of real-time spectrum intelligence and geolocation (50-200m CEP) indicating algorithmic focus",
+      "Industry partnerships and defense programs suggesting mature product direction"
+    ]
+  },
+  "implementation_maturity": "production",
+  "team_analysis": {
+    "founders": [
+      {
+        "name": "Avner Bendheim",
+        "role": "CEO",
+        "background": "Former Space Program Director, Operational Requirements Department at the Israeli Air Force",
+        "previous_companies": [
+          "Israeli Air Force"
+        ],
+        "technical_depth": "high",
+        "domain_expertise": "signals intelligence, electronic warfare, RF, defense software"
+      },
+      {
+        "name": "Gabriel Bendheim",
+        "role": "co-founder",
+        "background": "Twin brother of Avner; previously led signals-intelligence and electronic-warfare programs within the Israeli defense ecosystem",
+        "previous_companies": [
+          "Israeli defense / Israeli military"
+        ],
+        "technical_depth": "high",
+        "domain_expertise": "signals intelligence, electronic warfare, RF, EW"
+      }
+    ],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [
+        "plans to double workforce over the next year",
+        "expanding in the U.S. defense market",
+        "growth in defense/government sector"
+      ],
+      "team_size_indicators": "small",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "high",
+    "team_strengths": [
+      "Founders have direct, high-level SIGINT and electronic-warfare experience from the Israeli Air Force",
+      "Co-founders' domain expertise directly aligns with Tenna's software-first spectrum intelligence approach",
+      "Active engagement and purported deployments with U.S. Army, U.S. Air Force, and other federal agencies",
+      "Hardware-light, software-centric model (Arena, Tracer, Halo) enabling rapid deployment and scalability",
+      "Executive leadership credentialed in defense operations and EW, lending credibility in defense/government sales"
+    ],
+    "team_red_flags": [
+      "Public information on broader leadership, CTO, and general team is limited to two founders",
+      "Limited disclosed technical organization details; reliance on marketing claims for ML/AI capabilities",
+      "No explicit mention of advisory board or institutional trust signals beyond investors"
+    ],
+    "team_confidence": 0.78
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "custom",
+      "pricing_evidence": [
+        "No explicit pricing information found in provided materials; defense-focused pricing likely contract-based",
+        "Product is described as software-first with hardware-light integration, implying enterprise-level licensing rather than consumer pricing"
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "partnership_led",
+      "evidence": [
+        "Halo middleware partnerships with leading manufacturers",
+        "Active engagements with U.S. Army, U.S. Air Force, and other federal agencies",
+        "Emphasis on API integration to be hardware-agnostic and vendor-neutral",
+        "Seed funding to expand in U.S. defense market"
+      ],
+      "target_segment": "enterprise",
+      "sales_motion": "field_sales"
+    },
+    "revenue_model": {
+      "monetization_approach": "Software licenses and ongoing subscriptions for the Tenna software stack (Arena, Tracer, Halo) layered over existing sensors, with professional services and integrations as needed",
+      "unit_economics_signals": [
+        "Recurring revenue through software licenses / subscriptions",
+        "Possible per-sensor or per-organization licensing model implied by hardware-light, API-driven approach"
+      ],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "Software-first, hardware-light model that can leverage existing sensors and infrastructure",
+      "Vendor-neutral API integration enables rapid deployment across diverse platforms",
+      "Halo middleware turns legacy receivers into networked sensors, creating network effects across assets",
+      "Defense contractors and government agencies as customers provide procurement-led distribution channels"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "direct government/procurement relationships",
+        "defense contractors and prime systems integrators",
+        "industry partnerships with sensor manufacturers",
+        "public relations and thought leadership in defense/ EW domains"
+      ],
+      "customer_proof_points": [
+        "Engagements with U.S. Army and U.S. Air Force",
+        "Collaboration with Israeli Ministry of Defense",
+        "Operational deployments in contested environments"
+      ]
+    },
+    "business_model_clarity": "evolving",
+    "business_model_confidence": 0.6
+  },
+  "product_analysis": {
+    "product_stage": "mature",
+    "stage_evidence": [
+      "Three product lines (Arena, Tracer, Halo) delivering real-time spectrum intelligence capabilities",
+      "Active deployments and engagements with U.S. DoD, U.S. Army, U.S. Air Force and allied militaries; references to Israeli Air Force usage",
+      "Field-ready, combat-proven capability with a software-first, hardware-light approach",
+      "Halo middleware that converts legacy receivers into networked, threat-aware sensors",
+      "Marketing evidence of large-scale adoption and cross-domain integration potential, suggesting established product-market fit within defense/government domains"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Real-time spectrum intelligence: detecting, classifying, and geolocating RF interference",
+        "Arena: real-time monitoring of RF coverage gaps and interference for threat detection",
+        "Tracer: high-precision geolocation of interference sources for mitigation",
+        "Halo: middleware to upgrade legacy receivers into smart, connected sensors and share threat intelligence",
+        "Software-first, hardware-agnostic integration across airborne, space-based, and terrestrial sensors",
+        "Decision-support capabilities for ISR routing, EW resilience, and threat awareness"
+      ],
+      "differentiating_features": [
+        "Hardware-light approach that leverages existing sensors instead of new hardware",
+        "Geometry-driven geolocation focusing on source location rather than detailed signal analysis",
+        "Cross-domain data fusion across sensor networks with a low hardware footprint",
+        "Zero-footprint resilience through Halo, enabling threat intelligence sharing without hardware upgrades",
+        "Vendor-neutral API-backed integration enabling cross-silo data access"
+      ],
+      "roadmap_signals": [
+        "Emphasis on API integration and cross-domain connectivity to global data silos",
+        "Expansion and scaling indicated by growth of workforce and ongoing deployments",
+        "No explicit beta or coming-soon labels; current materials imply mature product offerings"
+      ],
+      "feature_completeness": "comprehensive"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "API integration with existing sensors and data sources",
+        "Halo middleware integration with legacy GNSS receivers"
+      ],
+      "api_maturity": "platform",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Provide real-time spectrum intelligence by detecting, classifying, and geolocating RF interference and converting existing sensors into a unified spectrum picture for threat awareness and decision support",
+      "secondary_use_cases": [
+        "Map adversary jamming/spoofing patterns for ISR planning and EW operations",
+        "Route planning and mission optimization to avoid interference and maintain connectivity",
+        "EW resilience and spectrum-aware asset management in contested environments",
+        "Denial-zone mapping for UAVs and precision munitions to avoid compromised areas"
+      ],
+      "customer_stories": [
+        "Engaged with U.S. Army, U.S. Air Force, and other federal agencies; ongoing operational deployments",
+        "Israeli Air Force reportedly used Tracer in Operation Rising Lion (2025)",
+        "Halo used to transform legacy receivers into networked sensors for resilience against jamming and spoofing"
+      ],
+      "industry_focus": [
+        "Defense & Government",
+        "Aviation",
+        "Telecommunications"
+      ]
+    },
+    "product_risks": [
+      "Dependence on the quality and compatibility of existing sensors across platforms; integration risk varies by asset",
+      "Geolocation accuracy claims (50\u2013200m CEP) may be challenged in highly contested environments",
+      "Limited public detail on API/sdk capabilities and vendor ecosystem; potential procurement and integration lead times in defense sector",
+      "Security, interoperability, and supply-chain considerations across multi-country deployments"
+    ],
+    "product_strengths": [
+      "Software-first, hardware-agnostic design enabling rapid deployment and cross-domain visibility",
+      "Cost-effective alternative to traditional hardware-heavy EW solutions",
+      "Halo middleware provides zero-footprint resilience by upgrading legacy sensors",
+      "Proven field deployments in combat-like environments with defense customers",
+      "Robust data fusion across airborne, space-based, and terrestrial sensors"
+    ],
+    "product_confidence": 0.72
+  },
+  "unique_findings": [
+    "Software-first, sensor-agnostic TDOA/network-geolocation focus: Tenna emphasizes geometry-driven geolocation (TDOA and multilateration) using already-installed receivers rather than traditional signal-feature/ESM analysis. That flips the usual SIGINT tradeoff \u2014 prioritize spatial fusion and timing geometry over expensive RF front-end fidelity.",
+    "Middleware 'Halo' that retrofits legacy GNSS/receivers in-field: Claiming to embed decision logic into existing receivers (reject/spoof decisions, share threat intel) without hardware swaps implies deep integration pathing (firmware hooks, OEM partnerships) and an on-device policy/validation layer \u2014 a non-trivial product that operates inside safety-critical stacks.",
+    "Cross-domain, multi-platform sensor fusion at internet scale: They ingest airborne, space, and terrestrial telemetry into a unified, real-time spectrum picture. Combining extremely heterogeneous sampling rates, observability, and latencies (satellite passes, airborne receivers, ground COTS) requires bespoke temporal alignment, interpolation, and uncertainty propagation.",
+    "Operational datasets from contested battlespace as training signal: Tenna claims real-world combat provenance and models trained on 'billions' of data points \u2014 if true, that provides labeled, adversarial examples (jamming/spoofing signatures and geolocation labels) that are extremely rare commercially.",
+    "Confidence-scored, tactical CEP outputs (50\u2013200m): They emphasize producing probabilistic geolocation (with confidence scores) fast enough for operational decisions \u2014 implying fast Bayesian/likelihood fusion, real-time filtering, and geometry-aware uncertainty modeling rather than batch analytics.",
+    "Crowdsourced sensing with anti-fragile geometry: The approach depends on treating every connected device as a potential sensor, which means solving for sensor reliability, adversarial sensor behavior, and geometric dilution of precision under uncontrolled deployment.",
+    "Operationalization constraints surfaced in hiring and stack choices: Job listings call for TDOA, crowdsourced sensing, statistical estimation and C/C++/Python on Linux \u2014 this indicates they run low-latency native code pipelines (likely edge agents + high-performance backends) rather than pure cloud ML inference."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "Software-first EW: How Tenna turned every deployed receiver into a distributed SIGINT fabric",
+      "summary": "Tenna eschews bespoke hardware and instead layers cloud and edge software on top of existing airborne, space and terrestrial receivers to produce a real-time, geometry-driven spectrum picture. For builders, the interesting part is the hybrid stack: embedded middleware (Halo), cloud fusion (Arena) and on-device geolocation (Tracer) that together enable low-latency, confidence-scored targeting without ripping out radios.",
+      "evidence": [
+        "Tenna delivers real-time spectrum intelligence by detecting, classifying, and geolocating RF interference using software rather than new hardware.",
+        "Products described include Halo (middleware that transforms legacy receivers), Arena (real-time monitoring), and Tracer (precision geolocation)."
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "data",
+      "headline": "The vertical data moat: training ML on billions of telemetry points to map the invisible battlefield",
+      "summary": "Tenna claims ML models trained on billions of data points and fuses global sensor feeds into a persistent spectrum picture \u2014 a classic vertical-data advantage where scale and label provenance can become a defensible moat. For ML engineers, the core questions are how telemetry is normalized, the labeling pipeline for interference classes, and how geometry-driven signals are used as supervision for geolocation models.",
+      "evidence": [
+        "Tenna fuses global sensor data with AI models trained on billions of data points to deliver a spectrum picture.",
+        "The platform ingests RF data from millions of commercial and military sources worldwide to produce actionable spectrum intelligence."
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Betting geometry over modulation: why Tenna prioritizes sensor geometry and geolocation over signal-level SIGINT",
+      "summary": "Rather than compete on high-fidelity signal analysis (modulation/ESM), Tenna emphasizes geometry-driven, confidence-scored geolocation using heterogeneous existing sensors \u2014 a contrarian choice that trades low-level signal detail for ubiquitous coverage and tactical speed. This angle explores the tradeoffs, where high-coverage, time-sensitive geolocation can outpace traditional SIGINT in contested and rapidly changing environments.",
+      "evidence": [
+        "Tenna prioritizes persistent, geometry-driven geolocation rather than signal-level analysis (e.g., modulation details or ESM parameters).",
+        "The company emphasizes real-time, confidence-scored geolocation suitable for operational decisions in seconds, not hours."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Doing ISR for the price of software: Tenna\u2019s hardware-light route to sub-200m geolocation",
+      "summary": "Tenna promises geolocation within a 50\u2013200m CEP using existing COTS receivers, positioning itself as a lower-cost alternative to traditional EW platforms. A pragmatist audience will want to see measured performance, deployment OPEX, and the lifecycle costs compared to purpose-built SIGINT hardware to judge the real efficiency gains.",
+      "evidence": [
+        "The platform aims to identify interference within 50 to 200 meters without requiring additional equipment.",
+        "Tenna markets a software-only approach that converts already-deployed sensors into a unified ISR capability, avoiding costly hardware rollouts."
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing makes strong operational and technical claims (battle-proven deployments, 50\u2013200m CEP geolocation, 'hardware-free' global coverage) with few public technical details or independent corroboration. The Terms of Use also include broad disclaimers that conflict with some marketing certainty.",
+      "severity": "high",
+      "evidence": [
+        "Claims of 50\u2013200m CEP and 'high-precision' geolocation using existing COTS sensors without describing synchronization, calibration, or error budgets.",
+        "Statements that Arena/Tracer/Halo were 'proven in active combat operations' and 'deployed by the U.S. Department of Defense, its allies, and the Israeli Ministry of Defense' without contract values or public validation data.",
+        "Marketing: 'software-only' / 'hardware-free' approach that 'turns existing sensors into a high-precision ISR capability' while the Terms disclaim warranties and limits liability."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "Key sources of defensibility (exclusive sensor feeds, proprietary labelled datasets, unique ML architecture or patents) are asserted but not substantiated; a software layer that ingests broadly available telemetry risks being replicable if exclusive data or IP are absent.",
+      "severity": "medium",
+      "evidence": [
+        "Multiple references to ingesting 'millions of commercial and military sources' and 'global data silos' without describing exclusivity, ingestion agreements, or proprietary telemetry.",
+        "Claims of 'AI models trained on billions of data points' and 'novel algorithms' with no detail on what data is unique or how models cannot be replicated by competitors with access to similar sensors.",
+        "Product is sensor-agnostic and leverages existing platforms\u2014an advantage for adoption but a weakness for defensibility if competitors can tap the same sensors."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The offering centers on converting existing sensors into geolocation/awareness capabilities and on middleware; this narrow focus risks being absorbed as a feature into larger EW/SIGINT or platform vendors that control procurement channels.",
+      "severity": "medium",
+      "evidence": [
+        "Product descriptions emphasize three tightly scoped components: Arena (monitoring), Tracer (geolocation), Halo (middleware) \u2014 all framed as augmentations to existing systems.",
+        "Language: 'Our software transforms the telemetry from existing airborne, space-based, and terrestrial sensors into a unified spectrum picture' \u2014 this reads as a horizontal integration layer that incumbents could add.",
+        "Early-stage company (Seed funding) aiming to expand into U.S. defense market \u2014 large primes and integrators could replicate or bundle similar capabilities."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The positioning leans on broad terms (real-time, AI, software-first, sensor-agnostic) common across many startups in EW, SIGINT, and RF analytics; technical differentiation is asserted but not clearly demonstrated.",
+      "severity": "medium",
+      "evidence": [
+        "Use of buzzwords and high-level comparisons: 'AccuWeather for electronic warfare', 'Signal Source of Truth', 'hardware-light'\u2014framing without detailed tech disclosure.",
+        "No public description of the core algorithms, sensor calibration approach, timing/synchronization method, or how the 'geometry-driven' approach outperforms traditional signal-level ESM.",
+        "Competitive landscape implied (DoD, primes, EW vendors) where several incumbents already provide geolocation, TDOA, and EW middleware solutions."
+      ]
+    },
+    {
+      "pattern_type": "wrapper",
+      "description": "Risk that the product is primarily an integration/UX layer over existing sensors and analytics rather than delivering substantive proprietary modelling or IP \u2014 especially if core value is data aggregation and visualization.",
+      "severity": "low",
+      "evidence": [
+        "Repeated emphasis on converting 'existing sensors' and providing 'middleware' (Halo) suggests much value comes from integration and orchestration.",
+        "Limited technical transparency about proprietary model architectures, feature engineering, or unique signal-processing breakthroughs that would prevent reimplementation."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Raytheon Technologies / RTX (including Collins Aerospace)",
+        "similarity": "Provides electronic warfare (EW) and SIGINT systems, geolocation, and mission-grade spectrum situational awareness for defense customers.",
+        "how_different": "Hardware- and platform-centric prime contractor with integrated EW suites; Tenna is software-first and hardware-agnostic, emphasizing rapid software integration onto existing receivers rather than new sensor platforms."
+      },
+      {
+        "name": "Northrop Grumman",
+        "similarity": "Large defense prime delivering SIGINT, EW, and integrated sensing solutions to DoD customers; offers geolocation and counter-jam capabilities.",
+        "how_different": "Focuses on end-to-end systems and proprietary sensors; Tenna competes by converting already-deployed receivers into a distributed sensing fabric and offering faster, lower-cost deployability via software."
+      },
+      {
+        "name": "BAE Systems",
+        "similarity": "Offers electronic warfare systems, signal processing and geolocation capabilities, and integrated airborne/land EW products for militaries.",
+        "how_different": "Primarily sells hardened, hardware-integrated EW solutions and upgrades; Tenna sells software middleware and cloud/edge services that augment legacy receivers without rip-and-replace procurement."
+      },
+      {
+        "name": "HENSOLDT / Thales (EW and sensors providers)",
+        "similarity": "European OEMs with spectrum monitoring, EW sensors, and processing suites used by governments for RF threat detection and geolocation.",
+        "how_different": "OEMs supply sensor hardware and end-to-end systems; Tenna emphasizes sensor-agnostic fusion, crowdsourced/vehicle/aircraft-based sensing, and API-first integration to achieve tactical refresh rates."
+      },
+      {
+        "name": "Rohde & Schwarz / Keysight (spectrum monitoring & test equipment)",
+        "similarity": "Provide spectrum monitoring, analysis software, and high-fidelity RF measurement equipment and suites for regulatory and defense customers.",
+        "how_different": "Companies are centered on high-fidelity instruments, stationary monitoring networks and analytics tools; Tenna focuses on fusing heterogeneous, existing operational sensors (airborne/terrestrial/space) into a real-time geolocation picture optimized for tactical decision-making."
+      },
+      {
+        "name": "Unseenlabs",
+        "similarity": "Offers RF geolocation from space (satellite-based RF detection and geolocation) and sells geospatial RF intelligence products to governments and commercial customers.",
+        "how_different": "Uses dedicated satellite sensors to detect and geolocate emitters from orbit; Tenna combines many types of already-deployed sensors (GNSS/receivers on platforms, terrestrial networks, commercial sources), fuses them with ML, and emphasizes near-real-time tactical precision and low-cost scaling without launching hardware."
+      },
+      {
+        "name": "OpenSignal / Ookla (commercial connectivity and coverage mapping)",
+        "similarity": "Provide large-scale, commercial RF/cellular coverage maps and analytics based on crowdsourced measurements.",
+        "how_different": "Designed for commercial network performance trends and consumer-grade coverage insights with relatively slow refresh and low tactical geolocation precision; Tenna positions for mission\u2011critical, time-sensitive interference/geolocation at 50\u2013200m CEP and direct mitigation workflows for defense/autonomy."
+      },
+      {
+        "name": "Silentium Defence / Dedrone / other RF drone-detection startups",
+        "similarity": "Develop RF sensing and analytics for detection and localization of hostile emitters (often focused on drones/UAVs) and anti\u2011UAV use cases.",
+        "how_different": "Often verticalized to drone detection or short-range RF threat detection with specific sensors; Tenna targets broad-spectrum geolocation (GNSS jamming/spoofing, EW) across domains and emphasizes software fusion across millions of heterogeneous sensors and OEM integrations (Halo) for legacy systems."
+      }
+    ],
+    "differentiation": {
+      "primary": "Software-first, hardware-agnostic spectrum intelligence that converts existing receivers and platforms into a distributed, real-time geolocation and EW-resilience network \u2014 delivering tactical, confidence-scored geolocation (claimed 50\u2013200m CEP) and mitigation without new hardware.",
+      "technical": "Geometry-driven geolocation (TDOA and statistical estimation) and sensor-agnostic fusion across airborne, space-based and terrestrial telemetry; AI/ML models trained on very large datasets (company claims \u201cbillions of data points\u201d); confidence-scored, low-latency outputs optimized for seconds-scale operational decisions; Halo middleware for on-device or remote signal validation and spoof/jam rejection; cloud-native microservices and APIs for rapid integration.",
+      "business": "Software licensing / API-first GTM with rapid deployment timelines (months vs multi-year hardware cycles), OEM partnerships to embed middleware (Halo) into legacy receivers, and a focus on defense/government customers and prime-contractor integrations. Low capital and logistics footprint compared with sensor rollouts, enabling lower cost-per-deployment.",
+      "positioning": "Positions itself between slow, expensive, hardware-centric SIGINT/EW suppliers and slow-refresh commercial mapping providers \u2014 marketed as the tactical, real\u2011time \u201cSignal Source of Truth\u201d and the \u201cAccuWeather of Electronic Warfare,\u201d emphasizing operational speed, low cost, and proven combat use."
+    },
+    "secret_sauce": {
+      "core_advantage": "The ability to fuse telemetry from heterogeneous, already-deployed receivers into a confidence-scored, real-time geolocation and interference picture using geometry-driven algorithms plus ML \u2014 effectively turning each operational platform into a sensor and offering EW resilience without hardware replacement.",
+      "defensibility": "Combination of proprietary datasets (crowdsourced/partner sensor telemetry spanning many platforms), domain\u2011specific ML models trained on very large RF datasets, patents/pending IP around the software and platform (site asserts issued and pending patents), operational validation and trust from defense customers (DoD, Israeli MoD) that creates customer stickiness and barriers to simple replication by pure-play software entrants; OEM partnerships to embed Halo create integration lock\u2011in with legacy receivers. However, deep-pocketed primes and national SIGINT programs could replicate capabilities given investment and access to sensors.",
+      "evidence": [
+        "Company claims AI models trained on 'billions of data points' and emphasizes geometry-driven geolocation (TDOA/statistical estimation).",
+        "Tenna says it achieves tactical geolocation precision of '50\u2013200 meters' and real-time, confidence-scored outputs.",
+        "Products described: Arena (real-time monitoring), Tracer (precision geolocation used in contested operations including 'Operation Rising Lion, 2025'), and Halo (middleware embedding EW resilience into legacy receivers).",
+        "Publicized seed funding ($13.5M) and stated operational customers including U.S. DoD, U.S. Air Force, Israeli MoD and aerospace partners \u2014 indicating field deployments and trusted Govt engagements.",
+        "Terms of Use claim issued patents and pending patent applications related to the Website/technology."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Tenna's moat rests on a mix of unique data access and operational validation: turning existing platform telemetry into a fused, real-time RF picture creates a network-effect/data moat (more sensor integrations improve performance), and Halo OEM integrations + defense program relationships provide commercial defensibility. Patents, models trained on large private datasets, and combat-proven deployments raise the bar for newcomers. However, core techniques (TDOA, sensor fusion, ML) are known in the industry and can be replicated by large defense primes, satellite SIGINT firms, or well-funded startups who can buy sensor access or partner with OEMs \u2014 meaning the moat is meaningful but not impregnable.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "combining global sensor data with AI models trained on billions of data points to deliver a spectrum picture that sees farther and responds faster than any standalone system.",
+    "AI models trained on billions of data points",
+    "Geometry-driven, sensor-agnostic geolocation emphasis (prioritizes geometry/TDOA and distributed sensor geometry over signal-level modulation/ESM details).",
+    "Hardware-free, middleware-first deployment (Halo) that embeds resilience and trust logic into legacy receivers enabling both on-device and remote workflows without hardware swaps.",
+    "Crowdsourced sensor model: treat every connected device/receiver as a potential telemetry source to produce a persistent, ubiquitous spectrum picture.",
+    "Hybrid classical+ML stack: explicit combination of deterministic signal-processing techniques (TDOA, statistical estimation) with ML classifiers/regressors and operational confidence scoring.",
+    "Operational confidence outputs and CEP targets (50\u2013200m) baked into product claims\u2014model outputs are presented as mission-grade, confidence-scored geolocation for decisioning."
+  ],
+  "crawl_diagnostics": null,
+  "analyzed_at": "2026-03-08 01:56:54.928884+00:00",
+  "confidence_score": 0.58,
+  "raw_content_analyzed": 52711,
+  "input_hash": "dd4ec205475fe96f"
+}

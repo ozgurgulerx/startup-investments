@@ -1,0 +1,639 @@
+{
+  "company_name": "Mirai",
+  "company_slug": "mirai",
+  "website": "https://trymirai.com/",
+  "logo_url": null,
+  "description": "Deploy and run models of any architecture directly on user devices. Fastest inference engine built from scratch for Apple devices.",
+  "funding_amount": 10000000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [
+    "Qwen/Qwen3-0.6B",
+    "MLX",
+    "llama.cpp",
+    "OpenAI GPT series",
+    "Google's BERT",
+    "Meta's LLaMA",
+    "HuggingFace (HF)",
+    "Cartesia",
+    "DeepSeek",
+    "EssentialAI",
+    "LiquidAI"
+  ],
+  "build_patterns": [
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.95,
+      "evidence": [
+        "Draft model training for speculative decoding. Draft model training for speculative decoding. The draft predicts tokens ahead, your model verifies in one pass. Up to 2x faster generation.",
+        "Sometimes you want to create a complex pipeline where some requests are processed on-device and the more complex ones are handled in the cloud using a larger model.",
+        "Convert and optimize your model for on-device use. Draft model training for speculative decoding."
+      ],
+      "description": "Mirai implements a multi-model strategy: a lightweight 'draft' model is trained to predict tokens ahead (speculative decoding) and a heavier verifier model validates predictions. They also describe routing between on-device models and larger cloud models for complex requests, indicating orchestration of specialized small models and larger models for performance and cost trade-offs."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.92,
+      "evidence": [
+        "Sometimes you want the generated output to be valid JSON with predefined fields. You can use GrammarConfig to manually specify a JSON schema, or use a struct annotated with @Generable from Apple\u2019s FoundationModels framework.",
+        ".grammarConfig(GrammarConfig.fromType(CountryListType))",
+        "Output correctness and quality validation. Layer-by-layer comparison against reference outputs. We measure how optimization affects your model's output quality. Any deviation is flagged."
+      ],
+      "description": "Mirai provides explicit output constraints and validation layers: GrammarConfig / schema-driven generation (and Zod integration) ensure structured outputs, while a validation pipeline (layer-by-layer comparisons and correctness checks) enforces fidelity and flags deviations. These act as guardrail layers ensuring safe, well-formed, and correct outputs."
+    },
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.45,
+      "evidence": [
+        "Paste the snippet Go to ContentView.swift and add this snippet: Don\u2019t forget to add your API key. Copy import Uzu public func runSummarization() async throws { ... }",
+        "const output = await Engine.create('API_KEY') .chatModel('Qwen/Qwen3-0.6B') ... .reply( \"Give me a JSON object containing a list of 3 countries, where each country has name and capital fields\" )",
+        "You can use GrammarConfig to manually specify a JSON schema, or define the schema using Zod."
+      ],
+      "description": "The product provides SDK snippets, schema-driven prompts, and parsing helpers that let developers drive structured outputs (e.g., JSON) from natural-language prompts and then map them back into typed code constructs (Zod, Swift structs). This bridges NL to structured code/data, though the primary focus is structured-output generation rather than full program synthesis."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.4,
+      "evidence": [
+        "Mirai can support your custom / non-standard layers. We will build full conversion pipeline specifically for your model.",
+        "Our optimization pipeline prepares your model for peak performance on Apple devices.",
+        "We train a lightweight draft model matched to yours."
+      ],
+      "description": "While not directly claiming proprietary domain datasets, Mirai offers bespoke conversion/optimization and custom-pipeline support for clients' unique models and layers. This bespoke engineering and per-customer conversion/validation pipeline can functionally create a competitive moat around customers' domain models and specialized assets."
+    }
+  ],
+  "discovered_patterns": [
+    {
+      "category": "Inference Optimization (Operations & Infrastructure)",
+      "pattern_name": "Speculative decoding with a trained lightweight draft model",
+      "confidence": 0.95,
+      "evidence": [
+        "\"Basically, the preset defines the method of speculative decoding.\"",
+        "\"We train a lightweight draft model matched to yours. The draft predicts tokens ahead, your model verifies in one pass. Up to 2x faster generation.\"",
+        "\"Preset ... General - Summarization - Classification No speculation is performed.\""
+      ],
+      "description": "Mirai trains a small, purpose-built \"draft\" model that predicts several tokens ahead. During generation the draft proposes multiple tokens quickly and the full (larger) model verifies/validates those tokens in a single pass (speculative decoding). They expose this as configurable presets (e.g., summarization) so speculative behavior can be enabled or disabled per workload.",
+      "novelty_score": 8,
+      "why_notable": "Training a dedicated draft model per target model and integrating it as a first-class optimization (with presets) is more engineered than ad-hoc speculative decoding\u2014it formalizes the draft/verify split and exposes it in the SDK, enabling measurable speedups (claimed up to 2x)."
+    },
+    {
+      "category": "Inference Optimization (Operations & Infrastructure)",
+      "pattern_name": "Native runtime + hardware-specific micro-optimizations for Apple Silicon",
+      "confidence": 0.98,
+      "evidence": [
+        "\"uzu A Rust inference engine built to run AI with hardware specifics in mind.\"",
+        "\"Mirai builds the fastest on-device inference engine for Apple Silicon.\"",
+        "\"outperforming MLX and llama.cpp on supported models.\"",
+        "\"RoPE precomputation\""
+      ],
+      "description": "Core inference runtime implemented in Rust (uzu) with explicit hardware-specific optimizations for Apple Silicon. Techniques called out include RoPE precomputation, layer fusion, weight optimizations and other low-level performance engineering that allows them to claim speed superiority over MLX and llama.cpp on supported models.",
+      "novelty_score": 6,
+      "why_notable": "Optimizing a runtime for Apple Silicon in Rust and outperforming well-known open-source runtimes is a strong engineering achievement; not conceptually unique, but significant in execution and platform focus."
+    },
+    {
+      "category": "Model Conversion & Packaging (Operations & Infrastructure)",
+      "pattern_name": "Config-based modular export format + conversion pipeline",
+      "confidence": 0.95,
+      "evidence": [
+        "\"Use a modular export format, where each model is constructed from unified blocks that are easy to support on the inference side\"",
+        "\"Convert in one command. If your model is based on a popular architecture ... Out of the box converter for popular model families.\"",
+        "\"Add new architectures easily. If your model uses standard blocks, adding support is just a new config.\""
+      ],
+      "description": "They maintain a conversion/optimization toolkit (lalamo) that turns popular and fine-tuned HF models into a modular, unified export format made of standardized blocks. This lets their runtime support many architectures via a config-based adapter; custom layers are addressed via bespoke converters (their team helps).",
+      "novelty_score": 5,
+      "why_notable": "A modular export format is standard for production runtimes, but Mirai emphasizes easy extension for non-standard/custom layers and an integrated validation pipeline, which increases practical coverage and correctness for customer models."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Layer-by-layer correctness validation with reference implementation",
+      "confidence": 0.96,
+      "evidence": [
+        "\"Maintain a reference implementation for validating output correctness.\"",
+        "\"Output correctness and quality validation.\"",
+        "\"Layer-by-layer comparison against reference outputs. We measure how optimization affects your model's output quality. Any deviation is flagged.\""
+      ],
+      "description": "Mirai runs an explicit validation pipeline that compares optimized/converted models to a reference implementation at a per-layer level. Any deviation in outputs is flagged and used to measure tradeoffs introduced by quantization/optimizations.",
+      "novelty_score": 7,
+      "why_notable": "Per-layer comparison as part of a production conversion pipeline demonstrates strong emphasis on correctness\u2014this goes beyond \u201cblack-box\u201d output checks and helps ensure optimization steps (like fusion or quantization) preserve functional behavior."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Support for many open models plus user-provided fine-tunes and HF integration",
+      "confidence": 0.92,
+      "evidence": [
+        "\"Automatically fetches models from HF and converts them.\"",
+        "\"If your model is based on a popular architecture, including your own fine-tunes and adaptations, it converts in one command.\"",
+        "\".chatModel(repoId: \"Qwen/Qwen3-0.6B\")\" (example)\""
+      ],
+      "description": "The platform integrates closely with Hugging Face, offering one-command conversion for popular families and their fine-tunes. Example usage references Qwen models, HF fetching, and supports local model libraries (various sizes listed).",
+      "novelty_score": 3,
+      "why_notable": "HF integration and conversion support is expected for on-device runtimes, but the one-command conversion plus validation pipeline provides a stronger developer experience than many competitors."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Client-visible hybrid routing (on-device primary, cloud fallback) via same API",
+      "confidence": 0.94,
+      "evidence": [
+        "\"Sometimes you want a complex pipeline where some requests are processed on-device and the more complex ones are handled in the cloud using a larger model. With uzu, you can do this easily: just choose the cloud model you want to use and perform all requests through the same API.\""
+      ],
+      "description": "Mirai exposes a unified API that can transparently route requests to on-device models or to cloud-hosted models (larger models) based on developer choice. The selection appears to be client-configurable (developer chooses the cloud model) and runs through the same session/SDK flows.",
+      "novelty_score": 5,
+      "why_notable": "Unified API-level hybrid routing simplifies building fallbacks and mixed workloads. It's not unique, but being baked into the SDK and runtime simplifies practical hybrid deployment patterns for mobile apps."
+    },
+    {
+      "category": "API & SDK Patterns (Operations & Infrastructure)",
+      "pattern_name": "First-class session abstraction with heavy emphasis on session lifecycle and memory management",
+      "confidence": 0.96,
+      "evidence": [
+        "\"Session The main entity for interacting with the model. It keeps the selected model\u2019s weights in memory and lets you send requests to the LLM.\"",
+        "\"The Session \u2019s init method loads the model weights into memory. ... keep one loaded session instance for the entire application lifecycle. After loading, you can run the same session multiple times. Don\u2019t load a new session for each request.\"",
+        "\"Each model may consume a significant amount of RAM, so it\u2019s important to keep only one session loaded at a time.\""
+      ],
+      "description": "SDKs expose a Session object that loads model weights into RAM; best-practice guidance is to reuse a single loaded session per app lifecycle to avoid repeated loading and memory pressure. They surface memory/capability recommendations (iOS Increased Memory Capability entitlement).",
+      "novelty_score": 3,
+      "why_notable": "This is expected for large on-device models but the SDK's explicit guidance and API ergonomics that surface download progress, session config and run configs indicate maturity in developer-facing ergonomics."
+    },
+    {
+      "category": "Developer Experience & Integration",
+      "pattern_name": "Multi-language bindings and semi-automated binding generation",
+      "confidence": 0.9,
+      "evidence": [
+        "\"uzu-swift Prebuilt bindings to run uzu from Swift. uzu-ts Prebuilt bindings to run uzu from TypeScript.\"",
+        "\"Bindings are semi-auto-generated libraries for running the uzu inference engine from other languages. We use the following tools to automatically generate foreign-language bindings for Rust libraries:\""
+      ],
+      "description": "Core runtime in Rust with semi-auto-generated foreign-language bindings (Swift & TypeScript examples). They provide idiomatic SDKs (Swift, TS) with examples, progress callbacks, and type-aware features (GrammarConfig and Zod compatibility).",
+      "novelty_score": 4,
+      "why_notable": "Using semi-automated binding generation for a Rust core is common for cross-language runtimes, but Mirai coupling it with a full SDK + examples + parsing helpers (GrammarConfig) yields high DX."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Structured output enforcement via grammar/schema integrations",
+      "confidence": 0.92,
+      "evidence": [
+        "\"Sometimes you want the generated output to be valid JSON with predefined fields. You can use GrammarConfig to manually specify a JSON schema, or use a struct annotated with @Generable from Apple\u2019s FoundationModels framework.\"",
+        "\".grammarConfig(GrammarConfig.fromType(CountryListType))\" (Zod example) \"const CountryType = z.object(...)\""
+      ],
+      "description": "They provide tooling to enforce structured outputs: GrammarConfig supports manual JSON schema enforcement and SDKs integrate with language-native schema tooling (Zod in TS, @Generable in Swift) so outputs can be parsed/validated into typed structures reliably.",
+      "novelty_score": 4,
+      "why_notable": "Schema-backed generation is increasingly common, but Mirai's cross-language integration (Swift generable structs, Zod) and first-class API support is practical and developer-friendly."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Training lightweight draft models expressly for speculative decoding and integrating them as SDK-level presets",
+      "why_novel": "While speculative decoding is a known technique, Mirai formalizes it by training dedicated draft models matched to each main model and offering it as configurable presets (e.g., summarization) that developers can toggle, enabling predictable speed/quality tradeoffs.",
+      "potential_impact": "Substantial on-device throughput gains (claimed up to 2x) without complex engineering by app teams. It enables practical real-time UX on mobile where compute is limited."
+    },
+    {
+      "approach": "Per-layer, reference-implementation validation baked into the conversion pipeline",
+      "why_novel": "Many conversion tools perform black-box output checks; Mirai performs layer-by-layer comparisons against a known-good reference to detect subtle deviations introduced by optimization.",
+      "potential_impact": "Higher confidence in optimizations (quantization, fusion) allowing aggressive performance tuning while preserving correctness; lowers risk of silent behavior drift when shipping optimized models."
+    },
+    {
+      "approach": "Unified API for on-device and cloud models with seamless developer experience across SDKs",
+      "why_novel": "The same session/engine API can target both local and cloud models, simplifying hybrid workflows for apps that need local latency most of the time but fallback to larger cloud models for complex tasks.",
+      "potential_impact": "Reduces integration complexity for hybrid deployments; speeds product iteration and makes progressive offloading easier for developers."
+    },
+    {
+      "approach": "Rust-native runtime plus semi-auto-generated multi-language bindings (Swift, TypeScript) with first-class structured output tooling",
+      "why_novel": "Packaging a highly optimized Rust runtime with idiomatic bindings and schema-enforced outputs across platforms (iOS/macOS and JS) improves developer ergonomics for on-device ML and shortens path-to-productization.",
+      "potential_impact": "Enables apps on Apple platforms to ship local ML features faster with fewer correctness/interop issues."
+    }
+  ],
+  "model_details": {
+    "primary_models": [
+      "Qwen/Qwen3-0.6B (example)",
+      "Various HuggingFace-hosted models (HF integration mentioned)",
+      "LLaMA family (referenced as performance baseline; 'llama.cpp')",
+      "Custom/fine-tuned models (supported via converter)"
+    ],
+    "fine_tuning": {
+      "uses_fine_tuning": true,
+      "fine_tuning_approach": "They support converting user-provided fine-tunes and adaptations; also train lightweight \"draft\" models for speculative decoding. Specific tuning methods (LoRA / full fine-tune) are not stated.",
+      "training_data_source": "Not specified in the content; only the existence of draft model training and support for 'your own fine-tunes and adaptations' are mentioned."
+    },
+    "inference_optimization": [
+      "Speculative decoding via trained draft models",
+      "Quantization with quality tradeoff measurement",
+      "Layer fusion and weight optimizations",
+      "RoPE precomputation",
+      "Modular model export for optimized runtime support",
+      "Session reuse to avoid repeated weight loading (memory lifecycle guidance)"
+    ],
+    "model_routing": {
+      "uses_routing": true,
+      "routing_strategy": "Developer-controlled hybrid routing: local on-device inference by default with an option to choose a cloud model for complex requests via the same API (client-side selection exposed by SDK)."
+    },
+    "compound_ai": {
+      "is_compound_system": true,
+      "orchestration_pattern": "Basic hybrid orchestration: single API surface that can target either on-device or cloud models; no evidence of complex multi-model chaining, agent orchestration, or tool calling beyond API-level cloud fallback."
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "developer_tools",
+  "sub_vertical": "on-device AI inference SDK",
+  "sub_sub_vertical": "Apple Silicon optimization and edge AI runtime for LLMs",
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "it_enterprise_software",
+      "vertical_label": "Information Technology & Enterprise Software",
+      "sub_vertical_id": "ai_ml_platforms",
+      "sub_vertical_label": "AI/ML Platforms",
+      "leaf_id": "ai_ml_platforms",
+      "leaf_label": "AI/ML Platforms"
+    },
+    "path": [
+      {
+        "id": "it_enterprise_software",
+        "label": "Information Technology & Enterprise Software",
+        "confidence": 0.65
+      },
+      {
+        "id": "ai_ml_platforms",
+        "label": "AI/ML Platforms",
+        "confidence": 0.86
+      }
+    ]
+  },
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [
+      "OpenAI",
+      "Qwen",
+      "HuggingFace"
+    ],
+    "llm_models": [
+      "Qwen/Qwen3-0.6B",
+      "GPT-series (OpenAI)",
+      "LLaMA (Meta)",
+      "BERT (Google)",
+      "GPT-4 (OpenAI)"
+    ],
+    "vector_databases": [],
+    "frameworks": [
+      "@trymirai/uzu",
+      "GrammarConfig",
+      "uzu-swift",
+      "uzu-ts"
+    ],
+    "hosting": [
+      "On-device (Apple Silicon)",
+      "Cloud (hybrid)"
+    ],
+    "approach": "hybrid",
+    "uses_open_source_models": true,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 0,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": []
+  },
+  "implementation_maturity": "production",
+  "team_analysis": {
+    "founders": [
+      {
+        "name": "",
+        "role": "founder",
+        "background": "Proven entrepreneurs who built and scaled consumer AI leaders; involved with Reface and Prisma.",
+        "previous_companies": [
+          "Reface",
+          "Prisma"
+        ],
+        "technical_depth": "high",
+        "domain_expertise": "on-device AI inference, model optimization, full-stack AI runtime for Apple Silicon"
+      }
+    ],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [
+        "Open Positions (engineering/research/AI inference)"
+      ],
+      "team_size_indicators": "small",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "Founders have hands-on experience building scalable consumer AI products and optimizing models for on-device inference on Apple Silicon, aligning with Mirai's mission. Strong fit, though public founder identities are not disclosed in provided content.",
+    "team_strengths": [
+      "Full-stack on-device AI inference capability from model optimization to proprietary runtime",
+      "Competitive performance claims against MLX and llama.cpp",
+      "Advisor with Apple hardware/ML experience (former Apple Distinguished Engineer)"
+    ],
+    "team_red_flags": [
+      "Public founder identities not disclosed; limited verifiable bios in provided content",
+      "Performance claims without public benchmarking references",
+      "Limited information on organizational structure beyond headcount"
+    ],
+    "team_confidence": 0.78
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "api_pricing",
+      "pricing_evidence": [
+        "API key for SDK use mentioned on platform",
+        "No pricing page and presence of 'Talk to us' / 'Contact Us' for pricing",
+        "Platform / SDK onboarding implies usage-based access without public tiers"
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": false,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "developer_first",
+      "evidence": [
+        "Platform / SDK focus",
+        "Code examples and integration guides",
+        "API key provisioning flow",
+        "Content around converting and optimizing models for Apple devices"
+      ],
+      "target_segment": "developer",
+      "sales_motion": "hybrid"
+    },
+    "revenue_model": {
+      "monetization_approach": "API-based access to on-device inference platform via Platform/SDK with potential enterprise licensing; pricing not public",
+      "unit_economics_signals": [],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "On-device optimization stack for Apple Silicon",
+      "Integrated Platform/SDK with model registry, download, and inference sessions"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "developer platform (Platform/SDK)",
+        "documentation and blog content",
+        "community channels (Discord, GitHub, LinkedIn, X/Twitter)",
+        "direct outreach via 'Talk to us' / 'Contact Us' forms"
+      ],
+      "customer_proof_points": []
+    },
+    "business_model_clarity": "clear",
+    "business_model_confidence": 0.65
+  },
+  "product_analysis": {
+    "product_stage": "beta",
+    "stage_evidence": [
+      "Apple Silicon (iOS/macOS) devices only supported, indicating early stage of device support",
+      "Platform/SDK with sign-in flow to obtain API key suggests an API-centric offering",
+      "Documentation mentions a full integration guide and onboarding steps, but site shows many 404 pages indicating incomplete docs",
+      "Local models registry with multiple model sizes and sources (HF, DeepSeek, Cartesia, etc.) implies a working model ecosystem",
+      "Bindings and tools exist for multiple languages and runtimes (Swift, TypeScript, Rust), plus a CLI tool",
+      "Careers page describes a small but growing team, typical of a product in beta or early growth"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Engine as main entry point to refresh registry, download models, and create inference sessions",
+        "Registry of available local models and a mechanism to select and run them",
+        "Preset-based session configuration for inference (e.g., summarization, classification)",
+        "Conversion and optimization toolkit to prepare models for Apple devices",
+        "Speculative decoding concepts (draft model training, token prediction) and quantization",
+        "Hybrid cloud/local inference support (ability to route requests between device and cloud models)"
+      ],
+      "differentiating_features": [
+        "On-device inference optimized specifically for Apple Silicon with a proprietary runtime",
+        "Integrated conversion and optimization pipeline for iPhone/iPad/Mac with automatic HF model fetching",
+        "Custom architecture support with a team-driven converter for non-standard layers",
+        "Draft training for speculative decoding to speed up generation while ensuring validation"
+      ],
+      "roadmap_signals": [
+        "Statements that Mirai can support custom/non-standard layers with tailored conversion pipelines",
+        "And promises of adding new architectures easily and maintaining same validation/quality pipelines",
+        "Mention of cloud-augmented workflows to balance on-device speed with larger models"
+      ],
+      "feature_completeness": "growing"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "uzu (Rust inference engine)",
+        "uzu-swift (Swift bindings to run uzu from Swift)",
+        "uzu-ts (TypeScript bindings to run uzu from TypeScript)",
+        "lalamo (tools to optimize and convert models)"
+      ],
+      "api_maturity": "platform",
+      "sdk_availability": [
+        "Swift",
+        "TypeScript",
+        "Rust",
+        "CLI tooling",
+        "MacOS App"
+      ],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "On-device AI inference for Apple Silicon devices, enabling local model execution with optimized runtime and a model registry",
+      "secondary_use_cases": [
+        "Convert and optimize models for Apple devices via the conversion toolkit",
+        "Hybrid execution where simple requests run on-device and complex ones leverage cloud models"
+      ],
+      "customer_stories": [],
+      "industry_focus": [
+        "Edge/on-device AI",
+        "Apple ecosystem developers building AI features into iOS/macOS/iPad apps"
+      ]
+    },
+    "product_risks": [
+      "Platform limitation to Apple Silicon devices may limit adoption across non-Apple environments",
+      "High reliance on doc quality given numerous 404 pages; potential onboarding friction",
+      "Unclear pricing model and governance of model download/usage quotas",
+      "Dependency on third-party model sources (e.g., HuggingFace) for model availability and licensing"
+    ],
+    "product_strengths": [
+      "Strong focus on on-device, low-latency inference for Apple devices with optimized runtime",
+      "End-to-end stack: model registry, download, session management, and inference",
+      "Conversion/optimization toolkit with quantization and architecture support aimed at device efficiency",
+      "Multiple SDKs and bindings (Swift, TypeScript, Rust) plus CLI tooling for developers",
+      "Ability to fetch and work with popular model families and CI-friendly workflows"
+    ],
+    "product_confidence": 0.56
+  },
+  "unique_findings": [
+    "End-to-end, hardware-targeted stack: They built a full pipeline (converter, optimizer, runtime) in under a year with Rust core + language bindings (Swift, TypeScript). The exported model format is modular (unified blocks) and paired with a reference implementation to enable byte-for-byte correctness checks \u2014 an unusual, engineering-heavy choice for a small startup.",
+    "Trained 'draft' models for speculative decoding integrated into the conversion pipeline: instead of opportunistically using an off-the-shelf small model as a proposal network, Mirai trains a lightweight draft model matched to the target model so it can predict multiple tokens ahead and have the main model verify them in one pass. They advertise up to ~2x generation speedup. Packaging draft-model training as part of optimization/validation is technically novel for a conversion/edge stack.",
+    "Per-layer correctness and validation tooling baked into conversion: their pipeline runs layer-by-layer comparisons against a reference output and flags deviations, exposing subtle numerical/quantization bugs early. That level of automated fidelity measurement (not just end-to-end sample checks) is uncommon in product-focused inference toolkits.",
+    "Hardware-specific micro-optimizations surfaced into API primitives: they explicitly call out RoPE precomputation, layer fusion, and context-length-based RAM trade-offs, indicating they expose or exploit lower-level runtime invariants to trade memory vs compute on Apple Silicon \u2014 not just 'quantize-and-run'.",
+    "Same-session hybrid on-device/cloud model routing: they provide a unified API so you can run simple requests on-device and escalate complex ones to a cloud model without changing the session semantics. That requires careful state sync, prompt/context consistency, and deterministic sampling controls to avoid user-visible divergence.",
+    "Schema-first structured output: GrammarConfig + first-class integrations with Apple FoundationModels annotations and Zod in JS aims to make the model guarantee parseable JSON. Combining typed schema enforcement with an on-device runtime is a pragmatic approach to reduce brittle prompt engineering at the SDK level.",
+    "Service + converter model for nonstandard layers: they promise to add support for custom layers by building converters per-model when needed, plus the same optimization/validation pipeline. That mixes product tooling with a bespoke services moat (engineering work for customers) rather than purely community-driven converter plugins."
+  ],
+  "technical_depth": "high",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Mirai rethought the LLM stack for Apple Silicon: a full-stack runtime, converter, and spec-decoder in one repo",
+      "summary": "Mirai claims to own the model-to-runtime pipeline end-to-end: a modular export format, conversion/optimization toolkit (lalamo), and a hardware-aware inference runtime (uzu) that enables optimizations like RoPE precomputation and layer fusion. That full-stack control lets them implement speculative decoding with a lightweight draft model and validate correctness with a reference implementation \u2014 a builders\u2019 case study in designing for tight hardware constraints.",
+      "evidence": [
+        "Proprietary runtime (uzu) + conversion/optimization toolkit (lalamo) + session/engine abstractions described in docs",
+        "Modular export format, RoPE precomputation, layer fusion, and layer-by-layer correctness validation are highlighted as design goals",
+        "Draft model training for speculative decoding and a preset-based speculative-decoding system (General/Summarization/Classification)"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Speculative decoding + draft models: Mirai\u2019s pitch for up to 2x faster local generation",
+      "summary": "Mirai emphasizes a performance-first approach: training lightweight draft models to predict ahead and then verifying with the main model so several tokens can be validated in one pass. Combined with micro-optimizations for Apple Silicon and quantization tooling, the company positions itself as materially faster than MLX and llama.cpp on supported models.",
+      "evidence": [
+        "Claimed up to 2x faster generation via draft model speculative decoding",
+        "Optimization pipeline includes layer fusion, quantization with measured tradeoffs, and Apple Silicon-specific runtime optimizations",
+        "Marketing claims they outperform MLX and llama.cpp on supported models"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Betting heavily on Apple Silicon and local-first inference \u2014 why Mirai doubled down where many went multi-cloud",
+      "summary": "Rather than chasing cross-platform reach, Mirai focuses explicitly on Apple Silicon (iOS/macOS) with a small senior team and hardware-specific optimizations. They pair local models with a cloud fallback API so developers can keep a single integration surface while prioritizing on-device privacy and latency \u2014 a deliberate contrarian product posture.",
+      "evidence": [
+        "Docs state 'Currently, only Apple Silicon (iOS/macOS) devices are supported.'",
+        "Hybrid routing is supported: on-device primary with cloud fallback via the same API",
+        "Small, senior 14-person team and advisory ties to a former Apple Distinguished Engineer suggest deep Apple focus"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "A conversion-first approach: why Mirai thinks model conversion + correctness testing unlocks production on-device AI",
+      "summary": "Mirai\u2019s product centers on converting popular HF models and custom fine-tunes into a modular format optimized for Apple hardware, with automated validation (layer-by-layer comparisons) and custom converter support for non-standard layers. This is pitched as the operational muscle product teams need to ship on-device LLM features reliably.",
+      "evidence": [
+        "lalamo: out-of-the-box converter for popular families, automatic HF fetching, and one-command conversion",
+        "Offers custom converter work for models with non-standard layers and the same optimization/validation pipeline for those models",
+        "Output correctness and quality validation with layer-by-layer comparison against reference outputs"
+      ],
+      "uniqueness_score": 7
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing makes strong performance and capability claims without reproducible evidence or detailed benchmarking; some claims verge on hyperbole.",
+      "severity": "high",
+      "evidence": [
+        "\"outperforming MLX and llama.cpp on supported models\"",
+        "\"the fastest on-device inference engine for Apple Silicon\"",
+        "\"Up to 2x faster generation\" (speculative decoding / draft model)",
+        "\"In under a year, a 14-person team built a full stack\""
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "Core components rely on widely-known techniques and open models, and many claimed features (conversion pipeline, quantization, hardware-specific optimizations) are things incumbents or open-source projects can replicate \u2014 limited defensibility described.",
+      "severity": "medium",
+      "evidence": [
+        "Conversion tool: \"Out of the box converter for popular model families\", \"Automatically fetches models from HF and converts them.\"",
+        "Optimization techniques listed are standard: \"Layer fusion and weight optimization\", \"Quantization with minimal quality loss\", \"RoPE precomputation\"",
+        "Support for open LLMs: references to Qwen, GPT-series, LLaMA, BERT and HuggingFace integration"
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Several highlighted capabilities (speculative decoding via a draft model, HF conversion, hybrid on-device/cloud routing) could be packaged as features by larger platforms or hardware vendors rather than forming a stand-alone defensible product.",
+      "severity": "medium",
+      "evidence": [
+        "\"Draft model training for speculative decoding\" presented as a key speed feature",
+        "\"Sometimes you want to create a complex pipeline where some requests are processed on-device and the more complex ones are handled in the cloud\" (hybrid routing exposed as an API capability)",
+        "\"Convert in one command... Out of the box converter for popular model families.\""
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "Positioning risks: narrow platform support, crowded landscape of runtimes and converters, and emphasis on capabilities many competitors already offer \u2014 weak unique angle in messaging.",
+      "severity": "medium",
+      "evidence": [
+        "\"Currently, only Apple Silicon (iOS/macOS) devices are supported.\"",
+        "Multiple references to capabilities already implemented by alternatives (conversion, quantization, local inference runtimes)",
+        "Claims of 'supporting custom layers' but with manual work: \"If it uses custom layers, we build the converter for you.\""
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "llama.cpp",
+        "similarity": "Lightweight, local inference runtime used to run LLMs on consumer hardware (supports many community models and quantized weights).",
+        "how_different": "Mirai claims a proprietary, Rust-based runtime (uzu) tuned specifically for Apple Silicon, an end-to-end conversion/optimization pipeline (lalamo), speculative decoding with a trained draft model, and an integrated SDK/Platform with official language bindings and validation tooling. Mirai advertises better performance on supported models and tighter integration for iOS/macOS apps."
+      },
+      {
+        "name": "MLX (Apple/MLX-like runtimes)",
+        "similarity": "Inference runtimes and toolchains that target Apple hardware, aiming to enable local model execution on Apple Silicon and iOS/macOS devices.",
+        "how_different": "Mirai explicitly claims to outperform MLX on supported models, emphasizes a full-stack solution (conversion + optimization + runtime + SDK + platform), and provides custom converters, layer-level validation and draft-model speculative decoding. Mirai also offers hybrid cloud fallbacks and developer bindings (Swift/TS/etc.)."
+      },
+      {
+        "name": "MLC (mlc.ai / MLC-LLM & related projects)",
+        "similarity": "Open-source efforts focused on running large language models on-device (including Apple Silicon), with tooling for model conversion and runtime acceleration.",
+        "how_different": "Mirai presents itself as a tightly engineered, proprietary stack optimized for Apple Silicon with production-ready SDKs, automatic converters for many model families, explicit support and services for custom/non\u2011standard layers, and commercial platform features (API keys, licensing)."
+      },
+      {
+        "name": "Ollama / Local model managers",
+        "similarity": "Developer-focused products that allow running and managing local models and offering developer APIs for local inference and steamlining integration.",
+        "how_different": "Mirai emphasizes low-level runtime performance tuned to Apple Silicon, a conversion/optimization toolchain that trains draft models for speculative decoding, and per-layer correctness validation. Mirai targets embedding directly into mobile apps with Swift/TS bindings and Mac app, plus a platform for keys and hybrid on-device/cloud flows."
+      },
+      {
+        "name": "Apple Core ML / FoundationModels + Core ML tooling",
+        "similarity": "Official Apple frameworks and runtimes for running ML models on iOS/macOS hardware with hardware acceleration and developer integrations.",
+        "how_different": "Mirai is a third\u2011party, end-to-end product that implements its own inference runtime and conversion/optimization pipeline, claiming superior inference speed on Apple Silicon for supported models, additional features like speculative decoding with draft models, and a developer SDK experience oriented around chat sessions, grammar-config parsing, and hybrid cloud routing."
+      },
+      {
+        "name": "Hugging Face (inference tools, model hub & converters)",
+        "similarity": "Provides model hosting, converters, and developer SDKs for working with many LLM families; widely used conversion and deployment tooling.",
+        "how_different": "Mirai provides a conversion/optimization tool (lalamo) focused specifically on producing Apple-optimized binaries plus a proprietary runtime that integrates speculative decoding and per-layer validation. Mirai also emphasizes production mobile app use (Swift bindings, iOS entitlements guidance) and claims performance benefits on Apple Silicon."
+      }
+    ],
+    "differentiation": {
+      "primary": "A full-stack, Apple Silicon\u2013focused on-device inference solution combining a bespoke Rust runtime (uzu), a conversion/optimization pipeline (lalamo) and SDKs/bindings\u2014positioned to deliver faster local inference and production-ready integration for iOS/macOS apps.",
+      "technical": "Proprietary Rust inference engine (uzu) built with Apple Silicon specifics in mind; model conversion/optimization tooling that supports many architectures and custom layers; trained lightweight draft models to enable speculative decoding (up to 2x generation speed), layer fusion, quantization with measured accuracy tradeoffs, modular export format, and a reference implementation for output validation.",
+      "business": "Targets app developers/products that need high-performance local inference on Apple devices. Offers an integrated developer experience (Swift/TypeScript bindings, CLI, Mac app), a Platform for organization/API key management and licensing, plus support services for converting/custom models\u2014aimed at product teams rather than research users.",
+      "positioning": "Positioned as the fastest, production-ready on-device inference stack for Apple Silicon\u2014an alternative to open-source runtimes (llama.cpp, MLC) and Apple\u2019s own stack\u2014focused on speed, correctness validation, and ease-of-integration for mobile apps."
+    },
+    "secret_sauce": {
+      "core_advantage": "Combination of a hardware\u2011aware, proprietary runtime optimized for Apple Silicon (uzu) plus a conversion/optimization pipeline that includes trained draft models for speculative decoding, end-to-end validation, and commercial SDKs/bindings\u2014enabling significantly faster and reliable on\u2011device inference for iOS/macOS apps.",
+      "defensibility": "Hard to replicate because it requires low-level systems engineering for Apple Silicon, model conversion expertise (including custom layers), infrastructure and tooling to train/validate draft models for speculative decoding, and an integrated developer platform/SDK ecosystem. The small, senior team and advisory links to Apple ML engineers add domain expertise and execution speed. However, because some components overlap with open-source projects, absolute defensibility is limited and requires continuous engineering investment.",
+      "evidence": [
+        "\"Mirai builds the fastest on-device inference engine for Apple Silicon.\"",
+        "\"In under a year, a 14-person team built a full stack, from model optimization to a proprietary runtime, outperforming MLX and llama.cpp on supported models.\"",
+        "\"uzu: A Rust inference engine built to run AI with hardware specifics in mind.\"",
+        "\"lalamo: A set of tools to optimize and convert models for on-device use.\"",
+        "\"We train a lightweight draft model matched to yours. The draft predicts tokens ahead, your model verifies in one pass. Up to 2x faster generation.\"",
+        "\"Quantization with minimal quality loss... You see the exact tradeoff between size, speed, and accuracy.\"",
+        "\"Maintain a reference implementation for validating output correctness... layer-by-layer comparison against reference outputs.\"",
+        "\"Currently, only Apple Silicon (iOS/macOS) devices are supported.\""
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Mirai's moat is rooted in deep systems-level engineering targeted at Apple Silicon, a proprietary runtime, conversion/validation tooling, and a productized SDK/platform for mobile app developers\u2014assets that require specialist skills and time to build. These create a practical advantage for product teams seeking production-ready on-device inference. However the underlying techniques (quantization, speculative decoding, converters) are known and can be implemented by well-resourced open-source communities or competitors; Mirai is also constrained by an Apple\u2011Silicon\u2011only focus, so the moat depends on continued optimization, commercial relationships, and rapid feature parity against community projects and platform vendors.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "Mirai builds the fastest on-device inference engine for Apple Silicon.",
+    "Sometimes you want to create a complex pipeline where some requests are processed on-device and the more complex ones are handled in the cloud using a larger model.",
+    "In under a year, a 14-person team built a full stack, from model optimization to a proprietary runtime, outperforming MLX and llama.cpp on supported models.",
+    "We\u2019re making local inference practical, fast, and reliable for real products.",
+    "The main entry point to the SDK. Use it to refresh the registry, download models, and create inference sessions.",
+    "Conversion and optimization toolkit Convert and optimize your model for iPhone, iPad and Mac.",
+    "This guide covers only the simplest steps to run an LLM on your device.",
+    "Currently, only Apple Silicon (iOS/macOS) devices are supported.",
+    "Speculative decoding implemented via an explicitly trained lightweight 'draft' model matched to the primary model: the draft proposes tokens and the main model verifies in one pass, yielding up to ~2x generation speedups.",
+    "Hardware-aware proprietary runtime (Rust 'uzu') and device-specific bindings (uzu-swift, uzu-ts) focused on Apple Silicon optimizations, plus a full-stack conversion/optimization toolchain (lalamo) that supports custom/non-standard layers.",
+    "Schema-first generation + typed parsing integration: GrammarConfig + Zod / @Generable workflow to guarantee and parse structured outputs reliably into typed application objects.",
+    "End-to-end correctness validation: layer-by-layer reference comparisons and measurable trade-offs between quantization/size/speed with automated quality flagging built into the conversion pipeline."
+  ],
+  "crawl_diagnostics": null,
+  "analyzed_at": "2026-03-08 02:40:20.137535+00:00",
+  "confidence_score": 0.75,
+  "raw_content_analyzed": 96716,
+  "input_hash": "f12dc597232c9e8f"
+}

@@ -8,256 +8,283 @@
   "funding_stage": "unknown",
   "uses_genai": true,
   "genai_intensity": "core",
-  "models_mentioned": [],
+  "models_mentioned": [
+    "Anthropic",
+    "Groq"
+  ],
   "build_patterns": [
     {
-      "name": "RAG (Retrieval-Augmented Generation)",
-      "confidence": 0.98,
-      "evidence": [
-        "\"What RAG Technology Changes\"",
-        "\"Instead of searching through documents, your people have conversations with your knowledge base.\"",
-        "\"Traceable answers Delivers responses with inline images and source citations\"",
-        "\"Circuit processes your technical documents ... and instantly extracting precise answers.\"",
-        "\"Import product labels, documentation, or screenshots in seconds\""
-      ],
-      "description": "They implement retrieval-augmented generation by indexing customer documentation (Indexes, Index Sources), performing vector/document retrieval to find the exact page/diagram/spec, and generating conversational answers grounded in those sources with inline citations and images."
-    },
-    {
-      "name": "Agentic Architectures",
+      "name": "Retrieval-Augmented Generation (RAG)",
       "confidence": 0.95,
       "evidence": [
-        "\"Agents, knowledge access, and file uploads to phones and tablets.\"",
-        "\"Each workflow is powered by a specialized agent configured to your products, documentation, and processes.\"",
-        "\"One sharing flow for Agents and Indexes\"",
-        "\"sharing an Agent now grants read access to its underlying Indexes\"",
-        "\"Agents, knowledge access, and file uploads\""
+        "\"searches through its configured indexes\"",
+        "\"Documents are stored in searchable indexes\"",
+        "\"The agent responds with an answer drawn from your workspace\u2019s documents. Look for: - Citations that link back to source documents\"",
+        "\"Grounded Model Responses\"",
+        "\"The agent searches your documents, reasons over the results, and responds with answers that cite their sources\""
       ],
-      "description": "They expose specialized, configurable agents per workflow (quotes, field tech support, CS) which act as orchestrators that combine retrieval, document interpretation, permissioning, and automation. Agents are first-class entities (shareable, permissioned) and are used to route tasks and tool use."
+      "description": "Circuit combines document indexing and semantic search with LLM generation. Agents query indexes (PDFs, CAD, docs), read retrieved sections, and produce cited answers \u2014 a textbook RAG pipeline with provenance and document citation."
     },
     {
-      "name": "Continuous-learning Flywheels",
+      "name": "Agentic Architectures (Tool-using Agents)",
+      "confidence": 0.95,
+      "evidence": [
+        "\"An agent is an AI assistant configured to answer questions using your indexed documents.\"",
+        "\"A set of tools it can use (search, read documents, fetch web content, and more)\"",
+        "\"agents support multi-turn chats\"",
+        "\"Tool indicators showing what the agent searched or read\"",
+        "\"agents can be embedded and have agent-specific API keys\""
+      ],
+      "description": "They implement autonomous, tool-enabled agents that orchestrate search, document reading, and external fetch actions across multi-turn sessions. Agents have domains, scopes, tool sets, and actions for specialized workflows."
+    },
+    {
+      "name": "Micro-model Meshes (Model Specialization & Routing)",
+      "confidence": 0.85,
+      "evidence": [
+        "\"We use a range of different LLM providers and models to process your source data\"",
+        "\"Our external providers include Anthropic and Groq.\"",
+        "\"None of our external providers are allowed to train their models on the data they process for us.\""
+      ],
+      "description": "Circuit references multiple external LLM providers and implies model selection/routing across providers. This indicates an ensemble or multi-model strategy where different providers/models are used for different tasks or workloads."
+    },
+    {
+      "name": "Continuous-learning Flywheel (Feedback Loops)",
       "confidence": 0.9,
       "evidence": [
-        "\"Continuous learning from every interaction\"",
-        "\"shows you the patterns behind what they\u2019re asking. That way, you can spot gaps in training\"",
-        "\"driven directly by customer feedback\"",
-        "\"feedback will directly shape the final release\""
+        "\"Every chat response has thumbs up and thumbs down buttons.\"",
+        "\"This feedback goes directly to the Circuit team and your administrators... Identify areas where the agent performs well - Spot gaps in the indexed documents - Improve agent configuration and data quality over time\"",
+        "\"Interaction data... captured to provide analytics and share commonly asked questions to account owners.\""
       ],
-      "description": "Circuit describes feedback loops that capture usage patterns and questions to improve indexing, agents, and training content\u2014closing the loop from field interactions back into product and knowledge updates."
+      "description": "User interaction and feedback are captured and routed back to improve indexes, agent configurations, and data coverage \u2014 a continuous improvement loop that refines retrieval and responses over time."
     },
     {
-      "name": "Vertical Data Moats",
+      "name": "Guardrail-as-LLM / Provenance & Compliance Controls",
+      "confidence": 0.8,
+      "evidence": [
+        "\"Grounded Model Responses\"",
+        "\"Citations that link back to source documents and page numbers\"",
+        "\"Tool indicators showing what the agent searched or read\"",
+        "\"Vendors do not Train on Your Data\"",
+        "\"SOC 2 Type II certified\"",
+        "\"Secure AI Containers... 'Circuits'\""
+      ],
+      "description": "Circuit layers provenance, citation, and security controls to constrain model outputs and provide verifiable, compliant responses. They combine system-level security (SOC2, encryption) with response grounding, which functions as a guardrail/verification layer for LLM outputs."
+    },
+    {
+      "name": "Knowledge Graph / Structured Knowledge (Implicit)",
+      "confidence": 0.8,
+      "evidence": [
+        "\"Build structured configuration intelligence\"",
+        "\"Connects to your systems like ERP, CRM, and quoting tools\"",
+        "\"Map requirements against your products, services, and constraints\"",
+        "\"Extract requirements from complex documents Identify scope, constraints, and compliance criteria\"",
+        "\"processes each document using a multi-stage pipeline that extracts content and analyzes structure\""
+      ],
+      "description": "While not explicitly labeled 'knowledge graph', the product constructs structured, relationship-aware knowledge (configuration rules, mappings to products/services) from documents and system integrations \u2014 functionally similar to a knowledge-graph/semantic layer used for reasoning and compatibility checks."
+    },
+    {
+      "name": "Natural-Language-to-Rules / NL-to-Configuration (NL2Rules)",
+      "confidence": 0.8,
+      "evidence": [
+        "\"Automatically creates and maintains configuration rules from your documentation.\"",
+        "\"Applies purpose-built reasoning for configuration logic, compatibility, and dependencies\"",
+        "\"Turn technical documentation into workflows that guide your teams\"",
+        "\"Build structured configuration intelligence\""
+      ],
+      "description": "Circuit converts unstructured docs into executable configuration rules and guided workflows. This is NL-to-rules/logic: extracting constraints and compatibility from prose and embedding them into decision flows used for quoting and field operations."
+    },
+    {
+      "name": "Vertical Data Moat / Domain-specialized AI",
       "confidence": 0.9,
       "evidence": [
-        "\"manufacturing-specific AI\"",
-        "\"Circuit is building the world\u02bcs first AI-powered manufacturing knowledge portal.\"",
-        "\"private environment that never pulls in outside sources\"",
-        "\"interpreting complex technical content\u2014rich with tables, specs, and diagrams\""
+        "\"Purpose-Built AI for Manufacturing & Service Teams\"",
+        "\"Circuit turns your technical documentation into an intelligent engine that guides your team\"",
+        "\"We\u2019re not a SaaS company building for manufacturing. We're operators who've lived inside these ecosystems\"",
+        "\"Connects to your systems like ERP, CRM, and quoting tools\""
       ],
-      "description": "They build domain-specific competitive advantage via proprietary manufacturing documentation, specialized parsers for technical artifacts, and closed-environment models/indexes that keep answers grounded in customer-owned IP."
-    },
-    {
-      "name": "Micro-model Meshes",
-      "confidence": 0.7,
-      "evidence": [
-        "\"specialized agent configured to your products, documentation, and processes.\"",
-        "\"Agents\" (plural) as distinct workflow units",
-        "\"Multi-Language Support Works with content in 100+ languages\""
-      ],
-      "description": "The architecture implies multiple specialized agents/models per workflow and per document type (quote agent, field agent, RFP parser), suggesting model specialization and routing rather than a single monolithic model handling everything."
-    },
-    {
-      "name": "Knowledge Graphs (permission-aware indexes / entity relationships)",
-      "confidence": 0.6,
-      "evidence": [
-        "\"AI-native knowledge networks\"",
-        "\"Connect your existing information streams\"",
-        "\"Indexes\", \"Index Sources\", \"Workspace Indexes\" and folder structure",
-        "\"Automatic access to what\u2019s required: sharing an Agent now grants read access to its underlying Indexes\""
-      ],
-      "description": "They use structured indexing, Indexes and workspace-level views, and explicit access/relationship management between Agents and Indexes. While not explicitly labeled as a graph DB, these elements indicate a relationship-aware knowledge layer with permissioned edges."
-    },
-    {
-      "name": "Natural-Language-to-Code (or automation from NL)",
-      "confidence": 0.75,
-      "evidence": [
-        "\"Quote & Proposal Automation\"",
-        "\"Guides configuration and generates quotes or specifications.\"",
-        "\"Cut takeoff time Reads drawings and pulls requirements automatically\"",
-        "\"Automates quoting, bidding, report generation, and data extraction into ready-to-send deliverables.\""
-      ],
-      "description": "Circuit maps natural language inputs and document extracts to structured outputs (quotes, configurations, specifications). That implies translation from NL and document content into executable business logic, templates, or CPQ automation."
-    },
-    {
-      "name": "Guardrail-as-LLM (validation, constraints, safety checks)",
-      "confidence": 0.7,
-      "evidence": [
-        "\"Flags conflicts and checks constraints as you go\"",
-        "\"Catch errors before they reach the customer\"",
-        "\"Traceable answers ... so you can verify against the exact page, image, spec\"",
-        "\"access is automatically constrained by write permissions\""
-      ],
-      "description": "They combine retrieval and generation with validation layers that enforce constraints (e.g., compatibility checks, warranty validation), provide source traceability, and apply permissioning\u2014serving as guardrails to reduce hallucination and business risk."
+      "description": "Circuit builds a domain-specific product centered on manufacturing and field service, ingesting proprietary technical docs and operational knowledge to create a vertical-specific competitive advantage (data moat) that is hard for generalist models to replicate."
     }
   ],
   "discovered_patterns": [
     {
       "category": "Retrieval & Knowledge",
-      "pattern_name": "RAG-backed, multimodal indexed knowledge store (Indexes + source citations)",
+      "pattern_name": "Index-driven RAG with document-level provenance",
       "confidence": 0.95,
       "evidence": [
-        "What RAG Technology Changes ... Instead of searching through documents, your people have conversations with your knowledge base.",
-        "Circuit\u2019s AI is tailored specifically for vast sets of manufacturing documentation, interpreting complex technical content\u2014rich with tables, specs, and diagrams\u2014and instantly extracting precise answers.",
-        "Traceable answers Delivers responses with inline images and source citations so you can verify against the exact page, image, spec, etc. in your documents.",
-        "Circuit automatically pulls the latest files and you decide what each agent can see.",
-        "Upload Photos and Documents Directly in Chat ... Show Circuit the alert, error code, or issue you\u2019re diagnosing instead of explaining it"
+        "\"Circuit stores your documents in searchable indexes\"",
+        "\"The agent searches through its configured indexes - Reads relevant document sections - Reasons over the information - Responds with an answer that cites its sources.\"",
+        "\"Look for: - Citations that link back to source documents and page numbers - Tool indicators showing what the agent searched or read\"",
+        "\"Circuit automatically processes each document using a multi-stage pipeline that extracts content and analyzes structure. This enables agents to find relevant information by meaning, context, and relationships, not only by keywords.\""
       ],
-      "description": "They implement Retrieval-Augmented Generation (RAG) over a purpose-built index layer that supports multimodal document ingest (PDFs, diagrams, CAD, tables, images). Indexes are first-class objects that agents query; responses include inline images and page-level citations, implying chunk-level retrieval and linking back to source segments. The system pulls and syncs documents from external stores automatically and constrains agent visibility by index access controls.",
-      "novelty_score": 6,
-      "why_notable": "Combines standard RAG with explicit multimodal source linking (images/diagrams/CAD/BOMs) and enforced index-to-agent access mapping, which raises trust and auditability beyond typical text-only RAG implementations."
-    },
-    {
-      "category": "Compound AI Systems",
-      "pattern_name": "Specialized workflow agents wired to indexes and external tools",
-      "confidence": 0.92,
-      "evidence": [
-        "Each workflow is powered by a specialized agent configured to your products, documentation, and processes.",
-        "Workflow Automation Automates quoting, bidding, report generation, and data extraction into ready-to-send deliverables.",
-        "A Simpler, Unified Sharing Experience ... sharing an Agent now grants read access to its underlying Indexes",
-        "Circuit turns your technical documentation into an intelligent engine that guides your team through complex quotes, installs, and repairs."
-      ],
-      "description": "Circuit builds discrete 'Agents' per workflow (quotes, field service, support) that orchestrate retrieval from assigned Indexes and call transformation/automation tools (quote generation, configuration logic, part-compatibility checks). Agents also appear to act as access-bound logical units: sharing an Agent grants appropriate reads to underlying Index content, indicating architecture that couples model prompts/runtimes with policy and connector layers.",
-      "novelty_score": 7,
-      "why_notable": "The explicit mapping of agent \u2192 index \u2192 access policy plus built-in automation (CPQ-like configuration logic) suggests a combined orchestration layer that blends conversational interfaces with deterministic business logic \u2014 stronger task coupling than generic agent frameworks."
-    },
-    {
-      "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Connector-first ingestion with sync, RBAC, and flexible deployment",
-      "confidence": 0.9,
-      "evidence": [
-        "Connect Circuit to where your documentation already lives. No uploading, no organizing, no version control headaches. Circuit automatically pulls the latest files and you decide what each agent can see.",
-        "Enterprise Integrations Connects to your ERP, CRM, Drive, SharePoint, and file shares with role-based access control.",
-        "Flexible Deployment Embed Circuit on your website or in internal tools.",
-        "Get a pilot live in one week No long setup or complicated training sessions. Circuit fits right into the way your techs already work."
-      ],
-      "description": "They run connector pipelines that sync corporate document sources into their indexing system with incremental pulls and apply workspace/index-level RBAC. The product supports embeddable deployment surfaces and likely multi-tenant isolation (Workspace Indexes enforce workspace-only moves), enabling quick pilots via automated ingestion and configuration tooling.",
-      "novelty_score": 5,
-      "why_notable": "Connector-first, RBAC-enforced ingestion is common in enterprise KM, but Circuit emphasizes rapid pilotability and automatic file sync with agent-scoped access, which lowers friction for industrial customers."
-    },
-    {
-      "category": "Safety & Trust (LLM Security)",
-      "pattern_name": "Privacy-first, auditable answers with enterprise controls and SOC2 compliance",
-      "confidence": 0.9,
-      "evidence": [
-        "Circuit processes your technical documents in a private environment that never pulls in outside sources, so answers always come from your own content and nowhere else.",
-        "Traceable answers Delivers responses with inline images and source citations so you can verify against the exact page, image, spec, etc.",
-        "Enterprise-grade security, built for the real world Protect your knowledge with robust access controls, secure sharing, and full SOC 2 compliance.",
-        "The Security Imperative ... Strong data protection and clear governance aren\u2019t just compliance requirements\u2014they\u2019re essential to building trust in AI-native systems."
-      ],
-      "description": "They prioritize closed-data RAG where retrieval is restricted to customer-owned content, coupled with answer provenance (citations + images) for auditability. Enterprise features include SOC 2, RBAC, secure sharing models, and workspace isolation. The platform gathers usage telemetry to surface training gaps and common queries while promising governance and audits.",
-      "novelty_score": 4,
-      "why_notable": "This is becoming a standard enterprise pattern (private RAG + provenance + SOC 2). Not novel, but critical for manufacturing customers with IP and regulatory needs."
-    },
-    {
-      "category": "Learning & Improvement",
-      "pattern_name": "Telemetry-driven improvement (usage analytics -> content/agent iteration)",
-      "confidence": 0.82,
-      "evidence": [
-        "It also makes it easy to securely distribute proprietary information directly to selected partners ... manufacturers typically have little insight into how their partners use their information, what they find confusing, and how their product performs in the real world.",
-        "Circuit not only gives techs verified answers in the moment \u2014 it also shows you the patterns behind what they\u2019re asking. That way, you can spot gaps in training, common problem areas, and emerging knowledge needs.",
-        "If you try it, your feedback will directly shape the final release.",
-        "The key benefits of this approach include: Continuous learning from every interaction"
-      ],
-      "description": "Circuit collects query and usage patterns to surface training gaps and inform content/agent updates. This suggests a productized telemetry pipeline that feeds analytics dashboards and potentially curates new training/FAQ material. The system supports human-in-the-loop to refine agents based on customer feedback.",
-      "novelty_score": 5,
-      "why_notable": "Using real-world field interactions to drive the knowledge base is powerful in manufacturing because it targets high-impact knowledge gaps; while not novel as a concept, their emphasis on partner-network telemetry is distinctive for this vertical."
-    },
-    {
-      "category": "Data Strategy",
-      "pattern_name": "Vertical proprietary document moat (manufacturing-specific parsers & multilingual support)",
-      "confidence": 0.88,
-      "evidence": [
-        "Circuit is building the world\u02bcs first AI-powered manufacturing knowledge portal.",
-        "Reads drawings and pulls requirements automatically Enable anyone to handle complex quotes Provides the product knowledge and configuration logic your experts use",
-        "Visual & technical documents Interprets CAD files, schematics, P&IDs, wiring diagrams and BOMs that generic AI can\u2019t handle.",
-        "Multi-Language Support Works with content in 100+ languages for global teams."
-      ],
-      "description": "Strategy centers on ingesting proprietary technical documentation (drawings, CAD, P&IDs, BOMs, spec sheets) and building verticalized parsers/processing so that the system understands domain artifacts. Multilingual support and per-customer document isolation create a vertical data moat of structured, proprietary manufacturing knowledge.",
-      "novelty_score": 7,
-      "why_notable": "Prioritizing deep parsing of engineering artifacts (BOMs, diagrams, CAD) and pairing that with agent workflows is unusual vs. general LLM offerings and forms a defensible vertical moat."
+      "description": "Circuit implements a retrieval-augmented approach where uploaded documents are processed into indexes by a multi-stage ingestion pipeline (structure extraction, content extraction). Agents query those indexes, read specific document sections and return answers with explicit citations and tool indicators, providing provenance for each response.",
+      "novelty_score": 3,
+      "why_notable": "This is a best-practice RAG implementation with strong emphasis on provenance (page-level citations and tool indicators), which is critical for technical/regulated domains but otherwise widely adopted."
     },
     {
       "category": "Model Architecture & Selection",
-      "pattern_name": "Opaque LLM backend with emphasis on retrieval + specialist prompting (no public model names)",
-      "confidence": 0.75,
+      "pattern_name": "Multi-provider LLM strategy (policy-constrained provider mix)",
+      "confidence": 0.9,
       "evidence": [
-        "Generic AI that isn\u2019t built for the trades fails where it matters most: reading dense manuals, drawings, and RFPs.",
-        "This isn't science fiction. It's happening right now in manufacturing facilities that decided static documentation was holding them back.",
-        "Circuit processes your technical documents in a private environment that never pulls in outside sources, so answers always come from your own content and nowhere else."
+        "\"We use a range of different LLM providers and models to process your source data and provide answers to your questions. Our external providers include Anthropic and Groq.\"",
+        "\"None of our external providers are allowed to train their models on the data they process for us.\""
       ],
-      "description": "The product emphasizes RAG and specialized prompting over publicly-disclosed fine-tuned base models. No specific models (GPT-4, Claude, Llama, etc.) are named; likely they use a hosted LLM or a mix of models behind an API layer, with the emphasis placed on retrieval, prompting, and domain-specific parsers rather than model architecture transparency.",
+      "description": "Circuit uses multiple external LLM providers rather than a single proprietary model. They explicitly name Anthropic and Groq and describe a policy that forbids providers from training on customer data. This indicates either runtime routing across providers or a provider selection strategy shaped by policy, capability, or cost.",
+      "novelty_score": 4,
+      "why_notable": "Multi-provider strategies are increasingly common, but Circuit's explicit vendor policy (no training on customer data) combined with a multi-provider mix tuned for enterprise constraints is a practical pattern for regulated verticals."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Tool-augmented agent orchestration (search/read/fetch + reasoning)",
+      "confidence": 0.95,
+      "evidence": [
+        "\"An agent is an AI assistant configured to answer questions using your indexed documents. Each agent has ... A set of tools it can use (search, read documents, fetch web content, and more)\"",
+        "\"The agent searches through its configured indexes - Reads relevant document sections - Reasons over the information - Responds with an answer that cites its sources.\"",
+        "\"Tool indicators showing what the agent searched or read\""
+      ],
+      "description": "Agents are orchestrators that combine retrieval tools (search, read document sections, fetch web content) with an LLM 'reasoning' step. The system surfaces tool usage in the UI (tool indicators) and stitches multi-step executions into conversational multi-turn flows.",
+      "novelty_score": 5,
+      "why_notable": "This is a mature tool-augmented-agent pattern (RAG + tool calls + LLM reasoning) with explicit UI-level transparency (tool indicators), which suits auditability and operational workflows in manufacturing."
+    },
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "Automated extraction of structured configuration rules from technical docs",
+      "confidence": 0.9,
+      "evidence": [
+        "\"Circuit automatically creates and maintains configuration rules from your documentation.\"",
+        "\"Build structured configuration intelligence\"",
+        "\"Circuit understands your product documentation and configuration logic, turning specs, application notes, and pricing rules into guidance teams can use to produce accurate quotes...\"",
+        "\"Ingest specs, application notes, pricing rules, and technical documentation.\""
+      ],
+      "description": "Beyond plain retrieval, Circuit runs extraction pipelines to convert unstructured technical documentation (specs, application notes, pricing rules) into structured configuration and compatibility rules that power guided quoting and validation. This produces a rules/constraint layer derived from source docs that agents leverage during interactions.",
+      "novelty_score": 7,
+      "why_notable": "Automatically deriving actionable configuration logic and compatibility constraints from heterogeneous technical artifacts (including CAD/diagrams) is a higher-value, less common capability that directly solves domain-specific operational problems in manufacturing/field service."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Secure multi-tenant isolation with 'Circuits' secure AI containers",
+      "confidence": 0.98,
+      "evidence": [
+        "\"Data isolation Circuit isolates customer data at the infrastructure level. Each workspace\u2019s data is stored separately...\"",
+        "\"Secure AI Containers The content you ingest and all associated indexing artifacts are kept secure in 'Circuits', our secure AI containers.\"",
+        "\"Documents are stored in encrypted S3 buckets with server-side encryption\"",
+        "\"AES-256 encryption for database storage and object storage (S3)\"",
+        "\"TLS 1.2+ for all API and web traffic\"",
+        "\"SOC 2 Type II certified\""
+      ],
+      "description": "Circuit enforces infrastructure-level data isolation per workspace, stores documents in encrypted S3, and isolates indexing artifacts within purpose-built secure AI containers named 'Circuits'. They pair this with standard encryption in transit and at rest, SOC 2 certification, and external pen testing.",
+      "novelty_score": 5,
+      "why_notable": "The explicit notion of secure AI containers that bundle ingested content and indexing artifacts is an operationally strong pattern for enterprise privacy and compliance; not unique but highly relevant and well-executed for the target vertical."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Fine-grained governance: workspace/index/agent RBAC + agent-scoped API keys",
+      "confidence": 0.98,
+      "evidence": [
+        "\"Circuit implements role-based access control at multiple levels: Workspace level ... Index level ... Agent level\"",
+        "\"API keys are agent-specific: each key is tied to a single agent\"",
+        "\"Keys can be domain-restricted to only accept requests from specified web domains\"",
+        "\"Rate limiting is enforced at 60 requests per minute per API key\"",
+        "\"Keys can be revoked at any time from the agent settings\""
+      ],
+      "description": "Circuit applies role-based access control across workspace, index, and agent scopes and enforces per-agent API keys that can be domain-restricted and revoked. Rate limiting is applied per key. This enables tight governance of agent access and embeddable widgets with controlled exposure.",
       "novelty_score": 3,
-      "why_notable": "Many vendors hide the model backend; Circuit's differentiation is in vertical data processing and agent wiring, not claimed custom LLM architectures."
+      "why_notable": "Fine-grained RBAC and per-agent keys are pragmatic and expected for B2B AI platforms; it's notable because it aligns governance with agent-level capability and embedding scenarios."
     },
     {
       "category": "Evaluation & Quality (EvalOps)",
-      "pattern_name": "Business-metric-driven evaluation + claim of high retrieval accuracy",
-      "confidence": 0.7,
+      "pattern_name": "Human-feedback loop + analytics for indexing and agent tuning",
+      "confidence": 0.9,
       "evidence": [
-        "Results from on-site technician use: 97% accurate answer retrieval Average time-to-resolution reduced from 6 minutes to 10 seconds",
-        "ROI Measurement Framework ... First-time fix rate improvements (15-25% typical) Service call optimization for manufacturing operations",
-        "We\u2019ve built it. They proved it works."
+        "\"Every chat response has thumbs up and thumbs down buttons. This feedback goes directly to the Circuit team and your administrators, helping them: Identify areas where the agent performs well - Spot gaps in the indexed documents - Improve agent configuration and data quality over time\"",
+        "\"Interaction data, including questions and answers are captured to provide analytics and share commonly asked questions to account owners.\""
       ],
-      "description": "Evaluation appears to be performed against operational KPIs (first-time fix, time-to-resolution, accurate answer retrieval). The content references ROI measurement frameworks and percentages, indicating they track production metrics and possibly per-agent accuracy against ground-truth documentation. However, there is no public detail on automated evaluation pipelines, test suites, or A/B model testing.",
+      "description": "User feedback (thumbs up/down) and interaction analytics are captured and surfaced to administrators and the Circuit team to prioritize index improvements, agent configuration changes, and content coverage. Interaction logs are used to surface commonly asked questions and identify gaps.",
       "novelty_score": 4,
-      "why_notable": "Prioritizing operational KPIs over native LLM metrics aligns product value with customer outcomes; but lack of disclosed EvalOps pipeline limits technical reproducibility."
+      "why_notable": "A direct human-in-the-loop feedback path tied to index and agent improvements is an essential EvalOps pattern; Circuit emphasizes this specifically for improving technical coverage, which is valuable in their domain."
+    },
+    {
+      "category": "Data Strategy",
+      "pattern_name": "Enterprise connectors and heterogeneous document support (including CAD/diagrams)",
+      "confidence": 0.95,
+      "evidence": [
+        "\"Authenticated methods to safely load data from sources like Google Drive, OneDrive, and others\"",
+        "\"Upload documents to an index: PDFs, Word files, spreadsheets, presentations, CAD drawings, and more.\"",
+        "\"Support takeoffs from technical drawings ... Read plans and documents to identify quantities, components, and scope inputs needed for estimating.\""
+      ],
+      "description": "Circuit provides secure connectors for common enterprise storage providers and supports a wide variety of document formats including technical drawings and CAD files. Ingestion includes specialized processing to extract structure and semantic content useful for estimating and takeoffs.",
+      "novelty_score": 5,
+      "why_notable": "Direct support for CAD/technical drawing ingestion and domain-specific extraction (takeoffs) is a verticalized capability that sets Circuit apart from generic doc-RAG platforms."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Cloud-native production deployment on AWS with containerized microservices (Kubernetes)",
+      "confidence": 0.98,
+      "evidence": [
+        "\"Cloud provider: AWS\"",
+        "\"Compute: Containerized services running on Kubernetes\"",
+        "\"Monitoring: Application performance monitoring and logging\"",
+        "\"Backups: Regular automated database backups\""
+      ],
+      "description": "Circuit runs as containerized services on Kubernetes in AWS with standard production practices such as monitoring/APM, logging, and automated backups. This supports scale and observability for inference and ingestion workloads.",
+      "novelty_score": 2,
+      "why_notable": "This is the standard production deployment pattern for modern SaaS/ML platforms; it's necessary but not unique."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Agent templates and scoped domains for purpose-built behavior",
+      "confidence": 0.92,
+      "evidence": [
+        "\"Each agent has:- A domain that shapes its behavior (field enablement, customer service, RFP, general purpose, and others) - A reference scope that defines which indexes it can search - A set of tools it can use (...) - Optional skills and actions for specialized workflows\"",
+        "\"Select the agent that matches what you need: for example, a technical support agent or a sales enablement agent.\""
+      ],
+      "description": "Agents are templated by domain and scope to produce purpose-built behavior (sales enablement, RFP, field service). An agent\u2019s reference scope controls which indexes it can access, and optional skills/actions customize its workflow capabilities.",
+      "novelty_score": 4,
+      "why_notable": "Domain-scoped agents backed by configurable index scope and toolsets map well to enterprise user roles and security models; it's a practical pattern that improves trust and relevance."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Agent-to-index access mapping with automatic access grant on share",
-      "why_novel": "Sharing an Agent automatically grants read access to its underlying Indexes \u2014 this couples access policy, provenance, and runtime agent configuration in a single UX flow. Many systems require separate ACL configuration for retrieval stores and agent rights.",
-      "potential_impact": "Reduces onboarding friction and misconfiguration risks; makes agent sharing predictable and safer for enterprise collaboration across partners and distributors."
+      "approach": "Secure AI containers ('Circuits') that hold ingested content and indexing artifacts",
+      "why_novel": "Rather than just encrypting data in shared infrastructure, Circuit packages content and its indexing artifacts into named secure containers, providing a discrete, auditable isolation boundary per workspace/tenant.",
+      "potential_impact": "Improves compliance, reduces blast radius for multi-tenant footprints, and simplifies proofs for auditors or enterprise compliance teams."
     },
     {
-      "approach": "Deep document multimodal parsing tailored to engineering artifacts (CAD, P&ID, BOM) combined with chat+image upload",
-      "why_novel": "Most RAG products focus on text/PDF; Circuit emphasizes parsing and reasoning over engineering drawings and BOMs and integrates photo uploads from field techs into the same conversational flow.",
-      "potential_impact": "Enables reliable field troubleshooting and CPQ workflows that require precise interpretation of diagrams and parts lists\u2014a strong vertical advantage in manufacturing."
-    },
-    {
-      "approach": "File-first workspace and index model with in-app editing and cross-index move/copy semantics",
-      "why_novel": "Treating files as primary work surfaces (full-page editing of .md and .csv as tables) and allowing admins to move/copy across Indexes with enforced workspace constraints blends document management with retrieval indexing in a way that reduces duplication and sync issues.",
-      "potential_impact": "Improves document hygiene and reduces data drift between the operational repo and the indexed knowledge base, improving retrieval quality and governance."
+      "approach": "Automatic extraction and maintenance of structured configuration rules from heterogeneous technical documentation (specs, CAD, pricing rules)",
+      "why_novel": "Transforming unstructured technical docs into a living rule/constraint engine for quoting/configuration is deeper than typical RAG: it reconstructs product logic and compatibility constraints to drive correct operational decisions.",
+      "potential_impact": "Enables non-expert users to perform complex quoting and configuration accurately, reduces engineering back-and-forth, and creates a defensible vertical moat through structured product knowledge."
     }
   ],
   "model_details": {
     "primary_models": [
-      "not explicitly stated; marketing emphasizes RAG + domain-specific prompting over named base models",
-      "likely a hosted LLM or mix of LLMs behind an API (inferred from 'private environment' and agent orchestration)"
+      "Anthropic",
+      "Groq",
+      "Other (described as 'a range of different LLM providers and models')"
     ],
     "fine_tuning": {
       "uses_fine_tuning": false,
-      "fine_tuning_approach": "No direct mention of fine-tuning (LoRA/full). The product emphasizes retrieval from customer documents and prompt/agent configuration rather than describing model fine-tuning pipelines.",
-      "training_data_source": "Customer proprietary documents and manufacturing documentation (manuals, CAD, BOMs) used at query time for RAG; no public dataset or base-model training sources disclosed."
+      "fine_tuning_approach": "No evidence of fine-tuning or LoRA; they emphasize using external providers without provider-side training on customer data.",
+      "training_data_source": "Not mentioned; platform emphasizes that external providers do not train on customer data."
     },
     "inference_optimization": [
-      "evidence of fast responses (time-to-resolution from minutes to ~10s) implies engineering optimizations (caching of retrievals, prompt engineering, and likely result caching), but techniques are not described explicitly",
-      "no explicit mentions of quantization, distillation, or batching in the content"
+      "Containerized deployment on Kubernetes (implies horizontal scaling and orchestration)",
+      "Per-agent API key rate limiting (60 requests/minute per key) to limit load and abuse",
+      "Use of secure 'Circuits' to isolate indexing/inference artifacts",
+      "Monitoring and APM for performance observability"
     ],
     "model_routing": {
       "uses_routing": true,
-      "routing_strategy": "Routing appears to be at the agent/workflow level: specialized agents are configured to given Indexes and tasks (quote-agent, support-agent). Agents likely route queries to appropriate retrieval indexes and associated tooling/transform steps."
+      "routing_strategy": "Multi-provider approach: Circuit uses a 'range of different LLM providers and models' (explicitly Anthropic and Groq). While exact runtime routing logic is not described, evidence suggests provider selection/policy (e.g., vendors that do not train on data) and possibly per-task/provider mapping."
     },
     "compound_ai": {
       "is_compound_system": true,
-      "orchestration_pattern": "Agent-centric orchestration: each agent composes retrieval from indexes, domain parsers (diagrams/CAD/BOM extraction), and business-logic tools (quote generation, part-compatibility checks) to produce deterministic deliverables; agents act as boundary units for access control and embedding into workflows."
+      "orchestration_pattern": "Retrieval-first pipeline: ingestion->indexing->search; agent runtime composes tool calls (search, read, fetch) and LLM reasoning to produce answers with citations and observable tool indicators. Agents support multi-turn interactions and optional skills/actions for workflows."
     }
   },
   "market_type": "vertical",
   "vertical": "industrial",
-  "sub_vertical": "manufacturing operations and field service",
-  "sub_sub_vertical": "industrial knowledge management & AI-assisted frontline support",
+  "sub_vertical": "manufacturing quoting/configuration and field service enablement",
+  "sub_sub_vertical": "industrial equipment configuration and quoting for OEMs and distributors",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
@@ -273,22 +300,27 @@
       {
         "id": "it_enterprise_software",
         "label": "Information Technology & Enterprise Software",
-        "confidence": 0.75
+        "confidence": 0.82
       },
       {
         "id": "ai_ml_platforms",
         "label": "AI/ML Platforms",
-        "confidence": 0.78
+        "confidence": 0.82
       }
     ]
   },
   "target_market": "b2b",
   "tech_stack": {
-    "llm_providers": [],
+    "llm_providers": [
+      "Anthropic",
+      "Groq"
+    ],
     "llm_models": [],
     "vector_databases": [],
     "frameworks": [],
-    "hosting": [],
+    "hosting": [
+      "AWS"
+    ],
     "approach": "rag",
     "uses_open_source_models": false,
     "has_custom_models": false
@@ -298,19 +330,17 @@
     "has_public_api": true,
     "has_sdk": true,
     "has_documentation": true,
-    "has_engineering_blog": true,
+    "has_engineering_blog": false,
     "github_presence": false,
     "github_stars": 0,
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "GitHub profile with 'Circuit SDKs and examples' and 56 repositories",
-      "Node.js SDK usage in a real project (virtual-patient-clinic)",
-      "Circuit iOS SDK available (circuit-ios-sdk)",
-      "Public README with getting-started instructions",
-      "Live demos / sample projects and a dedicated blog site link",
-      "Integrations described in product docs (ERP, CRM, Drive, SharePoint)",
-      "Multi-language support advertised in integrations"
+      "Public GitHub presence with circuit organization and multiple repos including SDKs (iOS) and sample apps",
+      "Node.js and iOS SDKs available; README guidance and getting started sections",
+      "Security posture includes SOC 2 Type II, encryption at rest and in transit, data isolation, API key security, and third-party penetration testing",
+      "Indexes and agents architecture described; chat flow with source citations and feedback mechanism",
+      "Open source components and documented integration examples enable external review"
     ]
   },
   "implementation_maturity": "production",
@@ -318,360 +348,353 @@
     "founders": [
       {
         "name": "Tyson Tuttle",
-        "role": "Founder & CEO",
-        "background": "Former Silicon Labs CEO; seasoned hardware/semiconductor executive with leadership experience in engineering-driven organizations",
+        "role": "CEO / Co-founder",
+        "background": "Former CEO of Silicon Labs; veteran in semiconductor hardware and manufacturing; led operations and scale in a large tech hardware company",
         "previous_companies": [
           "Silicon Labs"
         ],
         "technical_depth": "high",
-        "domain_expertise": "manufacturing AI, AI-native knowledge networks, industrial knowledge management, semiconductor/tech leadership"
+        "domain_expertise": "manufacturing, semiconductor engineering, hardware systems, industrial AI workflows"
       }
     ],
     "team_signals": {
       "engineering_heavy": true,
       "has_ml_expertise": true,
       "has_domain_expertise": true,
-      "hiring_signals": [],
+      "hiring_signals": [
+        "engineering roles across product, ML, and go-to-market roles; open roles mentioned"
+      ],
       "team_size_indicators": "small",
       "remote_distributed": false
     },
-    "founder_market_fit": "strong",
+    "founder_market_fit": "High",
     "team_strengths": [
-      "Credible founder with hardware/manufacturing domain experience and leadership (Tyson Tuttle, ex-Silicon Labs CEO)",
-      "Product leadership evidenced by named product lead (Jake Salomon) and ongoing engineering-driven updates",
-      "Clear market traction signals (customer testimonials, on-site results, and technology outcomes such as 97% accurate answers and reduced time-to-resolution)",
-      "Industry-relevant domain focus (manufacturing, field service, quotes, RFPs) aligned with product proposition"
+      "Founder with deep hardware/manufacturing leadership experience (Silicon Labs) enabling credibility in industrial AI",
+      "Clear emphasis on product development, customer deployments, and scaling engineering resources",
+      "Strong security/compliance posture (SOC 2, encryption, secure SDLC) aligned with enterprise buyers",
+      "Domain-driven approach: translating technical documentation into guided workflows for field/service teams"
     ],
     "team_red_flags": [
-      "Public bios for only a subset of team; limited detail on broader founding team and organizational depth",
-      "Limited transparency on hiring plans, team size, and explicit domain-specific credentials beyond the CEO and a few executives",
-      "Security/privacy/governance details not clearly disclosed in available materials"
+      "Public information on the founding team beyond Tyson Tuttle is limited; potential risk of limited leadership depth publicly visible",
+      "Early-stage signals with unknown team size and track record beyond one founder"
     ],
-    "team_confidence": 0.72
+    "team_confidence": 0.68
   },
   "business_model": {
     "pricing_model": {
       "type": "custom",
       "pricing_evidence": [
-        "No explicit pricing page or price points mentioned",
-        "Freemium/paid plan terminology appears in unrelated site (browserless) content rather than Circuit pricing",
-        "Lead-gen CTAs imply enterprise sales rather than self-serve pricing"
+        "enterprise-focused positioning with tailored demos and walkthroughs",
+        "discount tiers discussed for large orders (e.g., 50+ units)",
+        "pricing likely via enterprise agreements rather than self-serve",
+        "emphasis on integration with ERP/CRM and quoting tools implying subscription/licensing model"
       ],
       "free_tier_available": false,
       "enterprise_focus": true,
       "price_points": []
     },
     "gtm_strategy": {
-      "primary_channel": "content_marketing",
+      "primary_channel": "sales_led",
       "evidence": [
-        "Manufacturing Skills Gap white paper with free download",
-        "Demonstrated emphasis on demos: 'Schedule a Demo Today', 'Walk through tailored goals'",
-        "Educational content and case studies to drive inbound inquiries"
+        "book a demo / tailored walkthrough",
+        "case studies and logos (Culligan, Four Hands)",
+        "partner network referenced",
+        "accelerated deployments via enterprise engagements"
       ],
       "target_segment": "enterprise",
       "sales_motion": "hybrid"
     },
     "revenue_model": {
-      "monetization_approach": "SaaS-like enterprise licenses for Circuit's manufacturing knowledge portal, with integration capabilities and tailored onboarding; demo-led journey to close deals",
+      "monetization_approach": "subscription-based SaaS with enterprise licensing and API/data-connector usage; revenue tied to workspace access and quoting features",
       "unit_economics_signals": [
-        "No explicit ARPU, margins, or pricing shown in content"
+        "no explicit margins or ARPU; enterprise deals implied",
+        "recurring revenue from subscriptions implied"
       ],
       "recurring_revenue": true
     },
     "distribution_advantages": [
-      "Integrated knowledge portal designed for partner networks (distributors, field technicians, salespeople)",
-      "Native integrations with ERP, CRM, Drive, SharePoint, with role-based access control",
-      "Multi-language support enabling global deployment"
+      "data isolation and SOC 2 Type II certification",
+      "secure AI containers and encryption at rest/in transit",
+      "ERP/CRM and quoting tool integrations",
+      "data connectors to Google Drive, OneDrive, and others"
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "content marketing (white papers, thought leadership)",
-        "demos and tailored walkthroughs",
-        "customer testimonials and case studies"
+        "direct enterprise sales / demos",
+        "partner network",
+        "content and thought leadership (case studies)"
       ],
       "customer_proof_points": [
-        "97% accurate answer retrieval in on-site use",
-        "Time-to-resolution reduction from 6 minutes to 10 seconds",
-        "Quotes and testimonials from executives (e.g., David Thompson, Sally Henderson, Ronald Chillington)"
+        "Culligan",
+        "Four Hands"
       ]
     },
     "business_model_clarity": "clear",
-    "business_model_confidence": 0.6
+    "business_model_confidence": 0.72
   },
   "product_analysis": {
-    "product_stage": "beta",
+    "product_stage": "general_availability",
     "stage_evidence": [
-      "Circuit Android app beta released, available to users with an existing Circuit account",
-      "Mentions of major updates coming soon and ongoing beta posture",
-      "Pilot program promised with 'Get a pilot live in one week' and minimal setup"
+      "SOC 2 Type II certification",
+      "Secure AI Containers with AES-256 encryption at rest and TLS 1.2+ in transit",
+      "Regular third-party vulnerability testing and secure SDLC",
+      "API-based integration model with domain-restricted keys and rate limiting",
+      "Data connectors for Google Drive and OneDrive; integration concepts with ERP/CRM/quoting tools",
+      "Public customer stories (Culligan, Four Hands) and press coverage confirming customer traction",
+      "Clear positioning around grounded, documentation-driven quoting and RFP workflows indicating market-ready capabilities"
     ],
     "feature_depth": {
       "core_features": [
-        "AI-powered manufacturing knowledge portal capable of interpreting complex technical content (CAD, schematics, P&IDs, BOMs) and extracting precise answers with inline images and source citations",
-        "Uploads and in-chat handling of photos and documents for issue diagnosis",
-        "Full-page file editing for documents and tables (MD editors, CSV as editable tables)",
-        "Real folders inside indexes with create/rename/delete and infinite nesting; move/copy files across indexes",
-        "Unified sharing flow for Agents, Indexes, and Workspaces; bulk invites; access to underlying indexes",
-        "Workflow automation for quoting, bidding, and data extraction into ready-to-send deliverables"
+        "Ingests specs, application notes, pricing rules, and technical documentation",
+        "Grounded, configuration-aware reasoning for product compatibility and constraints",
+        "Guided quoting and configuration flows derived from documentation",
+        "Extraction of requirements, scope, and compliance criteria from RFPs, specs, and drawings",
+        "Takeoffs and estimation support from drawings and plans",
+        "Citations to source documents with page references in responses",
+        "Chat-based access to domain knowledge with source-backed outputs"
       ],
       "differentiating_features": [
-        "AI-native knowledge network tailored to manufacturing with traceable, cited outputs sourced from the user\u2019s own documents",
-        "Domain-specific document interpretation (technical content with diagrams) to deliver precise, context-aware answers",
-        "On-platform, first-class handling of engineering documents (CAD, schematics, P&IDs, BOMs) that generic AI cannot process as effectively",
-        "Multi-language support across 100+ languages for global teams"
+        "Grounded model responses that cite source documents and pages",
+        "Automated creation and maintenance of configuration rules from product docs",
+        "End-to-end quoting acceleration with knowledge-driven configuration and pricing logic",
+        "Security-first architecture (SOC 2 Type II, secure containers, data encryption, no data training on client data)"
       ],
       "roadmap_signals": [
-        "Explicit statement of upcoming major updates and ongoing beta iteration",
-        "Public pilot program in about one week, suggesting a move toward broader GA in the near term",
-        "References to future enhancements in file handling, sharing, and integrations imply an expanding ecosystem"
+        "Note of ongoing product development, customer deployments, and hiring to scale operations",
+        "Emphasis on expanding use cases to quoting, field service, and customer support"
       ],
-      "feature_completeness": "growing"
+      "feature_completeness": "comprehensive"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [
-        "ERP",
-        "CRM",
-        "Drive",
-        "SharePoint",
-        "file shares with role-based access control"
+        "ERP systems",
+        "CRM systems",
+        "quoting tools",
+        "Google Drive",
+        "OneDrive"
       ],
-      "api_maturity": "none",
+      "api_maturity": "comprehensive",
       "sdk_availability": [],
       "webhook_support": false,
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "Provide field technicians and customer-facing teams with instant access to product knowledge, manuals, diagrams, and part references, enabling faster problem resolution and accurate quotes/proposals",
+      "primary_use_case": "Deliver documentation-backed quoting guidance by turning technical documentation into guided configuration and pricing decisions",
       "secondary_use_cases": [
-        "RFPs and CPQs: extracting key requirements and ensuring proposals align with capabilities",
-        "Knowledge distribution to partners/distributors and field service networks",
-        "Onboarding and training: reducing time to productivity for new hires",
-        "Knowledge retention across retirements and staff turnover"
+        "Pursuing bids: RFP review and requirement extraction to assess fit",
+        "Estimating: takeoffs from drawings for accurate pricing",
+        "Field service and customer support workflows guided by documented specs and rules"
       ],
       "customer_stories": [
-        "David Thompson, Executive Field Service: 'Circuit reads the drawings, pulls the requirements, and matches them to our products. We\u2019re winning work we didn't have capacity for before.'",
-        "Sally Henderson, Senior Leadership: 'Our techs used to call senior guys five times a day. Now they pull up Circuit and get the answer in seconds. Callbacks are down and jobs are getting done faster.'",
-        "Ronald Chillington, CTO/VP Executive Branch: 'We\u2019ve built it. They proved it works.'",
-        "Tony Bender, Chief Information Officer: 'Circuit shows what the future of manufacturing looks like... results from on-site use: 97% accurate answer retrieval; average time-to-resolution reduced from 6 minutes to 10 seconds.'"
+        "Culligan",
+        "Four Hands"
       ],
       "industry_focus": [
         "Manufacturing",
-        "Field Service",
-        "Distribution / Partner networks",
-        "RFP/CPQ heavy industries"
+        "Service organizations",
+        "Industrial equipment and quoting-intensive sectors"
       ]
     },
     "product_risks": [
-      "Beta-stage features imply potential instability or changes before general availability",
-      "Limited public documentation on APIs/SDKs; integration surface may evolve",
-      "Lack of explicit pricing, tiers, and long-term support details in current materials",
-      "Reliance on customer-provided documentation for answers; data governance and privacy considerations when distributing knowledge to partners"
+      "Dependence on the breadth and quality of a customer's internal documentation (incomplete docs could limit effectiveness)",
+      "Potential integration challenges across diverse ERP/CRM/quoting ecosystems",
+      "Ongoing need to maintain up-to-date compliance and security posture with evolving standards"
     ],
     "product_strengths": [
-      "Strong domain specificity for manufacturing with AI-native knowledge networks",
-      "Rich document handling capabilities (CAD, schematics, P&IDs, BOMs) and inline source citations",
-      "Mobile-first, on-the-go access via Android beta and in-chat file uploads",
-      "Robust file and index management with real folders, moves/copies, and workspace-level controls",
-      "Integrated workflow automation for quotes, bidding, and data extraction",
-      "Multi-language support and enterprise-grade integrations (ERP/CRM/Drive/SharePoint)"
+      "Grounded, citation-backed responses from source documents",
+      "Structured configuration intelligence and automated rule generation from documentation",
+      "Significant quoting efficiency gains through scalable, knowledge-driven workflows",
+      "Strong security posture (SOC 2 Type II, encryption, secure containers, non-training on client data)",
+      "Flexible data connectors and API-based integration model"
     ],
-    "product_confidence": 0.65
+    "product_confidence": 0.78
   },
   "unique_findings": [
-    "Multimodal technical-document understanding at scale: Circuit repeatedly emphasizes reading and reasoning over CAD files, schematics, P&IDs, wiring diagrams, BOMs and exploded views \u2014 not just OCR on text. That implies a pipeline that fuses image/layout understanding, diagram parsing and structured extraction (entities, connectors, part numbers) and then links those to textual manuals and catalogs.",
-    "Agent-per-workflow architecture with enforced data scoping: 'Specialized agents configured to your products, documentation, and processes' plus the sharing model (sharing an Agent grants read access to underlying Indexes) signals an agent manifest pattern where each agent is an authenticated, permission-scoped runtime with direct access to specific indexed knowledge and downstream automations (CPQ, quoting, part validation).",
-    "Indexes + workspace model as first-class, dynamic provenance: Indexes include nested folders, cross-index move/copy, automatic access constraints and source-level navigation back to original page/image. This is more than search \u2014 it\u2019s a document graph with mutable topology and anchored citations to exact document coordinates.",
-    "Connector-first ingestion with live sync and no-reupload promise: 'Connect Circuit to where your documentation already lives. No uploading, no organizing, no version control headaches' implies robust connector orchestration (delta syncs, file versioning, ACL mirroring) and continuous re-indexing rather than one-off ingestion.",
-    "Answer traceability down to inline images and page citations: Delivering answers with inline images and source citations requires precise span-to-source mapping and a retrieval layer that preserves document coordinates for images and text; this is harder than typical RAG where citations are coarse.",
-    "Closed/private RAG enforcement and enterprise-grade governance: They stress a private environment that 'never pulls in outside sources', SOC 2 compliance, role-based access and traceability \u2014 indicating an LLM invocation and retrieval pipeline that isolates enterprise data, likely via VPC or on-prem model hosting and strict query guards.",
-    "Operational automation tightly coupled to enterprise systems: The platform claims to generate quotes, do takeoffs from drawings, check ERP/CRM constraints and validate warranties in-line \u2014 implying real-time integration with business systems and constraint-checking logic layered on top of retrieved facts.",
-    "Rapid pilot onboarding via schema-free ingestion and automated mapping: 'Get a pilot live in one week' and 'no formatting needed' suggests automated document chunking, heuristic metadata extraction, and likely an automated mapping layer that aligns extracted entities to a customer\u2019s product catalog/ERP with minimal manual work."
+    "Secure AI containers called \u201cCircuits\u201d that hold indexing artifacts and ingested content \u2014 an explicit abstraction for isolating not just customer data but the derived ML artifacts (embeddings, parsed structure, rules). This is unusual because most RAG vendors treat embeddings and indexes as opaque blobs in a vector DB; Circuit surfaces them as first-class, tenant-isolated containers.",
+    "Agent-specific API keys that are domain-restricted and rate-limited (60 rpm), combined with agent-level RBAC and index-level RBAC. The granularity (workspace / index / agent) suggests a security-first product design that maps directly to common enterprise governance needs rather than a flat API-key model.",
+    "A multi-stage document processing pipeline that claims to extract structure, relationships, and semantics from heterogeneous technical artifacts (PDFs, Word, spreadsheets, presentations, CAD drawings, wiring diagrams, exploded views). The emphasis on CAD/drawings + BOM/quantity extraction implies integration of specialized parsers (vectorization of diagrams, CAD/OEM format parsers, geometry/OCR pipelines) rather than plain text chunking.",
+    "Automatic extraction and continuous maintenance of configuration rules from documentation \u2014 they claim to \u201cautomatically creates and maintains configuration rules from your documentation.\u201d This implies a pipeline that does semantic constraint extraction (compatibility matrices, dependencies, pricing rules) and generates executable configuration logic (a ruleset or knowledge graph) usable by quoting engines.",
+    "Tool-enabled agents with explicit tool indicators and evidence links (what the agent searched or read) \u2014 an implementation that presents provenance and tooling use to users, not just answers. This suggests hybrid orchestration where LLMs + discrete tools (search, document reader, web fetch) are coordinated and surfaced in the UI.",
+    "Use of multiple LLM providers (Anthropic, Groq) with contractual assurances they do not train on customer data. Choosing non-OpenAI providers and mixing them indicates model routing by task and a focus on trust/compliance for industrial customers.",
+    "Designed UX for real-time, high-stakes use cases (on-a-call prompts like \u201cI\u2019m on a call right now\u201d) with short-answer modes, citation extraction, and email-ready outputs \u2014 suggesting careful latency and prompt-engineering/per-task model selection to meet operational SLAs for sales & field scenarios.",
+    "Integration-first stance: connectors to ERP/CRM/quoting tools and ability to map extracted requirements to product catalogs and capability matrices. This indicates a focus on operational workflow integration, not just Q&A, which is technically harder because it requires mapping natural language constraints to canonical product models and transactional systems."
   ],
-  "technical_depth": "medium",
+  "technical_depth": "high",
   "newsletter_potential": "high",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "How Circuit stitched retrieval-first agents, index-aware RBAC, and multimodal parsers into an AI-native manufacturing brain",
-      "summary": "Circuit appears to prioritize a retrieval-augmented, agentic architecture\u2014specialized agents wired to permissioned Indexes, connectors to existing document stores, and parsers that understand CAD, schematics and BOMs. For technical readers this is a chance to unpack how a production-grade RAG+agent stack is engineered to meet industrial constraints (traceability, role-based access, and auditability) rather than chasing raw LLM benchmarks.",
+      "headline": "Inside Circuit\u2019s 'Circuits': How per-workspace secure AI containers and agent tooling rebuild RAG for industrial scale",
+      "summary": "Circuit pairs index-driven RAG with purpose-built agents and per-workspace secure AI containers to govern sensitive engineering knowledge. For builders, the interesting bit is how they combine multi-provider LLM routing, tool-enabled agents (search/read/fetch), and K8s containerization to deliver low-risk, auditable reasoning over CAD, datasheets and SOPs.",
       "evidence": [
-        "Describes specialized agents configured to products, documentation, and processes (agents per workflow: quotes, field service, support).",
-        "Automatic access rules: sharing an Agent grants read access to its underlying Indexes; Indexes enforce workspace-only moves.",
-        "Claims traceable answers with inline images and source citations and support for CAD/P&ID/wiring diagrams and BOM parsing."
+        "Circuit stores indexing artifacts and ingested content in secure 'Circuits' containers",
+        "Agents expose tools (search, read documents, fetch web content) and a reference scope per agent",
+        "Platform runs on AWS with containerized services on Kubernetes and uses multi-provider LLMs like Anthropic and Groq"
       ],
       "uniqueness_score": 8
     },
     {
       "angle_type": "data",
-      "headline": "Their secret moat: turning legacy manuals, CAD, and 30-year tribal knowledge into a vertical data advantage",
-      "summary": "Circuit\u2019s pitch centers on a proprietary vertical data moat\u2014ingesting and indexing dense industrial artifacts (drawings, specs, tables) and keeping answers strictly private to customer content. For builders, this raises questions about document ingestion pipelines, specialized OCR/parsing, entity linking across BOMs and schematics, and how telemetry closes the loop to improve models.",
+      "headline": "Their moat is technical docs: turning wiring diagrams, CAD and service manuals into configuration rules",
+      "summary": "Circuit markets a vertical data advantage: automated multi-stage pipelines extract structure from PDFs, CAD drawings, and specs to build configuration logic for quoting and field guidance. The result is a structured, index-driven knowledge layer that attempts to replace tribal expertise with auditable rules.",
       "evidence": [
-        "Emphasizes converting decades of undocumented expertise into searchable knowledge and preventing answers from pulling outside sources.",
-        "Supports multimodal technical docs (CAD, schematics, P&IDs, wiring diagrams) and claims 97% accurate answer retrieval from customer content."
-      ],
-      "uniqueness_score": 9
-    },
-    {
-      "angle_type": "contrarian",
-      "headline": "Why Circuit bet on workflow-first agents and domain parsers instead of marketing the latest base model",
-      "summary": "Rather than leading with a flashy LLM name, Circuit foregrounds retrieval, specialist prompting, domain-specific parsers and workflow automation\u2014an explicit contrarian play against model-hype. This story would explore the engineering trade-offs: building robust pipelines and guardrails versus chasing incremental gains from newer large models.",
-      "evidence": [
-        "Narrative emphasizes RAG-style knowledge systems, agent workflows, and private-document-only answers over model announcements.",
-        "Product features focus heavily on connectors, editor experiences, RBAC, traceability and workflow automation (quotes, RFPs, field guidance)."
+        "Circuit ingests PDFs, Word files, spreadsheets, presentations, CAD drawings, HTML and automatically processes them with a multi-stage pipeline",
+        "Platform claims automatic creation and maintenance of configuration rules from documentation, and supports takeoffs from technical drawings"
       ],
       "uniqueness_score": 7
     },
     {
-      "angle_type": "efficiency",
-      "headline": "From 6 minutes to 10 seconds: How Circuit quantifies field-service ROI and ships pilots in a week",
-      "summary": "Circuit claims dramatic operational improvements\u201497% accurate answer retrieval and time-to-resolution dropping from 6 minutes to 10 seconds\u2014plus a one-week pilot promise and measurable KPIs (first-time-fix +15\u201325%). A deep-dive could validate those metrics, examine their measurement framework, and show how telemetry drives iteration.",
+      "angle_type": "contrarian",
+      "headline": "They refuse to let LLM vendors train on customer data \u2014 a deliberate bet that shapes their stack",
+      "summary": "Instead of embracing model-provider fine-tuning on customer corpora, Circuit insists external LLM providers do not train on its customers' data and pushes reasoning into its containers and agent orchestration. That choice trades potential model performance gains for stronger privacy guarantees and auditable provenance.",
       "evidence": [
-        "Published results: 97% accurate answer retrieval and average time-to-resolution reduced from 6 minutes to 10 seconds.",
-        "Product messaging includes ROI Measurement Framework, first-time fix rate improvements (15\u201325% typical), and 'Get a pilot live in one week.'"
+        "Statement that external providers (Anthropic, Groq) are not allowed to train their models on the data Circuit processes",
+        "Emphasis on encryption, SOC 2 Type II compliance, and RBAC across workspace/index/agent levels"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "From weeks to minutes: Circuit claims to cut quoting and field ramp times by automating configuration and RFP parsing",
+      "summary": "Circuit positions itself as a throughput multiplier for sales and service teams by converting specs and pricing rules into guided flows. The interesting technical questions for readers are the automation heuristics and error rates behind claims like 'new hires ramp in weeks instead of months' and faster quoting without engineering back-and-forth.",
+      "evidence": [
+        "Customer anecdotes: Culligan and Four Hands saw faster quoting and fewer support errors; new hires ramping in weeks",
+        "Features include RFP requirement extraction, takeoff support from drawings, and guided configuration flows grounded in documentation"
       ],
       "uniqueness_score": 6
     }
   ],
   "anti_patterns": [
     {
-      "pattern_type": "overclaiming",
-      "description": "Marketing cites strong, specific performance numbers and capabilities without technical detail or third\u2011party validation, which risks misleading buyers and hiding edge-case failure modes.",
-      "severity": "high",
-      "evidence": [
-        "\"97% accurate answer retrieval\"",
-        "\"Average time-to-resolution reduced from 6 minutes to 10 seconds\"",
-        "\"We\u2019ve built it. They proved it works.\" (marketing assertion without references or methodology)",
-        "Repeated claims of handling CAD, P&IDs, wiring diagrams and BOMs with no description of how accuracy is measured or failure modes handled"
-      ]
-    },
-    {
       "pattern_type": "wrapper",
-      "description": "Product messaging emphasizes connectors, RAG, and index management but provides little evidence of proprietary model innovation or novel algorithms \u2014 raising the possibility Circuit is primarily an orchestration/UX layer on top of existing LLM/vision APIs.",
+      "description": "The product appears to be an orchestration layer over third\u2011party LLMs and standard RAG/tooling rather than a proprietary model or core algorithmic advantage. Key capabilities (natural language understanding, grounding, response generation) rely on external LLM providers, which makes the offering vulnerable if providers change pricing, terms, or capabilities.",
       "severity": "medium",
       "evidence": [
-        "Many features described as 'Connect Circuit to where your documentation already lives' and 'Circuit automatically pulls the latest files' (connector/orchestration emphasis)",
-        "No technical architecture or model provenance provided; LLM backend is not disclosed",
-        "Phrases like 'out-of-the-box solution' and 'no long setup' emphasize integration and UX rather than core IP"
-      ]
-    },
-    {
-      "pattern_type": "feature_not_product",
-      "description": "Several capabilities (document search, file viewers, role-based access, source citations) look like discrete features that platform incumbents (ERP, CRM, SharePoint, cloud providers) could add, making it vulnerable to being absorbed or commoditized.",
-      "severity": "medium",
-      "evidence": [
-        "Claims such as 'Full-Page File Editing', 'Real Folders', and 'Move a document from one index to another' are feature-level improvements that established docs/drive vendors already provide",
-        "Sharing flow consolidation and 'Bulk invites to onboard entire teams' are typical platform onboarding improvements",
-        "Messaging that stresses easy embedding and 'no uploading' suggests a surface-level integration play"
+        "\u201cWe use a range of different LLM providers and models to process your source data and provide answers to your questions. Our external providers include Anthropic and Groq.\u201d",
+        "Repeated emphasis on indexing + agents + grounding without describing proprietary model architecture or unique pretraining data.",
+        "Claims like \u201cModel responses are grounded in your data and cite sources\u201d describe RAG-style retrieval rather than unique model invention."
       ]
     },
     {
       "pattern_type": "no_moat",
-      "description": "Although the copy claims a vertical data moat and specialized parsers, the public material does not demonstrate exclusive data assets, unique model architectures, or defensible long-term advantages (e.g., proprietary training corpora, patented parsing tech, or lock-in through network effects).",
+      "description": "There's limited evidence of a durable technical or data moat (e.g., proprietary models, exclusive datasets, unique labelings). Most differentiation is based on integrations, indexing, and agent configurations which competitors or platform providers could replicate if they prioritized the vertical.",
       "severity": "medium",
       "evidence": [
-        "Repeated claims about 'vertical proprietary document moat' and 'specialized agent configured to your products' but no detail on how these are built, stored, or improved over time",
-        "No mention of unique labeled datasets, proprietary models, or patents",
-        "Telemetry and continuous learning are referenced conceptually but no explanation of data ownership, anonymization, or how customer interactions create an irreversible advantage"
+        "Core differentiators described are: document ingestion/indexing, agent domains, RBAC, connectors and workflows \u2014 capabilities that cloud vendors or incumbents can emulate.",
+        "No mention of proprietary model weights, unique long-lived labeled datasets, or exclusive partnerships that would prevent replication.",
+        "Product claims rely on customer data ('turns your technical documentation into...') \u2014 while valuable, that is a customer-specific asset rather than a company-level moat."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Many described functions read like discrete features (RFP parsing, quoting guidance, document search, chat widgets) rather than a cohesive, defensible product platform. These features could be integrated into larger CRM/ERP/PLM offerings or added by major cloud providers and incumbents.",
+      "severity": "medium",
+      "evidence": [
+        "Sections focused on 'Common scenarios' (RFPs, quoting, field service) are modular and narrow in scope.",
+        "Quick setup instructions for a widget and API key management imply embedding small pieces of functionality rather than delivering an enterprise-locked workflow platform.",
+        "Marketing framing: 'purpose-built AI that turns technical knowledge into actionable guidance' describes an outcome rather than a uniquely engineered product stack."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Several marketing statements verge on promising highly\u2011automated, trouble-free outcomes ('automatically creates and maintains configuration rules', 'turns... documents into guided execution') without technical detail or evidence of reliability at scale. These claims can raise expectations that may be hard to meet broadly across varied manufacturing documentation and edge cases.",
+      "severity": "medium",
+      "evidence": [
+        "\u201cCircuit automatically creates and maintains configuration rules from your documentation.\u201d",
+        "\u201cCircuit transforms technical documentation into workflows that guide your teams\u201d \u2014 no detail on accuracy, failure modes, or human-in-the-loop controls.",
+        "Phrases like 'purpose-built reasoning for configuration logic' and 'works in plain language' are high-level and lack clarity about limits and verification."
       ]
     },
     {
       "pattern_type": "undifferentiated",
-      "description": "The space (AI for field service / manufacturing knowledge management) is crowded; many competitors offer RAG, multimodal ingestion, and workflow agents. Messaging relies heavily on generic benefits (faster quotes, fewer callbacks) without a crisp differentiator.",
-      "severity": "medium",
+      "description": "The described architecture (RAG, tool-using agents, connectors, RBAC, SOC2) reflects current industry best practices and is similar to multiple competitors. Without clearer unique capabilities, pricing advantages, or exclusive clients/data, the positioning risks blending into a crowded market.",
+      "severity": "low",
       "evidence": [
-        "Common claims: 'turns documentation into an intelligent engine', 'answers with inline images and source citations', 'connects to ERP, CRM, Drive, SharePoint' \u2014 capabilities many startups and incumbents advertise",
-        "Multiple near-duplicate testimonial snippets and repeated metrics across different sections give the impression of rehashed positioning rather than unique case studies",
-        "No clear articulation of product defensibility beyond 'built for industrial manufacturing'"
+        "Use of RAG, agents, multi-provider LLMs, secure containers and connectors is consistent with many enterprise AI startups.",
+        "Claims of SOC 2, encryption, RBAC and watchwords like 'grounded responses' are standard enterprise expectations rather than unique differentiators.",
+        "Multiple mentions of standard integrations (Google Drive, OneDrive, SSO via Google/Azure) are expected baseline features."
       ]
     }
   ],
   "competitive_analysis": {
     "competitors": [
       {
-        "name": "Augmentir",
-        "similarity": "AI-driven workforce enablement for industrial/field technicians; focuses on improving first-time-fix, onboarding, and step-by-step guidance.",
-        "how_different": "Circuit emphasizes deep parsing of technical documents (CAD, P&IDs, BOMs) and RFP/quote automation, plus an agent/index/workspace architecture and partner-distribution controls; positions itself as a manufacturing-native RAG system rather than a generic guided-operational-workflow platform."
+        "name": "Salesforce (Einstein / Einstein GPT / Service Cloud)",
+        "similarity": "Provides AI-driven assistants for sales and service teams, integrates with CRM data and workflows, and targets enterprise customer-facing teams.",
+        "how_different": "Circuit is vertically focused on manufacturing and service technical complexity \u2014 it indexes technical docs, CAD/drawings, and automatically derives configuration rules and guided workflows for quoting, field service, and RFPs. Circuit emphasizes document-grounded answers with citations, secure per-agent containers, and connectors to ERP/quoting systems rather than being a general CRM platform."
       },
       {
-        "name": "Poka",
-        "similarity": "Knowledge and training platform for frontline manufacturing workers that captures tribal knowledge and distributes SOPs and work instructions.",
-        "how_different": "Poka is primarily a digital knowledge/training layer and community for shop floor processes; Circuit claims a stronger AI-native capability for extracting precise answers from dense technical docs, automated quoting/CPQ workflows, and traceable RAG answers with inline images and citations."
+        "name": "Microsoft (Copilot / Dynamics 365 Customer Service / Power Platform)",
+        "similarity": "Offers enterprise AI assistants and task automation embedded in business apps (CRM, service, Office) with multi-turn chat and document/knowledge integrations.",
+        "how_different": "Circuit is purpose-built for industrial workflows (quotes, takeoffs, troubleshooting) and claims specialized parsing of technical drawings and configuration logic; it also markets secure, isolated AI containers and agent-level governance designed for regulated manufacturing/service workflows rather than a broad productivity layer."
       },
       {
-        "name": "ServiceMax (and other field service suites like Salesforce Field Service / Microsoft Dynamics Field Service)",
-        "similarity": "Enterprise field service management, scheduling, parts/order management, and workforce enablement for technicians.",
-        "how_different": "ServiceMax/Field Service are broad FSM platforms; Circuit focuses on knowledge retrieval, document understanding, and RAG-driven agent workflows (quotes, diagnostics, parts compatibility) that sit on top of or integrate into FSM/ERP systems \u2014 a specialist layer rather than a full FSM replacement."
+        "name": "RFPIO / Loopio (RFP automation vendors)",
+        "similarity": "Automate parts of the RFP response process, reuse prior answers, and speed proposal creation by surfacing relevant content.",
+        "how_different": "Circuit goes beyond templated answer reuse \u2014 it extracts technical requirements from specs and drawings, maps requirements to product capabilities, surfaces risks/gaps, and can draft document-cited technical responses in a conversational agent. It also integrates configuration and quoting logic rather than only managing Q&A libraries."
       },
       {
-        "name": "Parsable",
-        "similarity": "Digital SOPs and connected worker workflows for industrial operations; helps capture and distribute procedures and compliance information.",
-        "how_different": "Parsable emphasizes structured, step-based SOP execution and workflow digitization. Circuit emphasizes free-form conversational access to dense technical documentation, diagram/CAD interpretation, and automated CPQ/RFP extraction rather than only structured SOP execution."
+        "name": "Coveo / Elastic / Algolia (enterprise search + relevance + AI layers)",
+        "similarity": "Provide search and relevance over enterprises\u2019 document collections and can supply contextual results to users and agents.",
+        "how_different": "Circuit adds a reasoning/agent layer that turns indexed technical documentation into executable guidance and workflows (configuration rules, takeoffs, step-by-step field instructions) with multi-turn chat, citations, and domain templates specific to manufacturing/service beyond pure search/relevance."
       },
       {
-        "name": "Coveo / Enterprise Search + RAG vendors (e.g., Coveo, Sinequa)",
-        "similarity": "Provide enterprise search and knowledge augmentation using vector search/RAG to deliver answers from company content.",
-        "how_different": "These vendors are horizontal enterprise search/RAG platforms. Circuit claims manufacturing-specific ingestion, visual/CAD understanding, pre-built agent workflows (quotes, parts selection), and partner distribution controls tuned to the industrial value chain."
+        "name": "ServiceMax / PTC / IFS (Field Service Management + product/asset platforms)",
+        "similarity": "Support field service operations, parts catalogs, service workflows, and aim to improve technician productivity and service quality.",
+        "how_different": "Circuit focuses on indexing and reasoning over the technical documentation that drives service decisions \u2014 producing conversational guidance, citations, and configuration validation \u2014 and plugs into FSM/ERP rather than replacing full fleet/asset management systems. Circuit emphasizes converting documentation into guided execution rather than managing the physical field schedules and dispatching."
       },
       {
-        "name": "Bloomfire / Guru / Shelf",
-        "similarity": "Knowledge management and knowledge base systems used by support and service teams to surface institutional knowledge.",
-        "how_different": "Those players are KM platforms with search and content management. Circuit's pitch is an AI-native knowledge portal optimized for technical visuals/specs and live agent workflows (traceable, image-backed answers and CPQ automation) specifically for manufacturing."
+        "name": "Knowledge/KB vendors (Guru, Slab, Bloomfire, Document360)",
+        "similarity": "Centralize knowledge and documentation to help teams find answers faster and reduce reliance on tribal knowledge.",
+        "how_different": "Circuit's product pairs structured indexing with LLM agents that reason over technical docs, generate configuration rules, and produce customer-ready outputs (quotes, RFP responses, compliance snippets). Circuit also highlights parsing of complex artifacts like CAD drawings and automated rule extraction \u2014 capabilities beyond typical KB search and article management."
       },
       {
-        "name": "UpKeep / Fiix (CMMS vendors)",
-        "similarity": "Maintenance management and parts/work-order tracking for industrial assets; used by field technicians and service teams.",
-        "how_different": "CMMS focuses on asset maintenance lifecycle and work orders. Circuit focuses on delivering the technical knowledge and document-driven guidance (procedures, diagrams, parts compatibility) to the technician in-context and integrates with CMMS/ERP rather than replacing them."
-      },
-      {
-        "name": "Custom/Big-Tech solutions (Microsoft + Azure OpenAI, Salesforce + Einstein, ServiceNow + generative features)",
-        "similarity": "Large providers can assemble RAG + integrations to deliver knowledge-driven workflows and field-service augmentation at enterprise scale.",
-        "how_different": "Circuit positions itself as a pre-built, manufacturing-tailored product that understands technical visuals, offers agent workflows out of the box, tight partner access controls, and fast pilot timelines \u2014 claiming less customization and faster time-to-value than bespoke Big Tech implementations."
+        "name": "Specialized AI startups and platform players (Moveworks, Paper, DeepSearch / startups focused on enterprise QA and RFP/document reasoning)",
+        "similarity": "Use LLMs to automate enterprise Q&A, helpdesk, or document-centric workflows.",
+        "how_different": "Circuit claims a manufacturing/service vertical focus, purpose-built agent domains (field enablement, RFP, quoting), secure 'Circuits' containers, and automatic construction of configuration logic from technical documentation \u2014 a product orientation specific to industrial use cases rather than general enterprise helpdesk or documentation QA."
       }
     ],
     "differentiation": {
-      "primary": "A manufacturing-native, AI-native knowledge portal that converts dense technical documentation (including drawings, CAD, P&IDs, BOMs) into conversational, traceable agent workflows for quoting, field service, and support.",
-      "technical": "Specialized document ingestion and understanding pipeline for visual and tabular technical content (CAD, schematics, BOMs, wiring diagrams), RAG with traceable answers including inline images and exact-source citations, agent/index/workspace architecture enabling per-product agents and scoped access, and integrations to ERP/CRM/file stores with role-based controls and SOC 2-level security.",
-      "business": "Go-to-market focused on manufacturers, distributors, and field/service teams with quick pilots (\"get a pilot live in one week\"), partner distribution controls for secure sharing to dealers/distributors, and outcome-driven KPIs (first-time-fix, time-to-resolution, quoting throughput). Emphasizes rapid time-to-value and domain-specific workflows (RFP/CPQ automation).",
-      "positioning": "Positions itself vs. generic AI or bolt-on AI features as the specialist solution for industrial complexity \u2014 \"manufacturing-specific vs generic AI\" \u2014 selling to technical operations, plant managers, service directors, and manufacturers who need precise, auditable answers from technical docs."
+      "primary": "Purpose-built AI that converts messy, technical manufacturing and service documentation (specs, CAD/drawings, pricing rules) into guided, document-cited workflows and conversational agents for quoting, field service, and RFPs.",
+      "technical": "Multi-stage document ingestion and indexing that extracts structure and relationships (including CAD/drawings and complex specs), agent templates/domains (field enablement, RFP, quoting), automated creation and maintenance of configuration rules from documents, multi-turn conversational agents with source citations, secure AI containers called 'Circuits', role-based access and per-agent API keys, and use of vetted LLM providers (Anthropic, Groq) with contractual restrictions to prevent training on customer data.",
+      "business": "Vertical GTM focused on manufacturing and service organizations (sales, field techs, quoting teams, proposal teams) with use-case-first messaging: reduce quoting bottlenecks, accelerate ramp-up of new hires, decrease field errors, and improve RFP decisions. Emphasis on security/compliance (SOC 2 Type II, encryption, data isolation) and enterprise governance to win regulated customers. Early reference customers (Culligan, Four Hands) and $30M angel funding with leadership from Silicon Labs veterans provide operational credibility.",
+      "positioning": "Not a general-purpose chat/knowledge product \u2014 marketed as 'colleague, not search engine' and as an execution engine that turns technical knowledge into repeatable, governed actions for high-stakes manufacturing/service workflows. Positioned versus generic search, KBs, or broad CRM copilot products by claiming deeper domain understanding, structured configuration intelligence, and secure governance."
     },
     "secret_sauce": {
-      "core_advantage": "A combination of a manufacturing-focused RAG stack that understands and indexes technical visuals/spec tables plus a workflow/agent layer (Agents, Indexes, Workspaces) that ties that knowledge directly into quote automation, field diagnostics, and partner distribution while preserving security and traceability.",
-      "defensibility": "Medium \u2014 defensibility comes from (1) customer-owned proprietary technical documents (hard-to-replicate ground truth), (2) domain-tuned ingestion/parsing for CAD/diagrams and the heuristics/models to map visuals to actionable outputs, (3) workflow templates and integrations that embed Circuit into quoting, ERP, and field service processes, and (4) network effects from partner distribution and analytics (usage patterns surfacing training gaps). However, large incumbents and horizontal RAG platforms could replicate capabilities if they invest in domain expertise and specialized parsers.",
+      "core_advantage": "A combined capability stack: robust document ingestion/indexing (including CAD and drawings) + automated extraction of configuration/compatibility rules from technical docs + purpose-built agent domains that surface document-cited, actionable guidance (quotes, takeoffs, troubleshooting) \u2014 all deployed in secure, per-customer 'Circuit' containers with enterprise governance.",
+      "defensibility": "Medium. Defensible because: (1) building accurate parsers and rule-extraction from messy technical documentation and drawings requires domain expertise, engineering effort, and iterative customer-specific data; (2) customer-specific indexes and configuration rules create high switching costs (the more product/business logic Circuit encodes for a customer, the harder to replace); (3) regulatory/security posture (SOC 2, data isolation, contractual non-training terms with LLM vendors) helps win sensitive industrial accounts. However, large cloud vendors and established enterprise software vendors with deep CRM/FSM footprints could replicate many capabilities over time.",
       "evidence": [
-        "\"interpreting complex technical content\u2014rich with tables, specs, and diagrams\u2014and instantly extracting precise answers.\"",
-        "\"reads drawings and pulls requirements automatically\" (quote / takeoff automation claim)",
-        "\"Traceable answers Delivers responses with inline images and source citations so you can verify against the exact page, image, spec, etc.\"",
-        "\"private environment that never pulls in outside sources, so answers always come from your own content and nowhere else.\"",
-        "\"What\u2019s new: One sharing flow for Agents and Indexes ... Automatic access to what\u2019s required: sharing an Agent now grants read access to its underlying Indexes\" (shows agent/index access model)",
-        "Customer metrics claims: \"97% accurate answer retrieval\" and \"Average time-to-resolution reduced from 6 minutes to 10 seconds\"",
-        "Integration claims: \"Connects to your ERP, CRM, Drive, SharePoint, and file shares with role-based access control.\"",
-        "Rapid deployment claim: \"Get a pilot live in one week\""
+        "\"purpose-built AI that turns technical knowledge into actionable guidance for teams across manufacturing and service.\"",
+        "\"Circuit automatically creates and maintains configuration rules from your documentation.\"",
+        "\"Support takeoffs from technical drawings\" and \"read plans and documents to identify quantities, components, and scope inputs needed for estimating.\"",
+        "\"Secure AI Containers ... content you ingest and all associated indexing artifacts are kept secure in 'Circuits'\"",
+        "\"SOC 2 Type II certified\" and \"Data isolation ... each workspace\u2019s data is stored separately\"",
+        "\"We use a range of different LLM providers ... Anthropic and Groq. None of our external providers are allowed to train their models on the data they process for us.\"",
+        "Early customer references: \"Organizations like Culligan and Four Hands are already seeing faster quoting, fewer support errors, and new hires ramping in weeks instead of months.\"",
+        "\"We spent decades building and shipping chips, managing global supply chains ... We're operators who've lived inside these ecosystems\" \u2014 indicates domain-founder expertise."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "Circuit's moat is a mix of domain specialization, data exclusivity, and embedding in operational workflows. The most defensible elements are customer-owned technical content, specialized parsers for technical visuals, and pre-built manufacturing workflows that reduce time-to-value. These create switching friction and knowledge lock-in (traceable answers and analytics showing knowledge gaps). However, the underlying technologies (RAG, vector DBs, OCR, LLMs) are accessible to large platform vendors and well-funded competitors; the moat can be eroded if incumbents (Microsoft, Salesforce, ServiceNow) prioritize manufacturing-specific models and visual/document parsers, or if competitors replicate the agent/workflow integrations at scale.",
+    "moat_explanation": "Circuit's moat is created by vertical specialization (manufacturing/service), a document-to-rule pipeline that turns technical artifacts and CAD into structured configuration intelligence, and enterprise security/governance posture \u2014 all of which produce customer-specific value and switching costs. That said, the core technologies (LLMs, document ingestion, chat agents) are available to major cloud and software vendors (Microsoft, Salesforce, AWS partners) who can invest heavily and bundle with CRM/FSM stacks, so Circuit's advantage depends on execution speed, depth of industry content, and customer-specific rule complexity rather than being unassailable.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "AI-powered workforce transformation",
-    "AI-powered knowledge systems",
-    "AI-native knowledge networks",
-    "Retrieval-Augmented Generation (RAG)",
-    "specialized agent configured to your products, documentation, and processes",
-    "interpreting complex technical content\u2014rich with tables, specs, and diagrams",
-    "conversations with your knowledge base",
-    "continuous learning from every interaction",
-    "proactive delivery of relevant insights",
-    "Specialized multimodal document understanding for engineering artifacts (CAD files, schematics, P&IDs, wiring diagrams, BOMs) instead of generic text-only pipelines.",
-    "First-class, shareable Agent entities that automatically propagate permissioned access to underlying Indexes when shared\u2014tight coupling of agent semantics and RBAC.",
-    "Traceable, inline visual citations that point to exact page/image/spec within documents (visual retrieval with exact-source anchors).",
-    "File-system-like Indexes with user-visible nested folders, cross-index move/copy, and workspace constraints to simplify live document management without upload/version headaches.",
-    "Low-friction connectors that 'pull the latest files' from existing repositories (Drive/SharePoint/file shares/ERP/CRM) to avoid one-time ingestion and to maintain canonical sources.",
-    "Treating files as first-class editable work surfaces inside the platform (full-page MD editor, CSV visual editing) to reduce context switching and enable agentic workflows directly on documents."
+    "Circuit turns your technical documentation into an intelligent engine that guides your team through complex quoting, field work, and troubleshooting. Purpose-built AI for manufacturing and service organizations.",
+    "The agent searches your security and compliance indexes, reads relevant document sections, reasons over the information, and responds with an answer that cites its sources.",
+    "Grounded Model Responses \u2014 we cite sources allowing you to trust the answers you get from our service.",
+    "Outputs are grounded in your technical documentation and pricing logic.",
+    "Circuit uses external LLM providers, including Anthropic and Groq, and states that none of these providers are allowed to train on your data.",
+    "Secure AI Containers ('Circuits')\u2014a named construct for keeping ingested content and indexing artifacts isolated and encrypted per workspace.",
+    "Agent-specific API keys with domain restrictions and per-key rate limits to bind agents to specific embedding/use contexts.",
+    "Index-level RBAC and multi-boundary index design (separate internal engineering index vs customer-facing index) for fine-grained access control.",
+    "Automatic pipeline that ingests diverse artifact types (PDFs, CAD drawings, wiring diagrams) and extracts structured configuration rules and takeoff quantities.",
+    "Response tool indicators and explicit citation/page number linking surfaced in the chat UI to increase operator trust and enable direct document sharing from the agent.",
+    "Purpose-built agent domains (field enablement, RFP, sales) that shape agent behavior and reference scopes, enabling off-the-shelf domain templates for enterprise workflows."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 19:11:21.588317+00:00",
-  "confidence_score": 0.72,
-  "raw_content_analyzed": 81860
+  "analyzed_at": "2026-03-07 23:13:47.017579+00:00",
+  "confidence_score": 0.78,
+  "raw_content_analyzed": 176424,
+  "input_hash": "1454cf85046136d3"
 }

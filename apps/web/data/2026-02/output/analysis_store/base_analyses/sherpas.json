@@ -12,245 +12,252 @@
   "build_patterns": [
     {
       "name": "Natural-Language-to-Code",
-      "confidence": 0.9,
+      "confidence": 0.95,
       "evidence": [
-        "Custom data extraction, just type what you need",
+        "No-code custom extractions, just type what you need",
         "Define custom extraction rules in seconds with our easy text-to-extraction UI. No coding or complex setup\u2014just type what you're looking for, and the AI will retrieve the data in your preferred format."
       ],
-      "description": "They expose a no-code, text-to-extraction interface that converts plain English into extraction rules and data transformations. This is an NL\u2192programming/rule-generation layer enabling non-technical users to specify structured data pulls from documents without writing code."
+      "description": "Sherpas exposes a text-to-extraction UI that converts plain English extraction requests into executable extraction rules/pipelines, enabling non-developers to define structured data pulls from documents."
     },
     {
       "name": "RAG (Retrieval-Augmented Generation)",
-      "confidence": 0.85,
+      "confidence": 0.8,
       "evidence": [
-        "Generate a real financial plan and narrative, straight from data, in minutes.",
         "Sherpas AI mimics human understanding of any financial document, automatically classifying document types, recognizing sections, and identifying key elements such as text, tables, checkboxes, and symbols.",
-        "Sherpas document gallery Instant extraction with pre-trained models Get started quickly with Sherpas' library of pre-trained financial documents",
-        "Upload or link client investment accounts, and Sherpas AI will instantly break down asset allocation, risk exposure, and diversification"
+        "Upload or link client investment accounts, and Sherpas AI will instantly break down asset allocation, risk exposure, and diversification, giving advisors a clear view of portfolio strengths and weaknesses",
+        "AI-powered financial diagnostics Turn data straight from questionnaires and documents into a full financial diagnostic in seconds."
       ],
-      "description": "They appear to retrieve structured facts from documents and linked accounts (documents + account data) and then generate explainable narratives and plans. That combination of document/KB retrieval plus LLM-generated narratives is classic RAG."
+      "description": "Sherpas extracts and indexes client documents and questionnaire data (document understanding + structured profiles) and uses those retrievals as inputs to generate explainable diagnostics and recommendations \u2014 a textbook retrieval + generation flow."
     },
     {
       "name": "Micro-model Meshes",
-      "confidence": 0.8,
+      "confidence": 0.85,
       "evidence": [
-        "Instant extraction with pre-trained models",
-        "Sherpas document gallery",
-        "decision frameworks across retirement, tax, investment, and risk planning",
-        "Use your firm\u2019s model portfolios and strategy"
+        "Instant extraction with pre-trained models Get started quickly with Sherpas' library of pre-trained financial documents, designed to recognize standard forms like tax returns, brokerage statements, and loan agreements.",
+        "deepen its decision frameworks across retirement, tax, investment, and risk planning",
+        "From initial investor intake through scenario modeling and recommendation drafting, the platform automates the analytical burden"
       ],
-      "description": "The product references a library of pre-trained, task-specific models (document types, tax returns, brokerage statements) and specialized decision frameworks for different financial domains, implying a mesh/ensemble of smaller specialized models wired together for different tasks."
+      "description": "The product appears to use multiple specialized models: document-type specific extractors, domain-specific decision frameworks (tax/retirement/investment/risk), and likely separate modules for diagnostics, modeling, and proposal drafting \u2014 an ensemble/specialist-model architecture rather than a single monolith."
     },
     {
       "name": "Vertical Data Moats",
       "confidence": 0.9,
       "evidence": [
-        "Sherpas is the AI Operating System for financial advice\u2014an intelligence layer that automates financial diagnostics, investment analysis, and data extraction.",
-        "enterprise-tested\u2026deployments reinforced investor conviction that AI-native infrastructure will become foundational to modern advisory firms.",
-        "decision frameworks across retirement, tax, investment, and risk planning",
-        "Platform means our proprietary data extraction, collection, analysis, aggregation, asset allocation technology and financial plan tech tools"
+        "pre-trained financial documents, designed to recognize standard forms like tax returns, brokerage statements, and loan agreements",
+        "Sherpas serves as an AI-native operating layer for financial advice",
+        "enterprise-tested, investor-backed ... deployed within real-world workflows under compliance and operations oversight"
       ],
-      "description": "Sherpas is clearly vertically focused on wealth management and financial advice, collecting domain-specific data, pre-trained financial document models, and decision frameworks \u2014 all of which create industry-specific training data and integrations that are likely to form a competitive moat."
+      "description": "Sherpas is clearly focused on wealth-management-specific data, building pre-trained models and document libraries tailored to financial artifacts and enterprise workflows \u2014 creating domain-specialized assets and integrations that are hard for generalist competitors to replicate."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.75,
+      "evidence": [
+        "structured, explainable insights",
+        "deployed within real-world workflows under compliance and operations oversight",
+        "Sherpas has committed to produce a SOC 2 Type 2 Report ... We also adhere to the OWASP Application Security Verification Standard"
+      ],
+      "description": "The platform emphasizes explainability, enterprise compliance, and operational oversight; likely layers include policy/compliance checks, explainability modules, and human-in-the-loop approvals to constrain model outputs for regulatory safety."
     },
     {
       "name": "Continuous-learning Flywheels",
-      "confidence": 0.6,
+      "confidence": 0.3,
       "evidence": [
-        "Access for Troubleshooting and Tracking. During the Subscription Term, you acknowledge and agree that the Sherpas team may access your user profile and related data for the purposes of troubleshooting, tracking, and improving the Platform.",
-        "enterprise-tested\u2026 deployed within real-world workflows under compliance and operations oversight",
-        "We will notify Subscriber of any unavailability or other issue with the Platform or Website of which we have knowledge."
+        "Enterprise-tested ... engagements reinforced investor conviction",
+        "Start automating Data Extraction today Faster processing, fewer errors ... Reduce errors and improve consistency in document processing"
       ],
-      "description": "They collect operational and usage data and explicitly state the team will access data to improve the platform. That implies a feedback loop for iterative model/feature improvement (though the exact model retraining pipeline is not described)."
+      "description": "There is only indirect indication of feedback loops (enterprise deployments and performance improvements). While product messaging implies ongoing model improvement, the content does not explicitly describe telemetry-driven retraining or user-correction loops."
     },
     {
-      "name": "Agentic Architectures (Workflow Automation)",
-      "confidence": 0.6,
+      "name": "Knowledge Graphs",
+      "confidence": 0.25,
       "evidence": [
-        "Prospects complete the questionnaire and schedule time with you\u2014no chasing, no admin.",
-        "if they booked a meeting, it\u2019s already on your calendar\u2014ready for a high-impact first conversation.",
-        "Operations on autopilot\u2014so firms scale faster with less effort.",
-        "automates financial diagnostics, investment analysis and automates proposals"
-      ],
-      "description": "The platform automates multi-step business workflows (lead qualification, calendar booking, analysis \u2192 proposal generation). While not explicitly described as autonomous LLM agents with tool-use, the product behavior matches agentic orchestration of tasks across systems."
-    },
-    {
-      "name": "Guardrail-as-LLM / Compliance Layer",
-      "confidence": 0.5,
-      "evidence": [
-        "Is client data protected and compliant?",
-        "The objective is not to replace advisor judgment. It is to amplify it. By standardizing the analytical foundation of a financial plan, Sherpas ensures that clients receive consistent rigor and clarity",
-        "Beta Features \u2026 We will have no liability for any harm or damage arising out of or in connection with any use of a Beta Feature."
-      ],
-      "description": "There are signals of compliance, explainability, and risk-management baked into the offering (explainable recommendations, standardization, questions about client data protection). This suggests the presence of guardrail/checking layers for regulatory/safety compliance, though no explicit guardrail model or secondary-checker architecture is described."
-    },
-    {
-      "name": "Knowledge Graphs / Entity Linking",
-      "confidence": 0.4,
-      "evidence": [
+        "producing structured, explainable insights",
         "Understand a client\u2019s total portfolio across all accounts",
-        "Account level insights and portfolio alignment",
-        "Compare portfolios to your benchmarks and models",
-        "Data Products means the data sets, reports, aggregations, analyses, and related products"
+        "Their full financial profile and questionnaire responses appear in your Sherpas dashboard"
       ],
-      "description": "There are hints they aggregate and relate entities (clients, accounts, assets, benchmarks). That could be implemented via a knowledge graph or entity-relationship store to join data across sources, but the content doesn't explicitly state a graph database or permission-aware graph implementation."
+      "description": "Sherpas structures client and account data and links across documents/opportunities; however, there's no explicit mention of a graph DB, entity graph, or RBAC-aware knowledge graph. A graph-like internal model is plausible but not evidenced directly."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.2,
+      "evidence": [
+        "Operations on autopilot\u2014so firms scale faster with less effort.",
+        "Prospects complete the questionnaire and schedule time with you\u2014no chasing, no admin.",
+        "From initial investor intake through scenario modeling and recommendation drafting, the platform automates the analytical burden"
+      ],
+      "description": "Sherpas automates multi-step workflows (intake \u2192 modeling \u2192 scheduling \u2192 diagnostics), but there is no explicit mention of autonomous agents invoking tools, planning sub-tasks, or orchestrating external services via LLM-driven agents. The pattern could exist as orchestration code but is not clearly described."
     }
   ],
   "discovered_patterns": [
     {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "Domain-specific Document Intelligence with pre-trained models + no-code extraction",
-      "confidence": 0.95,
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Undisclosed LLMs + specialized pre-trained document models (hybrid)",
+      "confidence": 0.8,
       "evidence": [
-        "\"Sherpas AI mimics human understanding of any financial document, automatically classifying document types, recognizing sections, and identifying key elements such as text, tables, checkboxes, and symbols.\"",
-        "\"Instant extraction with pre-trained models\"",
-        "\"No-code custom extractions... Define custom extraction rules in seconds with our easy text-to-extraction UI. No coding or complex setup\u2014just type what you're looking for, and the AI will retrieve the data in your preferred format.\"",
-        "\"Get started quickly with Sherpas' library of pre-trained financial documents, designed to recognize standard forms like tax returns, brokerage statements, and loan agreements.\""
+        "Sherpas document gallery Instant extraction with pre-trained models",
+        "Sherpas AI mimics human understanding of any financial document, automatically classifying document types, recognizing sections, and identifying key elements such as text, tables, checkboxes, and symbols.",
+        "Turn data straight from questionnaires and documents into a full financial diagnostic in seconds. Written as a story in plain English"
       ],
-      "description": "Sherpas exposes a verticalized Document AI layer: a library of pre-trained financial document models (tax returns, brokerage statements, loan agreements) combined with a no-code, natural-language-driven extraction UI that converts typed specs into structured extraction outputs. Implementation likely includes OCR + layout-aware document models and wrappers that map model outputs to firm-specified schemas.",
+      "description": "Sherpas appears to combine specialized pre-trained models for document understanding (classification, layout/table extraction, key-value extraction) with a large-language-model component that generates plain-English narratives and recommendations. No specific LLM names (GPT-4, Claude, etc.) or fine-tuning details are disclosed\u2014marketing language emphasizes pre-trained extraction models + AI-generated diagnostics.",
+      "novelty_score": 4,
+      "why_notable": "This hybrid of structured extraction models feeding a narrative LLM is common in vertical apps, but Sherpas emphasizes financial-domain pre-trained templates and end-to-end narrative generation, which is a strong product fit for regulated advisory workflows."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Multi-stage pipeline: extraction \u2192 normalization \u2192 deterministic financial engine \u2192 LLM narrative",
+      "confidence": 0.9,
+      "evidence": [
+        "Extracting Data From Documents Streamline your workflow with Sherpas\u2019 AI-powered data extraction. Learn how to upload documents, apply smart schemas, and optimize data extraction to quickly capture key financial details with precision.",
+        "Turn data straight from questionnaires and documents into a full financial diagnostic in seconds.",
+        "From initial investor intake through scenario modeling and recommendation drafting, the platform automates the analytical burden \u2014 producing structured, explainable insights in minutes rather than days."
+      ],
+      "description": "The product shows a clear orchestration where document/questionnaire ingestion and AI extraction produce normalized financial inputs, which are then fed to deterministic scenario modeling and benchmarking engines (glide paths, model portfolios). The output is then shaped into explainable advisor-facing narratives by an LLM layer. This indicates an orchestration/orchestrator service that routes data between specialized components (extractors, calculators, narrative generator).",
       "novelty_score": 5,
-      "why_notable": "Combines domain-specific pre-trained document models with a text-to-extraction no-code UX \u2014 reducing engineer dependence and making structured extraction configurable by non-technical users. This pairing is increasingly common but notable for its vertical focus on regulated financial documents."
+      "why_notable": "The explicit coupling of deterministic financial modeling (benchmarks, glide paths, portfolio comparisons) with LLM-driven explainability is pragmatic: it increases auditability while leveraging LLMs for communication\u2014important for enterprise/regulatory use cases."
+    },
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "Template/library-driven document parsing + smart schemas; no evidence of vector DB/RAG",
+      "confidence": 0.85,
+      "evidence": [
+        "Instant extraction with pre-trained models Get started quickly with Sherpas' library of pre-trained financial documents, designed to recognize standard forms like tax returns, brokerage statements, and loan agreements.",
+        "Custom data extraction, just type what you need Define custom extraction rules in seconds with our easy text-to-extraction UI.",
+        "Sherpas document gallery"
+      ],
+      "description": "Sherpas relies on a catalog of pre-trained document templates and 'smart schemas' to parse common financial forms. They expose a no-code text-to-extraction UI to create custom extraction rules. There is no mention of vector search, embeddings, or RAG-style retrieval for long-tail knowledge\u2014rather a template/schema-driven approach for document understanding.",
+      "novelty_score": 3,
+      "why_notable": "Using domain-tailored document templates and a no-code extraction UI is an effective verticalization strategy; it reduces the need for open retrieval and embedding infra but is a standard approach for document-heavy verticals."
+    },
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "No-code text-to-extraction UI",
+      "confidence": 0.9,
+      "evidence": [
+        "Custom data extraction, just type what you need Custom data extraction, just type what you need Define custom extraction rules in seconds with our easy text-to-extraction UI. No coding or complex setup\u2014just type what you're looking for, and the AI will retrieve the data in your preferred format."
+      ],
+      "description": "A UI layer allows non-technical users to define extraction intents in natural language; these are translated into extraction actions by the platform. That implies an intermediate mapping/DSL layer that converts user-specified extraction prompts into configuration for the extraction models or rule engine.",
+      "novelty_score": 6,
+      "why_notable": "No-code, text-driven extraction configuration improves adoption in advisory firms; it's not unique but is a strong UX/automation pattern for domain experts to customize parsers without engineering help."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Enterprise testing + human-in-the-loop compliance/operations oversight",
+      "confidence": 0.9,
+      "evidence": [
+        "The financing follows extensive enterprise evaluation across large advisory organizations, where Sherpas was deployed within real-world workflows under compliance and operations oversight.",
+        "During business hours, this is the quickest way to get a hold of a real person. Click the icon in the bottom right of the screen that looks like this:",
+        "Schedule a case review"
+      ],
+      "description": "Sherpas emphasizes enterprise rollouts that include compliance and operations oversight, onboarding specialists, chat/email support and scheduled case reviews\u2014indicating human review loops for quality and compliance validation. This suggests an eval process combining human QA with staged enterprise deployments.",
+      "novelty_score": 3,
+      "why_notable": "Human-in-the-loop evaluation aligned with compliance is expected for financial products; it's notable that they bake this into the onboarding and QA process rather than relying solely on automated metrics."
     },
     {
       "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Cloud-hosted AI-native operating layer (SaaS) integrated with enterprise workflows",
-      "confidence": 0.9,
+      "pattern_name": "Containerized, region-distributed hosting on Fly.io within Equinix + traditional infra controls",
+      "confidence": 0.95,
       "evidence": [
-        "\"Sherpas is the AI Operating System for financial advice\u2014an intelligence layer that automates financial diagnostics, investment analysis, and data extraction.\"",
-        "\"Sherpas, or our contractors, shall host the Platform on the Website, such that the Platform is available for use by Subscriber.\"",
-        "\"deployed within real-world workflows under compliance and operations oversight.\"",
-        "\"We will have no liability for any harm or damage arising out of or in connection with any use of a Beta Feature... If you are part of a Beta Program, all features provided through the Platform are considered Beta Features.\""
+        "Sherpas physical infraestructure is hosted and managed by Fly.io within Equinix providing the physical data centers.",
+        "404: NOT_FOUND Code: DEPLOYMENT_NOT_FOUND ID: fra1::rsqvz-1772924987903-8c6b934cd3e6 This deployment cannot be found.",
+        "We have established a robust infrastructure to counteract DDoS attacks. This includes the use of TCP Syn cookies, connection rate limiting, and maintaining surplus internal bandwidth and multiple backbone connections"
       ],
-      "description": "Sherpas is presented as a centrally hosted SaaS 'AI operating layer' that sits between client data sources (uploads or linked accounts) and advisor-facing workflows. The platform is hosted by Sherpas or contractors, provides enterprise controls (beta flags, service levels), and integrates inside regulated firm workflows under compliance oversight.",
-      "novelty_score": 4,
-      "why_notable": "Positioning as an 'operating layer' rather than a point tool implies an integration-first architecture (connectors, tenant configuration, centralized analytics) tailored to regulated enterprise deployments \u2014 a practical architectural stance rather than an experimental novelty."
-    },
-    {
-      "category": "Compound AI Systems",
-      "pattern_name": "Hybrid analytic engine + generative narrative assembly",
-      "confidence": 0.9,
-      "evidence": [
-        "\"Generate a real financial plan and narrative, straight from data, in minutes.\"",
-        "\"Turn investment data into personalized proposals. Aligned with client goals, not just returns and risk profiles.\"",
-        "\"Delivers a real plan, instantly\"",
-        "\"Sherpas AI automatically benchmarks a portfolio against your own models, making it easy to suggest allocation shifts...\""
-      ],
-      "description": "Sherpas appears to implement a multi-stage pipeline: (1) structured data ingestion (linked/uploaded accounts + extracted document data), (2) deterministic/analytic computations and benchmarking against firm model portfolios, and (3) a generative layer that composes human-facing narratives/proposals using the analytical outputs. This is a hybrid deterministic+generative architecture rather than pure end-to-end generation.",
-      "novelty_score": 6,
-      "why_notable": "Combines explainable quantitative analytics (benchmarks, allocation breakdowns) with natural-language proposal generation. The explicit separation of 'structured analysis' and 'narrative assembly' supports traceability and regulatory/compliance needs in finance."
-    },
-    {
-      "category": "Learning & Improvement",
-      "pattern_name": "Advisor voice personalization (style adaptation)",
-      "confidence": 0.7,
-      "evidence": [
-        "\"Learns your voice\"",
-        "\"Communicates like a real advisor\""
-      ],
-      "description": "Sherpas claims stylistic personalization for outputs so proposals and narratives reflect an advisor's voice. The implementation is not specified \u2014 could be few-shot prompt templates, storing firm/advisor templates, or model adaptation \u2014 but the product explicitly supports voice-alignment of generated content.",
-      "novelty_score": 5,
-      "why_notable": "Personalization of generated advisory text to an advisor's voice increases adoption and trust. The lack of disclosed method (prompting vs fine-tuning) makes this a product-facing claim more than a disclosed architectural detail."
-    },
-    {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "Account aggregation + configurable model portfolio benchmarking",
-      "confidence": 0.9,
-      "evidence": [
-        "\"Upload or link client investment accounts, and Sherpas AI will instantly break down asset allocation, risk exposure, and diversification...\"",
-        "\"Use your custom model portfolios\"",
-        "\"Sherpas AI automatically benchmarks a portfolio against your own models, making it easy to suggest allocation shifts...\"",
-        "\"Understand a client\u2019s total portfolio across all accounts\""
-      ],
-      "description": "Sherpas ingests account-level data (via uploads or linked aggregations), normalizes holdings across accounts, computes allocation/risk/diversification analytics, and compares results to tenant-configured model portfolios and benchmarks. This implies connectors to account aggregators or custodians plus a structured storage of model portfolios for comparison logic.",
-      "novelty_score": 4,
-      "why_notable": "Standard capability for wealth-tech, but the explicit tenant-configurable model portfolio benchmarking (use your firm's models) shows the platform is designed to respect and operationalize firms' proprietary strategies."
-    },
-    {
-      "category": "Compound AI Systems",
-      "pattern_name": "Text-to-extraction UI as orchestration layer",
-      "confidence": 0.85,
-      "evidence": [
-        "\"Custom data extraction, just type what you need\"",
-        "\"Define custom extraction rules in seconds with our easy text-to-extraction UI. No coding or complex setup\u2014just type what you're looking for, and the AI will retrieve the data in your preferred format.\""
-      ],
-      "description": "Sherpas provides a natural-language interface for defining extraction tasks. The UI likely converts user text into extraction pipelines/rules that orchestrate document parsing models and mapping logic to produce structured outputs. This pattern removes engineering steps and effectively uses an LLM or rules engine as a configuration translator for the extraction stack.",
-      "novelty_score": 6,
-      "why_notable": "Using LLM-driven natural language as the primary configuration mechanism for extraction pipelines reduces friction and empowers domain experts to create extraction specs without code; it's a meaningful UX innovation even if the underlying models are standard."
+      "description": "Sherpas uses Fly.io-managed hosting colocated in Equinix data centers (multi-region replication referenced). The infra description references deployment IDs/regions (fra1) implying containerized application deployments. They operate traditional L4/L7 protections (firewalls, DDoS mitigation), backups, and cross-region replication.",
+      "novelty_score": 2,
+      "why_notable": "Provisioning on Fly.io/Equinix is an operational detail rather than a novel model infra choice; the mix of containerized edge/regional hosting plus enterprise colocation compliance is appropriate for low-latency, compliant workloads."
     },
     {
       "category": "Safety & Trust (LLM Security)",
-      "pattern_name": "Enterprise compliance, auditability and contractual controls",
-      "confidence": 0.8,
+      "pattern_name": "Security-first architecture: OWASP baseline, ASVS, SOC2 track, network/host hardening, encryption and 2FA",
+      "confidence": 0.95,
       "evidence": [
-        "\"deployed within real-world workflows under compliance and operations oversight.\"",
-        "\"Platform Subscription Agreement... Confidential Information... Data Products...\"",
-        "\"Sherpas team may access your user profile and related data for the purposes of troubleshooting, tracking, and improving the Platform.\"",
-        "\"We will notify Subscriber of any unavailability or other issue with the Platform or Website of which we have knowledge.\""
+        "Sherpas has committed to produce a SOC 2 Type 2 Report",
+        "We have adopted the OWASP Top 10 as a baseline for our security standards. We also adhere to the OWASP Application Security Verification Standard",
+        "Every data exchange that takes place between your computer and our servers employs industry-standard HTTPS protocol... Qualys SSL Labs have given our HTTPS implementation an A rating",
+        "We offer two-factor authentication (2FA) as an additional layer of security for your account."
       ],
-      "description": "Sherpas emphasizes contractual and platform-level controls (confidentiality clauses, access-for-troubleshooting statements, archival retention for compliance), reflecting an architecture that includes audit logs, governed data access, and contractual obligations required for enterprise/regulatory compliance.",
+      "description": "They implement standard web and infra security controls: OWASP/ASVS baselines, SOC2 process, TLS with HSTS and PFS, 2FA, host-based and network firewalls, and operational controls limiting staff access to customer data except under defined cases. They also mention application isolation, hypervisor-level protections and monitoring.",
+      "novelty_score": 3,
+      "why_notable": "These are enterprise-grade but typical security measures for a fintech/wealth-management SaaS. The explicit combination and documentation of standards is required for enterprise trust."
+    },
+    {
+      "category": "Learning & Improvement",
+      "pattern_name": "Personalization and voice alignment without disclosed training loop",
+      "confidence": 0.7,
+      "evidence": [
+        "Learns your voice",
+        "Customize your branding, and tailor Sherpas to fit your workflow from day one.",
+        "Use your firm's model portfolios and strategy"
+      ],
+      "description": "Sherpas claims personalization (e.g., 'Learns your voice') and the ability to use firm-specific models and templates. However, there is no public evidence of continuous learning infrastructure (RLHF, fine-tuning pipelines) or model retraining frequency. The personalization may be achieved via prompt templates, per-account templates, or light-weight preference layers rather than model re-training.",
       "novelty_score": 4,
-      "why_notable": "These controls are necessary for enterprise adoption in finance; explicit inclusion in platform agreements indicates the architecture is designed for auditability and governance, even though low-level security controls are not described."
+      "why_notable": "Claiming 'learns your voice' is useful for adoption; the novelty would depend on whether this is achieved via true model personalization or via templated prompt/profile layers. No technical detail is provided."
     },
     {
       "category": "Data Strategy",
-      "pattern_name": "Vertical domain model library (financial document gallery) as a data moat",
+      "pattern_name": "Vertical data moat via pre-trained financial document library and firm-specific templates",
       "confidence": 0.9,
       "evidence": [
-        "\"Sherpas' library of pre-trained financial documents\"",
-        "\"Get started quickly with Sherpas' library of pre-trained financial documents, designed to recognize standard forms like tax returns, brokerage statements, and loan agreements.\""
+        "Get started quickly with Sherpas' library of pre-trained financial documents, designed to recognize standard forms like tax returns, brokerage statements, and loan agreements.",
+        "Use your custom model portfolios",
+        "Connect your email, configure your models, benchmarks, and glide paths (or use Sherpas' defaults)"
       ],
-      "description": "Sherpas curates a library of pre-trained models tuned for common financial documents; this library is a verticalized asset that accelerates onboarding and extraction accuracy and can serve as a defensible dataset/asset over time.",
+      "description": "Sherpas builds domain-specific assets: a library of pre-trained document parsers, default financial models/glide paths, and support for firm-specific model portfolios/templates. These artifacts act as verticalized proprietary datasets and mappings that reduce work to adopt the product in wealth-management firms.",
       "novelty_score": 5,
-      "why_notable": "A focused, pre-trained document model gallery tailored to financial workflows creates faster time-to-value and can become a domain-specific moat if models and mappings improve through usage."
-    },
-    {
-      "category": "Model Architecture & Selection",
-      "pattern_name": "Structured decision frameworks (codified rules + AI) for financial planning",
-      "confidence": 0.85,
-      "evidence": [
-        "\"Will use the seed capital to deepen its decision frameworks across retirement, tax, investment, and risk planning\"",
-        "\"standardizing the analytical foundation of a financial plan \u2014 delivering consistent, explainable recommendations in minutes rather than days.\""
-      ],
-      "description": "Sherpas is explicitly building codified decision frameworks that encapsulate domain rules across retirement, tax, investment, and risk \u2013 likely a mix of deterministic rules/actuarial calculations and ML components that together produce structured, explainable recommendations.",
-      "novelty_score": 6,
-      "why_notable": "Emphasizing structured decision frameworks (rather than pure generative output) supports explainability and consistency required in financial advice, representing a practical assembly of rule-based and ML systems tailored to compliance-sensitive decisioning."
+      "why_notable": "Verticalization around financial documents and firm-specific analytics is a common moat strategy, but combined with no-code customization and enterprise integrations it forms a defensible product that is hard to replicate with generic LLM services alone."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Text-to-extraction no-code UI that translates natural language specs into extraction pipelines for financial documents",
-      "why_novel": "While no-code document extraction UIs exist, using natural language as the primary configuration mechanism (\"just type what you need\") to generate extraction rules tailored to financial doc layouts is a UX-forward way to remove engineering barriers and accelerate domain onboarding.",
-      "potential_impact": "Enables advisors and operations teams to define extraction needs without engineers, accelerates onboarding of new document types, and allows faster adaptation to firm-specific forms \u2014 increasing product stickiness in regulated workflows."
+      "approach": "Positioning as an 'AI-native operating layer' (not bolt-on) that standardizes analysis across intake \u2192 modeling \u2192 recommendation",
+      "why_novel": "Rather than shipping as a single advisory tool, Sherpas describes itself as an operating layer that embeds intelligence into the firm's core planning workflows, aiming to replace inconsistent manual analysis with standardized analytical foundations.",
+      "potential_impact": "If executed, this enables firms to scale advice consistently, simplifies audits/compliance, and makes downstream advisor workflows (sales, planning, compliance) more repeatable."
     },
     {
-      "approach": "Positioning an 'AI Operating System' for financial advice (vertical orchestration layer rather than point-solution)",
-      "why_novel": "Framing the platform as a tenant-configurable operating layer integrating document intelligence, analytics, and narrative generation creates a single place to enforce firm rules, benchmarks, and voice \u2014 different from single-feature chatbots or isolated planning tools.",
-      "potential_impact": "If realized, it centralizes decisioning, auditing, and narrative generation across advisory workflows, allowing firms to scale advice delivery while preserving firm-specific strategies and compliance constraints."
+      "approach": "No-code text-to-extraction UI for creating custom extraction rules",
+      "why_novel": "Brings document extraction customization into the hands of domain experts without engineering. It maps natural-language intent to extraction configurations.",
+      "potential_impact": "Reduces deployment friction, accelerates support for new document types, and creates a productized way to capture firm-specific parsing rules that can become proprietary assets."
+    },
+    {
+      "approach": "Hybrid of deterministic financial engines + LLM-generated explainable narratives",
+      "why_novel": "Combines auditable calculation engines (benchmarks, glide paths, model comparisons) with LLMs used purely for human-friendly explanations, preserving explainability and regulatory defensibility.",
+      "potential_impact": "Enables explainable, repeatable outputs that are both machine-verifiable and human-consumable\u2014important for regulated financial advice and enterprise adoption."
+    },
+    {
+      "approach": "Industry-specific pre-trained document library as a verticalized data moat",
+      "why_novel": "Rather than a generic OCR/NER layer, Sherpas curates a library tuned to financial forms and workflows, plus firm-specific model portfolios and templates.",
+      "potential_impact": "Speeds time-to-value for advisory firms and increases switching costs by embedding firm conventions and benchmarks into the product."
     }
   ],
   "model_details": {
-    "primary_models": [],
+    "primary_models": [
+      "unspecified LLM(s) for narrative generation (not publicly named)",
+      "pre-trained financial document models (template-based extractors/layout parsers; not publicly named)"
+    ],
     "fine_tuning": {
       "uses_fine_tuning": false,
-      "fine_tuning_approach": "No explicit disclosure. Product claims like \"Learns your voice\" could be implemented via prompt templates, few-shot examples, or tenant-level adapters; no direct evidence of parameter fine-tuning (LoRA/full) was provided.",
-      "training_data_source": "Not disclosed in the provided content."
+      "fine_tuning_approach": "No explicit evidence of fine-tuning (LoRA/full fine-tune) or RLHF in the provided content. Personalization may be implemented via templates/prompts or configuration rather than model re-training.",
+      "training_data_source": "Not disclosed; internal 'library of pre-trained financial documents' referenced but no training dataset details provided."
     },
     "inference_optimization": [
-      "not disclosed explicitly; product claims of 'instant' generation imply standard optimizations such as caching precomputed analytics, template-driven generation, and batching of inference requests, but there is no explicit technical evidence of quantization, distillation, or edge deployment."
+      "Region-distributed container hosting on Fly.io (fra1-style deployment IDs)",
+      "Traditional infra optimizations mentioned: DDoS mitigation (TCP SYN cookies, rate limiting), surplus bandwidth",
+      "No explicit mention of ML-specific optimizations such as quantization, distillation, batching, or caching in the content"
     ],
     "model_routing": {
-      "uses_routing": false,
-      "routing_strategy": "No explicit evidence of Mixture-of-Experts, model ensembling, or task-specific routing. The platform appears to orchestrate heterogeneous components (document models, analytics engine, generative layer) but not necessarily by dynamic LLM model routing."
+      "uses_routing": true,
+      "routing_strategy": "Task routing implied: document-extraction models handle parsing/classification; deterministic/analytical engines handle scenario modeling and benchmarking; an LLM layer generates plain-English narratives and recommendations. Routing appears orchestrated by the platform based on workflow stage (ingest \u2192 analyze \u2192 narrate)."
     },
     "compound_ai": {
       "is_compound_system": true,
-      "orchestration_pattern": "Multi-component pipeline: document ingestion/extraction -> normalized data store / analytics engine -> benchmarking against tenant model portfolios -> generative narrative assembly (templated or prompted) -> UI delivery and integrations. The orchestration is productized as an 'AI operating layer'."
+      "orchestration_pattern": "A staged pipeline/orchestrator that sequences specialized extractors, normalization, deterministic financial models, and a natural-language generation component. The system exposes UX-level controls (no-code extraction rules, templates) that configure how components interact."
     }
   },
   "market_type": "vertical",
   "vertical": "financial_services",
-  "sub_vertical": "wealth management",
-  "sub_sub_vertical": "AI-powered financial planning and portfolio diagnostics for RIAs",
+  "sub_vertical": "wealth management / financial planning",
+  "sub_sub_vertical": "AI-native operating layer for financial advice",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
@@ -266,38 +273,31 @@
       {
         "id": "financial_services",
         "label": "Financial Services",
-        "confidence": 0.92
+        "confidence": 0.85
       },
       {
         "id": "wealthtech_investing",
         "label": "WealthTech (Investing)",
-        "confidence": 0.88
+        "confidence": 0.82
       }
     ]
   },
   "target_market": "b2b",
   "tech_stack": {
-    "llm_providers": [
-      "unknown"
-    ],
-    "llm_models": [
-      "unknown"
-    ],
-    "vector_databases": [
-      "unknown"
-    ],
-    "frameworks": [
-      "unknown"
-    ],
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
     "hosting": [
-      "unknown"
+      "Fly.io (edge hosting)",
+      "Equinix data centers (co-located)"
     ],
     "approach": "unknown",
     "uses_open_source_models": false,
     "has_custom_models": false
   },
   "engineering_quality": {
-    "score": 5,
+    "score": 4,
     "has_public_api": false,
     "has_sdk": false,
     "has_documentation": true,
@@ -307,11 +307,10 @@
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "Beta Features program indicates early-stage engineering experimentation",
-      "No-code custom extraction UI implies UX-focused data engineering tooling",
-      "Platform emphasizes AI-driven financial planning, data extraction, and integration with enterprise systems",
-      "Help Center and Integrations pages exist (indicating some developer-facing docs)",
-      "Clear terms and data handling policies in platform agreement"
+      "Public GitHub repository exists (sherpas) with 1 repo",
+      "Help Center pages (Getting Started, Integrations) exist",
+      "Security and compliance information (SOC 2, encryption, 2FA) available",
+      "Product features described (AI-powered diagnostics, data extraction)"
     ]
   },
   "implementation_maturity": "production",
@@ -319,11 +318,11 @@
     "founders": [
       {
         "name": "Borja Edo",
-        "role": "Co-Founder and CEO",
-        "background": "Not specified in provided content",
+        "role": "Co-Founder & CEO",
+        "background": "Not explicitly detailed in provided content; described as CEO and co-founder with a focus on building an AI-native operating layer for financial advice.",
         "previous_companies": [],
         "technical_depth": "medium",
-        "domain_expertise": "AI-native financial planning and wealth management platform"
+        "domain_expertise": "wealth management, financial planning, AI-enabled advisory workflows"
       }
     ],
     "team_signals": {
@@ -331,32 +330,30 @@
       "has_ml_expertise": true,
       "has_domain_expertise": true,
       "hiring_signals": [
-        "Visible recruitment messaging ('Join the team rewriting how wealth management actually works')",
-        "Seed-stage funding suggests plans for scaling the team"
+        "No public job postings or explicit hiring announcements in provided content"
       ],
       "team_size_indicators": "small",
       "remote_distributed": false
     },
-    "founder_market_fit": "Strong alignment between founder leadership (Borja Edo as CEO) and the product mission of AI-enabled financial advisory infrastructure; product-market fit appears focused on AI-driven analysis and automation for wealth management firms.",
+    "founder_market_fit": "Partial; Borja Edo's explicit background is not disclosed, but the firm leverages wealth-management domain knowledge via an experienced board member and investor network, and aims to solve a clearly defined problem in AI-driven financial advice.",
     "team_strengths": [
-      "CEO with domain focus on AI-native advisory infrastructure",
-      "Board/Investor network including Steve Lockshin and the 1248 family office (lead investor), signaling strategic guidance and credibility in wealth management",
-      "Clear product thesis as an AI operating layer for financial advice, with emphasis on automation of diagnostics, analysis, and narrative generation"
+      "AI-native operating layer for financial advice enabling standardized, explainable insights in minutes",
+      "Enterprise-grade security and regulatory compliance posture (SOC 2 discussions, encryption, data protection measures)",
+      "Investor backing and governance with an industry veteran board member (Steve Lockshin) from Vanilla and AdvicePeriod",
+      "Data extraction, scenario modeling, and automatic proposal generation capabilities highlighted"
     ],
     "team_red_flags": [
-      "Limited public information on additional founding team members and their backgrounds",
-      "Reliance on investor-backed public statements; independent verification of team track records is limited in provided content"
+      "Public details on founder(s) background and prior operating experience are not provided",
+      "Limited public signals for current team size, engineering leadership, or hiring roadmap",
+      "Website/app infrastructure reliability concerns suggested by repeated Page Not Found sections in available content"
     ],
-    "team_confidence": 0.7
+    "team_confidence": 0.32
   },
   "business_model": {
     "pricing_model": {
       "type": "subscription",
       "pricing_evidence": [
-        "Fees",
-        "Subscription Term",
-        "Order Form",
-        "Authorized User / End User definitions"
+        "Two-week trial mentioned during onboarding; no explicit price points in content."
       ],
       "free_tier_available": false,
       "enterprise_focus": true,
@@ -365,76 +362,74 @@
     "gtm_strategy": {
       "primary_channel": "product_led",
       "evidence": [
-        "Try the interactive demo\u2014no sign-up, no commitment",
-        "Embed it as a button on website, newsletter, or emails",
-        "Up and running in minutes",
-        "Demo experience to qualify leads and schedule meetings"
+        "interactive demo with no sign-up",
+        "embed questionnaire widget on website, newsletter, or emails",
+        "test the experience with no sign-up; lead capture via embedded demo",
+        "self-serve onboarding and case reviews facilitated by support"
       ],
       "target_segment": "enterprise",
       "sales_motion": "hybrid"
     },
     "revenue_model": {
-      "monetization_approach": "SaaS subscription with fees defined in an Order Form; platform data products and services included under subscription",
+      "monetization_approach": "SaaS subscription licensing of the AI-native planning platform to financial advisory firms; recurring revenue from licenses and platform usage.",
       "unit_economics_signals": [
-        "Subscription-based fees",
-        "Order Form governs Fees and Authorized Users"
+        "not disclosed"
       ],
       "recurring_revenue": true
     },
     "distribution_advantages": [
-      "Enterprise-grade integrations with existing advisory tech stacks",
-      "AI-native operating layer that standardizes analytics and advice"
+      "AI-native operating layer that standardizes and accelerates financial advice",
+      "strong integration capabilities with enterprise systems used by advisory practices",
+      "enterprise deployments and evaluations demonstrating scalability"
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "website-embedded questionnaire and demo",
-        "interactive demo without sign-up",
-        "marketing content around AI, financial planning, and wealth tech",
-        "self-serve onboarding elements (embeddable widgets)"
+        "interactive demos",
+        "embedded lead-gen questionnaire widget",
+        "content/press coverage"
       ],
       "customer_proof_points": [
-        "enterprise-tested deployments",
-        "investor-backed funding signaling credibility"
+        "enterprise deployments",
+        "investor-backed and strategic partnerships",
+        "board involvement and industry credibility"
       ]
     },
     "business_model_clarity": "clear",
-    "business_model_confidence": 0.75
+    "business_model_confidence": 0.78
   },
   "product_analysis": {
     "product_stage": "beta",
     "stage_evidence": [
-      "Explicit mention of Beta Features in the Platform Subscription Agreement",
-      "Note that platform may experience more downtime during beta",
-      "No explicit API, SDK, or marketplace integrations listed; references to Integrations page but no specifics",
-      "Seed round funding and enterprise-focused positioning suggest ongoing maturation rather than fully mature GA",
-      "Multiple features described as in development or pilot (e.g., beta program caveat)"
+      "Seed funding announced ($3.2M) in Feb 2026, indicating early-stage funding and traction.",
+      "Enterprise-tested deployments and real-world workflow usage cited in press release.",
+      "Roadmap includes expansion into retirement, tax, investment, and risk planning; more integrations with enterprise systems.",
+      "Marketing materials emphasize AI-native operating layer for advisory firms; differentiation from traditional planning tools.",
+      "Available onboarding resources (Getting Started, Help Center) and interactive demo, suggesting some product usability exists.",
+      "Security and data protection measures documented (SOC 2 Type 2 roadmap, OWASP, encryption, 2FA)."
     ],
     "feature_depth": {
       "core_features": [
-        "AI-driven financial diagnostics and analysis",
-        "data extraction and document processing (no-code custom extractions)",
-        "portfolio aggregation across accounts with asset allocation and risk insights",
-        "benchmarking against custom models and model portfolios",
-        "auto-generated financial plans and client-facing narratives",
-        "interactive questionnaire for lead capture and qualification",
-        "ability to embed questionnaire and demo experiences on websites/newsletters"
+        "AI-powered financial diagnostics converting questionnaires and documents into financial analysis",
+        "Scenario modeling and recommendation drafting",
+        "Cash-flow projections, asset/debt/insurance/savings analysis",
+        "Real-time client insights and structured explanations",
+        "Data extraction from documents to populate analyses"
       ],
       "differentiating_features": [
-        "AI-native operating layer for advisory firms to standardize and automate analytics",
-        "end-to-end automation from intake through scenario modeling to proposal drafting",
-        "real-time client insights with explainable rationale in plain English",
-        "alignment of investment analysis and proposals with client goals, beyond returns/risk alone"
+        "AI-native operating layer for financial advice (not just a planning tool)",
+        "Standardized analytical foundation enabling consistent, explainable recommendations",
+        "End-to-end workflow from client intake to proposal generation within a single platform"
       ],
       "roadmap_signals": [
-        "commitment to deepen decision frameworks across retirement, tax, investment, and risk planning",
-        "focus on enterprise deployment and standardization of analytical foundations"
+        "Deepening decision frameworks across retirement, tax, investment, and risk planning",
+        "Expansion of integrations with enterprise systems used by advisory practices",
+        "Scaling deployment across advisory firms with increased automation and efficiency"
       ],
-      "feature_completeness": "comprehensive"
+      "feature_completeness": "growing"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [
-        "Integrations page referenced in Help Center",
-        "no specific partner names provided in available content"
+        "enterprise systems integrations (planned and pursued)"
       ],
       "api_maturity": "none",
       "sdk_availability": [],
@@ -442,88 +437,83 @@
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "Automated, AI-powered financial planning and advisory workflow automation (diagnostics, analysis, narrative, and proposals)",
+      "primary_use_case": "Automate financial advisory workflows by turning client data and documents into fast, explainable financial diagnostics and scenario-based recommendations.",
       "secondary_use_cases": [
-        "Portfolio aggregation across accounts with risk/allocation insights",
-        "Automated client intake and lead qualification via embedded questionnaire",
-        "Auto-generated client-ready plans and proposals for meetings"
+        "Lead capture and qualification via questionnaire",
+        "onboarding and case setup",
+        "proposal generation and client meetings scheduling"
       ],
       "customer_stories": [],
       "industry_focus": [
-        "wealth management",
-        "financial advisory firms",
-        "financial planning"
+        "Wealth management",
+        "financial advisory firms"
       ]
     },
     "product_risks": [
-      "Reliance on beta features may limit reliability and full feature availability",
-      "Integration ecosystem is not yet mature with few publicly documented partners",
-      "Potential privacy/compliance considerations for handling client financial data, despite claims of protection",
-      "Downtime risk during beta and transition periods",
-      "Limited public API/SDK access may hinder custom integrations"
+      "Public documentation limited and site reliability issues (Page Not Found entries) suggesting early-stage web presence or churn in content",
+      "Dependence on AI in regulated financial advice; need for regulatory compliance and explainability",
+      "Unclear API/extension ecosystem and external integrations maturity",
+      "Pricing and go-to-market details not disclosed"
     ],
     "product_strengths": [
-      "AI-native operating layer that standardizes and accelerates financial advice workflows",
-      "No-code/low-code data extraction with pre-trained models and customizable extraction rules",
-      "Real-time, explainable client insights and goal-aligned narratives",
-      "End-to-end automation from intake to meeting scheduling and proposal creation",
-      "Alignment of outputs with firm-specific models and portfolios"
+      "AI-native operating layer that standardizes and speeds up financial planning workflow",
+      "Automates intake, data extraction, diagnostics, scenario modeling, and recommendations",
+      "Security and compliance emphasis (SOC 2 Type 2, OWASP, 2FA, encryption, etc.)",
+      "Clear roadmap to expand to retirement/tax/investment/risk planning and enterprise integrations",
+      "Help Center and onboarding resources indicate customer support readiness"
     ],
-    "product_confidence": 0.6
+    "product_confidence": 0.55
   },
   "unique_findings": [
-    "Positioning as an 'AI-native operating layer' rather than a bolt-on app \u2014 implies they intend an API-first, multi-tenant service that sits below existing advisory UIs and workflows and feeds many downstream tools rather than replacing one.",
-    "No-code text-to-extraction UI: they expose natural-language instructions to produce structured extractions from documents. This points to an LLM-driven mapping layer that compiles human prompts into extraction rules rather than only GUI-based rule editors.",
-    "Pre-trained library of financial document models (tax returns, broker statements, loan agreements) \u2014 signals a labeled, domain-specific dataset and fine-tuned document-understanding models (layout-aware OCR + table extraction + entity/linking) optimized for finance.",
-    "End-to-end real-time pipeline from lead questionnaire \u2192 account linking / doc ingestion \u2192 automated diagnostics \u2192 scenario modeling \u2192 narrative generation + calendar booking. That's a complex orchestration stack that must deliver low-latency, auditable outputs.",
-    "Portfolio benchmarking to custom firm model portfolios: requires robust mapping from custodian holdings (tickers, fund wrappers, cash, options) to advisor-defined model asset buckets and performance/risk metrics, including cross-account aggregation and tax-lot aware calculations.",
-    "Claims of 'mimics human understanding' of documents and 'learns your voice' suggest dual-model architecture: (1) a deterministic/explainable rules+ML layer for critical numeric extraction and (2) LLM-based natural language synthesis personalized via templates or fine-tuning on advisor text samples.",
-    "Enterprise-tested with compliance/operations oversight and explicit access-for-troubleshooting clauses \u2014 implies instrumentation for human-in-the-loop review, audit trails, and role-based access controls integrated into the platform (not just UX features).",
-    "No-code extraction + real financial plan generation implies they are bridging unstructured (documents, statements) and structured modeling (retirement, tax, risk). That needs canonical data models and reconciliations to avoid garbage-in/garbage-out \u2014 a subtle but hard engineering problem."
+    "Positioning: they describe Sherpas not as another planning app but as an \"AI-native operating layer\" that standardizes the analytical foundation of advice across intake, modeling, and recommendation drafting \u2014 i.e., a horizontal orchestration layer that sits above legacy tools rather than a point-solution.",
+    "Document intelligence UX: a text-to-extraction, no-code UI for creating custom extraction rules (\"just type what you need\") that maps free-text prompts directly to structured extraction schemas \u2014 this is a product choice that shifts complexity from engineering to UX and could dramatically reduce onboarding friction.",
+    "Pre-trained, domain-specific document library + custom rules: they combine a curated set of pre-trained financial document models (tax returns, brokerage statements, loan agreements) with user-editable extraction rules, implying a hybrid approach (base models + prompt/regex-like overrides) rather than pure black-box ML.",
+    "Plain\u2011English, explainable diagnostics: core product promise is automated, story\u2011style diagnostics that are structured and explainable, implying investments in deterministic post-processing, templating, and traceability layers (mapping model outputs to audit-ready narrative statements).",
+    "Edge/region-first hosting mix: infrastructure references Fly.io and Equinix together \u2014 an unusual combo that suggests they're running app/runtime close to users (Fly.io's edge VMs) while relying on Equinix for compliance-grade colocation and data residency. That's an atypical hybrid infra choice for a seed-stage startup.",
+    "Enterprise compliance & observability emphasis: explicit SOC 2 pursuit, real-time controls page (trust.sherpaswealth.com), OWASP ASVS adoption, Qualys A for TLS, PFS, and HSTS \u2014 shows investment in operational controls and security maturity early on.",
+    "Integrated lead intake + automation flow: questionnaire \u2192 automatic calendar booking \u2192 full financial profile in dashboard shows they've automated several operational touchpoints (data capture, scheduling, first-pass analysis) to reduce conversion friction.",
+    "Focus on decision frameworks across domains: they plan to deepen retirement, tax, investment, and risk decision frameworks. That suggests a modularized rules/engine layer that can be extended domain-by-domain rather than one monolithic model."
   ],
   "technical_depth": "medium",
-  "newsletter_potential": "high",
+  "newsletter_potential": "medium",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "They built an AI-native operating layer \u2014 not another planning app",
-      "summary": "Sherpas positions itself as an \"AI-native operating layer\" that automates intake, extraction, modelling, and narrative assembly so advisors get plans in minutes rather than days. For builders, the interesting part is the end-to-end orchestration: pre-trained document models, a text-to-extraction no-code UI, portfolio benchmarking, and generative narrative stitched into a single pipeline.",
+      "headline": "Inside Sherpas\u2019 AI-native operating layer: a multi-stage pipeline that treats LLMs as the narrative finish, not the whole stack",
+      "summary": "Sherpas appears to have designed an AI-first orchestration layer where document extraction, deterministic financial engines, and template-driven normalization feed a final LLM narrative stage. For engineers this raises interesting questions about latency, determinism, and how they compose smaller, specialized models vs. relying on a single large model.",
       "evidence": [
-        "\"AI-native operating layer for financial advice\"",
-        "Pre-trained document gallery + no-code text-to-extraction UI",
-        "Generates a real financial plan and narrative \"straight from data, in minutes\""
+        "Docs describe a multi-stage pipeline: extraction \u2192 normalization \u2192 deterministic financial engine \u2192 LLM narrative.",
+        "Positioning: 'AI-native operating layer' rather than 'another planning application layered onto legacy systems' and deployments within enterprise workflows under compliance/operations oversight."
       ],
       "uniqueness_score": 8
     },
     {
       "angle_type": "data",
-      "headline": "Their data moat is a vertical library of financial documents and decision frameworks",
-      "summary": "Sherpas emphasizes a domain-specific document gallery (tax returns, brokerage statements, loan agreements) and codified decision frameworks for retirement, tax, investments and risk \u2014 a classic vertical data moat: standardized extractions + domain rules feed models and enable explainable outputs. For engineers, the tension to explore is how much signal comes from structured rules vs learned models and how they maintain accuracy across provider statement formats.",
+      "headline": "Vertical data moat: Sherpas\u2019 pre-trained document schemas and template library as a competitive defense",
+      "summary": "Sherpas leans heavily on template-driven parsing, smart schemas and a pre-built library for financial documents \u2014 a pattern that can be a defensible data moat in regulated wealth management. A story could unpack how they built, versioned, and validated those templates and whether they own proprietary labeled corpora for forms, statements and tax docs.",
       "evidence": [
-        "Library of pre-trained financial documents (tax returns, brokerage statements)",
-        "No-code custom extractions: \"just type what you need\"",
-        "Plan decision frameworks across retirement, tax, investment, and risk"
+        "References to 'Template/library-driven document parsing + smart schemas' and 'pre-trained financial document library and firm-specific templates (vertical data moat)'.",
+        "Product features emphasize AI-powered data extraction and smart schemas for document uploads."
       ],
-      "uniqueness_score": 7
+      "uniqueness_score": 9
     },
     {
       "angle_type": "contrarian",
-      "headline": "They bet against bolt-on AI \u2014 building infrastructure instead of add-on features",
-      "summary": "Instead of shipping AI as a feature layer on legacy tools, Sherpas claims to standardize the analytical foundation and sit beneath existing workflows \u2014 a contrarian bet that infrastructure wins over point solutions. The strategic implication is a focus on integrations, compliance and auditability rather than flashy UX features, which makes it more interesting to enterprise engineers than consumer-focused startups.",
+      "headline": "Betting on an infrastructure-first approach: Sherpas rejects 'AI as a feature' in favor of an intelligence layer",
+      "summary": "While many startups bolt an LLM onto an existing product, Sherpas is marketing itself as an intelligence operating layer for advisory firms \u2014 a contrarian stance that emphasizes integration, auditability and consistency over flashy generative features. The angle would probe trade-offs: slower product iteration vs. stronger enterprise adoption and compliance.",
       "evidence": [
-        "\"Rather than functioning as another planning application layered onto legacy systems, Sherpas serves as an AI-native operating layer\"",
-        "Enterprise-tested deployments under compliance and operations oversight",
-        "Board and investors from advisory industry signal enterprise focus"
+        "Quote: 'AI is not a feature. It's a new operating layer for advisory firms.'",
+        "Company focus on standardizing the analytical foundation and producing 'structured, explainable insights in minutes rather than days' for compliance and scale."
       ],
       "uniqueness_score": 7
     },
     {
-      "angle_type": "efficiency",
-      "headline": "A claim: shrink plan prep from days to minutes and cut manual entry 85%",
-      "summary": "Sherpas advertises that it delivers structured, explainable financial plans in minutes and can \"save 85% of time on manual entry\" by automating extraction and proposal generation. A practical technical story would test these efficiency claims \u2014 instrumenting end-to-end latency, error rates on extraction, and how much human review remains.",
+      "angle_type": "vertical_expert",
+      "headline": "How Sherpas encodes financial domain expertise: decision frameworks for retirement, tax, investment and risk",
+      "summary": "Sherpas claims to be expanding decision frameworks across core planning domains \u2014 an engineering challenge that requires codifying regulatory rules, actuarial logic and tax heuristics into deterministic engines and prompts. A technical deep-dive could explore how they validate these frameworks, handle edge cases, and keep them auditable for compliance.",
       "evidence": [
-        "\"Delivers a real plan, instantly\" and \"Generate a real financial plan and narrative, straight from data, in minutes\"",
-        "\"Save 85% of time on manual entry\""
+        "Roadmap note: seed capital will deepen decision frameworks across retirement, tax, investment, and risk planning.",
+        "Emphasis on 'standardize the analytical foundation of advice' and enterprise testing under compliance and operations oversight."
       ],
       "uniqueness_score": 6
     }
@@ -531,140 +521,129 @@
   "anti_patterns": [
     {
       "pattern_type": "wrapper",
-      "description": "Many claims center on 'AI' features (document extraction, narrative generation, automated plans) without technical detail about proprietary models, suggesting the product could be a thin orchestration layer around third-party LLMs/APIs.",
+      "description": "Product messaging focuses on being an 'AI operating layer' and automating diagnostics, but there is no public technical detail about proprietary models, model tuning, or unique inference infrastructure \u2014 suggesting risk that the product could be a thin orchestration/wrapper around third\u2011party LLM APIs.",
       "severity": "medium",
       "evidence": [
-        "Sherpas AI mimics human understanding of any financial document, automatically classifying document types...",
-        "No-code custom extractions ... just type what you're looking for, and the AI will retrieve the data in your preferred format.",
-        "AI-powered financial planning\u2014done before you even think about it.",
-        "The platform automates the analytical burden \u2014 producing structured, explainable insights in minutes rather than days."
+        "Repeated marketing language: 'AI-native operating layer', 'AI efficiency, human judgment', 'not a feature. It's a new operating layer.'",
+        "No disclosed LLMs, model names, or description of proprietary model training in the provided content.",
+        "Analysis context notes: 'Undisclosed LLMs + specialized pre-trained document models (hybrid)' and 'No evidence of vector DB/RAG'."
       ]
     },
     {
       "pattern_type": "feature_not_product",
-      "description": "Several elements read like point features (embed questionnaire, interactive demo, account aggregation, extraction UI) that incumbents or aggregators could absorb into larger platforms, rather than components of an entrenched, hard-to-replicate product.",
+      "description": "Claims center on automating diagnostics, questionnaire intake, and narrative drafting \u2014 capabilities that incumbents or platform providers could add as a feature; there is limited evidence of broader platform-level lock\u2011in or unique, hard-to-replicate workflows.",
       "severity": "medium",
       "evidence": [
-        "Add it anywhere, no hassle Embed it as a button in your website, newsletter, or emails.",
-        "Try the interactive demo\u2014no sign-up, no commitment.",
-        "Upload or link client investment accounts, and Sherpas AI will instantly break down asset allocation, risk exposure, and diversification",
-        "Custom data extraction, just type what you need"
+        "Core described capabilities: questionnaire intake \u2192 automated diagnostics \u2192 proposal drafting; these are discrete features that many advisory platforms or vendors could bundle.",
+        "Messaging: 'Rather than functioning as another planning application layered onto legacy systems, Sherpas serves as an AI-native operating layer' \u2014 positioning as an OS but with feature-like described outcomes.",
+        "Seed stage ($3.2M) and early enterprise testing suggests product is still establishing depth and breadth of platform integrations."
       ]
     },
     {
       "pattern_type": "no_moat",
-      "description": "There is limited concrete evidence of a sustainable data or model moat (no description of proprietary training data, unique label sets, or exclusive integrations). Without a clear, defensible source of unique data or core models, the offering risks being replicable.",
+      "description": "There is limited public evidence of a defensible technical moat: no details on unique training data, proprietary models, long-term data capture practices, or a clearly articulated vertical data moat beyond templates and domain heuristics.",
       "severity": "high",
       "evidence": [
-        "Get started quickly with Sherpas' library of pre-trained financial documents",
-        "Define custom extraction rules in seconds with our easy text-to-extraction UI.",
-        "Sherpas serves as an AI-native operating layer for financial advice.",
-        "Enterprise-tested, investor-backed The financing follows extensive enterprise evaluation..."
+        "No documented unique model, dataset, or IP claim beyond 'enterprise-tested' deployments and template libraries.",
+        "Analysis context: 'no evidence of vector DB/RAG, No-code text-to-extraction UI' \u2014 suggests missing elements that commonly form AI product moats.",
+        "Product relies on domain workflows (questionnaires, extraction, narrative) that can be replicated by incumbents with larger data access or partners."
       ]
     },
     {
       "pattern_type": "overclaiming",
-      "description": "Marketing language makes broad performance and value claims that are not substantiated by technical specifics (e.g., 'delivers a real plan, instantly', 'AI-native operating layer', 'done before you even think about it'), which may exceed what the current tech reliably achieves in regulated financial advice contexts.",
+      "description": "Marketing uses broad AI claims (e.g., 'AI-powered financial diagnostics in seconds', 'operating layer') without corresponding technical specifics, benchmarks, or failure modes \u2014 risk of mismatch between promise and delivered product behavior.",
       "severity": "medium",
       "evidence": [
-        "Generate a real financial plan and narrative, straight from data, in minutes.",
-        "AI-powered financial planning\u2014done before you even think about it.",
-        "AI efficiency, human judgment. Sherpas does the work, but advisors stay in control",
-        "AI is not a feature. It's a new operating layer for advisory firms."
+        "Phrases like 'Turn data straight from questionnaires and documents into a full financial diagnostic in seconds' and 'producing structured, explainable insights in minutes rather than days' lack supporting performance data or examples.",
+        "Repeated marketing refrains ('Ready to accelerate your growth with Sherpas?' repeated many times) and general statements about AI replacing manual analysis but few technical details."
       ]
     },
     {
       "pattern_type": "undifferentiated",
-      "description": "The value propositions (document extraction, account aggregation, proposal automation, portfolio benchmarking) are core needs across the wealth tech market; without clear unique capabilities or vertical specialization, positioning may appear me-too.",
+      "description": "Positioning risks blending into a crowded fintech/wealth-tech market: many vendors offer automation, data extraction, and advisor productivity tools; Sherpas' unique angle is not concretely demonstrated in the content.",
       "severity": "medium",
       "evidence": [
-        "Turn complex portfolio data into clear, actionable insights with AI",
-        "Save 85% of time on manual entry Reduce errors and improve consistency in document processing",
-        "Build goal-aligned proposals Use your firm\u2019s model portfolios and strategy",
-        "Client insights in real-time\u2014so advisors stay ahead, not behind."
+        "Core value props (data extraction, diagnostics, proposal drafting, scheduling) overlap with many existing tools in wealth management and CRM ecosystems.",
+        "No clear description of unique partner integrations, exclusive data sources, or benchmark studies showing superior outcomes vs incumbents."
       ]
     }
   ],
   "competitive_analysis": {
     "competitors": [
       {
-        "name": "eMoney Advisor",
-        "similarity": "Provides financial planning, client portals, aggregation and planning workflows for advisors and wealth firms.",
-        "how_different": "Sherpas frames itself as an AI-native operating layer that automates document extraction, diagnostics, and narrative generation (plans written 'before you even think about it'), while eMoney is a mature planning product built on legacy architectures with less emphasis on generative AI, pre-trained document extraction, or no-code text-to-extraction interfaces."
+        "name": "eMoney Advisor (Envestnet eMoney)",
+        "similarity": "Comprehensive financial planning, client portal, cash-flow modeling, enterprise sales into advisory firms and RIAs.",
+        "how_different": "Sherpas emphasizes an AI-native operating layer that automates diagnostics, document ingestion, narrative generation and recommendation drafting in minutes; eMoney is a mature planning platform with deep modeling but is not primarily positioned as an AI-native decision layer that auto-generates explainable plans and advisor\u2011voice narratives."
       },
       {
-        "name": "MoneyGuidePro (PIEtech)",
-        "similarity": "Widely used goal-based financial planning software that advisors use to model scenarios and produce client-facing plans.",
-        "how_different": "Sherpas emphasizes automated intake, AI-driven diagnostics, and natural-language proposal generation tied to a firm's own model portfolios; MoneyGuidePro focuses on planning calculations and client experience but is not positioned as an AI-native operating layer that ingests raw documents and auto-generates narratives and recommendations."
+        "name": "MoneyGuide (MoneyGuidePro)",
+        "similarity": "Financial planning workflows, retirement modeling and advisor-facing planning tools aimed at consumer advisors.",
+        "how_different": "MoneyGuide is focused on goal-based planning and advisor tools with established workflows; Sherpas differentiates by combining document extraction, no-code custom extractions, automated portfolio benchmarking, and AI-written narrative/recommendations as an integrated operating layer."
+      },
+      {
+        "name": "RightCapital / RightCapital-like tools",
+        "similarity": "Cloud-based financial planning, client questionnaires, proposals and interactive planning experiences for advisors.",
+        "how_different": "RightCapital provides planning & client-facing experiences; Sherpas claims to automate the analytical foundation (data extraction, standardized diagnostics, explainable insights) and embed AI into the operating layer rather than being a standalone planning app bolted onto legacy systems."
       },
       {
         "name": "Addepar",
-        "similarity": "Portfolio aggregation, analytics and reporting for wealth managers, giving a consolidated view of assets across accounts.",
-        "how_different": "Addepar is portfolio-data and reporting-first; Sherpas combines portfolio analytics with automated financial plan generation, document understanding, no-code custom extraction, and advisor-voice explanations\u2014positioning itself more as an AI layer that produces recommendations and narratives, not only analytics."
+        "similarity": "Portfolio aggregation, analytics and enterprise-grade portfolio-level reporting for wealth management firms.",
+        "how_different": "Addepar focuses on high-fidelity portfolio data and analytics at scale; Sherpas layers AI on top of aggregated data to produce human\u2011readable diagnostics, narrative proposals and recommendation drafting, with emphasis on standardizing advice rather than solely surfacing detailed analytics."
       },
       {
-        "name": "Envestnet (including Yodlee/Envestnet integrations)",
-        "similarity": "Enterprise wealth management infrastructure offering account aggregation, data services, reporting, investment models and integrations across advisor tech stacks.",
-        "how_different": "Envestnet is a broad, legacy, enterprise platform and marketplace focused on custody/model delivery/portfolio management; Sherpas pitches an AI-native operating layer that plugs into firms to automate diagnostics, extract documents and produce explainable recommendations quickly, rather than a broad custody/overlay marketplace."
+        "name": "Envestnet / Orion / custodial/wealth-platform incumbents",
+        "similarity": "Provide enterprise infrastructure, integrations, custody, portfolio accounting and broad advisor ecosystem used by large advisory firms.",
+        "how_different": "Incumbents offer broad platform services and distribution; Sherpas positions itself as an AI-native operating layer that integrates with enterprise systems to automate planning and decisioning rather than replace platform or custody functionality."
       },
       {
-        "name": "Plaid / MX / Yodlee (data & account aggregation providers)",
-        "similarity": "Provide account linking and data aggregation which advisors rely on to view client holdings across institutions.",
-        "how_different": "Sherpas offers account linking plus AI-led downstream analytics, benchmarking to a firm\u2019s own model portfolios, document parsing, and proposal generation \u2014 not just data plumbing. Sherpas claims to convert aggregated data into narratives and actionable recommendations."
+        "name": "Vise (and AI-driven portfolio/advice startups)",
+        "similarity": "Use of machine learning/AI to generate investment recommendations and automate advisor workflows.",
+        "how_different": "Vise focuses on investment management and portfolio construction automation; Sherpas claims a broader scope\u2014document extraction, financial diagnostics, retirement/tax/risk decision frameworks and natural\u2011language plan generation\u2014targeted at the full planning workflow and advisor narrative."
       },
       {
-        "name": "Ocrolus / Readable / ABBYY (document extraction / OCR vendors)",
-        "similarity": "Automated document processing and data extraction from financial documents like statements, tax forms, and loan docs.",
-        "how_different": "Sherpas combines pre-trained financial document models and a no-code text-to-extraction UI with downstream financial diagnostics, goal-aligned proposal generation and advisor-voice narratives. Sherpas markets the extraction capability as part of an end-to-end advisory automation stack rather than a standalone extraction service."
-      },
-      {
-        "name": "Riskalyze / HiddenLevers",
-        "similarity": "Provide risk profiling, scenario analysis and investment analytics used by advisors to make recommendations.",
-        "how_different": "Riskalyze and HiddenLevers are analytics-first (risk scoring and scenario stress analysis). Sherpas integrates analytics with automated intake, document understanding and generative narrative creation, plus the ability to benchmark portfolios to firm models and produce client-ready proposals in minutes."
+        "name": "Cloud Document AI / OCR providers (AWS Textract, Google Document AI, ABBYY, etc.)",
+        "similarity": "Automated extraction of structured data from documents and forms.",
+        "how_different": "Those providers offer general-purpose document extraction; Sherpas bundles pre-trained financial document models, a no-code text-to-extraction UI, and ties extraction directly into planning workflows and decision frameworks specific to wealth management to produce immediate diagnostic outputs and narratives."
       }
     ],
     "differentiation": {
-      "primary": "Positioning as an AI-native 'operating layer' for financial advice that automates intake, document extraction, portfolio diagnostics, benchmarking to firm models, and generation of advisor-quality narratives and proposals \u2014 closing the loop from raw data to explainable recommendations.",
-      "technical": "Domain-specific pre-trained document models for financial forms (tax returns, brokerage statements, loan agreements), a no-code text-to-extraction UI, account linking/aggregation plus automated benchmarking against a firm\u2019s custom model portfolios, and generative-narrative capabilities that 'learn your voice' for explanations \u2014 all integrated into a single pipeline.",
-      "business": "Go-to-market focused on advisory firms and enterprise pilots (enterprise-tested under compliance oversight), embedding into existing workflows rather than replacing them; offers intake widgets (questionnaire + scheduler) to capture leads that arrive with a ready analysis and appointment; subscription enterprise licensing with integrations to firm systems.",
-      "positioning": "Sherpas positions itself not as another planning app but as foundational infrastructure \u2014 an AI-native layer that sits underneath or alongside existing tools, standardizing the analytical foundation of advice, increasing speed and consistency, and freeing advisors to focus on client strategy."
+      "primary": "Positioned as an AI-native 'operating layer' for financial advice that automates the end-to-end analytical foundation of planning (intake, document extraction, diagnostic modeling, portfolio benchmarking and narrative recommendation drafting) rather than a single bolt-on planning tool.",
+      "technical": "Pre-trained financial-document models + no-code text-to-extraction UI, integration with firm model portfolios and benchmarks, decision-framework libraries across retirement/tax/investment/risk, and automated explainable outputs and advisor-voice narratives. Enterprise-grade security (SOC 2 processes) and hosting choices (Fly.io + Equinix) targeted at advisory compliance needs.",
+      "business": "GTM focused on advisory firms seeking modernization and operational leverage (sell to enterprise advisory firms and family offices), emphasize enterprise testing and strategic investors in advisory industry to drive adoption. Offers onboarding, templates, and customization to match firm models and branding\u2014positioned as infrastructure to reduce headcount growth while scaling advice delivery.",
+      "positioning": "Sherpas positions itself versus legacy planning apps and platform incumbents as a new operating layer (AI-native) \u2014 not another planning application \u2014 arguing that embedding AI into the operating layer produces consistent, explainable, and faster advice delivery compared to traditional manual or incremental tool upgrades."
     },
     "secret_sauce": {
-      "core_advantage": "An end-to-end AI-native pipeline that combines (1) pre-trained financial-document understanding, (2) account aggregation + portfolio benchmarking against a firm\u2019s own models, and (3) generative, explainable recommendation and narrative production tailored to advisor voice \u2014 all marketed as an operating layer rather than a point tool.",
-      "defensibility": "Domain-trained extraction and decision frameworks for financial documents and plans (pre-trained models + no-code customization) paired with enterprise deployments and integrations create switching friction. The value comes from combining data extraction, analytics, compliance-aware workflows, and narrative generation into a single flow tailored to advisor processes and firm models \u2014 a non-trivial integration of models, templates, and enterprise connectors that is costly and time-consuming to replicate.",
+      "core_advantage": "A combined stack of domain-tuned AI models (document understanding + financial decision frameworks) integrated directly into advisory workflows so data ingestion, modeling and narrative recommendation are automated and produce explainable, advisor\u2011voice outputs tied to a firm's own benchmarks and model portfolios.",
+      "defensibility": "Medium: defensible because of proprietary labeled financial-doc and planning datasets accrued during enterprise pilots, deep integration into advisor workflows and model portfolios, regulatory/compliance posture (SOC2 readiness) and productized decision frameworks that map to advisor processes. However, components (LLMs, OCR, cloud infra) are broadly available, so long-term defensibility depends on data, integration breadth and enterprise adoption.",
       "evidence": [
-        "'Sherpas is the AI Operating System for financial advice\u2014an intelligence layer that automates financial diagnostics, investment analysis, and data extraction.'",
-        "'Generate a real financial plan and narrative, straight from data, in minutes.'",
-        "'Sherpas AI mimics human understanding of any financial document... pre-trained models... No-code custom extractions... just type what you're looking for.'",
-        "'Sherpas AI automatically benchmarks a portfolio against your own models.'",
-        "'Enterprise-tested, investor-backed' and 'deployed within real-world workflows under compliance and operations oversight.'",
-        "'Save 85% of time on manual entry.'",
-        "'Learns your voice' (for communication/narrative generation)."
+        "\u201cAI-native operating layer for financial advice\u2026automates the analytical burden\u2014producing structured, explainable insights in minutes rather than days.\u201d",
+        "\u201cTurn data straight from questionnaires and documents into a full financial diagnostic in seconds.\u201d",
+        "\u201cNo-code custom extractions\u2026just type what you're looking for, and the AI will retrieve the data in your preferred format.\u201d",
+        "\u201cEnterprise-tested\u2026deployed within real-world workflows under compliance and operations oversight.\u201d",
+        "\u201cSave 85% of time on manual entry.\u201d",
+        "$3.2M seed led by advisory-industry investors and explicit focus on deepening decision frameworks across retirement, tax, investment and risk."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "Sherpas has a defensible blend of domain-specific models, enterprise pilots/compliance experience, and integrations that create initial customer lock-in and workflow embedding. However, major incumbents (e.g., Envestnet, Addepar, eMoney) and specialized vendors (account aggregators, document OCR firms, analytics providers) could replicate components or integrate similar AI capabilities. True long-term moat will depend on scale of proprietary training data, depth of enterprise integrations, regulatory/compliance certifications, and network effects from embedded workflows \u2014 areas where Sherpas shows early strengths but needs time and capital to solidify.",
+    "moat_explanation": "Sherpas' moat comes from combining domain-specific AI models, decision frameworks, pre-trained financial document extraction, and deep integrations into advisor workflows plus enterprise compliance posture. Those create switching costs and implementation friction for small competitors. However, major incumbents and cloud providers can replicate parts of the stack (LLMs, OCR) and large incumbents have distribution, making the moat not yet high. Sustainable advantage will require proprietary labeled data from advisors, many integrations, and a growing installed base to create network effects and product configurability unique to large advisory firms.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "Sherpas AI streamlines data extraction, financial analysis and automates proposals to help you grow Generate a real financial plan and narrative, straight from data, in minutes.",
-    "Delivers a real plan, instantly Communicates like a real advisor Learns your voice Turn investment data into personalized proposals.",
-    "Sherpas is the AI Operating System for financial advice\u2014an intelligence layer that automates the analytical burden \u2014 producing structured, explainable insights in minutes.",
-    "Sherpas mimics human understanding of any financial document, automatically classifying document types, recognizing sections, and identifying key elements such as text, tables, checkboxes, and symbols.",
-    "Instant extraction with pre-trained models",
-    "AI-powered financial planning\u2014done before you even think about it.",
-    "From initial investor intake through scenario modeling and recommendation drafting, the platform automates the analytical burden",
-    "Build goal-aligned proposals",
-    "Explain the \u2018why\u2019 in plain English",
-    "Content creation and end-user nurturing tools",
-    "AI-native operating layer for advisory firms",
-    "Text-to-extraction no-code UI that directly converts user English into extraction rules (practical NL\u2192extraction rule surface for domain-specific document parsing).",
-    "Positioning an 'AI Operating System' as an orchestration layer that standardizes analytical foundations (combining document extraction, account linking, decision frameworks, and narrative generation into one vertical stack rather than a bolt-on feature).",
-    "Allowing firms to inject/customize their own model portfolios and benchmarks, implying on-the-fly personalization of recommendation/risk models to client-specific or firm-specific reference data."
+    "AI-powered financial diagnostics Turn data straight from questionnaires and documents into a full financial diagnostic in seconds.",
+    "Sherpas is the AI Operating System for financial advice\u2014an intelligence layer that automates the analytical burden and produces structured, explainable insights in minutes rather than days.",
+    "Sherpas AI mimics human understanding of any financial document, automatically classifying document types, recognizing sections, and identifying key elements such as text, tables, checkboxes, and symbols.",
+    "Instant extraction with pre-trained models.",
+    "No-code custom extractions.",
+    "AI-native operating layer for financial advice.",
+    "No-code text-to-extraction UI that turns plain English queries into extraction rules tailored to financial document schemas.",
+    "Positioning as an 'AI-native operating layer' (platform-level integration across intake, modeling, and recommendation) rather than a point-solution \u2014 implying tight enterprise integrations and standardized analytical primitives.",
+    "A curated library of pre-trained, finance-specific document models (tax returns, brokerage statements, loan agreements) combined with custom extraction and explainable diagnostics.",
+    "Enterprise-first security & compliance baked into the product messaging and infra choices (SOC2, OWASP standards, HSTS/PFS, Fly.io + Equinix hosting) to reduce enterprise adoption friction."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 19:17:04.067031+00:00",
-  "confidence_score": 0.68,
-  "raw_content_analyzed": 121509
+  "analyzed_at": "2026-03-07 23:14:03.758508+00:00",
+  "confidence_score": 0.75,
+  "raw_content_analyzed": 34999,
+  "input_hash": "03efa71116fd3b8d"
 }

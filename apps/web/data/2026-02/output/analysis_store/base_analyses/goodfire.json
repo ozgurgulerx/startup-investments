@@ -7,319 +7,359 @@
   "funding_amount": 150000000.0,
   "funding_stage": "series_b",
   "uses_genai": true,
-  "genai_intensity": "core",
+  "genai_intensity": "tooling",
   "models_mentioned": [
-    "Pleiades (Prima Mente epigenetic foundation model)",
-    "sparse autoencoders (BatchTopK SAE)"
+    "DeepSeek R1",
+    "OpenR1-Math",
+    "Evo 2",
+    "Llama 3",
+    "AlphaFold 3",
+    "Prima Mente Pleiades"
   ],
   "build_patterns": [
     {
       "name": "Micro-model Meshes",
-      "confidence": 0.9,
+      "confidence": 0.95,
       "evidence": [
-        "hierarchical attention transformer to predict AD. The first level ... aggregates Pleiades embeddings from cfDNA fragments into a single embedding per DMR. The second level aggregates DMR embeddings into a single patient-level embedding",
-        "we train lightweight probes to test if specific biological signals can be extracted from Pleiades embeddings",
-        "Sparse autoencoders (SAEs) ... decompose the model's representations and trace which components drive the disease classification",
-        "we distilled this insight into a human-interpretable classifier ... a simple proxy model using only fragment length features"
+        "We\u2019re releasing two SAEs for R1: the first was trained on R1\u2019s activations on a custom reasoning dataset, and the second used OpenR1-Math",
+        "We trained both a general reasoning and math specific SAE",
+        "trained BatchTopK sparse autoencoders (SAEs) on layer 26 of Evo 2",
+        "At 671B parameters, the undistilled R1 model is an engineering challenge to run at scale. Our SAE training leveraged our custom inference engine and interpreter model training infrastructure"
       ],
-      "description": "Multiple specialized models and components are used together rather than a single monolith: a large foundation model (Pleiades) provides embeddings, supervised lightweight probes and BatchTopK SAEs are used for interpretability, a hierarchical attention transformer aggregates at fragment\u2192DMR\u2192patient levels, and a distilled logistic-regression proxy is used for deployment/validation."
-    },
-    {
-      "name": "Guardrail-as-LLM",
-      "confidence": 0.85,
-      "evidence": [
-        "Deploying Interpretability to Production with Rakuten: SAE Probes for PII Detection",
-        "one of the first uses of sparse autoencoders (SAEs) with a production AI model - using SAE probes to detect personally identifiable information for Rakuten AI agents",
-        "probes are far more efficient and inexpensive on the task than LLM-as-judge baselines"
-      ],
-      "description": "Secondary specialized models (SAE probes) are used as a safety/compliance layer to detect PII in agent inputs, functioning like a guardrail that checks or filters content produced or ingested by other systems; explicitly contrasted with LLM-as-judge approaches."
-    },
-    {
-      "name": "Vertical Data Moats",
-      "confidence": 0.9,
-      "evidence": [
-        "The model was pretrained on 1.9 trillion tokens from this combined dataset",
-        "Data was sourced from genomic and cell-free DNA across multiple cell types and sequenced with methods that preserve cytosine methylation state",
-        "Oxford University study with over 30 billion cfDNA fragments across a cohort of 81 individuals"
-      ],
-      "description": "Heavy reliance on large, domain-specific, proprietary/curated biological datasets (cfDNA, methylation, DMR-focused fragments) that provide a specialized competitive advantage for epigenetic and clinical tasks."
-    },
-    {
-      "name": "Continuous-learning Flywheels",
-      "confidence": 0.2,
-      "evidence": [
-        "We hope this offers a case study of how we can use interpretability to surface candidate signals, build simple models to test them, and let the results inform the next round of experiments - both in the lab and in silico",
-        "validation in larger cohorts underway"
-      ],
-      "description": "There are hints of iterative experimentation and planned validation loops (interpretable hypotheses \u2192 proxy models \u2192 follow-up experiments), but no explicit production feedback pipelines, automated user-feedback ingestion, or model updating loop described."
-    },
-    {
-      "name": "RAG (Retrieval-Augmented Generation)",
-      "confidence": 0.0,
-      "evidence": [],
-      "description": "No evidence of retrieval components, vector stores, document search, or retrieval integrated into generation; the system operates on sequence embeddings and hierarchical aggregation rather than retrieval-augmented text generation."
-    },
-    {
-      "name": "Agentic Architectures",
-      "confidence": 0.0,
-      "evidence": [],
-      "description": "No autonomous multi-step agents, tool use, or orchestration of chains of actions are described; tasks are analytic, interpretability, and classification-focused."
+      "description": "Goodfire uses many smaller, specialized interpreter models (sparse autoencoders, per-domain SAEs, BatchTopK variants) that operate alongside or on top of large foundation models (R1, Evo 2, Pleiades). They train task/domain-specific SAEs (math-specific and general reasoning) and layer-specific analyzers to decompose and steer behavior, effectively creating an ensemble of small, specialized components around large models."
     },
     {
       "name": "Natural-Language-to-Code",
-      "confidence": 0.0,
-      "evidence": [],
-      "description": "No mention of translating natural language into executable code or rule generation from text."
+      "confidence": 0.7,
+      "evidence": [
+        "GPT Engineer: Specify what you want it to build, the AI asks for clarification, and then builds it.",
+        "GPT Engineer ... generates an entire codebase based on a prompt",
+        "With an api key that has GPT4 access run: export OPENAI_API_KEY=[your api key]"
+      ],
+      "description": "Goodfire\u2019s public tooling and repos include code generation/agent projects (gpt-engineer) that convert natural language prompts into working codebases and agent behaviors, indicating use and distribution of NL\u2192code pipelines and developer-facing code-generation agents."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.85,
+      "evidence": [
+        "An Autonomous GPT-4 Experiment (Auto-GPT)",
+        "as reasoning models increasingly become the foundation for advanced AI systems across industries\u2014and potentially begin to interact more agentically with the world",
+        "the model often backtrack and try an alternative approach when a line of reasoning ... isn\u2019t working out"
+      ],
+      "description": "The organization both references and publishes agentic/autonomous-agent projects (Auto-GPT) and explicitly reasons about models interacting 'agentically' with environments. Their tooling (Ember, custom inference engine) and steering experiments suggest orchestration and tool-use patterns consistent with agentic architectures."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.95,
+      "evidence": [
+        "Pleiades model series was trained on 1.9 trillion tokens of raw human epigenomic data",
+        "Evo 2 ... trained across all domains of life ... capable of processing sequences up to 1M base pairs",
+        "a custom reasoning dataset (which we\u2019re also open-sourcing)",
+        "we were able to make use of only high-quality reference genomes"
+      ],
+      "description": "Goodfire and partners train domain-specific foundation models on large, proprietary/high-value datasets (human epigenome, long-context genomic corpora, custom reasoning traces). These industry- or domain-specific datasets serve as competitive assets and enable specialized capabilities (biomarker discovery, genomic generation)."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.65,
+      "evidence": [
+        "Our SAE training leveraged our custom inference engine and interpreter model training infrastructure, which enables interpretability at the half a trillion parameter scale",
+        "Prima Mente ... operate a wet lab to validate hypotheses generated by their model, and run clinical trials",
+        "jumpstart improvement and iteration on their model design by getting signal on how their model works",
+        "Each step in steps.py will have its communication history with GPT4 stored in the logs folder, and can be rerun"
+      ],
+      "description": "There are elements of an iterative feedback loop: model-derived hypotheses are experimentally validated (wet lab, clinical trials), interpretation results inform model improvements, and tooling stores histories for reruns. This indicates a pipeline where scientific experiments and model updates create a closed-loop improvement cycle, though direct automated continual-training from usage is not explicitly described."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.35,
+      "evidence": [
+        "develop more targeted safety interventions",
+        "attempts to change their behavior\u2014e.g., to suppress dishonest responses\u2014may require more sophisticated techniques"
+      ],
+      "description": "Goodfire discusses safety, steering, and suppression of unwanted behaviors and refers to tooling (Ember) for steering. However, there is no explicit description of an independent secondary model layer that checks or filters outputs (i.e., a dedicated guardrail LLM). The presence of steering infrastructure implies some safety-control patterns, but implementation as Guardrail-as-LLM is only weakly evidenced."
+    },
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.1,
+      "evidence": [
+        "We've also uploaded SQL databases containing the max activating examples for each feature",
+        "Feature map We used DataMapPlot to create an interactive UMAP visualization of our general reasoning SAE's features"
+      ],
+      "description": "There is no clear evidence of a retrieval+generation architecture integrating vector stores or document retrieval at query time. SQL dumps of max activating examples and visualizations support interpretability/reproducibility but do not indicate a RAG-style runtime augmentation of generation."
     },
     {
       "name": "Knowledge Graphs",
-      "confidence": 0.0,
-      "evidence": [],
-      "description": "No evidence of graph-based knowledge representations, RBAC/permission graphs, or graph databases; the work focuses on sequence embeddings, DMRs, and fragment-level features."
+      "confidence": 0.05,
+      "evidence": [
+        "interactive feature visualizer showcasing some example SAE features",
+        "activation values ... overlaid on AlphaFold3's structural prediction"
+      ],
+      "description": "The material describes feature visualizations and alignments with biological annotations, but does not mention graph-structured knowledge stores, entity linking, RBAC, or permission-aware graphs. No meaningful evidence of knowledge-graph usage is present."
     }
   ],
   "discovered_patterns": [
     {
       "category": "Model Architecture & Selection",
-      "pattern_name": "Domain-specific epigenetic foundation model with methylation-aware tokenization",
+      "pattern_name": "Large custom reasoning foundation model (DeepSeek R1) + domain-specific foundation models (Evo 2, Pleiades)",
       "confidence": 0.95,
       "evidence": [
-        "\"Pleiades is a 7-billion parameter epigenetic foundation model trained on human methylation and genomic sequences.\"",
-        "\"Tokens represented either individual nucleotides or the presence of a methyl group.\"",
-        "\"The model was pretrained on 1.9 trillion tokens from this combined dataset.\"",
-        "\"Training proceeded in two stages: pretraining on next-token prediction, followed by additional training on a reconstruction task.\""
+        "\"We have trained the first ever sparse autoencoders (SAEs) on the 671B parameter DeepSeek R1 model\"",
+        "\"R1 is a very large model and therefore difficult to run\"",
+        "\"Evo 2, featuring 7B and 40B parameter architectures\"",
+        "\"Pleiades model series was trained on 1.9 trillion tokens of raw human epigenomic data\""
       ],
-      "description": "They built a foundation model specialized for epigenomics: bespoke tokenization that encodes both nucleotide identity and methylation presence, very large pretraining corpus (1.9T tokens) composed of genomic and cfDNA sequences, and two complementary pretraining objectives (next-token and reconstruction) to learn higher-order epigenetic representations.",
+      "description": "Goodfire works directly with multiple large foundation models: DeepSeek R1 (671B, described as a reasoning model), Evo 2 (7B/40B nucleotide models), and partners' Pleiades epigenomics models. They do not primarily describe fine-tuning these base models themselves; instead they build interpreter models (SAEs) on top of activations from specific layers of these trained models to analyze and steer them.",
+      "novelty_score": 4,
+      "why_notable": "Working with a half-trillion+ parameter reasoning model and multi-scale biological models simultaneously is operationally unusual; but using large (and partner) foundation models as inputs is now common in research groups. Their focus on internal-layer analysis rather than only prompting is the differentiator."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Interpreter models: Sparse Autoencoders (SAEs) trained on activations as first-class architecture",
+      "confidence": 0.98,
+      "evidence": [
+        "\"We have trained the first ever sparse autoencoders (SAEs) on the 671B parameter DeepSeek R1 model and open-sourced the SAEs.\"",
+        "\"We\u2019re releasing two SAEs for R1\"",
+        "\"trained BatchTopK sparse autoencoders (SAEs) on layer 26 of Evo 2\"",
+        "\"We trained both standard ReLU SAEs ... and BatchTopK SAEs\""
+      ],
+      "description": "Goodfire treats SAEs as dedicated 'interpreter' models: they train sparse autoencoders on internal activation vectors of layers (e.g., layer 26) to extract interpretable features that map to biological or reasoning concepts. These SAEs operate on model internals rather than on text I/O, producing features used for visualization, alignment scoring, steering, and downstream analysis.",
       "novelty_score": 7,
-      "why_notable": "Tokenizing methylation as first-class tokens and pretraining a mid-size (~7B) foundation model specifically on genomic + cfDNA data at trillion-token scale is rare and purpose-built for biological representation learning, enabling embedding-level downstream uses rather than just sequence prediction."
-    },
-    {
-      "category": "Model Architecture & Selection",
-      "pattern_name": "Hierarchical attention transformer over fragment embeddings",
-      "confidence": 0.95,
-      "evidence": [
-        "\"To combine information across fragments, the Prima Mente team used a hierarchical attention transformer to predict AD.\"",
-        "\"The first level of the hierarchical classifier aggregates Pleiades embeddings from cfDNA fragments into a single embedding per DMR. The second level aggregates DMR embeddings into a single patient-level embedding which is then used for the final classification.\""
-      ],
-      "description": "Downstream classifier is a two-level hierarchical attention transformer: fragment embeddings (from Pleiades) -> aggregated per DMR -> aggregated per patient -> classification. This explicitly encodes the biological hierarchy (fragments \u2192 DMRs \u2192 patient) into the model architecture.",
-      "novelty_score": 6,
-      "why_notable": "Explicit architectural alignment to biological hierarchy (fragments\u2192DMR\u2192patient) is an effective structural inductive bias for molecular diagnostic tasks and is more structured than flat pooling or simple aggregation of embeddings."
-    },
-    {
-      "category": "Model Architecture & Selection",
-      "pattern_name": "Use of open/known LLM as sidecar (Llama 3.1 8B) for activation harvesting",
-      "confidence": 0.9,
-      "evidence": [
-        "\"We trained an SAE on a middle layer of Llama 3.1 8B on a mixed-language dataset to learn a wide distribution of useful features...\"",
-        "\"The activations are generated by a sidecar model, a smaller and faster model that runs in parallel with the primary model producing user-facing responses. In our configuration, we employ Llama 3.1 8B as the sidecar.\""
-      ],
-      "description": "For production PII detection the team runs a lighter, open-model (Llama 3.1 8B) in tandem with the main agent; they harvest intermediate activations from a middle layer and train SAEs/probes on those activations rather than on raw text.",
-      "novelty_score": 3,
-      "why_notable": "Using a sidecar model for activation probing is a pragmatic/efficient pattern but relies on well-known models; novelty is modest but it's a concrete, operationalized deployment choice."
+      "why_notable": "Training off-the-shelf autoencoder-style models on activations is an emerging but still unusual pattern at these scales; the combination of SAEs + domain alignment (e.g., domain-F1) and use for steering and wet-lab hypothesis generation is a distinctive integration of interpretability with scientific workflows."
     },
     {
       "category": "Compound AI Systems",
-      "pattern_name": "Sidecar probing + main agent separation (activation-based monitoring)",
-      "confidence": 0.95,
+      "pattern_name": "Interpreter-in-the-loop: SAE instrumentation + activation manipulation to steer base model behavior",
+      "confidence": 0.96,
       "evidence": [
-        "\"The activations are generated by a sidecar model, a smaller and faster model that runs in parallel with the primary model producing user-facing responses.\"",
-        "\"Probing a sidecar model yields dramatically better performance (96% vs. 51%) than using the same model as a black-box judge.\""
+        "\"Our SAEs have learned many features which reconstruct behaviors ... such as backtracking.\"",
+        "\"Many of our initial experiments with our R1 SAEs have focused on steering the model\u2019s responses by altering the strength of particular features.\"",
+        "\"If we increase the activation of a feature ... the model\u2019s outputs will be more dog-related.\""
       ],
-      "description": "They decouple monitoring/probing from the primary conversational model: a small sidecar model runs in parallel, providing activations for SAEs and probes. This enables efficient, high-recall detection (e.g., PII) without routing every input to a heavyweight black-box judge or sending raw inputs into other services.",
-      "novelty_score": 6,
-      "why_notable": "Practical orchestration pattern that balances cost, latency, and privacy. The explicit use of a sidecar for activation-based monitors is uncommon in published production descriptions and demonstrates system-level compound AI orchestration."
+      "description": "Goodfire composes a compound system where interpreter models (SAEs) read internal activations, surface features, and then actively manipulate feature activation strengths to 'steer' the downstream base model responses. This is internal-state intervention, not external prompt-based steering only.",
+      "novelty_score": 9,
+      "why_notable": "Actively intervening on a model by amplifying/attenuating SAE-extracted features to steer a reasoning model\u2014especially observing emergent behaviors like reversion or rebalancing\u2014is a relatively novel, mechanistic form of control beyond prompt engineering."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Chain-of-thought / thinking-trace-aware steering and staged intervention",
+      "confidence": 0.9,
+      "evidence": [
+        "\"naively steering R1 at the beginning of its chain of thought fails. Instead, we have to wait until after the model first begins its response with something like 'Okay, so the user has asked a question about\u2026' to steer effectively.\"",
+        "\"We observed a strong feature distribution shift between the prompt (including this prefix to the thinking trace), the thinking trace, and the assistant\u2019s response.\"",
+        "\"Similar prefixes are extremely common in R1\u2019s reasoning traces: more than 95% of its English reasoning traces begin with 'Okay,'\""
+      ],
+      "description": "Goodfire recognizes and exploits internal structural phases (prompt/prefix, thinking trace, assistant response) and times intervention accordingly. They do not just intervene at token zero; they observe a predictable prefix and place steering after it.",
+      "novelty_score": 8,
+      "why_notable": "Timing interventions to align with a model's internal 'phase' (the observed attention sink after a common prefix) is a subtle, mechanistic steering technique that goes beyond static prompt injection and could generalize to other reasoning-style models."
     },
     {
       "category": "Retrieval & Knowledge",
-      "pattern_name": "Atlas-driven cell-type deconvolution as external knowledge",
-      "confidence": 0.9,
+      "pattern_name": "Feature example cataloging via SQL databases of max-activating examples",
+      "confidence": 0.93,
       "evidence": [
-        "\"We implement cell type deconvolution with a methylation-based approach, comparing observed DMR methylation rates to previously reported methylation rates across a cell type atlas [13, 14].\""
+        "\"we've also uploaded SQL databases containing the max activating examples for each feature.\"",
+        "\"Usage instructions are available on the project's GitHub.\""
       ],
-      "description": "Instead of RAG, they leverage published domain atlases (methylation atlas and single-cell methylation maps) to compute deconvolution features\u2014comparing observed fragment methylation to known cell-type methylation signatures to estimate tissue-of-origin contributions.",
-      "novelty_score": 4,
-      "why_notable": "Using domain atlases as structured external knowledge for feature derivation is standard in genomics but notable here because it's combined with foundation-model embeddings and fragmentomics features."
-    },
-    {
-      "category": "Evaluation & Quality (EvalOps)",
-      "pattern_name": "Interpretability-led eval pipeline: probes, SAEs, gradient attribution and manifold analysis",
-      "confidence": 0.98,
-      "evidence": [
-        "\"For our supervised approach, we train lightweight probes to test if specific biological signals can be extracted from Pleiades embeddings for single DNA fragments.\"",
-        "\"We then use gradient attribution to identify nine SAE features responsible for the majority of disease classification performance.\"",
-        "\"We project Pleiades fragment embeddings into a 3D PCA space and observe a well-defined manifold... measure local curvature to identify regions that are encoded with different precision than others.\""
-      ],
-      "description": "They built a layered interpretability evaluation: supervised probing (lightweight probes), unsupervised disentangling via sparse autoencoders (SAE), attribution of SAE features to downstream task, and embedding manifold analysis (PCA + curvature) to localize privileged fragment lengths\u2014then validate by distillation and cohort testing.",
-      "novelty_score": 8,
-      "why_notable": "This is a deep, methodical pipeline that moves from representation probing \u2192 unsupervised concept discovery \u2192 attribution \u2192 geometric manifold inspection \u2192 biological hypothesis \u2192 distilled model testing. That full chain is uncommon and shows interpretability driving experimental design."
+      "description": "To make features actionable and reproducible, Goodfire exports feature activation metadata and stores max-activating examples in SQL databases for sharing and downstream query. This enables independent researchers to inspect concrete input examples tied to SAE features without re-running heavy inference.",
+      "novelty_score": 6,
+      "why_notable": "Publishing activation-indexed artifacts (SQL of max-activating examples) lowers the barrier for distributed interpretability work and reproducibility\u2014combining interpretability outputs with conventional data-engineering artifacts is a practical and useful pattern."
     },
     {
       "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Probes and SAEs as lightweight production guardrails with cost-and-latency rationale",
-      "confidence": 0.96,
+      "pattern_name": "Custom inference engine and interpreter training infra for half-trillion parameter models",
+      "confidence": 0.98,
       "evidence": [
-        "\"probes are far more efficient and inexpensive on the task than LLM-as-judge baselines\"",
-        "\"probes offer 10\u2013500x cost savings compared to common LLM-as-judge setups with comparable accuracy on the PII detection task\"",
-        "\"SAE probes outperformed other approaches when generalizing from synthetic to real production data\"",
-        "\"Rakuten deployed the SAE probes - the first known enterprise application of SAEs for language model guardrails.\""
+        "\"Our SAE training leveraged our custom inference engine and interpreter model training infrastructure, which enables interpretability at the half a trillion parameter scale.\""
       ],
-      "description": "They operationalize SAE probes in production (Rakuten): training SAEs on sidecar activations, freezing SAEs, training lightweight classifiers on SAE activations, and deploying these classifiers as high-recall guardrails. The justification emphasizes cost, throughput, and generalization from synthetic data.",
+      "description": "Goodfire invested in bespoke inference and training infrastructure capable of extracting layer activations and training interpreter models on extremely large models (e.g., 671B R1). This suggests integrations for efficient activation extraction, large-batch handling, and scale-optimized data pipelines.",
       "novelty_score": 7,
-      "why_notable": "Enterprise deployment of SAEs for PII detection (with quantified cost savings) is a concrete LLMOps pattern that others can replicate; it's an early productionization of interpretability artifacts."
+      "why_notable": "Building dedicated infrastructure to run interpretability workloads at half-trillion parameter scale is costly and shows operational maturity; it enables experiments that are otherwise infeasible for typical research groups."
     },
     {
-      "category": "Safety & Trust (LLM Security)",
-      "pattern_name": "Synthetic-only training with high-recall deployment requirement and sidecar privacy posture",
+      "category": "Model Architecture & Selection",
+      "pattern_name": "BatchTopK sparse autoencoder variant for variable per-token capacity",
       "confidence": 0.95,
       "evidence": [
-        "\"Due to the sensitive nature of real PII, the training dataset was entirely synthetic.\"",
-        "\"the methods needed to be lightweight, since they would be used on all interactions with the agent platform, and required very high recall - avoiding false negatives was paramount.\"",
-        "\"This means that our methods' performance would need to transfer from a synthetic training dataset to real production data, a substantial distribution shift\""
+        "\"we switched to the BatchTopK variant.\"",
+        "\"the nonlinearity \u03c3(\u22c5) is the TopK operation over the entire batch of inputs\"",
+        "\"This allows variable capacity per-token, but retains the loss improvements, computational efficiency and ease of hyperparameter selection that are the advantages of TopK SAEs.\""
       ],
-      "description": "For PII detection they trained probes only on synthetic labeled data to avoid exposing real PII, prioritized recall in design, and used sidecar activation probing to reduce the need to transmit raw inputs for external judging\u2014minimizing data exposure and aligning to privacy constraints.",
+      "description": "They developed/used BatchTopK SAEs: a TopK nonlinearity applied across the batch to let capacity vary per token while preserving training and hyperparameter benefits of TopK SAEs. They compared it to ReLU SAEs and found superior training loss and crisp features.",
+      "novelty_score": 8,
+      "why_notable": "BatchTopK is a concrete algorithmic innovation in SAE family design adapted to token/batch variability\u2014this is technically interesting and may offer practical benefits for interpreter model training on sequence models."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Domain-alignment quantitative evaluation between SAE features and canonical concepts (domain-F1)",
+      "confidence": 0.9,
+      "evidence": [
+        "\"We also validated the relevance of many of these features with a large-scale alignment analysis between canonical biological concepts and SAE features (quantified by measuring the domain-F1 score between features and concepts).\"",
+        "\"InterPLM: Discovering Interpretable Features ... via Sparse Autoencoders\" referenced"
+      ],
+      "description": "Goodfire evaluates interpretability results by quantifying alignment between discovered SAE features and known domain annotations using domain-F1 metrics. This enables systematic validation instead of only anecdotal feature examples.",
       "novelty_score": 6,
-      "why_notable": "Combining synthetic-only training, activation-based detection via sidecars, and SAE generalization to real data addresses a practical enterprise privacy constraint that many teams face but rarely publish solutions for."
+      "why_notable": "Applying a structured alignment metric (domain-F1) to interpreter features ties mechanistic interpretability to domain validity (e.g., biological annotations), strengthening the scientific rigor of feature claims."
     },
     {
       "category": "Learning & Improvement",
-      "pattern_name": "Interpretability-driven hypothesis generation and distillation into simple models",
-      "confidence": 0.98,
+      "pattern_name": "Using SAE features to prioritize wet-lab experiments and model improvement (closed loop scientific discovery)",
+      "confidence": 0.92,
       "evidence": [
-        "\"Our interpretability tools identified the prominence of fragment length in Pleiades, guiding us towards its prioritization...\"",
-        "\"We distilled this insight into a human-interpretable classifier that generalizes better than the biomarker classes previously reported...\"",
-        "\"we focused on seven fragment length metrics computed across 354 DMRs... rank-normalized across all DMRs within each individual... feature selection over 100 bootstraps... Features selected in at least 90% of bootstraps were retained\""
+        "\"Goodfire\u2019s platform ... decoded their model, identifying a novel class of biomarkers ...\"",
+        "\"trained sparse autoencoders (SAEs) on Prima Mente\u2019s model to extract meaningful intermediate features - traced predictions back through the model to specific, interpretable signals in the data - tested the identified signals\u2019 robustness and generalization\""
       ],
-      "description": "They used interpretability outputs (SAE features, probes, PCA manifold) to prioritize fragmentomic features, then distilled those insights into a logistic regression with careful feature engineering, rank-normalization, and bootstrap-based robust feature selection to validate generalization on independent cohorts.",
+      "description": "Goodfire integrates interpretability outputs with experimental pipelines (wet lab validation) to select hypotheses and biomarkers. The SAE-discovered signals are used to prioritize experiments and to suggest model redesigns.",
       "novelty_score": 8,
-      "why_notable": "Using interpretability outputs as the direct mechanism for hypothesis triage and then validating via distilled, human-interpretable models (with robust statistical feature selection) is an explicit, well-executed pipeline linking model internals to experimental science."
+      "why_notable": "Closing the loop from mechanistic interpretability to wet-lab validation and product/clinical pipelines is relatively rare and demonstrates practical, high-impact application of interpretability beyond analysis."
     },
     {
-      "category": "Data Strategy",
-      "pattern_name": "Large, curated multi-modal pretraining corpus and batch-effect mitigation",
-      "confidence": 0.95,
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Mechanistic safety/steering focus via internal feature control (alignment via internal interventions)",
+      "confidence": 0.9,
       "evidence": [
-        "\"Data was sourced from genomic and cell-free DNA across multiple cell types and sequenced with methods that preserve cytosine methylation state.\"",
-        "\"The model was pretrained on 1.9 trillion tokens from this combined dataset.\"",
-        "\"To mitigate batch effects, each feature type was rank-normalized across all DMRs within each individual, converting absolute measurements into relative rankings.\""
+        "\"Further advances in unsupervised interpretability techniques could eventually allow for more reliable alignment, the ability to enhance or suppress specific reasoning capabilities on demand\"",
+        "\"attempts to change their behavior\u2014e.g., to suppress dishonest responses\u2014may require more sophisticated techniques, as models find ways to route around modifications.\"",
+        "\"One of our initial experiments ... oversteering paradoxically causes the model to revert to its original behavior.\""
       ],
-      "description": "They assembled a domain-specific, large-scale pretraining corpus mixing genomic DNA and cfDNA (with methylation-preserving sequencing) and apply straightforward statistical normalizations (rank-normalization per individual) to mitigate batch effects when building downstream features.",
-      "novelty_score": 7,
-      "why_notable": "1.9T token pretraining on methylation-tokenized genome+cfDNA is a significant data moat; explicit per-individual rank-normalization to mitigate inter-batch variability is a practical pattern for small clinical cohorts."
+      "description": "Rather than only external guardrails or content filters, Goodfire explores internal-state interventions (feature suppression/amplification) to improve reliability and alignment. They explicitly study failure modes of such interventions (e.g., reversion or rebalancing).",
+      "novelty_score": 9,
+      "why_notable": "Targeting alignment by manipulating mechanistic units (features) is an advanced strategy that seeks causal control at model internals; detecting and documenting emergent countermeasures (model rebalancing) is particularly forward-looking."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Interactive visualization and tooling (UMAP/DataMapPlot + feature visualizer)",
+      "confidence": 0.92,
+      "evidence": [
+        "\"Feature map We used DataMapPlot to create an interactive UMAP visualization of our general reasoning SAE's features.\"",
+        "\"To make these features more tangible, we built an interactive feature visualizer\""
+      ],
+      "description": "Goodfire builds interactive visual tooling (UMAP visualizations via DataMapPlot and a feature visualizer overlaying activations on genomes or sequences) to make interpreter outputs explorable for researchers.",
+      "novelty_score": 5,
+      "why_notable": "Interactive visualization is standard in research, but tying UMAPs to SQL-backed max-activating examples and overlaying on domain annotations (e.g., genomes, AlphaFold3 structures) is a valuable integration for domain scientists."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Interpretability\u2192Hypothesis\u2192Distillation pipeline",
-      "why_novel": "They systematically convert interpretability artifacts (probes, SAEs, gradient attributions, embedding manifold geometry) into concrete biological hypotheses (fragment length biomarkers), then distill those into simple, validated models (logistic regression) that generalize to independent cohorts.",
-      "potential_impact": "Creates a reusable workflow for turning model internals into actionable, human-interpretable biomarkers or features\u2014bridging black-box models and experimental biology, accelerating hypothesis triage and validation."
+      "approach": "Training BatchTopK sparse autoencoders on internal activations (TopK applied across batch) to allow variable per-token capacity",
+      "why_novel": "BatchTopK is a concrete algorithmic twist on TopK SAEs that trades fixed per-token capacity for adaptive capacity while preserving training advantages; it's described as yielding superior training loss and crisp features on Evo 2.",
+      "potential_impact": "Enables more efficient and expressive interpreter models across heterogeneous token distributions (e.g., nucleotide tokens vs large language vocabularies); could become a standard SAE variant for activation-level interpretability."
     },
     {
-      "approach": "Production SAE probes on sidecar activations for PII detection",
-      "why_novel": "Enterprise deployment of SAEs as monitoring/guardrail components using a sidecar model, trained on synthetic data and demonstrating robust transfer to real production data, is an uncommon, operationalized use of interpretability artifacts.",
-      "potential_impact": "Enables low-cost, high-recall privacy/security controls compatible with strict data governance, reducing reliance on expensive LLM-as-judge paradigms and avoiding exposure of raw user data."
+      "approach": "Interpreter-driven internal steering: amplifying/attenuating SAE-extracted features to change base-model behavior",
+      "why_novel": "Instead of prompting or black-box fine-tuning, Goodfire intervenes directly on internal representations via learned features\u2014producing surprising behaviors like reversion and 'rebalancing' that reveal model self-monitoring.",
+      "potential_impact": "Provides a pathway to more targeted alignment and feature-level safety controls; could allow selective suppression/enhancement of reasoning patterns without retraining the base model."
     },
     {
-      "approach": "Methylation-aware tokenization in a genomic foundation model",
-      "why_novel": "Treating DNA bases and methylation presence as distinct tokens in pretraining and scaling to 1.9T tokens is a domain-specific tokenization enabling the model to jointly represent sequence and epigenetic state.",
-      "potential_impact": "Allows foundation models to capture epigenetic phenomena (e.g., fragmentomics, nucleosome footprints) in their latent space, enabling downstream biological discovery and clinically-relevant tasks from embeddings rather than requiring bespoke handcrafted features."
+      "approach": "Operationalizing interpretability at scale with a custom inference engine and SQL-backed max-activation artifacts",
+      "why_novel": "Bridges model-scale engineering with interpretability research: publishing SAEs plus databases of example activations democratizes access to internal evidence without requiring everyone to run the heavy base model.",
+      "potential_impact": "Accelerates collaborative, reproducible interpretability research by sharing compact artifacts (features + example indices) rather than raw model weights or massive checkpoint re-runs."
+    },
+    {
+      "approach": "Phase-aware intervention (waiting for common 'thinking trace' prefix to steer)",
+      "why_novel": "Recognizes that the model treats common chain-of-thought prefixes as part of the prompt and that internal attention sinks mark phase boundaries; leverages that to time interventions more effectively.",
+      "potential_impact": "Improves steering efficacy for reasoning models and suggests new diagnostics for other chain-of-thought-capable systems."
     }
   ],
   "model_details": {
     "primary_models": [
-      "Pleiades (7B epigenetic foundation model, custom)",
-      "Llama 3.1 8B (sidecar for activation harvesting and SAE training)",
-      "Hierarchical attention transformer (downstream classifier aggregating Pleiades embeddings)"
+      "DeepSeek R1 (671B, 'reasoning' model)",
+      "Evo 2 (7B and 40B nucleotide-level models)",
+      "Pleiades series (Prima Mente's epigenomics foundation model, trained on ~1.9T tokens)",
+      "StripedHyena layer architectures (mentioned as layers inside Evo 2)",
+      "Sparse Autoencoders (SAEs) and BatchTopK SAEs as interpreter models"
     ],
     "fine_tuning": {
-      "uses_fine_tuning": true,
-      "fine_tuning_approach": "Pleiades: two-stage pretraining (next-token prediction then reconstruction). Downstream: classifiers trained on frozen Pleiades embeddings (hierarchical attention transformer). SAEs trained on model activations (unsupervised). Lightweight probes/classifiers trained on SAE activations (supervised). No explicit mention of LoRA or full fine-tune of Pleiades.",
-      "training_data_source": "Pleiades pretraining used genomic and cfDNA sequences (1.9T tokens) preserving methylation. Downstream classifiers used cfDNA fragments from an Oxford cohort (81 individuals) and an independent OPTIMA cohort (25 individuals). SAE for PII detection trained on synthetic PII dataset; SAE activations trained on Llama 3.1 middle-layer activations."
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "Goodfire does not describe performing conventional fine-tuning of the base foundation models. Instead they train interpreter models (SAEs) on internal activations. Base-model distillation/undistilled references appear (\"undistilled R1 model\"), but no explicit LoRA/full fine-tune workflow is stated.",
+      "training_data_source": "SAEs trained on: R1 activations over a custom reasoning dataset and OpenR1-Math; Evo 2 SAEs trained on bacterial/eukaryotic high-quality genomes; Pleiades trained by Prima Mente on raw human epigenomic tokens (1.9T)."
     },
     "inference_optimization": [
-      "Sidecar model pattern to reduce cost and latency (smaller Llama 3.1 8B running in parallel)",
-      "Use of lightweight probes and frozen SAEs to avoid repeated heavy inference",
-      "Design motivated by cost comparisons versus LLM-as-judge (10\u2013500x savings claimed)"
+      "Custom inference engine for extracting activations and running interpretability at half-trillion parameter scale",
+      "BatchTopK nonlinearity enables variable per-token capacity with computational efficiency",
+      "Use of SQL databases to cache/store max-activating examples (artifact-level optimization)",
+      "UMAP/DataMapPlot for low-dimensional visualization (postprocessing optimization)"
     ],
     "model_routing": {
-      "uses_routing": true,
-      "routing_strategy": "Implicit routing: sidecar model runs in parallel to the primary agent for monitoring/probing tasks; hierarchical transformer aggregates fragment\u2192DMR\u2192patient embeddings rather than routing between multiple specialist models. No evidence of dynamic MoE or task-based model routing."
+      "uses_routing": false,
+      "routing_strategy": "No evidence of mixture-of-experts, task-specific routing, or multi-model routing. Instead, orchestration is interpreter-in-the-loop (SAE reading/writing activations) rather than routing between multiple base models."
     },
     "compound_ai": {
       "is_compound_system": true,
-      "orchestration_pattern": "Composite system: Pleiades acts as foundation representation provider; a hierarchical attention transformer consumes embeddings for clinical predictions. Separately, production agent stack uses a primary conversational model plus a sidecar (Llama 3.1 8B) for activation-based probing; SAEs and probes run as sidecar analytics and guardrails. Orchestration is parallel/sidecar rather than sequential chain-of-thought handoffs."
+      "orchestration_pattern": "Base foundation model(s) run normally while interpreter models (SAEs) consume intermediate activations (layer-level). SAEs produce features and are used to (a) visualize/align to domain concepts, (b) generate max-activating example databases, and (c) actively manipulate feature strengths to steer base-model outputs (internal intervention). Additionally, timing of interventions is phase-aware (waiting for a 'thinking trace' prefix)."
     }
   },
   "market_type": "horizontal",
   "vertical": "healthcare",
-  "sub_vertical": "biomarker discovery for neurodegenerative diseases (diagnostic tests)",
-  "sub_sub_vertical": "blood-based cfDNA fragmentomics for Alzheimer's disease detection",
+  "sub_vertical": "biomedical AI, epigenomics-based biomarker discovery",
+  "sub_sub_vertical": "epigenomic biomarker discovery for neurodegenerative diseases and precision diagnostics",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
     "primary": {
-      "vertical_id": "healthcare_life_sciences",
-      "vertical_label": "Healthcare & Life Sciences",
-      "sub_vertical_id": "biotech_drug_discovery",
-      "sub_vertical_label": "Biotech & Drug Discovery",
-      "leaf_id": "biotech_drug_discovery",
-      "leaf_label": "Biotech & Drug Discovery"
+      "vertical_id": "it_enterprise_software",
+      "vertical_label": "Information Technology & Enterprise Software",
+      "sub_vertical_id": "ai_ml_platforms",
+      "sub_vertical_label": "AI/ML Platforms",
+      "leaf_id": "ai_ml_platforms",
+      "leaf_label": "AI/ML Platforms"
     },
     "path": [
       {
-        "id": "healthcare_life_sciences",
-        "label": "Healthcare & Life Sciences",
-        "confidence": 0.85
+        "id": "it_enterprise_software",
+        "label": "Information Technology & Enterprise Software",
+        "confidence": 0.78
       },
       {
-        "id": "biotech_drug_discovery",
-        "label": "Biotech & Drug Discovery",
-        "confidence": 0.82
+        "id": "ai_ml_platforms",
+        "label": "AI/ML Platforms",
+        "confidence": 0.78
       }
     ]
   },
   "target_market": "b2b",
   "tech_stack": {
-    "llm_providers": [],
-    "llm_models": [],
+    "llm_providers": [
+      "OpenAI"
+    ],
+    "llm_models": [
+      "DeepSeek R1 (671B)",
+      "Evo 2 (7B and 40B)"
+    ],
     "vector_databases": [],
-    "frameworks": [],
-    "hosting": [],
-    "approach": "hybrid",
-    "uses_open_source_models": false,
+    "frameworks": [
+      "UMAP"
+    ],
+    "hosting": [
+      "unknown"
+    ],
+    "approach": "unknown",
+    "uses_open_source_models": true,
     "has_custom_models": true
   },
   "engineering_quality": {
-    "score": 5,
-    "has_public_api": false,
+    "score": 7,
+    "has_public_api": true,
     "has_sdk": false,
-    "has_documentation": false,
+    "has_documentation": true,
     "has_engineering_blog": true,
     "github_presence": false,
     "github_stars": 0,
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "Public research blog posts detailing interpretability workflows and hypothesis-driven analysis (transparent methodology).",
-      "Production-oriented blog post about using sparse autoencoders to detect PII in production environments (Rakuten collaboration).",
-      "Case studies and preprint links indicating engagement with real-world datasets and performance reporting across cohorts.",
-      "Explicit discussion of model interpretability, probes, and feature-level analysis suggesting engineering-minded reproducibility practices."
+      "Open-source sparse autoencoders (SAEs) for large-scale models",
+      "Usage instructions available on GitHub",
+      "Interpretable feature visualization (DataMapPlot)",
+      "Collaboration with Arc Institute on Evo 2",
+      "Applied interpretability tooling to Prima Mente's epigenomics model",
+      "Evidence of internal inference engine and interpreter infrastructure"
     ]
   },
-  "implementation_maturity": "prototype",
+  "implementation_maturity": "research",
   "team_analysis": {
-    "founders": [
-      {
-        "name": "Nicholas Wang",
-        "role": "Founder / CEO (inferred) of Goodfire Research; corresponding author",
-        "background": "Not explicitly stated in provided content",
-        "previous_companies": [
-          "Goodfire Research"
-        ],
-        "technical_depth": "high",
-        "domain_expertise": "AI interpretability, biomarker discovery from cfDNA and epigenetics"
-      }
-    ],
+    "founders": [],
     "team_signals": {
       "engineering_heavy": true,
       "has_ml_expertise": true,
@@ -328,98 +368,94 @@
       "team_size_indicators": "small",
       "remote_distributed": true
     },
-    "founder_market_fit": "Founders appear to have access to AI and biomedical data with cross-institution collaboration, aligning with disease biomarker discovery; explicit founder backgrounds are limited in the provided content, yielding a moderate assessment.",
+    "founder_market_fit": "Not assessable due to lack of founder information; names and backgrounds not provided in the available content.",
     "team_strengths": [
-      "Interpretability-driven hypothesis generation, employing supervised probing and unsupervised sparse autoencoders to identify driving features in model decisions.",
-      "Strong domain integration of fragmentomics and methylation signals for Alzheimer's detection, leveraging multi-modal biological signals.",
-      "Cross-institution collaboration among Goodfire Research, University of Oxford, and Prima Mente, enabling access to diverse data sources and clinical context.",
-      "Ability to distill complex foundation-model insights into simple, testable proxy models (e.g., fragment-length based logistic regression) with cross-cohort generalization."
+      "Experience building interpretability tooling for very large models (671B parameter R1) and open-sourcing sparse autoencoders (SAEs), indicating strong ML engineering depth.",
+      "Active ML research footprint with publications and collaborations (e.g., Arc Institute on Evo 2), suggesting robust research capabilities and access to frontier methodologies.",
+      "Domain expertise in biology/genomics through applied interpretability work on Evo 2 and Epigenomics (Prima Mente collaboration context), enabling domain-relevant model understanding and potential biomedical impact.",
+      "Strategic emphasis on safety, alignment, and transparent tooling for frontier models, signaling a principled approach to responsible AI development."
     ],
     "team_red_flags": [
-      "Small cohort size and limited demographic diversity; generalizability to broader populations remains to be validated.",
-      "Interpretability-to-biology gap; results require experimental validation to establish causal biological mechanisms.",
-      "Lack of explicit hiring or team-structure signals in the provided content."
+      "No publicly identifiable founders or team roster in the provided information, which can raise governance and credibility questions for potential partners or investors.",
+      "References to early-stage, exploratory findings (e.g., steering effects, preliminary features) without full validation details, indicating remaining technical and empirical risk before clinical or high-stakes deployment."
     ],
-    "team_confidence": 0.55
+    "team_confidence": 0.65
   },
   "business_model": {
     "pricing_model": {
-      "type": "unknown",
-      "pricing_evidence": [
-        "No pricing or pricing model discussed in content."
-      ],
+      "type": "custom",
+      "pricing_evidence": [],
       "free_tier_available": false,
       "enterprise_focus": true,
       "price_points": []
     },
     "gtm_strategy": {
-      "primary_channel": "content_marketing",
+      "primary_channel": "partnership_led",
       "evidence": [
-        "Public blog post detailing interpretability-driven biomarker discovery; case study style; references to independent cohorts; publication-like content."
+        "Collaborations with Arc Institute on Evo 2 interpretability",
+        "Prima Mente epigenomics project leveraged Goodfire platform",
+        "Public prompts and messaging inviting partnerships (e.g., 'Interested in partnering with Goodfire?')"
       ],
       "target_segment": "enterprise",
       "sales_motion": "hybrid"
     },
     "revenue_model": {
-      "monetization_approach": "Enterprise software/licensing and services for downstream biomarker discovery and disease-detection analytics, leveraging Pleiades embeddings and interpretability platform; collaboration-driven revenue from biotech/pharma clients.",
-      "unit_economics_signals": [
-        "No explicit margins or ARPU; early-stage proof-of-concept with small cohorts; potential for licensing and services revenue."
-      ],
+      "monetization_approach": "Licensing of interpretability tooling and platforms, complemented by collaboration-based services and consulting for frontier models",
+      "unit_economics_signals": [],
       "recurring_revenue": true
     },
     "distribution_advantages": [
-      "Academic collaborations (Oxford) and credibility from Goodfire Research; large-scale foundation model deployment; potential data/network effects from embeddings and DMRs across cohorts."
+      "Specialized mechanistic interpretability tooling capable of operating at frontier model scales (e.g., 671B parameter models)",
+      "Open-source SAEs combined with custom inference engine and interpreter infrastructure enabling scalable deployment"
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "content marketing/blog posts",
-        "academic collaborations",
-        "case studies/publications"
+        "research and academic partnerships",
+        "industry collaborations with biotech/genomics and AI safety communities",
+        "inbound inquiries via 'Partner with Goodfire' messaging"
       ],
       "customer_proof_points": [
-        "Oxford cohort study (81 individuals)",
-        "OPTIMA independent test cohort (25 individuals)",
-        "AUROC results (0.84 with mix of features)"
+        "Arc Institute collaboration on Evo 2 interpretability",
+        "Prima Mente biomarker discovery using Goodfire platform",
+        "References to Goodfire research and safety alignment work (e.g., Ember, Llama 3 interpretability)"
       ]
     },
     "business_model_clarity": "evolving",
-    "business_model_confidence": 0.3
+    "business_model_confidence": 0.55
   },
   "product_analysis": {
-    "product_stage": "pre_launch",
+    "product_stage": "beta",
     "stage_evidence": [
-      "pilot study with small sample size (81 Oxford cohort; 25 in independent OPTIMA cohort)",
-      "proof-of-concept demonstrating interpretability-guided biomarker discovery",
-      "no public API, SDKs, pricing, or deployment details described",
-      "explicit note that validation across larger, more diverse populations is needed",
-      "early results with larger cohort validation underway"
+      "Releasing two Sparse Autoencoders (SAEs) for R1 with open-sourced datasets and an interactive feature map",
+      "Public collaboration on Evo 2 interpreter model with Arc Institute",
+      "Mention of custom inference engine and interpreter infrastructure enabling interpretability at scale",
+      "Plans to publish more comprehensive methodology and study",
+      "Ongoing exploration of steering phenomena and internal state awareness unique to reasoning models"
     ],
     "feature_depth": {
       "core_features": [
-        "Pleiades: a 7B epigenetic foundation model trained on human methylation and genomic sequences",
-        "downstream classifier leveraging Pleiades embeddings to detect Alzheimer's disease from cfDNA",
-        "interpretable analysis tools (supervised probing, sparse autoencoders, gradient attribution) to identify dominant signals",
-        "proxy model distilled from fragment length features for an interpretable, low-complexity predictor",
-        "ability to integrate fragmentomics with methylation signals in a hierarchical framework"
+        "Sparse Autoencoders (SAEs) trained on large frontier models (R1, Evo 2) to extract interpretable features",
+        "Interactive feature visualization (DataMapPlot) and datasets for features",
+        "Mechanistic interpretability tooling for model reverse-engineering and steering",
+        "Two SAEs per model (general reasoning and math-specific for R1) and open-sourced datasets"
       ],
       "differentiating_features": [
-        "fragment length as the dominant predictive signal, contrasting expectations that methylation would be primary",
-        "interpretability-driven discovery of fragmentomics as a novel biomarker class for AD",
-        "capacity to distill complex model representations into a simple logistic regression model with reasonable cross-cohort generalization"
+        "First public interpreter models trained on a true reasoning model at scale (671B params) with open-sourced SAEs",
+        "BatchTopK SAEs and TopK variant for efficient, scalable interpretability",
+        "Cross-domain application: genomic foundation model Evo 2 interpretability with biologically-relevant features",
+        "Active steering observations and exploration of internal states (e.g., 'Okay, so\u2026' prefix) that are unique to reasoning models"
       ],
       "roadmap_signals": [
-        "validation across larger and more diverse populations",
-        "experimental validation of proposed biological mechanisms beyond interpretability",
-        "continued exploration of fragmentomic features and their combination with methylation and cell-type signals",
-        "extension to other diseases and broader diagnostic targets via interpretability-guided hypotheses"
+        "Plan to publish a more comprehensive study on Evo 2 interpretability",
+        "Continuing investigation of steering phenomena and internal state awareness",
+        "Expansion of interpretability tooling to frontier models and potential alignment interventions"
       ],
       "feature_completeness": "growing"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [
-        "downstream classifier built on Pleiades embeddings",
-        "collaboration with Prima Mente for downstream applications",
-        "utilization of Oxford OPTIMA cohort data for validation"
+        "Arc Institute collaboration on Evo 2 interpretability",
+        "Public datasets and open-source SAEs on GitHub"
       ],
       "api_maturity": "none",
       "sdk_availability": [],
@@ -427,127 +463,129 @@
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "detect Alzheimer's disease from blood cfDNA using fragment length and methylation signals",
+      "primary_use_case": "Provide mechanistic interpretability tooling for frontier models to understand internal computations, improve safety, and enable targeted interventions",
       "secondary_use_cases": [
-        "potential applicability to other neurodegenerative diseases (though not generalizable to Parkinson's in this study)",
-        "use of interpretability to generate testable biological hypotheses and drive experimental prioritization"
+        "Steering model behavior via interpretable features",
+        "Extracting scientifically meaningful features for domain-specific models (e.g., genomics, proteomics)"
       ],
-      "customer_stories": [],
+      "customer_stories": [
+        "Prima Mente's epigenomics model used Goodfire to decode signals and identify novel biomarkers for Alzheimer's detection; ongoing experimental validation and potential FDA pathway",
+        "Arc Institute collaboration on Evo 2 interpretability to extract biologically relevant features"
+      ],
       "industry_focus": [
-        "biotech/diagnostics",
-        "neurology",
-        "epigenetics",
-        "clinical research"
+        "Biotech/Genomics",
+        "Healthcare/Neurology",
+        "AI safety and alignment",
+        "Research tooling"
       ]
     },
     "product_risks": [
-      "small, non-diverse cohorts limit generalizability and robustness across populations",
-      "interpretability signals may reflect data artifacts or confounders rather than true biology",
-      "need for prospective validation, replication, and regulatory considerations before deployment",
-      "limited information on deployment readiness, pricing, and scalable tooling"
+      "SAEs have known limitations and do not solve the overarching mechanistic interpretability problem",
+      "Steering and manipulation of features may have unpredictable effects, including reversion to baseline behavior",
+      "Scalability and reliability of interpretability tooling on models at multi-trillion parameter scales yet to be validated"
     ],
     "product_strengths": [
-      "novel fragmentomics biomarker class for AD discovered via interpretability",
-      "dominant role of fragment length with plausible biological rationale tied to nucleosome footprints",
-      "ability to distill complex representations into a simple, generalizable proxy model",
-      "foundation-model approach enables rapid hypothesis generation and experimental prioritization"
+      "First public interpreter models for a true reasoning model at scale with open-sourced SAEs",
+      "Cross-domain applicability demonstrated on both language models and Evo 2 genomic model",
+      "Interactive feature visualization and open datasets enable community exploration",
+      "Evidence of practical impact, e.g., identifying biomarkers in Prima Mente collaboration"
     ],
-    "product_confidence": 0.35
+    "product_confidence": 0.6
   },
   "unique_findings": [
-    "Hybrid tokenization that encodes both nucleotide identity and methylation presence as atomic tokens in a 7B-parameter foundation model trained on ~1.9 trillion tokens \u2014 this is an unusual, domain-native token scheme that forces the model to learn joint sequence + epigenetic representations rather than treating methylation as side metadata.",
-    "Two-stage pretraining objective: next-token prediction followed by a separate reconstruction task. That dual objective appears designed to produce both generative sequence modeling skill and robust denoised encodings useful for downstream clinical classifiers.",
-    "Hierarchical attention transformer for cfDNA: a two-level aggregator that first pools fragment embeddings into DMR-level embeddings, then pools DMRs into a patient embedding. This architecture explicitly mirrors biological hierarchy (fragment \u2192 region \u2192 patient) and lets them scale from millions of fragments to single-sample predictions.",
-    "Use of sparse autoencoders (BatchTopK SAE) trained on the model's pretraining distribution to decompose internal embeddings into sparse, human-interpretable 'features' (concepts), followed by gradient attribution on SAE components to identify which emergent concepts drive a downstream classifier. This is a relatively novel pipeline: use unsupervised disentangling on pretraining representations, then attribution to link components to task performance.",
-    "Empirical manifold analysis of fragment embeddings: projecting fragment-level embeddings into 3D PCA space and using local curvature to detect 'privileged' fragment lengths (notably minimal curvature at 167 bp and peaks at 147 bp). This is a creative use of geometric signal analysis to map continuous biological variables onto representation geometry.",
-    "Distillation of representation-derived hypotheses into a tiny, fully interpretable classifier: rank-normalizing fragment-length-derived metrics across DMRs per individual, bootstrapped feature selection (100 bootstraps, retention threshold \u226590%), and final logistic regression on 11 features out of 2478 candidates. This enforces robustness to batch effects and produces a human-inspectable model that generalizes.",
-    "Operational emphasis on fragmentomics over methylation and cell-type-deconvolution signals: probing showed methylation is accessible but fragment length dominates decision-making; fragmentomic-only model generalizes better to an independent cohort than methylation-only models \u2014 an unexpected domain insight surfaced by interpretability rather than hypothesis-first biology.",
-    "Practical anti-batch strategy: within-individual rank-normalization of DMR metrics (turning absolute fragment counts/metrics into per-sample relative ranks across DMRs). This is a simple but effective choice for cross-cohort robustness when absolute sequencing depths and wet-lab protocols vary.",
-    "Enterprise interpretability deployment: using SAEs as probes for PII detection in production (Rakuten), showing synthetic\u2192real generalization and cost/compute advantages over LLM-as-judge baselines. This demonstrates the same interpretability primitives can be productized outside biology for compliance-sensitive tasks."
+    "First public interpreter models (sparse autoencoders, SAEs) trained on a true reasoning model at ~671B scale (DeepSeek R1). This is technically notable because prior public SAE work targeted smaller language models; scaling SAEs to half-trillion parameter activations requires bespoke inference and data-pipeline engineering.",
+    "Custom inference engine + interpreter-model training infrastructure to extract activations at half-trillion parameter scale. That implies systems work for streaming activations, sharded models, and high-throughput feature-dataset creation (max-activating examples persisted in SQL). This is operationally nontrivial and often glossed over in papers.",
+    "Discovery of qualitatively different internal dynamics in reasoning models vs. standard LMs: (a) a consistent response-prefix tokenization pattern ('Okay, so\u2026') where the model only starts its \u2018true\u2019 response after a predictable prefix, and attention-sink tokens cluster at the end of that prefix rather than the beginning; (b) a strong feature-distribution shift between prompt, chain-of-thought trace, and assistant response.",
+    "Novel steering failure modes: oversteering features sometimes causes the model to revert to its original behavior (non-monotonic steering), before outputs become incoherent. Hypothesized cause: the model detects internal perturbation and implicitly 'rebalances' or backtracks, suggesting an internal mechanism for detecting confusion.",
+    "Implicit 'awareness' signal: reasoning models may recognize internal perturbation/confusion and trigger backtracking or alternative reasoning strategies. This could be an emergent safety/robustness mechanism but also creates a failure mode where naive feature suppression is routed around.",
+    "Operationalized open interpretability artifacts: not only SAEs but also SQL databases of max-activating examples and interactive UMAP feature maps (DataMapPlot). That makes the interpretability outputs actionable for independent researchers who can\u2019t run R1 end-to-end.",
+    "Application of BatchTopK SAE variant on biological foundation model Evo 2: using a TopK nonlinear over the batch rather than per-token ReLU allows variable per-token capacity while retaining TopK training advantages. They empirically observed better loss and 'crisper' features than ReLU SAEs, avoiding high-frequency artifact features.",
+    "Targeted layer selection insight: for Evo 2 (nucleotide-level model) the most interpretable features were at a late StripedHyena layer (layer 26) rather than earlier Transformer layers\u2014likely because low token-vocabulary (A/T/C/G) leads to fewer layers needed for local computation and later layers capture higher-level biological abstractions.",
+    "Cross-domain SAE utility: SAEs recovered biologically meaningful features in Evo 2 (exon/intron boundaries, protein secondary structure, tRNA/rRNA signals, viral-derived sequences) and aligned features to canonical biological annotations using domain-F1 statistics \u2014 showing SAEs can extract domain-specific latent concepts even for non-linguistic modalities.",
+    "Evidence of productization focus: they prepared curated feature examples, math-specific SAEs, and public datasets (OpenR1-Math, custom reasoning datasets) plus GitHub artifacts. This signals an intent to build an ecosystem (tooling + datasets) rather than only academic claims.",
+    "Critical gaps / missing rigor in the writeup: lack of systematic prevalence analysis (how often steering behaviors occur across prompts), limited quantitative benchmarks comparing SAE variants across many layers and seeds, and few reproducibility details (hardware, activation extraction throughput, exact BatchTopK hyperparameters)."
   ],
   "technical_depth": "high",
   "newsletter_potential": "high",
   "story_angles": [
     {
-      "angle_type": "contrarian",
-      "headline": "AI overturned the textbook: fragment length, not methylation, drove Alzheimer\u2019s detection",
-      "summary": "Prima Mente and Goodfire used interpretability tools on a 7B epigenetic foundation model and found fragmentomic signals (cfDNA fragment lengths) dominated AD predictions\u2014contradicting the field\u2019s methylation-first assumptions. That insight was distilled into a simple logistic model that generalized better across cohorts than methylation-only classifiers.",
+      "angle_type": "architecture",
+      "headline": "How Goodfire trained the first interpreters for a 671B reasoning model \u2014 and the infra that made it possible",
+      "summary": "A deep dive into the engineering choices that let Goodfire train sparse autoencoders (SAEs) on DeepSeek R1 (671B): custom inference engine, interpreter-model training infra, and a BatchTopK SAE variant. Readers will get nuts-and-bolts details on scaling mechanistic interpretability to half\u2011trillion parameter models and what architectural tradeoffs emerged.",
       "evidence": [
-        "Sparse autoencoders + gradient attribution identified nine SAE features responsible for most AD classification and these correlated strongly with fragment length.",
-        "Fragment-only logistic regression achieved AUROC=0.78 (95% CI [0.56\u20130.95]) on an independent cohort, while methylation-only models failed to generalize (AUROC\u22480.55)."
+        "First public SAEs trained on DeepSeek R1 (671B) and open-sourced",
+        "Training leveraged a custom inference engine and interpreter model training infrastructure enabling interpretability at the half\u2011trillion parameter scale; used BatchTopK SAE variant"
       ],
       "uniqueness_score": 9
     },
     {
-      "angle_type": "architecture",
-      "headline": "From tokenized methylation to hierarchy: how Pleiades and a hierarchical attention transformer decode cfDNA at scale",
-      "summary": "Pleiades is a methylation-aware 7B foundation model trained on 1.9 trillion tokens (bases + methylation) whose fragment-level embeddings are aggregated via a two-level hierarchical attention transformer over DMRs to produce patient-level AD predictions. The team paired probing, BatchTopK SAEs, manifold analysis, and simple distilled models to close the loop from internals to interpretable biomarkers.",
+      "angle_type": "data",
+      "headline": "Beyond text: why Evo 2 and Pleiades\u2019 nucleotide/epigenomic data make interpretability practically useful",
+      "summary": "Goodfire's work shows interpretability produces actionable signals when models are trained on dense, domain-structured data \u2014 Evo 2's nucleotide\u2011level long\u2011context sequences and Prima Mente\u2019s 1.9T\u2011token epigenomic corpus. The story unpacks how dataset granularity and curation (high\u2011quality reference genomes, eukaryote/prokaryote mix) enabled crisp SAE features that align to biological concepts.",
       "evidence": [
-        "Pleiades uses methylation-aware tokenization and was pretrained on 1.9 trillion tokens, then fine-tuned with a reconstruction objective.",
-        "Downstream classifier uses a hierarchical attention transformer: fragment embeddings \u2192 per-DMR embedding \u2192 patient embedding, enabling aggregation across millions of cfDNA fragments per sample."
+        "Evo 2 trained at nucleotide resolution up to 1M base pairs; SAEs recovered features like \u03b1\u2011helices and tRNAs",
+        "Prima Mente\u2019s Pleiades models trained on 1.9 trillion epigenomic tokens; Goodfire used interpretability to prioritize wet\u2011lab hypotheses"
       ],
       "uniqueness_score": 8
     },
     {
-      "angle_type": "data",
-      "headline": "The secret weapon: cfDNA fragmentomics and a trillion\u2011token epigenetic corpus",
-      "summary": "Beyond model architecture, the dataset itself gives Pleiades an edge: combined genomic and cfDNA sequencing that preserves cytosine methylation plus fragment length metadata at massive scale enabled the model to encode both methylation and fragmentomics. That multimodal pretraining unlocked signals inaccessible to prior methylation-only studies.",
+      "angle_type": "vertical_expert",
+      "headline": "Interpretability in the wet lab loop: how Goodfire translated model features into testable Alzheimer\u2019s biomarkers and genome annotations",
+      "summary": "A technical narrative showing how mechanistic interpretability moved from neuron activations to domain experiments: SAE features were mapped to genomic annotations, used to annotate E. coli regions, overlaid with AlphaFold3 structure predictions, and helped Prima Mente narrow biomarker candidates for experimental validation. This angle highlights the bridge between model internals and real\u2011world scientific workflows.",
       "evidence": [
-        "Training data combined genomic DNA and cfDNA (which includes fragment length profiles) and preserved cytosine methylation state across samples.",
-        "Pretraining scale: ~1.9 trillion tokens spanning sequences and methylation indicators, enabling the model to learn a fragment length manifold with biologically meaningful curvature (e.g., 147 bp and 167 bp)."
+        "Feature activations for Evo 2 aligned with gene structure, protein secondary structure, and tRNA/rRNA; visualizations overlaid with AlphaFold3 predictions",
+        "Goodfire decoded Prima Mente\u2019s epigenomics model to identify a novel class of blood\u2011borne biomarkers being experimentally validated"
       ],
       "uniqueness_score": 9
     },
     {
-      "angle_type": "vertical_expert",
-      "headline": "Interpretability as hypothesis engine: turning model internals into testable neurodegeneration biomarkers",
-      "summary": "The team built an interpretability pipeline (probes, BatchTopK SAEs, gradient attribution, manifold PCA) to triage candidate biomarkers from a foundation model and then distilled those signals into a human-interpretable classifier tied back to DMRs and nearby genes\u2014demonstrating a concrete workflow for AI-guided biomarker discovery in neurology.",
+      "angle_type": "contrarian",
+      "headline": "Don\u2019t steer from token one: surprising internal boundaries in reasoning models and what they mean for alignment",
+      "summary": "Goodfire found that steering R1 must wait until after predictable 'thinking' prefixes (e.g., 'Okay, so\u2026') and that oversteering can cause reversion, suggesting reasoning models have internal state awareness and non\u2011intuitive conceptual boundaries. This piece questions prompting\u2011first assumptions and explores implications for feature\u2011level interventions and safety strategies.",
       "evidence": [
-        "Supervised probes showed Pleiades encodes fragment-level methylation and length; SAEs and attributions prioritized fragment length for disease prediction.",
-        "Selected fragmentomic DMR features aggregated to nearby genes and implicated both neural and immune cell-type signals, with the resulting model tested for disease specificity against Parkinson\u2019s (AUROC\u22480.51)."
+        "Naive steering at the first response token failed; effective interventions required waiting until after the model\u2019s common reasoning prefix ('Okay, so\u2026')",
+        "Observed 'rebalancing' where oversteering certain features caused the model to revert to original behavior \u2014 hypothesized implicit awareness of confusion"
       ],
-      "uniqueness_score": 7
+      "uniqueness_score": 8
     }
   ],
   "anti_patterns": [
     {
       "pattern_type": "no_moat",
-      "description": "Unclear sustainable competitive advantage \u2014 while the paper describes a large foundation model and a sophisticated interpretability pipeline, key elements that create a durable moat are not fully evident. The downstream result (a fragment-length\u2013based classifier) is built on a small clinical cohort and could be re-derived by others given access to similar cfDNA data and standard fragmentomics pipelines.",
+      "description": "Techniques (SAEs, feature visualization, steering via activation manipulation) and interpretability research are largely reproducible and part of an active open research ecosystem; without proprietary data, unique scale access, or locked-in platform integrations, these capabilities risk being replicated by well-resourced incumbents.",
       "severity": "medium",
       "evidence": [
-        "Pleiades is a 7-billion parameter model pretrained on 1.9 trillion tokens from combined genomic and cfDNA datasets (claims scale).",
-        "The final proxy model is a logistic regression distilled to 11 features from 2478 candidates and trained/tested on 81 (training) + 25 (independent test) patients, a small cohort.",
-        "Authors acknowledge sample size, cohort diversity, and interpretability-to-biology gaps: 'This is an early proof-of-concept... based on 81 patients from a single Oxford University cohort... requires validation across larger, more diverse populations.'",
-        "Fragmentomics and methylation analyses are active areas of research with several recent publications \u2014 the feature set may be reproducible by other academic / commercial groups with access to cfDNA sequencing."
-      ]
-    },
-    {
-      "pattern_type": "overclaiming",
-      "description": "Certain framing risks overstating practical readiness and biological certainty. The narrative situates interpretability as a direct route to hypothesis discovery and positions fragment length as a 'novel class of biomarkers' for AD despite small sample size, wide confidence intervals, and acknowledged confounding possibilities.",
-      "severity": "medium",
-      "evidence": [
-        "Headline: 'Using Interpretability to Identify a Novel Class of Alzheimer's Biomarkers' \u2014 suggests discovery rather than preliminary hypothesis.",
-        "Reported performance has wide confidence intervals: 'AUROC = 0.78, 95% CI [0.56\u20130.95]' and downstream mixed models with wide CIs (e.g. AUROC = 0.84, 95% CI [0.66, 0.97]).",
-        "Authors explicitly note the interpretability-to-biology gap: 'Interpretability tells us what features drive the model's predictions, not whether those features reflect underlying disease biology or artifacts of data collection.'"
+        "They open-source SAEs, max-activating example SQL databases, and datasets: 'we've also uploaded SQL databases containing the max activating examples for each feature.'",
+        "Much of the methodology references community work and papers (UMAP, TopK SAEs, prior SAE papers): multiple citations to community research and 'we trained both standard ReLU SAEs... and BatchTopK SAEs'.",
+        "Interpretability tooling and techniques are described at a conceptual level which could be reimplemented by other teams with sufficient compute and engineering: 'Our SAE training leveraged our custom inference engine and interpreter model training infrastructure'."
       ]
     },
     {
       "pattern_type": "feature_not_product",
-      "description": "The deliverable described is effectively a research-derived feature set / proxy classifier rather than a defined product offering. There is limited discussion of operationalization, deployment, regulatory pathway, or robustness to clinical confounders.",
-      "severity": "low",
+      "description": "The core offering appears to be research tools and model interpretability features (SAEs, visualizers, feature catalogs) rather than a clear, standalone product with strong commercial lock-in; these capabilities could be integrated into larger ML platforms or cloud providers as features.",
+      "severity": "medium",
       "evidence": [
-        "The distillation yields a logistic regression using 11 features derived from fragment length metrics across 354 DMRs \u2014 presented and validated as a proof-of-concept rather than a deployed assay.",
-        "Limitations focus on cohort size, interpretability-to-biology gap, and need for larger validation: 'The results presented here are on small datasets with validation in larger cohorts underway.'",
-        "No discussion of clinical validation steps, regulatory strategy, standardization of sample processing, or deployment pipelines."
+        "Most outputs described are research artifacts and tooling: SAEs, UMAP visualizations, SQL databases, feature visualizer: 'We used DataMapPlot to create an interactive UMAP visualization', 'we've also uploaded SQL databases'.",
+        "Emphasis on open-sourcing and publication over a commercial product: many references to preprints, GitHub, open datasets and citations, and invitations to the research community rather than enterprise product descriptions."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Several claims are ambitious and presented with certainty despite preliminary evidence or limited systematic evaluation (e.g., generalization of steering techniques, claims about alignment/correction without demonstrated robust reproducibility), risking a gap between marketing tone and technical maturity.",
+      "severity": "medium",
+      "evidence": [
+        "Strong claims about novelty and scale: 'the first public interpreter models trained on a true reasoning model, and on any model of this scale.'",
+        "Speculative alignment implications: 'could eventually allow for more reliable alignment, the ability to enhance or suppress specific reasoning capabilities on demand, and potentially even the correction of specific failure modes without disrupting overall model performance.'",
+        "Observational steering claims framed as hypotheses with limited systematic validation: 'While we haven\u2019t yet systematically investigated their occurrence or causes, we wanted to share two insights...' and 'More work is needed here: we\u2019re continuing to investigate these phenomena.'"
       ]
     },
     {
       "pattern_type": "undifferentiated",
-      "description": "Risk of being undifferentiated in the broader cfDNA/biomarker market \u2014 fragmentomics and methylation-based cfDNA diagnostics are active, competitive areas. The incremental advantage beyond existing methylation/cell-type deconvolution approaches relies on validation and whether the Pleiades interpretability pipeline yields reproducibly unique signals.",
+      "description": "Although the team highlights domain breadth (language, genomics, epigenomics), some elements\u2014like visualizers, SAE variants, and activation catalogs\u2014are similar to other interpretability efforts; differentiation depends on execution and scale rather than fundamentally novel methodology.",
       "severity": "low",
       "evidence": [
-        "The manuscript cites multiple recent high-profile fragmentomics and cfDNA methylation works (Nature Medicine 2025; Nature 2019; other 2023\u20132025 references), showing active competition in the same problem space.",
-        "The authors themselves expected methylation to dominate based on literature, and fragmentomics emerged unexpectedly \u2014 this could be novel but requires confirmation to be a durable differentiator."
+        "They apply known interpretability primitives (SAEs, UMAP, TopK variants) across domains rather than introducing a radically new algorithmic paradigm.",
+        "Multiple papers and community threads are cited as foundational: e.g., 'Sparse Autoencoders Find Highly Interpretable Features...' and 'Scaling and evaluating sparse autoencoders...'"
       ]
     }
   ],
@@ -555,73 +593,74 @@
     "competitors": [
       {
         "name": "Anthropic",
-        "similarity": "Enterprise-grade work on model safety, interpretability research, and building LLMs designed for trustworthy behaviour.",
-        "how_different": "Goodfire focuses on mechanistic interpretability (SAEs, probes) and operationalizes interpretability for domain-specific hypothesis generation (biology) and lightweight production probes; Anthropic builds general-purpose LLMs and safety tooling at scale rather than bespoke interpretability-to-science pipelines."
-      },
-      {
-        "name": "DeepMind / Google Research (interpretability teams)",
-        "similarity": "Deep, academic-quality work on model internals, mechanistic interpretability, and publishing methods that investigate how models represent biological and other signals.",
-        "how_different": "Goodfire packages interpretability as a product/practical workflow (SAE probes, sidecar probe deployment, hypothesis distillation into simple classifiers) and targets commercial applications (biomarker discovery, PII guards) with an emphasis on translating internals to testable biology."
-      },
-      {
-        "name": "Fiddler AI (and enterprise explainability/monitoring vendors)",
-        "similarity": "Provide explainability, model monitoring and probes for enterprise ML governance and compliance.",
-        "how_different": "Fiddler is focused on feature-/decision-level explainability and monitoring for tabular/ML pipelines; Goodfire emphasizes mechanistic decomposition of large model activations (SAEs), lightweight sidecar probes for real-time guardrails, and demonstrable cross-domain R&D use (epigenetics biomarker discovery)."
-      },
-      {
-        "name": "GRAIL / Guardant Health / other cfDNA diagnostics (fragmentomics & methylation diagnostics)",
-        "similarity": "Develop clinical cfDNA-based diagnostics using fragmentomics and methylation signatures to detect disease from blood.",
-        "how_different": "Those firms target validated clinical products and diagnostic pipelines; Goodfire is an interpretability-first AI lab that uses model internals to generate hypotheses and lightweight classifiers (e.g., distilling Pleiades signals into interpretable logistic models) rather than directly shipping regulated diagnostic tests today."
-      },
-      {
-        "name": "Insitro / Recursion / Deep Genomics (AI-driven biology platforms)",
-        "similarity": "Use large-scale ML and foundation-model-style approaches to discover biomarkers, predict biological responses, and accelerate translation to experiments.",
-        "how_different": "Goodfire's unique emphasis is on reading and distilling what powerful foundation models have learned (interpretability \u2192 hypothesis \u2192 simple validated models) rather than primarily optimizing predictive pipelines or high-throughput wet lab automation."
+        "similarity": "Research-oriented AI company focused on model safety, interpretability and mechanistic analyses (e.g., circuit tracing in Claude).",
+        "how_different": "Goodfire emphasizes producing interpreter models (sparse autoencoders) and tooling that are directly applied to very large reasoning and scientific foundation models, open-sourcing SAEs and datasets, and offering practitioner-facing platform + embedded research support for domain applications (e.g., genomics, epigenomics)."
       },
       {
         "name": "OpenAI",
-        "similarity": "Top-tier research into model capabilities and some interpretability work; broad platform and ecosystem influence.",
-        "how_different": "Goodfire is niche-focused on mechanistic interpretability as a productizable capability and applying that capability to domain problems (biomedicine, production PII detection) rather than delivering general-purpose LLMs and platforms."
+        "similarity": "Performs deep model research, publishes interpretability and safety work, and operates large-scale models and tooling for understanding model behavior.",
+        "how_different": "Goodfire positions itself as a specialist interpretability lab and platform that trains interpreter models (SAEs/BatchTopK) on third-party large models, provides custom inference/training infra for half\u2011trillion+ parameter interpretability, and focuses heavily on translating interpretability into domain science outcomes (bio partners, biomarker discovery)."
+      },
+      {
+        "name": "DeepMind (and Google Research)",
+        "similarity": "Large-scale model research, mechanistic interpretability investigations, and tools for understanding internal model computations.",
+        "how_different": "Goodfire markets a productized interpretability stack (SAEs, visualizers, SQL activations, steering experiments) and client-facing services for scientific foundation models, plus demonstrated applied outcomes (Arc Institute, Prima Mente), rather than primarily internal research for prod\u2011scale model development."
+      },
+      {
+        "name": "Hugging Face",
+        "similarity": "Open ML community, model hosting, model cards, community tooling and research ecosystem that facilitate model analysis and sharing.",
+        "how_different": "Goodfire builds bespoke interpretability models and infrastructure (custom inference and interpreter training) for very large reasoning/genomic models and focuses on mechanistic feature discovery and steering, not general-purpose model hosting/community tooling."
+      },
+      {
+        "name": "Weights & Biases / Other MLOps observability vendors",
+        "similarity": "Provide tooling to monitor, debug and analyze model training, activations, and performance.",
+        "how_different": "Goodfire targets mechanistic interpretability \u2014 discovering semantically meaningful features inside networks (SAEs, BatchTopK), interactive feature visualizers and domain-specific steering \u2014 rather than generic experiment tracking, metrics or model telemetry."
+      },
+      {
+        "name": "Insitro / Deep Genomics / other bio-AI startups",
+        "similarity": "Apply large models to biological data and aim to generate actionable scientific insights and therapeutics/diagnostics.",
+        "how_different": "Goodfire does not primarily position as a drug discovery company: it provides interpretability tooling and in-silico science services that decode customers' foundation models (e.g., identifying biomarkers from a black-box epigenomics model) to accelerate wet\u2011lab validation and clinical translation."
       }
     ],
     "differentiation": {
-      "primary": "Turning model internals into actionable, human\u2011interpretable hypotheses and lightweight production probes \u2014 i.e., operationalizing interpretability end\u2011to\u2011end from research (mechanistic analysis) to deployable classifiers and guardrails.",
-      "technical": "Proprietary workflows combining sparse autoencoders (SAEs), activation probing, hierarchical attention on foundation-model embeddings, and sidecar probe architectures. Demonstrated ability to (a) train and interrogate large epigenetic foundation models (e.g., Pleiades-like embeddings), (b) discover fragmentomic biomarker signals via SAE feature attribution, and (c) distill those signals into simple, generalizable models (logistic regression) and production SAE probes that generalize from synthetic to real data.",
-      "business": "Dual-facing GTM: research-first credibility (collaborations with universities and domain teams) plus enterprise deployments (Rakuten PII probes). Focus on being an interpretability partner for regulated and safety-critical customers who need explainable, low-cost guardrails and mechanistic insight rather than opaque prediction accuracy alone.",
-      "positioning": "Positions itself between academic interpretability research labs and enterprise explainability vendors: claims academic rigor and novel methods (SAEs for semantics) while promising practical, cost-efficient production tools and domain-specific hypothesis generation (esp. in biomedicine)."
+      "primary": "A specialist mechanistic-interpretability lab and platform that couples research-grade interpreter models (SAEs / BatchTopK) with custom inference/training infrastructure, open-source releases, and domain partnerships to turn black\u2011box foundation models into actionable, steerable, and auditable components for scientific and safety-critical uses.",
+      "technical": "Trains sparse autoencoders (SAEs) and BatchTopK variants on internal activations of very large models (e.g., 671B DeepSeek R1, Evo 2 at nucleotide resolution); provides SQL databases of max\u2011activating examples, interactive UMAP visualizations, and a custom inference engine + interpreter training infra enabling work at ~half\u2011trillion parameter scale. Demonstrated layer\u2011wise SAE training (including on StripedHyena layers), domain-specific feature validation (domain\u2011F1), and steering experiments that reveal reasoning-model\u2011specific behaviors.",
+      "business": "Go-to-market mixes open-source releases (SAEs, datasets, visualizers) with enterprise/partnership engagements and embedded research teams (e.g., Arc Institute, Prima Mente). They market both as a research collaborator for scientific foundation models and as a platform/vendor for interpretability tooling and consulting, enabling customers to prioritize lab experiments, debug models, and implement safety interventions.",
+      "positioning": "Positioned between academic mechanistic-interpretability research and enterprise MLOps: an applied research lab that productizes interpretability for frontier models and scientific domains, claiming early\u2011mover status on SAEs for very large reasoning/genomic models and emphasizing practical downstream outcomes (biomarkers, steering, safety)."
     },
     "secret_sauce": {
-      "core_advantage": "An applied interpretability platform that (1) extracts semantically coherent, sparse internal features from large models (SAEs), (2) uses those features to surface domain\u2011relevant signals (e.g., fragmentomics in cfDNA) that standard probes/methods miss, and (3) distills insights into lightweight, deployable classifiers and probes that generalize across cohorts and production data.",
-      "defensibility": "Medium: defensible because it combines specialized technical expertise in mechanistic interpretability, patented or proprietary SAE/probe training pipelines, domain partnerships and datasets (epigenetic and cfDNA data access, enterprise synthetic\u2192production evaluation pipelines), and operational know\u2011how to run sidecar probes and translate internals into validated hypotheses. However, underlying methods (SAEs, probes, hierarchical attention) are academically published and could be reproduced by well-resourced competitors, so long-term defensibility depends on proprietary datasets, engineering integration, and customer relationships.",
+      "core_advantage": "An end-to-end combination of productive mechanistic-interpretability methods (SAEs / BatchTopK), bespoke scalable infra able to run and interpret half\u2011trillion parameter reasoning models, domain expertise across language and biological foundation models, and an engagement model that embeds research scientists to deliver actionable scientific outcomes.",
+      "defensibility": "Medium \u2014 defensible because it requires: (1) specialized research expertise in mechanistic interpretability and SAE variants; (2) engineered inference/training infrastructure to handle very large models for interpreter training; (3) curated datasets, activation databases and visualization tooling; and (4) domain relationships and reputation (partner proofs such as Arc Institute and Prima Mente). However, core techniques (SAEs, TopK variants, interpretability methods) are research\u2011level and can be replicated by well\u2011funded labs or large AI companies, and Goodfire's open\u2011sourcing of SAEs lowers some IP barriers.",
       "evidence": [
-        "Trained SAE probes on a middle layer of Llama 3.1 8B and deployed them in production for Rakuten, with Rakuten adopting SAE probes as guardrails.",
-        "Claimed 10\u2013500x cost savings versus LLM-as-judge setups and much better sidecar probe performance (96% vs 51%) in the Rakuten PII detection use case.",
-        "Interpretability analysis on a 7B-parameter epigenetic foundation model pretrained on ~1.9 trillion tokens uncovered fragment length as a dominant signal and enabled distillation into a logistic model that generalized to an independent cohort (AUROC 0.78; mixed model AUROC 0.84).",
-        "Published collaborative research (Goodfire + Prima Mente + Oxford) demonstrating interpretability-driven biomarker discovery and translation to simple, testable classifiers."
+        "\"We have trained the first ever sparse autoencoders (SAEs) on the 671B parameter DeepSeek R1 model and open-sourced the SAEs.\"",
+        "\"Our SAE training leveraged our custom inference engine and interpreter model training infrastructure, which enables interpretability at the half a trillion parameter scale.\"",
+        "\"We\u2019re releasing two SAEs for R1... and uploaded SQL databases containing the max activating examples for each feature.\"",
+        "\"Training an Evo 2 interpreter model (sparse autoencoder or SAE)... We used these tools to understand how Evo 2 processes genetic information internally.\"",
+        "Case studies: collaboration with Arc Institute on Evo 2 and with Prima Mente to decode epigenomics model and identify candidate biomarkers."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "Goodfire's moat is rooted in a specialized combo of interpretability expertise, proven production integration patterns (sidecar probes), and domain partnerships/dataset access (epigenetics cohorts, enterprise customers). These create switching costs and credibility for customers who need explainable, auditable AI in sensitive domains. However, core algorithmic ideas (SAEs, probes, hierarchical aggregators) are based on public research and can be replicated by larger incumbents or well-funded startups; sustained advantage will require continued accumulation of proprietary biological datasets, strong IP/ops around deployed probe toolchains, and deep customer integrations.",
+    "moat_explanation": "Goodfire's moat is built from a mix of technical infrastructure, specialized interpretability expertise, curated activation/dataset assets, and domain partnerships that create customer value (actionable biomarkers, steerable model features). Those elements together make immediate replication nontrivial. However, core methods are research\u2011driven and public, and large labs or major AI companies with bigger compute/resources could reproduce or outscale the approach. Open-sourcing parts of their work improves community adoption but reduces exclusivity, so the long\u2011term moat will depend on continued innovation, proprietary client relationships, and unique cross-domain datasets and validations.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "Pleiades is a 7-billion parameter epigenetic foundation model trained on human methylation and genomic sequences.",
-    "Pleiades embeddings enable accurate detection of neurodegenerative disease from blood.",
-    "To train the classifier, researchers from Prima Mente sourced data from an Oxford University study with over 30 billion cfDNA fragments across a cohort of 81 individuals.",
-    "The model was pretrained on 1.9 trillion tokens from this combined dataset. Tokens represented either individual nucleotides or the presence of a methyl group.",
-    "Two stages: pretraining on next-token prediction, followed by additional training on a reconstruction task.",
-    "interpretability platform to study the model's behavior.",
-    "distilling model performance to an interpretable classifier.",
-    "Use of BatchTopK sparse autoencoders (SAEs) as interpretability probes to decompose representation space and identify components driving classification (applied both for scientific hypothesis generation and production PII detection).",
-    "Manifold geometry analysis (projecting fragment embeddings to PCA space and measuring local curvature) to identify 'privileged' fragment lengths (e.g., 147 bp, 167 bp) where the model devotes extra representational capacity.",
-    "Two-level hierarchical attention aggregation (fragment \u2192 DMR \u2192 patient) combining foundation-model embeddings into biologically meaningful aggregation units.",
-    "Distillation of interpretability insights into a simple, fully-interpretable logistic-regression proxy trained on rank-normalized DMR-level fragmentomic metrics (with bootstrap-based feature-selection retaining features appearing in \u226590% of bootstraps).",
-    "Mitigation of batch effects by rank-normalizing features across DMRs within individuals before modeling.",
-    "Demonstrated production use-case where interpretability probes generalize from synthetic to real data and outperform LLM-as-judge baselines in cost and efficiency for PII detection."
+    "We\u2019ve trained the first ever sparse autoencoders (SAEs) on the 671B parameter DeepSeek R1 model and open-sourced the SAEs.",
+    "We\u2019re releasing two SAEs for R1: the first was trained on R1\u2019s activations on a custom reasoning dataset (which we\u2019re also open-sourcing), and the second used OpenR1-Math.",
+    "In Evo 2, we trained BatchTopK sparse autoencoders on layer 26, applying techniques we've developed while interpreting language models to understand Evo 2\u2019s processing of genetic information.",
+    "We\u2019re building interpretability tooling for the frontier of generative AI capabilities.",
+    "Interpreting Evo 2: Arc Institute's Next-Generation Genomic Foundation Model.",
+    "Applying sparse autoencoders (SAEs) as interpreter models at unprecedented scale (first public SAEs trained on a 671B reasoning model) to extract 'features' that map to mechanistic computations.",
+    "BatchTopK SAE variant: using a TopK nonlinearity applied across the entire batch (TopK(x,k) over batch) to allow variable per-token capacity while preserving TopK advantages.",
+    "Steering by directly manipulating internal feature activation strengths (feature-amplification/attenuation) rather than only prompt-based steering, including observations of paradoxical 'rebalancing' where oversteering causes reversion.",
+    "Operationalizing interpretability outputs for wet-lab science: tracing model predictions back to specific biological signals, ablation of features to prioritize experimental validation, and coupling with in vitro/in vivo validation pipelines.",
+    "Releasing SQL databases of max-activating examples per feature to make large-scale interpreter outputs accessible to researchers who cannot run the base model, improving reproducibility and external analysis.",
+    "Empirical steering heuristics tied to model-internal prefixes (e.g., waiting until the model emits a common reasoning prefix like 'Okay, so...' before applying steering) based on observed attention sinks and feature distribution shifts.",
+    "Training SAEs on layer-specific activations (including StripedHyena layers such as layer 26) and choosing layers based on biological relevance rather than only proximity to outputs."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 17:54:28.533594+00:00",
-  "confidence_score": 0.75,
-  "raw_content_analyzed": 232852
+  "analyzed_at": "2026-03-07 22:00:57.156955+00:00",
+  "confidence_score": 0.72,
+  "raw_content_analyzed": 430934,
+  "input_hash": "f4f549e01765693a"
 }

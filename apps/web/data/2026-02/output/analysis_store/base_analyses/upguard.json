@@ -7,265 +7,238 @@
   "funding_amount": 75000000.0,
   "funding_stage": "series_c",
   "uses_genai": true,
-  "genai_intensity": "core",
+  "genai_intensity": "enhancement",
   "models_mentioned": [],
   "build_patterns": [
     {
-      "name": "RAG (Retrieval-Augmented Generation)",
-      "confidence": 0.92,
-      "evidence": [
-        "Questionnaire AI automatically completes questionnaires using your own security documentation",
-        "AI document parsing to deliver rapid, structured assessments",
-        "Reporting pulls from every corner of your TPCRM program \u2014 assessments, remediation, exceptions, continuous monitoring",
-        "Generate board-ready PowerPoints with dynamic, pre-filled commentary"
-      ],
-      "description": "They combine document retrieval/knowledge (vendor docs, questionnaire libraries, security profiles, continuous monitoring signals) with generative AI to produce answers, summaries and reports \u2014 i.e., retrieval of domain documents and context + LLM-based generation."
-    },
-    {
-      "name": "Continuous-learning Flywheels",
+      "name": "Agentic Architectures",
       "confidence": 0.95,
       "evidence": [
-        "Questionnaire AI constantly learns from your library of existing questionnaires and security documentation",
-        "Billions of signals captured daily across your assets, workforce and vendors",
-        "Monitor performance through a single real-time posture loop",
-        "Track posture performance through transparent risk scores"
+        "Model Context Protocol (MCP) Server Security Questionnaire",
+        "Detection for open MCP servers",
+        "assess the unique risks of AI agents connected to third-party tools",
+        "agentic threats, including Indirect Prompt Injection, excessive permissions, and supply chain integrity",
+        "Trigger automated workflows that take action\u2014from triaging a vulnerability and opening a ticket, to actioning remediation\u2014the moment a risk is discovered",
+        "Add human-in-the-loop checkpoints to automations"
       ],
-      "description": "Platform explicitly describes feedback loops: ingestion of continual signal data and customer documentation that refines models (questionnaire completion, threat triage, risk scoring) over time to improve accuracy and automation."
+      "description": "UpGuard explicitly recognizes and monitors agentic systems (MCP servers and AI agents) and builds tooling to assess, detect and remediate agentic threats. They combine detection for agent infrastructure with questionnaires and automation/orchestration to manage agent-driven workflows and include HITL checkpoints to control autonomous actions."
     },
     {
-      "name": "Micro-model Meshes",
-      "confidence": 0.86,
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.9,
       "evidence": [
-        "Breach Risk\u2019s AI Threat Analyst acts as a virtual Tier 1 analyst",
-        "Questionnaire AI, AI document parsing, AI Threat Analyst, Instant Risk Assessments",
-        "Different feature modules: Breach Risk, Vendor Risk, CRPM platform, Trust Exchange"
+        "monthly import of public vendor security documents",
+        "Access to questionnaire data via APIs",
+        "generate board-ready PowerPoints with dynamic, pre-filled commentary",
+        "Security Profile Risk Assessment AI commentary to factor in check comments made by users",
+        "APIs enabling access to data available on the Vendor Risk \u201cRisk Portfolio\u201d page"
       ],
-      "description": "Multiple specialized AI components appear to be used for discrete tasks (document parsing, threat triage, questionnaire answering, scoring/prioritization), implying a mesh/ensemble of smaller models specialized by function rather than a single monolithic model."
-    },
-    {
-      "name": "Knowledge Graphs / Entity Relationship Indexing",
-      "confidence": 0.78,
-      "evidence": [
-        "Vendor Summary Centralize tiers, tags, portfolios, and custom attributes to organize your vendor inventory",
-        "Fourth Parties Gain visibility into subcontractors and extended supply chain dependencies",
-        "Continuously discover your internet-facing infrastructure\u2014including shadow IT, forgotten subdomains",
-        "Orchestrate risk management across complex ecosystems"
-      ],
-      "description": "Features for mapping vendors, fourth parties, portfolios, tags, and relationships across assets and attack surfaces strongly indicate an entity-relationship model or graph database underpinning cross-entity queries, traversals and inference."
-    },
-    {
-      "name": "Guardrail-as-LLM (Safety / Prioritization Layers)",
-      "confidence": 0.75,
-      "evidence": [
-        "Automatically filters and prioritizes dark web signals, surfacing high-confidence threats",
-        "Reduce false positives, speeds up response",
-        "Prioritize fixes based on exploitability. Identify misconfigurations and prioritize remediation with vendors.",
-        "Defensible outputs, audit-ready reporting"
-      ],
-      "description": "The system layers deterministic signals and rule-based scoring (CVE/KEV/EPSS, compliance checks) on top of ML/LLM outputs to filter, validate and prioritize findings \u2014 acting as guardrails to improve reliability and compliance defensibility."
+      "description": "The product retrieves structured and unstructured vendor/security documents and questionnaire data and uses them to produce contextualized AI commentary, reports and dynamic presentations \u2014 a classic retrieval + generation flow where external documents and metadata are used to ground generated outputs."
     },
     {
       "name": "Vertical Data Moats",
-      "confidence": 0.9,
+      "confidence": 0.93,
       "evidence": [
-        "Billions of signals captured daily across your assets, workforce and vendors",
-        "Collects and correlates signals from ransomware leak sites, dark web forums, infostealer malware logs, GitHub code repositories, paste sites, and messaging platforms",
-        "Industry-specific offerings (healthcare TPRM, ISO/NIST-aligned questionnaires, ASX 200 report)"
+        "monthly import of public vendor security documents",
+        "expanded coverage to include 47 new documents / 43 new documents / 142 new products",
+        "2026 SIG Core & Lite questionnaire updates",
+        "Vendor Risk / Breach Risk / User Risk domain-specific offerings",
+        "Trust Center / Trust Pages with industry badges (CMMC, HiTrust E1)"
       ],
-      "description": "They leverage proprietary, domain-specific signal aggregation (dark web, vendor telemetry, compliance mappings) and curated corpora (questionnaire libraries, regulatory templates) that form a vertical dataset moat and competitive advantage."
+      "description": "UpGuard accumulates large, industry-specific datasets (vendor security docs, questionnaire responses, product detection telemetry, CVE mappings) and integrates them into product features and APIs. This proprietary vertical data collection and enrichment creates an enterprise-focused data moat that powers differentiated detection, reporting, and automation."
     },
     {
-      "name": "Agentic / Orchestrator Architectures",
-      "confidence": 0.6,
+      "name": "Knowledge Graphs",
+      "confidence": 0.68,
       "evidence": [
-        "Intelligent workflows to help you remediate faster and win back the advantage",
-        "React faster with AI powered detection, prioritization and orchestration",
-        "Assign ownership, leave in-line comments, and track every remediation step with a comprehensive audit trail",
-        "Orchestrate risk management across complex ecosystems"
+        "list of all risks across all monitored vendors, a list of all vendors affected by a particular risk and the hostnames of a vendor affected by the risk",
+        "integrate your risk stack. Sync 100+ tools with pre-built integrations",
+        "Vendor Onboarding portal\u2026 triage, review and respond to each request, with every step tracked",
+        "Risk Portfolio page"
       ],
-      "description": "There is orchestration of actions and guided workflows that may incorporate autonomous decisioning (triage, notifications, remediation playbooks). While not explicit 'multi-agent' language, the product behaves like an agentic orchestration layer coordinating tools and human actors."
+      "description": "Although not explicitly named, the product exposes relationship-centric APIs and UI features (risks <-> vendors <-> hostnames, tool integrations, portfolio views) that imply an underlying graph-like model of entities and relationships used for queries, impact analysis and automated workflows."
     },
     {
-      "name": "Natural-Language-to-Code / Rule Generation",
-      "confidence": 0.25,
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.62,
       "evidence": [
-        "Questionnaire Builder Create tailored security questionnaires aligned to your internal standards that automate risk discovery",
-        "Create tailored security questionnaires ... that automate risk discovery"
+        "We have enhanced the Security Profile Risk Assessment AI commentary to factor in check comments made by users",
+        "monthly import of public vendor security documents",
+        "expanded social media capabilities \u2026 detect potential data leaks, impersonation attempts, and emerging risks",
+        "We are releasing APIs and iteratively adding detection for new products and platforms (e.g., Streamlit, TikTok, X, LinkedIn, Reddit)"
       ],
-      "description": "There is limited evidence of natural-language-to-code; the product exposes builder tools for policies/rules and templates but does not clearly advertise free-text-to-executable-rule generation. Low confidence that full NL\u2192code generation is core."
+      "description": "Product updates and statements indicate ongoing ingestion of fresh telemetry and user feedback (documents, comments, new sources) that are used to refine detection and commentary. This suggests a feedback loop where telemetry and user interactions incrementally improve detection coverage and AI outputs, though explicit model-retraining details are not stated."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.48,
+      "evidence": [
+        "Our intelligent Transforms continuously scan emerging AI development platforms",
+        "vibe coding monitoring has been expanded to include Streamlit.io",
+        "The AI triages the data, delivering contextualized insights to the right decision-makers",
+        "automated triage and workflows used across other Threat Monitoring sources"
+      ],
+      "description": "There are signs of specialized processing components (\"Transforms\", source-specific monitoring) and source-targeted triage flows that could be implemented as small, specialist models or pipelines per source. The text doesn't explicitly state multiple distinct model instances, so this is a plausible but lower-confidence inference."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.45,
+      "evidence": [
+        "Add human-in-the-loop checkpoints to automations, ensuring that you get the right amount of visibility",
+        "The AI threat summary is great. ... because the context is right there.",
+        "Ability to choose how passwords are captured from sources (redacted / plain-text / no password collection)",
+        "Security Profile Risk Assessment alert informs users if a vendor\u2019s Security Profile has changed since they began drafting a report"
+      ],
+      "description": "Controls, manual checkpoints and configurable data-handling policies imply a governance layer over AI outputs. While explicit mention of a secondary LLM reviewer or policy model is missing, the product embeds procedural and configurable guardrails (HITL, redaction settings, alerts) that perform a similar safety/compliance function."
     }
   ],
   "discovered_patterns": [
     {
-      "category": "Compound AI Systems",
-      "pattern_name": "End-to-end detection \u2192 inference \u2192 orchestration pipeline",
-      "confidence": 0.95,
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Unspecified third-party LLMs accessed through high-volume API calls with prompt-engineering",
+      "confidence": 0.45,
       "evidence": [
-        "Transform how you manage cyber risk with the CRPM platform that unifies risk detection, inference, orchestration & scoring across your entire organization.",
-        "React faster with AI powered detection, prioritization and orchestration.",
-        "Intelligent workflows to help you remediate faster and win back the advantage."
+        "\"Our AI triages the data, delivering contextualized insights to the right decision-makers.\"",
+        "\"unlimited AI calls\"",
+        "Multiple references to \"AI commentary\", \"AI Analyst\" and automatic prioritization of risks"
       ],
-      "description": "UpGuard implements a multi-stage pipeline where large-scale signal ingestion and detectors (external scanning, dark-web scraping, document parsers) feed inference layers (AI classifiers and scorers) which then feed orchestration/workflow engines that automate triage, remediation tickets and reporting. This is a chained, productionized compound system rather than a single-model UI.",
-      "novelty_score": 4,
-      "why_notable": "The productization of an end-to-end, automated risk loop (detection \u2192 inference \u2192 orchestration \u2192 scoring \u2192 remediation) is a mature compound-AI pattern; notable because it tightly couples automated analytics with workflow orchestration for remediation rather than only surfacing alerts."
+      "description": "UpGuard uses large language models as a core inference capability (for triage, commentary, risk-prioritization). The product references 'unlimited AI calls' and multiple AI-driven features, which implies calling one or more hosted LLM endpoints (commercial or managed). Implementation appears focused on prompt-engineering and integration-layer orchestration rather than deep/custom model training; model identity and fine-tuning steps are not disclosed in the content.",
+      "novelty_score": 2,
+      "why_notable": "This is a standard approach: integrate hosted LLMs for text analysis and automation. The product emphasizes operational scale (many API calls) rather than novel model architecture."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Agent-like orchestration with tool integrations and human-in-the-loop checkpoints",
+      "confidence": 0.92,
+      "evidence": [
+        "\"Risk Automations is a drag-and-drop platform... Add human-in-the-loop checkpoints to automations...\"",
+        "\"Trigger automated workflows that take action\u2014from triaging a vulnerability and opening a ticket, to actioning remediation\u2014the moment a risk is discovered.\"",
+        "\"Sync 100+ tools with pre-built integrations\u2014including ServiceNow, Splunk, Cloudflare, Jira, and Microsoft Entra\""
+      ],
+      "description": "UpGuard implements an orchestration layer that lets automated workflows (driven by AI triage/analysis) call external systems and internal processes (ticket creation, Slack/Jira notifications). Human-in-the-loop checkpoints are explicit gating mechanisms in these workflows, enabling the system to execute actions automatically but pause for manual approval where required. The drag-and-drop UI indicates a low-code/no-code orchestration engine and a tool-use pattern akin to agent tool-calls.",
+      "novelty_score": 5,
+      "why_notable": "Combining enterprise-grade tool integrations with an LLM-driven automation engine and explicit HITL checkpoints tailors agentic automation for compliance and auditability\u2014important in security workflows."
     },
     {
       "category": "Retrieval & Knowledge",
-      "pattern_name": "Document-centric retrieval + LLM-enabled questionnaire autofill (RAG-like)",
-      "confidence": 0.8,
+      "pattern_name": "RAG-style retrieval over proprietary and public vendor documents with change-detection",
+      "confidence": 0.86,
       "evidence": [
-        "Questionnaire AI automatically completes questionnaires using your own security documentation and helps polish answers in seconds.",
-        "AI document parsing to deliver rapid, structured assessments.",
-        "Questionnaire AI constantly learns from your library of existing questionnaires and security documentation to create fast, accurate answers."
+        "\"Our monthly import of public vendor security documents has expanded coverage...\"",
+        "\"Access to questionnaire data via APIs\"",
+        "\"Security Profile Risk Assessment alert: if a vendor\u2019s Security Profile has changed since they began drafting...\""
       ],
-      "description": "UpGuard appears to ingest customer documents and questionnaire histories, index them, and use retrieval + generative models to autofill questionnaires and produce 'instant' risk assessments. While they don't name a vector DB, the product behavior (autofill from docs, 'constantly learns', instant answers) is consistent with a RAG architecture: embedding documents, retrieving relevant chunks, then conditioning a generator to produce structured answers.",
-      "novelty_score": 3,
-      "why_notable": "RAG for doc-driven form completion is a practical and increasingly common pattern; notable here for being tightly integrated into TPCRM-specific templates and compliance frameworks (NIST, ISO, SIG)."
+      "description": "UpGuard maintains an indexed corpus built from monthly public-document ingests plus customer-submitted Trust Center documents and questionnaires. AI-generated commentary and assessment reports appear to be produced using retrieval over these documents (contextualized commentary, change detection alerts). The system detects updates to vendor profiles and notifies users, which implies a document-version-aware index and periodic re-ingestion/re-indexing for freshness.",
+      "novelty_score": 4,
+      "why_notable": "Maintaining a curated and continuously updated corpus of vendor security documents and surfacing change-aware AI commentary is an effective verticalized RAG pattern for third-party risk, though not unique."
     },
     {
-      "category": "Model Architecture & Selection",
-      "pattern_name": "Undisclosed/Proprietary LLM + in-house ML classifiers",
-      "confidence": 0.6,
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Source tuning and analyst-feedback loop to reduce false positives",
+      "confidence": 0.72,
       "evidence": [
-        "Security Profile ... using AI document parsing to deliver rapid, structured assessments.",
-        "Breach Risk\u2019s AI Threat Analyst acts as a virtual Tier 1 analyst\u2014your first line of triage.",
-        "Questionnaire AI constantly learns from your library..."
+        "\"reducing noise and false positives through improved AI analysis and source tuning\"",
+        "\"The AI threat summary is great. It\u2019s refreshing to read two sentences and immediately know why I should care about a finding.\"",
+        "\"We have enhanced the Security Profile Risk Assessment AI commentary to factor in check comments made by users\""
       ],
-      "description": "UpGuard references multiple AI capabilities (Threat Analyst, Questionnaire AI, AI document parsing) but does not disclose model names or vendors. The language suggests a mix of heavier-weight models for generation/analysis plus lightweight classifiers for triage \u2014 likely a hybrid of proprietary models and cloud-hosted LLM APIs or wrapped open-source models.",
-      "novelty_score": 2,
-      "why_notable": "Lack of public model disclosure is common for enterprise SaaS vendors; the interesting point is the clear separation of generative/document parsing capabilities and specialized analytic classifiers."
-    },
-    {
-      "category": "Data Strategy",
-      "pattern_name": "Proprietary signal ingestion and vertical OSINT data moat",
-      "confidence": 0.95,
-      "evidence": [
-        "Billions of signals captured daily across your assets, workforce and vendors.",
-        "Collects and correlates signals from ransomware leak sites, dark web forums, infostealer malware logs, GitHub code repositories, paste sites, and messaging platforms like Telegram and Discord\u2014delivering unified insight across the open, deep, and dark web."
-      ],
-      "description": "UpGuard has built a large-scale ingestion pipeline aggregating diverse external threat signals (dark web, leak sites, paste sites, GitHub, messaging platforms) plus internal telemetry (assets, workforce, vendor data). This aggregated dataset is a vertical data moat used to power scoring, prioritization and analytics.",
-      "novelty_score": 5,
-      "why_notable": "The breadth and scale of signal sources (including proprietary dark-web and paste-site feeds) combined with continuous capture ('billions of signals daily') is an important competitive asset, enabling upstream ML models and rule engines to operate with high coverage."
+      "description": "UpGuard actively tunes detection sources and the AI that generates summaries to reduce noise. They capture analyst feedback (check comments, false-positive markings) and feed it back into the AI commentary generation layer. This suggests an operational EvalOps practice where signal sources and model prompts (and possibly training data) are adjusted based on downstream analyst labeling to improve precision.",
+      "novelty_score": 4,
+      "why_notable": "Explicit mention of source tuning and using analyst comments in AI outputs shows attention to precision and human-centered evaluation\u2014good EvalOps practice for security products."
     },
     {
       "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Streaming ingestion + real-time scoring + API-first platform",
-      "confidence": 0.9,
+      "pattern_name": "Event-driven background scanning and API-first microservices with extensive integrations",
+      "confidence": 0.96,
       "evidence": [
-        "Billions of signals captured daily across your assets, workforce and vendors.",
-        "Instant risk assessments in under a minute.",
-        "ratings updated multiple times per day",
-        "API Access Integrate vendor risk data into other internal systems for downstream reporting and workflows"
+        "\"dialog closes immediately while the initial scan runs in the background\"",
+        "\"Sync 100+ tools with pre-built integrations\"",
+        "\"APIs enabling access to data...\"",
+        "\"Threat Monitoring exports now respect active UI filters\""
       ],
-      "description": "The architecture includes high-throughput streaming ETL/ingestion pipelines, near-real-time scoring engines that update vendor/security ratings multiple times per day, and API layers for integration with customer systems. The product emphasis on 'instant' outputs and continuous monitoring indicates horizontally scalable back-end services (microservices or stream processors) and persistent indices for quick retrieval.",
+      "description": "The product architecture uses asynchronous/background processing for scans and analysis, an API-first surface for integrations, and a microservice-style set of connectors for dozens of external systems (SIEMs, ticketing, identity providers). There is a UX that reflects live background jobs and exportable data APIs. The drag-and-drop automation builder implies an orchestration/workflow microservice that issues jobs and handles callbacks/webhooks.",
       "novelty_score": 3,
-      "why_notable": "Real-time scoring at scale for TPCRM is operationally demanding; UpGuard demonstrates production-grade LLMOps/analytics pipelines integrated into enterprise workflows."
+      "why_notable": "This is a mature, production-grade architecture common in security SaaS: asynchronous scanners, rich integrations, and an API-first stance enabling automation and scale."
     },
     {
       "category": "Safety & Trust (LLM Security)",
-      "pattern_name": "Auditability, governance and enterprise controls around AI outputs",
-      "confidence": 0.85,
+      "pattern_name": "Configurable PII handling and agentic-risk questionnaires for AI-connected systems",
+      "confidence": 0.83,
       "evidence": [
-        "Audit Log Maintain a complete record of user activity to support audits and demonstrate oversight",
-        "Role-Based Access Control who can view, edit, and manage specific data across your vendor risk program",
-        "SSO Enable secure, enterprise-grade access through your existing identity provider (e.g., Microsoft Azure, Okta, Ping Identity)",
-        "Export prebuilt reports and compliance-ready threat summaries that support audits, board reviews, and cyber insurance requirements"
+        "\"customers can now choose how passwords are captured from these sources, selecting between redacted or plain-text collection, or no password collection at all (recommended)\"",
+        "\"Model Context Protocol (MCP) Server Security Questionnaire\"",
+        "\"Add human-in-the-loop checkpoints to automations\""
       ],
-      "description": "UpGuard layers enterprise governance (audit logs, RBAC, SSO, report export with watermarks) on top of AI features to support compliance and oversight. These features indicate emphasis on traceability of AI-driven decisions and controlled distribution of generated artifacts.",
-      "novelty_score": 4,
-      "why_notable": "Combining AI generation with explicit audit and governance controls is increasingly required for enterprise adoption; UpGuard's documentation shows this is baked into their product story rather than an afterthought."
-    },
-    {
-      "category": "Compound AI Systems",
-      "pattern_name": "Specialized AI analyst for dark/deep web triage (AI Threat Analyst)",
-      "confidence": 0.9,
-      "evidence": [
-        "Breach Risk\u2019s AI Threat Analyst acts as a virtual Tier 1 analyst\u2014your first line of triage. It automatically filters and prioritizes dark web signals, surfacing high-confidence threats like leaked credentials, malware logs, and ransomware targeting.",
-        "The AI threat summary is great. It\u2019s refreshing to read two sentences and immediately know why I should care about a finding."
-      ],
-      "description": "They implement a domain-specialized AI component (virtual Tier 1 analyst) that ingests noisy OSINT signals, filters false positives, prioritizes by confidence, and generates short, contextual summaries for human analysts. This is a specialized model + rule/heuristic layer tuned for threat triage.",
-      "novelty_score": 5,
-      "why_notable": "Packaging triage as a domain-specific 'AI analyst' with human-consumable summaries and confidence-driven prioritization improves SOC productivity; the novelty is in tailoring summarization and triage specifically to dark-web signal types (leaked creds, malware logs)."
+      "description": "UpGuard exposes explicit controls for PII handling (configurable password redaction), includes specialized questionnaires to assess agentic risks (MCP servers, indirect prompt injection concerns), and uses human-in-the-loop checkpoints in automation to reduce unsafe or unauthorized automated actions. This indicates a combined engineering + policy approach to minimize AI-driven operational risk and compliance exposure.",
+      "novelty_score": 6,
+      "why_notable": "Providing configurable capture policies for credential data and an explicit questionnaire for MCP Servers shows forward-looking controls for AI/agent security that are not yet ubiquitous in vendor-risk tooling."
     },
     {
       "category": "Learning & Improvement",
-      "pattern_name": "Customer-document-driven continual learning (closed-loop improvements)",
-      "confidence": 0.7,
+      "pattern_name": "Operational feedback loop from analyst actions into AI commentary/prioritization",
+      "confidence": 0.75,
       "evidence": [
-        "Questionnaire AI constantly learns from your library of existing questionnaires and security documentation to create fast, accurate answers.",
-        "Questionnaire AI automatically completes questionnaires using your own security documentation and helps polish answers in seconds."
+        "\"AI commentary to factor in check comments made by users\"",
+        "\"'Dismiss' has been renamed to 'False Positive' to clarify intent and improve tracking of analyst decisions\""
       ],
-      "description": "UpGuard appears to use customers' historical questionnaires and uploaded documentation as an ongoing training/conditioning signal to improve autofill accuracy\u2014likely via adaptive retrieval indices, incremental supervised tuning, or fine-tuning-like processes. The wording 'constantly learns' implies a feedback loop driven by customer artifacts and corrections.",
+      "description": "Analyst actions (comments, false-positive labels, remediation acceptance) are captured and used to alter how the AI generates summaries and prioritizes risks. This creates a feedback loop where human classification improves subsequent AI outputs. The system likely stores analyst decisions and uses them to re-rank or rephrase AI content.",
       "novelty_score": 4,
-      "why_notable": "Leveraging each customer's own corpus to personalize answers increases accuracy and reduces friction; the approach creates per-customer adaptation that can confer practical advantages without global retraining."
+      "why_notable": "A human-in-the-loop feedback mechanism that directly tweaks AI outputs is valuable for security pipelines; it's increasingly common but crucial for production ML systems in regulated domains."
     },
     {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "Hybrid signal scoring combining CVE/KEV/EPSS with heuristic/ML prioritization",
+      "category": "Data Strategy",
+      "pattern_name": "Verticalized proprietary vendor dataset and Trust Center document repository as a data moat",
       "confidence": 0.9,
       "evidence": [
-        "Not all vulnerabilities are equal. Breach Risk uses CVE severity, KEV exploits, and EPSS predictions to highlight what\u2019s most likely to be attacked\u2014so your team can prioritize real-world risks, cut alert noise, and act faster."
+        "\"monthly import of public vendor security documents has expanded coverage to include X new documents\"",
+        "\"Custom document ordering in Trust Center\"",
+        "\"White labeled Trust Centers\"",
+        "\"Vendor Onboarding Portal\""
       ],
-      "description": "Their prioritization engine synthesizes standard vulnerability metadata (CVE severity), known-exploit lists (KEV), and probabilistic exploit scoring (EPSS) alongside telemetry to rank vulnerabilities. This is a hybrid scoring approach where deterministic rule-sources are combined with probabilistic models and signals.",
-      "novelty_score": 4,
-      "why_notable": "Combining authoritative scoring sources with in-house signals reduces false positives and maps risk to operational prioritization\u2014valuable in practice though conceptually common."
-    },
-    {
-      "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Product integrations and API-first extensibility",
-      "confidence": 0.95,
-      "evidence": [
-        "API Access Integrate vendor risk data into other internal systems for downstream reporting and workflows",
-        "Easily connect with your GRC tool and push important notifications to your team with pre-built integrations and UpGuard\u2019s flexible API."
-      ],
-      "description": "UpGuard exposes core functionality through APIs and prebuilt connectors to GRC systems, ticketing and reporting tools, enabling orchestration into customer workflows. This indicates microservice boundaries and an API-first design for extensibility.",
-      "novelty_score": 2,
-      "why_notable": "API-first enterprise SaaS design is standard, but essential here to enable automated remediation workflows and integration with customers' toolchains."
+      "description": "UpGuard builds and maintains a specialized dataset composed of public vendor security documents, customer-submitted Trust Center materials, questionnaire responses and metadata. This corpus is used to power assessments, generate board-ready reports, and contextual AI commentary\u2014forming a vertical data moat for third-party security posture analysis.",
+      "novelty_score": 5,
+      "why_notable": "A curated and continuously updated vertical corpus tailored to vendor security enables high-value, product-specific AI features (e.g., auto-filled reports, change alerts) that competitors without similar ingests cannot easily replicate."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Domain-specialized 'AI Threat Analyst' acting as a virtual Tier 1 SOC analyst",
-      "why_novel": "Rather than generic summarization, the system presents short, high-confidence triage outputs geared for operator action (two-sentence AI threat summaries), tuned for dark-web and OSINT signal types. Packaging triage as an analyst persona that reduces false positives is a productized specialization.",
-      "potential_impact": "Reduces operator load, speeds incident response, increases signal-to-noise ratio for security teams; helps scale lean security teams without hiring additional analysts."
+      "approach": "MCP (Model Context Protocol) Server detection plus a dedicated MCP security questionnaire",
+      "why_novel": "UpGuard explicitly treats agentic infrastructure (open MCP servers) as a first-class risk category and ships a specialized questionnaire to assess agentic threats (Indirect Prompt Injection, excessive permissions). Few vendor-risk products have targeted controls and assessment workflows for model/agent runtime security.",
+      "potential_impact": "Enables enterprises and vendors to identify and govern agentic attack surfaces, closing a gap between traditional third-party risk and AI-specific operational threats."
     },
     {
-      "approach": "Customer-document-driven autofill with 'constant learning' per-customer corpus",
-      "why_novel": "Using each customer's historical security documents and questionnaire responses to adapt autofill behavior creates per-tenant customization and raises the bar on answer accuracy/defensibility without explicit manual fine-tuning disclosures.",
-      "potential_impact": "Lower friction for vendor/vendor-facing questionnaire processes, faster sales/security communications, and a feedback loop that incrementally improves answer quality for each customer."
-    },
-    {
-      "approach": "Unified TPCRM signal fabric combining dark web, attack surface management, workforce telemetry and vendor questionnaires",
-      "why_novel": "Rather than siloed products, UpGuard frames a single risk 'posture loop' that ingests and correlates many signal domains into unified scoring and workflows.",
-      "potential_impact": "Enables correlated risk signals (e.g., vendor leaked credential + exposed infrastructure) to be surfaced and triaged more rapidly and defensibly across organizational boundaries."
+      "approach": "Trust Exchange: white-labeled, document-driven Trust Centers combined with AI-generated, board-ready reports and change-aware alerts",
+      "why_novel": "Combines customer-facing, brandable trust portals with an internal RAG-like corpus and AI auto-generated summaries/PowerPoints. The change-detection alerts that watch for Security Profile modifications and reflect them in in-flight reports is a subtle but powerful workflow integration.",
+      "potential_impact": "Improves sales/cx workflows by automating responses to security questionnaires, producing consistent external messaging, and reducing manual effort in vendor risk disclosure and compliance reporting."
     }
   ],
   "model_details": {
     "primary_models": [
-      "No explicit model names disclosed; multiple 'AI' branded components referenced (Questionnaire AI, AI Threat Analyst, AI document parsing). Inferred: mixture of in-house classifiers and generative LLMs or cloud LLM APIs."
+      "unspecified hosted LLM(s) (product repeatedly references \"AI\" and \"unlimited AI calls\" but does not name model vendors or families)",
+      "internal ML classifiers and heuristics for detection and triage (inferred from product-specific detections and source-tuning language)"
     ],
     "fine_tuning": {
       "uses_fine_tuning": false,
-      "fine_tuning_approach": "Not disclosed. Marketing language 'constantly learns from your library' suggests either incremental fine-tuning, continual learning on embeddings/retrieval indices, or per-customer adaptation via retrieval/metadata; exact method not stated.",
-      "training_data_source": "Not explicitly stated beyond proprietary signals and customer-uploaded documents (questionnaires, security docs) and OSINT sources (dark web, GitHub, paste sites)."
+      "fine_tuning_approach": "No direct evidence of model fine-tuning (LoRA/full-finetune). Content suggests heavy use of prompt engineering, source tuning, and analyst-feedback loops rather than disclosed model re-training.",
+      "training_data_source": "Not stated; likely proprietary vendor documents, internal labeled detections, and public threat feeds"
     },
     "inference_optimization": [
-      "Evidence for near-real-time outputs (instant risk assessments under 60s, ratings updated multiple times per day) suggests caching, precomputed embeddings or scores, and fast retrieval pipelines, but no direct statement of techniques like quantization or distillation."
+      "asynchronous background processing for long-running scans and AI calls (evidence: \"the dialog closes immediately while the initial scan runs in the background\")",
+      "workflow-driven batching/queued jobs for scans and integrations (inferred from orchestration and many connector integrations)"
     ],
     "model_routing": {
       "uses_routing": true,
-      "routing_strategy": "High-level evidence: different specialist components (Threat Analyst, Questionnaire AI, Security Profile parser) indicate task-specific routing to different models or pipelines. Exact routing mechanics (Mixture-of-Experts, ensemble) not described."
+      "routing_strategy": "Task-level routing: AI produces triage/prioritization and the orchestration layer routes findings to different workflows, tools, and human checkpoints (e.g., create Jira ticket, notify Slack, request manual approval). No explicit multi-model routing described; routing is primarily workflow/tool-based."
     },
     "compound_ai": {
       "is_compound_system": true,
-      "orchestration_pattern": "Chained pipeline: ingestion (scanners, crawlers, doc upload) \u2192 pre-processing/parsing \u2192 specialty inference engines (triage classifier, document parser, generative autofill) \u2192 scoring/orchestration \u2192 workflow/ticket generation + reporting. Orchestration appears central to product value."
+      "orchestration_pattern": "Orchestration engine that composes detection pipelines, LLM-based triage/commentary, and tool calls. Human-in-the-loop checkpoints and policy gates mediate automated actions. The system resembles an agent-with-tools pattern implemented inside a workflow engine rather than a pure multi-LLM chain."
     }
   },
   "market_type": "horizontal",
   "vertical": "cybersecurity",
-  "sub_vertical": "Vendor risk management (third-party risk management)",
-  "sub_sub_vertical": "Supply chain/vendor ecosystem risk management",
+  "sub_vertical": "third-party risk management",
+  "sub_sub_vertical": "vendor risk management and remediation automation",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
@@ -281,12 +254,12 @@
       {
         "id": "it_enterprise_software",
         "label": "Information Technology & Enterprise Software",
-        "confidence": 0.92
+        "confidence": 0.75
       },
       {
         "id": "cybersecurity",
         "label": "Cybersecurity",
-        "confidence": 0.88
+        "confidence": 0.9
       }
     ]
   },
@@ -295,14 +268,17 @@
     "llm_providers": [],
     "llm_models": [],
     "vector_databases": [],
-    "frameworks": [],
+    "frameworks": [
+      "Streamlit",
+      "n8n"
+    ],
     "hosting": [],
     "approach": "unknown",
     "uses_open_source_models": false,
-    "has_custom_models": true
+    "has_custom_models": false
   },
   "engineering_quality": {
-    "score": 6,
+    "score": 5,
     "has_public_api": true,
     "has_sdk": false,
     "has_documentation": true,
@@ -312,12 +288,11 @@
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "Public API presence indicated by API Access feature across pricing tiers",
-      "Enterprise-ready features: SSO, RBAC, Audit Log, per-user licenses, multi-org support",
-      "Vendors monitoring, continuous scanning, and AI-assisted risk assessment imply API-driven integrations",
-      "Attention to workflows: questionnaire builder/library, automation, and integrations with GRC tools via API",
-      "Trust Center and questionnaire automation imply programmatic content management and data export",
-      "Recurring reports and API-driven notifications show automation readiness"
+      "Public APIs exist for Vendor Risk, Breach Risk, User Risk, and Risk Portfolio data",
+      "APIs enable programmatic access to risk data and allow integration with external systems",
+      "Pre-built integrations to 100+ tools (ServiceNow, Splunk, Jira, Slack, Microsoft Teams, etc.) indicating automation focus",
+      "APIs to access security questionnaires and security profile data, including KEV data and CVE references",
+      "Ability to export reports (PDF/XLSX) from UI and maintain filters across exports, implying API support for data extraction"
     ]
   },
   "implementation_maturity": "production",
@@ -327,283 +302,293 @@
       "engineering_heavy": true,
       "has_ml_expertise": true,
       "has_domain_expertise": true,
-      "hiring_signals": [],
-      "team_size_indicators": "unknown",
-      "remote_distributed": false
+      "hiring_signals": [
+        "security engineering",
+        "data science",
+        "backend engineering",
+        "frontend engineering",
+        "ML/AI engineering"
+      ],
+      "team_size_indicators": "medium",
+      "remote_distributed": true
     },
-    "founder_market_fit": "Not assessable from provided content; no founder bios or histories available.",
+    "founder_market_fit": "Insufficient information in provided content to assess founders' fit; no founders named.",
     "team_strengths": [
-      "Strong domain expertise in third-party risk management (TPRM) and cyber risk; product features align with regulatory frameworks (ISO 27001, NIST CSF) and risk scoring/orchestration workflows.",
-      "Use of AI/ML capabilities for risk assessment and document parsing (AI document parsing, AI Threat Analyst, Breach Risk features) indicating a focus on automated insights.",
-      "Integrated platform capabilities (RBAC, SSO, API access, ongoing monitoring) suggest a scalable engineering effort and platform mindset."
+      "Strong product execution evidenced by an integrated risk platform spanning Vendor Risk, Breach Risk, and User Risk with automated remediation workflows",
+      "AI-driven data triage and human-in-the-loop capabilities indicating advanced analytics and governance focus",
+      "Extensive integrations ecosystem (100+ tools, including ServiceNow, Jira, Splunk, Slack, Microsoft Entra) suggesting scalable and interoperable architecture",
+      "Active product development and feature expansion (vendor onboarding portal, APIs for questionnaire data, threat monitoring updates, audit/log enhancements) indicating a growth-oriented engineering team"
     ],
     "team_red_flags": [
-      "Lack of publicly available founder/executive bios or team pages in provided content; no explicit evidence of leadership track records.",
-      "Reliance on marketing copy and customer quotes rather than verifiable bios may limit confidence in leadership expertise."
+      "No disclosed information about founders or leadership in the provided content",
+      "Lack of explicit team size, org chart, or hiring announcements in the supplied material"
     ],
-    "team_confidence": 0.2
+    "team_confidence": 0.25
   },
   "business_model": {
     "pricing_model": {
       "type": "subscription",
       "pricing_evidence": [
-        "Standard $1,750 /mo, billed annually",
-        "Multiple tier columns with increasing allowances (e.g., Vendor Monitoring Slots: 50 / 150 / 500 / Unlimited / Unlimited)",
-        "Free tier with usage limits (free plan usage limit message present)"
+        "Mentions 'Professional plans and above' in relation to onboarding features, implying tiered subscription pricing.",
+        "No explicit price points provided, suggesting enterprise-grade tiered pricing rather than a free or one-size-fits-all model."
       ],
-      "free_tier_available": true,
+      "free_tier_available": false,
       "enterprise_focus": true,
-      "price_points": [
-        "$1,750 /mo (Standard)"
-      ]
+      "price_points": []
     },
     "gtm_strategy": {
-      "primary_channel": "content_marketing",
+      "primary_channel": "sales_led",
       "evidence": [
-        "Free instant security score feature (lead magnet)",
-        "Trust Center for sharing security policies and certifications to accelerate sales",
-        "Ebooks, whitepapers, and case studies to drive awareness",
-        "Testimonials and quotes from customers highlighting efficiency and impact"
+        "Vendor Onboarding Portal beta mentions 'talk to your UpGuard representative about joining the beta program' and 'Professional plans and above', indicating a sales-led enterprise motion.",
+        "Promotion of enterprise features (white-labeled Trust Centers, board-ready reporting, APIs) suggests targeting large organizations.",
+        "APIs and integrations (100+ tools) enable partner- and customer-driven expansion."
       ],
       "target_segment": "enterprise",
-      "sales_motion": "self_serve"
+      "sales_motion": "inside_sales"
     },
     "revenue_model": {
-      "monetization_approach": "SaaS subscription with tiered plans and add-on enterprise features; premium enterprise support options",
+      "monetization_approach": "Subscription-based enterprise software with modular features and paid add-ons (Vendor Onboarding Portal, white labeling, API access), driving recurring revenue.",
       "unit_economics_signals": [
-        "Prices and tiered feature quotas (Vendor Monitoring Slots, Platform Users, RBAC, etc.) imply per-tier ARPU growth",
-        "Multiple support levels (Ticket-Only, Standard, Premium) suggest differentiated margins by service level"
+        "No explicit margins or ARPU data provided; presence of multiple enterprise add-ons implies higher ACV with modular pricing."
       ],
       "recurring_revenue": true
     },
     "distribution_advantages": [
-      "Unified TPCRM platform combining risk detection, inference, orchestration, and scoring",
-      "APIs and integrations for downstream systems (API Access, data exports, and GRC tool compatibility)",
-      "SSO and custom co-branding to support enterprise deployments",
-      "Multi-Org Accounts and onboarding/workflow portals to scale across organizations",
-      "Trust Center and customizable reports to accelerate sales cycles"
+      "Extensive pre-built integrations across 100+ tools (ServiceNow, Splunk, Jira, Cloudflare, Microsoft Entra), enabling rapid deployment and ecosystem leverage.",
+      "APIs for questionnaire data and other risk data, enabling extensions and automation in customers' ecosystems.",
+      "White-labeled Trust Centers for customer branding and trust-building.",
+      "Vendor Onboarding Portal capabilities to streamline procurement and collaboration.",
+      "Threat Monitoring expansions across multiple social platforms, broadening coverage and stickiness."
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "content_marketing",
-        "newsletter outreach",
-        "Trust Center-driven sales enablement",
-        "customer testimonials and case studies",
-        "industry recognition (Gartner mention cited in materials)"
+        " enterprise_sales",
+        " content_marketing/newsletters",
+        " partner_integrations",
+        " referrals"
       ],
       "customer_proof_points": [
-        "1,000+ companies using UpGuard",
-        "Testimonials from named customers praising efficiency and impact",
-        "Board-ready and executive-ready reporting capabilities"
+        "Deloitte",
+        "Commonwealth Bank",
+        "BlackRock",
+        "Mastercard",
+        "Yahoo!",
+        "Typeform",
+        "LinkedIn",
+        "Uber",
+        "Motorola Solutions",
+        "Netflix",
+        "Canva",
+        "Alphabet",
+        "Salesforce",
+        "Facebook (Meta)",
+        "IBM",
+        "NVIDIA",
+        "Adobe",
+        "Apple",
+        "DocuSign",
+        "Stripe",
+        "Sony",
+        "Ticketmaster",
+        "Amazon.com",
+        "Verizon",
+        "youX"
       ]
     },
-    "business_model_clarity": "clear",
-    "business_model_confidence": 0.75
+    "business_model_clarity": "evolving",
+    "business_model_confidence": 0.65
   },
   "product_analysis": {
-    "product_stage": "mature",
+    "product_stage": "beta",
     "stage_evidence": [
-      "Pricing tiers include Standard and Enterprise-ready options (e.g., Premium with data residency, multi-org nuances).",
-      "Extensive feature breadth across vendor risk management, breach risk, trust center, and executive reporting.",
-      "SSO and API access available, indicating enterprise readiness and integration capabilities.",
-      "Customer testimonials emphasize significant time savings and efficiency gains.",
-      "Multiple support levels (Ticket-Only, Standard, Premium Assurance) imply scalable enterprise support."
+      "Vendor Onboarding Portal is described as Beta with features like adding collaborators, resend capability, exports, and automated email alerts.",
+      "Vendor Onboarding Portal beta updates indicate ongoing development and planned GA maturation.",
+      "First set of public APIs for User Risk released; APIs for Security Profile Risk Portfolio, questionnaire data, and vulnerability metadata exposed.",
+      "2026 SIG Core & Lite questionnaire updates released, indicating continued content evolution.",
+      "Multiple features described as enhancements and beta-focused, signaling an evolving product rather than full GA across all modules."
     ],
     "feature_depth": {
       "core_features": [
-        "Vendor Monitoring",
-        "Vendor Snapshots",
-        "Platform Users (Admin/General)",
-        "Platform Users (Read-only)",
-        "Role-Based Access Control",
-        "Audit Log",
-        "SSO",
-        "API Access",
-        "News & Incidents",
-        "Vendor Summary",
-        "Onboarding Questionnaire",
-        "Questionnaire Builder",
-        "Questionnaire Library",
-        "Traditional Risk Assessment Workflows",
-        "Security Profile",
-        "Instant Risk Assessments",
-        "Risk & Remediation Management",
-        "Vulnerability Management",
-        "Additional Evidence/Documents",
-        "Recurring Reports",
-        "Fourth Parties",
-        "Onboarding Portal",
-        "Custom Notifications",
-        "Templates & Automation",
-        "Custom Co-branding",
-        "Multi-Org Accounts",
-        "Ticket-Only Support",
-        "Standard Support",
-        "Premium Assurance"
+        "Automated risk discovery, triage, and remediation across Vendor Risk, Breach Risk, and User Risk",
+        "Drag-and-drop risk automations to trigger remediation workflows",
+        "Unified risk data with integrations to ServiceNow, Splunk, Cloudflare, Jira, and Microsoft Entra",
+        "Incident/ticket integration to Jira, Slack, Zendesk, and Teams",
+        "AI-assisted triage with contextual insights and human-in-the-loop checkpoints",
+        "Comprehensive reporting for governance, risk, and compliance (board-ready reports, vendor risk summaries, etc.)",
+        "Regulatory/compliance coverage (ISO 27001, NIST CSF) via Compliance Reports",
+        "Threat Monitoring and brand protection (impersonation detection, fake accounts, domain impersonation, vibe-coding AI threat detection)",
+        "Trust Center / Trust Exchange for sharing security posture with customers",
+        "Vendor onboarding and supplier risk management workflows"
       ],
       "differentiating_features": [
-        "Breach Risk (dark web monitoring with AI Threat Analyst for threat triage)",
-        "Trust Center for security documentation sharing with branding and reports",
-        "AI-driven Instant Risk Assessments and AI document parsing within Security Profiles",
-        "Fourth Parties visibility to extend supply chain risk management",
-        "Executive/board-ready reporting with dynamic, customizable visuals"
+        "End-to-end automated remediation workflow with drag-and-drop platform and human-in-the-loop",
+        "100+ pre-built integrations and deep weaving into existing risk tooling ecosystem",
+        "Threat Monitoring across multiple social platforms (LinkedIn, Reddit, TikTok, X) and domain-based protection",
+        "White-labeled Trust Centers for customers to present their security posture under their brand",
+        "Vendor Onboarding Portal enabling proactive submission and managed triage of vendor assessments"
       ],
       "roadmap_signals": [
-        "Data residency options and pricing differentiation in Premium tier",
-        "Expansion of multi-org capabilities and fourth-party coverage",
-        "Enhanced onboarding workflows, automation templates, and customization in Trust Center",
-        "Broader integrations via API and pre-built connectors to GRC tools"
+        "Vendor Onboarding Portal moving toward broader GA capabilities beyond beta",
+        "Expansion of public APIs (User Risk, Vendor Risk, Security Profile data) and integration points",
+        "Additional social media coverage (TikTok) and expanded Threat Monitoring",
+        "Improvements like MCP server detection, Next.js vulnerability detection, and richer audit/log enhancements"
       ],
-      "feature_completeness": "comprehensive"
+      "feature_completeness": "growing"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [
-        "GRC tool integrations via API",
-        "Pre-built integrations and UpGuard API",
-        "SSO with identity providers (Microsoft Azure, Okta, Ping Identity)"
+        "ServiceNow",
+        "Splunk",
+        "Cloudflare",
+        "Jira",
+        "Microsoft Entra",
+        "Slack",
+        "Zendesk",
+        "Microsoft Teams"
       ],
       "api_maturity": "comprehensive",
       "sdk_availability": [],
-      "webhook_support": false,
+      "webhook_support": true,
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "Centralized third-party risk management (TPRM) across the vendor ecosystem",
+      "primary_use_case": "Automated risk discovery, triage, and remediation across multiple risk types (Vendor Risk, Breach Risk, User Risk) with AI-assisted insights and automated workflows",
       "secondary_use_cases": [
-        "External attack surface monitoring and risk awareness (Breach Risk)",
-        "Security posture reporting and governance for executives/board",
-        "Regulatory/compliance reporting and vendor documentation via Trust Center"
+        "Executive reporting and governance via board-ready dashboards and customizable reports",
+        "Compliance assurance and vendor risk assessment (ISO 27001, NIST CSF)",
+        "Threat Monitoring and brand protection across social media and domains",
+        "Vendor onboarding and supplier risk management via onboarding portal",
+        "API-driven integration to feed risk data into internal systems"
       ],
-      "customer_stories": [
-        "Saved around 2,000 hours of assessment time; 70% higher efficiency; 30 hours weekly saved attributed to better processes",
-        "Trust Center enables sales, legal, and security teams to share security policies and certifications quickly",
-        "AI-driven risk assessments reduce manual effort and accelerate reporting"
-      ],
+      "customer_stories": [],
       "industry_focus": [
-        "Healthcare (compliance and vendor risk in regulated environments)",
-        "Enterprise and general cybersecurity risk management",
-        "Vendor risk management across multiple sectors"
+        "Financial services",
+        "Technology",
+        "Professional services",
+        "Media/communications",
+        "Retail"
       ]
     },
     "product_risks": [
-      "Documentation/content fragmentation indicated by non-existent pages and 'page lost' notes, signaling potential depth gaps or inconsistent depth across sections",
-      "Reliance on AI-driven risk insights may raise questions about explainability and validation of automated assessments",
-      "Pricing tiers may create complexity in understanding value and feature access across plans"
+      "Beta features (e.g., Vendor Onboarding Portal) may have stability and support limitations until GA",
+      "APIs are expanding with potential for breaking changes during maturation",
+      "Heavy reliance on integrations with third-party tools may introduce dependency risk",
+      "Cross-organizational data sharing in Trust Center and vendor risk workflows raises privacy considerations",
+      "AI-driven triage requires ongoing validation to avoid alert fatigue and misprioritization"
     ],
     "product_strengths": [
-      "End-to-end TPCRM coverage: monitoring, assessments, remediation, and reporting in one platform",
-      "Strong integration surface: SSO, API, and pre-built connectors support enterprise ecosystems",
-      "Real-time and AI-enhanced risk visibility with Breach Risk and AI-driven risk assessments",
-      "Executive-friendly reporting and compliance mapping (ISO 27001, NIST CSF) with Trust Center capabilities"
+      "End-to-end risk automation and remediation workflow capability",
+      "Broad integration ecosystem with 100+ tools and popular platforms",
+      "AI-assisted triage with contextual insights and human-in-the-loop checkpoints",
+      "Robust reporting capabilities including board-ready and vendor-focused reports",
+      "Threat Monitoring and brand protection spanning impersonation, fake accounts, and domain risks"
     ],
-    "product_confidence": 0.8
+    "product_confidence": 0.72
   },
   "unique_findings": [
-    "Unified CRPM that fuses continuous external attack-surface telemetry (domains, IPs, services, apps, LLM endpoints) with dark/deep-web signals, vendor self-attestation (questionnaires and documents), and threat intelligence \u2014 producing a single, auditable vendor posture and score. The non-trivial part: mapping and attributing heterogeneous signals to a vendor entity (asset/vendor resolution) in real time.",
-    "AI-driven document parsing + framework mapping: they parse vendor documents and map controls to ISO/NIST/etc. to deliver instant, structured security profiles. That implies a pipeline of OCR/NER, schema mapping, and deterministic rule layers to produce defensible, framework-aligned outputs suitable for board/regulator reporting.",
-    "Questionnaire AI that auto-fills/generates answers from a customer's own security documentation and prior questionnaire history. This is a customer-specific retrieval+generation system that 'constantly learns' from a private library \u2014 implying per-customer embeddings, RAG and likely continual fine-tuning or feedback loops rather than a one-off LLM call.",
-    "AI Threat Analyst as a virtual Tier-1 triage layer over dark-web/infostealer leaks and ransomware sites \u2014 combining signal aggregation, confidence scoring, contextual enrichment (who is impacted, exploitability) and provenance so alerts become concise, high-confidence summaries with suggested remediation steps.",
-    "Prioritization layer that blends CVE severity, KEV exploit lists and EPSS predictions with observed exposure to produce exploitability-prioritized remediation queues. This requires correlating vulnerability metadata with observed services/configurations and vendor responsibilities.",
-    "Detection of emergent attack vectors like AI-generated phishing sites and LLM-exposed endpoints ('vibe-coding' detection and AI development platform scanning). This indicates they\u2019ve instrumented unusual source sets (AI dev platforms, public LLM endpoints) and built heuristics/models to identify AI-enabled impersonation at scale.",
-    "End-to-end orchestration: not just detection but guided remediation workflows, ticketing/audit trails, and integrations (API, GRC push, SSO). The product aims to replace multi-tool workflows with a single loop from discovery \u2192 inference \u2192 prioritization \u2192 remediation \u2192 reporting.",
-    "Productized auditability and defensibility: repeated emphasis on board-ready, exportable, framework-aligned reports and a full audit log. That suggests scoring decisions are recorded with evidence links and deterministic mappings \u2014 a tougher engineering requirement than opaque ML scores."
+    "Targeted detection of 'vibe-coding' and AI-generated phishing across AI dev platforms (Streamlit.io and other emerging platforms). This implies they\u2019ve built dynamic crawlers/scrapers and content-analysis pipelines that can discover short-lived, developer-hosted UIs and classify them as impersonation/phishing\u2014a different signal set than traditional static domain scanning.",
+    "Model Context Protocol (MCP) awareness: they detect open MCP servers and ship a dedicated MCP Server Security Questionnaire covering indirect prompt injection, excessive agent permissions, and supply-chain integrity. That signals an explicit productization of 'agentic attack surface' telemetry and assessment workflows rather than treating AI as just another asset class.",
+    "Tight coupling between external EASM-style telemetry and closed-loop remediation automation: the product not only discovers vendor/infrastructure/user risks but can immediately kick off drag-and-drop automations, create tickets across ServiceNow/Splunk/Jira/Teams/Slack, and add human-in-the-loop gates. They\u2019ve productized orchestration+triage+remediation as a single UX surface.",
+    "APIs that expose normalized questionnaire and 'Risk Portfolio' datasets (vendor risks across all monitored vendors, affected hostnames, KEV flags). This implies a canonical internal data model that maps telemetry, questionnaires, vulnerability metadata (including Known Exploited Vulnerabilities), vendor identities, and remediation state.",
+    "Privacy/collection controls around credential dumps: customers can choose whether passwords in credential-dump sources are redacted or collected plaintext (or not collected). That\u2019s an unusual, compliance-aware control embedded into ingestion pipelines.",
+    "Granular auditability and report continuity: severity filters persist into exported PDFs/XLSX, extended audit log ranges (up to 18 months) and richer Trust Center asset audit entries. They\u2019re solving immutable workflow traceability across discovery\u2192triage\u2192reporting.",
+    "Rapid fingerprinting/version detection for modern dev stacks (Next.js, React Server Components, n8n) including bespoke CVE mappings (e.g., CVE-2025-55182, Ni8mare CVE-2026-21858). This indicates continuous fingerprint + CVE correlation tailored to developer frameworks, not just commodity OS/app scanning.",
+    "Product-level multi-tenanted Trust Centers/Pages with white-labeling and fine-grained document ordering: they\u2019re positioning the platform as both a security product and an external marketing/trust surface for customers (bridging security telemetry with customer-facing compliance storytelling)."
   ],
-  "technical_depth": "medium",
+  "technical_depth": "high",
   "newsletter_potential": "high",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "Inside UpGuard\u2019s end-to-end CRPM pipeline: how detection, inference and orchestration are stitched into a realtime loop",
-      "summary": "UpGuard pitches a continuous risk posture management (CRPM) platform that claims to unify detection, inference, orchestration and scoring into a single real-time loop. For engineers this is an opportunity to dissect how streaming signal ingestion, lightweight inference models, RAG/document parsing, and orchestration/workflow engines are composed to turn noisy telemetry into audit-ready remediation actions.",
+      "headline": "Under the hood of UpGuard: an agentic, event-driven remediation stack that stitches AI, humans and 100+ integrations",
+      "summary": "UpGuard appears to have built an orchestration-first architecture that combines background scanners, a drag-and-drop Risk Automations layer, and human\u2011in\u2011the\u2011loop checkpoints to turn detection into immediate remediation. For builders, the interesting questions are how they pipeline high\u2011fidelity signals into a RAG-style retrieval layer, manage state across many integrations (ServiceNow, Splunk, Jira, Cloudflare, Microsoft Entra) and guarantee consistency when automations can both triage and take action.",
       "evidence": [
-        "CRPM platform 'unifies risk detection, inference, orchestration & scoring' across the organization",
-        "Claims 'billions of signals captured daily' and a 'single real-time posture loop' for monitoring and scoring",
-        "Mentions AI document parsing, Instant Risk Assessments (<60s), and 'intelligent workflows' to remediate faster",
-        "Analysis context notes patterns: RAG, micro-model mesh, agentic/orchestrator architectures, streaming ingestion + real-time scoring"
+        "Risk Automations is a drag-and-drop platform built for risk professionals with human-in-the-loop checkpoints and automated remediation triggers",
+        "Pre-built integrations with 100+ tools including ServiceNow, Splunk, Cloudflare, Jira and Microsoft Entra to sync alerts, reports and tickets",
+        "Event-driven features: automated workflows that take action the moment a risk is discovered and background scanning for domains/apps"
       ],
       "uniqueness_score": 8
     },
     {
       "angle_type": "data",
-      "headline": "Their secret weapon: a vertical OSINT moat of dark, deep and open web signals powering AI Threat Analyst",
-      "summary": "UpGuard emphasizes ingesting signals from the open, deep and dark web\u2014ransomware leak sites, paste sites, infostealer logs, GitHub repos and messaging platforms\u2014feeding an 'AI Threat Analyst' that triages and prioritizes. A newsletter piece could explore the engineering challenges of reliably harvesting, deduplicating, labeling and scoring such high-noise sources and how that data advantage translates into lower false positives and faster triage.",
+      "headline": "Their moat: a vertical vendor dataset + Trust Center document corpus powering change\u2011detection and RAG\u2011style assessments",
+      "summary": "UpGuard\u2019s product roadmap emphasizes a proprietary, continuously-updated vendor document repository, questionnaire APIs and Trust Center features that read like a vertical data moat strategy. For AI systems this dataset can be used for RAG retrieval, temporal change detection (alerts when a Security Profile changes) and to enrich automated risk commentary \u2014 but the value depends on dataset coverage, freshness and access controls.",
       "evidence": [
-        "Breach Risk 'collects and correlates signals from ransomware leak sites, dark web forums, infostealer malware logs, GitHub code repositories, paste sites, and messaging platforms like Telegram and Discord'",
-        "Claims an 'AI Threat Analyst' that automatically filters and prioritizes dark web signals to reduce false positives",
-        "Marketing claims 'billions of signals captured daily' and continuous monitoring of internet-facing infrastructure"
+        "Monthly import of public vendor security documents expanded coverage (43 and 47 new documents mentioned across releases)",
+        "APIs released to access questionnaire metadata, questions, answers and comments and public APIs for Risk Portfolio and User Risk",
+        "Security Profile Risk Assessment alert informs users if a vendor\u2019s Security Profile changed during drafting (change-detection)"
       ],
       "uniqueness_score": 9
     },
     {
       "angle_type": "contrarian",
-      "headline": "Betting on AI to replace the manual TPRM grind: why UpGuard doubled-down on automation where most vendors keep human gates",
-      "summary": "Rather than keeping human-centric gating for assessments and continuous monitoring, UpGuard emphasizes AI-powered instant risk assessments, Questionnaire AI, and automations that claim to cut 90% of manual work. The contrarian story examines trade-offs: speed and scale versus auditability, error modes of automated questionnaires, and how UpGuard defends against automation-induced blind spots.",
+      "headline": "They didn\u2019t fully automate everything: UpGuard bets on human checkpoints and white\u2011label trust centers over pure autonomy",
+      "summary": "Rather than marketing full autonomous remediation, UpGuard is deliberately blending AI triage with human-in-the-loop gates and white\u2011labeled Trust Centers for customer-facing controls. That\u2019s a contrarian product posture in a market pushing \u2018autonomous agents\u2019 \u2014 it prioritizes governance, audit trails and customer trust, but raises questions about how much latency and operational friction remains versus all-in automation.",
       "evidence": [
-        "Claims 'Generate accurate point-in-time risk assessments in under a minute with UpGuard AI' and 'Questionnaire AI automatically completes questionnaires using your own security documentation'",
-        "Marketing references '90% less manual work' and customer quotes claiming 'saved around 2,000 hours of assessment time'",
-        "Product features include audit logs, role-based access control, and 'defensible outputs' suggesting attention to governance around automation"
+        "AI triages data and delivers contextualized insights, but users can add human-in-the-loop checkpoints to automations",
+        "White labeled Trust Centers remove the UpGuard brand for customer-facing security transparency rather than fully automated remediation without oversight",
+        "Extended audit logging (expanded to 18 months and additional granular events) signals focus on governance and traceability"
       ],
-      "uniqueness_score": 7
+      "uniqueness_score": 6
     },
     {
       "angle_type": "efficiency",
-      "headline": "From 300\u2011question PDFs to board-ready slides in three clicks: the automation math behind UpGuard\u2019s time savings",
-      "summary": "UpGuard touts concrete operational efficiencies\u2014instant security scores, AI document parsing that fills questionnaires, Trust Centers that replace manual exchanges, and scheduled executive reports. A practical piece can quantify expected time and headcount savings, explore how automation pipelines reduce cycle time for vendor onboarding, and surface where human-in-the-loop review remains necessary.",
+      "headline": "From days to seconds? How UpGuard claims automation slashes time\u2011to\u2011resolution \u2014 and what engineers should verify",
+      "summary": "UpGuard claims automated workflows can reduce time\u2011to\u2011resolution from days to seconds by automatically triaging, opening tickets and actioning remediation. That\u2019s a powerful efficiency claim for security operations, but technical readers will want hard metrics: end-to-end latency, false positive-induced churn, SLA guarantees for third\u2011party integrations, and how state/rollback is handled when automated remediation fails.",
       "evidence": [
-        "Customer testimonial: 'We went from manually answering 300 question questionnaires to just sending an email with our Trust Page' and 'saving 30 hours every week'",
-        "Capabilities: Instant risk assessments, AI document parsing, Trust Center with prefilled documentation, and 'board-ready summaries in just three clicks'",
-        "Feature table lists Questionnaire Builder, Questionnaire Library, Instant Risk Assessments, and Recurring Reports as included across plans"
+        "Claim: Trigger automated workflows that take action \u2014 from triaging a vulnerability and opening a ticket, to actioning remediation \u2014 the moment a risk is discovered",
+        "Integrations into Jira, Slack, Zendesk and Microsoft Teams for direct ticketing and notifications",
+        "New features such as severity-based filtering and audit log exports that streamline triage and reporting"
       ],
       "uniqueness_score": 7
     }
   ],
   "anti_patterns": [
     {
-      "pattern_type": "overclaiming",
-      "description": "Marketing makes broad, definitive claims about AI capabilities, scale, and reliability without technical specifics or quantifiable metrics to validate them.",
-      "severity": "high",
-      "evidence": [
-        "\"Billions of signals captured daily across your assets, workforce and vendors.\"",
-        "\"AI powered detection, prioritization and orchestration.\"",
-        "\"AI Threat Analyst acts as a virtual Tier 1 analyst\u2014your first line of triage.\"",
-        "\"Generate accurate point-in-time risk assessments in under a minute with UpGuard AI.\"",
-        "\"No other ratings scorecard is as reliable or easy to understand.\""
-      ]
-    },
-    {
       "pattern_type": "wrapper",
-      "description": "No concrete technical detail about underlying models, training data, or proprietary model architectures \u2014 leaves open the possibility the platform is primarily orchestration and UI wrapped around third-party LLMs or commodity APIs.",
+      "description": "Marketing references to 'AI triages the data' and 'AI threat summary' without technical detail suggest the possibility that core intelligent behavior could be a thin orchestration layer over third-party LLMs or models rather than proprietary model or algorithmic differentiation.",
       "severity": "medium",
       "evidence": [
-        "Content repeatedly uses 'AI' and 'AI-powered' but provides no specifics about model ownership, training corpus, or unique ML architectures.",
-        "Multiple product claims (instant assessments, AI Threat Analyst, document parsing) without technical disclosure of proprietary models or classifiers."
-      ]
-    },
-    {
-      "pattern_type": "no_moat",
-      "description": "Many capabilities (continuous monitoring, questionnaires, RBAC, SSO, API access, reporting) are standard in TPRM/GRC tools \u2014 the content does not clearly prove exclusive data advantages, unique signal sources, or defensible technical IP.",
-      "severity": "medium",
-      "evidence": [
-        "Feature list includes common enterprise controls: SSO, RBAC, audit logs, API access, reporting and templates.",
-        "Claims of continuous monitoring, questionnaires, and integrations are capabilities offered by multiple competitors in the vendor risk space."
-      ]
-    },
-    {
-      "pattern_type": "undifferentiated",
-      "description": "Positioning reads as broad and general rather than narrowly differentiated \u2014 messaging targets many verticals (healthcare, general enterprise) and many use-cases, risking being perceived as a me-too, catch-all product.",
-      "severity": "medium",
-      "evidence": [
-        "Multiple vertical pitches (healthcare, general vendor risk, brand protection) and an extensive checklist of common TPRM features.",
-        "Claims like 'One platform, one narrative' and 'replace hours of manual digging' align with generic platform messaging rather than a single unique capability."
+        "\"Our AI triages the data, delivering contextualized insights to the right decision-makers.\"",
+        "The product description emphasizes integrations and drag-and-drop Risk Automations but gives no specifics about model ownership, model architecture, or proprietary ML IP."
       ]
     },
     {
       "pattern_type": "feature_not_product",
-      "description": "Several offerings described (Trust Center, AI questionnaire autofill, Breach Risk workspace) could be marketed as point features that incumbent platforms or security vendors could incorporate, rather than forming an irreproducible product moat.",
+      "description": "Several items read like incremental product features (filters, audit-log date extension, onboarding portal beta, export improvements). If the company's roadmap is dominated by additive UX/features without platform-level differentiation, there's a risk these are easily absorbed by larger incumbents.",
       "severity": "low",
       "evidence": [
-        "Trust Center and Questionnaire AI are described as add-ons (fast to set up, premium features) rather than core proprietary technology.",
-        "Breach Risk's dark-web collection and takedown evidence resemble specialized features that other security vendors also provide."
+        "Severity-based filtering for Vendor Risk, Breach Risk and User Risk risk profiles.",
+        "Extended audit log filtering from 30 days to 18 months.",
+        "Vendor Onboarding Portal (Beta) updates: Add collaborators, Resend capability, Exports, Email notifications."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "While the product references data imports and Trust Centers, many capabilities (vendor risk scoring, breach detection, social media monitoring, integrations) are common in the security market. Without clearer, measurable proprietary data advantages or unique detection approaches, the offering could be replicable by competitors or platform providers.",
+      "severity": "medium",
+      "evidence": [
+        "Monthly import of public vendor security documents has expanded coverage to include 47 new documents / 43 new documents in other release notes.",
+        "Extensive integrations: 'Sync 100+ tools with pre-built integrations\u2014including ServiceNow, Splunk, Cloudflare, Jira, and Microsoft Entra'.",
+        "Expanded social media coverage, domain and impersonation detection\u2014capabilities that many security vendors offer."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Some marketing claims are broad and outcome-focused (e.g., 'reduce time-to-resolution from days to seconds') without operational metrics or evidence. The copy uses strong AI/automation claims that lack technical substantiation in the provided content.",
+      "severity": "medium",
+      "evidence": [
+        "\"Stop chasing noise. Integrate high-fidelity alerts... Our AI triages the data... Trigger automated workflows that take action... reduce time-to-resolution from days to seconds.\"",
+        "Phrases like 'The AI threat summary is great. It\u2019s refreshing to read two sentences and immediately know why I should care' are testimonial/marketing without technical detail."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The product spans a broad set of capabilities (Vendor Risk, Breach Risk, User Risk, Trust Centers, Threat Monitoring). However, breadth without a clearly articulated, hard-to-copy differentiator (unique signals, exclusive integrations, proprietary models, or unique regulatory positioning) risks being perceived as 'me-too' in a crowded vendor risk/security ratings market.",
+      "severity": "medium",
+      "evidence": [
+        "Multiple overlapping capabilities described (vendor onboarding, security profiles, breach detection, social media monitoring, trust centers, APIs) that mirror adjacent vendor offerings.",
+        "Named enterprise customers and integrations imply enterprise-fit but do not by themselves prove uncopyable technical differentiation."
       ]
     }
   ],
@@ -611,87 +596,87 @@
     "competitors": [
       {
         "name": "SecurityScorecard",
-        "similarity": "Third\u2011party risk/security ratings, continuous vendor monitoring, executive reporting and benchmarking.",
-        "how_different": "UpGuard emphasizes an integrated platform that combines vendor ratings with questionnaire automation, threat intelligence (dark/deep/open web), attack surface monitoring, and a Trust Center for proactive customer/vendor communications; UpGuard stresses AI document parsing and instant risk assessments under a minute, whereas SecurityScorecard is primarily focused on continuous rating and marketplace integrations."
+        "similarity": "Third\u2011party/vendor risk ratings, continuous external monitoring, security posture scoring for supply chain risk.",
+        "how_different": "UpGuard emphasizes an integrated platform that combines Vendor Risk, Breach/Attack Surface monitoring, User Risk (internal workforce), Trust Centers for vendor\u2011facing disclosure, and heavy automation (Risk Automations). UpGuard also highlights automated questionnaire imports, evidence management, and a Trust Exchange/Trust Center product for publishing vendor security information."
       },
       {
         "name": "BitSight",
-        "similarity": "Security ratings, vendor risk monitoring, reporting for boards and insurers, continuous external posture assessment.",
-        "how_different": "UpGuard positions a broader CRPM (cyber risk posture management) stack that couples ratings with automated questionnaires, remediation workflows, breach/dark web intelligence (Breach Risk), and Trust Exchange capabilities to streamline sales/assurance; UpGuard markets deeper automation (Questionnaire AI, document parsing) and integrated attack surface monitoring alongside ratings."
+        "similarity": "Outside\u2011in security ratings, continuous monitoring of vendors and internet\u2011facing assets for third\u2011party risk management.",
+        "how_different": "UpGuard pairs outside\u2011in ratings with deep remediation workflows, ticketing integrations, AI triage, and a customer\u2011facing Trust Center product. UpGuard also stresses social media and vibe\u2011coding phishing detection and a User Risk (inside\u2011out) product to complement external signals."
       },
       {
-        "name": "OneTrust (Vendor Risk Management module)",
-        "similarity": "Third\u2011party risk management workflows, questionnaires, vendor lifecycle, compliance reporting and enterprise governance.",
-        "how_different": "OneTrust is a broad privacy/GRC suite that embeds TPRM inside a wider compliance platform. UpGuard differentiates by combining external signal\u2011driven security ratings and real\u2011time attack surface + dark web intelligence with AI that auto\u2011fills questionnaires and delivers near\u2011instant assessments and more security\u2011centric telemetry."
+        "name": "RiskRecon (and similar attack\u2011surface firms e.g., RiskIQ / Censys)",
+        "similarity": "Attack surface discovery, internet\u2011exposed asset detection, and vulnerability visibility.",
+        "how_different": "UpGuard combines attack surface/breach detection with vendor assessment workflows, questionnaire automation, Trust Pages, and remediation automation (integrations to Jira, ServiceNow, Splunk, etc.). They promote a single risk platform (Vendor + Breach + User Risk) rather than standalone asset discovery."
       },
       {
-        "name": "RiskIQ / RiskRecon",
-        "similarity": "External attack surface management, continuous internet\u2011facing asset discovery, and risk scoring based on exposed services and misconfigurations.",
-        "how_different": "UpGuard bundles attack surface discovery with vendor risk management, dark web threat triage, and human risk features (User Risk), plus AI orchestration and a Trust Center; UpGuard emphasizes a single platform that maps supply chain, workforce, and attack surface rather than standalone ASM."
+        "name": "Black Kite",
+        "similarity": "Third\u2011party risk and supply chain security monitoring with external threat and posture scoring.",
+        "how_different": "UpGuard pushes deeper operational features: Trust Exchange (white\u2011labeled Trust Centers and published security profiles), broad social media monitoring (TikTok, LinkedIn, Reddit), and built\u2011in remediation automation and AI\u2011driven triage for faster time\u2011to\u2011resolution."
       },
       {
-        "name": "Tenable / Rapid7 (VM & ASM overlap)",
-        "similarity": "Vulnerability prioritization, CVE/EPSS based risk scoring, external exposure discovery and remediation workflows.",
-        "how_different": "Tenable/Rapid7 are vulnerability and asset\u2011centric. UpGuard incorporates vulnerability context into a broader vendor and supply\u2011chain risk narrative, linking exploitability prioritization to vendor remediation, continuous monitoring and vendor posture scoring, plus AI\u2011driven inference and automated questionnaires."
+        "name": "CyberGRX / Prevalent / Aravo (GRC/vendor risk management vendors)",
+        "similarity": "Vendor risk assessment workflows, questionnaires, evidence collection and compliance reporting.",
+        "how_different": "UpGuard couples GRC\u2011style assessments with continuous external scans, breach detection, automatic document imports, APIs for questionnaire data, and customer\u2011facing Trust Centers\u2014blending continuous monitoring with questionnaire automation and outward communication tools for sales/trust use cases."
       },
       {
-        "name": "Recorded Future / Flashpoint / Digital Shadows",
-        "similarity": "Threat intelligence, dark web monitoring, brand impersonation and leak detection.",
-        "how_different": "UpGuard packages dark/deep/open web intelligence (Breach Risk) tightly with vendor posture, trust/trust center workflows, and an AI Threat Analyst that triages signals specifically to support vendor/board reporting and remediation workflows; it claims integrated takedown evidence and brand protection combined with VRM functions rather than standalone TI."
+        "name": "OneTrust",
+        "similarity": "Vendor risk management, questionnaires, compliance reporting and broader GRC/privacy tooling.",
+        "how_different": "UpGuard focuses on continuous external detection, attack surface/breach insights, social impersonation monitoring, and a dedicated Trust Exchange for publishing security posture. UpGuard emphasizes automation, AI triage, and integrations to remediation systems rather than primarily GRC/workflow breadth."
       },
       {
-        "name": "CyberGRX / Prevalent / CyberGRX",
-        "similarity": "TPRM exchange models, third\u2011party risk assessments and standardized evidence sharing across buyer/seller ecosystems.",
-        "how_different": "UpGuard offers a Trust Exchange/Trust Center to publish security posture and auto\u2011answer buyer questionnaires, but pairs this with continuous external scanning and AI auto\u2011fill capabilities; UpGuard touts instant AI assessments and daily rating updates versus CyberGRX\u2019s focus on standardized assessment exchanges and managed shared risk models."
+        "name": "Vanta / Secureframe / Drata",
+        "similarity": "Trust and compliance automation, SOC 2/ISO/NIST assessment automation, helping customers prove security posture.",
+        "how_different": "While Vanta/Drata focus on helping vendors achieve compliance (SOC2 automation), UpGuard focuses on demonstrating/posting vendor posture (Trust Centers), external monitoring of vendor exposures, proactive breach and impersonation detection, and a multi\u2011product platform that also monitors customers\u2019 attack surface and internal user risk."
       },
       {
-        "name": "KnowBe4 / Tessian / Proofpoint (human risk area)",
-        "similarity": "Workforce risk management, user behavior, phishing defense and behavior modification.",
-        "how_different": "UpGuard\u2019s User Risk feature focuses on real\u2011time nudges and browser extension controls (behavior governance) and personal risk scores tied into remediation verification loops; this differs from training\u2011first vendors (KnowBe4) by enforcing behavior changes in\u2011workflow and closing the loop with daily scans rather than episodic training."
+        "name": "ZeroFox / Brand protection vendors",
+        "similarity": "Digital risk protection, detection and takedown of brand impersonation, social media threats and phishing.",
+        "how_different": "UpGuard integrates social media impersonation and 'vibe\u2011coding' detection into a broader cyber risk management stack tied to vendor profiles, breach risk, and remediation workflows. It also provides takedown\u2011ready evidence inside the same platform used for third\u2011party risk and Trust Centers."
+      },
+      {
+        "name": "Tenable / Rapid7",
+        "similarity": "Vulnerability management and internet\u2011exposed asset scanning for risk prioritization.",
+        "how_different": "UpGuard positions its Breach Risk and Attack Surface monitoring alongside vendor risk assessments and a Trust Exchange; it emphasizes mapping vulnerabilities to vendor portfolios and integrating KEV (Known Exploited Vulnerabilities) context into vendor prioritization and remediation workflows rather than solely scanning and VM lifecycle management."
       }
     ],
     "differentiation": {
-      "primary": "A unified CRPM platform that combines continuous external security ratings, third\u2011party questionnaires and automation, attack surface monitoring, dark/deep/open web threat intelligence, workforce behavior controls, and a Trust/Publishing layer \u2014 all tied together with AI to automate assessments, triage, and remediation workflows.",
-      "technical": "High\u2011frequency signal ingestion (\"billions of signals captured daily\"), AI document parsing and Questionnaire AI that autofills questionnaires using customer documentation, an \"AI Threat Analyst\" for dark web triage, continuous rating updates multiple times per day, integration of CVE/KEV/EPSS exploitability data for vulnerability prioritization, and APIs/SSO/role\u2011based controls for enterprise integration.",
-      "business": "GTM focuses on enabling security teams and sales teams simultaneously (Trust Center reduces sales friction), packaged pricing tiers for monitoring slots and users, and vertical specialization (healthcare emphasis) \u2014 selling a single platform to replace multiple point tools and reduce manual assessment labor (claims of 90% less manual work, thousands of hours saved).",
-      "positioning": "Positions itself as the only/primary platform that spans supply chain (third & fourth parties), attack surface, workforce, and trust relationships with AI orchestration \u2014 marketed as faster, more automated, and more defensible reporting for boards, regulators, and cyber insurance compared to disjointed toolchains or ratings\u2011only vendors."
+      "primary": "An integrated '360\u00b0' cyber risk platform that unifies outside\u2011in vendor/breach/attack surface monitoring with inside\u2011out user (human) risk and customer\u2011facing Trust Centers, all tied together with automation, AI triage, and broad integrations to remediation systems.",
+      "technical": "Broad external telemetry and detection (internet asset fingerprinting, product/version detection, social media sources, vibe\u2011coding sources like Streamlit/AI platforms), APIs exposing questionnaire and risk portfolio data, KEV flags in vulnerability lists, and an AI triage layer that contextualizes alerts. Platform supports drag\u2011and\u2011drop Risk Automations and many pre\u2011built integrations (ServiceNow, Splunk, Jira, Microsoft Entra, Slack, Zendesk).",
+      "business": "Combines continuous monitoring + questionnaire/document ingestion + customer\u2011facing Trust Centers (Trust Exchange) to both reduce vendor risk and help customers publicly demonstrate security posture\u2014creating a sales enablement angle. Offers white\u2011labeling, premium tiers for Trust Exchange, and API access to integrate data into customer workflows.",
+      "positioning": "Positioned as a unified risk automation and trust platform for risk teams (GRC, TPRM, SOC analysts), not just a ratings vendor or a vulnerability scanner. Emphasizes speed (reduce time\u2011to\u2011resolution from days to seconds), automation, AI triage, and the ability to publish trust artifacts to customers."
     },
     "secret_sauce": {
-      "core_advantage": "An integrated data + AI pipeline that unifies diverse signal streams (external scans, dark web feeds, vulnerability feeds, customer documents/questionnaires) into rapid, defensible risk assessments and automated remediation workflows \u2014 plus a Trust/Publishing network (Trust Exchange/Trust Center) that reduces buyer\u2011seller friction.",
-      "defensibility": "Moderate defensibility driven by network effects and proprietary data: continuous scanning across many customers builds a large, evolving dataset of vendor posture and external exposure; Questionnaire AI and document parsing improve with scale/labels; the combined functionality (ratings + TI + TPRM + trust publishing + workforce controls) creates switching costs. However, many features are individually replicable by big players (OneTrust, BitSight, Recorded Future), so the moat is not impregnable without sustained data scale and model quality.",
+      "core_advantage": "An end\u2011to\u2011end platform combining continuous external monitoring (attack surface, breaches, impersonation), vendor assessment/questionnaire automation, internal human risk visibility, and customer\u2011facing Trust Centers\u2014glued by AI triage and automation workflows with deep integrations.",
+      "defensibility": "Network and data effects from aggregated vendor Security Profiles and Trust Exchange usage (published profiles and documents), breadth of telemetry (social platforms, vibe\u2011coding sources, product/version detection), mature integrations and APIs embedding UpGuard into customers\u2019 remediation workflows, plus AI models and heuristics tuned to their combined signal set. These create switching costs and make it harder for point\u2011solutions to replicate the full stack quickly.",
       "evidence": [
-        "\u201cBillions of signals captured daily across your assets, workforce and vendors.\u201d",
-        "\u201cAI document parsing to deliver rapid, structured assessments.\u201d",
-        "\u201cGenerate accurate point\u2011in\u2011time risk assessments in under a minute with UpGuard AI.\u201d",
-        "\u201cBreach Risk\u2019s AI Threat Analyst acts as a virtual Tier 1 analyst\u2014automatically filters and prioritizes dark web signals.\u201d",
-        "\u201cTrust Center...Streamline your sales process by proactively sharing your security policies and certifications from a single Trust Center.\u201d",
-        "\u201cInstant security score...Instant insights you can act on immediately.\u201d",
-        "\u201cContinuous monitoring ensures you\u2019re alerted to all critical shifts in vendor posture.\u201d"
+        "\u2018Sync 100+ tools with pre-built integrations\u2014including ServiceNow, Splunk, Cloudflare, Jira, and Microsoft Entra\u2026\u2019 (shows deep integration/automation focus).",
+        "\u2018Risk Automations is a drag-and-drop platform\u2026\u2019 and \u2018Our AI triages the data, delivering contextualized insights\u2026\u2019 (automation + AI triage claim).",
+        "\u2018Proactively detect and neutralize fake social media accounts, lookalike domains, and AI-generated phishing sites\u2026\u2019 and expanded social media coverage (TikTok, LinkedIn, Reddit) (breadth of telemetry).",
+        "\u2018Trust Exchange\u2026white labeling\u2026publish Trust Centers\u2026generate board-ready PowerPoints\u2026\u2019 (customer\u2011facing Trust Centers and sales enablement).",
+        "Multiple feature notes showing API releases for questionnaire and risk portfolio data, KEV flags, and monthly public document imports (data/automation capabilities and proprietary datasets)."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "UpGuard\u2019s moat comes from the breadth of integrated capabilities (ratings + TPRM + ASM + dark web + workforce + trust publishing) and a large, continuously updated signal corpus powering ML/AI features and questionnaire automation. Those create useful customer efficiencies and some switching friction (consolidation benefits, integrated reporting for boards/regulators). However, many competitors own parts of this stack (ratings, ASM, TI, GRC) and could bundle similar features; sustained defensibility depends on continued data scale, ML accuracy, and customer network effects from Trust Exchange adoption.",
+    "moat_explanation": "UpGuard\u2019s moat is built from an integrated data set (continuous external scans, monthly public document ingestion, published Trust Profiles), a growing Trust Exchange that can create network effects, and operational integrations/automation that embed UpGuard into customers\u2019 workflows. However, the market is crowded with specialized competitors (ratings, attack\u2011surface, GRC, brand protection) and many firms can replicate parts of the stack. The combined breadth + embedded workflows + published trust portal raise the bar, but not to the level of unassailable advantage\u2014competitors can assemble similar offerings through expansion or acquisition, so defensive strength is moderate.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "Security Profile See how a vendor's controls stack up against UpGuard standards and frameworks like ISO 27001 or NIST CSF -- using AI document parsing to deliver rapid, structured assessments.",
-    "Instant Risk Assessments | Included | Included | Included | Included | AI-generated risk assessments in under 60 seconds",
-    "generate reports for stakeholders \u2014 from AI-generated risk assessments in under 60 seconds to board-ready summaries",
-    "Questionnaire AI automatically completes questionnaires using your own security documentation and helps polish answers in seconds",
-    "Breach Risk\u2019s AI Threat Analyst acts as a virtual Tier 1 analyst\u2014your first line of triage",
-    "AI-powered detection, prioritization and orchestration",
-    "AI document analysis that identifies critical findings for you",
-    "AI-powered questionnaire automation",
-    "AI-driven insights and AI-powered risk scoring across the platform",
-    "Integration of deterministic vulnerability triage signals (CVE severity, KEV exploits, EPSS predictions) directly into AI-driven prioritization to reduce false positives \u2014 a hybrid rule+LLM prioritization pipeline.",
-    "Questionnaire AI trained on a customer's own documentation and questionnaire history (per-tenant or per-customer personalized model/data store) enabling tailored, defensible auto-responses that are auditable.",
-    "'AI Threat Analyst' as a productized virtual Tier-1 analyst that combines multi-source dark/deep/open web scraping with automated triage and structured evidence packaging for takedowns and audits.",
-    "Trust Center / Trust Exchange pattern that couples customer-facing documentation portals with AI automation (auto-fill questionnaires, pre-filled board decks) to accelerate sales and compliance while preserving audit trails.",
-    "Continuous external attack surface scanning that also monitors 'unsecured AI or LLM endpoints' and emerging AI development platforms (vibe-coding detection) \u2014 an uncommon focus on AI-originated phishing vectors."
+    "Our AI triages the data, delivering contextualized insights to the right decision-makers.",
+    "The AI threat summary is great. It\u2019s refreshing to read two sentences and immediately know why I should care about a finding.",
+    "Enhanced Security Profile Risk Assessment AI commentary to factor in check comments made by users.",
+    "Add human-in-the-loop checkpoints to automations.",
+    "Generate board-ready PowerPoints with dynamic, pre-filled commentary.",
+    "Vibe-coding threat detection across AI development platforms (Streamlit, Streamlit.io monitoring) \u2014 specialized scraping/triage for AI-assisted code-hosting environments to detect AI-generated phishing and exposed credentials.",
+    "Model Context Protocol (MCP) server detection and a dedicated security questionnaire for MCP servers \u2014 a product-level focus on agent protocol infrastructure and agentic threat modeling (Indirect Prompt Injection, excessive permissions).",
+    "Integrated remediation automation that not only triages but takes actions across ticketing systems (ServiceNow, Jira, Slack, Zendesk, Microsoft Teams) with optional human-in-the-loop checkpoints \u2014 blending autonomous orchestration with enterprise workflow systems.",
+    "Configurable credential capture policies (choice between redacted/plain-text/no password collection) for scraped credential-dump sources \u2014 an explicit privacy/compliance knob controlling telemetry fidelity.",
+    "Trust Pages/Trust Centers as white-label, product-targeted security narratives that combine live detection, compliance badges, and dynamic report generation \u2014 treating security posture as a publishable, branded data product."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 18:00:29.972511+00:00",
+  "analyzed_at": "2026-03-07 22:06:34.391088+00:00",
   "confidence_score": 0.75,
-  "raw_content_analyzed": 101549
+  "raw_content_analyzed": 132927,
+  "input_hash": "44f7184a57890369"
 }

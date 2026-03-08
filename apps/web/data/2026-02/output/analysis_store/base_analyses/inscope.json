@@ -6,258 +6,268 @@
   "description": "Inscope is an AI-driven financial reporting platform designed specifically for accounting firms and enterprises.",
   "funding_amount": 14500000.0,
   "funding_stage": "series_a",
-  "uses_genai": false,
-  "genai_intensity": "unclear",
-  "models_mentioned": [
-    "OpenAI"
-  ],
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
   "build_patterns": [
     {
       "name": "RAG (Retrieval-Augmented Generation)",
-      "confidence": 0.8,
+      "confidence": 0.9,
       "evidence": [
-        "Whether your data is in an ERP system or Excel files, InScope ensures that: - Every occurrence of a value is updated when the source changes",
-        "Linking and syncing: One Source of Truth",
-        "Track financial statement line items across the entire document - Verify values match between primary statements and footnotes"
+        "\"Live-Synced Collaboration Data is live-synced with your underlying source to keep numbers final and eliminate version chaos.\"",
+        "\"With one click, I can access supporting schedules, make updates seamlessly, and even perform footings and tie-outs in minutes.\"",
+        "\"We collect certain information automatically... when you visit our websites or use our mobile applications. This information helps us improve our services and understand user behavior.\""
       ],
-      "description": "The product repeatedly describes pulling authoritative values from ERPs/Excel and keeping generated documents synchronized with those sources, indicating a retrieval layer that augments document generation with up-to-date enterprise data."
+      "description": "Product language indicates retrieval from canonical data sources and on-demand access to supporting documents/schedules. That combined with 'live-sync' and 'access supporting schedules' strongly suggests a retrieval layer (document/source connectors, likely indexed + searchable) that feeds an LLM or assistant to generate or populate drafts and responses."
     },
     {
       "name": "Guardrail-as-LLM",
-      "confidence": 0.85,
+      "confidence": 0.8,
       "evidence": [
-        "InScope automatically: - Validates all mathematical calculations in tables - Flags any discrepancies for review",
-        "Our internal consistency checks do: - Verify values match between primary statements and footnotes - Flag any inconsistencies for review",
-        "These checks will ensure all revenue or expenses is attributed to the right department/cost centre"
+        "\"AI assistants proactively flag issues and help us generate clean, error-free financials.\"",
+        "\"AI review features in the tool added an extra level of confidence... saving hours of review time.\"",
+        "\"Acts as a safety net for footing/consistency errors, catching issues human reviewers often miss.\""
       ],
-      "description": "There is a clear validation and flagging layer (calculation validation, cross-footing, internal consistency checks and mandatory tagging) which acts like a guardrail or secondary verification tier to ensure safety, accuracy and compliance of generated outputs."
+      "description": "Multiple references to AI assistants that review, flag, and validate outputs indicate a secondary validation layer \u2014 model(s) or rules checking generated content for compliance, arithmetic integrity, formatting and policy adherence. This matches a guardrail architecture where outputs are post-validated before release."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.7,
+      "evidence": [
+        "\"We collect certain information automatically... This information helps us improve our services and understand user behavior.\"",
+        "\"Regular third-party audits of our systems (e.g., SOC 2 Type II).\"",
+        "\"AI assistants... saving hours of review time\" (implying iterative product improvement based on usage)."
+      ],
+      "description": "The privacy/analytics statements imply telemetry and usage collection; combined with product claims about improving workflows suggests usage data is fed back into product/model improvements (feedback loops, model refinements, product analytics driving feature/model updates)."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.65,
+      "evidence": [
+        "\"InScope operates a Software-as-a-Service (SaaS) business model for midmarket and enterprise customers...\"",
+        "\"Inscope has fundamentally changed the way we prepare and review financial statements.\"",
+        "\"The ESRS standards... 82 requirements, around 500 KPIs, and over 10,000 data points that companies need to track and report.\""
+      ],
+      "description": "The product focuses tightly on finance, audit and ESG reporting domains with deep domain requirements and integrations (audit workflows, XBRL-style tagging, ESRS). That domain specialization and customer-controlled Customer Data imply the potential for proprietary, industry-specific datasets and workflows that form a vertical moat."
     },
     {
       "name": "Knowledge Graphs",
       "confidence": 0.6,
       "evidence": [
-        "Track financial statement line items across the entire document",
-        "Make department tagging mandatory",
-        "Every occurrence of a value is updated when the source changes"
+        "\"Digitally tagged format... tags that map to a sustainability taxonomy.\"",
+        "\"Value chain reporting... companies need to report on ESG standards held by their supply chain and other external partners.\"",
+        "\"Everything is organized and traceable... link and sync functionality gave me confidence that every update was properly tracked.\""
       ],
-      "description": "The product behavior implies maintaining entity relationships (GL accounts, departments, line items, bank accounts with last 4 digits) and linking them across documents. This suggests an internal graph-like mapping of entities and relationships even if not explicitly called a knowledge graph."
-    },
-    {
-      "name": "Vertical Data Moats",
-      "confidence": 0.7,
-      "evidence": [
-        "We\u2019ve been in our customer\u2019s shoes. As former accountants, managers and controllers we know the pain of financial reporting",
-        "Whether you're establishing a new Chart of Accounts or optimizing an existing one, these strategies will help you build a financial foundation",
-        "Customer Data: Our customers control the data they input into our products and services (\u201cCustomer Data\u201d)"
-      ],
-      "description": "The product is heavily domain-specific (financial reporting, GL structures, accounting workflows) and integrates with customers' financial systems. That domain focus plus proprietary customer data can create a vertical data moat and domain specialization advantage."
-    },
-    {
-      "name": "Continuous-learning Flywheels",
-      "confidence": 0.45,
-      "evidence": [
-        "We will keep pushing the boundaries of what\u2019s possible in financial reporting automation",
-        "We collect certain information automatically, such as IP addresses, device types, and usage information",
-        "Customer Data: Our customers control the data they input into our products and services"
-      ],
-      "description": "The privacy/analytics text signals collection of usage data and customer data retention, which could enable a feedback loop for model improvement. However, the content does not explicitly describe automated model retraining from usage, so this is plausible but not confirmed."
-    },
-    {
-      "name": "Micro-model Meshes",
-      "confidence": 0.25,
-      "evidence": [
-        "AI driven forecasting models",
-        "We built these features because we lived the problems they solve"
-      ],
-      "description": "There is some indication of specialized capabilities (forecasting, validation, formatting), which could be implemented as small specialized models, but the text does not describe model routing or a mesh of small models explicitly."
-    },
-    {
-      "name": "Agentic Architectures",
-      "confidence": 0.15,
-      "evidence": [
-        "Tools and platforms that give you real time visibility to your cash position",
-        "InScope ensures that: - Every occurrence of a value is updated when the source changes"
-      ],
-      "description": "The content describes automation and integrations but does not describe autonomous agents that plan and act across tools. There is low signal for full agentic orchestration."
+      "description": "References to taxonomy mapping, tagging, value chain relationships, and traceable links/syncs point to structured semantic layers: entity linking, relationships (company \u2192 supplier \u2192 data points), and standardized taxonomies \u2014 all concepts commonly implemented with graph structures or knowledge bases to enable reasoning and retrieval."
     },
     {
       "name": "Natural-Language-to-Code",
-      "confidence": 0.1,
+      "confidence": 0.4,
       "evidence": [
-        "Make department tagging mandatory Accounting systems like Netsuite allow for certain tags to be mandatory",
-        "Designing and maintaining a well-structured CoA pays dividends"
+        "\"Draft, Review, Approve \u2014 All in One Place AI-Powered Financial Reporting Draft Better, Faster From zero to first draft in record time - Smart Formatting: Insert SEC-ready, audit-compliant tables with a single paste.\"",
+        "\"AI assistants proactively flag issues and help us generate clean, error-free financials.\"",
+        "\"The footing check and inconsistency checks are great - so helpful!\""
       ],
-      "description": "The content contains prescriptive guidance and product automation but does not describe converting user natural language into executable rules or code; signal for this pattern is minimal."
+      "description": "There are hints of user-level natural-language interactions to produce compliant outputs (one-click insertion, smart formatting) and automated rule execution (footing checks). While not explicit about generating executable code, these features often rely on NL\u2192structured-rule translations (templates, validation rules), suggesting partial use of NL-to-code approaches."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.35,
+      "evidence": [
+        "\"AI assistants proactively flag issues and help us generate clean, error-free financials.\"",
+        "\"Auto-rollforward, auto-formatting and linking + syncing functionality allow you and your team to get out of mundane tasks.\"",
+        "\"With one click, I can access supporting schedules, make updates seamlessly...\""
+      ],
+      "description": "Language like 'AI assistants', 'auto-' actions and multi-step workflows suggests assistant-like components that orchestrate actions (retrieve, compute, flag). However, there's no clear statement about autonomous multi-tool orchestration or long-lived agents, so agentic architecture is possible but not explicitly described."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.3,
+      "evidence": [
+        "\"AI review features... saving hours of review time.\"",
+        "\"AI assistants... proactively flag issues...\"",
+        "\"The AI review features in the tool added an extra level of confidence...\""
+      ],
+      "description": "The product advertises multiple AI capabilities (formatting, review, inconsistency/footing checks). This could be implemented via several specialized, smaller models (e.g., a formatter, a numeric validator, an NER/tagger). The content doesn't explicitly describe model routing or an ensemble architecture, so confidence is low but plausible."
     }
   ],
   "discovered_patterns": [
     {
-      "category": "Data Strategy",
-      "pattern_name": "Source-of-truth linking with ERP/Spreadsheet connectors",
-      "confidence": 0.9,
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "Live-synced source connectors with retrieval-first workflows",
+      "confidence": 0.7,
       "evidence": [
-        "\"Whether your data is in an ERP system or Excel files, InScope ensures that: - Every occurrence of a value is updated when the source changes - Numbers in tables and narrative descriptions stay in sync - Changes flow through all related calculations and footnotes.\"",
-        "\"Our internal consistency checks do: - Track financial statement line items across the entire document - Verify values match between primary statements and footnotes - Flag any inconsistencies for review\""
+        "\"Live-Synced Collaboration Data is live-synced with your underlying source to keep numbers final and eliminate version chaos.\"",
+        "\"With one click, I can access supporting schedules, make updates seamlessly, and even perform footings and tie-outs in minutes.\""
       ],
-      "description": "InScope implements persistent connectors to upstream systems (ERPs, Excel) and treats those sources as authoritative. Values are linked to occurrences in documents and any change in a source pushes updates through tables, narratives and footnotes to keep a single source of truth.",
-      "novelty_score": 6,
-      "why_notable": "Tight bi-directional linking between source systems and every document occurrence, combined with automated propagation across narrative and calculation contexts, reduces manual reconciliation and is a stronger consistency guarantee than simple import/refresh workflows."
-    },
-    {
-      "category": "Compound AI Systems",
-      "pattern_name": "Deterministic rules-first validation pipeline (non-ML dominant)",
-      "confidence": 0.95,
-      "evidence": [
-        "\"Footing and CrossFooting: ... Validates all mathematical calculations in tables - Flags any discrepancies for review\"",
-        "\"Internal Consistency Checks: ... Track financial statement line items across the entire document - Verify values match between primary statements and footnotes - Flag any inconsistencies for review\""
-      ],
-      "description": "Core behavior is implemented as deterministic validation rules (footing, cross-footing, cross-references) applied against document object models. These checks are automated and flag exceptions for human review rather than relying on probabilistic model outputs.",
+      "description": "InScope appears to implement persistent connectors to customer source systems (GL/ERP/schedules) and a retrieval-first architecture where the product pulls canonical numbers from authoritative sources in real time. The system likely maintains a synchronized copy or a materialized view of source data so UI actions and AI checks reference up-to-date facts rather than stale text. This supports 'one-click' access to supporting schedules and eliminates version drift between narrative and source numbers.",
       "novelty_score": 4,
-      "why_notable": "The focus on rigorous, rule-based financial validation (rather than ML heuristics) emphasizes auditability and deterministic correctness which is critical for accounting use-cases."
+      "why_notable": "Tight live-syncing between narrative/document surfaces and underlying financial data combined with AI-driven checks is valuable for finance workflows; while not unique, it's less common in generic document-AI products and important for audit-readiness."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Undisclosed third-party/proprietary LLMs with domain-focused prompting",
+      "confidence": 0.3,
+      "evidence": [
+        "Multiple references to \"AI assistants\" and \"AI review features\" but no explicit model names.",
+        "\"AI-Powered Financial Reporting\" and \"AI assistants proactively flag issues and help us generate clean, error-free financials.\""
+      ],
+      "description": "The product uses one or more LLMs (referred to generally as 'AI assistants') for drafting, review and QA tasks. No model vendors (OpenAI, Anthropic, Meta, Mistral, etc.) or on-prem model deployments are named. Implementation likely relies on prompt engineering and task-specific prompts rather than disclosed fine-tuned model variants.",
+      "novelty_score": 2,
+      "why_notable": "Lack of transparency on exact models is typical for commercial SaaS AI products; the emphasis is on task outcomes (audit-ready tables, footings) rather than model provenance."
     },
     {
       "category": "Compound AI Systems",
-      "pattern_name": "Document automation and presentation rendering pipeline",
-      "confidence": 0.9,
+      "pattern_name": "Role-based AI assistants and background monitoring agents",
+      "confidence": 0.6,
       "evidence": [
-        "\"Automated Formatting: ... InScope\u2019s autoformatting means every financial table is perfectly presented from the moment it\u2019s generated.\"",
-        "\"We handle the presentation layer automatically, delivering beautiful documents and giving you back hours of your week.\""
+        "\"AI assistants proactively flag issues and help us generate clean, error-free financials.\"",
+        "\"AI review features in the tool added an extra level of confidence\u2026 saving hours of review time.\"",
+        "\"The footing check and inconsistency checks are great - so helpful!\""
       ],
-      "description": "A rendering pipeline transforms structured financial data into formatted documents (tables, fonts, alignment, decimal points) automatically. Likely implemented as templates + deterministic layout engine that applies style rules to generated tables and text.",
+      "description": "InScope organizes AI functionality into multiple assistant roles (draft generation, footing/inconsistency checks, proactive monitoring). These appear to run as distinct services or pipelines: some are invoked interactively (generate draft, format tables) while others run continuously or on-demand to flag issues. This is a compound pattern where orthogonal AI processes (narrative generation, numeric reconciliation, consistency validation) are orchestrated to produce audit-ready outputs.",
       "novelty_score": 5,
-      "why_notable": "Combining presentation-level automation with tight numeric linking is helpful: changes to numbers automatically re-render clean, presentation-ready documents without additional manual formatting steps."
+      "why_notable": "Splitting AI capabilities into specialized assistant roles (e.g., drafting vs. numeric-checking) aligns models/tasks with responsibilities and helps produce higher-integrity outputs for finance\u2014practical and increasingly common, but tailored here to audit workflows."
     },
     {
       "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Event-driven change propagation / reactive syncing",
+      "pattern_name": "Real-time collaboration with strict auditability and enterprise compliance posture",
       "confidence": 0.8,
       "evidence": [
-        "\"Every occurrence of a value is updated when the source changes\"",
-        "\"Changes flow through all related calculations and footnotes.\""
+        "\"Data is live-synced with your underlying source to keep numbers final and eliminate version chaos.\"",
+        "\"Our audit team at PwC told me... we\u2019re now producing our financial statements in a much more systematic and efficient way.\"",
+        "\"SOC 2 Type II\" and references to encryption in transit and at rest and third-party audits."
       ],
-      "description": "When a source value changes (ERP / spreadsheet), an event triggers propagation through the system to update every linked occurrence and recompute dependent calculations. This suggests an event-driven architecture or change-diff propagation mechanism that maintains document consistency in near-real-time.",
-      "novelty_score": 6,
-      "why_notable": "Reactive propagation across narrative, tables and calculations in large documents is technically challenging (dependency graphs, incremental recomputation). Implementing this reliably is a valuable operational capability for finance teams."
+      "description": "Architecture emphasizes enterprise-grade deployment: real-time sync and collaboration (likely via persistent connections or event-driven sync), integrated audit trails, and compliance controls (SOC 2 Type II, DPA, contract language). The stack is designed for production enterprise usage with attention to logging, access controls, and regular third-party security assessments.",
+      "novelty_score": 3,
+      "why_notable": "The combination of real-time collaborative editing tied to source-of-truth financial systems plus SOC 2 attestation is a necessary maturity marker for finance/audit tooling. It's expected for enterprise offerings in this domain."
     },
     {
       "category": "Safety & Trust (LLM Security)",
-      "pattern_name": "Enterprise security & compliance posture",
-      "confidence": 0.95,
+      "pattern_name": "Enterprise-first privacy and contractual safeguards; processor/controller separation",
+      "confidence": 0.9,
       "evidence": [
+        "\"InScope distinguishes between 'controllers' and 'processors' of Personal Data.\"",
+        "\"Where we act as a processor, our commitments are set out in our Data Processing Addendum ('DPA'), available upon request.\"",
         "\"We implement technical and organizational security measures consistent with prevailing industry standards, including encryption in transit and at rest, logical access controls, and regular third-party audits of our systems (e.g., SOC 2 Type II).\"",
-        "\"Where we act as a processor, our commitments are set out in our Data Processing Addendum (\"DPA\"), available upon request.\"",
-        "\"InScope complies with the EU\u2013U.S. Data Privacy Framework, the UK Extension, and the Swiss\u2013U.S. Data Privacy Framework ... rely on Standard Contractual Clauses\""
+        "\"We do not sell Personal Data to third parties.\""
       ],
-      "description": "The platform is run as enterprise SaaS with data protection and compliance controls: encryption in transit/at rest, logical access controls, SOC 2 Type II audits, DPAs and international transfer safeguards (DPF, SCCs).",
+      "description": "InScope's architecture and operations prioritize data governance: legal separation of roles, DPAs, adherence to international transfer frameworks (EU\u2013U.S. Data Privacy Framework, SCCs), encryption, and audit certification. This indicates an infrastructure with tenant isolation, contractual data handling guarantees, and controls around international data flows\u2014aligned with enterprise procurement requirements.",
       "novelty_score": 3,
-      "why_notable": "Standard for enterprise SaaS; notable because it signals readiness for midmarket/enterprise customers and the expectations of auditability and legal compliance in financial software."
-    },
-    {
-      "category": "Data Strategy",
-      "pattern_name": "Policy-driven data governance and mandatory tagging",
-      "confidence": 0.85,
-      "evidence": [
-        "\"Make department tagging mandatory Accounting systems like Netsuite allow for certain tags to be mandatory. These checks will ensure all revenue or expenses is attributed to the right department/cost centre.\"",
-        "\"Consolidate changes to CoA at period-end ... Best practice is to wait until the year end\u2014after a close\u2014to merge, rename or delete accounts.\""
-      ],
-      "description": "The product enforces or encourages governance rules (mandatory tags, period-end change windows) to preserve reporting integrity. Implementation likely includes validation at data entry, configurable required fields, and workflow rules to prevent mid-period schema changes.",
-      "novelty_score": 5,
-      "why_notable": "Embedding accounting governance as enforceable system rules reduces operator mistakes and drift in account structure, supporting consistent reporting and audit trails."
-    },
-    {
-      "category": "Learning & Improvement",
-      "pattern_name": "User feedback loop for product-driven feature growth (non-ML flywheel)",
-      "confidence": 0.7,
-      "evidence": [
-        "\"We built InScope because we\u2019ve been in our customer\u2019s shoes... Those experiences shaped our initial product features...\"",
-        "\"Future Proof These are the core of the InScope platform but this is just the start. We\u2019re going to keep pushing the boundaries of what\u2019s possible in financial reporting automation.\""
-      ],
-      "description": "Product development is informed by customer domain expertise and usage patterns; feature development appears driven by solving recurring workflow problems rather than training models on user interaction data. The company hints at iterative product improvement based on customer pain points.",
-      "novelty_score": 4,
-      "why_notable": "A domain expertise-led product flywheel is typical but valuable in specialized verticals like accounting where product-market fit needs deep functional knowledge."
-    },
-    {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "Automated cash flow aggregation and standardization pipeline",
-      "confidence": 0.8,
-      "evidence": [
-        "\"The solution isn\u2019t working harder at manual processes... Modern financial management requires a technical solution that: - Automates data collection from disparate sources - Standardizes methodology to eliminate subjectivity - Provides real time visibility into cash movement - Reconciles automatically with other financial statements\"",
-        "\"Stay tuned as we launch our new approach to cash flow management\u2014a solution that makes automated cash flow statements available to every business.\""
-      ],
-      "description": "They are building an aggregation layer that ingests transactional data from multiple systems, normalizes cash classification using a standardized methodology, and outputs reconciled cash flow statements. This implies mapping rules, transformation logic and reconciliation algorithms.",
-      "novelty_score": 6,
-      "why_notable": "Automating cash flow construction (historical + forecasting reconciliation) across heterogeneous sources addresses a genuine market gap for private companies; doing so with standardized methodology lowers FP&A/accounting disagreements."
+      "why_notable": "Strong privacy and compliance posture is essential in finance tooling; InScope appears to have built the requisite legal and technical scaffolding which is notable for enterprise buyers but standard for the space."
     },
     {
       "category": "Evaluation & Quality (EvalOps)",
-      "pattern_name": "Exception-driven human-in-the-loop review",
-      "confidence": 0.9,
+      "pattern_name": "Human-in-the-loop QA and auditor-validated acceptance",
+      "confidence": 0.8,
       "evidence": [
-        "\"Flags any discrepancies for review\"",
-        "\"Flag any inconsistencies for review - Standardize how values are presented and described\""
+        "\"Our audit team at PwC told me that they would benefit if all of their clients used a solution like Inscope.\"",
+        "\"The AI review features in the tool added an extra level of confidence, not to mention saving hours of review time.\"",
+        "\"AI assistants proactively flag issues and help us generate clean, error-free financials.\""
       ],
-      "description": "Automated checks route only exceptions or flagged inconsistencies to humans for review. The platform prioritizes deterministic detection and escalation rather than full human review of every change.",
+      "description": "Quality assurance relies heavily on human reviewers (finance teams and external auditors) interacting with AI outputs. The product is positioned as augmenting audits and reviews rather than fully automating sign-off, implying processes where flagged issues are triaged and verified by humans. This suggests feedback channels into workflows (annotations, accept/reject, audit comments) though no automated EvalOps pipelines are explicitly described.",
       "novelty_score": 4,
-      "why_notable": "This is a pragmatic approach for finance: automation handles the bulk of routine validation while humans resolve ambiguous or high-risk exceptions, improving efficiency while preserving control."
+      "why_notable": "Close integration with external auditors and reliance on human validation is a sensible trust-building pattern in regulated domains\u2014less about novel model evaluation and more about operations-driven quality."
     },
     {
-      "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Production-grade SaaS with enterprise operational controls",
-      "confidence": 0.95,
+      "category": "Data Strategy",
+      "pattern_name": "Customer-controlled financial datasets and verticalized domain focus",
+      "confidence": 0.7,
       "evidence": [
-        "\"InScope operates a Software-as-a-Service (SaaS) business model for midmarket and enterprise customers\"",
-        "\"regular third-party audits of our systems (e.g., SOC 2 Type II)\"",
-        "\"account data is retained for the duration of your account and for a reasonable period thereafter; marketing data is retained until you unsubscribe; and support tickets are retained for up to 3 years after closure.\""
+        "\"Our customers control the data they input into our products and services ('Customer Data') and how it is used.\"",
+        "Extensive domain-specific language throughout: 'financial statements', 'footings and tie-outs', 'auto-rollforward', 'audit-ready financial statements', 'SEC-ready, audit-compliant tables'."
       ],
-      "description": "InScope runs a mature SaaS product targeted at enterprise customers with expected operational controls: retention policies, audits, documented DPA, and international transfer safeguards.",
-      "novelty_score": 3,
-      "why_notable": "Indicates production maturity and readiness for regulated customers; not novel but necessary for adoption in financial functions."
+      "description": "InScope focuses on finance-specific data models and integrations. Their value proposition depends on tight coupling to customers' financial datasets (schedules, accounts, rollforwards) and domain logic (footings, rollforwards, tie-outs). This creates a vertical data strategy: acquisition of domain-specific customer data and transformation into structured outputs for regulatory and audit use.",
+      "novelty_score": 5,
+      "why_notable": "Vertical specialization in finance enables product differentiation (audit-ready outputs, regulatory tagging). The defensibility comes from deep, proprietary mappings and integrations rather than generic language capabilities."
+    },
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "Structured output generation and taxonomy mapping for compliance (digital tagging)",
+      "confidence": 0.85,
+      "evidence": [
+        "\"A key technical requirement is that sustainability disclosures be prepared in a digitally tagged format... Companies will need to publish their sustainability information in an electronic, machine readable format (XHTML) with tags that map to a sustainability taxonomy.\"",
+        "\"Insert SEC-ready, audit-compliant tables with a single paste.\""
+      ],
+      "description": "The product includes or interfaces with a structured tagging engine that maps narrative/numeric disclosure elements to regulatory taxonomies (analogous to XBRL). It likely supports templated XHTML outputs and tag mappings (ESRS/CSRD) to produce machine-readable submissions for compliance and assurance.",
+      "novelty_score": 6,
+      "why_notable": "End-to-end capability that couples narrative generation, numeric reconciliation and taxonomy tagging for regulatory filing is relatively specialized and highly valuable for companies facing new ESG reporting mandates."
+    },
+    {
+      "category": "Audit trails and Provenance (cross-cutting)",
+      "pattern_name": "End-to-end provenance, immutable audit trails and versioning tied to collaboration",
+      "confidence": 0.9,
+      "evidence": [
+        "\"Audit trails are the backbone of compliance... Every transaction, every data access point, every digital fingerprint needs tracking.\"",
+        "\"We no longer worry about version control or tracking down changes across drafts\u2014everything is organized and traceable.\"",
+        "\"Track every microscopic data interaction with surgical precision.\""
+      ],
+      "description": "InScope embeds robust audit trails in the collaboration and sync layer: capturing user actions, timestamps, device/IP metadata, and change provenance for each document and linked source data. This likely includes append-only logs, version history, and mechanisms to produce evidence for auditors (exportable trails, immutable records).",
+      "novelty_score": 5,
+      "why_notable": "Combining live-sync collaborative editing with granular immutable logs tailored for audit evidence is essential for finance/audit workflows and differentiates the product from generic document editors."
+    },
+    {
+      "category": "Learning & Improvement",
+      "pattern_name": "Conservative training/data usage posture with contractual controls",
+      "confidence": 0.8,
+      "evidence": [
+        "\"Customer Data: Our customers control the data they input into our products and services... This Policy does not cover how we process Personal Data on behalf of our customers as a processor. If you have questions about the Personal Data your organization holds in InScope, please direct your request to your organization.\"",
+        "\"Where we act as a processor, our commitments are set out in our Data Processing Addendum ('DPA'), available upon request.\"",
+        "\"We do not sell Personal Data to third parties.\""
+      ],
+      "description": "Policy statements suggest InScope is careful about using customer data to train models and instead treats customer datasets as customer-owned with contractual protections (DPA). This implies either no use of customer data for broad model re-training, or use only under strict contractual opt-in, and technical controls to segregate data used for product improvement.",
+      "novelty_score": 4,
+      "why_notable": "This conservative stance is important for enterprise adoption in finance; it constrains potential data flywheel effects but increases customer trust."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Tight integration of deterministic numeric validation (footing/cross-footing), traceable linking to source systems, and automated presentation rendering.",
-      "why_novel": "While individual pieces exist in other tools, combining end-to-end: connectors -> single-source-of-truth -> automatic propagation -> deterministic validation -> presentation rendering in a single flow is uncommon in one cohesive product focused on accounting workflows.",
-      "potential_impact": "Reduces reconciliation cycles and manual formatting work, lowers audit risk, and significantly shortens close and reporting timelines for finance teams."
+      "approach": "Integrated live-sync + AI-driven numeric reconciliation + taxonomy tagging pipeline",
+      "why_novel": "Combining real-time synchronization to authoritative source systems with AI that both generates narrative and enforces numeric tie-outs, then emits digitally tagged, taxonomy-mapped outputs (e.g., XBRL-like XHTML) is a tightly integrated flow specialized for regulated finance and ESG reporting.",
+      "potential_impact": "Enables audit-ready filings with reduced manual work, lowers audit friction, and accelerates compliance timelines (especially for CSRD/ESRS mandates). This integration could significantly reduce the time and headcount required for regulatory reporting."
     },
     {
-      "approach": "Policy enforcement at data ingestion (mandatory tags, period-end lock windows) directly encoded in the platform workflows.",
-      "why_novel": "Embedding accounting governance and mandatory tagging into ingestion pipelines (rather than relying on user discipline) increases data quality upfront and prevents downstream reporting drift.",
-      "potential_impact": "Improves comparability and auditability of financials across periods and units, reduces rework and manual enforcement effort by finance teams."
+      "approach": "Role-specialized AI assistants orchestrated into finance workflows",
+      "why_novel": "Rather than a single monolithic LLM handling everything, InScope presents specialized assistants (drafting, footing checks, inconsistency detection, proactive monitoring) that fit into human review loops and auditor processes.",
+      "potential_impact": "Improves precision of automated checks in high-stakes workflows by matching task semantics to specialized routines, increasing trust and reducing false positives in audits."
     }
   ],
   "model_details": {
-    "primary_models": [],
+    "primary_models": [
+      "not disclosed (referred to generically as 'AI assistants' / 'AI review features')"
+    ],
     "fine_tuning": {
       "uses_fine_tuning": false,
-      "fine_tuning_approach": "",
-      "training_data_source": ""
+      "fine_tuning_approach": "not described; no explicit evidence of fine-tuning, LoRA, or customer-data tuning in the materials",
+      "training_data_source": "not described"
     },
-    "inference_optimization": [],
+    "inference_optimization": [
+      "not explicitly stated; inferred possibilities include caching of computed reconciliations and asynchronous background checks (low confidence)"
+    ],
     "model_routing": {
-      "uses_routing": false,
-      "routing_strategy": ""
+      "uses_routing": true,
+      "routing_strategy": "task/role-based routing inferred (specialized assistants for drafting, numeric checks, proactive monitoring). No explicit multi-model ensemble strategy described."
     },
     "compound_ai": {
-      "is_compound_system": false,
-      "orchestration_pattern": ""
+      "is_compound_system": true,
+      "orchestration_pattern": "Role-based orchestration: separate assistant capabilities for drafting, validation, and monitoring that operate in sequence or parallel. Orchestration likely coordinates retrieval from live sources, numeric reconciliation modules and narrative generation."
     }
   },
-  "market_type": "horizontal",
+  "market_type": "vertical",
   "vertical": "enterprise_saas",
-  "sub_vertical": "financial reporting automation for accounting firms and corporate finance teams",
-  "sub_sub_vertical": "financial statement assembly, consolidation, and audit-ready reporting with cross-document verification",
+  "sub_vertical": "financial reporting and close automation",
+  "sub_sub_vertical": "audit-ready financial statement generation and ESG/CSRD reporting compliance",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
     "primary": {
       "vertical_id": "it_enterprise_software",
       "vertical_label": "Information Technology & Enterprise Software",
-      "sub_vertical_id": "data_management_analytics",
-      "sub_vertical_label": "Data Management/Analytics",
-      "leaf_id": "data_management_analytics",
-      "leaf_label": "Data Management/Analytics"
+      "sub_vertical_id": "ai_ml_platforms",
+      "sub_vertical_label": "AI/ML Platforms",
+      "leaf_id": "ai_ml_platforms",
+      "leaf_label": "AI/ML Platforms"
     },
     "path": [
       {
@@ -266,26 +276,19 @@
         "confidence": 0.72
       },
       {
-        "id": "data_management_analytics",
-        "label": "Data Management/Analytics",
+        "id": "ai_ml_platforms",
+        "label": "AI/ML Platforms",
         "confidence": 0.72
       }
     ]
   },
   "target_market": "b2b",
   "tech_stack": {
-    "llm_providers": [
-      "OpenAI"
-    ],
+    "llm_providers": [],
     "llm_models": [],
     "vector_databases": [],
     "frameworks": [],
-    "hosting": [
-      "Digital Realty",
-      "Lincoln Rackhouse",
-      "Flexential",
-      "Leased third-party data centers"
-    ],
+    "hosting": [],
     "approach": "unknown",
     "uses_open_source_models": false,
     "has_custom_models": false
@@ -301,46 +304,38 @@
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "SOC 2 Type II audit mention in privacy policy indicates enterprise-grade security controls",
-      "Data privacy framework references (EU\u2013U.S. Data Privacy Framework, UK Extension, Swiss\u2013U.S. Framework) suggest regulatory awareness"
+      "No public developer-facing assets (API docs, SDKs, or engineering blog) found in the provided content"
     ]
   },
   "implementation_maturity": "production",
   "team_analysis": {
-    "founders": [
-      {
-        "name": "",
-        "role": "co-founders",
-        "background": "former accountants, managers and controllers",
-        "previous_companies": [],
-        "technical_depth": "medium",
-        "domain_expertise": "financial reporting automation, accounting processes"
-      }
-    ],
+    "founders": [],
     "team_signals": {
       "engineering_heavy": true,
-      "has_ml_expertise": false,
+      "has_ml_expertise": true,
       "has_domain_expertise": true,
       "hiring_signals": [],
-      "team_size_indicators": "small",
+      "team_size_indicators": "unknown",
       "remote_distributed": false
     },
-    "founder_market_fit": "Founders with accounting and financial reporting experience directly align with InScope's product focus on automated formatting, footings, and consistency checks for financial statements; signals strong product-market fit given customer-centric origin.",
+    "founder_market_fit": "Not enough information to assess; no founder backgrounds or leadership bios described in the provided content.",
     "team_strengths": [
-      "Direct domain expertise from founders (accounting background) enabling practical product design",
-      "Clear product value proposition aligned with pain points in financial reporting (autoformatting, cross-footing, linking)",
-      "User-driven development ethos (built from experience as customers themselves)"
+      "Enterprise financial reporting focus and domain knowledge evidenced by product features (auto-rollforward, AI-assisted reviews, audit-ready formatting).",
+      "Emphasis on security, compliance, and auditability (SOC 2 Type II, audit trails, encryption, access controls) indicating mature operational discipline.",
+      "AI-enabled automation and live data syncing capabilities suggesting strong engineering and product execution for midmarket/enterprise users."
     ],
     "team_red_flags": [
-      "Public information about specific founders is not identifiable; reliance on founder narratives; lack of disclosed leadership team details; potential risk in governance if early stage"
+      "No founder or leadership bios present in the provided content; lack of explicit team composition, headcount, or hiring signals.",
+      "Limited visibility into organizational structure or go-to-market team details beyond customer testimonials."
     ],
-    "team_confidence": 0.35
+    "team_confidence": 0.15
   },
   "business_model": {
     "pricing_model": {
       "type": "subscription",
       "pricing_evidence": [
-        "SaaS business model mentioned in privacy policy overview (midmarket and enterprise focus)."
+        "Policy describes a SaaS business model with subscriptions for products/services",
+        "InScope offers subscriptions to products and services"
       ],
       "free_tier_available": false,
       "enterprise_focus": true,
@@ -349,60 +344,70 @@
     "gtm_strategy": {
       "primary_channel": "content_marketing",
       "evidence": [
-        "Marketing-style product copy with calls to action like 'Ready to change your financial reporting?'",
-        "No explicit pricing or free trial details; emphasis on product features and value proposition."
+        "CSRD/ESRS content targeting EU ESG reporting complexity (educational content for finance teams)",
+        "Testimonials and case studies (e.g., PwC endorsement) used in marketing",
+        "Product-led benefits and time-savings highlighted (drafting, audit trails, AI assistants)"
       ],
-      "target_segment": "enterprise",
+      "target_segment": "mid_market",
       "sales_motion": "inside_sales"
     },
     "revenue_model": {
-      "monetization_approach": "SaaS subscription revenue driven by automated financial reporting features; recurring revenue implied by SaaS model.",
-      "unit_economics_signals": [
-        "No explicit ARPU, margins, or unit economics provided."
-      ],
+      "monetization_approach": "SaaS subscription model with recurring revenues; primarily serving mid-market and enterprise customers; DPA for processing when acting as a processor",
+      "unit_economics_signals": [],
       "recurring_revenue": true
     },
     "distribution_advantages": [
-      "ERP/Excel integration and a single source of truth create a data-and-process efficiency moat; automated formatting and validation reduce manual work."
+      "Live-synced collaboration with underlying data sources reducing version chaos and boosting data integrity",
+      "Audit-trail focus and SOC 2-type controls as trust signals"
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "website/content marketing with calls to action",
-        "in-product messaging and demos (implied)"
+        "content_marketing (CSRD/ESRS guidance, ESG/NFRD/CSRD articles)",
+        "events and webinars (privacy policy mentions events and webinars)",
+        "customer testimonials / references (PwC endorsement)"
       ],
-      "customer_proof_points": []
+      "customer_proof_points": [
+        "PwC testimonial about improved efficiency and audit readiness",
+        "Positive quotes about faster financial statement preparation and reduced manual work"
+      ]
     },
     "business_model_clarity": "clear",
-    "business_model_confidence": 0.65
+    "business_model_confidence": 0.7
   },
   "product_analysis": {
     "product_stage": "general_availability",
     "stage_evidence": [
-      "Marketing materials describe multiple core features (autoformatting, footing/crossfooting, internal consistency checks, linking to ERP/Excel, single source of truth) and a clear value proposition for financial reporting automation.",
-      "CTA and continued development language (Future Proof) imply ongoing product maturity and roadmap.",
-      "Privacy policy states SaaS business model, implying publicly offered product with customers."
+      "Marketing materials describe Draft, Review, Approve workflow and AI-assisted financial reporting features.",
+      "Explicit claims of 60% faster first draft and 70% less time spent on reviews.",
+      "Live-Synced collaboration with underlying data sources and audit-ready outputs.",
+      "Customer testimonial from PwC praising efficiency and audit readiness.",
+      "Security posture cited: encryption in transit and at rest, SOC 2 Type II audits, and regular third-party audits."
     ],
     "feature_depth": {
       "core_features": [
-        "Automated Formatting of financial statements",
-        "Footing and CrossFooting validation",
-        "Internal Consistency Checks across the document",
-        "Linking and Syncing to ERP/Excel to a single source of truth"
+        "AI-assisted drafting and review for financial reporting",
+        "Auto-rollforward, auto-formatting and linking",
+        "Live synchronization with underlying source data",
+        "One-click accessibility to supporting schedules",
+        "Footings and tie-outs capabilities",
+        "AI assistants flagging issues for accuracy and consistency",
+        "Audit-ready outputs and version control",
+        "Security measures including encryption and access controls"
       ],
       "differentiating_features": [
-        "End-to-end automation for presentation and accuracy in one platform",
-        "Automatic linking/syncing ensuring consistency across statements and notes"
+        "Live-synced data with underlying source to eliminate version chaos",
+        "Proactive AI assistants that flag issues during drafting and reviews",
+        "Integrated end-to-end workflow from draft to audit-ready financial statements in a single platform"
       ],
       "roadmap_signals": [
-        "Future Proof section indicating ongoing enhancement",
-        "Hints at expanding capabilities but no explicit new features listed"
+        "No explicit product roadmap or coming-soon items mentioned in the material",
+        "Inferred potential expansion into ESG/CSRD-related reporting space given industry talk on CSRD and ESRS; no direct product claim"
       ],
-      "feature_completeness": "growing"
+      "feature_completeness": "comprehensive"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [
-        "ERP systems",
-        "Excel files"
+        "Live data source synchronization (implies integration with underlying ERP/GL or data sources)"
       ],
       "api_maturity": "none",
       "sdk_availability": [],
@@ -410,82 +415,88 @@
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "Automated formatting, validation, and synchronization of financial statements to improve accuracy and efficiency in financial reporting",
+      "primary_use_case": "Automated, audit-ready financial reporting with drafting, formatting, and review workflows to accelerate financial statement preparation",
       "secondary_use_cases": [
-        "Maintain consistency across primary statements and footnotes",
-        "Provide a single source of truth by linking data from ERP/Excel"
+        "Audit and compliance workflows with traceable audit trails",
+        "Real-time collaboration across teams during reporting processes",
+        "Efficient maintenance of financial statement footings and schedules"
       ],
-      "customer_stories": [],
+      "customer_stories": [
+        "PwC audit team testimonial highlighting benefits and efficiency gains from using InScope for client financial reporting"
+      ],
       "industry_focus": [
-        "Midmarket and enterprise finance teams; financial reporting and accounting departments"
+        "Finance and accounting for mid-market to enterprise customers",
+        "Financial statement preparation and reporting"
       ]
     },
     "product_risks": [
-      "Limited publicly documented integrations or partner ecosystem details",
-      "Reliance on external data sources (ERP/Excel) may introduce data integrity dependencies",
-      "No explicit customer success stories or pricing details in provided content"
+      "Limited publicly visible API, SDK, or marketplace integrations may constrain extensibility for some customers",
+      "Reliance on live data source connections could raise data governance and data quality concerns if source systems vary across clients"
     ],
     "product_strengths": [
-      "Strong emphasis on automation for formatting and presentation, reducing manual formatting time",
-      "Built-in financial validation (Footing/CrossFooting) and consistency checks",
-      "End-to-end linking to a single source of truth across documents"
+      "Strong speed and efficiency improvements in drafting and reviewing financial reports",
+      "Robust AI-assisted workflows and automated checks for accuracy and consistency",
+      "Live data synchronization reduces version control issues",
+      "Auditable trails and security posture (encryption, access controls, SOC 2 Type II) support compliance and trust"
     ],
-    "product_confidence": 0.65
+    "product_confidence": 0.72
   },
   "unique_findings": [
-    "Document-level data graph: The product language (automatic linking/syncing of every occurrence of a value) implies they\u2019ve modeled financial documents as a graph of named numeric entities rather than flat text. Every numeric token is likely tokenized, keyed to a source row/GL account, and bidirectionally linked so updates propagate across narrative, tables, and footnotes.",
-    "Office-grade, live Word/PDF integration: Claiming beautiful autoformatting and persistent links inside Word documents suggests they\u2019ve built robust Office Open XML or Word Add-in tooling that preserves dynamic links and numeric references across reflows \u2014 a technically brittle area most SaaS vendors avoid or only approximate with static exports.",
-    "Accounting-aware validation engine: Footing/cross-footing and internal consistency checks at scale require a declarative rule engine that encodes accounting semantics (rounding policies, consolidation rules, GAAP vs non-GAAP splits, mandatory department tags). That\u2019s more than simple summation checks \u2014 it\u2019s a domain-specific ruleset applied across mapped data sources and document contexts.",
-    "ERP/Excel lineage and reconciliation plumbing: Supporting both ERP systems and Excel as \u2018sources of truth\u2019 implies complex connector logic (incremental loads, schema mapping, GL mapping with bespoke Chart of Accounts structures, multi-currency handling, and reconciliation routines) plus lineage tracking so auditors can trace a number in a narrative back to a transactional source.",
-    "Temporal/reporting snapshot model: The best-practice guidance about consolidating CoA changes at period-end and their linking/syncing feature suggest they maintain immutable reporting snapshots and a temporal model that supports branching (current books vs archived snapshots) to avoid mid-period drift \u2014 this adds non-trivial versioning complexity.",
-    "Policy and governance layer baked into data model: Recommendations around mandatory department tagging, separation of GAAP-only accounts, and period-end consolidation implies a policy enforcement layer (validation gates, enforced metadata) that sits on ingestion and prevents bad data upstream \u2014 more than cosmetic UX rules, this is governance-by-default.",
-    "Enterprise-ready security & compliance posture: The privacy policy and SOC2 Type II mention show an intentional focus on enterprise trust controls \u2014 encryption, access controls, international transfer safeguards \u2014 which is necessary to win midmarket and enterprise customers and is often underinvested by early-stage startups.",
-    "Marketing-heavy disclosure, light on architecture: The public content is product-oriented and customer-centric but lacks concrete engineering detail (no mention of data stores, eventing, APIs, latency, scale limits, or how they reconcile conflicting sources). That makes it hard to assess real engineering novelty vs. well-executed product design."
+    "Live-syncing between narrative documents and underlying numeric sources (\"keep numbers final and eliminate version chaos\") implies a data-first architecture where cells in reports are live views of source ledgers rather than static exports \u2014 this requires strong change propagation, reconciliation logic, and consistency guarantees (near-real-time joins, incremental updates, and likely an event-sourced or pub/sub backbone).",
+    "Product emphasizes automated rollforwards, footings and tie-outs at scale \u2014 this is not just formatting or templating, it implies embedded accounting logic and rule engines that can infer and apply rollforward rules, account mappings, and aggregation behavior across periods automatically.",
+    "AI Assistants that 'proactively flag issues' suggest on-the-fly semantic validation models trained to detect accounting inconsistencies (footing errors, cross-statement mismatches, narrative/number contradictions). That requires a domain-specific LLM stack or rule-augmented ML pipeline tuned to GAAP/IFRS patterns and audit heuristics.",
+    "The promise of 'SEC-ready, audit-compliant tables with a single paste' points to a robust rendering layer that enforces regulatory formatting, tagging, and metadata (e.g., table schemas mapping to XBRL/XHTML tag vocabularies) \u2014 bridging free-text input to structured, taggable outputs is a technically tricky document transformation problem.",
+    "Heavy auditability posture (SOC 2 Type II, detailed audit trails, 'every digital fingerprint needs tracking') indicates an append-only, tamper-evident logging strategy combined with rich metadata (user IDs, IPs, device context, operation diffs). To be useful to auditors it must support timeline reconstruction at both record and derived-calculation level.",
+    "Support for CSRD and digital-tagging (XHTML + sustainability taxonomy) elevates the product beyond classic financial reporting \u2014 mapping 10,000+ ESG data points and 500 KPIs to narrative disclosures and machine-readable tags requires a taxonomy mapping layer and cross-entity consolidation pipelines that can trace each ESG datapoint to supplier/partner inputs.",
+    "Cross-border privacy and international compliance (EU\u2013U.S. Data Privacy Framework, SCCs, UK/Swiss extensions) combined with live-syncing implies multi-region data residency controls and fine-grained processing modes (controller vs processor) built into the integration/connectors and deployment strategy.",
+    "The combination of collaboration (real-time co-editing), live numeric sync, and strong audit trails suggests conflict-resolution mechanics likely beyond simple optimistic locking \u2014 possibilities include CRDT-like merging for documents and a canonical numeric source-of-truth to prevent reconciliation drift.",
+    "Customer and auditor adoption signals (PwC mention) functionally lower friction for institutional validation and suggest integration patterns tailored for audit workflows: deep linking to supporting schedules, packaged assurance evidence export, and auditor-facing read-only views / APIs.",
+    "Marketing assertions lack specifics on model provenance, connector set, latency/scale guarantees, and whether AI work is run in customers' tenancy \u2014 absence of these details is itself revealing and indicates potential trade-offs (centralized models for feature speed vs. customer demand for private-model options)."
   ],
   "technical_depth": "medium",
-  "newsletter_potential": "medium",
+  "newsletter_potential": "high",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "How InScope built an event-driven, source-of-truth engine for financial reporting",
-      "summary": "InScope promises automatic linking and syncing from ERPs and spreadsheets into documents \u2014 but the real story for builders is how they stitch event-driven change propagation, deterministic validation and a presentation rendering pipeline into a single system that keeps numbers consistent across narratives, tables and footnotes.",
+      "headline": "Inside InScope\u2019s live\u2011synced stack: how to build audit\u2011grade, real\u2011time financial collaboration",
+      "summary": "Explore the engineering patterns that let InScope keep finance teams in sync with source systems while preserving immutable audit trails and fine\u2011grained provenance. This angle digs into connector design, retrieval\u2011first workflows, and how you reconcile real\u2011time collaboration with compliance needs.",
       "evidence": [
-        "InScope: \"Every occurrence of a value is updated when the source changes\" (linking & syncing to ERP/Excel)",
-        "Platform features: internal consistency checks, footing/crossfooting and automatic math validation",
-        "Analysis context: detected patterns include event-driven change propagation, document automation & presentation rendering pipeline, and source-of-truth linking with ERP/Spreadsheet connectors"
+        "Product claims: \"Live\u2011Synced Collaboration\" and \"data is live\u2011synced with your underlying source to keep numbers final and eliminate version chaos.\"",
+        "Security & compliance posture: SOC 2 Type II audits, encryption in transit and at rest, and emphasis on immutable audit trails and provenance in content.",
+        "Analysis context: Detected patterns include live\u2011synced source connectors, retrieval\u2011first workflows, RAG, role\u2011based AI assistants, and end\u2011to\u2011end provenance."
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Vertical data moats: why customer\u2011controlled financial datasets are InScope\u2019s secret AI advantage",
+      "summary": "Focus on the value of tightly controlled, customer\u2011owned financial datasets and structured outputs (digital tagging/XHTML mapping) as a defensible moat for finance\u2011focused AI. Examine how non\u2011advertising cookie use, processor/controller contracts, and granular DPA controls enable safe model fine\u2011tuning or retrieval without trading privacy for capability.",
+      "evidence": [
+        "Customer Data: customers control the data they input into products; where InScope acts as processor the DPA governs commitments.",
+        "Privacy posture: privacy policy states InScope does not sell personal data, uses cookies for essentials/analytics only, and complies with Data Privacy Frameworks and SCCs for transfers.",
+        "Product capability: emphasis on digital tagging for CSRD/ESRS and structured, XBRL\u2011like outputs that map to taxonomies\u2014valuable labeled data for vertical models or retrieval systems."
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "How InScope could be the finance team\u2019s CSRD lifeline: digital tagging, assurance\u2011ready outputs and auditable trails",
+      "summary": "With CSRD forcing machine\u2011readable ESG disclosures and third\u2011party assurance, this story evaluates how InScope\u2019s combination of digital tagging, audit trails, and finance\u2011first workflows positions it to capture mid\u2011market compliance work \u2014 and what engineering gaps would need closing to scale it.",
+      "evidence": [
+        "CSRD needs: ESRS requires digitally tagged sustainability disclosures (machine\u2011readable/XHTML) and third\u2011party assurance; InScope promotes digital tagging and audit\u2011ready outputs.",
+        "Product fit: InScope claims audit\u2011ready statements, one\u2011click access to supporting schedules, and integrated footing/inconsistency checks.",
+        "Market pain: CSRD will balloon the scope of reporting (\u224850k companies) and add heavy data/assurance burdens to finance teams \u2014 a clear demand signal for vertical tooling."
       ],
       "uniqueness_score": 9
     },
     {
-      "angle_type": "data",
-      "headline": "Their secret weapon: a vertical accounting data model and Chart-of-Accounts-first approach",
-      "summary": "InScope leans into accounting-specific signals \u2014 mandatory department tagging, GAAP vs non-GAAP account separation, descriptive GL names \u2014 to create a vertical data moat that makes automated checks, reconciliations and narrative linking feasible where generic tools fail.",
-      "evidence": [
-        "Product guidance: enforce mandatory department tagging (e.g., Netsuite) to ensure department/cost-centre attribution",
-        "CoA best-practices: advice to separate GAAP-only and contra-expense accounts and include last-4-digits in bank GL names",
-        "Company origin: built by former accountants, controllers and managers \u2014 domain expertise baked into product design"
-      ],
-      "uniqueness_score": 8
-    },
-    {
       "angle_type": "contrarian",
-      "headline": "Why InScope bet on rules-first validation instead of \"LLM everything\" for financial accuracy",
-      "summary": "Rather than relying primarily on generative models, InScope appears to foreground deterministic, rules-driven validation and exception-driven human-in-the-loop reviews \u2014 a contrarian but defendable choice in regulated, auditable workflows where traceability beats probabilistic outputs.",
+      "headline": "Betting against data monetization: InScope\u2019s privacy\u2011first posture as a growth strategy for enterprise AI",
+      "summary": "Many AI startups hedge growth by monetizing data or pushing advertising. InScope instead emphasizes controller/processor boundaries, refuses to sell personal data, and restricts cookies to non\u2011advertising uses \u2014 a contrarian approach that may win enterprise trust but raises questions about model training and product differentiation.",
       "evidence": [
-        "Product claims: automatic math validation and internal consistency checks that flag discrepancies for review",
-        "Analysis context: explicit pattern 'Deterministic rules-first validation pipeline (non-ML dominant)'",
-        "Compliance posture: emphasis on SOC 2 Type II audits and enterprise security controls in privacy/security materials"
-      ],
-      "uniqueness_score": 8
-    },
-    {
-      "angle_type": "efficiency",
-      "headline": "Can InScope actually turn late-night formatting and reconciliations into minutes? The efficiency claim tested",
-      "summary": "InScope advertises hours reclaimed via autoformatting, cross-footing and one-source-of-truth syncing; this angle tests the practical throughput gains \u2014 what workflows get 10x faster, where humans remain required, and how the product performs at scale.",
-      "evidence": [
-        "Core features: automated formatting, footing & cross-footing, auto-linking and syncing across documents",
-        "Customer-style testimonial: quote from Alex Gee praising time savings in verification work",
-        "Contradictory signal: engineering quality score in analysis context is low (3/10) and product is Series A \u2014 implying potential gaps in scale/resilience"
+        "Privacy policy: explicitly states it does not sell Personal Data, uses cookies only for essential and analytics purposes, and delineates controller vs processor roles.",
+        "Compliance signals: adoption of Data Privacy Frameworks, SCCs, and SOC 2 Type II audits to reassure enterprise buyers.",
+        "Tension: tech stack and LLMs are unspecified (LLMs: []), raising questions about how they obtain/upcycle data for AI features without broad data monetization."
       ],
       "uniqueness_score": 6
     }
@@ -493,47 +504,49 @@
   "anti_patterns": [
     {
       "pattern_type": "wrapper",
-      "description": "Product risks looking like a thin orchestration layer that stitches together ERP/Excel data and provider LLM/formatting APIs rather than offering proprietary core technology.",
+      "description": "The product messaging relies heavily on generic 'AI' capabilities and productivity multipliers without disclosing any proprietary model, research, or technical differentiation. This raises the risk that the offering is primarily a thin orchestration layer on top of third-party LLMs or APIs.",
       "severity": "medium",
       "evidence": [
-        "Core features emphasize auto-formatting, linking/syncing, and validation of values from ERPs or Excel files \u2014 functionality that can be implemented with deterministic pipelines and connector code.",
-        "Messaging focuses on eliminating manual Word/Excel work and syncing values, which are integration and UX problems rather than unique algorithms or data moats."
+        "Multiple broad AI claims: 'AI-powered financial reporting', 'AI assistants', 'AI review features' without technical details.",
+        "No public description of proprietary LLMs or models; tech-stack note shows LLMs: [] and 'Approach: unknown'.",
+        "Feature list (auto-rollforward, auto-formatting, linking + syncing) can be implemented by orchestrating existing ML/LLM APIs and integration work rather than novel models."
       ]
     },
     {
       "pattern_type": "feature_not_product",
-      "description": "Many highlighted capabilities read like discrete features (autoformatting, footing checks, mandatory tagging) that incumbents or ERP vendors could fold into existing products.",
-      "severity": "high",
+      "description": "Several claims read like stand-alone features (auto-format, rollforwards, footing checks, XBRL-like tagging) rather than a defensible, multi-layer product strategy \u2014 increasing risk incumbents or adjacent platforms could bundle equivalent features.",
+      "severity": "medium",
       "evidence": [
-        "Claims such as 'autoformatting means every financial table is perfectly presented from the moment it\u2019s generated' and 'validates all mathematical calculations in tables' suggest single-purpose automations.",
-        "Guidance and CoA/treasury content are advisory \u2014 useful but not unique product differentiators that lock customers in."
+        "Claims emphasize discrete capabilities: 'Auto-rollforward, auto-formatting and linking + syncing functionality', 'footing check and inconsistency checks', 'Insert SEC-ready, audit-compliant tables with a single paste.'",
+        "Marketing numbers presented as single-point benefits: 'Eliminate 80% of manual tasks', '60% faster to first draft', '70% less time spent reviewing documents' \u2014 consistent with a feature-focused ROI pitch."
       ]
     },
     {
       "pattern_type": "no_moat",
-      "description": "No clear defensible data moat, unique training data, or proprietary models described; platform differentiation relies on workflows and UX which are easier to replicate.",
+      "description": "There is limited evidence of a robust, defensible moat such as unique training data, proprietary models, exclusive integrations, or network effects. Many claimed advantages (efficiency, auditability) are capabilities competitors could replicate.",
       "severity": "high",
       "evidence": [
-        "Tech stack and LLM details are unspecified; no mention of proprietary models, vertical datasets, or exclusive integrations that create a hard-to-copy advantage.",
-        "Competitive position in provided context notes 'Moat: medium', indicating limited intrinsic barriers to competition."
+        "Customer data is described as 'Our customers control the data they input' and where InScope acts as processor commitments are in a DPA \u2014 this suggests customer datasets are not aggregated to build a company-owned data moat.",
+        "Tech details are vague and there is no mention of exclusive partnerships, unique taxonomies, or proprietary model improvements.",
+        "Competitive position noted as 'Moat: medium' in analysis context \u2014 no evidence provided to justify stronger moat."
       ]
     },
     {
       "pattern_type": "overclaiming",
-      "description": "Some marketing language implies elimination of risk and large productivity gains without technical specifics or evidence of edge-case handling.",
+      "description": "Marketing language includes strong, quantifiable claims about productivity and accuracy without supporting technical detail or validated benchmarks; this risks misalignment between expectations and delivered capabilities.",
       "severity": "medium",
       "evidence": [
-        "Statements like 'We eliminate that risk' (referring to human error in number updates) and 'Future Proof' are broad promises without documented verification processes or audit trails in the content.",
-        "Bold claims about saving 'thousands of hours' are supported by customer quote but lack quantitative customer metrics or independent validation in the content provided."
+        "Precise-sounding claims such as 'increase team capacity by eliminating 60% of repetitive manual labor', 'Eliminate 80% of manual tasks', '60% faster to first draft' and '70% less time spent reviewing' are presented without methodology or independent validation.",
+        "Statements like 'Our audit team at PwC told me that they would benefit if all of their clients used a solution like Inscope' and 'even our auditors have recognized' are anecdotal and could overstate auditor endorsement."
       ]
     },
     {
       "pattern_type": "undifferentiated",
-      "description": "The market for financial reporting automation, consistency checks, and document generation is crowded; the product positioning risks being 'me-too' without a unique angle.",
+      "description": "Positioning is similar to other financial reporting and document automation vendors (auto-formatting, version control, audit trails) and does not clearly articulate a unique angle that separates it from incumbents or broader platform providers.",
       "severity": "medium",
       "evidence": [
-        "Core capabilities overlap with ERP vendors (Netsuite mention), TMS, document generation tools, and reconciliation/close management platforms.",
-        "Advice and product features (CoA recommendations, treasury best practices) are standard domain knowledge rather than unique IP."
+        "Core selling points (live-syncing, version control, audit trails, AI review) are capabilities many enterprise productivity and reporting platforms pursue.",
+        "No distinct vertical-exclusive features described beyond general finance use cases and CSRD tagging support, which other compliance-focused products may also provide."
       ]
     }
   ],
@@ -541,71 +554,69 @@
     "competitors": [
       {
         "name": "Workiva",
-        "similarity": "Document-level financial reporting, linking of figures across documents, audit and compliance workflows for enterprises",
-        "how_different": "InScope emphasizes automated document formatting, automated math checks (footing/cross-footing) and internal consistency checks driven by accounting-domain rules; positions as an AI-first platform built by former accountants rather than a broader compliance/document platform"
+        "similarity": "Enterprise-grade financial and sustainability reporting platform; digital tagging/XBRL capabilities; targets midmarket and large enterprises and audit/compliance use cases.",
+        "how_different": "InScope emphasizes AI-first workflows (AI assistants for review and error detection), auto-rollforwards/auto-formatting focused on statement production, and claims live-sync to underlying sources for one-click access to supporting schedules \u2014 positioning as a more automated, auditor-friendly financial statement preparation layer."
       },
       {
-        "name": "BlackLine",
-        "similarity": "Automation of accounting processes, reconciliations, controls and close management for midmarket and enterprise accounting teams",
-        "how_different": "BlackLine focuses on reconciliations and close process orchestration; InScope focuses on end-to-end financial reporting documents (presentation, narrative, footnotes) with automated linking to source data and narrative-syncing, plus document formatting and math validation features"
+        "name": "CaseWare",
+        "similarity": "Tools for audit and financial statement preparation, strong focus on accountants and auditors, audit trails and compliance features.",
+        "how_different": "InScope pitches deeper automation of manual formatting/linking/rollforwards, integrated AI review to catch footing/consistency issues, and messaging around eliminating version chaos via live-sync; it positions as a modern, AI-enhanced alternative to traditional statement-prep suites used by accounting firms."
       },
       {
         "name": "FloQast",
-        "similarity": "Close management and workflow tooling for accounting teams, integrations with ERPs and Excel-centric teams",
-        "how_different": "FloQast is centered on close task management and reconciliation workflows; InScope targets the production and quality of the final financial statements (formatting, consistency, cross-footing, single source updates) and claims AI-driven automation for document generation and cash-flow visibility"
+        "similarity": "Close management and collaboration platform used by accounting teams to streamline month-end close, reconcile data, and coordinate reviewers.",
+        "how_different": "FloQast focuses on close workflow orchestration and reconciliations whereas InScope focuses downstream on producing audit-ready financial statements (auto-formatting, statement rollforwards, AI review and audit-ready tables) and on live links to source schedules rather than close checklist management alone."
       },
       {
-        "name": "Trintech (Cadency/ReconNet)",
-        "similarity": "Record-to-report automation, reconciliations and control automation for enterprises",
-        "how_different": "Trintech covers broad R2R and reconciliation processes; InScope focuses on the last-mile of reporting: making statements, tables and narratives consistent, automatically formatted and linked to source values across documents"
+        "name": "BlackLine / Trintech (reconciliations & close automation)",
+        "similarity": "Reconciliation/close automation and continuity of financial data across month-end processes for midmarket and enterprise finance teams.",
+        "how_different": "InScope differentiates by concentrating on the final statement production and review layer (formatting, rollforwards, audit trails, AI-assisted error detection and suggested fixes) rather than reconciliation engines or ERP-native controls; it also emphasizes audit collaboration and digital tagging for regulatory filing needs."
       },
       {
-        "name": "Kyriba / Cashforce / Tesorio",
-        "similarity": "Cash visibility, cash forecasting and treasury management solutions addressing cash flow concerns",
-        "how_different": "Those products are treasury/cash-first (forecasting, pooling, bank connectivity); InScope is reporting-first and promises to automate cash-flow statement generation and reconcile cash views to accounting/FP&A using document and ERP integrations, plus narrative alignment"
-      },
-      {
-        "name": "Vena / Planful / Adaptive (FP&A platforms)",
-        "similarity": "FP&A, planning and modeling used by finance teams and heavy Excel integration",
-        "how_different": "FP&A tools focus on planning, modeling and consolidation; InScope focuses on producing compliant, consistent, auditable reporting deliverables and embedding controls (math checks, cross-footing, auto-sync) into the reporting document lifecycle"
-      },
-      {
-        "name": "Manual stack (Excel + Word + VBA + bespoke scripts)",
-        "similarity": "The incumbent way most accounting teams produce reports\u2014using spreadsheets and Word to assemble statements and narratives",
-        "how_different": "InScope replaces manual formatting, manual reconciliations and chase-the-change workflows with automated formatting, math validation, internal consistency checks and single-source linking across the whole document"
+        "name": "Microsoft Excel + Manual Processes (the incumbent)",
+        "similarity": "Primary tool used today for financial statement preparation, linking, rollforwards, and ad hoc collaboration across accounting teams.",
+        "how_different": "InScope replaces manual Excel workflows with automation (auto-rollforwards, auto-formatting), live-synced source links, built-in audit trails, and AI review assistants \u2014 claiming major reductions in manual labor, version chaos, and review time."
       }
     ],
     "differentiation": {
-      "primary": "Document-first financial reporting automation that combines automated presentation (autoformatting) with accounting-grade validation (footing/cross-footing and internal consistency) and single-source linking/syncing to ERP/Excel data, marketed to accounting firms and enterprise finance teams.",
-      "technical": "Focus on document-level automation and data linking: automated formatting engine for financial tables, deterministic math validators (footing/cross-footing), document-wide lineage and linking so changes propagate from a single source to every instance in narratives, tables and footnotes; integrations to ERPs/Excel and SOC2/Privacy compliance posture.",
-      "business": "SaaS subscription for midmarket and enterprise with positioning toward accounting firms and controllers; emphasis on domain expertise (founders/ex-accountants) and saving low-value manual hours to shift finance teams to higher-order analysis. Likely sells via direct enterprise/firm GTM and integration partnerships.",
-      "positioning": "Positions itself as the accounting-first, AI-driven alternative to legacy reconciliation/close and FP&A tools\u2014promising to eliminate grunt work (formatting, math checks, manual syncs) and provide a single source of truth for reporting documents rather than just process or treasury tooling."
+      "primary": "End-to-end AI-driven financial statement preparation platform that automates the repetitive formatting/rollforward work, provides live-synced links to source schedules, and embeds AI review assistants to surface footing and consistency errors \u2014 positioned specifically for accounting firms and enterprises producing audit-ready statements.",
+      "technical": "Combines live synchronized links to underlying source data (eliminating version drift), automated rollforwards/auto-formatting and linking (SEC/audit-ready tables), and embedded AI review assistants that proactively flag errors and inconsistencies; includes enterprise-grade controls (encryption in transit/at rest, SOC 2 Type II) and support for digital tagging/regulated disclosures (CSRD/ESRS/XBRL-like requirements).",
+      "business": "SaaS subscription model targeted at midmarket and enterprise accounting teams and accounting firms; emphasizes auditor-friendly workflows and integration with audit processes (audit trails, traceability), leaning on validation from audit practitioners (PwC) as a GTM signal to accounting firms and customers; positions as a direct replacement for manual/Excel or as complementary to close tools.",
+      "positioning": "Marketed as the faster, more accurate, audit-ready alternative to manual Excel workflows and legacy financial statement tools \u2014 selling time-savings (60\u201380% reduction in manual tasks), reduction in review time, and stronger auditability rather than broad FP&A or ERP functionality."
     },
     "secret_sauce": {
-      "core_advantage": "A combination of accounting-domain expertise baked into product features (automated math/consistency rules and reporting best-practices), document-level linking/syncing that preserves lineage across narratives/tables/footnotes, and automated presentation so outputs are audit- and board-ready without manual formatting.",
-      "defensibility": "Medium \u2014 defensible through a mix of: (1) embedded domain knowledge and reusable accounting validation rules developed by ex-accountants (reduces time-to-value for customers), (2) integrations and one-source linking that create workflow lock-in as documents and audit trails accumulate, and (3) compliance/security posture (SOC 2 Type II, privacy frameworks) necessary for enterprise adoption. However, functionality can be imitated by larger incumbents (Workiva, ERP vendors) or bespoke internal tooling, and AI-savvy competitors could replicate automated formatting and validation over time.",
+      "core_advantage": "A tightly focused combination of live-synced source-linking + automated rollforwards/formatting + finance-specific AI review assistants that together automate the last-mile work of producing audit-ready financial statements and digital-tagged disclosures.",
+      "defensibility": "Medium \u2014 defensible because it requires domain-specific knowledge (financial reporting rules, audit requirements, SEC/ESRS tagging), integrations to source systems and audit workflows, curated templates and UX tailored to accountants/auditors, and potentially proprietary training data and workflows; however large incumbents (Workiva, ERP/close vendors) or well-funded AI/platform players could replicate features over time if they prioritize this niche.",
       "evidence": [
-        "\"We built InScope because we\u2019ve been in our customer\u2019s shoes. As former accountants, managers and controllers...\"",
-        "Core features called out: \"Automated Formatting\", \"Footing and CrossFooting\", \"Internal Consistency Checks\", \"Linking and Syncing\"",
-        "Privacy/compliance claims: SOC 2 Type II audits and adherence to multiple privacy frameworks (EU\u2013US Data Privacy Framework, etc.)",
-        "Target market described: \"SaaS... for midmarket and enterprise customers\" and Series A funding of $14,500,000"
+        "Claim: 'Increase team capacity by eliminating 60% of repetitive manual labor with automated rollforwards, formatting and reviews.'",
+        "Claim: 'Eliminate 80% of manual tasks in financial reporting. Auto-rollforward, auto-formatting and linking + syncing functionality...' ",
+        "Claim: 'Live-Synced Collaboration \u2014 Data is live-synced with your underlying source to keep numbers final and eliminate version chaos.'",
+        "Claim: 'Inscope\u2019s AI assistants proactively flag issues and help us generate clean, error-free financials.'",
+        "Third-party endorsement style quote: 'Our audit team at PwC told me that they would benefit if all of their clients used a solution like Inscope.'",
+        "Compliance/security note: 'regular third-party audits of our systems (e.g., SOC 2 Type II)' and support for digital tagging and CSRD/ESRS workflows."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "InScope's moat is built on domain specialization (accounting-first design and rules), document-level lineage/linking that produces tangible productivity and audit benefits, and enterprise-grade security/compliance. These create strong table-stakes value and customer stickiness once integrated into month-end/close workflows and auditor communication. However, the core technical features (formatting automation, math checks, data linking) are conceptually replicable and large incumbents (Workiva, ERP vendors, reconciliation platforms) or new AI entrants could replicate or bundle similar capabilities; therefore the moat is not impregnable but offers defensibility sufficient to win and retain midmarket/enterprise customers if execution and integrations continue.",
+    "moat_explanation": "InScope's moat rests on domain specialization (financial statement prep and audit workflows), integrations/live-sync to source schedules, curated templates for audit/SEC-ready tables, and AI models tuned to spot finance-specific errors \u2014 plus relationships/validation from auditors (e.g., PwC commentary). Those factors create a meaningful short-to-medium term advantage because building trustworthy, auditable automation for regulated reporting requires deep subject-matter expertise, precise templates, and strong security/compliance. However, the moat is not unassailable: larger incumbents (Workiva, ERP/close vendors, or well-funded AI-platform vendors) could replicate or bundle similar capabilities, and AI-model capabilities are broadly accessible, so InScope must continue to deepen integrations, proprietary training signals, and customer stickiness to maintain advantage.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "\"like AI driven forecasting models.\"",
-    "This is the first 'generative AI IPO' \u2013 a big milestone in the market\u2019s evolution.",
-    "Ledger-linked document synchronization: document generation tied directly to GL/ERP/Excel source values so every document occurrence of a number is bidirectionally linked to a canonical source.",
-    "Calculation integrity engine focused on accounting primitives: automated footing/cross-footing, rounding management and discrepancy flagging tailored to financial statements rather than generic numeric validation.",
-    "Document-level consistency mesh: tracking and reconciling the same line items across primary statements, footnotes and narrative with automatic flagging and auditability.",
-    "Mandatory tag enforcement integrated with GL/accounting workflows: product-level enforcement of departmental/cost-centre tagging to guarantee attribution and downstream analytics."
+    "Draft, Review, Approve \u2014 All in One Place AI-Powered Financial Reporting",
+    "AI-Powered Financial Reporting",
+    "Draft Better, Faster From zero to first draft in record time",
+    "AI Assistants will do the heavy lifting to ensure accuracy and internal consistency of financial statements",
+    "AI-assisted workflows and reviews",
+    "AI review features in the tool added an extra level of confidence",
+    "Inscope's AI Assistants will do the heavy lifting to ensure accuracy and internal consistency of financial statements",
+    "Digitally tagged ESG reporting mapped to ESRS taxonomy (machine-readable XHTML tagging similar to XBRL) \u2014 embedding taxonomy mapping as a first-class output target for generative workflows.",
+    "Live-syncing to canonical financial sources and supporting schedules to produce a single source of truth that auto-rollforwards and auto-links across drafts (reduces versioning and enables deterministic retrieval for generation).",
+    "Audit-trail-first design: fine-grained, tamper-evident logging and metadata baked into the reporting layer to satisfy regulatory/assurance needs and to feed model validation/guardrails.",
+    "Embedded AI assistants focused specifically on audit-compliance tasks (footing, tie-outs, inconsistency checks) rather than generic assistants \u2014 a domain-specialized assistant layer for audit-ready generation and review."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 21:04:15.758775+00:00",
-  "confidence_score": 0.55,
-  "raw_content_analyzed": 258049
+  "analyzed_at": "2026-03-08 00:56:05.034873+00:00",
+  "confidence_score": 0.7,
+  "raw_content_analyzed": 259443,
+  "input_hash": "30478cc15c1ac8f0"
 }

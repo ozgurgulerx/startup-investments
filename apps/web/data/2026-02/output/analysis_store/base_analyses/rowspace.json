@@ -6,147 +6,158 @@
   "description": "Rowspace provides an AI platform that helps financial firms use proprietary data for decision-making.",
   "funding_amount": 50000000.0,
   "funding_stage": "series_a",
-  "uses_genai": true,
-  "genai_intensity": "core",
+  "uses_genai": false,
+  "genai_intensity": "none",
   "models_mentioned": [],
   "build_patterns": [
     {
-      "name": "RAG (Retrieval-Augmented Generation)",
-      "confidence": 0.9,
-      "evidence": [
-        "turn institutional knowledge into compounding edge for finance",
-        "unlocking institutional knowledge",
-        "tame messy data for investment firms using ai"
-      ],
-      "description": "Rowspace is positioned to surface and use institutional documents and messy firm data to inform model outputs. That language implies a retrieval layer (vector search / document store / embeddings) hooked into generation so LLMs can cite and reason over firm-specific records."
-    },
-    {
-      "name": "Vertical Data Moats",
-      "confidence": 0.85,
-      "evidence": [
-        "turn institutional knowledge into compounding edge for finance",
-        "Rowspace AI for Investors: Unlocking Institutional Knowledge",
-        "specialized intelligence"
-      ],
-      "description": "The company emphasizes institutional/finance-specific knowledge as a proprietary asset. This suggests they build and curate domain-specific datasets (documents, transcripts, models) that create a competitive moat for investment/financial workflows."
-    },
-    {
-      "name": "Continuous-learning Flywheels",
-      "confidence": 0.8,
-      "evidence": [
-        "turn institutional knowledge into compounding edge for finance",
-        "compounding edge"
-      ],
-      "description": "Phrases like 'compounding edge' imply feedback loops where usage, annotations, and curated institutional data incrementally improve models and knowledge representations, producing ongoing model/data improvements tied to customer interactions."
-    },
-    {
       "name": "Knowledge Graphs",
-      "confidence": 0.6,
-      "evidence": [
-        "institutional knowledge",
-        "tame messy data"
-      ],
-      "description": "Handling 'messy' institutional data and surfacing relationships between people, deals, companies, and documents often motivates entity linking and graph-style representations (permission-aware relationships). While not explicit, the product focus suggests use of structured relationship indexes or graphs to connect heterogeneous records."
+      "confidence": 0.0,
+      "evidence": [],
+      "description": "No references to graphs, entity relationships, knowledge bases, or permission-aware/RBAC indexes in the provided content."
     },
     {
-      "name": "Micro-model Meshes",
-      "confidence": 0.6,
-      "evidence": [
-        "specialized intelligence",
-        "Rowspace AI for Investors"
-      ],
-      "description": "Branding as 'specialized intelligence' for investors suggests use of task- or domain-specialized models (ensembles or routing by task) rather than a single general LLM\u2014e.g., separate parsers for filings, models for valuations, or fine-tuned modules for regulatory language."
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.0,
+      "evidence": [],
+      "description": "No mentions of translating plain English to code, rule generation, or developer-facing NL interfaces."
     },
     {
       "name": "Guardrail-as-LLM",
-      "confidence": 0.5,
+      "confidence": 0.1,
       "evidence": [
-        "finance / institutional context",
-        "investors / enterprise usage"
+        "Security",
+        "Privacy Policy",
+        "We use third-party cookies and similar technologies to enhance your experience and analyze site performance."
       ],
-      "description": "Given regulatory and compliance needs in finance, it is likely they layer safety/compliance checks or secondary validation models to vet outputs (auditability, red-teaming, policy enforcement). The public text doesn't state this explicitly but enterprise finance products commonly include such guardrails."
+      "description": "Very weak signals only: presence of 'Security' and a Privacy Policy/cookie notice suggests attention to compliance and content governance at a product level, but there is no explicit mention of secondary LLMs, moderation layers, safety-check models, or automated output validation."
+    },
+    {
+      "name": "Micro-model Meshes",
+      "confidence": 0.0,
+      "evidence": [],
+      "description": "No indication of multiple specialized models, model routing, or ensemble/specialist architectures."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.35,
+      "evidence": [
+        "We use third-party cookies and similar technologies to enhance your experience and analyze site performance."
+      ],
+      "description": "The cookie/analytics statement implies collection of usage and performance data that could feed iterative product/model improvement, indicating a possible analytics-to-improvement loop; however, there is no explicit mention of model retraining, feedback loops, A/B testing, or leveraging user corrections."
+    },
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.0,
+      "evidence": [],
+      "description": "No mentions of document retrieval, vector search, embeddings, or combining external documents with generation."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.0,
+      "evidence": [],
+      "description": "No references to autonomous agents, tool use, multi-step orchestration, or agent frameworks."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.25,
+      "evidence": [
+        "Global leader in credit origination",
+        "The pioneer of private equity",
+        "Crossover fund in tech's big IPOs"
+      ],
+      "description": "Marketing lines emphasize domain positioning in finance/credit/private equity, which could imply proprietary, industry-specific data assets. The content itself does not describe training data or model advantages, so this is only a moderate, speculative signal of a vertical data moat."
     }
   ],
   "discovered_patterns": [
     {
       "category": "Data Strategy",
-      "pattern_name": "Verticalized institutional knowledge capture for finance",
-      "confidence": 0.9,
-      "evidence": [
-        "Rowspace launches with $50M to turn institutional knowledge into ...",
-        "Rowspace emerges from stealth with $50M led by Sequoia to tame messy data for investment firms using AI",
-        "Rowspace AI for Investors: Unlocking Institutional Knowledge"
-      ],
-      "description": "Rowspace is positioning itself as a vertical AI product focused on institutional knowledge for investment/finance customers. The public messaging emphasizes ingesting, structuring, and surfacing an organization's internal knowledge to create an operational advantage for financial teams.",
-      "novelty_score": 6,
-      "why_notable": "Vertical specialization (finance + institutional knowledge) is a strong moat versus general-purpose LLM products; it implies investment in data pipelines, domain-specific tooling, and compliance features that are valuable to enterprise finance customers."
-    },
-    {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "Knowledge ingestion + data-wrangling backed retrieval platform (inferred)",
-      "confidence": 0.6,
-      "evidence": [
-        "Rowspace emerges from stealth with $50M led by Sequoia to tame messy data for investment firms using AI",
-        "Rowspace launches with $50M to turn institutional knowledge into ..."
-      ],
-      "description": "Public language indicates they focus on 'taming messy data' and 'turning institutional knowledge into ... edge' which strongly implies an ingestion pipeline, normalization/cleaning, chunking and an index/search layer (e.g., vector search) to support semantic retrieval over proprietary firm data. Specific technical components (vector DB choice, chunk sizes, reranking) are not disclosed publicly in the provided content.",
-      "novelty_score": 4,
-      "why_notable": "Implementing enterprise-grade ingestion and retrieval for messy, heterogeneous financial data is non-trivial and a key product distinguishing factor, but the pattern itself is common among AI knowledge-platform vendors."
-    },
-    {
-      "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Product-stage, enterprise-grade platform implied by funding and go-to-market focus",
-      "confidence": 0.8,
-      "evidence": [
-        "Rowspace launches with $50M to turn institutional knowledge into ...",
-        "Exclusive: AI financial platform Rowspace raises $50 million led by ..."
-      ],
-      "description": "Significant venture funding and press around a launch/stealth emergence implies they are beyond proof-of-concept: enterprise sales, security/compliance, SLAs, multi-tenant architecture or customer isolation, and operational readiness for production customers. This suggests investments in deployment automation, observability, and customer onboarding flows tailored to finance firms.",
-      "novelty_score": 3,
-      "why_notable": "The maturity implied by the funding emphasises production concerns (scalability, reliability, compliance), but these are typical expectations for enterprise AI startups."
-    },
-    {
-      "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Limited public technical disclosure / closed implementation details",
+      "pattern_name": "Third-party cookie tracking and analytics",
       "confidence": 0.95,
       "evidence": [
-        "You've reached the units usage limit allowed under our free plan, please upgrade to a paid plan at https://browserless.io/account/",
-        "Search and press titles provide high-level positioning but no technical specifics (models, vector DB, RAG details)"
+        "\"We use third-party cookies and similar technologies to enhance your experience and analyze site performance.\"",
+        "\"Learn more in our Privacy Policy.\""
       ],
-      "description": "The available publicly-captured assets analyzed here contain high-level messaging and funding news but lack technical documentation or implementation specifics. Attempts to crawl/inspect deeper were blocked by a tooling limit (browserless units). As a result, concrete evidence for model choices, RAG architecture, evalops, or safety practices is not available in the supplied material.",
+      "description": "The site explicitly uses third-party cookies for user experience enhancements and analytics. This indicates integration with external analytics/marketing/tracking providers and a privacy policy workflow for consent and disclosure.",
       "novelty_score": 2,
-      "why_notable": "The lack of public technical transparency is notable because it constrains external technical analysis and is common for enterprise startups that treat implementation details as proprietary."
+      "why_notable": "This is a standard web analytics approach, but it concretely signals that Rowspace relies on third-party telemetry and likely third-party SaaS integrations for measuring user behavior and product metrics, which influences any data collection available for model training or product analytics."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Demo-driven enterprise SaaS positioning (marketing/usage gating)",
+      "confidence": 0.85,
+      "evidence": [
+        "\"REQUEST DEMO\"",
+        "\"Global leader in credit origination The pioneer of private equity Crossover fund in tech's big IPOs Request a Demo\"",
+        "Repeated header/footer content containing \"REQUEST DEMO\" across site text."
+      ],
+      "description": "The product is presented as enterprise-focused and demo-gated, implying a business model where access to the product is mediated via sales/engagement funnels. Operationally this often maps to closed demo environments, staged production access, and enterprise onboarding flows rather than immediate self-serve product sign-up.",
+      "novelty_score": 3,
+      "why_notable": "This is a common approach for regulated or high-value vertical offerings (finance/credit), suggesting operational patterns like strict access controls, enterprise onboarding, and potentially isolated demo environments or tenant gating."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Security-first marketing link (non-technical)",
+      "confidence": 0.6,
+      "evidence": [
+        "\"Security\" (as a top-level navigation item)"
+      ],
+      "description": "The presence of a dedicated \"Security\" link in the navigation indicates a marketing emphasis on security and compliance, which typically correlates to engineering investments in authentication, encryption, SOC-type controls, and compliance documentation. The content itself does not provide technical specifics.",
+      "novelty_score": 2,
+      "why_notable": "While common for B2B SaaS, its presence is notable because it implies that architectural choices will be influenced by regulatory and security requirements (especially given references to credit origination and private equity)."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "No public disclosure of model architecture or LLM providers",
+      "confidence": 0.98,
+      "evidence": [
+        "Entire provided content contains no mention of models, LLM vendors, or model terms such as GPT, Claude, Llama, Mistral, Gemini, fine-tuning, or RAG."
+      ],
+      "description": "There is no technical description of which models (open or proprietary) are used, whether fine-tuning occurs, or any model-specific architecture decisions. Public-facing material focuses on marketing, funding, product demo, and cookie/privacy statements only.",
+      "novelty_score": 1,
+      "why_notable": "The lack of disclosure is itself informative: Rowspace appears to avoid revealing ML stack details publicly, which is common among privacy- or security-sensitive enterprise vendors or those who consider model decisions to be strategic/competitive information."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "No evidence of fine-tuning, RAG, or vector search",
+      "confidence": 0.95,
+      "evidence": [
+        "No mentions of fine-tuning, LoRA, RAG, vector DBs, embeddings, retrieval, or knowledge-graph in the provided text."
+      ],
+      "description": "Because the content lacks any technical details, there is no evidence that fine-tuning, retrieval-augmented generation, or vector-search backends are used. Any assertions about such implementations would be speculative.",
+      "novelty_score": 1,
+      "why_notable": "Absence of evidence constrains analysis and suggests either: (a) they intentionally do not disclose technical details publicly, or (b) the provided content is purely marketing and not intended for technical audiences."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Productizing institutional knowledge specifically for investment/finance firms (vertical-first knowledge platform)",
-      "why_novel": "While many vendors build RAG-enabled knowledge platforms, Rowspace's messaging and funding suggest a deliberate verticalization (finance + institutional knowledge) that requires domain-specific ingestion, compliance, and workflow integrations \u2014 a deeper productization than generic knowledge bases.",
-      "potential_impact": "Enables finance teams to surface proprietary insights quickly, create defensible data moats, and accelerate analyst productivity; creates higher switching costs due to integration with firm-specific data and workflows."
+      "approach": "No publicly revealed AI architecture \u2014 deliberate opacity as a product posture",
+      "why_novel": "Not revealing any technical details can be a strategic decision for enterprise vendors in regulated industries. Rather than a technical novelty, it's a product/communications novelty: the company exposes only business- and sales-facing surfaces.",
+      "potential_impact": "This reduces public attack surface and IP leakage, but increases friction for technical buyers and independent evaluators. It suggests the vendor expects technical due diligence to happen under NDA during demos rather than on a public website."
     }
   ],
   "model_details": {
     "primary_models": [],
     "fine_tuning": {
       "uses_fine_tuning": false,
-      "fine_tuning_approach": "No public evidence in provided content (not disclosed).",
-      "training_data_source": "No public evidence in provided content"
+      "fine_tuning_approach": "",
+      "training_data_source": ""
     },
     "inference_optimization": [],
     "model_routing": {
       "uses_routing": false,
-      "routing_strategy": "No public evidence in provided content"
+      "routing_strategy": ""
     },
     "compound_ai": {
       "is_compound_system": false,
-      "orchestration_pattern": "No public evidence in provided content"
+      "orchestration_pattern": ""
     }
   },
   "market_type": "vertical",
   "vertical": "financial_services",
-  "sub_vertical": "institutional data analytics for investment and trading",
-  "sub_sub_vertical": "alternative data analytics and quantitative research for asset managers",
+  "sub_vertical": "risk analytics and decision support for financial services",
+  "sub_sub_vertical": "proprietary data-driven investment decision support and risk management",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
@@ -162,12 +173,12 @@
       {
         "id": "financial_services",
         "label": "Financial Services",
-        "confidence": 0.83
+        "confidence": 0.85
       },
       {
         "id": "fintech_payments_banking",
         "label": "FinTech (Payments & Banking)",
-        "confidence": 0.65
+        "confidence": 0.72
       }
     ]
   },
@@ -183,7 +194,7 @@
     "has_custom_models": false
   },
   "engineering_quality": {
-    "score": 4,
+    "score": 2,
     "has_public_api": false,
     "has_sdk": false,
     "has_documentation": false,
@@ -192,37 +203,28 @@
     "github_stars": 0,
     "github_contributors": 0,
     "open_source_projects": [],
-    "signals": []
+    "signals": [
+      "Marketing-driven web presence with repeated announcements; no evidence of developer docs or APIs",
+      "No public API, SDKs, or technical documentation visible"
+    ]
   },
   "implementation_maturity": "production",
   "team_analysis": {
-    "founders": [
-      {
-        "name": "",
-        "role": "",
-        "background": "",
-        "previous_companies": [],
-        "technical_depth": "unknown",
-        "domain_expertise": ""
-      }
-    ],
+    "founders": [],
     "team_signals": {
-      "engineering_heavy": true,
-      "has_ml_expertise": true,
-      "has_domain_expertise": true,
+      "engineering_heavy": false,
+      "has_ml_expertise": false,
+      "has_domain_expertise": false,
       "hiring_signals": [],
-      "team_size_indicators": "small",
+      "team_size_indicators": "unknown",
       "remote_distributed": false
     },
-    "founder_market_fit": "Insufficient public founder profiles to assess fit; fundraising by Sequoia and the focus on an AI-driven financial data platform suggest alignment with institutional finance data needs, but founder-specific track records are not identifiable from the provided information.",
-    "team_strengths": [
-      "Strong investor backing (Sequoia-led funding) indicating credibility and a robust network.",
-      "Clear product focus on AI-driven analytics for institutional finance, suggesting technical ambition and domain relevance."
-    ],
+    "founder_market_fit": "insufficient information to assess founders' backgrounds and fit to the problem; no team details available in provided content.",
+    "team_strengths": [],
     "team_red_flags": [
-      "Public information on founders and leadership is not identifiable, limiting assessment of execution track record and domain-specific expertise."
+      "No founder or team details present in the provided content; cannot verify technical depth or domain expertise."
     ],
-    "team_confidence": 0.25
+    "team_confidence": 0.1
   },
   "business_model": {
     "pricing_model": {
@@ -233,60 +235,47 @@
       "price_points": []
     },
     "gtm_strategy": {
-      "primary_channel": "sales_led",
+      "primary_channel": "content_marketing",
       "evidence": [
-        "Series A funding with institutional focus suggests an enterprise sales motion",
-        "Press releases and coverage targeting investment/finance firms",
-        "LinkedIn content targeting investors"
+        "repeated 'READ MORE' and 'REQUEST DEMO' CTAs",
+        "funding announcement suggesting investor-backed credibility",
+        "cookie/privacy notices indicating a standard B2B SaaS marketing site"
       ],
       "target_segment": "enterprise",
-      "sales_motion": "hybrid"
+      "sales_motion": "inside_sales"
     },
     "revenue_model": {
-      "monetization_approach": "B2B enterprise SaaS licensing with recurring revenue for an AI/analytics platform aimed at institutional finance",
+      "monetization_approach": "B2B software licensing with recurring revenue; specific pricing not disclosed; demo-driven sales",
       "unit_economics_signals": [],
       "recurring_revenue": true
     },
     "distribution_advantages": [
-      "Sequoia-led Series A funding provides credibility and potential strategic introductions",
-      "Industry-focused positioning toward financial/investment firms"
+      "Sequoia-led funding provides credibility and potential access to their network",
+      "established marketing site with demo-focused CTAs"
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "press coverage / PR",
-        "LinkedIn / content marketing",
-        "investor-focused messaging"
+        "content_marketing",
+        "demo-based outreach",
+        "public funding announcements"
       ],
-      "customer_proof_points": [
-        "target audience is institutional investors / investment firms",
-        "major funding round indicates market validation"
-      ]
+      "customer_proof_points": []
     },
-    "business_model_clarity": "evolving",
-    "business_model_confidence": 0.6
+    "business_model_clarity": "unclear",
+    "business_model_confidence": 0.25
   },
   "product_analysis": {
-    "product_stage": "beta",
+    "product_stage": "pre_launch",
     "stage_evidence": [
-      "Emerges from stealth with significant funding led by Sequoia (press coverage in Feb 2026).",
-      "Public announcements indicate a launch/market entry, with a focus on turning institutional knowledge into an investment edge.",
-      "No detailed documentation, pricing tiers, or general availability confirmation provided in the available material.",
-      "Early-stage signals typical of a new product in a specialized enterprise sector (finance/investment firms)."
+      "Only funding announcement with no product details",
+      "No feature pages, documentation, or use-case descriptions provided in excerpt",
+      "No launch date, beta, or availability information mentioned"
     ],
     "feature_depth": {
-      "core_features": [
-        "AI-driven data curation and normalization for investment-related data",
-        "Knowledge extraction and organization across institutional sources",
-        "Search and retrieval of institutional knowledge for investment teams",
-        "Analytics/decision support aimed at converting data into actionable insights"
-      ],
-      "differentiating_features": [
-        "Niche focus on institutional knowledge management for investment firms",
-        "AI-powered transformation of messy, unstructured financial data into structured, queryable knowledge",
-        "Positioning as a specialized intelligence layer to provide a competitive edge for finance professionals"
-      ],
+      "core_features": [],
+      "differentiating_features": [],
       "roadmap_signals": [],
-      "feature_completeness": "growing"
+      "feature_completeness": "mvp"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [],
@@ -296,202 +285,185 @@
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "Turn institutional, potentially messy data into a structured knowledge base with AI-assisted insights to support investment decision-making",
+      "primary_use_case": "undisclosed",
       "secondary_use_cases": [
-        "AI-assisted research synthesis",
-        "Data governance and knowledge management for investment teams",
-        "Operational efficiency through centralized institutional knowledge"
+        "undisclosed"
       ],
       "customer_stories": [],
-      "industry_focus": [
-        "investment management",
-        "financial services",
-        "hedge funds",
-        "asset managers"
-      ]
+      "industry_focus": []
     },
     "product_risks": [
-      "Early-stage product with evolving capabilities and limited public documentation",
-      "Potential challenges around data integration, data quality, and onboarding for large organizations",
-      "Uncertain API, developer tooling, and ecosystem maturity due to lack of public documentation",
-      "Competition from established data platforms and knowledge management solutions in finance"
+      "Lack of publicly available product details; uncertain feature depth; potential reliance on undisclosed partnerships"
     ],
     "product_strengths": [
-      "Strong backing and credibility from high-profile investor Sequoia",
-      "Clear, differentiated focus on institutional knowledge and AI for finance",
-      "Strategic positioning to create a compounding knowledge edge for investment firms"
+      "Not disclosed in available materials"
     ],
-    "product_confidence": 0.6
+    "product_confidence": 0.2
   },
   "unique_findings": [
-    "The only direct artifact in the provided content is repeated 'browserless' unit-limit messages \u2014 there are no technical docs or architecture diagrams. That absence is itself revealing: public-facing technical detail is intentionally minimal, forcing outside observers to infer architecture from product positioning and hiring/funding signals.",
-    "Rowspace\u2019s stated goal \u2014 turning 'institutional knowledge' into a compounding edge for finance \u2014 implies a system built around persistent, firm-specific knowledge representations (not ephemeral RAG). This likely means a hybrid of a typed/temporal knowledge graph + vector indexes where entities, relationships, and provenance are first-class and incrementally updated.",
-    "The phrase 'compounding edge' suggests an unusual technical choice: stateful continual learning that locks in client-specific signals (fine-tuned adapters or continual pretraining on private corpora) rather than treating customer data as stateless context only. That implies pipelines for safe, incremental model updates and model-version isolation per client.",
-    "A likely novel architecture pattern is a unified ingestion/orchestration layer that normalizes heterogeneous financial inputs (PDFs, research notes, spreadsheets, chat logs, market data) into a canonical schema, then feeds both symbolic (graph/relational) and sub-symbolic (embeddings) stores, with coordinated retrieval strategies (sparse + dense) and provenance linking across stores.",
-    "There is non-obvious operational complexity around temporal correctness and entity resolution in finance: canonicalizing entities (funds, tickers, counterparties) through time, tracking corporate actions and reorganizations, and ensuring search/reasoning respects time windows \u2014 this is a step beyond generic RAG and is expensive to implement well.",
-    "Enterprise-grade auditability and compliance requirements for investment workflows imply heavy investment in immutable provenance, fine-grained access controls, model and data lineage, query-level explainability, and deterministic replay of decisions \u2014 features that are technically demanding and often underappreciated.",
-    "Rowspace's implementation likely includes robust connector and transformation libraries for legacy systems. Those connectors (and the mapping logic that converts messy internal formats into the platform\u2019s canonical model) are a significant engineering asset that is both time-consuming and subtle to get right.",
-    "From the outside, Rowspace appears to converge several successful patterns (vector DBs, RAG, fine-tuning) but applied with deeper domain engineering: financial ontologies, time-aware indices, and compliance-first operational controls \u2014 effectively productizing knowledge-first AI for institutional investors."
+    "Content provided is overwhelmingly marketing boilerplate and contains no explicit technical implementation details; any technical insights below are necessarily inferred and speculative.",
+    "Repeated navigation/hero lines and cookie banners suggest their site content is built from a templated component system; the repetition could indicate server-side rendering or a CMS-driven feed that failed to deduplicate items before rendering, pointing to a non-trivial content pipeline that must handle canonicalization and deduplication at scale.",
+    "Presence of an enterprise demo CTA, security/careers nav items, and references to 'Global leader in credit origination' implies dual product modes: a public-facing newsletter and an enterprise analytics product. Supporting both implies a hybrid architecture that separates consumer personalization pipelines from enterprise data integrations and secure ingestion connectors (SAML/SSO, VPC peering, encrypted connectors).",
+    "Mentions of third\u2011party cookies and analytics indicate they rely on client-side tracking for personalization and experimentation. Given modern privacy constraints, this implies additional engineering complexity: fallback identifiers, cookieless tracking, server-side event collection, and consent management integration (CMPs) \u2014 a heavier engineering and compliance burden than many newsletters.",
+    "To deliver 'unique, high-impact insights' at scale they likely combine automated signal extraction (NLP pipelines: entity extraction, event detection, trend clustering) with human curation. That mixed human+ML workflow creates hidden complexities: label pipelines, curator tooling, active learning loops, and audit trails for provenance and editorial overrides.",
+    "If they use LLMs for summarization or insight generation, important but subtle choices are required for defensibility: fine-tuning on proprietary event datasets, retrieval-augmented generation (RAG) with a vetted vector store and citation layer, and hallucination mitigation via grounded retrieval and conservative scoring \u2014 this combination is technically non-trivial and differentiating if implemented well.",
+    "Deliverability and personalization at newsletter scale requires robust infrastructure around email deliverability (IP warmup, reputation, bounce handling), per-user content assembly latency constraints (near-real-time recomposition for segmented cohorts), and analytics backfills \u2014 a set of operations work often underestimated in product blurbs.",
+    "Potential internal signals of experimentation: repeated promo lines and cookie-policy repetitions could be artifacts of aggressive A/B testing and feature flags being served in the DOM. That implies a feature-flagging system, experimentation pipeline, and analytics ingestion that must reconcile variant-aware user profiles for downstream personalization models."
   ],
-  "technical_depth": "medium",
-  "newsletter_potential": "high",
+  "technical_depth": "low",
+  "newsletter_potential": "medium",
   "story_angles": [
     {
-      "angle_type": "architecture",
-      "headline": "How Rowspace might stitch knowledge graphs, micro-model meshes and RAG to tame messy finance data",
-      "summary": "Rowspace bills itself as converting institutional knowledge into a compounding edge \u2014 a claim that implies a complex architecture: large language models backed by curated retrieval (RAG), knowledge graphs for entity resolution, and a mesh of small specialist models for domain tasks. For engineering readers, the real story is the integration plumbing and tradeoffs: offline ETL vs. streaming ingestion, graph schema for financial entities, and how they enforce guardrails at model boundaries.",
+      "angle_type": "data",
+      "headline": "Rowspace\u2019s secret weapon could be a vertical data moat \u2014 here\u2019s why financiers should care",
+      "summary": "Beyond the $50M, Rowspace appears positioned as a specialist in financial-services credit origination and private-equity workflows. If they\u2019ve stitched proprietary deal, credit, or investor datasets into their model pipeline, that could be a defensible data moat that beats generic LLM playbooks.",
       "evidence": [
-        "Launch coverage and PR: Rowspace emerges from stealth with $50M led by Sequoia (Feb 2026)",
-        "Pattern detection in available materials: RAG, Knowledge Graphs, Micro-model Meshes, Continuous-learning Flywheels listed in analysis context",
-        "Limited public technical disclosure \u2014 suggested by repeated 'units usage limit' crawler noise \u2014 makes the architecture itself a primary open question"
+        "\"Global leader in credit origination\" and \"pioneer of private equity Crossover fund\" language in site copy",
+        "Vertical identified: financial_services (from analysis context) and enterprise demo gating suggesting bespoke integrations for high-value workflows"
       ],
-      "uniqueness_score": 8
+      "uniqueness_score": 9
     },
     {
-      "angle_type": "data",
-      "headline": "Their secret weapon may not be models but institutional data: vertical data moats for finance",
-      "summary": "Rowspace\u2019s pitch centers on institutional knowledge \u2014 not just public markets data \u2014 which points to a defensible moat: curated private documents, annotated workflows, and longitudinal trade/decision histories. A newsletter can probe how they ingest, normalize, de-duplicate and index proprietary trade notes, decks, and comms, and how that data footprint creates compounding value for clients.",
+      "angle_type": "architecture",
+      "headline": "They won\u2019t say what\u2019s under the hood \u2014 why Rowspace\u2019s opaque model stack is a deliberate engineering bet",
+      "summary": "Public materials disclose no LLM providers, no model architecture, and no RAG/vector-search claims. That opacity could be an intentional tradeoff (security / commercial IP / vendor-agnostic orchestration) \u2014 or a red flag for builders wanting to integrate and iterate.",
       "evidence": [
-        "Company positioning: 'turn institutional knowledge into compounding edge' (PR and launch messaging)",
-        "Detected build patterns emphasize 'Vertical Data Moats' and 'Knowledge ingestion + data-wrangling backed retrieval platform'",
-        "Raised $50M Series A \u2014 investors typically fund defensible data advantages at this scale"
+        "No public disclosure of model architecture or LLM providers (analysis context)",
+        "Marketing emphasis on demos and security-first messaging suggests vendor-managed, closed integrations rather than open plumbing"
       ],
       "uniqueness_score": 7
     },
     {
       "angle_type": "contrarian",
-      "headline": "Why Rowspace might be betting against the one-model-fits-all LLM trend",
-      "summary": "Instead of a single giant foundation model, Rowspace\u2019s inferred approach suggests smaller specialist models (micro-model mesh) and heavy retrieval/graph infrastructure \u2014 a contrarian engineering choice that prioritizes maintainability, auditability and vertical performance over scale-only. That tradeoff is especially interesting for firms that must reconcile model explainability and compliance in finance.",
+      "headline": "Betting on closed demos and security messaging instead of open APIs \u2014 Rowspace\u2019s contrarian GTM is aimed at enterprises that won\u2019t touch sandboxed LLMs",
+      "summary": "Instead of publishing benchmarks or architecture, Rowspace repeatedly pushes demos and security pages. That\u2019s a contrarian go-to-market and operational posture in an era where many startups advertise transparent stacks and self-serve APIs \u2014 it prioritizes control and enterprise trust over rapid community adoption.",
       "evidence": [
-        "Analysis context lists 'Micro-model Meshes' and 'Guardrail-as-LLM' as detected build patterns",
-        "Financial vertical demands explainability and compliance, which favor smaller, auditable components over monolithic black-box models",
-        "Company is enterprise-facing with $50M funding \u2014 consistent with focusing on reliability/compliance rather than pure SOTA model scale"
+        "Repeated site CTAs: 'REQUEST DEMO' and prominent 'Security' link across pages",
+        "Build patterns detected include demo-driven enterprise SaaS positioning and security-first marketing"
       ],
-      "uniqueness_score": 6
+      "uniqueness_score": 7
     },
     {
       "angle_type": "vertical_expert",
-      "headline": "Rowspace\u2019s real product could be encoded investment firm memory \u2014 not just another AI assistant",
-      "summary": "The most compelling technical narrative is how Rowspace encodes decades of firm-specific processes into interactive, queryable knowledge: mapping playbooks, due diligence templates, deal rationales and post-mortems into representations that LLMs can act on. Exploring how they model temporal context, preserve provenance, and enable continuous learning from new deals would be highly relevant to builders in finance AI.",
+      "headline": "Is Rowspace building a finance-specialist AI product \u2014 and does that explain Sequoia\u2019s $50M check?",
+      "summary": "The product copy and detected vertical signals point to deep domain focus on credit origination and private-equity workflows. For engineers and data scientists, that implies domain-specific schemas, signal-processing, and regulatory/compliance work that materially changes model design and evaluation.",
       "evidence": [
-        "Positioning emphasizes 'institutional knowledge' and 'finance' as the vertical",
-        "Detected continuous-learning flywheel and knowledge graph patterns indicate focus on temporal, provenance-rich data",
-        "Public reporting and LinkedIn messaging highlight product aimed at investors and investment teams"
+        "Site copy references: 'Global leader in credit origination' and 'pioneer of private equity Crossover fund in tech's big IPOs'",
+        "Analysis context flags vertical: financial_services and build patterns like 'Vertical Data Moats' and 'Demo-driven enterprise SaaS positioning'"
       ],
-      "uniqueness_score": 7
+      "uniqueness_score": 6
     }
   ],
   "anti_patterns": [
     {
       "pattern_type": "wrapper",
-      "description": "App appears potentially like a thin orchestration layer on top of third-party LLMs or scraping services rather than owning core generative model capability or unique inference stack.",
-      "severity": "medium",
+      "description": "No public technical detail about models, training, or proprietary infra. Raises suspicion that the offering may be a thin layer on top of third-party LLM APIs rather than novel model work.",
+      "severity": "high",
       "evidence": [
-        "Public materials do not disclose proprietary models or unique model architectures (Tech Stack: LLMs: [] ; Approach: unknown).",
-        "Multiple scraper/renderer failure messages ('You've reached the units usage limit allowed under our free plan, please upgrade to a paid plan at https://browserless.io/account/') suggest reliance on a third-party browser-rendering/scraping service for data ingestion or demos."
+        "Tech Stack: LLMs: [] (no models disclosed)",
+        "Analysis context: 'No public disclosure of model architecture or LLM providers'",
+        "No evidence provided of fine-tuning, RAG, or vector search in the content"
       ]
     },
     {
       "pattern_type": "feature_not_product",
-      "description": "The offering could be perceived as a single verticalized feature (institutional knowledge retrieval / RAG) that incumbents or platform providers could absorb into broader suites.",
+      "description": "Materials read like marketing banners and a demo gating flow rather than describing a coherent, differentiated product. Could be a single feature or workflow that incumbents could add to their platforms.",
       "severity": "medium",
       "evidence": [
-        "Positioning focuses on converting institutional knowledge into an 'edge' for finance \u2014 a focused capability that large cloud/AI vendors or existing enterprise data platforms could add.",
-        "Descriptions emphasize RAG-style patterns and knowledge capture (RAG, Knowledge Graphs, Vertical Data Moats) without clear descriptions of adjacent productization (workflows, extensibility, marketplace) that make it a stand-alone product family."
+        "Repeated banner-like copy: 'Rowspace Announcing $50M in funding led by Sequoia | READ MORE > Security Careers About REQUEST DEMO'",
+        "Multiple instances of 'REQUEST DEMO' and no product specs or feature set",
+        "Build Patterns list shows features (RAG, guardrails, etc.) are not evidenced as implemented"
       ]
     },
     {
       "pattern_type": "no_moat",
-      "description": "Unclear defensible technical or data moat: no public evidence of exclusive training data, unique models, or lasting network effects beyond typical enterprise integrations.",
+      "description": "No visible data advantage, proprietary models, or technical differentiation described. Positioning and claims could be easily replicated by better-resourced competitors or platform providers.",
       "severity": "high",
       "evidence": [
-        "Limited public technical disclosure and closed implementation details make it hard to verify proprietary data advantages or unique algorithms.",
-        "Anti-pattern list and contexts imply a standard stack (RAG + knowledge graphs + ingestion) that many competitors implement; nothing publicly demonstrates a unique long-term data advantage."
+        "Analysis context: 'No data advantage' and 'No technical differentiation' noted",
+        "No public description of proprietary datasets, vertical data moats, or unique IP",
+        "Tech Stack and Build Patterns show absence of demonstrable proprietary components"
       ]
     },
     {
       "pattern_type": "overclaiming",
-      "description": "Messaging uses strong AI/edge language and buzzwords but lacks technical specificity or performance claims backed by verifiable metrics.",
+      "description": "Marketing language emphasizes big funding and leadership claims without corresponding technical or product detail; risk of mismatch between claims and deliverables.",
       "severity": "medium",
       "evidence": [
-        "Marketing-style phrasing in coverage: 'turn institutional knowledge into compounding edge' and 'specialized intelligence' without concrete metrics, benchmarks, or architecture diagrams.",
-        "Public materials and search results focus on funding and launch headlines rather than technical whitepapers or reproducible benchmarks."
+        "Repeated headline 'Announcing $50M in funding led by Sequoia' and grand claims like 'Global leader in credit origination' with no supporting product/technical detail",
+        "Security-first marketing link is non-technical and not backed by published security architecture or certifications"
       ]
     },
     {
       "pattern_type": "undifferentiated",
-      "description": "Market positioning risks being me-too: many startups and incumbents target verticalized knowledge retrieval for finance and other enterprises.",
+      "description": "Offering appears similar to many other startups in the AI/SaaS space with no clear unique angle or defensible positioning shown in public materials.",
       "severity": "medium",
       "evidence": [
-        "Competitive signal: crowded landscape referenced (RAG, knowledge graphs, verticalized capture) where many firms aim to offer similar capabilities.",
-        "No clear public differentiator (unique APIs, proprietary models, exclusive data partnerships) shown in available materials."
+        "Content is primarily high-level marketing and demo gating; no unique features or proprietary tech described",
+        "Build Patterns list contains common buzzwords (RAG, guardrails, demo-driven SaaS) but no evidence these are implemented in a unique way"
       ]
     }
   ],
   "competitive_analysis": {
     "competitors": [
       {
-        "name": "AlphaSense",
-        "similarity": "Provides search and AI-enabled research tools for investment professionals to surface relevant documents, transcripts and insights.",
-        "how_different": "Rowspace positions itself as a platform for converting a firm's proprietary, internal data into an AI-first knowledge layer (not just external research). It emphasizes ingesting messy internal datasets and building a compounding institutional knowledge asset rather than primarily indexing external research sources."
-      },
-      {
-        "name": "Bloomberg (including BloombergGPT / Terminal features)",
-        "similarity": "Trusted provider of financial data, analytics and research workflows used by investors and analysts; increasingly adding AI features.",
-        "how_different": "Rowspace focuses on internal proprietary data and embedding that data into AI workflows for decision-making, whereas Bloomberg is centered on licensed market data, news and terminal workflows. Rowspace targets using a firm's own institutional knowledge as the primary signal."
-      },
-      {
-        "name": "Palantir (Foundry/Gotham)",
-        "similarity": "Integrates heterogeneous enterprise data, provides operationalized analytics and model-driven workflows for institutional users.",
-        "how_different": "Palantir is a broader data-integration and operational analytics platform across industries. Rowspace appears narrowly focused on financial/investment workflows and on turning internal research and unstructured content into an AI knowledge layer (embedding+RAG+models) rather than full-scale operational data engineering."
+        "name": "Palantir (Foundry)",
+        "similarity": "Enterprise data + analytics platform used by large organizations (including financial firms) to build decisioning workflows on proprietary data.",
+        "how_different": "Rowspace appears focused specifically on financial use-cases (credit origination, investment decisioning) and on surfacing proprietary data for ML-driven decisioning; likely positions itself as more domain-specialized, easier to integrate into financial workflows, and oriented to finance compliance needs versus Palantir's broader, cross\u2011industry platform."
       },
       {
         "name": "Databricks",
-        "similarity": "Provides a unified platform for data engineering, ML model training and deployment; used by financial firms to build analytics and ML apps.",
-        "how_different": "Databricks is a general-purpose lakehouse and ML platform; Rowspace differentiates by productizing the end-to-end investor knowledge problem (ingest research, docs, models, and serve investor workflows) rather than offering infrastructure for customers to build those systems themselves."
+        "similarity": "Provides a unified data + ML platform (data engineering, feature stores, ML lifecycle) that financial firms use to derive insights from proprietary data.",
+        "how_different": "Rowspace emphasizes turnkey decisioning for financial firms and domain fit (pre-built connectors, models, and workflows for finance) rather than Databricks' general-purpose lakehouse and self-managed ML tooling; Rowspace likely sells more productized, finance-specific outcomes."
       },
       {
-        "name": "Pinecone / Weaviate / Milvus (vector databases) and developer frameworks (LlamaIndex, LangChain)",
-        "similarity": "Provide core building blocks for embedding-based retrieval and RAG applications that power internal knowledge search and AI assistants.",
-        "how_different": "Those vendors are infrastructure components; Rowspace is a verticalized solution combining ingestion, domain modeling, UI, and finance-specific workflows. Rowspace bundles workflow, security, and domain knowledge rather than exposing raw vector infrastructure."
+        "name": "Snowflake (and ecosystem partners)",
+        "similarity": "Cloud data platform used by financial firms to centralize proprietary data and enable analytics/ML.",
+        "how_different": "Snowflake is primarily a data warehouse/platform; Rowspace is presented as an AI decisioning layer that operationalizes proprietary data into finance decision processes (scoring, origination, investment decisions) and therefore competes at a higher application/ML layer with prebuilt finance workflows."
       },
       {
-        "name": "In-house/Custom AI Teams (finance firms building internal solutions)",
-        "similarity": "Both aim to unlock proprietary data for investment decision-making.",
-        "how_different": "Rowspace offers a packaged, finance-focused product and prebuilt connectors/workflows which reduces time-to-value and maintenance burden compared with bespoke in-house stacks that require engineering, infra and model ops expertise."
+        "name": "DataRobot",
+        "similarity": "Automated ML/AI platform used by enterprises, including banks and funds, to build predictive models on proprietary data.",
+        "how_different": "DataRobot focuses on general AutoML and model lifecycle tooling; Rowspace differentiates by packaging domain-specific models, data connectors and end-to-end decision workflows for financial firms, plus implied emphasis on secure handling of sensitive proprietary data for production decisioning."
+      },
+      {
+        "name": "Kensho (S&P Global) / AlphaSense",
+        "similarity": "Provide analytics and AI-driven insights tailored to financial services and investment teams using structured and unstructured data.",
+        "how_different": "These competitors excel at market and public-data insights; Rowspace\u2019s stated scope is enabling firms to operationalize their own proprietary data into decisioning, not primarily market research\u2014positioning Rowspace as focused on internal data usage and operational decisions rather than external research."
+      },
+      {
+        "name": "Specialized fintech analytics startups (e.g., Quantexa, Second Measure, Numerator/YipitData-like players)",
+        "similarity": "Provide data products, entity resolution, or insights to financial firms to improve decisions and risk assessment.",
+        "how_different": "Rowspace appears to be an AI platform that helps customers use their own proprietary data (not just selling third\u2011party datasets), combining tooling, models and workflows to make internal data actionable\u2014positioning it as a platform for customer-owned data rather than a pure data vendor."
       }
     ],
     "differentiation": {
-      "primary": "A vertical, finance-first AI platform that turns a firm's proprietary and messy internal data into a reusable, compounding institutional knowledge layer to support investment workflows.",
-      "technical": "Likely combines specialized ingestion pipelines for heterogeneous financial documents, domain-tuned embeddings/ML models, retrieval-augmented generation optimized for financial content, provenance/lineage controls and secure hosting. Emphasis on handling 'messy' proprietary datasets and mapping them to analyst workflows rather than generic LLM APIs.",
-      "business": "Go-to-market focused on investment firms (asset managers, hedge funds, PE) with enterprise security/compliance, prebuilt connectors to finance systems and pricing/packaging that replaces the need to build internal stacks. Positioned as a product instead of pure infra \u2014 reduces engineering lift for clients.",
-      "positioning": "Positions itself as the specialist alternative to generalist LLM vendors, search vendors, and data/infra providers \u2014 the choice for teams that want to operationalize institutional knowledge (internal research, models, decks) into AI-native workflows quickly and securely."
+      "primary": "A finance-focused AI platform that helps firms operationalize their proprietary data for decision-making (credit origination, investment decisions), offering domain-tailored workflows and integrations rather than a generic data or ML stack.",
+      "technical": "Likely technical differentiators include connectors and data ingestion tuned for financial systems, feature stores and model pipelines preconfigured for finance use-cases, secure data handling (for sensitive proprietary datasets), and ML/decisioning primitives optimized for realtime or near\u2011real\u2011time financial workflows.",
+      "business": "GTM aimed at financial institutions with use-case-focused sales (credit origination, private equity/tech IPOs), enterprise contracts addressing compliance/security, and an outcome-driven product that packages models and workflows rather than selling only infrastructure; Series A funding led by Sequoia gives credibility and growth capital for rapid adoption in target customers.",
+      "positioning": "Positioned as the specialist alternative to general-purpose platforms (Databricks/Snowflake/Palantir) and to data vendors\u2014Rowspace markets itself as the platform that unlocks value in a firm's proprietary data for financial decision-making, emphasizing finance domain expertise and production decisioning."
     },
     "secret_sauce": {
-      "core_advantage": "Combining finance-domain specialization (ontologies, workflows, connectors) with an end-to-end platform that ingests, normalizes and serves proprietary institutional data through retrieval+models to create a compounding, firm-specific knowledge asset.",
-      "defensibility": "Medium \u2014 defensible through a combination of: (1) data/network effects (the more a firm feeds proprietary data into Rowspace, the more tailored the asset becomes), (2) domain expertise and prebuilt finance workflows/connectors that reduce switching costs, and (3) enterprise security/compliance integrations that are table stakes for investment firms and slow replication by generalist vendors.",
+      "core_advantage": "Combining finance domain expertise, integrations that ingest and model proprietary (sensitive) datasets, and prebuilt decisioning workflows so financial firms can rapidly turn internal data into production ML-driven decisions.",
+      "defensibility": "Defensible because value is derived from customer-owned proprietary data and finance-specific integrations/workflows (high switching costs), domain trust/relationships in regulated financial environments, and the potential for network effects or model improvements tied to aggregated, permissioned signals. Regulatory/compliance know-how and deep connectors make replication by general\u2011purpose vendors slower and more costly.",
       "evidence": [
-        "PR headline: 'Rowspace launches with $50M to turn institutional knowledge into compounding edge for finance' (indicates focus on converting proprietary institutional knowledge into advantage).",
-        "News/coverage: 'Rowspace emerges from stealth ... to tame messy data for investment firms using AI' (signals specialization on messy, proprietary datasets for investment workflows).",
-        "Company description provided: 'Rowspace provides an AI platform that helps financial firms use proprietary data for decision-making.'"
+        "Rowspace provides an AI platform that helps financial firms use proprietary data for decision-making.",
+        "Industries listed: Analytics, Artificial Intelligence (AI), Data Management, FinTech, Machine Learning, Software \u2014 indicating a cross\u2011section of data + finance focus.",
+        "Funding: $50,000,000 Series A led by Sequoia \u2014 signals strong investor validation and runway to build finance\u2011specific capabilities.",
+        "Site copy references finance-specific phrases such as 'Global leader in credit origination' and 'private equity Crossover fund in tech's big IPOs' suggesting target customer segments in credit and private markets."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "Rowspace's moat comes from vertical focus and the value of firm-specific institutional data and workflows: once a firm ingests proprietary research, models and docs, that dataset plus tuned workflows produces stickiness. However, core components (embeddings, vector search, LLMs) are commoditized and many incumbents (Bloomberg, Palantir, Databricks) or in-house teams could replicate features. Long-term defensibility depends on depth of integrations, regulatory/security certifications, and the accumulation of proprietary, high-quality labeled institutional knowledge that competitors can't access.",
+    "moat_explanation": "Rowspace's moat comes from domain specialization (finance), proprietary data integrations, and workflow/productized decisioning that create customer stickiness and higher switching costs. However, large incumbents (Palantir, Databricks, Snowflake, major data vendors) have deep pockets, broad enterprise footprints, and strong technical capabilities; they can replicate or bundle similar offerings over time. The moat is meaningful but not unassailable\u2014success depends on speed of customer adoption, depth of finance-specific features, and defensible data/network effects.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "AI financial platform Rowspace raises $50 million led by Sequoia",
-    "tame messy data for investment firms using AI",
-    "Rowspace emerges from stealth with $50M led by Sequoia to tame messy data for investment firms using AI",
-    "Rowspace AI for Investors: Unlocking Institutional Knowledge",
-    "Business-driven 'compounding edge' framing: treating aggregated, permissioned institutional knowledge as an explicit productized feedback loop that simultaneously serves model training, retrieval layers, and commercial differentiation.",
-    "Likely emphasis on permissioned / RBAC-aware retrieval across institutional records\u2014combining document-level retrieval with access controls so knowledge use is both contextual and compliant.",
-    "Domain-tailored stacks that combine structured extraction from messy legacy financial data with vector retrieval and specialized downstream models (an integrated pipeline tuned for investment workflows)."
+    "No references to generative AI, LLMs, GPT, Claude, embeddings, RAG, agents, or related terms in the provided content."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 18:34:17.533061+00:00",
-  "confidence_score": 0.7,
-  "raw_content_analyzed": 7041
+  "analyzed_at": "2026-03-07 22:47:41.554896+00:00",
+  "confidence_score": 0.75,
+  "raw_content_analyzed": 4501,
+  "input_hash": "a76d13560a83cde9"
 }

@@ -8,244 +8,243 @@
   "funding_stage": "seed",
   "uses_genai": true,
   "genai_intensity": "core",
-  "models_mentioned": [
-    "ChatGPT",
-    "Claude",
-    "Gemini",
-    "Perplexity"
-  ],
+  "models_mentioned": [],
   "build_patterns": [
     {
       "name": "Agentic Architectures",
       "confidence": 0.95,
       "evidence": [
-        "LIV, Fibr\u2019s Personalization Agent, ensures real-time content adjustments",
-        "AYA, Fibr\u2019s Website Monitoring Agent, ensures your landing pages are optimized",
-        "MAX, Fibr\u2019s A/B Testing Agent, tests different variations",
-        "LLM-based Personalization This is where AI-driven discovery meets autonomous experience generation",
-        "autonomous experience generation"
+        "\"Fibr turns your URLs into intelligent, web experience agents.\"",
+        "\"Each page senses intent, makes decisions, and reshapes itself in real time for whoever arrives.\"",
+        "\"Agentic Web Experience Platform\"",
+        "\"Full-stack Agentic Experience Layer\""
       ],
-      "description": "Fibr exposes multiple named agents that autonomously perform distinct tasks (personalization, monitoring, A/B testing). The product language indicates orchestration of these agents to take multi-step autonomous actions (detect LLM source, generate/serve variants, monitor performance, run experiments)."
+      "description": "Pages are modeled as autonomous agents that sense intent, take actions (modify page content/variants), and orchestrate multi-step personalization flows. The product frames each URL as an agentic execution unit."
     },
     {
       "name": "Micro-model Meshes",
-      "confidence": 0.85,
+      "confidence": 0.9,
       "evidence": [
-        "LIV, AYA, MAX (three specialized agents with distinct roles)",
-        "Real-Time LLM Detection ... analyzes the source in real time and serves the personalized page you\u2019ve set for each platform",
-        "No manual segmentation. No disconnected experiences."
+        "Named agents: \"LIV, Fibr\u2019s Personalization Agent\", \"AYA, Fibr\u2019s Website Monitoring Agent\", \"MAX, Fibr\u2019s A/B Testing Agent\"",
+        "\"AI agents\" (plural) executing specialized roles (monitoring, personalization, testing)"
       ],
-      "description": "Fibr appears to use multiple specialized models/agents (a mesh) rather than a single monolith: detection/model routing for source (LLM detection), a personalization model/agent for content adaptation, a monitoring agent for performance, and an experimentation agent for testing. This implies model routing and task specialization."
+      "description": "The architecture uses multiple specialized agents (task-specific models/components) that handle distinct functions (personalization, monitoring, experimentation) rather than a single monolithic model."
     },
     {
       "name": "Continuous-learning Flywheels",
+      "confidence": 0.9,
+      "evidence": [
+        "\"AI-driven optimization, always on\"",
+        "\"generates automated hypotheses, creates variants, and runs continuous AI-led experimentation\"",
+        "\"Run A/B tests... MAX, Fibr\u2019s A/B Testing Agent\"",
+        "\"Deliver relevant experiences from day one\" / \"always on\" optimization language"
+      ],
+      "description": "Automated hypothesis generation + continuous experimentation (AI-created variants + A/B testing agents) creates a feedback loop where runtime data and experiment results continually update decision-making and optimization."
+    },
+    {
+      "name": "Guardrail-as-LLM",
       "confidence": 0.8,
       "evidence": [
-        "pages learn, personalize, and evolve - quietly, continuously, at scale.",
-        "Connect GA4 to let the system leverage real-world behavioural data for smarter recommendations",
-        "Go Live Publish your variants. Fibr instantly detects LLM signals and serves the matched experience while tracking revenue per session in real-time",
-        "Run A/B tests to optimize landing pages across different ad creatives",
-        "Set success metrics and a holdout percentage to track conversion"
+        "\"Responsible AI, By Design\"",
+        "\"human-in-the-loop controls\"",
+        "\"brand guardrails\" / \"On-Brand. Always.\"",
+        "\"built with security, governance, and human-in-the-loop controls\"",
+        "\"auditability\" and \"compliance\" language"
       ],
-      "description": "Fibr ties production signals (GA4 behavioral data, revenue-per-session, experiment outcomes) back into the personalization pipeline. The product emphasizes continuous adaptation, experimentation (A/B), and real-time revenue tracking \u2014 classic feedback loop architecture for incremental model/experience improvement."
+      "description": "There is an explicit governance/safety layer \u2014 human oversight, brand guardrails, and compliance controls \u2014 that likely enforces policies, filters, and checks on agent outputs. This implies secondary validation/moderation mechanisms (potentially model-based or rule-based) to keep outputs compliant and on-brand."
     },
     {
-      "name": "Natural-Language-to-UI/No-Code Personalization",
-      "confidence": 0.4,
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.45,
       "evidence": [
-        "AI-driven Visual Editor",
-        "no-code visual editor that allows you to modify any element instantly",
-        "AI assistant suggests engaging copy variations to supercharge relevance",
-        "Paste Your URL Add your landing page URL. Fibr scans your headlines, visuals, and CTAs to identify personalisation opportunities",
-        "Generate & Refine Use the AI visual editor to approve suggestions or manually fine-tune variants"
+        "\"LLM Based Personalization\" and \"Visitors from LLMs get a custom experience. Fibr\u2019s AI interprets their intent\"",
+        "References to \"CDP Personalization\" and personalization that adapts content dynamically to match needs",
+        "\"Deliver relevant experiences from day one\" and integration with customer data (CDP) suggest content/data retrieval to condition generative outputs"
       ],
-      "description": "While not explicit code generation, Fibr provides a no-code/visual editor and an AI assistant that converts high-level inputs (URL, content signals, natural language prompts) into working UI/content variants. This is effectively an NL-to-interface/action pattern (lighter-weight than full natural-language-to-code)."
+      "description": "Not explicitly stated, but personalization tied to LLMs and CDP integration suggests use of retrieved user/context data or content to condition LLM outputs. The product likely combines retrieval of customer/context assets with generation/rewriting to personalize pages, although no explicit mention of vectors/embeddings or index architecture is present."
     },
     {
-      "name": "Privacy & Compliance Guardrails (policy-level)",
-      "confidence": 0.3,
+      "name": "Knowledge Graphs",
+      "confidence": 0.1,
       "evidence": [
-        "We will not share your data with any AI models without your consent.",
-        "Use of Third-Party API Data for AI/ML Development ... Under no circumstances is this data used to develop, improve, train, or fine-tune any generalized artificial intelligence (AI) or machine learning (ML) models\u2014unless explicitly consented to by you."
+        "No explicit references to graphs, entity linking, or relationship indexes in the content."
       ],
-      "description": "Rather than an explicit model-based guardrail (e.g., an LLM moderator checking outputs), Fibr documents strong policy-level guardrails restricting training on customer/third-party API data without consent. This is a privacy/compliance control that constrains learning/training flows, serving a guardrail role but not implemented as an LLM oversight model in the text."
+      "description": "No clear evidence of permission-aware graphs or explicit graph DB usage. Customer data and journey tracking are discussed but not described as a knowledge graph."
+    },
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.1,
+      "evidence": [
+        "\"no-code integrations\" and \"Page Builder\" are mentioned, but there is no explicit mention of NL->code translation or rule generation from plain English."
+      ],
+      "description": "No explicit natural-language-to-code interface is described. The product advertises no-code tooling but not NL-to-code conversion specifically."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.15,
+      "evidence": [
+        "Enterprise and compliance emphasis: \"Built for enterprise-grade compliance\", \"secure, private instances\", \"CDP Personalization\"",
+        "But no references to proprietary, industry-specific datasets or exclusive vertical training data."
+      ],
+      "description": "While Fibr positions itself for enterprise use and CDP integration, the content does not articulate proprietary vertical datasets or domain-specific training giving a competitive moat."
     }
   ],
   "discovered_patterns": [
     {
       "category": "Compound AI Systems",
-      "pattern_name": "Agent-based, role-specialized multi-agent system with human oversight",
-      "confidence": 0.9,
-      "evidence": [
-        "Fibr combines AI agents with human oversight to give you a full-stack experience optimization system",
-        "LIV, Fibr\u2019s Personalization Agent, ... AYA, Fibr\u2019s Website Monitoring Agent, ... MAX, Fibr\u2019s A/B Testing Agent"
-      ],
-      "description": "Fibr structures its product around multiple named agents that each own a domain: personalization (LIV), website monitoring/performance (AYA), and experimentation (MAX). The agents perform autonomous tasks (generate variants, monitor page health, run experiments) while humans approve/refine via the visual editor. The system orchestrates these agents to auto-generate, deploy, monitor and iterate marketing experiences.",
-      "novelty_score": 6,
-      "why_notable": "Packaging autonomous marketing capabilities as named, specialized agents (with explicit human-in-the-loop) formalizes an agentic product layer tailored to growth/CRO workflows; it's more productized than ad-hoc model calls."
-    },
-    {
-      "category": "Model Architecture & Selection",
-      "pattern_name": "Opaque 3rd-party LLM-backed content generation (model unspecified)",
-      "confidence": 0.6,
-      "evidence": [
-        "LLM-based Personalization",
-        "Use the AI visual editor to approve suggestions or manually fine-tune variants",
-        "Fibr Genesis to generate landing pages from prompts, documents, or reference URLs"
-      ],
-      "description": "Fibr uses large language models to generate copy, suggest visual/copy variants, and create landing pages from prompts. The marketing copy refers to 'LLM' and 'AI visual editor' but does not disclose which models or vendors are used. The workflow implies API-driven generation that returns candidate edits for human approval.",
-      "novelty_score": 2,
-      "why_notable": "Using LLMs for copy/UX generation is mainstream; the productization focus is on marketer UX rather than novel model architectures."
-    },
-    {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "Signal-aggregation from analytics, CRM and ad platforms for segmentation and targeting",
+      "pattern_name": "Multi-agent, function-specialized agents (per-URL agents)",
       "confidence": 0.95,
       "evidence": [
-        "Connect GA4 to let the system leverage real-world behavioural data for smarter recommendations",
-        "Connects with GA4, your CRM, and ad platforms to explain why conversions vary",
-        "Define segments using signals like behaviour, device, geography, and custom cohorts"
+        "\"Fibr turns your URLs into intelligent, adaptive web experience agents.\"",
+        "References to named agents: \"LIV, Fibr\u2019s Personalization Agent\", \"AYA, Fibr\u2019s Website Monitoring Agent\", \"MAX, Fibr\u2019s A/B Testing Agent\"",
+        "\"AI agents analyzes your pages, generates automated hypotheses, creates variants, and runs continuous AI-led experimentation\""
       ],
-      "description": "Fibr ingests signals from analytics (GA4), CRMs and ad platforms to build audience segments, surface optimization opportunities, and drive personalization rules. These third-party signals are used to drive rule-based targeting and AI recommendations.",
-      "novelty_score": 3,
-      "why_notable": "This is standard for personalization platforms, but tight coupling to GA4 and ad platforms to automatically generate hypotheses is positioned as a differentiator."
-    },
-    {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "Real-time LLM-referrer detection using browser referrer signals",
-      "confidence": 0.95,
-      "evidence": [
-        "Fibr automatically spots visitors coming from AI platforms like ChatGPT, Claude, Gemini, and Perplexity.",
-        "Fibr uses standard browser referrer data to deliver experiences with zero performance lag."
-      ],
-      "description": "Fibr detects traffic originating from AI assistants by inspecting referrer metadata (and possibly other client-side signals) in real time, then routes those visitors to platform-specific personalized variants (e.g., a ChatGPT-referral landing page).",
+      "description": "Fibr structures its system as multiple specialized AI agents mapped to functional responsibilities and to URL-level scope. Each URL becomes an agent that can sense intent, make decisions, and act (personalization, monitoring, A/B testing). Agents are named and described by capability (personalization = LIV, monitoring = AYA, experimentation = MAX), indicating a design where orchestration routes page events to the appropriate agent for analysis and execution.",
       "novelty_score": 7,
-      "why_notable": "Targeting visitors referred by LLM-powered assistants via referrer detection is an emergent specialization\u2014it optimizes for AI-driven discovery paths that many personalization vendors don't explicitly handle."
-    },
-    {
-      "category": "Evaluation & Quality (EvalOps)",
-      "pattern_name": "Integrated experimentation & metric pipeline with named A/B testing agent and revenue-per-session tracking",
-      "confidence": 0.95,
-      "evidence": [
-        "MAX, Fibr\u2019s A/B Testing Agent, tests different variations of your landing pages",
-        "Publish your variants. Fibr instantly detects LLM signals and serves the matched experience while tracking revenue per session in real-time.",
-        "Set success metrics and a holdout percentage to track conversion"
-      ],
-      "description": "Fibr embeds experimentation as a core capability: an agent runs A/B/multivariate tests, a holdout mechanism is supported, and the system reports business KPIs (ex: revenue-per-session) in real time. This indicates a production experimentation pipeline that ties variants to monetized metrics.",
-      "novelty_score": 4,
-      "why_notable": "Tying live revenue metrics and AI-driven hypothesis generation with automated experiment execution is valuable for growth teams, though conceptually similar to modern experimentation platforms."
+      "why_notable": "Packaging intelligence at the URL granularity (a distinct agent per page/URL) is an operationally concrete variant of multi-agent systems that simplifies per-page context and scaling. The explicit specialization (monitoring, personalization, experimentation) is practical and uncommon in marketing copy to be this prescriptive."
     },
     {
       "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "Client-side/edge-first personalization with zero-infrastructure friction (JS snippet/referrer-based routing)",
-      "confidence": 0.85,
+      "pattern_name": "SaaS with customer-isolated private instances + client-side integration",
+      "confidence": 0.9,
       "evidence": [
-        "Zero Infrastructure Friction Plug in AI personalization in minutes ... Fibr uses standard browser referrer data to deliver experiences with zero performance lag.",
-        "No rip-and-replace, no disruption, just better experiences on top."
+        "\"secure, private instances that keep your data protected and fully under your control.\"",
+        "\"No rip-and-replace, no disruption, just better experiences on top.\"",
+        "\"Works on your current URLs, and adds intelligence without disruption.\"",
+        "\"export HTML, scripts, and assets ready for instant hosting.\"",
+        "Cookie policy: \"We collect... through cookies, web beacons, and other tracking technologies.\""
       ],
-      "description": "Fibr appears to use a lightweight integration (likely a JavaScript snippet or tag) that runs in the visitor's browser, detects referrer/segment signals, and then either applies DOM edits or fetches personalized content variants from Fibr's service or edge. The 'zero performance lag' and 'plug in minutes' language implies an edge/CDN or highly optimized client-first delivery to minimize latency.",
-      "novelty_score": 3,
-      "why_notable": "Client-side personalization via a snippet is standard among CRO tools, but emphasis on LLM-referrer routing and near-instant variant serving is product-focused."
+      "description": "Fibr appears to be delivered as a SaaS platform offering enterprise-grade, customer-isolated deployment options (private instances / VPC-like isolation). Integration model includes low-friction client-side injection (scripts/cookie tracking) that transforms existing URLs into agentic pages and a page-builder that can export static HTML/scripts for hosting. The mix suggests a hybrid deployment model: a hosted control plane paired with client-side runtime hooks or optional exported assets for hosting.",
+      "novelty_score": 4,
+      "why_notable": "Combining private instances (enterprise isolation) with a lightweight client-side integration and exportable static assets gives enterprises multiple deployment options \u2014 a pragmatic approach but not unique in DXP/experience-layer products."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Continuous AI-led experimentation + A/B testing agent",
+      "confidence": 0.92,
+      "evidence": [
+        "\"creates variants, and runs continuous AI-led experimentation to learn what works and improve every experience.\"",
+        "\"MAX, Fibr\u2019s A/B Testing Agent, tests different variations of your landing pages\"",
+        "\"Conduct A/B tests on landing page variants to identify the highest-performing content.\""
+      ],
+      "description": "Fibr has an automated experimentation loop where agents both generate hypotheses and implement variants then measure results. This implies pipelines for creating variants, routing traffic, measuring conversions, and feeding outcomes back into the system to refine personalization decisions (closed-loop experimentation). The existence of a dedicated A/B testing agent suggests orchestration that integrates variant generation, traffic splitting, metric capture, and statistical evaluation.",
+      "novelty_score": 6,
+      "why_notable": "Automating hypothesis generation + variant creation + experiment execution with agentic orchestration is a pragmatic compound-AI workflow; it's an advanced applied pattern though increasingly common among AI-driven experimentation platforms."
     },
     {
       "category": "Safety & Trust (LLM Security)",
-      "pattern_name": "Privacy-first policy and governance: no model training on third-party API data without consent",
+      "pattern_name": "Enterprise governance: brand guardrails + human-in-the-loop controls",
       "confidence": 0.98,
       "evidence": [
-        "We will not share your data with any AI models without your consent.",
-        "Use of Third-Party API Data for AI/ML Development We confirm that any data obtained via third-party APIs is used solely to provide, maintain, and enhance our services. Under no circumstances is this data used to develop, improve, train, or fine-tune any generalized artificial intelligence (AI) or machine learning (ML) models\u2014either by our organization or any third-party partner\u2014unless explicitly consented to by you.",
-        "Fibr.ai is committed to complying with the General Data Protection Regulation (GDPR) and the California Consumer Privacy Act (CCPA)."
+        "\"Built for enterprise-grade compliance\"",
+        "\"Fibr is SOC2 and ISO 27001 certified, GDPR and CCPA compliant, with secure, private instances\"",
+        "\"Fibr blends AI with human oversight to ensure every output stays on-brand, compliant, and trustworthy.\"",
+        "\"On-Brand. Always. Fibr enforces brand guidelines across every experience and variant.\"",
+        "\"human allies guide strategy, brand alignment, and decisions\""
       ],
-      "description": "Fibr has explicit contractual and policy guardrails preventing the use of customer/third-party API data for generalized model training unless customers explicitly consent. They also advertise built-in governance for compliance of variants and adherence to GDPR/CCPA.",
-      "novelty_score": 5,
-      "why_notable": "Making a strong, explicit pledge not to use customer data to train generalized models (unless consented) is becoming more important but is still a notable trust differentiator among AI platforms."
-    },
-    {
-      "category": "Learning & Improvement",
-      "pattern_name": "Automated discovery and closed-loop opportunity generation from live performance data (no implied model fine-tuning)",
-      "confidence": 0.9,
-      "evidence": [
-        "Fibr continuously analyzes your live performance data and surfaces opportunities you might have missed.",
-        "Turns raw analytics into prioritized test ideas",
-        "Lea rd informed users straight to action",
-        "We will not share your data with any AI models without your consent."
-      ],
-      "description": "Fibr runs analytics over live traffic signals (drop-offs, anomalies, conversion differences) to automatically generate prioritized hypotheses and actionable variants. However, the privacy policy indicates this learning is applied to service-driven recommendations and internal product logic rather than used to fine-tune generalized LLMs without consent.",
-      "novelty_score": 4,
-      "why_notable": "Automatically surfacing prioritized experiments from live data reduces manual hypothesis generation; the combination of autonomous hypothesis generation + strict data governance is a pragmatic balance."
+      "description": "The product enforces governance via explicit brand guardrails and human-in-the-loop checkpoints. The platform is positioned to provide auditability, policy enforcement, and manual review pathways to ensure outputs remain within brand and compliance constraints. Certifications indicate formalized security and compliance controls at the platform level.",
+      "novelty_score": 3,
+      "why_notable": "Enterprise-focused guardrails and human oversight are standard for platforms targeting regulated customers; Fibr\u2019s explicit brand-enforcement per-variant is useful but expected."
     },
     {
       "category": "Data Strategy",
-      "pattern_name": "Layered stack integration (non-disruptive overlay) with third-party data connectors",
-      "confidence": 0.92,
-      "evidence": [
-        "We don't replace your stack. We elevate it. No rip-and-replace, no disruption, just better experiences on top.",
-        "Connect GA4 ... Connects with GA4, your CRM, and ad platforms",
-        "No manual segmentation. No disconnected experiences."
-      ],
-      "description": "Fibr intentionally positions itself as an overlay that connects to existing analytics, CRM and ad systems (GA4, CRMs, ad platforms) and uses those inputs to drive personalization and experiments. This minimized-friction integration strategy reduces adoption time and leverages existing data investments.",
-      "novelty_score": 2,
-      "why_notable": "A non-disruptive overlay is standard go-to-market for CRO/personalization vendors, but it is essential for rapid adoption among marketing teams."
-    },
-    {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "Automated DOM/content analysis to detect personalization opportunities",
+      "pattern_name": "CDP integration and session-driven personalization (story-carrying user context)",
       "confidence": 0.9,
       "evidence": [
-        "Paste Your URL. Fibr scans your headlines, visuals, and CTAs to identify personalisation opportunities",
-        "Fibr scans your headlines, visuals, and CTAs to identify personalisation opportunities"
+        "\"CDP Personalization\"",
+        "\"Our AI layer sense where the story began, and carries it forward.\"",
+        "\"Journey personalization: Fibr follows your visitor's journey, adjusting every page they land on\"",
+        "Cookie policy: \"We use cookies and other tracking technologies to collect and analyze information about your use of our website.\""
       ],
-      "description": "Fibr performs automated content analysis of landing pages (headlines, visuals, CTAs) to identify elements that are good candidates for personalization and variant generation. This likely combines DOM parsing with model-based content understanding to produce suggested edits.",
+      "description": "Fibr integrates with customer CDPs and relies on cookie/tracking-based session and cross-page context to carry user intent across the visitor's journey. This enables per-audience and per-journey personalization across multiple pages, not just a single landing page. The 'story' metaphor implies persistent session/context store and event-streaming integration with CDPs.",
+      "novelty_score": 5,
+      "why_notable": "Persisting intent across the journey to avoid 'starting visits from zero' addresses a well-known gap in web personalization. Integration with CDPs is common but the emphasis on cross-URL 'story' preservation is a compelling product differentiation."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Task routing by agent role (functional model routing)",
+      "confidence": 0.88,
+      "evidence": [
+        "Multiple agents named by task (LIV, AYA, MAX).",
+        "\"AI agents execute personalization at scale, while human allies guide strategy, brand alignment, and decisions\"",
+        "\"Each page senses intent, makes decisions, and reshapes itself in real time for whoever arrives.\""
+      ],
+      "description": "Requests and page events are routed to specialized agents depending on the task: personalization inference to the Personalization Agent, performance checks to the Monitoring Agent, experimentation logic to the A/B Testing Agent. This indicates a model routing/orchestration layer that dispatches to task-specific models or pipelines.",
+      "novelty_score": 5,
+      "why_notable": "Functional routing is a practical architecture for compound systems; it reduces model size for each task and simplifies governance, but is a known approach."
+    },
+    {
+      "category": "Learning & Improvement",
+      "pattern_name": "Closed-loop product learning via experiment outcomes (data flywheel)",
+      "confidence": 0.85,
+      "evidence": [
+        "\"AI-driven optimization, always on\"",
+        "\"generates automated hypotheses, creates variants, and runs continuous AI-led experimentation to learn what works and improve every experience.\"",
+        "\"By automating intent-based targeting\""
+      ],
+      "description": "Fibr uses outcomes from experiments and live personalization to iteratively improve future personalization choices. The platform appears to maintain a data feedback loop from live conversion/performance metrics back into decision-making agents, forming a growth-oriented data flywheel for personalization efficacy.",
+      "novelty_score": 6,
+      "why_notable": "Automated hypothesis generation + measurement + adaptation is a higher level of automation than manual A/B test orchestration; the novelty is in automation and scale applied to per-URL agentic personalization."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "LLM-based intent interpretation (unspecified LLMs)",
+      "confidence": 0.7,
+      "evidence": [
+        "\"LLM Based Personalization\"",
+        "\"Visitors from LLMs get a custom experience. Fibr\u2019s AI interprets their intent, adapting content dynamically to match their needs.\"",
+        "\"When visitors arrive with a question\""
+      ],
+      "description": "Fibr leverages LLM capabilities to interpret visitor intent (especially traffic originating from LLMs or natural-language queries) and adapt page content dynamically. The specific LLM(s) are not named, so the implementation could be either hosted third-party models, open-source models, or a proprietary model stack.",
       "novelty_score": 4,
-      "why_notable": "Automated page analysis to recommend personalization points shortens the path from insight to action; coupling this with instant generation is a useful UX innovation."
+      "why_notable": "Using LLMs to parse intent for personalization is a straightforward and effective application, but no evidence of distinctive model choices or fine-tuning is provided."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Detecting and optimizing for AI-assistant referrals via browser referrer signals",
-      "why_novel": "Explicitly treating AI assistants (ChatGPT, Claude, Gemini, Perplexity) as distinct traffic sources and serving dedicated landing experiences is an emergent specialization targeted at the new discovery paths driven by LLMs.",
-      "potential_impact": "Enables marketers to convert higher-intent, research-oriented users referred by LLMs; gives early mover advantage optimizing for an agentic web where traffic originates from AI assistants."
+      "approach": "URL-as-agent (every URL becomes an autonomous AI agent)",
+      "why_novel": "Framing the unit of intelligence as the URL (not just user session or component) shifts scale and operational boundaries. It simplifies scoping (per-URL context) and enables per-page specialization, allowing agents to carry 'the story' forward in an inherently web-native granularity.",
+      "potential_impact": "Enables large-scale, fine-grained personalization with clearer auditability and governance per web asset. Also simplifies rollback and experimentation at page granularity."
     },
     {
-      "approach": "Productized agent fabric tailored to marketing workflows (LIV/AYA/MAX)",
-      "why_novel": "While multi-agent orchestration exists, Fibr maps agents directly to core marketing operations (creation, monitoring, experimentation) and exposes them as first-class product features.",
-      "potential_impact": "Speeds up iteration cycles for marketers, reduces reliance on engineering, and embeds operational automation into routine growth experiments."
+      "approach": "Automated hypothesis generation + variant creation + continuous experiments (agentic experimentation loop)",
+      "why_novel": "Combining generative mechanisms to propose page variants with fully automated experiment orchestration reduces manual dependence in CRO workflows. The agentic A/B loop that self-generates hypotheses is a higher-autonomy pattern.",
+      "potential_impact": "Accelerates discovery of high-performing experiences, reduces labor in experiment design, and compounds improvements into a run-time optimization loop \u2014 potentially increasing conversion velocity at scale."
     },
     {
-      "approach": "Automated hypothesis generation from live analytics coupled with instant variant generation and deployment",
-      "why_novel": "Many tools require manual hypothesis input; combining continuous analytics-driven opportunity detection with immediate variant generation and rollout creates a near-autonomous optimization loop.",
-      "potential_impact": "Increases experiment velocity and reduces time-to-learning, potentially improving ROI for growth programs at scale."
+      "approach": "Enterprise-oriented hybrid deployment: private instances + exportable HTML/scripts",
+      "why_novel": "The dual offering of private, enterprise-controlled instances plus the ability to export static assets and scripts for instant hosting is a flexible delivery model bridging security needs and fast iteration.",
+      "potential_impact": "Makes adoption easier for security-sensitive customers and permits integration into CDPs and existing hosting pipelines without full rip-and-replace."
     }
   ],
   "model_details": {
     "primary_models": [
-      "not specified",
-      "LLM referral sources referenced: ChatGPT, Claude, Gemini, Perplexity (as traffic sources rather than internal models)"
+      "unspecified LLM(s) (marketing copy explicitly references \"LLM Based Personalization\" and \"LLMs\")"
     ],
     "fine_tuning": {
       "uses_fine_tuning": false,
-      "fine_tuning_approach": "Not disclosed; privacy policy explicitly states third-party API data is not used to train or fine-tune generalized AI models without explicit consent.",
-      "training_data_source": "Not specified"
+      "fine_tuning_approach": "No evidence provided in content for fine-tuning. Marketing language focuses on inference-driven personalization, automated experiments, and human-in-the-loop governance rather than model retraining details.",
+      "training_data_source": "Not mentioned"
     },
     "inference_optimization": [
-      "client-side low-latency routing (referrer detection) inferred",
-      "edge/CDN delivery or optimized API responses implied by 'zero performance lag'",
-      "caching of variants and real-time metric pipelines likely but not specified"
+      "real-time inference (claimed: \"reshapes itself in real time\")",
+      "low-latency UX focus (inferred from: \"fast load times\", \"mobile responsiveness\", \"real time\")",
+      "edge execution / client-side scripts implied by \"works on your current URLs\" and \"export HTML, scripts, and assets ready for instant hosting\""
     ],
     "model_routing": {
       "uses_routing": true,
-      "routing_strategy": "Rule- and signal-based routing: match referrer (LLM platform) and audience segments (traffic source, device, behavior, custom events) to variants; agents (LIV/AYA/MAX) orchestrate generation and routing."
+      "routing_strategy": "Functional routing by agent role (personalization, monitoring, experimentation). Requests/events are dispatched to role-specific agents (LIV/AYA/MAX) and likely to corresponding model/pipeline endpoints. Routing appears to be task-based and URL-scoped."
     },
     "compound_ai": {
       "is_compound_system": true,
-      "orchestration_pattern": "Multiple specialized agents (personalization, monitoring, experimentation) operate autonomously and are orchestrated with human approval via a visual editor; agents generate candidates, execute experiments and monitor KPIs in a closed-loop system."
+      "orchestration_pattern": "Agent-per-URL architecture with specialized agents for different functions. Agents generate actions (variant creation, monitoring tasks), and a central orchestration/control plane likely manages traffic routing, experiment lifecycle, and human approvals (human-in-the-loop)."
     }
   },
   "market_type": "horizontal",
   "vertical": "marketing",
-  "sub_vertical": "advertising personalization and landing page optimization",
-  "sub_sub_vertical": "LLM-driven ad and landing page personalization for conversion rate optimization",
+  "sub_vertical": "advertising and digital experience personalization",
+  "sub_sub_vertical": "campaign-level personalization and journey orchestration for enterprise marketing",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
@@ -261,37 +260,30 @@
       {
         "id": "it_enterprise_software",
         "label": "Information Technology & Enterprise Software",
-        "confidence": 0.72
+        "confidence": 0.75
       },
       {
         "id": "ai_ml_platforms",
         "label": "AI/ML Platforms",
-        "confidence": 0.85
+        "confidence": 0.8
       }
     ]
   },
   "target_market": "b2b",
   "tech_stack": {
-    "llm_providers": [
-      "OpenAI",
-      "Anthropic",
-      "Google",
-      "Perplexity"
-    ],
-    "llm_models": [
-      "GPT-4",
-      "Claude",
-      "Gemini"
-    ],
+    "llm_providers": [],
+    "llm_models": [],
     "vector_databases": [],
     "frameworks": [],
-    "hosting": [],
-    "approach": "prompt_engineering",
+    "hosting": [
+      "Private enterprise instances (self-hosted or dedicated cloud)"
+    ],
+    "approach": "hybrid",
     "uses_open_source_models": false,
     "has_custom_models": false
   },
   "engineering_quality": {
-    "score": 4,
+    "score": 3,
     "has_public_api": false,
     "has_sdk": false,
     "has_documentation": false,
@@ -301,10 +293,10 @@
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "Marketing-focused site with no visible developer docs or public API",
-      "Repeated 404 pages on multiple sections, undermining reliability for developers",
-      "No evident open-source contributions or GitHub references in provided data",
-      "No SDKs or sample code mentioned"
+      "Enterprise-grade compliance claims (SOC2, ISO 27001) and GDPR/CCPA compliance",
+      "Private instances and governance/human-in-the-loop controls emphasized",
+      "Knowledge hub and developer-oriented terminology appear, but no public API/docs visible",
+      "Presence of multiple 404 pages and repetitive content suggesting site/navigation quality issues"
     ]
   },
   "implementation_maturity": "production",
@@ -315,257 +307,249 @@
       "has_ml_expertise": true,
       "has_domain_expertise": true,
       "hiring_signals": [],
-      "team_size_indicators": "small",
-      "remote_distributed": true
+      "team_size_indicators": "unknown",
+      "remote_distributed": false
     },
-    "founder_market_fit": "Insufficient information in the provided content to assess founders' backgrounds; no founder names or bios are present.",
+    "founder_market_fit": "insufficient data to assess founder backgrounds or fit to the problem; no founders or executive leadership profiles are disclosed in the provided material.",
     "team_strengths": [
-      "Seed funding led by Accel suggests strong investor validation and potential for growth.",
-      "Marketing-technology oriented product with features like LLM-based personalization, audience personalization, and AI-powered experimentation, indicating strong ML/AI execution depth.",
-      "Presence of multiple corporate entities (Sofftech Pvt Ltd and Vibemarketing Inc) hints at cross-border operations and potential access to diverse talent pools."
+      "Enterprise-grade security certifications (SOC2 and ISO 27001) and GDPR/CCPA compliance signaling strong security, governance, and regulatory alignment.",
+      "Human-in-the-loop and governance-focused design indicating emphasis on accountability, brand alignment, and compliance.",
+      "No-code integrations and compatibility with existing stacks suggesting practical, scalable deployment capabilities.",
+      "AI-driven personalization and experimentation with AI agents, LLM-based personalization, and audience/intent targeting.",
+      "Clear emphasis on governance, auditability, and enterprise-ready features, which align with large-scale customer needs."
     ],
     "team_red_flags": [
-      "No disclosed founders or leadership bios in the provided content, making founder-market-fit assessment impossible.",
-      "Repeated 404 page instances in the content suggest potential gaps in site reliability or brand presentation, which can obscure team communication."
+      "Lack of publicly identifiable founders or leadership profiles in the provided material, limiting assessment of founding team track record.",
+      "No explicit hiring announcements or team size disclosures, making it hard to gauge current growth stage or capacity."
     ],
-    "team_confidence": 0.25
+    "team_confidence": 0.3
   },
   "business_model": {
     "pricing_model": {
       "type": "custom",
       "pricing_evidence": [
-        "Pricing page exists with 'Get a Demo' CTA and no public price points",
-        "Free AI Tools page suggests availability of free tools outside core product"
+        "Pricing page exists in navigation but no prices shown",
+        "Get a Demo call-to-action suggests sales-driven pricing",
+        "Enterprise-grade features and private instances imply customized pricing"
       ],
-      "free_tier_available": true,
+      "free_tier_available": false,
       "enterprise_focus": true,
       "price_points": []
     },
     "gtm_strategy": {
-      "primary_channel": "content_marketing",
+      "primary_channel": "sales_led",
       "evidence": [
-        "Blog guides, whitepapers, guides, customer stories, newsletters",
-        "Demo CTA and 'Trusted by CMOs' messaging",
-        "Product pages highlight features and use-cases for enterprise marketing teams"
+        "Pricing/Get a Demo navigation items and Get a Demo calls-to-action",
+        "Contact Us for a quote or demo, indicating sales involvement",
+        "Enterprise features highlighted (private instances, governance) implying enterprise sales motion",
+        "Content hub and thought leadership to educate buyers"
       ],
       "target_segment": "enterprise",
       "sales_motion": "inside_sales"
     },
     "revenue_model": {
-      "monetization_approach": "SaaS subscription-based model, with custom pricing for enterprise via demo; pricing not publicly displayed",
+      "monetization_approach": "recurring enterprise subscription with potential custom pricing for deployments and private instances",
       "unit_economics_signals": [
-        "no explicit ARPU or margins provided"
+        "no explicit pricing or ARPU provided; enterprise-focused signals imply higher ARR",
+        "private instances and governance features suggest premium pricing"
       ],
       "recurring_revenue": true
     },
     "distribution_advantages": [
-      "No-code AI-powered personalization with visual editor",
-      "Zero-infra friction; plug-in without major architecture changes",
-      "GA4 integration for real-world data",
-      "Real-time LLM detection and personalization signals"
+      "enterprise-grade compliance (SOC2, ISO 27001, GDPR/CCPA), secure private instances",
+      "no-code integrations and agentic web platform, enabling rapid adoption within existing stacks"
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "content_marketing (blog guides, whitepapers)",
-        "newsletter/subscriptions",
-        "customer stories and testimonials",
-        "demo-based lead capture"
+        "content_marketing (knowledge hub, guides, blogs)",
+        "newsletter/subscription marketing",
+        "demand generation through demo requests and consultative selling"
       ],
       "customer_proof_points": [
-        "The leading CMOs trust Fibr AI",
-        "Customer stories and testimonials sections",
-        "Case studies implied by 'Guides' 'Manifesto' content"
+        "Testimonial from Lisa Davis (Director of Marketing)",
+        "Marketing leader quotes and 'Hear from Marketing Leaders' sections",
+        "Brand presence/signals like 'You Might\u2019ve Seen Us Around'"
       ]
     },
     "business_model_clarity": "clear",
-    "business_model_confidence": 0.75
+    "business_model_confidence": 0.6
   },
   "product_analysis": {
     "product_stage": "general_availability",
     "stage_evidence": [
-      "Pricing and demo options visible (Pricing/Get a Demo)",
-      "Multiple named modules (LLM-Based Personalization, Audience Personalization, CDP Personalization, Experimentation Platform, Page Builder, Ads Personalization, Journey Personalization)",
-      "Real-time capabilities (Real-Time LLM Detection, revenue per session tracking in real-time)",
-      "Integrations with ad platforms (Google Search Ad Personalization, Meta Ad Personalization) and GA4 data leverage",
-      "Privacy policy with GDPR/CCPA compliance mentions"
+      "Pricing and product resources available",
+      "Enterprise-grade security and compliance (SOC2, ISO 27001, GDPR/CCPA)",
+      "Testimonials and marketing materials with ROI claims",
+      "Knowledge hub, guides, blog, and opportunities to book a demo"
     ],
     "feature_depth": {
       "core_features": [
-        "LLM-driven personalization across ads, journeys, and audiences",
-        "Real-time detection of AI platform traffic and tailored experiences",
-        "No-code visual editor for creating variants",
-        "Audience segmentation using signals (traffic sources, device, behavior, custom events)",
-        "A/B testing and optimization (MAX)",
-        "Landing page / page builder integration for personalized experiences",
-        "Cross-channel consistency between ads and landing pages for post-click experience",
-        "AI-assisted copy/visual suggestions via AI assistant",
-        "Website monitoring (AYA) for performance and mobile optimization",
-        "Privacy-respecting data handling with explicit stance against training on customer data"
+        "Agentic Web Experience Platform",
+        "Per-URL AI agents and real-time page adaptation",
+        "AI-driven personalization at scale (ad, audience, journey)",
+        "AI hypothesis generation, variant creation, AI-led experimentation",
+        "Human-in-the-loop governance and brand alignment",
+        "Compliance and governance controls"
       ],
       "differentiating_features": [
-        "Real-time LLM platform detection to customize experiences per AI source (ChatGPT, Claude, Gemini, Perplexity)",
-        "LIV, a dedicated Personalization Agent to guide content and messaging",
-        "AYA Website Monitoring Agent to optimize performance automatically",
-        "MAX A/B Testing Agent to run automated experiments at scale",
-        "End-to-end alignment between Meta/Google ads and landing pages for post-click experience"
+        "Agentic, URL-to-agent model that senses intent and reshapes pages in real time",
+        "Full-stack agentic experience layer with human allies",
+        "Brand guardrails and on-brand guarantees across experiences",
+        "Built for enterprise-grade governance and auditability"
       ],
       "roadmap_signals": [
-        "Product claims of expanding agents (LIV, AYA, MAX) suggest ongoing feature expansion",
-        "No explicit roadmap publicly disclosed; evidence of ongoing feature development but not a published roadmap"
+        "No explicit roadmap details; ongoing emphasis on LLM-based personalization and AI agents; no 'coming soon' items mentioned"
       ],
-      "feature_completeness": "growing"
+      "feature_completeness": "comprehensive"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [
-        "Google Ad Personalization",
-        "Meta Ad Personalization",
-        "GA4 data integration for behavioral signals",
-        "CRM/Analytics/Email marketing providers (implied in privacy policy)"
+        "No-code integrations",
+        "Works with existing tech stack",
+        "Data sharing with third-party providers (payment processors, hosting, email marketing, CRM, analytics)"
       ],
-      "api_maturity": "basic",
+      "api_maturity": "none",
       "sdk_availability": [],
       "webhook_support": false,
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "Personalize experiences across ads, landing pages, and journeys at scale using AI-driven signals and real-time detection",
+      "primary_use_case": "Personalization and optimization of web experiences at scale using AI agents on per-URL basis",
       "secondary_use_cases": [
-        "Landing page optimization via AI-generated variations and personalized content",
-        "A/B testing and experimentation through MAX",
-        "Cross-channel consistency between ads and landing pages",
-        "CDP-based segmentation and retargeting"
+        "Ad-to-page alignment to improve Google Ad Quality Score and ROAS",
+        "Journey personalization across entire site",
+        "Audience personalization for different segments",
+        "Governance and compliance with brand guardrails"
       ],
       "customer_stories": [
-        "No customer stories provided in the provided content"
+        "Lisa Davis, Director of Marketing, testimonial about IT/compliance approvals and governance"
       ],
       "industry_focus": [
-        "Marketing and advertising technology",
-        "Businesses seeking AI-driven personalization and optimization of ad-to-landing-page experiences"
+        "Enterprises and global brands requiring governance, security, and regulatory compliance"
       ]
     },
     "product_risks": [
-      "Public site content shows repeated 404 pages, indicating possible fragility of marketing pages or early-stage content",
-      "Lack of publicly available detailed API/docs or developer resources; integration maturity unclear",
-      "Reliance on cookies and device data may face evolving privacy/regulatory constraints",
-      "No explicit enterprise-grade security or certifications disclosed"
+      "Claims rely on marketing ROI numbers; lack of publicly verifiable case studies",
+      "Data transfer to cross-border jurisdictions may raise privacy concerns for some customers",
+      "Reliance on AI agents may introduce risk if human-in-the-loop processes are insufficient",
+      "Limited public information about API and integrations may limit extensibility"
     ],
     "product_strengths": [
-      "Broad module coverage: Ads, Journey, Audience, CDP, Page Builder, and Experimentation",
-      "Advanced AI capabilities: LLM-based personalization and real-time AI platform detection",
-      "No-code editor enabling rapid personalization without engineering effort",
-      "Automation-focused agents (LIV, AYA, MAX) for scalable personalization and optimization",
-      "Privacy-conscious stance with GDPR/CCPA alignment"
+      "Strong enterprise-grade security and governance (SOC2, ISO 27001); GDPR and CCPA compliance",
+      "Per-URL AI agent and real-time adaptation enabling highly personalized experiences",
+      "Human-in-the-loop to maintain brand safety and compliance",
+      "No-code integrations and ability to work with existing stacks",
+      "Clear positioning around not replacing stack but elevating it"
     ],
-    "product_confidence": 0.62
+    "product_confidence": 0.72
   },
   "unique_findings": [
-    "Real-time LLM-referrer routing: Fibr claims it automatically identifies visitors coming from ChatGPT, Claude, Gemini, Perplexity, etc., and serves platform-specific landing variants in real time. Technically this implies a fast detection layer (referrer-parsing + heuristic/signature DB) combined with an ultra-low-latency delivery path (likely client-side SDK or edge logic) to swap content without noticeable performance impact.",
-    "Automated DOM scanning + NLP mapping from a pasted URL: The 'paste your URL / Fibr scans your headlines, visuals, and CTAs' flow points to a headless-browser crawler + DOM-diff/NLP pipeline that (a) extracts personalization targets, (b) proposes editable elements and variant slots, and (c) creates metadata that lets a visual editor map changes back to the live page. Building stable element-mapping across arbitrary pages is non-trivial and implies robust selector heuristics, shadow overlays, or auto-instrumentation.",
-    "Agentized microservices for distinct tasks: The product naming (LIV, AYA, MAX) suggests a modular, agent-oriented architecture\u2014separate services for personalization decisioning (LIV), site performance/monitoring (AYA), and experimentation (MAX). This hints at event-driven orchestration, where specialized agents handle detection, variant selection, monitoring, and automated A/B testing loops.",
-    "Real-time revenue-per-session attribution integrated into personalization: They claim to track revenue per session in real time and feed that back into optimizations. That requires session stitching, reliable server-side event ingestion (or robust client->server fallback), integration with GA4/CRMs, and tight latency windows so experiments can adapt quickly \u2014 a complex telemetry and attribution stack, not just surface-level A/B testing.",
-    "Zero-infrastructure friction via referrer-only targeting: Their pitch emphasizes no changes to analytics, tag managers, or site architecture and reliance on standard browser referrer data. The technical trade-off is interesting: minimal integration burden for customers but greater complexity inside Fibr (robust detection heuristics, client SDK fallback, edge logic) and brittleness vs. referrer variability.",
-    "Bulk-generated variations + automatic audience syncing: 'Bulk Create' that generates many variants and ties each to specific audience sets indicates a templating/orchestration layer that can instantiate campaign-scaled personalization (assets, copy, conditional logic) programmatically. Scaling this while preserving coherence and QA is a non-trivial engineering challenge.",
-    "Privacy-first operational control: The explicit policy that third-party API data isn't used to train generalized models unless consented suggests architectural separation of pipelines: production personalization models/heuristics separated from any R&D/training environments, and possibly legal+infra controls to prove non-use \u2014 a combination of process and engineering constraints.",
-    "Intent-aware messaging for LLM-referred traffic: They surface 'research-oriented messaging' for LLM referrals (technical docs, feature comparisons). This requires mapping referrer -> inferred intent -> content taxonomy, which is interesting because it attempts to convert the coarse signal of 'came from an LLM' into a richer UX decision without having access to the user's prompt content."
+    "Per-URL agent model: Fibr repeatedly frames each URL as an autonomous 'AI agent' that 'senses intent, makes decisions, and reshapes itself in real time.' This implies a decentralized personalization layer (per-page agents) rather than a single centralized rule engine \u2014 an architectural choice that shifts complexity to per-URL inference, state management, and orchestration.",
+    "LLM-based visitor interpretation (including 'visitors from LLMs'): they claim to detect LLM-origin traffic and adapt content by interpreting intent. This suggests real-time natural language intent extraction and mapping from arbitrary LLM prompts/queries into page-level personalization signals \u2014 a non-standard usage pattern for LLMs in web personalization.",
+    "Automated hypothesis generation + continuous AI experimentation: language like 'generates automated hypotheses, creates variants, and runs continuous AI-led experimentation' signals an end-to-end closed loop: content/variant synthesis, automated experiment design (bandit / Bayesian?), and automated promotion of winners. That moves beyond A/B/X tooling into auto-ML-on-experiments, which has many subtle pitfalls (bias, non-stationarity, attribution).",
+    "No-rip, no-rewrite integration promise: they emphasize 'add intelligence layer to your website' and 'no rip-and-replace' + 'works on your current URLs' and 'no-code integrations.' Technically this likely means a combination of client-side injection (JS), reverse-proxying, or edge middleware that can mutate DOM/SSR output \u2014 each choice has different SEO, performance, and security tradeoffs.",
+    "Enterprise privacy & private instances for LLM personalization: offering SOC2/ISO27001 certified, GDPR/CCPA-compliant, 'secure, private instances' while doing real-time LLM personalization indicates they run inference in customer-dedicated environments (VPCs/air-gapped or on-prem). That's more operationally demanding than SaaS-hosted inference and creates an uphill engineering burden that could be a moat if executed.",
+    "Journey-level personalization across pages/sessions: they claim to 'follow your visitor\u2019s journey' and personalize each landing they hit. This requires robust identity stitching, cross-page state propagation, and fast lookups to enforce coherent UX across multi-step funnels \u2014 harder than single-page personalization.",
+    "Brand guardrails + human-in-the-loop controls: repeatedly emphasized. Enforcing brand, legal and compliance constraints on generated variants at scale (and automatically promoting variants) implies layered filters, guarded generation prompts, and auditing trails \u2014 non-trivial engineering and governance work.",
+    "Ad-to-page semantic matching for Quality Score at scale: their pitch linking ad keywords, landing page content, and Quality Score improvement implies keyword-level matching and automated landing page tailoring in bulk for hundreds of ads. That's a combinatorial production problem (variants \u00d7 ads \u00d7 locales) and requires infrastructure to generate, test and attribute at scale without exploding pages or breaking tracking."
   ],
   "technical_depth": "medium",
-  "newsletter_potential": "high",
+  "newsletter_potential": "medium",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "How Fibr routes AI intent at the edge: LLM-referrer detection + client-side personalization",
-      "summary": "Fibr claims to detect visitors coming from ChatGPT, Claude, Gemini and others in real time using standard browser referrer signals, then serve tailored experiences with a zero-infrastructure client/edge approach. For builders, the interesting bit is the combo of lightweight referrer-based detection, a JS overlay that avoids changing backend architecture, and named agents (LIV/AYA/MAX) that handle personalization, monitoring and experimentation.",
+      "headline": "How Fibr turns every URL into an agent: an anatomy of per-URL AI agents and the experience layer",
+      "summary": "Fibr claims to convert existing URLs into agentic pages that sense intent, reshape themselves in real time, and run continuous AI-led experiments. A technical deep-dive would unpack how they stitch session context, route tasks to specialized models/agents, and maintain performance and security across private instances.",
       "evidence": [
-        "\u2018Real-Time LLM Detection \u2014 Fibr automatically spots visitors coming from AI platforms ... using standard browser referrer data\u2019",
-        "\u2018Zero Infrastructure Friction \u2014 Plug in AI personalization in minutes \u2026 without modifying your existing analytics, tag managers, or website architecture\u2019",
-        "Named agents listed: LIV (Personalization Agent), AYA (Website Monitoring Agent), MAX (A/B Testing Agent)"
-      ],
-      "uniqueness_score": 9
-    },
-    {
-      "angle_type": "contrarian",
-      "headline": "Privacy-first personalization: why Fibr refuses to train models on third-party API data",
-      "summary": "Unlike many startups that harvest third-party API flows to fine-tune models, Fibr explicitly states it will not use third-party API data to train or fine-tune generalized AI/ML models without explicit consent. That policy shapes both product design (edge/referrer signals, not raw chat transcripts) and go-to-market messaging \u2014 a contrarian stance that invites scrutiny on trade-offs between privacy and personalization fidelity.",
-      "evidence": [
-        "Privacy policy: \u2018We will not share your data with any AI models without your consent.\u2019",
-        "Explicit clause: \u2018Under no circumstances is this data used to develop, improve, train, or fine-tune any generalized artificial intelligence (AI) or machine learning (ML) models\u2014unless explicitly consented to by you.\u2019",
-        "Product uses referrer & behavioral signals rather than ingesting third-party API content"
+        "\u201cFibr turns your URLs into intelligent, adaptive web experience agents. Each page senses intent, makes decisions, and reshapes itself in real time for whoever arrives.\u201d",
+        "\u201cFibr\u2019s AI Agents analyzes your pages, generates automated hypotheses, creates variants, and runs continuous AI-led experimentation to learn what works and improve every experience.\u201d",
+        "\u201cNo rip-and-replace, no disruption, just better experiences on top.\u201d",
+        "Claims of SOC2 and ISO 27001 certification and private instances suggest they run tenant-isolated deployments."
       ],
       "uniqueness_score": 8
     },
     {
       "angle_type": "data",
-      "headline": "Not magic \u2014 signal engineering: Fibr\u2019s advantage may be analytics + CDP signal fusion, not proprietary text corpora",
-      "summary": "Fibr emphasizes decoding behavioral signals from GA4, CDPs and ad platforms to define segments and drive personalization. If true, their moat could be fast, reproducible signal engineering and connectors (GA4, CRM, ad platforms) rather than owning unique training data \u2014 a pragmatic path that favors integrations and real-time feature engineering over big-model retraining.",
+      "headline": "Story-carrying sessions and CDP integration: Fibr\u2019s data plumbing for intent-aware personalization",
+      "summary": "Fibr emphasizes carrying the 'story' of where a session began and using CDP integrations to personalize journeys across pages. The story should investigate their session stitching, identity resolution, data retention/consent model (GDPR/CCPA), and how they avoid leaking PII into LLMs while still delivering LLM-driven personalization.",
       "evidence": [
-        "\u2018Connect GA4 to let the system leverage real-world behavioural data for smarter recommendations\u2019",
-        "Features: CDP Personalization, Audience Personalization, Precision Signal Targeting using traffic source, device, behaviour and custom events",
-        "Product positioning: \u2018We don't replace your stack. We elevate it. No rip-and-replace\u2019"
+        "\u201cOur AI layer sense where the story began, and carries it forward. Your pages adapt on arrival, so no one ever feels like they\u2019re starting over.\u201d",
+        "Product mentions: CDP Personalization, Journey Personalization, Audience Personalization and integrations with customer stacks.",
+        "Privacy claims: \u201cWe will not share your data with any AI models without your consent.\u201d and GDPR/CCPA compliance statements."
       ],
-      "uniqueness_score": 6
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Human oversight, not full autonomy: Fibr\u2019s pushback against fully autonomous-LLM personalization",
+      "summary": "Rather than touting fully autonomous agents, Fibr repeatedly pitches human-in-the-loop controls, brand guardrails, explainability and enterprise governance. This is a contrarian stance in the current \u2018autonomy-first\u2019 startup zeitgeist\u2014worth exploring how much automation they actually run, where humans intervene, and whether that tradeoff scales.",
+      "evidence": [
+        "\u201cFibr blends AI with human oversight to ensure every output stays on-brand, compliant, and trustworthy.\u201d",
+        "\u201cBuilt with security, governance, and human-in-the-loop controls\u2026so teams can personalize experiences while meeting enterprise and regulatory standards.\u201d",
+        "Repetition of brand guardrails and compliance-first language throughout the copy."
+      ],
+      "uniqueness_score": 7
     },
     {
       "angle_type": "efficiency",
-      "headline": "Plug in minutes, measure revenue-per-session in real time: Fibr sells speed and ROI",
-      "summary": "Fibr pitches low setup friction and immediate business metrics \u2014 paste your URL, generate variants, and track revenue-per-session with real-time LLM traffic detection. The hook for engineering teams is delivering measurable lift (+28% ROI, -30% CAC quoted) with a small client-side footprint and prebuilt experimentation flow.",
+      "headline": "Lower CAC and higher ROI by design: behind Fibr\u2019s claims of 30% lower CAC and 4x more leads",
+      "summary": "Fibr advertises concrete outcome improvements\u2014lower CAC, higher ROI, and better Google Ad Quality Scores via landing page alignment and bulk variant generation. A rigorous piece would validate those numbers, examine experiment methodology, batching/variant generation approaches, and the limits of automated landing-page personalization at scale.",
       "evidence": [
-        "Product flow: \u20181 Paste Your URL \u2026 4 Go Live Publish your variants. Fibr instantly detects LLM signals and serves the matched experience while tracking revenue per session in real-time\u2019",
-        "Promised results: \u2018+28% Higher ROI \u2026 +30% Lower CAC \u2026 4X More leads\u2019",
-        "\u2018Zero Infrastructure Friction \u2026 Deploy LLM-based personalization without modifying your existing analytics, tag managers, or website architecture\u2019"
+        "Marketing claims: \u201c+30% Lower CAC\u2026 4X More leads \u2026 +28% Higher ROI.\u201d",
+        "Product claims: \u201cCreate landing page variants in bulk for even 100s of ads\u201d and \u201cBoost Ad Quality Score with Precise Keyword Matching.\u201d",
+        "Promised continuous AI-led experimentation that generates automated hypotheses and variants."
       ],
-      "uniqueness_score": 7
+      "uniqueness_score": 5
     }
   ],
   "anti_patterns": [
     {
       "pattern_type": "wrapper",
-      "description": "The product appears to mainly orchestrate third-party LLMs and browser signals rather than surface substantial proprietary model or algorithmic differentiation \u2014 suggesting Fibr may be a thin integration layer over existing LLM APIs.",
-      "severity": "medium",
+      "description": "Marketing emphasizes 'AI agents' and LLM-based personalization but provides no technical detail about proprietary models, model training, or unique inference components \u2014 raising the risk that the product is primarily an orchestration layer over third-party LLMs and standard web tooling.",
+      "severity": "high",
       "evidence": [
-        "Tech Stack: LLMs: ['GPT-4', 'Claude', 'Gemini'], Approach: prompt_engineering",
-        "Zero Infrastructure Friction Plug in AI personalization in minutes Deploy LLM-based personalization without modifying your existing analytics, tag managers, or website architecture.",
-        "We will not share your data with any AI models without your consent.",
-        "Fibr uses standard browser referrer data to deliver experiences with zero performance lag."
+        "Repeated high-level claims: 'turns every URL into an AI agent', 'LLM-based personalization' with no model names or architecture.",
+        "Tech/context summary shows 'LLMs: []' and 'Approach: hybrid' (unspecified), suggesting model sourcing is not detailed.",
+        "Feature list (A/B testing, variant generation, intent interpretation) are capabilities commonly built on top of standard LLM APIs without clear proprietary differentiation."
       ]
     },
     {
       "pattern_type": "feature_not_product",
-      "description": "Core capabilities \u2014 landing page personalization, visual editor, LLM-referrer routing, A/B testing \u2014 read like a single feature set that incumbents (CDPs, A/B testing vendors, ad platforms) could add, implying limited defensibility as a standalone product.",
-      "severity": "high",
+      "description": "Core capabilities described (personalized landing pages, ad-to-page alignment, A/B testing at scale) read as a powerful feature set but could be absorbed into larger ad, analytics, or CMS platforms rather than being a standalone defensible product.",
+      "severity": "medium",
       "evidence": [
-        "We don't replace your stack. We elevate it. No rip-and-replace, no disruption, just better experiences on top.",
-        "No manual segmentation. No disconnected experiences. Just a simple sequence that turns AI-driven intent into a revenue-optimised landing experience.",
-        "Run A/B tests to optimize landing pages across different ad creatives MAX, Fibr\u2019s A/B Testing Agent, tests different variations of your landing pages..."
+        "Claims like 'Create landing page variants in bulk', 'Turn ad intent into page intent', 'AI-driven pages that instantly align with your ad\u2019s intent' describe feature functionality rather than a unique platform architecture.",
+        "Messaging emphasizing 'We don't replace your stack. We elevate it.' suggests integration-first, which can be replicated by incumbents via plugins or native features."
       ]
     },
     {
       "pattern_type": "no_moat",
-      "description": "There is little evidence of a clear, defensible moat: no proprietary training on customer data (policy blocks model training without consent), reliance on standard signals (referrer, GA4), and common product features that are easy to replicate.",
-      "severity": "high",
+      "description": "Little evidence of a sustainable technical or data moat \u2014 no proprietary datasets, unique models, or defensible algorithms are described. Personalization and experimentation value often require large, proprietary behavioral datasets or model IP to be defensible.",
+      "severity": "medium",
       "evidence": [
-        "We confirm that any data obtained via third-party APIs is used solely to provide, maintain, and enhance our services. Under no circumstances is this data used to develop, improve, train, or fine-tune any generalized artificial intelligence (AI) or machine learning (ML) models\u2014unless explicitly consented to by you.",
-        "Fibr uses standard browser referrer data to deliver experiences with zero performance lag.",
-        "AI-Driven Visual Editor Edit, personalize, and launch instantly Personalise effortlessly with a no-code visual editor..."
+        "No mention of proprietary training datasets, labeled corpora, or unique model architectures.",
+        "Claims of continuous AI-led experimentation and 'data flywheels' exist conceptually but without evidence of exclusive data capture or unique feedback loops.",
+        "The product relies on integrations with common third-party services (CDPs, analytics providers) which are accessible to many competitors."
       ]
     },
     {
       "pattern_type": "overclaiming",
-      "description": "Marketing makes strong numerical and technical claims (conversion lifts, instant LLM-referrer detection, 'zero performance lag') without visible evidence, benchmarks, or methodology, risking credibility if not backed by reproducible metrics.",
-      "severity": "medium",
+      "description": "Marketing statements make strong performance promises and certifications claims with little supporting detail or citations \u2014 specific uplift numbers and security/compliance assertions are presented without context or evidence.",
+      "severity": "high",
       "evidence": [
-        "Results that matter the most +28% Higher ROI By AI-driven personalization +30% Lower CAC By automating intent-based targeting 4X More leads By personalizing experiences at scale",
-        "Fibr automatically spots visitors coming from AI platforms like ChatGPT, Claude, Gemini, and Perplexity. It analyzes the source in real time and serves the personalized page you\u2019ve set for each platform.",
-        "Fibr uses standard browser referrer data to deliver experiences with zero performance lag."
+        "Performance claims: '+28% Higher ROI', '+30% Lower CAC', '4X More leads' are stated without test methodology, sample sizes, or timeframes.",
+        "Security/compliance claims: 'SOC2 and ISO 27001 certified, GDPR and CCPA compliant' are presented as facts but lack references to audit reports, certification bodies, or dates.",
+        "Buzzword-heavy language: 'agentic web', 'agentic pages', 'AI agents' repeated many times with limited technical grounding."
       ]
     },
     {
       "pattern_type": "undifferentiated",
-      "description": "Many features described (segmentation, visual editing, bulk variant creation, experimentation) are standard among personalization platforms and CDPs; without clearer unique capabilities, Fibr risks being positioned as another me-too solution.",
+      "description": "Many product statements align with existing capabilities offered by personalization platforms, DXP vendors, and ad tech \u2014 the positioning and messaging do not clearly distinguish an unusual technical or commercial angle.",
       "severity": "medium",
       "evidence": [
-        "Precision Signal Targeting Serve the right experience to the right audience Define segments using criteria like traffic sources, device types, visitor behaviour, and custom events.",
-        "AI-Driven Visual Editor Edit, personalize, and launch instantly",
-        "Bulk Create Simultaneously create multiple variations"
+        "Features map directly to standard categories: 'Audience personalization', 'Journey personalization', 'Experimentation Platform', 'Page Builder'.",
+        "The site repeats familiar enterprise assurances (governance, human-in-the-loop, brand guardrails) that competitors already emphasize.",
+        "Repetitive content and generic marketing language ('Your website, but smarter. Way smarter.') without unique case studies or technical depth."
       ]
     }
   ],
@@ -573,81 +557,79 @@
     "competitors": [
       {
         "name": "Optimizely",
-        "similarity": "Enterprise experimentation, A/B testing, feature flagging and personalization across web properties; no-code visual editors and experimentation governance.",
-        "how_different": "Fibr emphasizes AI-driven hypothesis generation, LLM-referrer detection, zero-infrastructure personalization via referrer signals, and rapid landing-page generation (Fibr Genesis) targeted at marketers rather than engineering-heavy deployments."
+        "similarity": "Provides experimentation, A/B testing, feature flagging and personalization across web properties; targets enterprise customers and DX teams.",
+        "how_different": "Fibr emphasizes an AI agent layer that adapts pages in real time (per-URL agents), automated hypothesis generation and continuous AI-led experimentation, LLM-based intent adaptation, and a no-rip-and-replace page intelligence layer with enterprise governance and private instances."
       },
       {
-        "name": "Adobe Target / Adobe Experience Cloud",
-        "similarity": "Personalization at scale, experimentation, deep enterprise integrations and governance for large brands.",
-        "how_different": "Fibr pitches faster time-to-value with low/no engineering changes, a marketer-first UX, AI agents (LIV/AYA/MAX) that automate ongoing optimization, and explicit LLM-based personalization features for AI-assistant traffic."
+        "name": "Adobe Target (Adobe Experience Cloud)",
+        "similarity": "Enterprise-grade personalization and testing integrated into a broader DXP ecosystem; strong compliance and governance positioning for large brands.",
+        "how_different": "Fibr pitches a lightweight overlay/experience layer that 'turns URLs into agents' without replacing the stack, focuses on automated AI agents + human-in-the-loop controls, faster landing-page generation/export, and explicit LLM/ads-to-page intent handling rather than deep DXP integration."
       },
       {
-        "name": "Dynamic Yield (and similar personalization platforms e.g., Monetate / Evergage)",
-        "similarity": "Real-time personalization, segment targeting, product/content recommendations and on-site experimentation.",
-        "how_different": "Fibr differentiates with automatic insight-to-hypothesis workflows (analytics -> prioritized test ideas), bulk-creation of page variants, specialized detection and experiences for LLM-referred users, and an emphasis on plug-in (referrer-based) deployment rather than heavy SDK/architecture changes."
+        "name": "Dynamic Yield / Monetate / Kameleoon (personalization platforms)",
+        "similarity": "Behavioral and audience personalization, recommendations, and multi-variant testing for conversion optimization.",
+        "how_different": "Fibr differentiates by combining LLM intent interpretation, named AI agents for monitoring/experimentation/personalization (e.g., LIV, AYA, MAX), and a continuous automated experimentation loop that generates hypotheses and variants autonomously while enforcing brand guardrails and enterprise controls."
       },
       {
-        "name": "VWO (Wingify)",
-        "similarity": "A/B testing, visual editor, personalization and experimentation for marketing teams.",
-        "how_different": "Fibr positions itself as more AI-native: it auto-detects personalization opportunities from live data, offers AI generation of landing pages and variants, and advertises LLM-source detection and tailored flows for users coming from AI assistants."
-      },
-      {
-        "name": "Mutiny",
-        "similarity": "B2B landing page personalization and conversion optimization focused on marketers and revenue teams.",
-        "how_different": "Fibr claims broader AI capabilities (LLM-aware targeting, multi-agent automation for A/B testing and monitoring), page generation from prompts/documents, and out-of-the-box integrations (GA4, CRM, ad platforms) with automated hypothesis surfacing rather than manual hypothesis design."
+        "name": "VWO (Visual Website Optimizer)",
+        "similarity": "A/B testing and conversion optimization tools targeted at growth/marketing teams, with some personalization features and DIY page editors.",
+        "how_different": "Fibr positions itself as AI-first: generating landing pages from content, aligning pages to ad intent automatically, and applying runtime adaptation using LLM signals \u2014 plus stronger emphasis on SOC2/ISO compliance and private instances for enterprise needs."
       },
       {
         "name": "Unbounce / Instapage",
-        "similarity": "Rapid landing page creation and post-click optimization for paid campaigns; no-code editors aimed at marketers.",
-        "how_different": "Fibr combines landing-page generation with live personalization, automated experiment orchestration, and LLM-detection/personalization\u2014going beyond standalone landing page builders by tying variants to intent signals and experiment metrics in real time."
+        "similarity": "Landing page builders focused on conversion, with templates and A/B testing aimed at marketers and paid campaigns.",
+        "how_different": "Fibr offers an AI-powered landing-page builder that not only creates/export pages but layers continuous personalization and 'agentic' real-time adaptation onto existing URLs, plus integrated AI experimentation and ad-to-page intent matching rather than only static landing pages."
       },
       {
-        "name": "Segment / mParticle (CDPs)",
-        "similarity": "Customer data collection, audience segmentation and forwarding to personalization/marketing systems.",
-        "how_different": "Fibr is a downstream optimization/personalization layer (and claims 'CDP Personalization') that ingests GA4/CRM signals and uses AI to generate experiments and personalized experiences\u2014Fibr focuses on acting on signals rather than just collecting and unifying them."
+        "name": "Mutiny (B2B personalization)",
+        "similarity": "Tailors landing pages and site experiences for specific audiences and accounts to improve conversion in B2B contexts.",
+        "how_different": "Fibr claims fully automated, AI-generated hypotheses and variants, journey-level personalization across multiple pages, LLM-driven interpretation of visitor intent (including traffic from LLMs), and stronger enterprise governance/security positioning."
       },
       {
-        "name": "Kameleoon / Convert",
-        "similarity": "Conversion optimization platforms with personalization, experimentation and audience targeting.",
-        "how_different": "Fibr's pitch centers on agent-driven automation, LLM-aware targeting, zero-infra friction using referrer-based delivery, and AI-first creative suggestions\u2014moving from tooling to automated hypothesis generation and autonomous experience creation."
+        "name": "Bloomreach / Coveo (commerce & search personalization)",
+        "similarity": "Personalization for commerce and content search experiences, improving conversion and engagement.",
+        "how_different": "Fibr is framed as an experience/agent layer that augments any URL with AI decisioning and experimentation; it focuses on ad-to-page relevance, LLM intent handling, and quick no-code integrations rather than deep commerce/search platform integrations."
       }
     ],
     "differentiation": {
-      "primary": "AI-first, marketer-focused platform that automatically surfaces optimization opportunities, generates and deploys personalized landing experiences (including LLM-specific experiences) with minimal engineering friction.",
-      "technical": "Combines real-time detection of AI-assistant/LLM referral signals (referrer analysis) with an AI visual editor, automated hypothesis generation from live GA4/CRM/ad signals, bulk variant creation, and agent-based automation (LIV for personalization, AYA for monitoring, MAX for A/B testing). Emphasizes zero-infrastructure friction via browser referrer data rather than heavy SDKs or site architecture changes.",
-      "business": "Go-to-market aimed at marketing, growth and agency teams: fast time-to-value, no engineering backlog, revenue-per-session tracking, enterprise compliance (GDPR/CCPA) and explicit privacy commitments about not using customer data to train generalized ML models without consent. Positioning includes free AI tools and rapid demos to capture marketer adoption.",
-      "positioning": "Positioned as more than a CRO tool\u2014an autonomous experience optimization system built for the 'agentic web' and LLM-driven discovery. Markets itself as layering on top of existing stacks (no rip-and-replace) and as built by marketers for marketers to accelerate conversion wins."
+      "primary": "An AI-first 'agentic' experience layer that turns existing URLs into runtime AI agents which sense visitor intent (including LLM-derived intent), generate automated hypotheses, create variants, and run continuous experimentation \u2014 all with human-in-the-loop governance and enterprise-grade security.",
+      "technical": "Key technical differentiators include per-URL AI agents (named agents for monitoring, testing, personalization), continuous AI-led experimentation (automated hypothesis generation + variant creation), LLM-based intent interpretation for visitors (including specialized handling of traffic from LLMs), a no-code integration layer that sits on existing URLs (no rip-and-replace), and the ability to export generated pages (HTML/scripts/assets). They also emphasize private instances and compliance (SOC2, ISO 27001, GDPR/CCPA).",
+      "business": "GTM focuses on growth and marketing teams plus enterprise stakeholders (IT/compliance). Business differentiators: rapid deployment over existing stacks (reduced implementation friction), packaged value for ad-to-page workflows (improving Google/Meta ad quality and ROAS), bundled experimentation + personalization + page generation capabilities, and enterprise assurances (security/certification/human oversight) to win conservative buyers.",
+      "positioning": "Positioned as a modern 'experience layer' or 'agentic web' alternative to legacy DXP or single-feature CRO tools \u2014 sells as an augmenting layer ('we don't replace your stack; we elevate it') that provides autonomous, compliant, brand-safe personalization at scale."
     },
     "secret_sauce": {
-      "core_advantage": "An end-to-end, AI-driven optimization loop that (1) continuously analyzes live behavioral and campaign data to surface prioritized hypotheses, (2) auto-generates personalized page variants (including LLM-targeted experiences), and (3) deploys and measures them in real time with minimal engineering overhead\u2014augmented by dedicated 'agents' for monitoring, testing and personalization.",
-      "defensibility": "Medium: the combination of capabilities (LLM-referrer detection + automated hypothesis generation from integrated analytics + instant variant generation/deployment + enterprise governance) creates product-level stickiness for marketing teams who value speed and reduced engineering dependency. Replicating the integrated UX, data pipelines, operator logic and trust (privacy/enterprise compliance) requires coordinated product, data and integration work, though individual pieces (visual editor, A/B testing, referrer parsing) are replicable by well-resourced incumbents.",
+      "core_advantage": "The combination of per-URL AI agents that (1) interpret visitor intent (including LLM-originated queries), (2) autonomously generate hypotheses and variants, and (3) run continuous experimentation \u2014 all wrapped with human-in-the-loop brand guardrails and enterprise-grade private deployment options.",
+      "defensibility": "Medium. The architecture (agentic, runtime personalization + automated experimentation) and enterprise security posture create practical adoption and integration friction for competitors to match quickly. Defensibility hinges on: integration depth with customer stacks and ad/CDP workflows, accumulated behavioral/test data and experiment outcomes (which improve AI decisions), implemented governance/controls and certifications (SOC2/ISO), and client-specific configurations/templates which raise switching costs. However, core AI capabilities and LLM intent parsing are technically reproducible, so purely technical moats are limited without scale, customer data, and enterprise trust.",
       "evidence": [
-        "\"Real-Time LLM Detection Fibr automatically spots visitors coming from AI platforms like ChatGPT, Claude, Gemini, and Perplexity.\"",
-        "\"Zero Infrastructure Friction Plug in AI personalization in minutes... Fibr uses standard browser referrer data to deliver experiences with zero performance lag.\"",
-        "\"Fibr Genesis to generate landing pages from prompts, documents, or reference URLs.\"",
-        "\"Fibr continuously analyzes your live performance data and surfaces opportunities you might have missed... instead of staring at dashboards wondering what to test, you'll get clear, actionable hypotheses.\"",
-        "\"LIV, Fibr\u2019s Personalization Agent... AYA, Fibr\u2019s Website Monitoring Agent... MAX, Fibr\u2019s A/B Testing Agent\""
+        "\u2018Fibr transforms your URLs into intelligent, adaptive web experience agents.\u2019",
+        "\u2018AI agents analyzes your pages, generates automated hypotheses, creates variants, and runs continuous AI-led experimentation.\u2019",
+        "Named agents for capabilities (e.g., LIV for personalization, AYA for monitoring, MAX for A/B testing) showing modular agent design.",
+        "Claims of SOC2 and ISO 27001 certification and GDPR/CCPA compliance; mention of private instances and human-in-the-loop controls.",
+        "\u2018No rip-and-replace, no disruption, just better experiences on top.\u2019 \u2014 emphasizes overlay/experience-layer approach and easier adoption.",
+        "Product capability to generate landing pages and export HTML/scripts/assets from uploaded content and inspiration URLs."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "Fibr's moat is product and operational rather than purely technological. Their value comes from integrating detection of AI-assistant traffic, automated insight-to-action workflows, no-code variant generation, and enterprise-ready governance into a marketer-first UX. That combination drives adoption and process change (marketers rely on Fibr to find and execute tests), creating switching costs. However, core components (visual editors, referrer parsing, A/B engines, CDP connectors) are not patent-protected and can be built by larger incumbents (Adobe/Optimizely) or fast-moving startups, so the moat relies on execution, integrations, data/training on real-world experiments, and customer relationships.",
+    "moat_explanation": "Fibr's moat is primarily commercial and operational rather than purely technical. Enterprise certifications (SOC2/ISO), private-instance options, governance/human-in-the-loop controls, and tightly integrated workflows for ad-to-page personalization + experimentation create adoption advantages and switching friction for regulated, security-conscious customers. The continuous-experimentation loop plus accumulation of experiment results and configuration templates can improve performance over time. However, the core AI approaches (LLM intent parsing, automated variant generation) are reproducible by well-resourced competitors, and many incumbents already have broad DXP/CRO footprints \u2014 so Fibr must scale customers and integrations to strengthen the moat.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "LLM-Based Personalization This is where AI-driven discovery meets autonomous experience generation.",
-    "Real-Time LLM Detection Fibr automatically spots visitors coming from AI platforms like ChatGPT, Claude, Gemini, and Perplexity.",
-    "LLM-referred users have often already researched your category. Fibr allows you to lead with technical documentation, feature comparisons, and direct paths to trials \u2013 respecting their research journey and accelerating conversion.",
-    "Plug in AI personalization in minutes Deploy LLM-based personalization without modifying your existing analytics, tag managers, or website architecture.",
-    "AI assistant suggests engaging copy variations to supercharge relevance without manual bottlenecks.",
-    "Referrer-based real-time LLM detection: using standard browser referrer signals to detect AI/LLM-origin traffic (ChatGPT, Claude, Gemini, Perplexity) and route visitors to platform-specific experiences without heavy infra.",
-    "Named, specialized product agents (LIV, AYA, MAX) that map directly to marketing product functions (personalization, monitoring, experimentation) suggesting an opinionated agent orchestration layer.",
-    "Zero-infrastructure friction approach: delivering personalization using referrer detection and client-side plumbing to avoid deep integrations (no tag manager / analytics changes required) \u2014 pragmatic, low-friction deployment for production personalization.",
-    "Monetary feedback integration: tracking revenue-per-session in real time and feeding it back into personalization/experimentation, enabling business-metric-driven optimization (not just engagement metrics).",
-    "Privacy-first constraints documented in policy that explicitly prohibit using third-party API data to train generalized models unless consented \u2014 this shapes allowable continuous-learning designs and may favor on-device or in-product adaptation vs. retraining."
+    "LLM Based Personalization",
+    "AI Agents analyzes your pages, generates automated hypotheses, creates variants, and runs continuous AI-led experimentation",
+    "turn URLs into intelligent, adaptive web experience agents",
+    "AI layer senses intent, makes decisions, and reshapes itself in real time for whoever arrives",
+    "Fibr AI combines software infrastructure, AI agents with humans-in-the-loop to craft personalized and dynamic web experiences",
+    "AI agents execute personalization at scale, while human allies guide strategy, brand alignment, and decisions",
+    "URL-as-agent: treating each URL/page as a distinct autonomous agent that senses intent, executes personalization, and persists context across the visitor journey.",
+    "Named, role-based agent taxonomy (e.g., LIV for personalization, AYA for monitoring, MAX for A/B testing) indicating an orchestrated library of reusable agent capabilities mapped to common marketing tasks.",
+    "Agentic experience layer that operates on top of existing URLs with 'no rip-and-replace' integration \u2014 an overlay architecture that augments existing stacks rather than replacing them.",
+    "Marketing-focused agent orchestration combining continuous automated hypothesis generation with A/B test execution (AI creates variants + runs experiments end-to-end) \u2014 embedding experimentation into the agent loop.",
+    "Strong emphasis on enterprise governance baked into agent flows (brand guardrails, human-in-the-loop, auditability, compliance-first private instances) to enable agent autonomy within regulatory boundaries."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 13:14:36.318898+00:00",
-  "confidence_score": 0.82,
-  "raw_content_analyzed": 282713
+  "analyzed_at": "2026-03-08 01:48:41.434190+00:00",
+  "confidence_score": 0.75,
+  "raw_content_analyzed": 140773,
+  "input_hash": "196d7876f8f9de9f"
 }

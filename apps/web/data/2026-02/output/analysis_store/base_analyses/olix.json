@@ -9,203 +9,212 @@
   "uses_genai": false,
   "genai_intensity": "none",
   "models_mentioned": [
+    "LLMs",
+    "diffusion models",
+    "graph workloads",
     "PyTorch",
-    "JAX",
-    "MLIR"
+    "TensorFlow",
+    "JAX"
   ],
   "build_patterns": [
     {
-      "name": "Vertical Data Moats",
+      "name": "Micro-model Meshes",
       "confidence": 0.9,
       "evidence": [
-        "OLIX is building this next paradigm; the Optical Tensor Processing Unit (OTPU) achieves performance and energy efficiency that is impossible to match from existing chips.",
-        "drive simulation-led development of precision assemblies and materials",
-        "Develop and maintain a living database of key companies across the supply chain",
-        "multi-generation device roadmaps aligned with system architecture requirements",
-        "Experience with VCSEL arrays, substrate stack-ups, advanced materials, and domain-specific tooling (ANSYS, Abaqus, COMSOL)"
+        "Design, build, and maintain a functional simulator of the OPTU subsystem and full pipeline.",
+        "Design and maintain architectural & cycle-accurate models of the OPTU subsystems and pipeline.",
+        "Multi-physics analysis and simulations of mechanical and optical assemblies",
+        "Drive device simulation across optical, electrical, and thermal domains"
       ],
-      "description": "The company appears to be accumulating and leveraging highly domain-specific, proprietary data and engineering assets (device designs, materials models, simulation/validation datasets, supply\u2011chain intelligence and fabrication/packaging know\u2011how). These specialized datasets and engineering artefacts around optical computing, VCSELs, substrate stack-ups, and OTPU hardware form a strong vertical data moat that is hard for generalist competitors to replicate."
+      "description": "OLIX builds many specialized simulation and modeling components (functional simulators, cycle-accurate architectural models, multi-physics mechanical/thermal/optical simulators, device-level VCSEL simulations). These are task-specific models that together form an ensemble or mesh of specialist models used for design-space exploration, validation, and cross-domain trade-off analysis."
     },
     {
       "name": "Continuous-learning Flywheels",
-      "confidence": 0.62,
+      "confidence": 0.7,
       "evidence": [
-        "feed learnings back into the ASIC",
-        "Drive FPGA-based prototyping efforts to support silicon development and system validation",
-        "Develop and correlate simulation models with empirical testing (e.g., thermal cycling, vibration, and temperature\u2013humidity bias) to validate predictions and improve design accuracy",
-        "support transfer from R&D to pilot and volume manufacturing",
-        "Construct bottom\u2011up unit\u2011economics and gross\u2011margin models ... Stress\u2011test scenarios to guide make/buy and volume\u2011ramp decisions"
+        "Integrate models into CI so that every RTL commit gets a performance smoke test.",
+        "Develop and correlate simulation models with empirical testing (e.g., thermal cycling, vibration...).",
+        "Instrument benchmarks (LLMs, diffusion, graph workloads) to collect detailed traces.",
+        "Run massive parameter sweeps with your functional [simulator] to understand tradeoffs and guide the software, hardware, and optical teams."
       ],
-      "description": "There are explicit iterative feedback loops between simulation, FPGA prototyping, ASIC/silicon iterations, and empirical test data. While this is described in hardware engineering terms (not explicitly training ML models), it maps to the continuous\u2011improvement flywheel pattern: instrumentation, measurement, and operational/experimental data continuously inform subsequent design, validation and production steps."
-    },
-    {
-      "name": "Micro-model Meshes",
-      "confidence": 0.28,
-      "evidence": [
-        "frontend of the OTPU compiler stack, from ML framework ingestion through MLIR-based IR design, transformation, and lowering interfaces",
-        "MLIR-based dialect formation, operator lowering, framework integration (PyTorch/JAX)",
-        "Guide technical decision making to ensure long-term sustainability is balanced with short-term deliveries"
-      ],
-      "description": "The MLIR-based frontend and dialect/lowering work implies a highly modular compiler/transform stack with many small, specialized passes or components. This modularity could map to a micro\u2011model mesh (many small, task\u2011specific models/components orchestrated for end\u2011to\u2011end behavior), but the job descriptions focus on compiler engineering rather than explicitly deploying ensembles of small ML models, so confidence is low."
+      "description": "OLIX is structuring feedback loops between simulation, empirical test data, and engineering changes. Instrumentation and trace collection feed model calibration; CI integration runs models on commits; empirical validation (thermal cycling, vibration, measurements) is used to improve models. This is an engineering-focused continuous feedback loop that operationalizes model refinement and decision-making."
     }
   ],
   "discovered_patterns": [
     {
       "category": "Model Architecture & Selection",
-      "pattern_name": "No evidence of LLM/model-serving; focus on compiler & algorithm modelling",
-      "confidence": 0.9,
+      "pattern_name": "Compatibility-first bit-perfect inference (hardware-level)",
+      "confidence": 0.85,
       "evidence": [
-        "\"frontend of the OTPU compiler stack, from ML framework ingestion through MLIR-based IR design, transformation, and lowering interfaces.\"",
-        "\"Model algorithms and validate concepts in MATLAB/Simulink (or equivalent), ensuring functional equivalence through to gate-level sign-off.\"",
-        "\"Proficiency using MATLAB/Simulink or Python/NumPy for algorithm modelling, fixed-point analysis and test\u2011vector generation.\""
+        "\"It should not enforce QAT/PTQ of existing models or require a new thermodynamic neuromorphic architecture with the promise of theoretical improvements.\"",
+        "\"The OLIX Optical Tensor Processing Unit (OTPU) is an optical digital processor with a novel memory and interconnect architecture. This approach enables bit-perfect logic with a step change in performance.\""
       ],
-      "description": "OLIX's software work described in the content is centered on compiler frontends (MLIR, dialect formation, operator lowering) and algorithm modelling (MATLAB/Simulink, fixed-point analysis) for hardware mapping. There is no mention of LLMs, model-hosting, or serving architectures; their modelling work is about mapping ML operators to OTPU hardware rather than hosting large language models.",
-      "novelty_score": 2,
-      "why_notable": "Many AI companies advertise LLM stacks; OLIX is explicitly focused on compiler/algorithm-to-hardware translation and fixed\u2011point/gate\u2011level equivalence rather than LLM selection or hosting, indicating a hardware-first ML software posture."
-    },
-    {
-      "category": "Compound AI Systems",
-      "pattern_name": "Tight hardware\u2013software co-design orchestration (compiler \u2194 backend \u2194 silicon \u2194 optics \u2194 mechanical)",
-      "confidence": 0.98,
-      "evidence": [
-        "\"You will partner closely with backend compiler, architecture, and customer integration teams to ensure frontend decisions translate into a seamless customer experience that maximizes hardware performance.\"",
-        "\"You will work closely with ASIC, hardware, optical, and software teams to drive coherent system design, de-risk silicon development, and deliver production-grade solutions.\"",
-        "\"Collaborate with optical\u2011hardware, mixed\u2011signal and software teams to optimise data\u2011converter interfaces, clock\u2011domain crossings and firmware abstractions.\""
-      ],
-      "description": "OLIX implements a cross-disciplinary orchestration pattern where compiler/frontend decisions are explicitly coupled to ASIC architecture, FPGA prototyping, optical device design, mechanical tolerances and system integration. The orchestration spans multiple engineering domains with iterative feedback loops (compiler constraints informing silicon and vice versa).",
-      "novelty_score": 6,
-      "why_notable": "While hardware\u2013software co-design exists in many companies, OLIX's explicit inclusion of optics, VCSEL device engineering, mechanical simulation and compiler dialect design in the same coordination loop is unusual and necessary for optical compute stacks \u2014 this tight multi\u2011domain orchestration is relatively uncommon outside deep-hardware startups."
+      "description": "OTPU is being designed to run existing LLMs as-is (bit-perfect semantics) instead of requiring aggressive quantization or model re-training. Hardware and compiler teams prioritise compatibility with current transformer-style models and explicitly avoid forcing QAT/PTQ or exotic model formats.",
+      "novelty_score": 7,
+      "why_notable": "Most accelerator startups rely on quantization or model conversions to achieve efficiency. OLIX targets bit-perfect operation using novel optical+SRAM memory and interconnects, aiming to remove the need for model-level concessions while gaining energy/latency benefits."
     },
     {
       "category": "Evaluation & Quality (EvalOps)",
-      "pattern_name": "Rigorous hardware verification + performance modelling pipeline",
-      "confidence": 0.99,
+      "pattern_name": "Simulation-driven EvalOps with CI gating for RTL/perf",
+      "confidence": 0.95,
       "evidence": [
-        "\"Advanced verification experience (COCOTB, UVVM, OSVVM, or equivalent methodologies).\"",
-        "\"Own RTL development ... including synthesis, static\u2011timing closure, formal and constrained\u2011random verification.\"",
-        "\"Own and deliver the roadmap for performance modelling ... validating it through roofline, functional, cycle-accurate, and power modelling.\"",
-        "\"Contribute to EVT/DVT/PVT builds and transition to production.\""
+        "\"Integrate models into CI so that every RTL commit gets a performance smoke test.\"",
+        "\"You will build functional simulators as well as high-fidelity, cycle-accurate models of our optical compute system.\"",
+        "\"Instrument benchmarks (LLMs, diffusion, graph workloads) to collect detailed traces.\""
       ],
-      "description": "OLIX uses a multi-layer verification and validation stack: unit and constrained-random verification, formal methods, hardware bring\u2011up tests (EVT/DVT/PVT), and performance modelling including roofline and cycle\u2011accurate power models. This is applied both to ASIC digital design and FPGA prototyping validation to ensure correctness and PPA targets prior to silicon.",
-      "novelty_score": 3,
-      "why_notable": "This is best-practice for high-performance silicon projects; notable for its completeness (linking formal verification and cycle-accurate power modelling to compiler/frontend decisions) but standard within advanced semiconductor engineering."
+      "description": "Performance and cycle-accurate simulators (optical and system-level) are integrated into continuous integration to automatically smoke-test RTL changes. Benchmarks are instrumented for trace collection; massive parameter sweeps and automated analyses feed back into architecture and scheduling decisions.",
+      "novelty_score": 6,
+      "why_notable": "Tight coupling of high\u2011fidelity optical/cycle-accurate simulation with CI and RTL commits is uncommon outside of top-tier silicon houses; this operationalises design-space exploration and risk mitigation early in the hardware lifecycle."
     },
     {
       "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "FPGA-first prototyping and lab-centric validation with production transition pathways",
-      "confidence": 0.97,
-      "evidence": [
-        "\"Drive FPGA-based prototyping efforts to support silicon development and system validation.\"",
-        "\"Prototype and iterate rapidly in FPGA (Xilinx/AMD, Intel, or equivalent): bring\u2011up real\u2011time demos, exercise high\u2011speed transceivers, and feed learnings back into the ASIC.\"",
-        "\"Contribute to EVT/DVT/PVT builds and transition to production.\"",
-        "\"Conduct lab-based board bring-up, debug, and high-speed compliance validation.\""
-      ],
-      "description": "They use FPGA platforms (UltraScale+/Versal etc.) as the canonical prototyping layer to de-risk ASICs and the system stack, with lab instruments and EVT/DVT/PVT processes to validate high-speed SerDes, PCIe, power delivery, and optical links. The flow is: prototype on FPGA \u2192 lab validation \u2192 refine ASIC and board designs \u2192 pilot production.",
-      "novelty_score": 5,
-      "why_notable": "Using FPGAs to de-risk silicon is common, but OLIX's integration of optical device teams and mechanical simulation into the same prototyping/validation loop (and emphasis on transceiver tuning >25Gb/s and rack-integrated systems) indicates a mature, system-level FPGA prototyping program rather than isolated demo boards."
-    },
-    {
-      "category": "Safety & Trust (LLM Security)",
-      "pattern_name": "Hardware reliability and deterministic timing guardrails (ECC, SECDED, White Rabbit)",
-      "confidence": 0.96,
-      "evidence": [
-        "\"Guide implementation of robust error detection and correction mechanisms (ECC, including SECDED).\"",
-        "\"Architect deterministic timing and synchronisation strategies across complex multi-device systems.\"",
-        "\"experience with White Rabbit strongly valued\"",
-        "\"Implement and validate link integrity features including BER measurement and error correction (ECC, including SECDED).\""
-      ],
-      "description": "OLIX invests in low-level data integrity and timing trust: link-level BER measurement, SECDED ECC for memory/link reliability, and deterministic time distribution (White Rabbit) for synchronisation across devices. These act as 'guardrails' for correctness and deterministic behaviour in distributed optical compute systems.",
-      "novelty_score": 5,
-      "why_notable": "Deterministic synchronisation combined with optics at scale is a demanding requirement; pairing White Rabbit-style timing with ECC at board/FPGA/ASIC level makes the reliability strategy stronger and tailored to distributed, high-bandwidth optical tensor arrays."
-    },
-    {
-      "category": "Learning & Improvement",
-      "pattern_name": "Hardware-in-the-loop feedback data flywheel (FPGA prototyping \u2192 ASIC/silicon iterations \u2192 performance modelling)",
-      "confidence": 0.93,
-      "evidence": [
-        "\"Prototype and iterate rapidly in FPGA ... feed learnings back into the ASIC.\"",
-        "\"Drive FPGA-based prototyping efforts to support silicon development and system validation.\"",
-        "\"Own and deliver the frontend compiler roadmap aligning to OLIX\u2019s core business objectives and timeline ...\"",
-        "\"Contribute to multi-generation device roadmaps aligned with system architecture requirements\""
-      ],
-      "description": "OLIX operates an iterative improvement loop: prototype designs (FPGA, device-level VCSEL runs, substrate simulations), collect lab and modelling data (PPA, BER, thermal behaviour), and feed those empirical learnings into ASIC/driver/device design and compiler/operator mappings for subsequent hardware generations.",
-      "novelty_score": 6,
-      "why_notable": "The explicit, company-wide feedback loop connecting device epitaxy, mechanical simulation, FPGA prototyping and compiler frontend evolution is more extensive than typical single-discipline iterations; it forms a multi-domain 'data flywheel' for hardware-software co-evolution."
-    },
-    {
-      "category": "Data Strategy",
-      "pattern_name": "Living supply\u2011chain and manufacturing modelling as a strategic dataset",
+      "pattern_name": "Rack-scale co-design with on-package SRAM + photonic interconnect",
       "confidence": 0.9,
       "evidence": [
-        "\"Develop and maintain a living database of key companies across the supply chain from substrates through to foundries.\"",
-        "\"Construct bottom\u2011up unit\u2011economics and gross\u2011margin models that link silicon yields, wafer ASPs, backend conversion costs and logistics to P&L and cash\u2011flow forecasts.\"",
-        "\"Map capacity, lead times, cost curves, technology roadmaps, and geopolitical risk.\""
+        "\"We are building a new class of accelerator designed to achieve high throughput and high interactivity ... scaling an SRAM-architecture integrated with photonics can surpass HBM-based architectures on throughput/MW and TCO.\"",
+        "\"From a design perspective, achieving this requires system-scale thinking, moving from reticle-scale and wafer-scale design to rack-scale co-design of compute and data movement as a single, unified system.\"",
+        "\"The OLIX Optical Tensor Processing Unit (OTPU) is an optical digital processor with a novel memory and interconnect architecture.\""
       ],
-      "description": "OLIX treats supply-chain, yield, and manufacturing metrics as a continuously updated strategic dataset used for financial models, make-vs-buy decisions, and partner selection. This includes capacity tracking, cost curves, and technology readiness\u2014used directly to drive product and commercial strategy.",
+      "description": "OLIX pursues a system/rack-level architecture that co-designs compute, SRAM-memory placement, and photonic interconnects (optical links and on-package optics) to minimise data movement latency and energy, replacing HBM-driven designs. The approach emphasises memory proximity (SRAM-architectures) and photonic links across packaging/rack boundaries.",
+      "novelty_score": 9,
+      "why_notable": "Replacing HBM/interposer stacks with SRAM+photonics and explicitly moving to rack-scale co-design to jointly optimise data-movement and compute is a departure from common accelerator design trends and addresses latency/interactivity limits directly."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Workload-driven bottleneck hunting with ML benchmark instrumentation",
+      "confidence": 0.9,
+      "evidence": [
+        "\"Workload Analysis & Bottleneck Hunting: Instrument benchmarks (LLMs, diffusion, graph workloads) to collect detailed traces.\"",
+        "\"Identify throughput, latency and utilisation hot-spots; propose architectural, or scheduling fixes.\""
+      ],
+      "description": "They instrument real ML workloads (LLMs, diffusion, graph) to collect trace-level telemetry and run simulation and statistical analysis to locate throughput/latency/utilisation bottlenecks, feeding concrete hardware and scheduler changes.",
       "novelty_score": 5,
-      "why_notable": "Creating a 'living' dataset that ties technical yield and manufacturing constraints to corporate finance is increasingly important in semiconductor startups; OLIX is explicitly operationalizing this dataset as part of product and sourcing decisions."
+      "why_notable": "Workload-driven design is standard for high-performance hardware; notable here is the emphasis on optical compute-specific traces and using those traces to guide optical, mechanical, and compiler changes across disciplines."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Deterministic timing and precision-synchronisation emphasis",
+      "confidence": 0.88,
+      "evidence": [
+        "\"Strong experience with PCIe and high-speed transceivers. Solid understanding of precision timing and synchronisation in complex systems.\"",
+        "\"Experience with deterministic networking and time-distribution systems (such as White Rabbit).\"",
+        "\"Work on high-bandwidth architectures involving high-speed interfaces, precision timing, transceivers, and signal processing pipelines.\""
+      ],
+      "description": "System design requires precise timing/distributed synchronisation across optical transceivers, FPGA/ASIC components and racks. They plan deterministic networking/time distribution (e.g., White Rabbit-like approaches) to support coherent optical communication and low-latency operation.",
+      "novelty_score": 6,
+      "why_notable": "Applying precision time-distribution and deterministic networking typically seen in physics and telecom to an AI rack-scale accelerator is unusual and required by the photonics+SRAM architecture for maintaining low-latency, coherent operation."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Avoids supply-chain-constrained technologies as a strategic constraint",
+      "confidence": 0.9,
+      "evidence": [
+        "\"Any approach that improves only one dimension merely changes the nature of the tradeoff. From a supply chain and fabrication perspective, a new architecture must forego HBM, advanced packaging or any other technology that is supply chain constrained by current incumbents.\"",
+        "\"When even the biggest hyperscalers are struggling to secure capacity, a startup simply cannot compete.\""
+      ],
+      "description": "Architectural choices are explicitly influenced by supply-chain considerations: OLIX avoids HBM/advanced packaging dependencies and instead chooses technologies (SRAM + photonics, VCSELs, more standard fabrication flows) that are more accessible to a startup supply chain.",
+      "novelty_score": 6,
+      "why_notable": "Designing architecture around manufacturability and supply-chain accessibility reduces dependency on scarce wafer/fab/package resources and shapes novel choices (photonics + SRAM) rather than purely technical optimisations."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "High-fidelity optical and multi-physics modelling integrated into architecture decisions",
+      "confidence": 0.94,
+      "evidence": [
+        "\"Design and maintain architectural & cycle-accurate models of the OPTU subsystems and pipeline.\"",
+        "\"Design, build, and maintain a functional simulator of the OPTU subsystem and full pipeline.\"",
+        "\"Multi-physics analysis and simulations of mechanical and optical assemblies ... thermo-optical-mechanical simulations ... Conduct finite element analyses (FEA) ... Develop and correlate simulation models with empirical testing\""
+      ],
+      "description": "They build cycle-accurate optical compute simulators plus multi-physics (mechanical, thermal, optical) simulation stacks (FEA, thermo-optical) and correlate those models against empirical tests. These models feed architectural, packaging and materials choices and are used for design-space exploration.",
+      "novelty_score": 8,
+      "why_notable": "Integrating multi-physics simulation (optical, thermal, mechanical) at the same fidelity as architectural simulators and tying them into CI/RTL/perf evaluation is rare and critical for optical compute correctness and reliability."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Vertical integration from device (VCSEL) to compiler/backend co-design",
+      "confidence": 0.92,
+      "evidence": [
+        "\"Own the design and development of VCSEL devices and arrays for high-density optical systems ... Drive device simulation across optical, electrical, and thermal domains ... Support transfer from R&D to pilot and volume manufacturing.\"",
+        "\"Partner closely with frontend compiler, architecture, and ASIC teams for agile hardware-software co-design ... backend compiler to maximize hardware performance.\""
+      ],
+      "description": "OLIX pursues deep vertical integration: device-level VCSEL design, photonics and packaging considerations feed into FPGA/ASIC, timing, compiler backend, and runtime scheduling. Compiler and backend teams explicitly co-design with architecture and device teams to exploit hardware characteristics.",
+      "novelty_score": 8,
+      "why_notable": "Full-stack vertical integration down to laser epitaxy/properties influencing compiler/backend optimisations is unusual and enables optimisations only possible when devices, optics, hardware, and software share design visibility."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Full-stack optical-electro-mechanical co-design loop tied to compiler IR",
-      "why_novel": "Most compute vendors separate device engineering from compiler design. OLIX explicitly couples VCSEL/device-level design, mechanical/thermal substrate simulation, and MLIR frontend design so that compiler dialects and operator lowering are constrained by device-level physics and mechanical tolerances.",
-      "potential_impact": "Enables more aggressive hardware-software co-optimization, reducing impedance mismatches between algorithmic primitives and physical execution units; can unlock higher bandwidth-per-watt and realistic manufacturable devices tuned by compiler constraints."
+      "approach": "SRAM-architecture tightly integrated with photonic interconnects as a replacement for HBM/interposer stacks",
+      "why_novel": "Shifts the fundamental memory+interconnect tradeoff from HBM-driven silicon packaging to SRAM+optical links, aiming for bit-perfect optical digital processing and lower data-movement energy/latency.",
+      "potential_impact": "Could enable simultaneous high throughput and interactivity at lower pJ/token cost and avoid reliance on scarce HBM/advanced packaging supply chains."
     },
     {
-      "approach": "Using FPGA prototyping as the canonical de-risking and measurement plane feeding back into both silicon and compiler",
-      "why_novel": "FPGA prototyping is common, but OLIX uses it as a systematic source of empirical data (link BER, transceiver tuning, timing behaviour) to influence ASIC design and compiler lowering, not just demoing.",
-      "potential_impact": "Reduces silicon iterations and improves first-pass silicon success rate; shortens feedback cycles between algorithm mapping and physical implementation."
+      "approach": "Cycle-accurate optical compute simulators and multi-physics models integrated into CI and RTL smoke tests",
+      "why_novel": "Combines architecture, optical device physics, and mechanical/thermal simulation fidelity with automated CI gating of hardware changes.",
+      "potential_impact": "Rapidly catches regressions in optical/architectural performance, shortens iteration loops between device, ASIC, and compiler teams, and reduces costly silicon respins."
     },
     {
-      "approach": "Tightly coupled performance modelling stack (roofline + cycle\u2011accurate + power) integrated with architecture and compiler roadmaps",
-      "why_novel": "Bringing together high-level roofline analysis with cycle\u2011accurate and power modelling as part of a frontend/backend roadmap (and using that to specify hardware generations) is a deeper integration than treating performance modelling as a separate analytic step.",
-      "potential_impact": "Allows quantitatively grounded architecture tradeoffs and predictable roadmap planning that aligns compiler transformations with hardware capability across generations."
+      "approach": "Vertical stack co-design including VCSEL epitaxy/device engineering feeding compiler/backend and scheduling decisions",
+      "why_novel": "Device-level laser design (epitaxy, VCSEL arrays) is being treated as a first-class input to compiler/back-end decisions instead of isolated optics engineering.",
+      "potential_impact": "Enables hardware-aware compiler optimisations that exploit device characteristics (e.g., modulation bandwidth, array uniformity) to improve system throughput/latency."
+    },
+    {
+      "approach": "Rack-scale co-design with explicit supply-chain-aware architectural choices",
+      "why_novel": "Architecture is constrained by manufacturability and supply availability, not only by theoretical flops/W. They avoid technologies dominated by incumbents (HBM etc.) and design for broader manufacturability.",
+      "potential_impact": "Improves the startup's ability to produce scalable hardware economically and on realistic timelines while enabling novel system topologies."
     }
   ],
   "model_details": {
-    "primary_models": [],
+    "primary_models": [
+      "no specific LLM names mentioned; explicit intent to support \"models as they exist today\" (inference-focused transformer-style LLMs implied)"
+    ],
     "fine_tuning": {
       "uses_fine_tuning": false,
-      "fine_tuning_approach": "",
-      "training_data_source": ""
+      "fine_tuning_approach": "No evidence of in-house fine-tuning pipelines; document explicitly discourages requiring QAT/PTQ of existing models, implying they expect to run pre-trained models without mandatory model-level transforms.",
+      "training_data_source": "not mentioned"
     },
     "inference_optimization": [
-      "fixed-point analysis (\"fixed-point analysis and test\u2011vector generation\")",
-      "operator lowering / compiler-driven optimization (\"MLIR-based IR design, transformation, and lowering interfaces\")",
-      "performance modelling (roofline, cycle-accurate, power modelling) for PPA-driven tradeoffs",
-      "hardware prototyping-driven tuning (FPGA prototyping feeding ASIC decisions)"
+      "architectural data-movement reduction via SRAM+photonics (primary strategy)",
+      "hardware-level bit-perfect execution (avoid QAT/PTQ)",
+      "workload instrumentation, trace-driven scheduling and placement",
+      "batching and tensor-parallel tradeoff awareness (they describe existing tradeoffs and seek to avoid them via architecture)",
+      "deterministic timing and precise synchronisation (to enable coherent, low-latency pipelines)"
     ],
     "model_routing": {
       "uses_routing": false,
-      "routing_strategy": ""
+      "routing_strategy": "No evidence of Mixture-of-Experts or model routing; emphasis is on running existing models efficiently on new hardware rather than model ensembles or routing."
     },
     "compound_ai": {
-      "is_compound_system": true,
-      "orchestration_pattern": "Multi-domain orchestration: compiler frontends, backend compiler, FPGA prototyping, ASIC teams, optical device engineering, mechanical simulation and systems integration operate in an iterative, coordinated workflow where outputs of one domain (e.g., FPGA lab results, device characterisation, performance models) directly inform others."
+      "is_compound_system": false,
+      "orchestration_pattern": "No evidence of multi-model orchestration, tool-calling, or agent-to-agent patterns in the provided content."
     }
   },
   "market_type": "horizontal",
   "vertical": "industrial",
-  "sub_vertical": "manufacturing optimization and predictive maintenance",
-  "sub_sub_vertical": "real-time process optimization using AI accelerators in manufacturing environments",
+  "sub_vertical": "AI hardware and high-performance compute infrastructure",
+  "sub_sub_vertical": "optical AI accelerators / photonic compute for data center ML workloads",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
     "primary": {
       "vertical_id": "industrial_manufacturing",
       "vertical_label": "Industrial & Manufacturing",
-      "sub_vertical_id": null,
-      "sub_vertical_label": null,
-      "leaf_id": "industrial_manufacturing",
-      "leaf_label": "Industrial & Manufacturing"
+      "sub_vertical_id": "industry_4_iot",
+      "sub_vertical_label": "Industry 4.0 (IoT)",
+      "leaf_id": "industry_4_iot",
+      "leaf_label": "Industry 4.0 (IoT)"
     },
     "path": [
       {
         "id": "industrial_manufacturing",
         "label": "Industrial & Manufacturing",
-        "confidence": 0.76
+        "confidence": 0.75
+      },
+      {
+        "id": "industry_4_iot",
+        "label": "Industry 4.0 (IoT)",
+        "confidence": 0.55
       }
     ]
   },
@@ -214,14 +223,21 @@
     "llm_providers": [],
     "llm_models": [],
     "vector_databases": [],
-    "frameworks": [],
+    "frameworks": [
+      "PyTorch",
+      "TensorFlow",
+      "JAX",
+      "gem5",
+      "SystemC",
+      "Custom in-house simulator"
+    ],
     "hosting": [],
-    "approach": "unknown",
+    "approach": "hybrid",
     "uses_open_source_models": false,
-    "has_custom_models": false
+    "has_custom_models": true
   },
   "engineering_quality": {
-    "score": 3,
+    "score": 4,
     "has_public_api": false,
     "has_sdk": false,
     "has_documentation": false,
@@ -231,9 +247,10 @@
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "Strong, multi-disciplinary hardware engineering focus (FPGA, high-speed electronics, optics, mechanical, laser) with explicit architectural and verification responsibilities",
-      "Emphasis on high-speed interfaces (PCIe Gen4/5, >25 Gb/s SERDES), deterministic timing, ECC, prototyping, and system-level debugging",
-      "Public content indicates roadmap-level thinking and cross-team collaboration, alignment with silicon development and production-readiness"
+      "Clear emphasis on performance modelling, simulators, Python/C++ tooling",
+      "CI integration for RTL commits and performance testing",
+      "Familiarity with discrete-event or cycle-accurate simulators (e.g., gem5, SystemC, in-house)",
+      "Cross-disciplinary collaboration across hardware, software, ML workloads"
     ]
   },
   "implementation_maturity": "prototype",
@@ -244,37 +261,31 @@
       "has_ml_expertise": true,
       "has_domain_expertise": true,
       "hiring_signals": [
-        "Staff FPGA Engineer",
+        "Staff Performance Modelling Engineer",
         "Senior Mechanical Simulation Engineer",
-        "Senior Electronics Engineer",
+        "Senior FPGA Engineer",
         "Senior Laser Engineer",
-        "Senior/Staff Digital Design Engineer",
-        "Engineering Manager, Frontend Compiler",
-        "Talent Acquisition Coordinator"
+        "Senior Performance Modelling Engineer"
       ],
-      "team_size_indicators": "medium",
-      "remote_distributed": true
+      "team_size_indicators": "small",
+      "remote_distributed": false
     },
-    "founder_market_fit": "insufficient data to assess founders' background and fit",
+    "founder_market_fit": "insufficient information to assess founder background; no founder details provided in sources.",
     "team_strengths": [
-      "Cross-disciplinary hardware/software co-design with a focus on end-to-end OTPU platform development (architecture, silicon de-risking, validation).",
-      "Strong emphasis on high-speed design, PCIe/SerDes, timing, synchronization, and deterministic networking, including White Rabbit among desired expertise.",
-      "Integrated opto-mechanical and packaging focus via roles in mechanical simulation, VCSELs, and electronics, indicating robust multi-physics capability.",
-      "Active prototyping and lab validation across FPGA/ASIC boundaries, with clear pathways for FPGA prototyping, silicon validation, and production readiness.",
-      "Structured emphasis on design methodologies, verification, and robust power/thermal/SA performance across multiple disciplines."
+      "Cross-disciplinary expertise spanning hardware (FPGA, VCSEL, lasers, opto-mechanical), software tooling, and ML workload analysis",
+      "Strong emphasis on modelling, simulation, and performance analysis with parameter sweeps and CI integration",
+      "Active pipeline of roles targeting both hardware and software performance optimization"
     ],
     "team_red_flags": [
-      "No publicly identifiable founders or leadership bios in the provided materials, limiting assessment of founder-market fit.",
-      "High specialization across multiple domains (FPGA, optics, VCSELs, high-speed PCB/SiP) could indicate potential risk if cross-functional coordination is not maintained."
+      "No founder profiles or company leadership information available in provided content."
     ],
-    "team_confidence": 0.35
+    "team_confidence": 0.42
   },
   "business_model": {
     "pricing_model": {
       "type": "custom",
       "pricing_evidence": [
-        "No pricing pages or price points mentioned",
-        "Enterprise hardware pricing typically by quote"
+        "No pricing pages or price points mentioned; hardware-based B2B with bespoke contracts implied"
       ],
       "free_tier_available": false,
       "enterprise_focus": true,
@@ -283,68 +294,65 @@
     "gtm_strategy": {
       "primary_channel": "sales_led",
       "evidence": [
-        "Direct engagement with enterprise customers",
-        "Emphasis on customer integration, pilot/volume manufacturing, and production readiness",
-        "Cross-functional collaboration with customer teams"
+        "Series A funding signals intent to scale and pursue enterprise customers",
+        "Product targets enterprise AI inference workloads; no consumer or developer channels described"
       ],
       "target_segment": "enterprise",
       "sales_motion": "field_sales"
     },
     "revenue_model": {
-      "monetization_approach": "Sales of OTPU hardware platforms (and associated software/firmware/services inferred from cross-functional collaboration; details not disclosed)",
-      "unit_economics_signals": [
-        "No specific margins, ARPU, or pricing signal provided"
-      ],
-      "recurring_revenue": false
+      "monetization_approach": "hardware + software solutions sold via bespoke contracts; potential services/maintenance; possible software tooling licensing",
+      "unit_economics_signals": [],
+      "recurring_revenue": true
     },
     "distribution_advantages": [
-      "Integrated hardware/software ecosystem with cross-disciplinary collaboration and prototyping-to-production capability",
-      "Potential for early customer co-development and pilot programs"
+      "Unique optical compute architecture (OTPU) with photonics-based memory/interconnect",
+      "Deep integration across hardware, software tooling, and ML workloads, creating a system-level moat"
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "Direct enterprise sales",
-        "customer co-development/pilot programs",
-        "partner engagements"
+        "direct enterprise sales",
+        "industry partnerships (hardware, optical, tooling)",
+        "investor-backed go-to-market initiatives"
       ],
       "customer_proof_points": []
     },
-    "business_model_clarity": "unclear",
-    "business_model_confidence": 0.25
+    "business_model_clarity": "evolving",
+    "business_model_confidence": 0.45
   },
   "product_analysis": {
     "product_stage": "pre_launch",
     "stage_evidence": [
-      "Multiple roles describe production-grade capabilities and pilot/volume manufacturing transfer (e.g., 'transfer from R&D to pilot and volume manufacturing', 'pilot and volume manufacturing' mentions).",
-      "No explicit customer deployments, pricing pages, or public release notes; job postings imply ongoing development and readiness for scaling.",
-      "Some pages show 'Page Not Found', suggesting incomplete or evolving content typical of pre-launch career site; not definitive but hints at ongoing site updates."
+      "Multiple roles focused on modelling, FPGA, laser, etc. with no public product features or launch details.",
+      "Content describes vision, architecture and internal tooling rather than customer-ready product.",
+      "No pricing, API, integration or customer case studies; 'Page Not Found' and corporate marketing text indicate early-stage site.",
+      "Emphasis on design-space exploration, simulators, and CI integration for RTL, suggesting development phase before GA."
     ],
     "feature_depth": {
       "core_features": [
-        "OTPU platform enabling optical data processing with high-speed interfaces",
-        "FPGA/ASIC hardware integration",
-        "PCIe Gen4/Gen5 and >25 Gb/s SERDES",
-        "deterministic timing and synchronization in multi-device systems",
-        "integration of optical components (VCSELs) and driver ASICs",
-        "ultra-high bandwidth digital data pipelines",
-        "support for machine learning workloads at the hardware level"
+        "Functional simulator of OTPU subsystem and full pipeline",
+        "Architectural & cycle-accurate models of OPTU subsystems",
+        "Workload analysis and bottleneck hunting",
+        "Design-space exploration with parameter sweeps",
+        "Tooling for trace parsing, statistics, visualization",
+        "CI integration for performance smoke tests"
       ],
       "differentiating_features": [
-        "optical tensor processing unit architecture combining photonics with compute",
-        "integration of optoelectronic and digital pipelines with deterministic timing (White Rabbit valued)",
-        "multi-disciplinary substrate/packaging optimization and high-speed optical interfaces",
-        "team with roles spanning optics, electronics, packaging, and software co-design"
+        "Optical tensor processing unit with novel memory/interconnect architecture",
+        "Cycle-accurate, high-throughput modelling of optical compute pipelines",
+        "Integrated design-space exploration across software, hardware, and optics"
       ],
       "roadmap_signals": [
-        "references to multi-generation device roadmaps; roadmap alignment for frontend compiler; 'pilot and volume manufacturing' transition; long-term productization signals"
+        "Ownership and roadmap definition by modelling engineer",
+        "Plan to educate peers on methodology and champion data-driven design",
+        "CI integration and automated performance validation implied"
       ],
       "feature_completeness": "growing"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [
-        "internal cross-functional integration with ASIC, FPGA, Optical, Mechanical, Software teams",
-        "software interfaces and system control models",
-        "MATLAB/Simulink modelling, Python tooling for algorithms"
+        "CI pipelines for RTL commits",
+        "Potential collaboration with RTL/ASIC teams (implied)"
       ],
       "api_maturity": "none",
       "sdk_availability": [],
@@ -352,85 +360,83 @@
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "High-performance optical compute acceleration platform for AI/ML workloads (OTPU) delivering high bandwidth and energy efficiency",
+      "primary_use_case": "Provide quantitative insights to steer OTPU architecture and software evolution via modelling and simulation",
       "secondary_use_cases": [
-        "High-speed data processing pipelines; real-time signal processing; deterministic networking and synchronization in multi-device systems; opto-electronic co-design workflows"
+        "Identify throughput, latency, and utilization hotspots",
+        "Guide design decisions for hardware, software, and optics teams",
+        "Automate performance validation in CI"
       ],
       "customer_stories": [],
       "industry_focus": [
-        "Optical AI hardware",
-        "Datacom/telecommunications",
-        "High-speed digital design and packaging"
+        "AI hardware accelerators",
+        "Optical compute / photonics",
+        "High-performance computing"
       ]
     },
     "product_risks": [
-      "Ambiguity around production readiness and timing; reliance on cross-disciplinary hardware/software integration",
-      "Export-control restrictions affecting global hiring and deployment",
-      "Complex supply chain for VCSEL, epitaxial devices and packaging; long qualification cycles",
-      "Limited external API/sdk exposure; potential difficulty in ecosystem growth"
+      "Maturity risk: product not yet in market; reliance on internal models may diverge from real hardware",
+      "Complexity risk: coupling hardware, software, and optics models; validation challenges",
+      "Integration risk: CI-based testing of RTL requires accurate models and data traces",
+      "Competition risk: no established market; unproven performance claims"
     ],
     "product_strengths": [
-      "Cross-functional engineering depth; focus on cutting-edge high-speed interfaces and deterministic timing",
-      "Integration of optical and digital compute with specialized teams",
-      "Opportunity for hardware-accelerated AI with OTPU concept; multi-physics design for reliability"
+      "Strong emphasis on data-driven design and rapid iteration",
+      "Cross-disciplinary collaboration potential (hardware, software, ML workloads)",
+      "Functional and cycle-accurate simulators with trace-based analysis"
     ],
-    "product_confidence": 0.35
+    "product_confidence": 0.25
   },
   "unique_findings": [
-    "Explicit use of deterministic timing architectures (call-out of White Rabbit) across multi-device optical compute \u2014 unusual for AI accelerators. This implies sub-ns synchronized sampling/clocking across many optical channels or tiles, not just packet-level coordination.",
-    "End-to-end VCSEL device work (epitaxy, DBRs, high-speed modulation, thermal rollover and array uniformity) integrated with driver ASIC and system packaging \u2014 OLIX is treating laser source design as first-class, not a commoditized optical I/O.",
-    "Deep thermo\u2011optical\u2011mechanical co\u2011simulation and substrate stack\u2011up engineering (ABF, BT, ceramics, organics) tied directly to optical alignment and warpage during solder reflow and lifetime ageing \u2014 they are engineering PCB/substrate/mechanical stack to preserve optical coupling tolerances over manufacturing and operational lifetimes.",
-    "Deliberate FPGA-first silicon de\u2011risking strategy: high-performance FPGA subsystems (UltraScale+/Versal), multi\u2011lane >25 Gb/s NRZ transceivers, PCIe Gen4/5 and rigorous verification toolchains (COCOTB/UVVM/OSVVM) to prototype continuous, multi\u2011GSPS streaming datapaths prior to ASIC tapeout.",
-    "Front-end compiler emphasis on MLIR dialect formation (Shardy, TOSA, Linalg) and framework ingestion (PyTorch/JAX) tightly coupled to hardware constraints \u2014 suggests novel lowering patterns and IR that encode photonic/analog compute primitives and streaming semantics rather than mapping to conventional systolic cores.",
-    "Focus on continuous streaming, multi\u2011GSPS, always\u2011on pipelines and real\u2011time handshaking (deep pipelining, CDC/clock\u2011domain integration) \u2014 architectural choice favors streaming/analog accumulation over batch matrix\u2011multiply tiling common in GPU/TPU approaches.",
-    "Operational complexity and manufacturability are addressed as strategic engineering problems (corporate development role mapping substrate-to-foundry supply chain, wafer/packaging capacity and geopolitical risk) \u2014 they\u2019re operationalizing supply chain as part of the technical plan.",
-    "Job descriptions reveal cross-disciplinary depth (device physics \u2192 optics \u2192 mechanical \u2192 electronics \u2192 firmware \u2192 compiler). The integration points (driver ASIC impedance, mechanical warpage affecting optical coupling, compiler lowering affecting device-level requirements) create compound engineering problems that are technically subtle and tightly coupled.",
-    "Despite many implementation details, the materials read like job postings: some sections are high-level and recruiting-focused rather than publishing novel algorithms or architectures \u2014 there are signals of deep technical choices, but no public schematics, dialect specs, or benchmarks."
+    "Core architectural pivot: OLIX is explicitly targeting an SRAM-based memory architecture integrated with photonics (the OTPU) as a drop\u2011in alternative to the logic-die + interposer + HBM paradigm. This is not incremental packaging change \u2014 it replaces the memory/interconnect substrate rather than scaling HBM.",
+    "Optical digital processor claim: they insist on 'bit\u2011perfect' optical digital logic rather than analog optical MACs. That implies a fully digital photonic datapath (modulation, detection, encoding/decoding, ECC) rather than approximate analog processing \u2014 a much harder systems and device engineering stack.",
+    "Rack-scale co\u2011design emphasis: their design-space thinking explicitly moves from reticle/wafer scale to rack-scale co\u2011design of compute + data movement. That suggests system-level photonic fabrics and cross\u2011board timing/latency guarantees rather than purely on-package optics.",
+    "End-to-end modelling & CI integration: they plan cycle\u2011accurate, discrete\u2011event modelling of an optical compute pipeline, tied into CI so every RTL commit gets performance smoke tests. Combining photonic physical-layer effects (e.g., BER, modulation bandwidth, thermal drift) with cycle\u2011accurate architectural simulations is unusual and technically demanding.",
+    "Full-stack, multi\u2011domain engineering: recruiting deep expertise across VCSEL device engineering, opto\u2011mechanical FEA, FPGA high\u2011speed links, ASICs, and systems modelling. The job listings reveal they are tackling device physics, packaging warpage, thermo\u2011optical alignment, digital architecture and ML workload tracing simultaneously.",
+    "Workload-driven photonic design: they instrument LLMs, diffusion and graph workloads to collect detailed traces and run massive parameter sweeps. This ties photonic device/system tradeoffs directly to token-level inference economics (pJ/bit per token), not just FLOPs or synthetic benchmarks.",
+    "Operational complexity surfaced: they recognise and are building for manufacturing and reliability problems up front \u2014 VCSEL array uniformity, substrate stack-up warpage, solder reflow thermo-mechanics, ageing/creep, BER/ECC for optical links, deterministic timing (White Rabbit), and driver ASIC integration.",
+    "Missing specifics as a red flag: public materials make strong claims (pJ/bit floors, 'surpass HBM on throughput/MW'), but lack measurable device/system numbers (no reported latency/pJ metrics, no VCSEL modulation schemes, no photonic fabric topology). This makes technical validation difficult from available text."
   ],
   "technical_depth": "high",
   "newsletter_potential": "high",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "Inside OLIX\u2019s FPGA\u2011first stack: how FPGA prototypes are shaping optics, silicon and the compiler",
-      "summary": "OLIX appears to run an FPGA\u2011centric development loop that drives decisions across VCSEL devices, ASIC design and the ML compiler frontend. An architecture story would unpack how FPGA prototyping (UltraScale+/Versal) is used as the system\u2019s lingua franca to de\u2011risk transceivers, timing, and RTL before silicon, and how that influences compiler lowering and operator mapping.",
+      "headline": "Inside OLIX\u2019s OTPU: ditching HBM for SRAM + photonics and redesigning compute at rack scale",
+      "summary": "OLIX is not iterating on GPU packaging \u2014 they\u2019ve rethought the memory and interconnect stack by pairing an SRAM-centric architecture with integrated photonics and rack-scale co\u2011design. This angle unpacks the system-level tradeoffs, how cycle\u2011accurate simulators and VCSEL arrays feed back into microarchitectural choices, and what that means for latency, throughput and software stack compatibility.",
       "evidence": [
-        "Multiple roles emphasize FPGA\u2011first prototyping for ASIC development and system validation (Staff FPGA Engineer, Digital Design Engineers).",
-        "Skills list calls out Xilinx/AMD UltraScale+ or Versal architectures and deep experience with PCIe Gen4 and >25 Gb/s transceivers.",
-        "Frontend Compiler manager role stresses tight co\u2011design between frontend MLIR pipelines and backend architecture \u2014 implying feedback from hardware prototypes to compiler decisions."
+        "Claim: \u201cScaling an SRAM-architecture integrated with photonics can surpass HBM-based architectures on throughput/MW and TCO.\u201d",
+        "Role descriptions emphasise cycle-accurate simulators, functional simulators, design-space sweeps and close hardware/software/compiler co-design.",
+        "Multiple roles (VCSEL, FPGA, mechanical) signal vertical integration from device physics to system integration and rack-scale thinking."
       ],
       "uniqueness_score": 8
     },
     {
-      "angle_type": "data",
-      "headline": "Their secret weapon may not be models but hardware feedback: the prototyping \u2014 silicon \u2014 lab data flywheel",
-      "summary": "Instead of a proprietary dataset, OLIX\u2019s defensibility likely comes from a continuous hardware feedback dataset: FPGA lab telemetry, transceiver tuning logs, VCSEL characterisation, and substrate warpage/thermal test correlations. A data\u2011angle would explore how that instrumentation can create an operational moat for OTPU performance and reliability.",
+      "angle_type": "contrarian",
+      "headline": "Why OLIX is betting against HBM and the incumbent supply chain \u2014 and why that gamble might be the only path to interactive frontier AI",
+      "summary": "Unlike many challengers who stay within the logic-die + HBM paradigm, OLIX explicitly avoids supply\u2011chain\u2011constrained technologies and argues that only a new memory/interconnect approach can break the interactivity-throughput tradeoff. This story digs into the strategic constraints (packaging, HBM availability, pJ/bit floors) and evaluates whether a photonics + SRAM route is realistically defensible.",
       "evidence": [
-        "Roles explicitly require correlating simulation with empirical testing (thermal cycling, vibration, T/H bias) and automating simulation workflows (ANSYS/Abaqus/COMSOL).",
-        "Hands\u2011on responsibilities include lab bring\u2011up, high\u2011speed compliance validation, and device characterisation (LIV, modulation bandwidth), all sources of empirical data.",
-        "Pattern detection in the brief highlights a 'hardware\u2011in\u2011the\u2011loop feedback data flywheel' (FPGA prototyping \u2192 ASIC iterations \u2192 performance modelling)."
+        "Text: \u201cWhen even the biggest hyperscalers are struggling to secure capacity, a startup simply cannot compete.\u201d and \u201cmust forego HBM, advanced packaging or any other technology that is supply chain constrained.\u201d",
+        "Argument: current GPU/HBM-based designs hit a data\u2011movement latency floor and Amdahl limits, motivating a contrarian architecture shift."
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Can an optical SRAM TPU deliver better throughput/MW and TCO than HBM-based GPUs? OLIX says yes \u2014 here\u2019s how they measure it",
+      "summary": "OLIX claims step changes in throughput per watt and TCO by re\u2011architecting memory/interconnect; this piece examines the concrete levers (pJ/bit for KV cache, reduced data movement, photonic links, on-package SRAM) and what metrics and benchmarks would prove the claim. It\u2019s a pragmatic look at where the efficiency wins come from and where they may fall short.",
+      "evidence": [
+        "Claim: \u201csurpass HBM-based architectures on throughput/MW and TCO, and significantly outperform silicon-only SRAM-architectures in interactivity and latency.\u201d",
+        "Emphasis on data-movement energy floors: \u201cLimited further energy efficiency gains from HBM improvements creates an unavoidable floor on the pJ/bit required to transfer KV cache.\u201d"
       ],
       "uniqueness_score": 7
     },
     {
-      "angle_type": "contrarian",
-      "headline": "Betting hard on deterministic timing and VCSEL arrays when most chase bigger GPUs",
-      "summary": "OLIX is doubling down on deterministic networking (White Rabbit), precision timing, and dense VCSEL arrays \u2014 a contrarian focus versus the industry\u2019s general push for more digital FLOPs. This story would interrogate why they prioritise timing determinism, optical device engineering and substrate-level mechanics over pure transistor scaling.",
+      "angle_type": "data",
+      "headline": "Simulation-first EvalOps: how OLIX uses cycle-accurate models and CI-gated performance tests to steer hardware and software",
+      "summary": "OLIX embeds simulation and workload instrumentation into the product development loop \u2014 from functional and cycle\u2011accurate simulators to CI smoke tests for every RTL commit and massive parameter sweeps. This angle explores their modelling stack, trace-driven bottleneck hunting on LLMs/diffusion workloads, and how that could speed iteration and reduce silicon risk.",
       "evidence": [
-        "Staff FPGA Engineer role values precision timing and synchronisation architectures with 'White Rabbit strongly valued'.",
-        "Senior Laser Engineer role centres on VCSEL device development, epitaxy, high\u2011density arrays and manufacturability rather than just packaging existing lasers.",
-        "Mechanical Simulation Engineer role emphasises substrate stack\u2011ups, thermo\u2011optical\u2011mechanical simulations and warpage \u2014 indicating emphasis on physical determinism and integration."
-      ],
-      "uniqueness_score": 6
-    },
-    {
-      "angle_type": "vertical_expert",
-      "headline": "Optics, substrates and silicon: OLIX is building deep domain expertise across layers most AI companies ignore",
-      "summary": "OLIX\u2019s hiring shows concentrated expertise across device physics (VCSEL epitaxy), substrate mechanics (ABF/BT/ceramics simulation), and high\u2011speed digital/analogue board design. A vertical\u2011expert piece would argue OLIX is assembling the rare cross\u2011disciplinary team required to ship optical accelerators \u2014 and highlight where competence gaps remain.",
-      "evidence": [
-        "Senior Laser Engineer role requires III\u2011V epitaxial experience and device\u2011level characterisation; Mechanical Simulation Engineer expects multi\u2011physics FEA and ageing simulations; Electronics Engineers work on 12+ layer PCBs and 25\u201356 Gb/s links.",
-        "Job postings cover the full stack: device \u2192 package \u2192 board \u2192 FPGA/ASIC \u2192 compiler, suggesting deliberate vertical expertise assembly.",
-        "Company is Series A with $220M and offers senior compensation \u2014 evidence they are investing heavily in hiring depth rather than shallow breadth."
+        "Responsibilities include: build functional simulators, cycle-accurate models, instrument LLM/diffusion/graph workloads, run massive parameter sweeps and integrate models into CI so every RTL commit gets a performance smoke test.",
+        "Requirements list experience with discrete-event/cycle-accurate simulators (gem5, SystemC) and strong tooling skills in Python/C++ for trace parsing and visualisation."
       ],
       "uniqueness_score": 7
     }
@@ -438,101 +444,117 @@
   "anti_patterns": [
     {
       "pattern_type": "overclaiming",
-      "description": "Marketing language makes strong, absolute claims about the technology and market impact that are not supported by concrete technical milestones or demonstrated products in the posting. This raises the risk of mismatch between go-to-market readiness and public positioning.",
+      "description": "Claims of a step-change 'paradigm' that will 'surpass HBM-based architectures on throughput/MW and TCO' and deliver 'bit-perfect logic with a step change in performance' are bold and are not accompanied by concrete, reproducible technical evidence or prototypes in the job/marketing text. The document leans heavily on declarative language about fundamental limits being overcome without detailing validated results, measured prototypes, or disclosed IP.",
       "severity": "high",
       "evidence": [
-        "\"The Optical Tensor Processing Unit (OTPU) achieves performance and energy efficiency that is impossible to match from existing chips.\"",
-        "\"A new paradigm ... will be the biggest economic opportunity of the next century and create the most important company of the next decade.\"",
-        "Compensation and perks are framed alongside existential claims about industry transformation, amplifying aspirational positioning."
+        "\"Scaling an SRAM-architecture integrated with photonics can surpass HBM-based architectures on throughput/MW and TCO, and significantly outperform silicon-only SRAM-architectures in interactivity and latency.\"",
+        "\"The OLIX Optical Tensor Processing Unit (OTPU) is an optical digital processor with a novel memory and interconnect architecture. This approach enables bit-perfect logic with a step change in performance.\"",
+        "Repeated framing: \"We are building a new Paradigm\" and claims that incumbents cannot overcome the tradeoff \u2014 strong rhetorical claims with limited empirical detail in the provided material."
       ]
     },
     {
       "pattern_type": "no_moat",
-      "description": "While the job descriptions indicate deep technical work across optics, ASIC, FPGA, lasers, materials and simulation, the public-facing text gives limited visibility into defensible IP, unique datasets, or proprietary manufacturing capabilities. A well-resourced incumbent or consortium could replicate many of the pieces unless there is locked-in IP, manufacturing capacity, or exclusive supply-chain relationships.",
+      "description": "The company's stated goal is to replace dominant incumbent architectures; however, the text does not show concrete defensible IP, exclusive supply-chain partnerships, or manufacturing routes that would prevent incumbents or hyperscalers from replicating or neutralising the approach. The market advantages rest largely on technical novelty and execution rather than clear, articulated barriers to entry or proprietary datasets.",
       "severity": "medium",
       "evidence": [
-        "Extensive hiring across standard roles (ASIC, FPGA, optics, mechanical, lasers) suggests building known competencies rather than revealing proprietary gates.",
-        "No mention of patented core technologies, exclusive foundry partnerships, or unique production processes in the posted content.",
-        "Focus areas (VCSELs, high\u2011speed SerDes, substrate stack-ups, FEA, FPGA prototyping) are technically demanding but broadly addressable by other advanced hardware companies."
+        "\"Any approach that improves only one dimension merely changes the nature of the tradeoff... a new architecture must forego HBM, advanced packaging or any other technology that is supply chain constrained by current incumbents.\" \u2014 acknowledges supply chain is central but does not specify exclusive supplier agreements or proprietary fabrication methods.",
+        "No mention of patents, exclusive foundry relationships, or demonstrated manufacturing yields; jobs and role descriptions focus on building capability rather than describing existing proprietary assets.",
+        "The content emphasises a belief and architectural direction rather than demonstrated IP-based barriers."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Some elements of the messaging could be interpreted as a tightly scoped technology feature or component (e.g., an optical SRAM + photonics interconnect) rather than a full, defensible product and business model. If the core technical advance is a component of the system, incumbents or partners might integrate it without the company controlling the end-to-end stack.",
+      "severity": "low",
+      "evidence": [
+        "Repeated focus on discrete technological components: \"SRAM-architecture integrated with photonics\", \"VCSEL devices and arrays\", \"FPGA subsystems\" and modelling teams \u2014 suggests emphasis on components and enabling subsystems.",
+        "Statements like \"It should not enforce QAT/PTQ of existing models or require a new thermodynamic neuromorphic architecture\" imply compatibility-first design, which could make the innovation an adoptable feature rather than a closed product."
       ]
     },
     {
       "pattern_type": "undifferentiated",
-      "description": "Some role descriptions and benefits use familiar industry tropes (large salaries, living-local/proximity bonuses, chef-prepared meals, top-end gear) which can make the employer appear similar to other deep\u2011tech startups competing for the same talent. This risks blending into a crowded hiring market unless complemented by clearer, demonstrable technical differentiators.",
+      "description": "While the company positions itself as contrarian and specialised, parts of the presentation use familiar startup language and recruiting tropes (e.g., high salaries, perks, proximity bonuses) without detailed differentiation of how the technical roadmap will be executed in the face of entrenched incumbents. The messaging risks reading as 'me-too hardware startup' to technically savvy evaluators unless technical milestones are published.",
       "severity": "low",
       "evidence": [
-        "Benefits: \"Chef-prepared meals\", \"Caffeine on Us\", and high salary bands mirror common startup perks.",
-        "Multiple senior hires across traditional domains (electronics, mechanical, FPGA, digital ASIC) without explicit public-facing differentiation beyond the 'OTPU' name."
+        "Perks and compensation highlighted (e.g., \"Competitive Salary: \u00a3174,000+\", \"\u00a324K annual Living-Local Bonus\") which are attractive but do not substitute for demonstrated differentiation.",
+        "Multiple senior role descriptions (laser, FPGA, mechanical simulation, performance modelling) reflect an expected org structure for ambitious hardware startups rather than signaling unique product-market positioning by themselves.",
+        "Site content shows multiple 'Page Not Found' blocks which can signal immature public materials or sloppy presentation: repeated \"Page Not Found The page you are looking for does not exist or may have been moved.\""
       ]
     }
   ],
   "competitive_analysis": {
     "competitors": [
       {
-        "name": "Lightmatter",
-        "similarity": "Develops photonic/optical hardware accelerators that target ML performance and energy efficiency using optical components and co\u2011designed electronics/software.",
-        "how_different": "OLIX emphasizes a vertically integrated OTPU stack from VCSEL device design, multi\u2011device deterministic timing, substrate/packaging engineering and production transfer through to MLIR\u2011based compiler frontends \u2014 signalling deeper device\u2011level and manufacturability focus versus Lightmatter's positioning around optical matrix\u2011multiply engines and system integration."
+        "name": "NVIDIA",
+        "similarity": "Provides leading AI accelerators for training and inference; targets hyperscalers and cloud providers; solves throughput and efficiency for large models.",
+        "how_different": "Incumbent GPU architecture uses HBM + logic die on interposer and optimises FLOPs/W via silicon scaling; OLIX targets a fundamentally different datapath \u2014 an optical digital processor (OTPU) integrated with SRAM to reduce data movement and latency, claiming to deliver both high throughput and high interactivity which NVIDIA's HBM-based approach trades off."
       },
       {
-        "name": "Luminous Computing",
-        "similarity": "Also building free\u2011space photonic processors for neural network compute aiming at high throughput and power efficiency for large models.",
-        "how_different": "OLIX highlights VCSEL array device engineering, tight ASIC/FPGA prototyping loops, advanced substrate and thermo\u2011mechanical simulation for production reliability, and explicit compiler/frontend work (MLIR) \u2014 indicating a combined device+silicon+software productization pathway rather than primarily optics/algorithmic novelty alone."
+        "name": "Cerebras Systems",
+        "similarity": "Builds alternative, large-scale AI accelerators designed to remove memory/interconnect bottlenecks (wafer-scale compute with dense on-chip memory/interconnect).",
+        "how_different": "Cerebras uses wafer-scale silicon and large on-chip SRAM/interconnect within the silicon paradigm; OLIX replaces large silicon/HBM/advanced-package strategies with an optical compute fabric and SRAM+photonics co-design, aiming to reduce data-movement energy/latency and avoid advanced packaging/HBM supply-chain dependence."
+      },
+      {
+        "name": "Graphcore",
+        "similarity": "Offers novel accelerator architectures (IPU) focused on ML workloads and memory/compute co-design to improve performance on real-world models.",
+        "how_different": "Graphcore remains a silicon-based dataflow architecture focused on parallelism and on-chip memory; OLIX substitutes optical interconnect and photonic processing combined with an SRAM architecture to change the fundamental data-movement profile rather than only on-chip compute topology."
+      },
+      {
+        "name": "SambaNova Systems",
+        "similarity": "Provides reconfigurable systems and stacks that co-design hardware and software to serve large ML models with better throughput and utilization.",
+        "how_different": "SambaNova's approach is FPGA/ASIC-based reconfigurable dataflow in silicon; OLIX pursues optical digital processors with VCSEL arrays and photonic interconnects to lower per-token energy and latency, plus claims of bit\u2011perfect optical logic \u2014 a different physical compute substrate and supply-chain profile."
+      },
+      {
+        "name": "Lightmatter",
+        "similarity": "Startup explicitly building photonic accelerators for ML; explores optics to reduce energy and increase compute/throughput for inference and training.",
+        "how_different": "Both are photonics-first; OLIX distinguishes itself in messaging and design choices by emphasising an SRAM-architecture tightly integrated with photonics (OTPU) and rack-scale co-design to avoid HBM/advanced-packaging constraints, plus explicit claims of bit\u2011perfect digital optical processing and broad systems-level simulation/CI integration."
       },
       {
         "name": "LightOn",
-        "similarity": "Uses optical hardware/accelerators to accelerate certain ML workloads and offers software stack integration for users.",
-        "how_different": "OLIX is positioning as a full OTPU vendor oriented to general tensor workloads with extensive ASIC/FPGA, PCIe, and datacenter integration expertise (e.g., multi\u2011lane transceivers, PCIe Gen4/5, deterministic timing), while LightOn is more focused on specific optical co\u2011processing and software APIs."
+        "similarity": "Develops optical co-processors and photonic approaches targeting ML workloads.",
+        "how_different": "LightOn focuses on specific optical primitives (e.g., random projections, analog transforms) and hybrid workflows; OLIX claims a full optical digital tensor processor with SRAM memory architecture intended to be compatible with existing models without requiring QAT/PTQ or new model formats."
       },
       {
-        "name": "Ayar Labs",
-        "similarity": "Works in silicon photonics and optical I/O to enable very high bandwidth chip\u2011to\u2011chip/board interconnects for compute systems.",
-        "how_different": "Ayar is primarily an optical I/O/chiplet interconnect company; OLIX is building a full optical tensor processor (including lasers/VCSELs, optics, ASICs, firmware, and compiler). OLIX\u2019s scope includes device design and ML compiler stack whereas Ayar\u2019s value is focused on leveraging optics as a communications fabric."
-      },
-      {
-        "name": "NVIDIA (GPUs)",
-        "similarity": "Target customers training and inference of large ML models and datacenter AI infrastructure operators.",
-        "how_different": "NVIDIA provides mature electronic GPU platforms and an extensive software ecosystem; OLIX claims fundamentally different physical compute (light\u2011based OTPU) that targets superior bandwidth\u2011per\u2011watt and a custom compiler frontend to map ML frameworks to optical hardware \u2014 positioning OLIX as an architectural alternative rather than an incremental GPU improvement."
-      },
-      {
-        "name": "Cerebras / Graphcore / SambaNova",
-        "similarity": "All build alternative hardware architectures (wafer\u2011scale, IPU, reconfigurable systolic/dataflow) aimed at improved performance/watt for ML workloads.",
-        "how_different": "Those competitors remain electronic architectures with distinct software stacks; OLIX\u2019s differentiation is the use of optical tensor compute and vertical integration across VCSEL devices, opto\u2011mechanical packaging, high\u2011speed system design and MLIR\u2011centric compiler frontends tailored to optical primitives."
+        "name": "Intel / Habana",
+        "similarity": "Silicon incumbents and accelerators targeting inference/training optimization, memory/access tradeoffs and datacenter customers.",
+        "how_different": "Intel/Habana pursue silicon-based accelerators and leverage existing silicon supply chain and HBM/packaging evolution; OLIX explicitly positions itself against HBM-based limits by removing HBM dependence and introducing photonics + SRAM rack-scale co-design to address the interactivity-throughput tradeoff."
       }
     ],
     "differentiation": {
-      "primary": "A vertically integrated optical tensor processor (OTPU) that spans VCSEL device engineering, opto\u2011mechanical and substrate production engineering, ASIC/FPGA prototyping and a compiler frontend (MLIR) \u2014 delivering an end\u2011to\u2011end hardware/software co\u2011designed product aimed at datacenter deployment and manufacturability.",
-      "technical": "Key technical differentiators include: custom VCSEL array device development and device\u2011to\u2011manufacturing transfer; high\u2011bandwidth optical links integrated with multi\u2011lane SerDes and PCIe; deterministic timing and synchronization across multi\u2011device systems (White Rabbit/value placed on precision timing); extensive FPGA prototyping supporting silicon iteration; and a dedicated MLIR\u2011based frontend/compiler path to map ML frameworks to optical primitives.",
-      "business": "Business/GTM differentiators are OLIX\u2019s explicit focus on production readiness and supply\u2011chain strategy (roles for corporate development and supply\u2011chain modelling), proximity to high\u2011volume manufacturing planning, and building a full stack that can be turned into datacenter appliances (PCIe/rack integration, reliability testing, DVT/PVT, vendor partnerships). They advertise compensation and hiring to attract deep multidisciplinary talent, signalling a build\u2011for\u2011scale approach.",
-      "positioning": "OLIX positions itself as a next\u2011paradigm alternative to traditional electronic accelerators \u2014 claiming orders\u2011of\u2011magnitude improvements in performance and energy efficiency via optical processing \u2014 and differentiates from other photonics players by stressing device manufacturing, substrate/packaging engineering, and software compiler maturity for customer integration."
+      "primary": "A photonics-first, SRAM-integrated Optical Tensor Processing Unit (OTPU) that claims to simultaneously deliver high throughput and high interactivity by fundamentally changing data movement (optical interconnect + SRAM) rather than incremental silicon/FLOPs/W improvements.",
+      "technical": "Core technical differentiators include: (1) an optical digital processor architecture (OTPU) with bit\u2011perfect logic, (2) an SRAM-centric memory architecture integrated with photonics to reduce per-token data movement energy and latency, (3) custom VCSEL arrays and opto-mechanical engineering (precision alignment, thermal/FEA modelling) for dense high-speed optical links, (4) end-to-end hardware-software co-design including compiler backend and cycle-accurate simulators integrated into CI for RTL performance smoke testing.",
+      "business": "Business and GTM differentiators: emphasis on solving inference-era economics (high throughput + interactivity + lower TCO) to target hyperscalers/cloud providers; avoid dependency on scarce HBM/advanced packaging supply chains (positioned as more manufacturable/accessible at scale); support existing model formats without forcing quantisation or new model classes.",
+      "positioning": "Positions itself as the new paradigm challenger to GPUs/TPUs: not incremental silicon competitor but a system-level, rack-scale optical alternative that breaks the interactivity-throughput tradeoff and is 'free from the architectural and supply chain constraints of the current regime.'"
     },
     "secret_sauce": {
-      "core_advantage": "End\u2011to\u2011end hardware/software co\u2011design centered on optical tensor compute, backed by in\u2011house VCSEL device development and production\u2011oriented opto\u2011mechanical/substrate engineering, combined with FPGA/ASIC prototyping and a compiler frontend that directly maps mainstream ML frameworks to optical hardware.",
-      "defensibility": "This is hard to replicate because it requires deep, cross\u2011domain expertise (III\u2011V laser physics, epitaxy/foundry transfer, precision opto\u2011mechanical simulation and materials stack engineering, high\u2011speed SerDes/PCIe system design, ASIC digital design for streaming data, FPGA prototyping know\u2011how, and ML compiler/frontend expertise). Additionally, productionization demands trusted supply\u2011chain relationships, substrate/foundry qualifications, and manufacturing know\u2011how that create time\u2011 and capital\u2011intensive barriers.",
+      "core_advantage": "Integration of an SRAM-based memory model with photonic (optical) digital processing \u2014 the OTPU \u2014 that reduces data-movement energy and latency enough to enable simultaneous high throughput and low per-user latency for inference workloads (bit\u2011perfect optical logic plus high-density VCSEL optical interfaces).",
+      "defensibility": "High: requires deep, cross-disciplinary capabilities (photonic device engineering including VCSEL design and reliability; opto-mechanical precision packaging and thermal/mechanical simulation; ASIC/FPGA timing and transceiver expertise; compiler and ML-framework co-design). Manufacturing, yield control, optical alignment, and system-level software/hardware validation create significant technical and operational barriers. Additionally, avoiding HBM/advanced packaging reduces direct head-on competition in constrained supply chains, forcing incumbents to pursue materially different programs to replicate.",
       "evidence": [
-        "\"Optical Tensor Processing Unit (OTPU) achieves performance and energy efficiency that is impossible to match from existing chips.\"",
-        "Job descriptions for VCSEL and Laser Engineer roles: \"Own the design and development of VCSEL devices and arrays... Work with external epitaxy suppliers and foundries to specify, review, and iterate wafer growth runs... Support transfer from R&D to pilot and volume manufacturing.\"",
-        "Extensive mechanical/simulation roles: \"Multi\u2011physics analysis... substrate stack\u2011ups... thermo\u2011optical\u2011mechanical simulations... Automate and standardize simulation workflows using ANSYS, Abaqus, or COMSOL.\"",
-        "System and integration roles: emphasis on PCIe Gen4/Gen5, multi\u2011lane transceivers >25 Gb/s, deterministic timing (White Rabbit), FPGA prototyping and ASIC validation.",
-        "Software/stack evidence: hiring for frontend compiler (MLIR) and performance modelling roles to map ML frameworks and validate OTPU architectures."
+        "\"scaling an SRAM-architecture integrated with photonics can surpass HBM-based architectures on throughput/MW and TCO\"",
+        "\"The OLIX Optical Tensor Processing Unit (OTPU) is an optical digital processor with a novel memory and interconnect architecture.\"",
+        "\"bit-perfect logic with a step change in performance.\"",
+        "Job postings for VCSEL, opto-mechanical, FPGA and performance-modelling engineers indicate in-house capabilities across lasers, photonics, packaging, transceivers, and cycle-accurate simulation.",
+        "Explicit product and strategy claims: \"free from the architectural and supply chain constraints of the current regime\" and emphasis on supporting existing models without enforced QAT/PTQ."
       ]
     },
-    "competitive_moat": "medium-high",
-    "moat_explanation": "OLIX\u2019s moat stems from the multidisciplinary integration of device R&D, precision opto\u2011mechanical and substrate engineering, system\u2011level high\u2011speed electronics, silicon/FPGA prototyping, and compiler/frontend software. These capabilities together create technical, manufacturing and supply\u2011chain barriers that require substantial capital, specialized talent, and multi\u2011year development to replicate. However, the moat is not impregnable: well\u2011funded incumbents or large hyperscalers could invest heavily, and optical approaches still face risks in yield, robustness, ecosystem maturity and software portability. The company\u2019s defensibility therefore appears strong versus new entrants but vulnerable to deep\u2011pocketed competitors that can align supply\u2011chain and software ecosystems.",
+    "competitive_moat": "medium",
+    "moat_explanation": "OLIX's moat is driven by deep, cross-domain technical complexity (photonics devices, VCSEL arrays, opto-mechanics, ASIC/FPGA integration, and compiler co-design) and a system-level rethinking of memory+interconnect that is non-trivial to replicate quickly. This creates a defensible, technology-driven position if they can solve manufacturability, yield, and software ecosystem adoption. However, the moat is not impregnable: well-resourced incumbents and other photonics startups could converge on similar solutions over time; large cloud providers could internalise or partner to solve the same memory/interconnect problems. The biggest risks to the moat are manufacturing scale, reliability of dense optical components, software ecosystem lock-in, and the incumbents' access to capital and supply chains.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "ML framework ingestion through MLIR-based IR design, transformation, and lowering interfaces",
-    "Support/maintenance traceability and debugability",
-    "Frontend Compiler roadmap aligning to OLIX\u2019s core business objectives and timeline",
-    "OTPU \u2013 Optical Tensor Processing Unit \u2013 focuses on AI hardware acceleration",
-    "Hardware-first MLIR frontend tightly coupled to custom optical tensor hardware \u2014 custom dialects/operator lowering targeted to OTPU primitives rather than generic accelerators.",
-    "Extensive use of FPGA-based prototyping as a system-level de-risking mechanism feeding back into ASIC and silicon decisions (bridging software, firmware and silicon verification loops).",
-    "Deep, simulation-driven co-design across thermo-optical-mechanical domains (FEA + thermo\u2011optical) correlated directly with manufacturing reliability and accelerated life testing.",
-    "End-to-end stack optimization culture spanning materials/epitaxy, device physics (VCSELs), mixed-signal electronics, and system compiler frontends \u2014 combining physical device data with compiler IR design choices."
+    "Workload Analysis & Bottleneck Hunting: Instrument benchmarks (LLMs, diffusion, graph workloads) to collect detailed traces.",
+    "Familiarity with machine-learning workloads and common frameworks (PyTorch, TensorFlow, JAX).",
+    "Integrate models into CI so that every RTL commit gets a performance smoke test.",
+    "Tight cross-domain modelling stack: integrated cycle-accurate architectural simulation combined with device-level (VCSEL), optical, and multi-physics mechanical/thermal simulators to evaluate system trade-offs end-to-end.",
+    "Performance modelling integrated into CI as a gate (performance smoke tests on every RTL commit) to enforce regressions and provide continuous architectural feedback.",
+    "Design-space exploration at scale: automated massive parameter sweeps driven by functional and cycle-accurate models to produce quantitative guidance across hardware, software, and optical teams.",
+    "Digital-twin-like validation loop: correlating simulation outputs with empirical reliability and ageing tests (thermal cycling, vibration, lifetime) to close the gap between models and manufactured reality.",
+    "Supply-chain aware architectural strategy: co-design constraints that explicitly account for fabrication and packaging limits (e.g., avoidance of HBM/advanced packaging dependence) as part of model-driven architecture decisions."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 17:41:59.069308+00:00",
+  "analyzed_at": "2026-03-07 21:48:07.401606+00:00",
   "confidence_score": 0.65,
-  "raw_content_analyzed": 130070
+  "raw_content_analyzed": 133714,
+  "input_hash": "b40cb14387c4aa26"
 }

@@ -1,0 +1,666 @@
+{
+  "company_name": "Dono",
+  "company_slug": "dono",
+  "website": "https://www.dono.ai/",
+  "logo_url": null,
+  "description": "Dono provides a platform to search public records making it easy to control and verify homeownership and title data.",
+  "funding_amount": 6500000.0,
+  "funding_stage": "seed",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.9,
+      "evidence": [
+        "Automated software navigates county-specific indexing systems and extracts standardized data points from each document",
+        "Compiled title search packages are delivered indexed and structured, with potential title issues flagged for professional review",
+        "Ask Dono \u2014 Examine and underwrite title issues through natural language queries with AI that understands industry context and complexity",
+        "Data Collection: Self-serve instant access across counties, title plants and your own data",
+        "AI-powered extraction captures and indexes critical information from complex documents\u2014reducing data entry and improving quality"
+      ],
+      "description": "Dono builds a retrieval layer that ingests and indexes public-record documents across many county systems, then uses extraction + indexed document stores to support downstream generation and query workflows (e.g., natural-language queries, draft report generation). The product narrative describes search across sources, indexing, and queryable packages \u2014 the core components of RAG."
+    },
+    {
+      "name": "Micro-model Meshes (Specialized, modular models)",
+      "confidence": 0.85,
+      "evidence": [
+        "The platform includes four modular capabilities that work independently or together",
+        "Our AI works through every step - pulling data from multiple sources, extracting information, analyzing and classifying instruments, then generating your PTO",
+        "Underwriting Intelligence Engine \u2014 Title expertise encoded into AI that adapts to your underwriting standards"
+      ],
+      "description": "Dono describes a modular pipeline with discrete capabilities (collection, extraction/indexing, underwriting intelligence, formatting/delivery). This implies separate specialized models/components per task (OCR/extraction, instrument classification, underwriting rules module, report generation) rather than a single monolithic model."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.95,
+      "evidence": [
+        "Today, Dono covers more than 700 counties across the United States",
+        "Building county-level infrastructure market by market",
+        "Dono was built specifically for North Carolina's unique recording infrastructure, including VCAP, Odyssey, and county systems",
+        "modular infrastructure to make property records clear, accessible, and instant at a fraction of current costs"
+      ],
+      "description": "Dono emphasizes proprietary, industry- and jurisdiction-specific data coverage and integrations (county record systems, title plants). That domain-specific dataset and per-county engineering serve as a competitive, vertical data moat."
+    },
+    {
+      "name": "Knowledge Graphs / Entity Linking",
+      "confidence": 0.7,
+      "evidence": [
+        "It handles the tedious parts: reading hundreds of pages, organizing instruments chronologically, connecting the chain",
+        "extracts standardized data points from each document\u2014grantor, grantee, recording date, instrument type, legal description, lien information",
+        "creating organized, searchable property records despite underlying inconsistencies across jurisdictions"
+      ],
+      "description": "The product repeatedly highlights connecting chains of title, linking grantors/grantees, instruments and liens and organizing relationships across documents. That is consistent with building entity-linked data representations or knowledge-graph\u2013like structures to model ownership and encumbrance relationships."
+    },
+    {
+      "name": "Guardrail-as-LLM / Hybrid Verification",
+      "confidence": 0.85,
+      "evidence": [
+        "Hybrid AI-human verification systems that meet or exceed traditional manual processes",
+        "Every order goes through our title examination team before it reaches you. They verify data accuracy, check chain completeness, and ensure everything's classified correctly",
+        "verification system that flags uncertain data for additional review",
+        "100 percent accuracy through a verification system that flags uncertain data for additional review"
+      ],
+      "description": "Dono implements human-in-the-loop verification and uncertainty-flagging to ensure accuracy and compliance. While humans are central, the pipeline likely includes automated confidence estimation and flagging models that act as guardrails before final outputs are delivered (a hybrid guardrail pattern)."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.45,
+      "evidence": [
+        "You review it, make your edits and exceptions, then certify",
+        "Human oversight: Every order goes through our title examination team before it reaches you",
+        "building county-level infrastructure market by market"
+      ],
+      "description": "There are hints of corrective workflows (user edits, human verification) that could be fed back to improve models, but the content does not explicitly state automated feedback loops, labeling pipelines, or model retraining based on production corrections. Potential exists but is not detailed."
+    },
+    {
+      "name": "Natural-Language-to-Code / Natural-language interfaces",
+      "confidence": 0.4,
+      "evidence": [
+        "Ask Dono \u2014 Examine and underwrite title issues through natural language queries with AI that understands industry context and complexity",
+        "Search packages are delivered in familiar formats for your legal analysis"
+      ],
+      "description": "Dono exposes a natural-language query interface for title professionals. This implies NL-to-action/interpretation (turning queries into searches, retrievals, or structured outputs), but there is no clear evidence of generating executable code or rules from free text."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.2,
+      "evidence": [
+        "The system initiates concurrent searches across county assessor records, recorder offices, and court dockets",
+        "Automated software navigates county-specific indexing systems and extracts standardized data points"
+      ],
+      "description": "There is orchestration and automation of multi-step workflows (concurrent searches, navigation of county systems) but no explicit evidence of autonomous multi-agent reasoning, dynamic tool discovery, or goal-driven agents. The architecture appears pipeline/orchestrator-style rather than agentic."
+    }
+  ],
+  "discovered_patterns": [
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "Per-county connector / adapter architecture",
+      "confidence": 0.95,
+      "evidence": [
+        "\"We're directly integrated with NCliens, Odyssey, V-Cup, ROD systems, and others - so you're searching across all the sources you'd normally check, just without opening 15 tabs.\"",
+        "\"building county-level infrastructure market by market\"",
+        "\"Today, Dono covers more than 700 counties across the United States.\""
+      ],
+      "description": "Dono implements source-specific connectors/adapters (one per county/system) that encapsulate the idiosyncratic access patterns of each recorder/assessor/portal. These connectors enable parallelized searches across disparate county systems and feed a central ingestion pipeline. The architecture is modular so connectors can be added county-by-county and configured (e.g., name variants, date ranges) per customer.",
+      "novelty_score": 6,
+      "why_notable": "While vertical connectors are common, Dono's explicit market-by-market county-level infrastructure and claim of 700+ county coverage indicate a deliberate strategy to productize and operationalize a massive adapter surface area as a core moat rather than a one-off engineering effort."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Document-first extraction pipeline (OCR + ML extractors) for messy inputs",
+      "confidence": 0.9,
+      "evidence": [
+        "\"AI-powered data extraction and indexing solution for public records, including deeds, mortgages, liens and other documents.\"",
+        "\"The technology processes packages containing hundreds of documents in minutes, including handwritten records and poor-quality scans\"",
+        "\"AI-powered extraction captures and indexes critical information from complex documents\u2014reducing data entry and improving quality.\""
+      ],
+      "description": "Dono runs a document ingestion pipeline that uses OCR (including handwriting-capable OCR) followed by specialized information-extraction models to pull standardized fields (grantor, grantee, dates, instrument type, legal description, liens, satisfaction status). Extracted datapoints are normalized and indexed into a search layer. The pipeline is optimized to handle large, heterogeneous batches of scanned/handwritten documents.",
+      "novelty_score": 5,
+      "why_notable": "Handling handwritten and poor-quality county scans at scale is technically challenging; the emphasis on near-100% accuracy after verification shows investment in robust preprocessing, domain-specific extraction models, and error-detection upstream of human review."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Hybrid rule-based underwriting intelligence + ML",
+      "confidence": 0.9,
+      "evidence": [
+        "\"Underwriting Intelligence Engine Title expertise encoded into AI that adapts to your underwriting standards\u2014combining hundreds of industry rules with human verification.\"",
+        "\"What industry leaders say about Dono? ... Dono was built specifically for North Carolina's unique recording infrastructure...\""
+      ],
+      "description": "Dono layers a rule-encoding engine over extracted data: business and underwriting rules (hundreds) are formalized and applied to classify instruments, flag exceptions, and produce draft PTOs. This ruleset is augmented by ML (for classification, entity matching) and adjustable to client-specific underwriting standards. The outcome is a deterministic layer for legal logic combined with probabilistic ML components.",
+      "novelty_score": 7,
+      "why_notable": "Explicitly combining codified underwriting rules with AI extraction and configurability to customer standards (instead of black-box ML) is a pragmatic approach to regulatory/legal domains, increasing acceptability to lawyers and enabling contractual indemnities."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Operational human-in-the-loop verification with legal gating",
+      "confidence": 0.98,
+      "evidence": [
+        "\"Every order goes through our title examination team before it reaches you.\"",
+        "\"Human oversight Every order goes through our title examination team before it reaches you. They verify data accuracy, check chain completeness, and ensure everything's classified correctly.\"",
+        "\"100 percent accuracy through a verification system that flags uncertain data for additional review.\"",
+        "\"You're getting a verified draft PTO from experienced title professionals, not raw AI output.\""
+      ],
+      "description": "Dono integrates a mandatory human QA step into the pipeline: automated extraction and underwriting intelligence produce a draft package which is then reviewed and corrected by an expert title examination team. The system flags low-confidence items for human review. The human-verified output is what is delivered to customers, enabling claims of \"100% accuracy\" via supervised gating and legal indemnification.",
+      "novelty_score": 4,
+      "why_notable": "Human-in-the-loop QA is common in high-stakes domains, but Dono couples it with underwriter-backed indemnities and positions the human team as a core product guarantee rather than a temporary quality layer."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Modular microservice platform with API + UI delivery and configurable outputs",
+      "confidence": 0.95,
+      "evidence": [
+        "\"Dono is building modular infrastructure to make property records clear, accessible, and instant at a fraction of current costs, delivered via both UI and API to fit into existing workflows.\"",
+        "\"The platform includes four modular capabilities that work independently or together.\"",
+        "\"Data Formatting & Delivery Seamless integration with your existing systems through API, file exchange, or direct platform access\u2014delivered in your preferred formats.\""
+      ],
+      "description": "The product is organized as modular services (data collection, extraction/indexing, underwriting intelligence, formatting/delivery) exposed via APIs and a web UI. Each module can operate independently allowing customers to plug into specific capabilities (e.g., just extraction or full end-to-end). Outputs are configurable to customer formats and integration methods (API, file drop, direct access).",
+      "novelty_score": 3,
+      "why_notable": "This is a pragmatic, industry-standard design for enterprise SaaS; the important part is how modularity supports incremental adoption across complex title workflows."
+    },
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "Indexed record store enabling natural-language queries (RAG-like user surface)",
+      "confidence": 0.6,
+      "evidence": [
+        "\"Search packages are delivered indexed and structured\"",
+        "\"Ask Dono Examine and underwrite title issues through natural language queries with AI that understands industry context and complexity\"",
+        "\"AI-powered extraction captures and indexes critical information from complex documents\u2014reducing data entry and improving quality.\""
+      ],
+      "description": "Dono maintains a searchable index of extracted and normalized property records which supports natural-language query capabilities (\"Ask Dono\"). Although they don't publish the retrieval stack, this implies a retrieval layer (search + likely vector or hybrid search) feeding an NL interface that can access indexed facts and source documents to answer underwriting/chain-of-title queries.",
+      "novelty_score": 6,
+      "why_notable": "If implemented as a RAG-like system with traceable source citations over a legal-grade index, this becomes a high-value tool for title examiners; the lack of direct mention of vector DBs or retrievers means the exact technique is not specified."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Scalable, parallel batch processing for high-volume document packages",
+      "confidence": 0.75,
+      "evidence": [
+        "\"The technology processes packages containing hundreds of documents in minutes\"",
+        "\"Companies that are using the platform report a reduction in document processing time by 95 percent or more.\"",
+        "\"AI-powered platforms deliver pre-organized, indexed search packages in hours, not days, by handling the data collection work that traditionally consumed 60-80% of a title professional's time.\"",
+        "\"When market conditions drive refinance surges or purchase activity spikes, Dono scales with your volume without requiring additional staff.\""
+      ],
+      "description": "Dono employs horizontally scalable pipelines to ingest and process large batches of documents concurrently, enabling fast turnaround on high-volume workloads. The architecture likely uses parallelized OCR/extraction workers, async job queues, and autoscaling compute to handle spikes and maintain consistent SLAs.",
+      "novelty_score": 3,
+      "why_notable": "Autoscaling pipelines for document processing are standard in production ML systems; the notable part is the claimed throughput/latency improvements in a highly fragmented public-records domain."
+    },
+    {
+      "category": "Data Strategy",
+      "pattern_name": "Title-plant creation as a proprietary vertical data asset",
+      "confidence": 0.9,
+      "evidence": [
+        "\"Title Plant Management Build and maintain comprehensive, searchable title plants with minimal manual effort.\"",
+        "\"Dono is building modular infrastructure to make property records clear, accessible, and instant at a fraction of current costs\"",
+        "\"Today, Dono covers more than 700 counties across the United States.\""
+      ],
+      "description": "Dono aggregates, normalizes, and stores public-record data to construct proprietary searchable title plants for customers. These title plants are a vertical data moat: normalized instrument records, chains of title, and derived metadata that become more valuable over time and across customers.",
+      "novelty_score": 6,
+      "why_notable": "Turning fragmented public records into reusable title plants is a defensible commercial asset in the title industry, enabling recurring value (search speed, accuracy) and cross-customer benefits while being hard to replicate at scale."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Commercial/legal trust layer (underwriter indemnities + contractual liability)",
+      "confidence": 0.95,
+      "evidence": [
+        "\"Title underwriters provide indemnification and hold harmless agreements for attorneys using Dono, giving you the same professional liability protection as traditional methods.\"",
+        "\"Dono is liable for the data we provide.\"",
+        "\"Title underwriters provide indemnification and hold harmless agreements for attorneys using Dono... Contact us to learn more about our accuracy guarantees.\""
+      ],
+      "description": "Dono couples algorithmic outputs with contractual guarantees: partnering with title underwriters to provide indemnification and accept legal liability for data errors. This commercial trust layer supplements technical guardrails and human QA to reduce customer risk in a legally sensitive domain.",
+      "novelty_score": 7,
+      "why_notable": "Providing underwriter-backed indemnities turns technical accuracy into a legally enforceable guarantee, accelerating enterprise adoption in a risk-averse industry; this is a strategic non-technical moat that complements technical work."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "Configurable search workflows that merge prior policy data with current searches",
+      "confidence": 0.9,
+      "evidence": [
+        "\"Upload a prior policy and we'll integrate it into the current search, pull and organize all your data sources, then generate a draft PTO for you to review.\"",
+        "\"You control the name variations and date ranges for each source, so you can verify search parameters and confirm everything's being caught and classified correctly.\""
+      ],
+      "description": "Search workflows are parameterized: customers supply prior policies and configuration (name variants, date ranges) which the system uses to seed searches, bias entity resolution, and prioritize certain record types. This results in an integrated package that combines prior-known data with fresh extractions.",
+      "novelty_score": 4,
+      "why_notable": "Providing configurable inputs (prior policies, name variants) supports practical workflows for title examiners and reduces false negatives, but the pattern itself is an expected feature for enterprise search systems in regulated domains."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Market-by-market county connector productization",
+      "why_novel": "Instead of treating per-county scraping as one-off engineering, Dono appears to productize and operationalize county connectors as a scalable layer and go-to-market strategy, enabling them to claim 700+ county coverage.",
+      "potential_impact": "Creates a durable engineering moat and enables quick geographic expansion while standardizing ingestion from highly heterogeneous sources."
+    },
+    {
+      "approach": "Underwriting intelligence encoded as rules + AI plus underwriter-backed indemnity",
+      "why_novel": "Encoding underwriting logic into deterministic rules augmented by ML and pairing that with legal indemnities bridges the technical and commercial trust gap in a legally fraught vertical.",
+      "potential_impact": "Accelerates adoption among risk-averse professionals (attorneys, underwriters) and reduces sales friction associated with trusting AI outputs in high-liability workflows."
+    },
+    {
+      "approach": "Operational guarantee via mandatory human verification as product differentiator",
+      "why_novel": "Rather than marketing raw model performance, Dono makes human verification a product feature (\"verified draft PTO\") and uses it in claims of 100% accuracy and indemnity.",
+      "potential_impact": "Positioning human review as a permanent, instrumented part of the pipeline increases trust and allows the company to promise enterprise SLAs not achievable by pure automation."
+    }
+  ],
+  "model_details": {
+    "primary_models": [
+      "not explicitly disclosed (marketing-level descriptions only). Inferred: OCR/ICR engines + domain-specific extraction models + a natural-language model for 'Ask Dono' queries (proprietary or third-party LLM)."
+    ],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "No explicit mention of fine-tuning or approach (LoRA/full). Marketing emphasizes rule-encoding and human verification rather than model fine-tuning.",
+      "training_data_source": "Not specified; implied proprietary corpora from aggregated county records and title plants."
+    },
+    "inference_optimization": [
+      "parallelized batch document processing (inferred from 'hundreds of documents in minutes')",
+      "confidence-based gating to human reviewers (explicit)",
+      "indexing for fast retrieval and structured delivery"
+    ],
+    "model_routing": {
+      "uses_routing": true,
+      "routing_strategy": "Pipeline routing: per-source connector -> OCR/ICR -> extraction models -> normalization/indexing -> underwriting rules engine/ML classifier -> human verification -> report generation / API delivery. Routing appears task-specific rather than mixture-of-experts style."
+    },
+    "compound_ai": {
+      "is_compound_system": true,
+      "orchestration_pattern": "Orchestrated multi-component pipeline with automated extractors and a rules engine feeding a human-in-the-loop verification layer; a separate NL query layer ('Ask Dono') accesses the indexed store. Orchestration is modular and service-oriented, enabling independent capability usage."
+    }
+  },
+  "market_type": "vertical",
+  "vertical": "legal",
+  "sub_vertical": "Real estate title examination / title search automation",
+  "sub_sub_vertical": "Hybrid AI-human title examination workflow for real estate closing",
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "real_estate_construction",
+      "vertical_label": "Real Estate & Construction",
+      "sub_vertical_id": "proptech",
+      "sub_vertical_label": "PropTech (Real Estate Tech)",
+      "leaf_id": "proptech",
+      "leaf_label": "PropTech (Real Estate Tech)"
+    },
+    "path": [
+      {
+        "id": "real_estate_construction",
+        "label": "Real Estate & Construction",
+        "confidence": 0.72
+      },
+      {
+        "id": "proptech",
+        "label": "PropTech (Real Estate Tech)",
+        "confidence": 0.85
+      }
+    ]
+  },
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "hybrid",
+    "uses_open_source_models": false,
+    "has_custom_models": true
+  },
+  "engineering_quality": {
+    "score": 4,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "API delivery mentioned in product description (UI and API integration)",
+      "Modular capabilities: Data Collection, Data Extraction & Indexing, Underwriting Intelligence, Data Formatting & Delivery",
+      "Hybrid AI with human verification for accuracy",
+      "Public press releases about product launches and funding indicating active development"
+    ]
+  },
+  "implementation_maturity": "production",
+  "team_analysis": {
+    "founders": [
+      {
+        "name": "Tali Gross",
+        "role": "CEO & Co-Founder",
+        "background": "Not explicitly stated in provided content; implied leadership in a startup focused on AI-powered title/search platforms; early sector experience in title insurance",
+        "previous_companies": [],
+        "technical_depth": "high",
+        "domain_expertise": "title insurance, property records, public records data integration, AI-assisted data extraction"
+      }
+    ],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [],
+      "team_size_indicators": "unknown",
+      "remote_distributed": true
+    },
+    "founder_market_fit": "Strong fit: founder demonstrates domain focus on NC title systems and building AI-enabled data extraction, indexing, and underwriting workflows; enterprise buyers in title industry align with founder's mission.",
+    "team_strengths": [
+      "Focused domain expertise in title insurance and North Carolina's recording infrastructure (VCAP, Odyssey, county systems)",
+      "AI-powered data collection, extraction, and indexing with human verification for accuracy",
+      "End-to-end platform design with modular capabilities (data collection, extraction, underwriting intelligence, data delivery)"
+    ],
+    "team_red_flags": [
+      "Public information limited to CEO; lack of visibility into other founders, CTO, engineering leadership, or advisory board",
+      "Limited details on team size and hiring trajectory; execution risk if team growth lags post-seed"
+    ],
+    "team_confidence": 0.65
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "subscription",
+      "pricing_evidence": [
+        "No public pricing information; pricing not disclosed; demo sign-up indicates B2B SaaS model"
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "sales_led",
+      "evidence": [
+        "Sign Up For a Demo forms on site",
+        "Enterprise features emphasis",
+        "API integration mentions",
+        "Seed funding for geographic expansion implies direct sales reach into multiple markets"
+      ],
+      "target_segment": "enterprise",
+      "sales_motion": "hybrid"
+    },
+    "revenue_model": {
+      "monetization_approach": "SaaS platform with modular data collection, extraction, underwriting, and delivery; recurring subscription with optional human verification layer; likely enterprise licensing",
+      "unit_economics_signals": [
+        "8x faster processing claim",
+        "80% faster turnaround",
+        "capacity expansion without proportional headcount",
+        "no explicit margins or ARPU disclosed"
+      ],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "Modular architecture with data collection across counties and integrations",
+      "API and UI delivery",
+      "Specialization in NC systems (VCAP, Odyssey) and county-level data sources",
+      "Early mover with multi-source data aggregation (data completeness from multiple databases)"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "website lead capture via demo sign-up",
+        "content marketing / blog & news",
+        "press coverage / media mentions"
+      ],
+      "customer_proof_points": [
+        "Dono covers 700+ counties",
+        "Seed funding signals market traction and growth plans",
+        "Industry-focused messaging (attorneys, title professionals, lenders, servicers)"
+      ]
+    },
+    "business_model_clarity": "evolving",
+    "business_model_confidence": 0.56
+  },
+  "product_analysis": {
+    "product_stage": "general_availability",
+    "stage_evidence": [
+      "Nov 2025 launch of AI-powered data extraction and indexing solution for public records",
+      "Jan 1, 2026 launch of AI-powered report generation system",
+      "Feb 10, 2026 seed round signaling growth and geographic expansion plans",
+      "8x faster processing and potential to triple capacity with same team",
+      "700+ counties covered across the United States",
+      "API and UI delivery to fit into existing workflows",
+      "Hybrid AI-human verification model emphasized for accuracy"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Data collection across counties, title plants, and customer data sources",
+        "AI-powered extraction and indexing of critical information from complex documents",
+        "Underwriting intelligence encoded into AI with human verification",
+        "Configurable data delivery in formats that work for each customer (API, UI, file exchange)",
+        "Report generation from search packages and property records"
+      ],
+      "differentiating_features": [
+        "Hybrid AI-human verification ensuring accuracy beyond raw AI outputs",
+        "NC-specific infrastructure integration (VCAP, Odyssey, county records)",
+        "Modular architecture enabling scalable capacity without proportional headcount",
+        "End-to-end workflow alignment for title professionals, lenders, servicers, and investors"
+      ],
+      "roadmap_signals": [
+        "Plans to cover nearly 50% of US states by population by year-end",
+        "Expansion beyond title insurance to lenders, mortgage servicers, and real estate investment firms",
+        "Continued automation improvements and broader data delivery capabilities",
+        "Dedicated report generation enhancements and integration capabilities"
+      ],
+      "feature_completeness": "comprehensive"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "NCliens",
+        "Odyssey",
+        "VCAP",
+        "ROD systems",
+        "county Register of Deeds"
+      ],
+      "api_maturity": "platform",
+      "sdk_availability": [],
+      "webhook_support": true,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Automated data collection, extraction, indexing, and preliminary underwriting support for title searches to accelerate title clearance and reduce costs",
+      "secondary_use_cases": [
+        "AI-powered generation of customized reports from search packages and property records",
+        "Capacity scaling to handle high-volume periods without proportional increases in staff",
+        "Delivery of structured data to lenders, servicers, and real estate investors via API/UI"
+      ],
+      "customer_stories": [
+        "North Carolina attorney reporting efficiency gains and time savings from AI title search platform",
+        "Industry-wide indicators of reduced document processing times and increased throughput"
+      ],
+      "industry_focus": [
+        "Title insurance and title examination",
+        "Lenders and mortgage servicers",
+        "Real estate investment firms",
+        "Real estate attorneys and title agencies"
+      ]
+    },
+    "product_risks": [
+      "Reliance on public records accuracy and completeness across many counties",
+      "Regulatory and jurisdictional variation requiring ongoing compliance adjustments",
+      "Potential over-reliance on AI for complex title issues without sufficient human oversight",
+      "Integration complexity with legacy systems and heterogeneous data formats"
+    ],
+    "product_strengths": [
+      "Hybrid AI + human verification ensuring high accuracy",
+      "Significant efficiency gains (8x faster processing) and scalable capacity",
+      "Broad county coverage (700+ counties) and NC-specific infrastructure expertise",
+      "Modular, composable platform enabling flexible adoption and workflows",
+      "Positioning as an enhanced abstractor that supports, not replaces, legal judgment"
+    ],
+    "product_confidence": 0.85
+  },
+  "unique_findings": [
+    "County-level connector network as core product: Dono appears to have built and operationalized a large library of bespoke connectors/adapters for county recorder portals (NCliens, Odyssey, V-Cup, individual ROD sites). That is not a generic scraper \u2014 it requires per-jurisdiction parsing, session handling, credential workflows, and continuous maintenance for UI changes and rate limits. Turning that into a product that covers 700+ counties is an unusual, execution-heavy technical choice.",
+    "Hybrid pipeline with a clear separation of responsibilities: their stack reads like connector \u2192 document capture/OCR (including handwritten/poor scans) \u2192 instrument classification & structured extraction (32+ data points) \u2192 canonicalization/alias-resolution \u2192 chain/graph-building \u2192 underwriting rules layer \u2192 human verification queue \u2192 formatted report/PTO generator + API. The explicit encoding of underwriting intelligence layered on top of extracted data is a distinctive architecture compared with pure-extraction vendors.",
+    "Underwriting intelligence as a configurable, state- and customer-specific layer: they claim models that 'encode title expertise' and adapt to underwriting standards. This implies a hybrid of ML + rule-engine (parametric policy engine or fine-tuned models) that can be configured per underwriter or law practice \u2014 more than off-the-shelf NER, it\u2019s an operationalized legal ruleset integrated with ML.",
+    "Operationalized human-in-the-loop with accuracy guarantees: their product promise (100% accuracy via verification and indemnification) signals a production feedback loop where model uncertainties are routed to trained title examiners and corrections are fed back to improve models. That creates training data and quality control at a scale tied to their service operations.",
+    "Document-to-opinion pipeline and RAG-style interfaces: features like 'Ask Dono' and draft PTO generation suggest they are indexing extracted records and building retrieval + generation layers (likely vector indexes over parsed documents + domain-tuned LLMs) that answer natural language queries grounded in provenance \u2014 a non-trivial engineering effort to keep generated output defensible and auditable.",
+    "Graph-based title plant and chain linking: the repeated emphasis on 'connecting the chain' and title plant management implies they transform flat document extractions into a provenance graph (instruments linked by grantor/grantee, legal descriptions, instrument IDs). That graph is both the product (searchable title plant) and the substrate for underwriting logic and query answering.",
+    "Focus on scale and operational elasticity: they designed the system to handle volume spikes without linear headcount increase (concurrent crawler/search orchestration, batch OCR/extraction pipelines, human verification triage). That operational engineering (queueing, prioritization, autoscaling of text/image processing and human review) is a core technical capability often understated in marketing copy.",
+    "Legal/product packaging to remove buyer friction: rather than purely technical, they integrated business/insurance arrangements (indemnification by underwriters) into the delivery model. This is a product-engineering choice \u2014 acceptance by underwriters effectively allows aggressive automation while preserving market adoption, and it likely required auditability, logs, and explainability features in the stack."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "high",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Dono's per\u2011county connector mesh tames 3,700 fragmented record systems",
+      "summary": "Dono appears to have built a connector/adapter architecture that navigates county\u2011specific record systems (VCAP, Odyssey, RODs) in parallel, extracts and indexes standardized fields, and compiles usable search packages \u2014 all while exposing modular APIs. For builders, the interesting part is how they manage brittle scraping/integration, parallelism, and the consistency layer that makes downstream AI extraction reliable.",
+      "evidence": [
+        "Dono says it integrates with NCliens, Odyssey, V\u2011Cup, ROD systems and covers 700+ counties",
+        "Claims of concurrent searches across county sources and delivering indexed packages in hours (vs. multi\u2011day manual work)",
+        "Marketing references to modular capabilities: data collection, extraction & indexing, underwriting intelligence, and data delivery (API + UI)"
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "data",
+      "headline": "Their secret weapon: a growing vertical title\u2011plant and indexed record store across 700+ counties",
+      "summary": "Beyond models, Dono's defensible asset may be the structured, indexed repository of historical documents, chains, and name\u2011variation mappings \u2014 effectively a vertical data moat for property records. For ML engineers, the question is how they store, link and version OCR outputs and entity links to support downstream underwriting models and RAG use cases.",
+      "evidence": [
+        "Dono: 'Today, Dono covers more than 700 counties across the United States' and focuses on building county\u2011level infrastructure market by market",
+        "Product descriptions reference an 'indexed record store' and the ability to compile chronological instrument chains and standardized data points per document",
+        "Claims of modular delivery (UI + API) and a title plant analog: 'building the infrastructure layer underneath ownership verification'"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Encoding title expertise: the hybrid underwriting intelligence that still hands off the final legal judgment",
+      "summary": "Dono markets an 'underwriting intelligence' layer that encodes hundreds of industry rules and pairs AI extraction with human verification and underwriter indemnities. The compelling technical story is how they codify complex, jurisdictional underwriting logic into deterministic or ML systems while keeping a verifiable human\u2011in\u2011the\u2011loop guardrail.",
+      "evidence": [
+        "Product text: 'Underwriting Intelligence Engine\u2014Title expertise encoded into AI that adapts to your underwriting standards\u2014combining hundreds of industry rules with human verification'",
+        "Multiple mentions that final exceptions, title certification, and underwriting judgment remain with attorneys; 'Every order goes through our title examination team before it reaches you'",
+        "Marketing claims that underwriters provide indemnification and Dono is 'liable for the data we provide', implying contractual and operational guardrails"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "They doubled down on hybrid (connectors + humans) instead of chasing end\u2011to\u2011end LLM autonomy \u2014 and raised $6.5M",
+      "summary": "At a moment when many AI startups pitch LLM\u2011only solutions, Dono invested in brittle engineering (per\u2011county connectors), OCR + structured pipelines, and a human verification layer to meet legal accuracy requirements. The contrarian question for engineers: is this a pragmatic, defensible build or an expensive operational crutch that blocks pure model\u2011driven scale?",
+      "evidence": [
+        "Repeated emphasis on hybrid AI + human verification: 'accuracy isn't negotiable' and every order is verified by experienced title professionals",
+        "Claims of 95%+ reductions in document processing time and 80% faster turnaround paired with human review and underwriter indemnities",
+        "Dono raised a $6.5M seed round to expand county\u2011level infrastructure rather than pivot to a fully centralized, LLM\u2011only RAG product"
+      ],
+      "uniqueness_score": 6
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing makes definitive, absolute claims about accuracy and performance (e.g., 100% accuracy, 95%+ reduction in processing time, 8X faster, 'Dono is liable for the data we provide') without technical detail or audit evidence. These claims create legal and reputational risk if unsupported by reproducible metrics and SLA-backed guarantees.",
+      "severity": "high",
+      "evidence": [
+        "\u2018companies that are using the platform report a reduction in document processing time by 95 percent or more.'",
+        "\u2018processing packages containing hundreds of documents in minutes, including handwritten records and poor-quality scans, maintaining 100 percent accuracy through a verification system that flags uncertain data for additional review.'",
+        "claims of \u20188X faster processing\u2019 and \u201880% faster turnaround\u2019 in separate places without methodology or baselines.",
+        "\u2018Dono is liable for the data we provide.'"
+      ]
+    },
+    {
+      "pattern_type": "wrapper",
+      "description": "The material emphasizes 'AI-powered' capabilities but lacks concrete technical specifics (models, proprietary algorithms, data pipelines) and leans on general terms like 'AI extraction' and 'underwriting intelligence'. If core value is connectors + third\u2011party ML services without proprietary models or unique algorithms, product could be a thin wrapper vulnerable to replication.",
+      "severity": "medium",
+      "evidence": [
+        "Repeated use of \u2018AI-powered extraction\u2019, \u2018AI-powered report generation\u2019, and \u2018underwriting intelligence\u2019 with no description of model architecture, training data, or IP.",
+        "Claims of integrations with county systems (VCAP, Odyssey, ROD) and emphasis on workflow/verification rather than novel ML techniques."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "The company cites coverage (700+ counties) and modular infrastructure as advantages, but the moat depends on continued investment in per-county connectors, data quality, and title-plant scale. Without clear proprietary data ownership, defensible model IP, or exclusive partnerships, competitors (including incumbents and well-funded platforms) could replicate the stack.",
+      "severity": "medium",
+      "evidence": [
+        "\u2018Today, Dono covers more than 700 counties across the United States.'",
+        "Emphasis on building county-level infrastructure market by market and modular capabilities that are conceptually replicable."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Many claims position Dono as solving a narrow workflow pain (document aggregation and extraction). Larger incumbents (title plants, underwriters, closing platforms) could integrate similar extraction and indexing features into broader products, reducing Dono's standalone value unless it expands defensible data assets or unique services.",
+      "severity": "medium",
+      "evidence": [
+        "Descriptions focus on automated aggregation, extraction, indexing, and report generation\u2014functions larger platforms could bolt on.",
+        "\u2018We fit into how NC attorneys actually work - you're still running the search and making the calls.\u2019 \u2014 suggests augmentation rather than a unique end-to-end product."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "Messaging sometimes reads like common marketing for many 'AI\u2011for\u2011document' startups. Without clear technical differentiators or exclusive partnerships, the product risks being perceived as another generic automation tool in a crowded field.",
+      "severity": "low",
+      "evidence": [
+        "Buzzwords: \u2018AI-powered\u2019, \u2018underwriting intelligence\u2019, \u2018modular infrastructure\u2019, \u2018human verification\u2019 appear frequently without clear unique mechanisms.",
+        "Market overlaps with title insurers, legacy title plants, and other automation vendors."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "First American / DataTree",
+        "similarity": "Provides public-records/property data, title plants and indexed document access to title professionals and lenders.",
+        "how_different": "Dono emphasizes AI-powered extraction + human verification, modular API/UI delivery, faster indexation workflows, and claims bespoke integrations to county systems (e.g., VCAP, Odyssey) along with underwriting-backed accuracy guarantees. Dono also focuses on converting raw search packages into verified draft PTOs and formatted reports."
+      },
+      {
+        "name": "Black Knight (Public Records / Title Solutions)",
+        "similarity": "Large incumbent with property records, county integrations and enterprise title/servicing products.",
+        "how_different": "Dono positions itself as a lightweight, modular infrastructure layer built for rapid automation and attorney workflows (including North Carolina-specific workflows), with AI extraction and human verification, API-first delivery and claims of dramatically faster turnaround at lower incremental cost."
+      },
+      {
+        "name": "CoreLogic (public records & property data)",
+        "similarity": "Aggregates nationwide property and public-records data for enterprise customers (lenders, insurers, title).",
+        "how_different": "CoreLogic is a broad data provider; Dono focuses on end-to-end title search automation (document retrieval, extraction, indexing, draft PTO generation) with a verification layer and title-underwriting/advisory workflows rather than only selling datasets."
+      },
+      {
+        "name": "Qualia",
+        "similarity": "Workflow/closing platform used by title agencies to run title production and closing operations; integrates with data sources and automation.",
+        "how_different": "Qualia is a full closing platform; Dono is focused specifically on property-records collection, AI extraction, indexing and report generation as a modular service that can feed into platforms like Qualia. Dono emphasizes coverage of county systems and producing verified draft title work rather than complete closing orchestration."
+      },
+      {
+        "name": "Doma / Other title automation startups",
+        "similarity": "Startups attempting to automate title production, reduce manual abstracting and speed up searches.",
+        "how_different": "Dono claims to combine AI extraction, an underwriting intelligence engine, and human-examiner verification with rapid county-by-county integrations and indemnification arrangements \u2014 framing itself as infrastructure underneath title workflows rather than attempting to vertically replace underwriters or examiners."
+      },
+      {
+        "name": "Local abstractors / offshore vendors / legacy title plants",
+        "similarity": "Perform the manual county-by-county research, document retrieval and indexing that title professionals rely on today.",
+        "how_different": "Dono replaces or augments those labor-intensive services with automated concurrent retrieval, AI extraction/indexing and a verified draft product that scales without proportional headcount increases and is delivered via API or UI."
+      }
+    ],
+    "differentiation": {
+      "primary": "An AI-first, modular property-records infrastructure that automates document retrieval, extraction, indexing and report generation while layering human verification and underwriting intelligence for title professionals (attorneys, underwriters, lenders).",
+      "technical": "Direct county/system integrations (e.g., NCliens, Odyssey, VCAP, RODs), AI-powered OCR/extraction tuned for messy scans and handwriting, a document classification/32+ data-point extraction schema, an 'underwriting intelligence' rules engine that encodes title expertise, and an API + UI modular architecture to deliver indexed search packages and formatted reports.",
+      "business": "Go-to-market focused on title professionals and attorney-led states (initially North Carolina), offering both platform access (UI/API) and verified deliverables; sells accuracy guarantees and underwriter-backed indemnification; targets volume scalability (handle surges without proportional headcount), and builds county-by-county infrastructure to expand coverage.",
+      "positioning": "Positioned as the infrastructure layer under title workflows \u2014 'not a replacement for examiners' but a 'very fast paralegal' that removes manual retrieval/indexing. Emphasizes speed, cost reduction, accuracy through hybrid AI+human verification, and modularity vs. legacy data vendors or full-stack closing platforms."
+    },
+    "secret_sauce": {
+      "core_advantage": "A hybrid stack that combines: (1) direct, labor-intensive county/system integrations and connectors; (2) AI models and extraction pipelines specialized for complex title documents (including handwritten/low-quality scans); (3) an underwriting intelligence layer that codifies title rules; and (4) an expert human verification workflow \u2014 delivered as modular APIs and formatted report generation.",
+      "defensibility": "Medium \u2014 building reliable county connectors and a verified dataset plus underwriting relationships creates time-consuming operational and regulatory work that is expensive to replicate. The combination of legal-domain expertise (title examiners), underwriter indemnity arrangements, and accumulated county-level integrations (700+ counties coverage stated) produces practical barriers. However, large incumbents (CoreLogic, Black Knight, First American) or well-funded competitors could replicate parts of the stack over time.",
+      "evidence": [
+        "Dono covers more than 700 counties across the United States (company claims).",
+        "Direct integration mentions: NCliens, Odyssey, V-Cup, ROD systems (from the 4 Pillars description).",
+        "Product claims: 'AI-powered extraction and indexing', 'underwriting intelligence encoded into AI', 'human verification' and '100% accuracy through a verification system that flags uncertain data'.",
+        "Performance claims: 'reduction in document processing time by 95% or more', '80% faster turnaround', '8X faster processing' and 'triple capacity with the same team' (various company statements).",
+        "Underwriter-backed indemnification and liability for the data provided to attorneys (legal/business trust layer)."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Dono's moat is operational rather than purely technological: the company must stitch county integrations, maintain extraction models tuned for noisy title documents, hire and scale a verification/examiner team and build underwriting relationships that back its data with indemnities. Those elements create friction for new entrants. The moat is not impregnable because major incumbents with broad public-records franchises and enterprise sales (First American, Black Knight, CoreLogic) could invest to replicate integrations and AI capabilities. Dono's defensibility will grow with expanded county coverage, unique underwriter partnerships, proprietary labeling/verification datasets and embedded workflows within attorney/agency customers.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "AI-powered data extraction and indexing solution",
+    "AI-powered report generation system",
+    "AI-powered modular property records intelligence platform",
+    "hybrid AI-human verification systems",
+    "AI aggregation with human verification",
+    "The 4 Pillars of Smarter Title AI",
+    "Underwriting intelligence as an encoded rules-and-model hybrid: explicit framing of an 'underwriting intelligence engine' that adapts AI to underwriting standards and pairs with indemnification \u2014 a specialized domain rules layer integrated with ML.",
+    "County-level modular infrastructure: engineering per-jurisdiction connectors and indexing as modular, composable infrastructure (market-by-market county connectors) rather than generic scraping \u2014 operational moat and productized connector pattern.",
+    "Hybrid product/legal risk model: combining AI outputs with guaranteed human verification plus indemnification from underwriters (commercial/legal guardrail integrated with product) to close trust gap in a highly regulated domain."
+  ],
+  "crawl_diagnostics": null,
+  "analyzed_at": "2026-03-08 03:48:52.656404+00:00",
+  "confidence_score": 0.8,
+  "raw_content_analyzed": 65022,
+  "input_hash": "f617ef95765a8619"
+}

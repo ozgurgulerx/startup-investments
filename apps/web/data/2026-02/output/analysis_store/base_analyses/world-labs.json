@@ -8,259 +8,179 @@
   "funding_stage": "unknown",
   "uses_genai": true,
   "genai_intensity": "core",
-  "models_mentioned": [
-    "Marble",
-    "RTFM"
-  ],
-  "build_patterns": [
-    {
-      "name": "Knowledge Graphs",
-      "confidence": 0.05,
-      "evidence": [
-        "No explicit references to graphs, entity linking, or RBAC/index structures in the provided content."
-      ],
-      "description": "Content focuses on multimodal world generation and APIs rather than explicit graph-based knowledge stores or permission-aware entity graphs. Any use of structured knowledge is not described."
-    },
-    {
-      "name": "Natural-Language-to-Code",
-      "confidence": 0.75,
-      "evidence": [
-        "\"From Prompts to Worlds\"",
-        "\"Generate worlds from: - Text - Single images - Multi-image sets - 360\u00b0 panoramas - Video\"",
-        "\"3D as code\"",
-        "\"submit a world generation request and receiving a fully navigable 3D environment in return\""
-      ],
-      "description": "World Labs exposes a programmatic API that accepts natural-language prompts (and other multimodal inputs) to produce executable/embeddable 3D artifacts. The product framing \u2014 \"3D as code\" and \"turns world creation into a programmable capability\" \u2014 signals a natural-language-first interface for generating assets that can be integrated into developer workflows."
-    },
-    {
-      "name": "Guardrail-as-LLM",
-      "confidence": 0.2,
-      "evidence": [
-        "\"Security Measures: World Labs shall implement and maintain ... Security Measures\"",
-        "\"Prohibited Processing: You are prohibited ... from processing ... Protected Health Information ... Sensitive Data\""
-      ],
-      "description": "There is clear policy-level enforcement (TOS, prohibited data, security measures). However, there is no explicit mention of runtime safety/misuse guardrail models, content-moderation LLMs, or secondary model-based checking layers. The presence of governance/policy text suggests organizational guardrails but not necessarily model-based automated guardrails."
-    },
-    {
-      "name": "Micro-model Meshes",
-      "confidence": 0.6,
-      "evidence": [
-        "\"Marble, our frontier multimodal world model\"",
-        "\"RTFM: A Real-Time Frame Model\"",
-        "\"Marble, our first product, is powered by best-in-class generative 3D world models\"",
-        "Multiple research components and products (Marble, RTFM) and specialized capabilities (real-time frames, persistent worlds, editing, export formats)"
-      ],
-      "description": "The org references multiple named models and research previews (Marble, RTFM) and disaggregated capabilities (real-time generation, editing, export, simulation-ready outputs). This points to a modular stack of specialized models (perceptual, temporal, generative, editing) that are likely orchestrated together rather than a single monolithic model."
-    },
-    {
-      "name": "Continuous-learning Flywheels",
-      "confidence": 0.6,
-      "evidence": [
-        "\"creating a tight feedback loop between our cutting-edge research and products\"",
-        "\"The World Labs Platform ... Monitor usage and billing\"",
-        "Partnerships and research collaborations (Lightwheel, NVIDIA, academic groups) and frequent research/product updates"
-      ],
-      "description": "The product + research framing, platform telemetry, partner integrations, and explicit mention of a tight research\u2013product loop indicate they are set up to iterate models using platform usage, partner datasets, and research outcomes \u2014 the components of a continuous improvement flywheel."
-    },
-    {
-      "name": "RAG (Retrieval-Augmented Generation)",
-      "confidence": 0.05,
-      "evidence": [
-        "No explicit mentions of retrieval, vector stores, document search, or knowledge-base augmentation in the content."
-      ],
-      "description": "The materials emphasize generative world models and multimodal inputs rather than retrieval over external knowledge stores; RAG is not evidenced."
-    },
-    {
-      "name": "Agentic Architectures",
-      "confidence": 0.9,
-      "evidence": [
-        "\"Humans and agents can reason, interact, and collaborate inside generated spaces\"",
-        "\"This release ... integrated into interactive systems and simulations\"",
-        "\"The World API enables ... robotics and embodied AI\"",
-        "Integration calls out simulators such as \"NVIDIA Isaac Sim, MuJoCo, and RoboSuite\" and use for robot training and evaluation"
-      ],
-      "description": "Strong signals that worlds are intended to host autonomous agents and be used as environments for embodied AI and multi-step agentic workflows. Integration with robotics simulators and statements about agents reasoning/interacting inside generated worlds indicate agentic architectures and tool/ENV use by agents."
-    },
-    {
-      "name": "Vertical Data Moats",
-      "confidence": 0.65,
-      "evidence": [
-        "\"used across a range of domains ... Gaming & Immersive Media, Robotics & Simulation, Architecture & Design\"",
-        "Multiple industry partnerships and case studies (Escape.ai, SHoP Architects, Lightwheel, VIVERSE, NVIDIA, HTC VIVE)",
-        "\"building frontier world models\" and references to domain-specific tooling and exports for simulators/engines"
-      ],
-      "description": "World Labs targets industry verticals (film, architecture, robotics) and highlights partnerships/case studies and specialized outputs (simulation-ready formats). That focus, together with research collaborations, suggests accumulation of domain-specific data and tooling that can create vertical competitive advantages."
-    }
-  ],
+  "models_mentioned": [],
+  "build_patterns": [],
   "discovered_patterns": [
     {
-      "category": "Model Architecture & Selection",
-      "pattern_name": "Proprietary multimodal world model (Marble)",
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Scalable LOD splat-rendering backend for large-world editing",
       "confidence": 0.95,
       "evidence": [
-        "\"Marble, our first product, generates spatially consistent, high-fidelity, and persistent 3D worlds\"",
-        "\"Marble, our frontier multimodal world model\"",
-        "\"multimodal inputs Create detailed 3D worlds from text, images, videos, or 360 panoramas.\""
+        "Marble Studio now supports editing and composing significantly larger worlds using a new Level-of-Detail splat-rendering backend. Performance should remain stable as you scale up to more worlds and higher splat counts.",
+        "World generations now export in the OpenGL coordinate system (previously OpenCV) for both splats and meshes."
       ],
-      "description": "World Labs builds and exposes a proprietary, purpose-built multimodal generative model (Marble) that consumes text, single images, multi-image sets, panoramas, and video and produces full 3D world representations. The architecture is presented as a single product/model (Marble) optimized for spatial reasoning and 3D generation rather than being an LLM-first stack. The public messaging frames Marble as a unified multimodal world model tailored to lift arbitrary input signals into 3D worlds.",
+      "description": "World Labs implements a server-side rendering pipeline based on spline/splat point rendering with explicit Level-of-Detail (LOD) to support editing/composition of very large 3D worlds. The system exports both 'splats' (point/splat representations) and meshes, converts coordinate systems (OpenCV -> OpenGL), and maintains performance as splat counts rise by using LOD aggregation/streaming.",
       "novelty_score": 6,
-      "why_notable": "Rather than adapting general-purpose LLMs, they emphasize a domain-specific, proprietary 'world model' designed to directly output exploitable 3D worlds from diverse inputs \u2014 a specialized backbone not typically found in vanilla text LLM stacks."
+      "why_notable": "Using a splat-based LOD backend for scalable editing/compose workflows (instead of only mesh streaming) is specialized for photogrammetry-like point representations and enables interactive editing of very dense scenes while preserving detail and export flexibility."
     },
     {
       "category": "Compound AI Systems",
-      "pattern_name": "Multi-stage multimodal pipeline with specialized submodels (encoder\u2192world-generator\u2192render/export)",
-      "confidence": 0.85,
-      "evidence": [
-        "\"The World API makes it possible to create navigable spatial environments directly from text, images, panoramas, multi-view inputs, and video.\"",
-        "\"Each request returns a navigable 3D world that captures layout, depth, lighting, and spatial structure.\"",
-        "\"RTFM: A Real-Time Frame Model \u2014 a research preview... that generates video in real-time as you interact with it.\""
-      ],
-      "description": "Though not spelled out as 'encoder/decoder' in architectural diagrams, the content implies a pipeline: modality-specific encoders (text, image, video, multi-view) feed into a core generative world model that reasons about layout, depth, lighting and outputs a persistent 3D scene. Separate subsystems appear to handle real-time frame generation (RTFM) and different rendering/export formats (Gaussian splatting, point/splat rendering, simulator-ready exports). Orchestration is multi-stage: ingest \u2192 3D inference \u2192 editing/synthesis \u2192 export/rendering.",
-      "novelty_score": 7,
-      "why_notable": "The explicit combination of a world-generation core plus real-time frame-model variants and multiple rendering/export backends (simulation engines, Gaussian splatting, Unreal) indicates a compound, task-specialized ensemble rather than a single monolithic generative model."
-    },
-    {
-      "category": "Retrieval & Knowledge",
-      "pattern_name": "No public evidence of RAG/vector DB use",
+      "pattern_name": "Specialized multi-model, multi-stage pipeline per input modality",
       "confidence": 0.9,
       "evidence": [
-        "No mention of retrieval, embeddings, vector stores, or knowledge-graph components in the provided content."
+        "Transform your photos and images into immersive 3D worlds with Marble\u2019s image-to-world generation.",
+        "Creating Worlds from Video Upload short videos to create immersive 3D worlds with rich spatial information.",
+        "Upgraded pano editing to the latest high-quality model version.",
+        "Record mode in Studio ... expanded video export settings"
       ],
-      "description": "The materials focus on multimodal input\u21923D output generation; they do not reference document/knowledge retrieval, embedding stores, or hybrid search pipelines. There is no evidence of RAG-style components or vector DBs being used for world generation.",
-      "novelty_score": 2,
-      "why_notable": "For a model-heavy platform, absence of stated RAG suggests the core inference operates directly on perceptual inputs rather than augmenting generations with external textual knowledge via retrieval."
-    },
-    {
-      "category": "Evaluation & Quality (EvalOps)",
-      "pattern_name": "Partner-driven evaluation and domain-specific benchmarking (collaboration-centric validation)",
-      "confidence": 0.7,
-      "evidence": [
-        "\"Research collaborations with teams like Lightwheel demonstrate how scalable world generation enables evaluation across many environments\"",
-        "\"Early partners are already integrating world generation directly into their products.\"",
-        "Multiple case studies (NVIDIA Isaac Sim, Lightwheel, Escape.ai, VIVE, etc.) cited as use-cases and validation examples."
-      ],
-      "description": "Rather than public details on automated EvalOps (A/B testing, automated scoring), World Labs emphasizes validation via applied research collaborations and partner integrations (robotics labs, simulation teams, industry partners). This suggests they evaluate fidelity and usefulness across downstream consumers (simulators, designers, studios) and use those integrations and case studies as primary quality signals.",
+      "description": "Different model variants and processing stages are used depending on input modality (single images, multi-image sets, 360\u00b0 panoramas, short videos). The pipeline likely includes: (1) a perception/reconstruction model tailored to the modality (image / video / pano), (2) spatial reasoning to infer geometry and lighting, (3) asset/mesh/splat synthesis, and (4) LOD rendering/export. Model versions are updated independently for modalities (e.g., pano editing has its own 'high-quality model version').",
       "novelty_score": 5,
-      "why_notable": "Using domain partners and simulator integrations as primary evaluation channels aligns eval with real downstream tasks (robotics sim, VR rendering) rather than abstract benchmarks; it's a pragmatic approach for spatial models."
-    },
-    {
-      "category": "Operations & Infrastructure (LLMOps)",
-      "pattern_name": "SaaS API with asynchronous, GPU-backed generation pipeline and export connectors",
-      "confidence": 0.96,
-      "evidence": [
-        "\"Announcing the World API \u2014 a public interface for generating explorable 3D worlds\"",
-        "\"World generation runs asynchronously\"",
-        "\"The World API is available through the World Labs Platform... Generate and manage API keys - Monitor usage and billing - View pricing and purchase credits\"",
-        "\"These worlds can be rendered on the web, exported into downstream tools, or integrated into interactive systems and simulations.\""
-      ],
-      "description": "They operate a cloud-hosted SaaS platform exposing a REST-like World API (API keys, billing, credits, usage dashboards). World generation is asynchronous (job/worker pattern) \u2014 likely placed on GPU clusters for heavy 3D inference. Outputs are persisted and can be exported to simulators or web renderers, implying object storage for assets, a database for world metadata, and connectors/adapters to simulation engines (Isaac Sim, MuJoCo, Unreal). The platform includes account, billing, and usage monitoring, aligning with production-grade LLMOps patterns.",
-      "novelty_score": 4,
-      "why_notable": "A production-ready, billed API for on-demand 3D world generation (with exports for simulators) is an uncommon SaaS niche, but the operational pattern (async GPU jobs + export) is a standard approach for heavy generative workloads."
-    },
-    {
-      "category": "Inference & Rendering Optimization",
-      "pattern_name": "Specialized rendering/representation pipelines (Gaussian splatting, simulator-ready outputs, real-time frame model)",
-      "confidence": 0.88,
-      "evidence": [
-        "\"Splat World: Exploring New Dimensions of Gaussian Splatting in VR\"",
-        "\"RTFM: A Real-Time Frame Model ... generates video in real-time as you interact with it.\"",
-        "\"Download and export in various 2D and 3D formats for seamless integration into your workflows and pipelines.\""
-      ],
-      "description": "World Labs uses or experiments with efficient scene representations and rendering techniques such as Gaussian splatting for VR and real-time frame models for interactive video synthesis. They also produce simulator-ready exports (NVIDIA Isaac Sim, MuJoCo, RoboSuite) implying conversion to physics-ready formats and possibly simplified geometry/materials for real-time simulation. These are targeted optimizations at the rendering / downstream-integration layer rather than generic model quantization details.",
-      "novelty_score": 7,
-      "why_notable": "Adopting Gaussian splatting and a distinct real-time frame model indicates investment in rendering-efficient representations tuned for VR/simulation \u2014 bridging generative world models with interactive real-time systems."
-    },
-    {
-      "category": "Safety & Trust (LLM Security)",
-      "pattern_name": "Platform-level governance, policy guardrails, and security commitments in TOS",
-      "confidence": 0.95,
-      "evidence": [
-        "\"World Labs shall implement and maintain network, physical, technical, and organizational Security Measures\"",
-        "\"You are prohibited ... from processing via the Services: Protected Health Information, subject to HIPAA, unless such processing is covered by a BAA\"",
-        "\"World Labs implements AI risk management practices consistent with industry standards.\"",
-        "\"We ask that you: - Act in good faith and avoid privacy violations - Do not disrupt our services ...\" (Responsible Disclosure guidance)"
-      ],
-      "description": "Their approach to safety emphasizes contractual and policy controls (TOS-level prohibitions, BAA for HIPAA, explicit AI risk management statement) and operational security measures. They provide responsible disclosure guidance and explicit prohibitions on sensitive and high-risk uses. However, the public material does not detail technical guardrails (e.g., prompt-sanitization, content filtering pipelines, prompt-injection mitigations) beyond policy statements.",
-      "novelty_score": 3,
-      "why_notable": "The explicit prohibition and BAA mention show regulatory and privacy awareness; however, the approach is standard for enterprise-facing AI platforms and is expressed at the policy/legal level rather than technical enforcement detail."
-    },
-    {
-      "category": "Learning & Improvement",
-      "pattern_name": "Partner & product feedback loop for model improvement (implicit, partner-driven)",
-      "confidence": 0.6,
-      "evidence": [
-        "\"Research collaborations with teams like Lightwheel demonstrate how scalable world generation enables evaluation\"",
-        "Multiple partner case studies and applied integrations with industry partners and researchers (Escape.ai, Rosebud AI, VIVE, Lightwheel)."
-      ],
-      "description": "There is implied continuous improvement through research collaborations and partner integrations: models and tools are validated, refined, and scaled alongside collaborators in robotics, film, and simulation. The platform likely collects usage/feedback from these integrations to guide research, but there is no explicit description of RLHF, automated feedback ingestion, or continual training loops.",
-      "novelty_score": 4,
-      "why_notable": "Relying on real-world partner integrations as a primary improvement signal is sensible for spatial models (robotics/simulation feedback) but the absence of explicit training-loop detail limits how novel this is."
+      "why_notable": "Explicit modality-specific model versions and tailored processing paths (image vs video vs panorama) indicate an engineering focus on best-per-modality performance rather than a one-model-fits-all approach; this pattern is common but important for high-quality 3D synthesis."
     },
     {
       "category": "Data Strategy",
-      "pattern_name": "Domain-focused proprietary datasets and partnerships (implied)",
-      "confidence": 0.65,
+      "pattern_name": "User-content data flywheel with paid-user opt-out and free-user irrevocable license",
+      "confidence": 0.98,
       "evidence": [
-        "\"World Labs is a leading spatial intelligence company, building frontier world models that can perceive, generate, reason, and interact with the 3D world.\"",
-        "Extensive case studies and collaborations across VR, robotics, architecture and film (NVIDIA Isaac Sim, Lightwheel, VIVE, SHoP Architects, etc.)."
+        "You grant World Labs a non-exclusive, royalty-free, worldwide, fully paid, and sublicensable license to collect, aggregate, use, and analyze User Content for business purposes, including further development of World Labs Products or the Services, marketing and promotions, benchmarking, or training of World Labs AI Models.",
+        "For Free Account Users, this license is irrevocable, subject to Applicable Law. For Paid Account Users, this license is revocable, and you may opt out from World Labs' use of your User Content, including via your Account page."
       ],
-      "description": "Although the content does not explicitly enumerate datasets, the depth of domain partnerships and targeted applications imply they have or gather proprietary multimodal datasets (images, panoramas, multi-view captures, video, and potentially reconstructed 3D geometry) tailored to spatial reasoning tasks. Partner integrations and case studies likely provide task-specific data and annotation sources used in model development.",
+      "description": "They intentionally collect and incorporate user Inputs/Outputs into training/analysis as part of their model improvement pipeline, with differential terms for free vs paid accounts. This creates a continuous data intake loop that fuels model updates and product improvements while providing an opt-out path for paying customers.",
+      "novelty_score": 3,
+      "why_notable": "The explicit contractual license and opt-out distinction creates a deliberate commercial tradeoff (free users = data contribution, paid users = data control), which is a recognizable data moat strategy but not novel technically."
+    },
+    {
+      "category": "Evaluation & Quality (EvalOps)",
+      "pattern_name": "Product-driven telemetry and generation-status observability",
+      "confidence": 0.9,
+      "evidence": [
+        "Fixed bugs around world generation status and added better error messaging for failed generations.",
+        "Fixed bug around display of thumbnails for in-progress world generations.",
+        "World IDs are now displayed in the Worlds section, making it easier to share them with support for debugging."
+      ],
+      "description": "World Labs exposes generation job status, thumbnails for in-progress jobs, and world identifiers to users and support teams. These signals are used for debugging and product quality (improved error messaging, job lifecycle tracking). The presence of world IDs suggests correlation keys for backend logs/metrics and customer support workflows.",
+      "novelty_score": 2,
+      "why_notable": "Standard operational observability for asynchronous generation jobs, but surfaced UX details (in-progress thumbnails, world IDs) indicate mature user-facing telemetry integration."
+    },
+    {
+      "category": "Model Architecture & Selection",
+      "pattern_name": "Proprietary, versioned spatial models (opaque model names)",
+      "confidence": 0.95,
+      "evidence": [
+        "World Labs exclusively retains ownership of all rights, titles, and interests in and to the World Labs Products, Services ... AI Models, System Data, Feedback",
+        "Upgraded pano editing to the latest high-quality model version.",
+        "Marble Studio ... upgraded pano editing to the latest high-quality model version. As part of this update, the credit cost per pano edit has been adjusted"
+      ],
+      "description": "World Labs uses in-house, proprietary spatial AI models (no public model names disclosed). They maintain multiple versions and incrementally roll out model upgrades (with credit-cost changes reflecting model capability/compute cost). Models are likely specialized for tasks such as image-to-world, pano editing, and video-to-world.",
+      "novelty_score": 3,
+      "why_notable": "Using proprietary, versioned models is expected for a product-first company; the noteworthy element is explicit credit-based cost adjustment correlated to model upgrades."
+    },
+    {
+      "category": "Compound AI Systems",
+      "pattern_name": "End-to-end reconstruction -> asset grounding -> export convertible pipeline",
+      "confidence": 0.9,
+      "evidence": [
+        "Image prompting in Marble works by analyzing your uploaded image and generating a 3D environment based on its content, style, and composition. The AI understands spatial relationships, lighting, and architectural elements to create explorable worlds.",
+        "Assets are now roughly scaled and grounded to better match real-world units",
+        "Meshes can now be imported into Composer",
+        "Customize export preferences for high-quality meshes (vertex-colored vs textured)"
+      ],
+      "description": "Their system performs semantic/spatial analysis to reconstruct 3D scenes, scales and grounds assets to real-world units, supports mesh and splat export, and provides options for vertex-colored vs textured meshes. This indicates a pipeline that synthesizes geometry + appearance, normalizes units, and provides multiple exportable representations for downstream tools.",
       "novelty_score": 5,
-      "why_notable": "Because spatial intelligence requires specialized captures and annotations, assembling vertical data (multi-view captures, stitched panoramas, simulation scenes) is a defensible moat \u2014 not unique but strategically important."
+      "why_notable": "Combining semantic style/lighting capture with exportable, normalized real-world assets and multiple export formats is powerful for creators and engineers; it's a focused vertical stack that bridges generative AI and 3D asset engineering."
+    },
+    {
+      "category": "Operations & Infrastructure (LLMOps)",
+      "pattern_name": "Strict API integration and governance rules (metering, auth, error handling)",
+      "confidence": 0.98,
+      "evidence": [
+        "When accessing the Services via APIs or integrating API functionality within your technology stack ... implement API integrations in accordance with World Labs' Documentation, including proper authentication mechanisms, error handling procedures, and rate limiting compliance; ... implement proper error handling and retry logic in accordance with World Labs' technical specifications; maintain API version compatibility",
+        "Video prompt file size limit for the API increased to 100MB",
+        "Images need to be under 20Mb"
+      ],
+      "description": "They enforce standard API engineering practices: authenticated access, rate limits, versioning, strict input-size constraints, and explicit instructions for error handling and retry logic. API telemetry ties into billing/crediting (credit cost changes are communicated), indicating tight metering at API endpoints.",
+      "novelty_score": 2,
+      "why_notable": "These are standard API governance patterns for production services; the notable aspect is explicit correlation of model/feature changes to credit cost and API limits."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Legal and policy-first safety posture with product-level moderation authority",
+      "confidence": 0.95,
+      "evidence": [
+        "We do not undertake to review all User Content, and we expressly disclaim any duty or obligation to undertake any monitoring or review of any User Content.",
+        "We may ... delete or remove User Content or refuse to post any User Content at any time and for any reason ... or terminate or suspend your access ... if your User Content is reasonably likely, in our sole determination, to violate Applicable Law or this TOS",
+        "We take the security of our systems seriously and appreciate responsible disclosure of potential security issues."
+      ],
+      "description": "World Labs relies heavily on TOS/policy controls and user-account controls for safety, reserves unilateral moderation powers, and solicits responsible disclosure. They explicitly prohibit processing PHI without a BAA and restrict 'Sensitive Data' processing. There is contractual emphasis on data controls (opt-out for paid users) and industry-standard security measures.",
+      "novelty_score": 3,
+      "why_notable": "This is a governance-forward approach typical for production AI services; the explicit BAA/PHI clause and paid-user opt-out are important operational/legal safeguards."
+    },
+    {
+      "category": "Learning & Improvement",
+      "pattern_name": "Product-change driven model updates and credit-cost signal",
+      "confidence": 0.85,
+      "evidence": [
+        "Upgraded pano editing to the latest high-quality model version. As part of this update, the credit cost per pano edit has been adjusted from 50 to 150 credits.",
+        "Marble Studio now supports ... using a new Level-of-Detail splat-rendering backend."
+      ],
+      "description": "Model/version upgrades and backend improvements are explicitly communicated alongside billing changes, implying that model capability, computational cost, and product monetization are tightly coupled. This suggests a business-driven iteration loop where product metrics and cost influence model deployment cadence.",
+      "novelty_score": 4,
+      "why_notable": "Signaling compute/quality tradeoffs to users via credits is a pragmatic commercial pattern that also gives users transparency on why costs change after model upgrades."
+    },
+    {
+      "category": "Retrieval & Knowledge",
+      "pattern_name": "No public evidence of RAG/vector DB or explicit external knowledge retrieval integrations",
+      "confidence": 0.95,
+      "evidence": [
+        "The provided content contains no mentions of retrieval augmentation, vector stores, reranking, or knowledge graphs.",
+        "API documentation references general integration, authentication, rate limiting, and not caching API responses beyond duration specified in Documentation."
+      ],
+      "description": "There is no explicit indication that World Labs uses RAG, vector databases, knowledge graphs, or hybrid retrieval for their spatial models. The product focus is on direct image/video/pano-to-3D generation rather than text-based knowledge retrieval.",
+      "novelty_score": 2,
+      "why_notable": "Absence of evidence suggests the core product is perceptual/spatial generation rather than retrieval-augmented LLM workflows; this narrows likely architecture choices."
     }
   ],
   "pattern_category_scores": {},
   "novel_approaches": [
     {
-      "approach": "Programmable World Generation via a public World API that returns fully navigable, persistent 3D worlds",
-      "why_novel": "Most generative APIs return text, images or short video; World Labs exposes world-generation as a first-class API that yields persistent, explorable 3D assets ready for simulation, rendering, and editing.",
-      "potential_impact": "Lowers barrier to entry for spatial content creation, enables rapid generation of simulation environments for embodied AI/robotics, and allows integration of spatial intelligence into standard application toolchains."
+      "approach": "Splat-based LOD backend coupled with multiple export formats (SPZ splats v2/v3, meshes vertex-colored vs textured) and coordinate-system conversion",
+      "why_novel": "While LOD and point-based rendering are known, combining splat LODs as first-class editable objects with versioned splat formats (SPZ v2/v3), explicit coordinate-system conversion (OpenCV->OpenGL), and direct export/import into composer tools is an integrated end-to-end engineering practice uncommon in consumer AI products.",
+      "potential_impact": "Enables interactive editing and composition of extremely dense photoreal scenes, efficient export to downstream 3D pipelines, and easier interoperability with existing graphics toolchains used by creators and studios."
     },
     {
-      "approach": "Combining world synthesis with real-time interactive frame models (RTFM) and efficient rendering (Gaussian splatting)",
-      "why_novel": "The dual emphasis on a high-fidelity persistent world model and a real-time frame synthesizer bridges long-running heavy inference for world creation with low-latency interactive visual generation.",
-      "potential_impact": "Enables interactive workflows (gameplay, film previsualization, VR exploration) where users can both generate expansive worlds and experience or manipulate them in real time."
-    },
-    {
-      "approach": "Export-first design for simulation integration (simulation-ready exports to Isaac Sim, MuJoCo, RoboSuite)",
-      "why_novel": "The platform doesn\u2019t just produce visual assets but targets simulator semantics (physics-ready scenes), enabling real2sim workflows at scale \u2014 a relatively rare end-to-end offering.",
-      "potential_impact": "Accelerates embodied AI training/evaluation by providing large numbers of plausible, diverse simulated environments derived from real captures or synthetic prompts."
-    },
-    {
-      "approach": "Composable/persistent worlds that can be expanded, combined, and edited programmatically",
-      "why_novel": "Persistence and composition (expand/combine worlds) make generated environments first-class stateful objects rather than throwaway samples; this supports collaborative building and long-lived simulations.",
-      "potential_impact": "Facilitates collaborative content pipelines, continuous world improvement, and building complex multi-scene simulations or game levels programmatically."
+      "approach": "Credit-cost signaling tied to model/version upgrades (quality -> credit price)",
+      "why_novel": "Directly communicating and enforcing increased credit cost as a consequence of a model upgrade (e.g., pano edit cost from 50 -> 150) ties economic signals to model capability and compute consumption.",
+      "potential_impact": "Allows product teams to monetize higher-quality inference while managing demand and costs; provides users transparency on pricing vs quality tradeoffs and may steer usage to appropriate tiers."
     }
   ],
   "model_details": {
     "primary_models": [
-      "Marble (proprietary multimodal world model)",
-      "RTFM (Real-Time Frame Model) \u2014 research preview/real-time variant"
+      "Unspecified proprietary 'World Labs AI Models' (modality-specific: image-to-world, video-to-world, pano-editing models)"
     ],
     "fine_tuning": {
-      "uses_fine_tuning": false,
-      "fine_tuning_approach": "No public evidence of fine-tuning approaches (LoRA/full fine-tune) in the provided content.",
-      "training_data_source": "Not mentioned in public content; case studies and partner collaborations imply domain and partner-provided multimodal data, but no explicit training corpus described."
+      "uses_fine_tuning": true,
+      "fine_tuning_approach": "Not specified; evidence only that user content is used for training/analysis and model versions are updated. Likely iterative/full-model training or fine-tuning on aggregated user data, but no method (LoRA, full fine-tune) mentioned.",
+      "training_data_source": "User Content (images, videos, panoramas) aggregated from product; third-party/open-source components may also be used per Open-Source Software note"
     },
     "inference_optimization": [
-      "Asynchronous GPU-backed generation jobs (async request \u2192 job \u2192 output)",
-      "Real-time frame model (RTFM) for interactive video generation",
-      "Rendering/representation optimizations such as Gaussian splatting for VR/exploration",
-      "Export/serialization into simulator-ready formats for downstream performance"
+      "Level-of-Detail rendering for runtime performance/scale",
+      "Modal routing to modality-specific models (images, video, panorama)",
+      "Export-format conversions and asset grounding to real-world units to reduce downstream processing",
+      "API-side metering limits and file-size constraints to control compute costs"
     ],
     "model_routing": {
       "uses_routing": true,
-      "routing_strategy": "Implicit routing by modality and runtime requirements: modality-specific ingestion (text/image/video/panorama) appears to trigger corresponding processing paths (e.g., multi-view recon pipeline vs. single-image upsampling), with separate real-time model variants (RTFM) and export/render backends. No explicit 'Mixture-of-Experts' or dynamic model-selection details are disclosed."
+      "routing_strategy": "Input-modality routing (image vs multi-image vs video vs panorama) to modality-optimized models/pipelines; separate model versions per modality (e.g., 'latest high-quality model version' for pano editing)."
     },
     "compound_ai": {
       "is_compound_system": true,
-      "orchestration_pattern": "A multi-component system: modality encoders \u2192 core world-generation engine \u2192 optional real-time frame synthesis module \u2192 rendering/export adapters \u2192 persistence and connectors to simulation engines. Orchestration appears async for heavy jobs and real-time for interactive flows."
+      "orchestration_pattern": "Multi-stage pipeline: perception/reconstruction -> spatial reasoning/asset inference -> normalization/real-world scaling -> LOD splat/mesh synthesis -> rendering/export. Different front-end modes (Compose, Chisel, Animate, Record) trigger variants of the pipeline with their own processing and export steps."
     }
   },
   "market_type": "horizontal",
   "vertical": "developer_tools",
-  "sub_vertical": "3D world generation APIs / spatial content creation",
-  "sub_sub_vertical": "multimodal explorable 3D world generation from text/images/video",
+  "sub_vertical": "3D world generation APIs for spatial AI",
+  "sub_sub_vertical": "image/video-to-3D world generation with mesh/texture exports",
   "vertical_taxonomy": {
     "ontology_id": "startup-vertical-taxonomy",
     "ontology_version": "2026-02-07_v1",
@@ -281,7 +201,7 @@
       {
         "id": "ai_ml_platforms",
         "label": "AI/ML Platforms",
-        "confidence": 0.8
+        "confidence": 0.9
       }
     ]
   },
@@ -297,182 +217,136 @@
     "has_custom_models": true
   },
   "engineering_quality": {
-    "score": 6,
+    "score": 5,
     "has_public_api": true,
     "has_sdk": false,
     "has_documentation": true,
-    "has_engineering_blog": true,
+    "has_engineering_blog": false,
     "github_presence": false,
     "github_stars": 0,
     "github_contributors": 0,
     "open_source_projects": [],
     "signals": [
-      "Public World API enabling text/images/video to navigable 3D worlds",
-      "Platform features: API keys, usage monitoring, billing, quickstart guides",
-      "Sample projects and documentation mentioned",
-      "Blog-style Research & Insights posts and API announcements"
+      "Public API mentioned in site navigation (Marble Labs API).",
+      "Explicit API-related usage constraints in TOS (rate limits, versioning expectations).",
+      "Content includes Getting Started guides and Prompt Guidelines, indicating some developer-oriented material.",
+      "Regular feature updates and release notes with dates (Jan 2026, Dec 2025) suggesting ongoing development."
     ]
   },
   "implementation_maturity": "production",
   "team_analysis": {
-    "founders": [
-      {
-        "name": "Fei-Fei Li",
-        "role": "Co-founder and leader (CEO implied)",
-        "background": "AI pioneer; Stanford professor; former director of Stanford AI Lab; co-director of Stanford's Human-Centered AI Institute; prominent figure in computer vision and AI.",
-        "previous_companies": [
-          "Stanford University (academic/research)"
-        ],
-        "technical_depth": "high",
-        "domain_expertise": "AI, computer vision, machine learning, spatial intelligence"
-      },
-      {
-        "name": "Justin Johnson",
-        "role": "Co-founder",
-        "background": "Renowned technologist in machine learning, generative AI, computer vision, and graphics (per company description).",
-        "previous_companies": [],
-        "technical_depth": "high",
-        "domain_expertise": "ML, computer vision, graphics"
-      },
-      {
-        "name": "Christoph Lassner",
-        "role": "Co-founder",
-        "background": "Renowned technologist in machine learning, generative AI, computer vision, and graphics (per company description).",
-        "previous_companies": [],
-        "technical_depth": "high",
-        "domain_expertise": "ML, computer vision, graphics"
-      },
-      {
-        "name": "Ben Mildenhall",
-        "role": "Co-founder",
-        "background": "Renowned technologist in machine learning, generative AI, computer vision, and graphics; linked to pioneering work in 3D modeling and related areas.",
-        "previous_companies": [],
-        "technical_depth": "high",
-        "domain_expertise": "ML, computer vision, graphics, 3D modeling"
-      }
-    ],
+    "founders": [],
     "team_signals": {
       "engineering_heavy": true,
       "has_ml_expertise": true,
       "has_domain_expertise": true,
       "hiring_signals": [
-        "Careers page indicates ongoing recruitment; no specific roles disclosed in provided text"
+        "No explicit job postings included in provided content; product scope (3D world generation, image/video prompts, API) implies roles in ML, computer graphics, software engineering, and API development."
       ],
-      "team_size_indicators": "small",
+      "team_size_indicators": "unknown",
       "remote_distributed": false
     },
-    "founder_market_fit": "Excellent fit: founders are leading researchers in AI/vision/graphics with direct alignment to Marble\u2019s multimodal world models and spatial intelligence goals.",
+    "founder_market_fit": "not determinable from provided content",
     "team_strengths": [
-      "Access to world-class AI and CV leadership (Fei-Fei Li) and a team described as leading experts in ML, CV, and graphics.",
-      "Clear alignment between research heritage and product strategy (Marble, World API, warehouse of platform offerings).",
-      "Early partner ecosystem and public-facing API/products suggest maturity in productization and deployment signals."
+      "Product demonstrates complex AI-driven 3D world generation capabilities (image-to-world, video-to-world, 360 panoramas) implying strong ML and graphics engineering",
+      "Active API and subscription features indicate productization and scalable software engineering capabilities"
     ],
     "team_red_flags": [
-      "Public data lacks granular bios and verifiable evidence of the broader team size; potential over-reliance on founders; limited detail on organizational depth in provided material."
+      "No publicly available information about founders, leadership, or advisory network in the provided content",
+      "No public evidence of measurable execution milestones, press, or funding signals in the provided content"
     ],
-    "team_confidence": 0.8
+    "team_confidence": 0.25
   },
   "business_model": {
     "pricing_model": {
-      "type": "usage_based",
+      "type": "subscription",
       "pricing_evidence": [
-        "free plan with unit usage limit",
-        "paid plan required after limit",
-        "View pricing and purchase credits",
-        "World API platform supports API keys and billing"
+        "credit-based subscription system",
+        "four subscription tiers: Free, Standard, Pro, Max",
+        "credits are used each time you take an action in Marble",
+        "Free plan for exploring basics; higher tiers unlock more features"
       ],
       "free_tier_available": true,
-      "enterprise_focus": false,
+      "enterprise_focus": true,
       "price_points": [
-        "credit-based pricing",
-        "no explicit numeric prices disclosed"
+        "Free: up to 4 world generations",
+        "Standard: up to 12 world generations",
+        "Pro: up to 25 world generations",
+        "Max: up to 75 world generations"
       ]
     },
     "gtm_strategy": {
       "primary_channel": "developer_first",
       "evidence": [
-        "World API is a programmable building block with API keys and documentation",
-        "quickstart guides and sample projects",
-        "case studies and partner integrations",
-        "announcements of APIs and platform"
+        "World Labs API mentioned with integration guidelines and restrictions",
+        "API documentation requirements (authentication, rate limits, versioning, etc.)",
+        "Prominent emphasis on exports, meshes, and open interoperability (OpenGL/OpenCV, coordinate systems)",
+        "Pricing includes API access and usage through credits"
       ],
       "target_segment": "developer",
       "sales_motion": "self_serve"
     },
     "revenue_model": {
-      "monetization_approach": "credit-based usage pricing for API calls; free tier; paid credits; potential enterprise terms",
+      "monetization_approach": "subscription-based with credits; paid accounts gain commercial rights to outputs; potential fees for third-party output access",
       "unit_economics_signals": [
-        "no explicit margins or ARPU data",
-        "pricing tied to API usage via credits"
+        "credits consumed per action",
+        "commercial rights included at Pro tier",
+        "potential third-party access fees for public outputs"
       ],
       "recurring_revenue": true
     },
     "distribution_advantages": [
-      "World Labs Platform as centralized API distribution",
-      "pricing and credits integrated into platform",
-      "partner integrations and case studies provide social proof"
+      "Marble community where worlds can be shared or downloaded",
+      "Output licensing and premium access tiers for third-party viewing or retrieval",
+      "API ecosystem enabling developer integrations and potential network effects"
     ],
     "customer_acquisition": {
       "acquisition_channels": [
-        "content marketing and product announcements",
-        "developer documentation and quickstarts",
-        "case studies and industry partnerships"
+        "self-serve online sign-up",
+        "free tier to attract hobbyists and experiments",
+        "API/docs and developer onboarding to attract developers"
       ],
-      "customer_proof_points": [
-        "Preview",
-        "Fenestra",
-        "Escape.ai",
-        "Lightwheel",
-        "VIVE (HTC) collaboration",
-        "NVIDIA Isaac Sim integration"
-      ]
+      "customer_proof_points": []
     },
-    "business_model_clarity": "evolving",
-    "business_model_confidence": 0.64
+    "business_model_clarity": "clear",
+    "business_model_confidence": 0.75
   },
   "product_analysis": {
     "product_stage": "general_availability",
     "stage_evidence": [
-      "Today, we\u2019re launching the World API \u2014 a public interface for generating explorable 3D worlds",
-      "The World API is available through the World Labs Platform with API keys, usage monitoring, pricing, credits, and documentation",
-      "Announcement and updates indicate ongoing development and ecosystem engagement (e.g., 3D as code, World API announcement, funding updates)"
+      "Four pricing tiers with detailed feature sets and credits",
+      "Regular feature updates and release notes through 2025\u20132026 (e.g., Jan 29, 2026; Dec 18, 2025; Nov 20, 2025)",
+      "End-to-end workflows: image-to-world and video-to-world, editing, exporting, and community sharing",
+      "Advanced capabilities like OpenGL/OpenCV coordinate system choice and OpenGL export compatibility",
+      "Formal terms of service and API usage guidance indicating a mature platform"
     ],
     "feature_depth": {
       "core_features": [
-        "Generate navigable 3D worlds from text, single images, multi-image sets, 360\u00b0 panoramas, or video",
-        "Asynchronous world generation with no proprietary tooling required",
-        "Render in the browser and export into downstream tools; use as foundation for interactive experiences",
-        "Worlds capture layout, depth, lighting, and spatial structure",
-        "Platform features: API keys management, usage monitoring, pricing/credits, documentation, sample projects, quickstart guides"
+        "Image-to-world generation from prompts with image prompts and quality guidelines",
+        "Video-to-world generation (short videos to 3D worlds)",
+        "360 panorama support and editing",
+        "World creation, editing, exporting, and community downloads",
+        "Mesh and textured mesh exports with quality controls",
+        "Credit-based subscription with multiple tiers"
       ],
       "differentiating_features": [
-        "Marble: multimodal world model enabling on-demand, cohesive 3D worlds from diverse inputs",
-        "Directly embeddable 3D worlds into products and workflows without a full 3D production pipeline",
-        "Support for 3D layout control and interactive editing within generated worlds",
-        "Broad ecosystem showcase with real-world case studies across categories (gaming, robotics, architecture, design)"
+        "Ability to choose between OpenGL and OpenCV coordinate systems for exports",
+        "LOD-based splat-rendering backend to enable larger worlds",
+        "Commercial rights to generated worlds for Pro accounts",
+        "World IDs displayed in Worlds section to aid debugging and support",
+        "Expanded Studio capabilities with enhanced export settings and 360 panorama improvements"
       ],
       "roadmap_signals": [
-        "Looking Ahead: Worlds generated as easily as words and images",
-        "Spatial intelligence as a shared layer across creative tools and physical AI systems",
-        "Humans and agents reasoning, interacting, and collaborating inside generated spaces",
-        "World API as a first step toward programmable spatial content today"
+        "Nov 2025: Level-of-Detail splat rendering for significantly larger worlds",
+        "Dec 2025\u2013Jan 2026: Improved export options and coordinate system alignment (OpenGL/OpenCV)",
+        "Ongoing enhancements to export quality, mesh grounding, and asset handling",
+        "Continued feature parity between Studio/Composer/Chisel with better feedback on expansion regions"
       ],
       "feature_completeness": "comprehensive"
     },
     "integration_ecosystem": {
       "integrations_mentioned": [
-        "NVIDIA Isaac Sim",
-        "MuJoCo",
-        "RoboSuite",
-        "Interior AI",
-        "xFigura",
-        "Preview",
-        "Fenestra",
-        "Lightwheel",
-        "Beeble",
-        "Escape.ai",
-        "Rosebud AI",
-        "VIVERSE"
+        "Marble API"
       ],
       "api_maturity": "comprehensive",
       "sdk_availability": [],
@@ -480,217 +354,197 @@
       "marketplace_presence": []
     },
     "use_cases": {
-      "primary_use_case": "Programmable generation of explorable, navigable 3D worlds from multimodal inputs for embedding into applications, simulations, and experiences",
+      "primary_use_case": "Create immersive 3D worlds from images or short videos for visualization and exploration",
       "secondary_use_cases": [
-        "Gaming & immersive media",
-        "Robotics & simulation training and evaluation",
-        "Architecture & design visualization"
+        "Editing and refining worlds (lighting, structure, and content)",
+        "Exporting worlds and assets for use in other pipelines",
+        "Downloading and sharing worlds via the Marble community",
+        "Commercial usage of generated outputs for paid accounts (Pro tier)"
       ],
-      "customer_stories": [
-        "Preview \u2013 professional workspace for filmmakers and AI-native studios",
-        "Fenestra \u2013 architectural workflows transforming sketches/images into explorable worlds",
-        "Lightcraft and Beeble \u2013 indie filmmaking workflows",
-        "Escape.ai \u2013 turning 2D cinema into navigable 3D worlds",
-        "NVIDIA Isaac Sim and Marble integration for robotics simulation"
-      ],
-      "industry_focus": [
-        "Gaming & immersive media",
-        "Robotics & simulation",
-        "Architecture & design"
-      ]
+      "customer_stories": [],
+      "industry_focus": []
     },
     "product_risks": [
-      "Vendor lock-in to World Labs Platform and World API",
-      "Latency and scalability considerations for large, complex worlds",
-      "Pricing/credits model may affect cost for high-volume usage",
-      "Limited public bug bounty program (no formal rewards despite responsible disclosure guidelines)",
-      "Reliance on proprietary world models may impact portability across tools"
+      "Licensing and rights complexity: Free vs Paid accounts have different rights for Output; commercial rights explicitly tied to Pro plans",
+      "API usage complexity: Rate limits, authentication, versioning, and potential termination for violations",
+      "Regulatory and privacy obligations: Age restrictions, data handling policies, and AI-regulation compliance (EU AI Act references)",
+      "Reliance on AI outputs: Potential inaccuracies or suboptimal results requiring user expertise",
+      "Billing/credit risk: Credits-based model may lead to overage charges or downgrades affecting workflows"
     ],
     "product_strengths": [
-      "GA public API for multimodal world generation",
-      "Flexible input modalities (text, images, panoramas, video)",
-      "Asynchronous generation with no special tooling required",
-      "Embeddable worlds across products and pipelines",
-      "Strong ecosystem with case studies across multiple industries and production pipelines",
-      "Documentation, sample projects, and quickstart guides support onboarding"
+      "Mature, feature-rich end-to-end platform for image/video to 3D worlds with editing and export",
+      "Strong export and workflow capabilities (meshes, OpenGL/OpenCV, texture options, COI improvements)",
+      "Commercial rights support for paid accounts and a path to professional-grade outputs",
+      "Active roadmap and frequent updates signaling ongoing maturation",
+      "Clear best-practice guidance for inputs and prompts to optimize results"
     ],
-    "product_confidence": 0.72
+    "product_confidence": 0.78
   },
   "unique_findings": [
-    "API-first world model: World Labs treats 3D world generation as a callable service (the World API) rather than a packaged modeling product or authoring app. That shifts the product boundary from offline asset creation to on-demand, programmatic world creation integrated directly into apps and pipelines.",
-    "Multimodal \u2192 persistent navigable worlds with editability and composition: their stack promises not just single-shot 2D->3D lifts (NeRF-style) but persistent, editable scene artifacts you can expand, combine, and re-edit \u2014 implying a scene representation that supports mutation, merges, versioning, and export to multiple runtime targets.",
-    "Simulation\u2013ready outputs: they explicitly claim integration with NVIDIA Isaac Sim, MuJoCo, RoboSuite and mention physics/plausibility. That requires generating not only geometry and textures but collision meshes, semantic/affordance labels, material parameters, and consistent scale \u2014 a much higher bar than photoreal rendering alone.",
-    "Real-time interactive generation research (RTFM) + neural-rendering engineering (Gaussian splatting): the stack combines a research focus on real-time frame models with practical neural rendering techniques tuned for VR/web. This points to a hybrid architecture coupling fast neural renderers with heavier offline geometry synthesis.",
-    "Multi-input temporal coherence: supporting single images, multi-views, 360 panoramas and video suggests systems for (a) multi-view fusion into consistent 3D geometry, (b) temporal coherence across video frames, and (c) canonicalization of camera transforms and scale. Those are nontrivial engineering problems beyond marketing copy.",
-    "Layout-first generation option: the claim 'create from 3D layouts' indicates the model can accept structured 3D constraints (scene graphs / bounding-box layouts / floorplans) and generate content consistent with those constraints \u2014 an architecture that blends conditional generative models with symbolic layout inputs.",
-    "Composable export surface: they emphasize many export formats and runtime targets (browser, game engines, simulator stacks). That implies a non-trivial asset pipeline for LOD, topology correction, material mapping, and transform/coordinate-system conversion.",
-    "Product + research coupling as a feature: proud publication names (RTFM, Gaussian splatting case studies) combined with deep partnerships (NVIDIA, HTC VIVE, architecture firms) suggests they are intentionally turning research outputs directly into product differentiators instead of leaving them as open papers.",
-    "Marketing over technical specifics: the public content emphasizes product scenarios, partners, and vision but lacks concrete model architecture details (representations, loss functions, datasets, metrics, model sizes, latency), which begs caution in interpreting the claims as proven at scale."
+    "Splat-based LOD rendering backend (Level-of-Detail splat-rendering) and a proprietary SPZ splat format: World Labs is not just outputting meshes \u2014 they maintain a point/splat-first rendering pipeline with SPZ v2/v3 exports and LOD support. That design is optimized for very high 'splat' counts and interactive composition of large worlds, which is different from a pure mesh/NeRF export pipeline.",
+    "Round-trip asset pipeline with real-world unit grounding and dual coordinate-system support: they explicitly scale and ground assets to match real-world units and let users choose between OpenGL and OpenCV coordinate systems on export. This indicates careful engineering to make generated content interoperable with external 3D tools and game/AR engines \u2014 a nontrivial integration layer.",
+    "Image + short-video -> explorable 3D workflow with editing primitives (Chisel, Composer, Studio) and expansion mode: they combine single-image and multi-frame video reconstruction, panorama editing, and a user-facing expansion/editing system that validates expansion regions (height checks etc.). Converting neural volumetric reconstructions into editable, exportable geometry and UX-friendly editing affordances reveals hidden complexity.",
+    "Explicit handling of different input modalities and capture constraints: detailed capture guidelines (fixed focal length, rotation, 180\u2013360\u00b0 coverage, minimum 1024px images, <20MB, video upload limits increased to 100MB) show a production-aware pipeline that trades off client-side capture constraints with backend model expectations to improve reconstruction robustness.",
+    "Optics-aware coordinate & export choices + vertex-colored vs textured mesh options: they allow export preferences for vertex-colored vs textured meshes and changed default coordinate export (OpenGL) for compatibility \u2014 this suggests a build-for-interoperability mindset that reduces friction integrating generated content into downstream pipelines (renderers, game engines, 3D editors).",
+    "Business-ML data design baked into TOS: free-account data is irrevocably licensable for training while paid users can opt out (prospective only). That legal design is a technical signal \u2014 they expect to/are collecting large-scale user data to continuously train/improve models and reduce cold-start problems.",
+    "API-level operational constraints and productized developer expectations: strict API guidance (no unsupported endpoints, rate limits, secure credential storage, no long caching beyond specified retention) paired with prohibitions against competitive use indicates they are building an API intended for enterprise/embedded workflows and tightly controlling model/data leakage risks.",
+    "Focus on production video export and compositing: expanded video export settings (codec, fps, aspect ratio), larger video prompt limit, and tools for planning flythroughs (floating preview window) point to an engineering effort around deterministically reproducible render pipelines and high-quality output rendering \u2014 more than a research demo."
   ],
-  "technical_depth": "medium",
+  "technical_depth": "unknown",
   "newsletter_potential": "high",
   "story_angles": [
     {
       "angle_type": "architecture",
-      "headline": "How World Labs stitched encoder\u2192world-generator\u2192renderer into an asynchronous API that returns explorable 3D worlds",
-      "summary": "World Labs appears to have built a multi-stage multimodal pipeline (encoder \u2192 world generator \u2192 renderer/export) exposed as an asynchronous SaaS API that turns text, images, panoramas, and video into navigable 3D environments. For engineers, the interesting bits are how they made heavy GPU-driven generation practical as a programmatic building block \u2014 from async job orchestration and export connectors to simulator-ready outputs and real-time rendering experiments.",
+      "headline": "How Marble\u2019s LOD splat renderer lets teams edit giant 3D worlds in the browser",
+      "summary": "World Labs swapped the usual mesh-first approach for a level-of-detail (LOD) splat-rendering backend that keeps performance stable while composing and editing much bigger spatial scenes. The result is an interactive Studio that supports large-world editing, import/export workflows, and realtime composition without the usual memory and draw-call bottlenecks.",
       "evidence": [
-        "The World API runs asynchronously and accepts text, single images, multi-image sets, 360\u00b0 panoramas, and video.",
-        "Marble described as a multi-stage world model with encoder\u2192world-generator\u2192render/export, and mentions simulator-ready outputs (NVIDIA Isaac Sim, MuJoCo) and Gaussian splatting/real-time frame model (RTFM)."
+        "November 20, 2025: Marble Studio now supports editing and composing significantly larger worlds using a new Level-of-Detail splat-rendering backend.",
+        "Feature updates across Dec 2025\u2013Jan 2026: meshes can be imported into Composer; export compatibility improvements (OpenGL/OpenCV coordinate choices, SPZ v2 default with v3 opt-in)."
       ],
       "uniqueness_score": 8
     },
     {
       "angle_type": "data",
-      "headline": "Their secret weapon: partner-driven, domain-specific corpora and testbeds (not just generic image-text stacks)",
-      "summary": "Rather than leaning visibly on open, generic web-scale image-text corpora, World Labs signals a partner-driven data and evaluation strategy \u2014 co-deployments with robotics groups, film studios, and architecture firms that provide domain-specific inputs and real-to-sim testbeds. That approach could be the difference between plausible-looking scenes and physically useful simulation worlds for downstream agents.",
+      "headline": "Their secret weapon: versioned, modality-specific spatial models and a user-content flywheel",
+      "summary": "World Labs appears to run a multi-stage, multi-model pipeline that treats images, panoramas and short videos differently and ships opaque versioned spatial models (SPZ splats, pano models). That, plus a product-driven user-content flywheel (community downloads, paid/free output licensing differences), gives them proprietary training and telemetry signals that are hard for newcomers to replicate.",
       "evidence": [
-        "Research and case studies reference collaborations with Lightwheel, NVIDIA, Champalimaud Foundation, King\u2019s College London, HTC VIVE, SHoP Architects, and filmmaking partners like Escape.ai.",
-        "Multiple product claims focus on domain-specific outputs (simulation-ready worlds, therapy environments, professional architectural workflows) implying curated/partner datasets and task-specific validation."
+        "Product notes reference model-versioned features: SPZ splats export v2 by default (v3 opt-in) and an 'upgraded pano editing to the latest high-quality model version'.",
+        "Analysis context: detected patterns include a specialized multi-model, multi-stage pipeline per input modality and a user-content data flywheel with paid-user opt-out and free-user irrevocable license signals; TOS and feature docs describe distinctions between free and paid output rights."
       ],
-      "uniqueness_score": 7
-    },
-    {
-      "angle_type": "vertical_expert",
-      "headline": "Why robotics teams are already piloting Marble for scalable real2sim \u2014 and what still needs proof",
-      "summary": "World Labs pushes Marble as a scalable source of diverse, physically-plausible environments for embodied AI evaluation, plugging into simulators like Isaac Sim and MuJoCo. For roboticists, the promise is fewer hand-built scenes and more varied training environments \u2014 but questions remain around physics fidelity, sensor realism, and reproducible benchmarks.",
-      "evidence": [
-        "World Labs highlights integrations with NVIDIA Isaac Sim, MuJoCo, RoboSuite and mentions research collaborations (Lightwheel) focused on scalable robotics evaluation.",
-        "Content emphasizes generating physically plausible environments from minimal real-world input or synthetic imagination to accelerate robot training and testing."
-      ],
-      "uniqueness_score": 7
+      "uniqueness_score": 8
     },
     {
       "angle_type": "contrarian",
-      "headline": "Betting against heavyweight 3D pipelines: World Labs treats worlds as ephemeral, on\u2011demand primitives instead of permanent art assets",
-      "summary": "Instead of doubling down on traditional, asset-heavy 3D pipelines, World Labs exposes world generation as a callable primitive that can be created, edited, expanded, and exported programmatically. This is a contrarian product gamble: decentralize world production into API calls and partner integrations rather than owning long-term modeling workflows and studios.",
+      "headline": "Why World Labs leaned hard into a legal-first, closed platform instead of open training data",
+      "summary": "Instead of courting open research or publishing large training datasets, World Labs codified strict API governance, output/IP rules and limited public disclosure\u2014prioritizing product control, monetization of outputs, and legal defensibility over community model reproducibility. That approach trades openness for tighter product control and potential go-to-market speed.",
       "evidence": [
-        "Marketing stresses that 'world creation becomes a building block' and lowers barriers by removing dedicated 3D production pipelines for developers and non-3D specialists.",
-        "Platform features include programmatic generation, interactive editing, expansion/combination of worlds, and export to downstream tools \u2014 indicating a shift from static assets to dynamic, API-first worlds."
+        "Terms of Service (Jan 21, 2026) and API rules: strict restrictions on reverse engineering, competitive use, caching, data retention, and detailed account-based IP rules (free accounts get revocable, non-commercial licenses; paid accounts get commercial rights).",
+        "Responsible Disclosure page: no public bug-bounty program and no guaranteed compensation for reports, signaling a cautious, closed posture toward external researchers and contributors."
       ],
       "uniqueness_score": 6
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "How Marble uses credit-pricing and product changes as levers to steer model quality and compute demand",
+      "summary": "World Labs implements a credit-based subscription with tiered generation limits and directly ties model upgrades to credit cost and product behavior\u2014e.g., raising pano edit cost when switching to a higher-quality model and increasing API video upload limits\u2014creating a visible economic telemetry channel for quality vs. cost tradeoffs.",
+      "evidence": [
+        "Subscriptions & Billing: Marble uses a credit-based subscription system with tiered generation counts (Free, Standard, Pro, Max) and higher tiers unlock more features and credits.",
+        "December 5, 2025: Upgraded pano editing to a latest high-quality model and adjusted credit cost per pano edit from 50 to 150 credits; January 29, 2026: API video prompt file size limit increased to 100MB."
+      ],
+      "uniqueness_score": 7
     }
   ],
   "anti_patterns": [
     {
-      "pattern_type": "overclaiming",
-      "description": "Marketing language makes broad claims about enabling \"spatial intelligence\" across domains and turnkey world generation from minimal inputs without providing verifiable technical details or public benchmarks to substantiate those claims.",
-      "severity": "high",
-      "evidence": [
-        "\"Spatial intelligence transforms seeing into doing, understanding into reasoning, and imagining into creating.\"",
-        "\"Marble... generates spatially consistent, high-fidelity, and persistent 3D worlds that you can move through, edit, and inhabit.\"",
-        "\"There is no special setup and no proprietary tooling required.\"",
-        "Multiple high\u2011level product claims (gaming, robotics, architecture) without linked public benchmarks, model cards, or reproducible evaluation data in the provided content."
-      ]
-    },
-    {
       "pattern_type": "no_moat",
-      "description": "Although the company claims a proprietary multimodal world model (Marble) and partner-driven use cases, there is limited public evidence of unique data assets, reproducible performance advantages, or engineering details (e.g., model architectures, datasets, vector DB/RAG usage) that would create an enduring, defensible moat.",
+      "description": "World Labs shows signs of a medium moat: they have proprietary spatial models, a specialized LOD splat-rendering backend, and a multi-stage pipeline, but these are described opaquely and many core capabilities (image/video -> 3D, mesh export, level-of-detail rendering) are well within the technical reach of large incumbents or open-source projects. Without clearer defensible data assets, unique model IP disclosures, or lock-in mechanisms, core features could be replicated.",
       "severity": "medium",
       "evidence": [
-        "\"Marble, our first product, generates spatially consistent, high-fidelity, and persistent 3D worlds...\" (claims of proprietary model without technical disclosure).",
-        "Analysis context: \"No public evidence of RAG/vector DB use\" and \"Proprietary multimodal world model (Marble)\" \u2014 suggests lack of visible data advantage or reproducible technical differentiation.",
-        "GitHub profile: \"Public Repos: 0\" \u2014 limited open artifacts for independent verification.",
-        "Partner and case-study centric validation rather than public benchmarks or third-party audits in the provided content."
+        "Build Patterns: Proprietary, versioned spatial models (opaque model names); Specialized multi-model, multi-stage pipeline per input modality; Scalable LOD splat-rendering backend for large-world editing.",
+        "Product log: 'World generations now export in the OpenGL coordinate system', 'Meshes can now be imported into Composer' \u2014 engineering-level features common to 3D tooling ecosystems.",
+        "No public evidence of external knowledge retrieval, unique training-data claims, or dataset moat; 'Approach: unknown' and 'LLMs: []' in tech stack notes."
       ]
     },
     {
       "pattern_type": "feature_not_product",
-      "description": "The World API is positioned as a single programmable capability (generate/export navigable 3D worlds). If the core capability is an API that can be composed with standard pipelines, incumbents or cloud providers could incorporate the offering as a feature unless the company demonstrates deeper platform lock-in or unique downstream workflows.",
+      "description": "The product is currently a focused set of features (image/video \u2192 3D world generation, editing, export) tied to a credit-subscription system. That narrow feature set risks being absorbed into larger platforms or 3D toolchains unless evolved into broader, stickier product capabilities or enterprise offerings.",
       "severity": "medium",
       "evidence": [
-        "\"The World API turns world creation into a programmable capability.\"",
-        "\"Each request produces a complete 3D world that can be explored, shared, and built on.\"",
-        "Platform features described are API keys, usage/billing, docs, and exports \u2014 core offering is an API-based generation service rather than a broad, tightly integrated product suite."
+        "Content centers on image-to-world and video-to-world generation, lists UI flows (drag to omnibox, Create button), seed changes and World Guide edits for local control.",
+        "Subscription tiers capped by 'world generations' per month (Free 4, Standard 12, Pro 25, Max 75) \u2014 implies usage-limited feature access rather than a deep platform ecosystem.",
+        "TOS and API sections emphasize integration governance and restrictions but do not demonstrate marketplace, network effects, or ecosystem primitives that would make this more than a distinct feature set."
       ]
     },
     {
       "pattern_type": "undifferentiated",
-      "description": "The space (3D/immersive generation, simulation-ready environments) is crowded with large incumbents and open research; descriptions emphasize use cases and integrations but lack clear technical differentiators that set Marble apart from well-resourced competitors.",
-      "severity": "medium",
+      "description": "Although World Labs implements several engineering features (LOD backend, export options, mesh grounding), many of these are incremental improvements expected in 3D tooling. The product risks appearing me-too in a crowded space unless it clarifies unique outcomes, workflow lock-in, or data advantages.",
+      "severity": "low",
       "evidence": [
-        "Claims of outputs like \"simulation-ready\" formats, Gaussian splatting, and real-time frame models \u2014 techniques and aims that are also pursued by major labs and platform vendors.",
-        "Multiple case studies and partner names but no comparative performance data demonstrating superiority versus alternatives.",
-        "Market signals: obvious routes for cloud or graphics incumbents to replicate an API capability if not backed by unique data or models."
+        "Feature list includes 'Improved export options', 'Assets are now roughly scaled and grounded', and export coordinate toggles \u2014 valuable but incremental.",
+        "Changelog items (Ctrl+C/Ctrl+V in Chisel, screenshot panos, video file size limits) show active iteration but mostly usability improvements rather than unique capabilities.",
+        "Many adjacent companies and open-source projects are tackling image\u21923D and video\u21923D reconstruction, plus major platforms could integrate similar tooling."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Some public statements are vague and rely on broad assurances (e.g., 'implements AI risk management practices consistent with industry standards') without specifics. This could create a perception gap between marketing/policy language and demonstrable technical or governance substance.",
+      "severity": "low",
+      "evidence": [
+        "TOS: 'World Labs implements AI risk management practices consistent with industry standards' \u2014 no detail on audits, standards used, or certifications.",
+        "Responsible Disclosure page states 'We will not pursue legal action for good faith testers' but provides no formal security program or bug-bounty details."
       ]
     }
   ],
   "competitive_analysis": {
     "competitors": [
       {
-        "name": "NVIDIA (Omniverse / Isaac Sim)",
-        "similarity": "Provides photoreal real-time simulation, tooling and pipelines for robotics, simulation and cinematic real\u2011time rendering; integrates with downstream simulators and supports large-scale environment assets.",
-        "how_different": "World Labs focuses on on\u2011demand generative world models (Marble) that create navigable 3D worlds from text/images/video via an API. NVIDIA emphasizes platform, real\u2011time rendering, and GPU/engine tooling; World Labs emphasizes multimodal generation, persistence and programmatic world creation rather than an engine-first workflow."
-      },
-      {
-        "name": "Epic Games / Unreal Engine",
-        "similarity": "Used for high\u2011fidelity interactive worlds, games and virtual production; strong ecosystem for creators and studios building immersive experiences.",
-        "how_different": "Unreal is a real\u2011time engine and toolset for building worlds; World Labs offers automated generation of explorable worlds from minimal inputs (text, single image, video) and an API to produce worlds programmatically\u2014reducing need for manual asset creation and heavy production pipelines."
-      },
-      {
-        "name": "Unity",
-        "similarity": "Platform for building interactive, multiplayer and simulated experiences, and has simulation and enterprise offerings for design and robotics.",
-        "how_different": "Unity provides authoring and runtime engine capabilities; World Labs provides generative world creation as a service (API + Marble model) that can export into Unity\u2014World Labs' product aims to replace early asset creation steps rather than be the runtime engine."
-      },
-      {
-        "name": "Luma AI / NeRF-based startups (e.g., Neuralangelo / InstantNGP derivative companies)",
-        "similarity": "Convert photographs/scan captures into 3D representations (NeRFs/point clouds) and enable photorealistic view synthesis from image inputs.",
-        "how_different": "Luma/NeRF tools typically reconstruct scenes from multi\u2011view images and focus on high\u2011quality view synthesis; World Labs claims multimodal generation (single image, text, video, 360\u00b0) producing persistent, editable and navigable 3D worlds (not just NeRF renders) and offers programmatic expansion/combination and editing of worlds."
+        "name": "Luma AI",
+        "similarity": "Image/video-to-3D reconstruction and generative 3D outputs from consumer photos and short videos; targeted at creators for easy photogrammetry/NeRF-style generation.",
+        "how_different": "World Labs (Marble) positions itself as an end-to-end world-generation + editing + export platform with a focus on explorable 3D 'worlds' (not only object/scene NeRFs), a Level-of-Detail splat-rendering backend for larger scenes, explicit export options (OpenGL/OpenCV, textured meshes, SPZ splats), and a credit-tier product + API tailored to production workflows."
       },
       {
         "name": "Matterport",
-        "similarity": "Creates 3D spatial captures (virtual tours) from real world scans for architecture, real estate and design workflows.",
-        "how_different": "Matterport is capture/scan-first and hardware/scan dependent; World Labs focuses on generative augmentation\u2014creating plausible, editable worlds from minimal input (including synthetic/text prompts) and exposing generation via an API for integration into design and simulation pipelines."
+        "similarity": "Creates immersive 3D spaces/virtual tours from photos and 360 capture; enterprise and creator workflows for walkthroughs and exports.",
+        "how_different": "Matterport is capture- and hardware-first (structured capture for real estates/enterprise), whereas World Labs emphasizes AI-driven generation from images & short videos, generative expansion of scenes, creative editing (Studio, Chisel, Composer), and export-friendly mesh/artifact formats for creative use cases beyond tours."
       },
       {
-        "name": "Promethean AI / Kaedim / other game\u2011asset generative startups",
-        "similarity": "Aim to automate parts of game/world/content creation (asset generation, scene building) to speed up production for games and virtual environments.",
-        "how_different": "Those tools often focus on asset/prop generation or scene assembly for artists; World Labs offers full navigable 3D world generation (layout, lighting, depth, persistent navigation) from multimodal prompts and deeper integration into simulation/robotics use cases, plus interactive editing and expansion features."
+        "name": "NVIDIA Omniverse / NVIDIA research",
+        "similarity": "Tools and SDKs for complex 3D scene composition, real-time rendering, large-scene workflows and enterprise-grade pipelines; research into NeRFs and spatial AI.",
+        "how_different": "NVIDIA is platform/engine and GPU-hardware centric with deep real-time rendering and simulation ecosystems. World Labs focuses on AI spatial perception models to generate worlds directly from 2D inputs and provides creator-facing UX, credited SaaS tiers and an API rather than a hardware/engine stack."
       },
       {
-        "name": "Research groups & large AI labs (Google Research / Meta AI / OpenAI \u2014 DreamFusion, Point\u2011E, Habitat etc.)",
-        "similarity": "Publish and develop foundational methods for text\u2011to\u20113D, NeRFs, world representations, and embodied AI/simulation frameworks used by researchers and some product teams.",
-        "how_different": "Academic and lab projects are often research prototypes or models; World Labs packages research into a production API, commercial platform and product (Marble + World API) aimed at real world workflows (film, robotics, architecture) and provides export/integration workflows and early commercial partnerships."
+        "name": "OpenAI / other research labs (Point\u2011E, DreamFusion-style systems)",
+        "similarity": "Research and models for generative 3D content from 2D inputs and text; open-source or research codebases publishing methods for point-clouds/meshes.",
+        "how_different": "World Labs packages the capability into a production SaaS with editing tools, export formats, LOD streaming backends, and workflow/product features (commercial licensing tiers, credit system, community downloads) aimed at creators and production \u2014 not just research model releases."
+      },
+      {
+        "name": "Polycam",
+        "similarity": "Mobile-first capture and cloud processing to create 3D meshes from phone photos/360 captures for creators and pros.",
+        "how_different": "Polycam emphasizes direct mobile scanning and photogrammetry with tight capture tooling; World Labs emphasizes generative reconstruction and creative expansion from fewer 2D inputs (including video/pano/text prompts), plus integrated authoring, LOD splat rendering and export customizations for game/film pipelines."
+      },
+      {
+        "name": "Kaedim / asset generation startups",
+        "similarity": "Generate game-ready 3D assets from 2D references and automate parts of the 3D asset pipeline for games and creators.",
+        "how_different": "Kaedim focuses on discrete asset creation (characters, props) for game pipelines. World Labs focuses on entire 3D 'world' generation, explorable environments, studio editing and scale features (Expand mode, large world LOD) and export formats for full scenes."
+      },
+      {
+        "name": "Unity / Epic (Unreal) \u2014 engines & ecosystem",
+        "similarity": "Target creators, studios and real-time applications; provide tooling, marketplaces and integrations for 3D assets and scenes.",
+        "how_different": "Unity/Epic provide engines, runtime and large ecosystems; World Labs provides AI-first generation + authoring + export that can feed into those engines, positioning itself as a content-generation upstream partner rather than a competing runtime."
       }
     ],
     "differentiation": {
-      "primary": "An API\u2011first, multimodal generative world model (Marble) that produces persistent, navigable and editable 3D worlds from minimal inputs (text, images, panoramas, video) \u2014 positioning world generation as a programmable capability rather than a manual authoring task.",
-      "technical": "Claims a frontier multimodal world model trained to lift varied signals into full 3D understanding: single image / multi\u2011view / 360\u00b0 / video / text inputs \u2192 spatially consistent worlds with layout, depth, lighting and editable scene semantics; supports export to common 2D/3D formats and integration into simulators (e.g., NVIDIA Isaac Sim). Emphasis on persistence, editability, expansion/combination of generated worlds and interactive editing tools.",
-      "business": "API & platform monetization (credits, keys, usage monitoring), partnerships/case studies with film studios, architecture firms, simulator integrations and early enterprise customers; positions product toward both creative (film, games, design) and technical (robotics, simulation) markets. Emphasizes rapid time\u2011to\u2011prototype and replacing expensive production pipelines.",
-      "positioning": "Positions itself as a spatial intelligence leader: '3D as code' \u2014 worlds generated as easily as words/images. Marketed as the bridge between research and production (research pedigree, published models and research previews) and as complementary to existing engines/simulators rather than a drop\u2011in engine replacement."
+      "primary": "An AI-first, end-to-end pipeline that converts images/videos/360 panoramas and text prompts into explorable 3D worlds plus integrated editing, expansion and production-ready export \u2014 aimed at creators and scale production.",
+      "technical": "Proprietary spatial AI models trained to interpret 2D inputs into 3D environments (image-to-world and video-to-world), a Level-of-Detail splat-rendering backend for editing and scaling to large worlds, support for multiple coordinate systems and export formats (OpenGL/OpenCV, textured meshes, SPZ splats), multi-input generation (images, video, panoramas, 3D layouts), and production features like high-quality mesh exports and expanded video export settings.",
+      "business": "Credit-based subscription tiers with feature gating (Free / Standard / Pro / Max) that map to use-case sophistication and commercial rights; an API for integrations with documented enterprise restrictions; community asset downloads; and a licensing/TOS framework that differentiates between free and paid users on IP and model-training data rights.",
+      "positioning": "Positioned as a creator- and production-focused generative 3D platform (Marble) that bridges consumer capture (images/videos/panos) and professional production pipelines \u2014 rather than a pure capture vendor, a rendering engine, or a research prototype."
     },
     "secret_sauce": {
-      "core_advantage": "A multimodal world model (Marble) that can generate persistent, navigable and editable 3D worlds from diverse minimal inputs (text, single image, multi\u2011view, 360\u00b0, video) exposed via a developer API \u2014 combined with a research\u2011heavy team and early integration partners across film, architecture and robotics.",
-      "defensibility": "Medium to high defensibility if World Labs truly controls unique multimodal training data, proprietary model architectures that learn spatial consistency and persistence, and has strong integrations/partnerships and developer adoption. The combination of (1) an API\u2011first product that fits many verticals, (2) research leadership/brand (founders like Fei\u2011Fei Li), and (3) data + compute to train large spatial models makes replication non\u2011trivial. However, large incumbents and open research could reproduce components, so ongoing dataset, productionization, and ecosystem advantages will be critical.",
+      "core_advantage": "A combination of proprietary spatial AI models that translate sparse 2D inputs into explorable 3D worlds plus a specialized runtime/export pipeline (LOD splat renderer, SPZ splats, mesh/textured export, coordinate-system flexibility) that lets creators generate, edit, expand and integrate those worlds into production pipelines quickly.",
+      "defensibility": "Defensible because it couples model performance (requires large, curated multimodal training data and spatial learning expertise) with product-level pipeline integrations (export formats, LOD streaming, editing UX) and commercial features (API + licensing tiers). Recreating both the model quality and the integrated end\u2011to\u2011end tooling, export compatibility and production workflows is resource- and time-intensive \u2014 especially at scale. World Labs' apparent large funding ($1B) and platform-level IP & data policies further increases runway to improve models and lock in workflows.",
       "evidence": [
-        "\"Marble, our first product, generates spatially consistent, high\u2011fidelity, and persistent 3D worlds that you can move through, edit, and inhabit.\"",
-        "\"The World API \u2014 a public interface for generating explorable 3D worlds using World Labs\u2019 multimodal world model, Marble.\"",
-        "\"Generate worlds from: Text, Single images, Multi\u2011image sets, 360\u00b0 panoramas, Video\"",
-        "\"Worlds integrate naturally into modern applications, creative tools, and simulation pipelines\"",
-        "\"Research collaborations with teams like Lightwheel demonstrate how scalable world generation enables evaluation across many environments\"",
-        "\"Founders: Fei\u2011Fei Li along with Justin Johnson, Christoph Lassner, and Ben Mildenhall\"",
-        "\"Integrated with NVIDIA Isaac Sim\""
+        "\u201cimage prompting in Marble works by analyzing your uploaded image and generating a 3D environment based on its content, style, and composition. The AI understands spatial relationships, lighting, and architectural elements to create explorable worlds.\u201d",
+        "\u201cMarble Studio now supports editing and composing significantly larger worlds using a new Level-of-Detail splat-rendering backend.\u201d",
+        "\u201cExporting high-quality textured meshes\u201d and \u201cOption to choose between OpenGL and OpenCV coordinate systems.\u201d",
+        "Credit/subscription tiers and API: Free/Standard/Pro/Max plans with limits and commercial rights on paid plans.",
+        "TOS: World Labs retains model/IP ownership and also licenses to use user content for model training (revocable opt-out for paid users) \u2014 implying access to ongoing training data."
       ]
     },
     "competitive_moat": "medium",
-    "moat_explanation": "World Labs has several defensible elements: (1) a differentiated multimodal world model and API that targets both creative and robotics markets, (2) research credibility and founder cachet enabling partnerships and talent, and (3) integrations/export pathways to established simulators and engines. These create platform effects (developer adoption, partner case studies, pipeline integrations). However, the space is crowded with deep\u2011pocket incumbents (NVIDIA, Epic, Unity, Google, Meta) and active research/OSS that can replicate model components; large GPU/cloud providers can also bundle competing services. Long\u2011term moat depends on proprietary training data, continual model improvement, breadth of integrations and network effects from platform usage.",
+    "moat_explanation": "World Labs' moat comes from a blend of model expertise (spatial AI to convert sparse 2D/360/video inputs into explorable 3D worlds), specialized runtime technology (LOD splat renderer, scene export options) and integrated creator tooling plus commercial productization (API, tiered licensing, community downloads). Those elements together make a practical end-to-end product that is non-trivial to replicate quickly. However, large platform players (NVIDIA, Google, Meta, Unity/Epic) and specialized startups (Luma, Matterport, Polycam) could iterate similar capabilities or integrate equivalent models into their ecosystems \u2014 so the moat is meaningful but not impregnable. Continued data access, model improvement, and workflow/fidelity advantages will be critical to preserving it.",
     "moat_types": []
   },
   "sources_crawled": [],
   "evidence_quotes": [
-    "The World API \u2014 a public interface for generating explorable 3D worlds using World Labs\u2019 multimodal world model, Marble.",
-    "Marble, our frontier multimodal world model, is available to everyone starting today... generates spatially cohesive, high-fidelity, and persistent 3D worlds from just a single image, video or text prompt.",
-    "Multimodal inputs Create detailed 3D worlds from text, images, videos, or 360 panoramas.",
-    "From Prompts to Worlds Marble was created around a simple idea: World models should lift whatever signals you have into a full 3D understanding of space. With the World API, that idea becomes practical.",
-    "World-as-API: treating a complete, navigable 3D world as a first-class return value from an API (asynchronous generation of explorable worlds that can be rendered, exported, or integrated).",
-    "Multimodal-to-persistent-3D pipeline: single interface that accepts text, images, panoramas, multi-view data, and video and returns persistent, editable 3D worlds.",
-    "Composable/expandable worlds: explicit support for expanding, combining, and persistently editing generated worlds to form larger, persistent environments.",
-    "Simulation-ready exports: deliberate integration path to robotics simulators (Isaac Sim, MuJoCo, RoboSuite) enabling real-to-sim workflows and embodied-AI evaluation at scale.",
-    "Real-time frame model (RTFM) preview: a specialized temporal model for generating video content in real-time as users interact with environments.",
-    "\u20183D as code\u2019 developer-first posture: API + platform tooling (keys, usage/billing, docs) to make spatial generation a building block in software stacks rather than a siloed creative tool."
+    "Transform your photos and images into immersive 3D worlds with Marble\u2019s image-to-world generation.",
+    "Getting Started with Image Prompts Image prompting in Marble works by analyzing your uploaded image and generating a 3D environment based on its content, style, and composition.",
+    "Creating Worlds from Video Upload short videos to create immersive 3D worlds with rich spatial information.",
+    "AI System Disclosure: You acknowledge that the Services utilize artificial intelligence systems, including AI Models and spatial artificial intelligence technologies designed for 3D world generation and spatial intelligence applications.",
+    "Use of Data Notwithstanding anything herein to the contrary, you grant World Labs a non-exclusive, royalty-free, worldwide, fully paid, and sublicensable license to collect, aggregate, use, and analyze User Content for business purposes, including further development of World Labs Products or the Services, marketing and promotions, benchmarking, or training of World Labs AI Models."
   ],
   "crawl_diagnostics": null,
-  "analyzed_at": "2026-03-05 16:29:39.554707+00:00",
+  "analyzed_at": "2026-03-07 20:44:45.139586+00:00",
   "confidence_score": 0.75,
-  "raw_content_analyzed": 135535
+  "raw_content_analyzed": 257670,
+  "input_hash": "3bb92f7ece54ffe5"
 }
