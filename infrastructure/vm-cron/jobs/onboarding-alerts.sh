@@ -2,9 +2,10 @@
 # onboarding-alerts.sh — Dispatch actionable onboarding/deep-research traces to Slack.
 set -euo pipefail
 
-VENV_DIR="/opt/buildatlas/venv"
-REPO_DIR="/opt/buildatlas/startup-analysis"
+VENV_DIR="${VENV_DIR:-/opt/buildatlas/venv}"
+REPO_DIR="${REPO_DIR:-/opt/buildatlas/startup-analysis}"
 BATCH_SIZE="${ONBOARDING_ALERTS_BATCH_SIZE:-25}"
+export LOG_LEVEL="${LOG_LEVEL:-INFO}"
 
 echo "=== Onboarding Alerts ==="
 echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

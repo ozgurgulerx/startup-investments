@@ -13,10 +13,11 @@
 #
 set -euo pipefail
 
-VENV_DIR="/opt/buildatlas/venv"
-REPO_DIR="/opt/buildatlas/startup-analysis"
+VENV_DIR="${VENV_DIR:-/opt/buildatlas/venv}"
+REPO_DIR="${REPO_DIR:-/opt/buildatlas/startup-analysis}"
 PERIOD="${1:-2026-02}"
 CONCURRENT="${2:-3}"
+export LOG_LEVEL="${LOG_LEVEL:-INFO}"
 
 CSV_PATH="$REPO_DIR/apps/web/data/$PERIOD/input/startups.csv"
 OUTPUT_DIR="$REPO_DIR/apps/web/data/$PERIOD/output"
@@ -36,6 +37,11 @@ fi
 
 CSV_COUNT=$(wc -l < "$CSV_PATH")
 echo "CSV rows: $CSV_COUNT"
+echo ""
+
+echo "Preflight before run:"
+"$VENV_DIR/bin/python" "$REPO_DIR/packages/analysis/main.py" onboarding-preflight \
+    --period "$PERIOD" --region global --json || echo "WARN: onboarding-preflight failed (continuing)"
 echo ""
 
 # ─── Step 1: Deep crawl + LLM analysis (IncrementalProcessor) ───────────────
@@ -101,6 +107,22 @@ if results['errors']:
 ANALYSIS_COUNT=$(ls "$OUTPUT_DIR/analysis_store/base_analyses/" 2>/dev/null | wc -l)
 echo ""
 echo "Analysis files in store: $ANALYSIS_COUNT"
+echo "Refreshing CSV/stat artifacts from analysis store..."
+"$VENV_DIR/bin/python" -u -c "
+import sys
+sys.path.insert(0, '$REPO_DIR/packages/analysis')
+
+from pathlib import Path
+from src.analysis.onboarding_ops import regenerate_output_artifacts
+from src.data.store import AnalysisStore
+
+csv_path = Path('$CSV_PATH')
+output_path = Path('$OUTPUT_DIR')
+store = AnalysisStore(output_path / 'analysis_store')
+artifacts = regenerate_output_artifacts(csv_path=csv_path, output_path=output_path, period='$PERIOD', store=store)
+for key, value in artifacts.items():
+    print(f'{key}: {value}', flush=True)
+"
 
 # ─── Step 2: Apply database migrations ──────────────────────────────────────
 echo ""
@@ -182,6 +204,10 @@ echo ""
 
 FINAL_COUNT=$(ls "$OUTPUT_DIR/analysis_store/base_analyses/" 2>/dev/null | wc -l)
 echo "Analysis files in store: $FINAL_COUNT"
+echo ""
+echo "Post-run preflight:"
+"$VENV_DIR/bin/python" "$REPO_DIR/packages/analysis/main.py" onboarding-preflight \
+    --period "$PERIOD" --region global --json || echo "WARN: onboarding-preflight failed (continuing)"
 echo ""
 
 # Quick DB verification (best-effort)
