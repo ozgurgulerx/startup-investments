@@ -53,7 +53,7 @@ class ContainerName(str, Enum):
 class StorageConfig:
     """Configuration for blob storage."""
     connection_string: str = field(default_factory=lambda: os.getenv("AZURE_STORAGE_CONNECTION_STRING", ""))
-    account_name: str = field(default_factory=lambda: os.getenv("AZURE_STORAGE_ACCOUNT_NAME", "buildatlasstorage"))
+    account_name: str = field(default_factory=lambda: os.getenv("AZURE_STORAGE_ACCOUNT_NAME", "").strip() or "buildatlasstorage")
 
     # Authentication mode: "connection_string", "aad", or "auto" (try both)
     auth_mode: str = field(default_factory=lambda: os.getenv("AZURE_STORAGE_AUTH_MODE", "auto"))
