@@ -1,6 +1,6 @@
 """Pydantic data models for startup analysis."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, get_origin
 from datetime import datetime, timezone
 from enum import Enum
 import re
@@ -26,6 +26,34 @@ class LLMModel(BaseModel):
                     values[name] = field_info.default
                 elif field_info.default_factory is not None:
                     values[name] = field_info.default_factory()
+                continue
+
+            if name not in values:
+                continue
+
+            if get_origin(field_info.annotation) not in (list, List):
+                continue
+
+            value = values[name]
+            if isinstance(value, list):
+                continue
+            if isinstance(value, (tuple, set)):
+                values[name] = list(value)
+                continue
+            if isinstance(value, str):
+                stripped = value.strip()
+                values[name] = [stripped] if stripped else []
+                continue
+            if isinstance(value, bool):
+                if field_info.default_factory is not None:
+                    values[name] = field_info.default_factory()
+                elif field_info.default is not None:
+                    values[name] = field_info.default
+                else:
+                    values[name] = []
+                continue
+            if isinstance(value, dict):
+                values[name] = []
         return values
 
 

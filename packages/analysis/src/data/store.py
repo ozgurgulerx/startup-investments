@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from src.config import settings
 from src.data.models import StartupInput, StartupAnalysis
+from src.storage.period_artifacts import PeriodArtifactStore, normalize_region
 
 
 class AnalysisStore:
@@ -25,6 +26,9 @@ class AnalysisStore:
     def __init__(self, store_dir: Optional[Path] = None):
         self.store_dir = store_dir or (settings.data_output_dir / "analysis_store")
         self.store_dir.mkdir(parents=True, exist_ok=True)
+        self._artifact_store = PeriodArtifactStore.from_env()
+        self._artifact_period = str(os.getenv("BUILDATLAS_PERIOD") or "").strip()
+        self._artifact_region = normalize_region(os.getenv("BUILDATLAS_REGION") or "global")
 
         # Main index file
         self.index_file = self.store_dir / "index.json"
@@ -156,6 +160,7 @@ class AnalysisStore:
             except OSError:
                 pass
             raise
+        self._mirror_store_file(self.index_file, "index.json")
 
     def _get_startup_hash(self, startup: StartupInput) -> str:
         """Generate a hash for a startup to detect changes.
@@ -313,6 +318,7 @@ class AnalysisStore:
         }
         self.index["stats"]["total_analyzed"] = len(self.index["startups"])
         self._save_index()
+        self._mirror_store_file(file_path, f"base_analyses/{slug}.json")
 
     def save_viral_analysis(self, company_name: str, viral_data: Dict[str, Any]):
         """Save a viral analysis result."""
@@ -327,6 +333,7 @@ class AnalysisStore:
             self.index["startups"][company_name]["has_viral"] = True
             self.index["startups"][company_name]["viral_analysis_at"] = datetime.now(timezone.utc).isoformat()
             self._save_index()
+        self._mirror_store_file(file_path, f"viral_analyses/{slug}.json")
 
     def save_enrichment(self, company_name: str, enrichment_data: Dict[str, Any]):
         """Save enrichment data (jobs, HN, etc.)."""
@@ -341,6 +348,7 @@ class AnalysisStore:
             self.index["startups"][company_name]["has_enrichment"] = True
             self.index["startups"][company_name]["enrichment_at"] = datetime.now(timezone.utc).isoformat()
             self._save_index()
+        self._mirror_store_file(file_path, f"enrichment/{slug}.json")
 
     def write_progress_checkpoint(self, payload: Dict[str, Any]) -> None:
         """Persist a run-progress checkpoint atomically."""
@@ -360,6 +368,21 @@ class AnalysisStore:
             except OSError:
                 pass
             raise
+        self._mirror_store_file(self.progress_file, "progress.json")
+
+    def _mirror_store_file(self, file_path: Path, relative_store_path: str) -> None:
+        """Best-effort mirror of analysis-store files into Blob period artifacts."""
+        if not self._artifact_store or not self._artifact_period or not file_path.exists():
+            return
+        try:
+            self._artifact_store.upload_analysis_store_file(
+                self._artifact_period,
+                relative_store_path,
+                file_path,
+                region=self._artifact_region,
+            )
+        except Exception:
+            pass
 
     def get_base_analysis(self, company_name: str) -> Optional[StartupAnalysis]:
         """Load a base analysis by company name."""

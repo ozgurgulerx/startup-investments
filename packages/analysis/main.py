@@ -7,6 +7,7 @@ Analyze startups for GenAI usage patterns and build insights.
 
 import asyncio
 import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -33,6 +34,31 @@ from src.reports.generator import (
 
 app = typer.Typer(help="Startup GenAI Analysis Tool")
 console = Console()
+
+
+def _configure_logging() -> None:
+    """Enable env-driven console logging for operational commands."""
+    level_name = (os.getenv("LOG_LEVEL") or os.getenv("BUILDATLAS_LOG_LEVEL") or "").strip()
+    if not level_name:
+        return
+
+    level = getattr(logging, level_name.upper(), logging.INFO)
+    root_logger = logging.getLogger()
+
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        )
+    else:
+        root_logger.setLevel(level)
+
+    # Keep noisy client libraries from drowning the pipeline logs.
+    for noisy_name in ("httpx", "openai", "azure", "asyncio"):
+        logging.getLogger(noisy_name).setLevel(max(level, logging.WARNING))
+
+
+_configure_logging()
 
 
 _SIGNAL_CLAIM_DUP_DOLLAR_RE = re.compile(r"\${2,}(?=\d)")
@@ -1253,6 +1279,12 @@ def incremental(
     viral: bool = typer.Option(True, "--viral/--no-viral", help="Run viral analysis"),
     force: bool = typer.Option(False, "--force", "-f", help="Force reprocess all startups"),
     max_concurrent: int = typer.Option(3, "--concurrent", "-c", help="Max concurrent API calls"),
+    max_startups: Optional[int] = typer.Option(None, "--max-startups", help="Process at most N delta startups"),
+    startup_file: Optional[Path] = typer.Option(
+        None,
+        "--startup-file",
+        help="Optional newline-delimited allowlist of startup names to process within the delta",
+    ),
     output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
     period: Optional[str] = typer.Option(None, "--period", help="Period (e.g., 2026-01)"),
 ):
@@ -1270,6 +1302,7 @@ def incremental(
     3. Generate newsletter -> uses all 150 stored analyses
     """
     from src.analysis.incremental_processor import IncrementalProcessor
+    from src.analysis.onboarding_ops import load_startup_allowlist, normalize_startup_name
     from src.data.store import AnalysisStore
 
     # Determine period
@@ -1298,7 +1331,16 @@ def incremental(
     console.print(f"[bold]With viral analysis:[/bold] {stats['with_viral_analysis']}")
 
     # Calculate delta
-    delta = store.get_delta(startups)
+    delta = startups if force else store.get_delta(startups)
+    startup_allowlist = None
+    if startup_file:
+        startup_allowlist = load_startup_allowlist(startup_file)
+        delta = [
+            startup for startup in delta
+            if normalize_startup_name(startup.name) in startup_allowlist
+        ]
+    if max_startups is not None and max_startups >= 0:
+        delta = delta[:max_startups]
     if not delta and not force:
         console.print(f"\n[green]All startups already processed![/green]")
         console.print(f"Use --force to reprocess all.")
@@ -1322,6 +1364,8 @@ def incremental(
             run_viral=viral,
             max_concurrent=max_concurrent,
             force_reprocess=force,
+            max_startups=max_startups,
+            startup_allowlist=startup_allowlist,
         )
 
     results = asyncio.run(run())
@@ -1355,6 +1399,88 @@ def incremental(
     if typer.confirm("\nGenerate newsletter from all stored data?"):
         newsletter_path = processor.generate_newsletter_from_store(output_path)
         console.print(f"\n[bold green]Newsletter generated:[/bold green] {newsletter_path}")
+
+
+@app.command("onboarding-preflight")
+def onboarding_preflight(
+    csv_path: Optional[Path] = typer.Argument(None, help="Path to CSV with startup data"),
+    period: Optional[str] = typer.Option(None, "--period", "-p", help="Period (e.g., 2026-02)"),
+    region: str = typer.Option("global", "--region", help="Dataset region"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
+    json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON only"),
+):
+    """Show read-only diagnostics for the onboarding pipeline."""
+    from src.analysis.onboarding_ops import compute_onboarding_preflight, resolve_repo_dataset_paths
+
+    detected_period = period or (settings.extract_period_from_path(csv_path) if csv_path else None)
+    if not detected_period:
+        raise typer.BadParameter("Provide --period or a CSV path under apps/web/data/<period>/input/")
+
+    if csv_path:
+        resolved_csv_path = csv_path
+        resolved_output_path = output_dir or (resolved_csv_path.parent.parent / "output")
+    else:
+        repo_paths = resolve_repo_dataset_paths(detected_period, region=region)
+        resolved_csv_path = repo_paths["csv_path"]
+        resolved_output_path = output_dir or repo_paths["output_path"]
+
+    report = compute_onboarding_preflight(
+        csv_path=resolved_csv_path,
+        output_path=resolved_output_path,
+        region=region,
+    )
+
+    if json_output:
+        console.print_json(data=report)
+        return
+
+    health = report["health"]
+    csv_info = report["csv"]
+    store_info = report["analysis_store"]
+    cache_info = report["crawler_cache"]
+    progress = report["progress"]
+    db_info = report["database"]
+    creds = report["credentials"]
+
+    console.print(Panel.fit(
+        f"[bold cyan]Onboarding Preflight[/bold cyan]\n{detected_period} / {region}",
+        border_style="cyan"
+    ))
+    console.print(
+        f"CSV rows: {csv_info['rows']} | unique startups: {csv_info['unique_startups']} | "
+        f"analyzed unique: {store_info['analyzed_unique_startups']} | backlog: {store_info['backlog_unique']}"
+    )
+    console.print(
+        f"Base analyses: {store_info['base_analysis_files']} | rows with analysis: {store_info['rows_with_base_analysis']} | "
+        f"rows missing analysis: {store_info['rows_without_base_analysis']}"
+    )
+    console.print(
+        f"Index hashes: {store_info['index_hash_covered']}/{store_info['index_entries']} "
+        f"({store_info['index_hash_coverage_pct']}%)"
+    )
+    console.print(
+        f"Crawler cache: {cache_info['unique_startups_with_any_cache']} any / "
+        f"{cache_info['unique_startups_with_sufficient_cache']} >= {cache_info['threshold_chars']} chars"
+    )
+    console.print(
+        f"Progress: status={progress.get('status')} latest={progress.get('latest_startup')} "
+        f"stage={progress.get('latest_stage')} stale_min={progress.get('stale_minutes')}"
+    )
+    if db_info.get("available"):
+        console.print(
+            f"DB: total={db_info['total']} with_analysis={db_info['with_analysis_data']} "
+            f"verified={db_info['verified']} stub={db_info['stub']}"
+        )
+    else:
+        console.print(f"DB: unavailable ({db_info.get('reason')})")
+    console.print(
+        f"Credentials: endpoint={creds['azure_openai_endpoint']} "
+        f"azure_key={creds['azure_openai_api_key']} openai_key={creds['openai_api_key']} "
+        f"database_url={creds['database_url']}"
+    )
+    console.print(f"Health: {health['status']}")
+    for alert in health["alerts"]:
+        console.print(f"  - {alert['severity']}: {alert['message']}")
 
 
 @app.command()

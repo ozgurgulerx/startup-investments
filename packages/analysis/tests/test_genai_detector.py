@@ -4,7 +4,7 @@ import threading
 import pytest
 
 from src.analysis.genai_detector import AnalysisStageTimeoutError, GenAIAnalyzer
-from src.data.models import StartupInput
+from src.data.models import IntegrationEcosystem, StartupInput
 from src.pattern_validation import MICRO_MODEL_MESHES_NAME, pattern_is_allowed
 
 
@@ -52,14 +52,30 @@ def test_call_llm_raises_stage_timeout_and_passes_request_timeout():
     assert analyzer.client.chat.completions.last_kwargs["timeout"] == 37.0
 
 
-def test_run_stage_propagates_timeout_failures():
+def test_run_stage_degrades_timeout_failures_to_empty_payload():
     analyzer = _build_analyzer()
 
     async def timed_out_stage():
         raise AnalysisStageTimeoutError("LLM call timed out after 42s")
 
-    with pytest.raises(AnalysisStageTimeoutError):
-        asyncio.run(analyzer._run_stage("Acme AI", "genai", timed_out_stage))
+    parsed = asyncio.run(analyzer._run_stage("Acme AI", "genai", timed_out_stage))
+
+    assert parsed == {}
+
+
+def test_llm_model_coerces_boolean_list_fields_to_empty_lists():
+    parsed = IntegrationEcosystem(marketplace_presence=False, sdk_availability=True)
+
+    assert parsed.marketplace_presence == []
+    assert parsed.sdk_availability == []
+
+
+def test_parse_tech_stack_coerces_list_approach_to_string():
+    analyzer = _build_analyzer()
+
+    parsed = analyzer._parse_tech_stack({"approach": ["rag", "prompt_engineering"]})
+
+    assert parsed.approach == "rag, prompt_engineering"
 
 
 def test_micro_model_meshes_requires_explicit_strong_evidence():
@@ -106,14 +122,7 @@ def test_analyze_startup_filters_weak_micro_model_meshes_before_story_prompts(mo
     analyzer = GenAIAnalyzer(stage_concurrency=1, stage_timeout_sec=5)
 
     analyzer._detect_genai = lambda *args, **kwargs: asyncio.sleep(
-        0,
-        result={
-            "uses_genai": True,
-            "genai_intensity": "core",
-            "confidence": 0.8,
-            "models_mentioned": [],
-            "evidence": [],
-        },
+        0, result={"uses_genai": True, "genai_intensity": "core", "confidence": 0.8, "models_mentioned": [], "evidence": []}
     )
     analyzer._detect_patterns = lambda *args, **kwargs: asyncio.sleep(
         0,
@@ -143,13 +152,7 @@ def test_analyze_startup_filters_weak_micro_model_meshes_before_story_prompts(mo
         0, result={"market_type": "horizontal", "target_market": "b2b"}
     )
     analyzer._analyze_competitive = lambda *args, **kwargs: asyncio.sleep(
-        0,
-        result={
-            "competitors": [],
-            "differentiation": {},
-            "secret_sauce": {},
-            "competitive_moat": "unknown",
-        },
+        0, result={"competitors": [], "differentiation": {}, "secret_sauce": {}, "competitive_moat": "unknown"}
     )
     analyzer._detect_tech_stack = lambda *args, **kwargs: asyncio.sleep(0, result={})
     analyzer._assess_engineering_quality = lambda *args, **kwargs: asyncio.sleep(0, result={"score": 5})

@@ -93,3 +93,21 @@ def test_write_progress_checkpoint_persists_latest_snapshot(tmp_path):
     assert payload["completed"] == 3
     assert payload["latest_startup"] == "Acme AI"
     assert "updated_at" in payload
+
+
+def test_write_progress_checkpoint_mirrors_to_period_artifacts(tmp_path):
+    store = AnalysisStore(tmp_path / "analysis_store")
+
+    mirrored = []
+
+    class FakeArtifactStore:
+        def upload_analysis_store_file(self, period, relative_store_path, file_path, *, region):
+            mirrored.append((period, relative_store_path, file_path.name, region))
+
+    store._artifact_store = FakeArtifactStore()
+    store._artifact_period = "2026-02"
+    store._artifact_region = "global"
+
+    store.write_progress_checkpoint({"status": "running"})
+
+    assert mirrored == [("2026-02", "progress.json", "progress.json", "global")]

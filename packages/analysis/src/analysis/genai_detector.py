@@ -343,7 +343,6 @@ OUTPUT (JSON only):
         business_model_result = stage_result_map["business_model"]
         product_result = stage_result_map["product"]
 
-        # Parse intermediate results for story angles
         validated_build_patterns = filter_pattern_items(
             patterns_result.get("patterns_detected", []),
             content=content,
@@ -354,6 +353,7 @@ OUTPUT (JSON only):
             name_key="pattern_name",
         )
 
+        # Parse intermediate results for story angles
         patterns_str = ", ".join(
             p.get("name", "") for p in validated_build_patterns if p.get("name")
         )
@@ -576,7 +576,7 @@ OUTPUT (JSON only):
                 f" category=timeout duration_sec={elapsed:.1f} error={exc}",
                 flush=True,
             )
-            raise
+            return {}
         except Exception as exc:
             elapsed = asyncio.get_running_loop().time() - stage_started_at
             print(
@@ -728,6 +728,21 @@ OUTPUT (JSON only):
         }
         return mapping.get(vertical.lower(), Vertical.OTHER)
 
+    @staticmethod
+    def _coerce_string_field(value: Any, default: str = "") -> str:
+        """Normalize LLM scalar fields that occasionally come back as lists."""
+        if value is None:
+            return default
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or default
+        if isinstance(value, list):
+            parts = [str(item).strip() for item in value if str(item).strip()]
+            return ", ".join(parts) if parts else default
+        if isinstance(value, (bool, dict)):
+            return default
+        return str(value)
+
     def _parse_tech_stack(self, data: Dict[str, Any]) -> TechStack:
         """Parse tech stack result to TechStack model."""
         return TechStack(
@@ -736,7 +751,7 @@ OUTPUT (JSON only):
             vector_databases=data.get("vector_databases", []),
             frameworks=data.get("frameworks", []),
             hosting=data.get("hosting", []),
-            approach=data.get("approach", "unknown"),
+            approach=self._coerce_string_field(data.get("approach"), "unknown"),
             uses_open_source_models=data.get("uses_open_source_models", False),
             has_custom_models=data.get("has_custom_models", False),
         )
