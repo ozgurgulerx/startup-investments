@@ -104,9 +104,7 @@ class BlobStorageClient:
                 self._blob_service = BlobServiceClient.from_connection_string(
                     self.config.connection_string
                 )
-                # Test the connection by listing containers (take first only)
-                for _ in self._blob_service.list_containers():
-                    break
+                self._test_connection()
                 self.last_error = ""
                 return self._blob_service
             except Exception as e:
@@ -127,9 +125,7 @@ class BlobStorageClient:
                     account_url=account_url,
                     credential=credential,
                 )
-                # Test the connection (take first only)
-                for _ in self._blob_service.list_containers():
-                    break
+                self._test_connection()
                 self.last_error = ""
                 return self._blob_service
             except Exception as e:
@@ -140,6 +136,16 @@ class BlobStorageClient:
 
         self._blob_service = False  # sentinel: don't retry on every access
         return None
+
+    def _test_connection(self) -> None:
+        """Test blob connectivity using a container-level operation.
+
+        Uses exists() on the periods container instead of list_containers
+        which requires account-level permissions that Storage Blob Data
+        Contributor does not grant.
+        """
+        container = self._blob_service.get_container_client(ContainerName.PERIODS.value)
+        container.exists()  # blob-level auth is sufficient
 
     @property
     def is_configured(self) -> bool:

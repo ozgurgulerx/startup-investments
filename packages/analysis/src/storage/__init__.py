@@ -5,11 +5,13 @@ from .blob_client import (
     StorageConfig,
     ContainerName,
 )
+from .period_artifacts import PeriodArtifactStore
 from .snapshot_manager import SnapshotManager
 
 __all__ = [
     "BlobStorageClient",
     "StorageConfig",
     "ContainerName",
+    "PeriodArtifactStore",
     "SnapshotManager",
 ]
