@@ -407,6 +407,7 @@ def _normalize_funding_amount_token(value: Any) -> str:
     # Exact-token normalization policy: trim + lowercase + remove spaces/commas.
     token = str(value).strip().lower()
     token = token.replace(" ", "").replace(",", "")
+    token = re.sub(r"(\d+)\.0+([a-z])", r"\1\2", token)
     return token
 
 
@@ -423,7 +424,8 @@ def compute_funding_event_fingerprint(
 ) -> Optional[str]:
     """Build exact funding fingerprint used for in-memory dedupe.
 
-    Returns None when required components are missing (conservative behavior).
+    Returns None when the event lacks both a round discriminator and any
+    funding-specific details we can safely use as a fallback fingerprint.
     """
     if event.event_type != "cap_funding_raised":
         return None
@@ -431,7 +433,10 @@ def compute_funding_event_fingerprint(
         return None
 
     round_type_norm = str(event.event_key or event.metadata.get("round_type") or "").strip().lower()
-    if not round_type_norm:
+    amount_raw = event.metadata.get("funding_amount") or event.metadata.get("mentioned_amount")
+    amount_norm = _normalize_funding_amount_token(amount_raw)
+    lead_investor_norm = _normalize_lead_investor_token(event.metadata.get("lead_investor"))
+    if not round_type_norm and not amount_norm and not lead_investor_norm:
         return None
 
     if effective_date is None:
@@ -440,13 +445,11 @@ def compute_funding_event_fingerprint(
         return None
 
     region_norm = str(event.region or "global").strip().lower() or "global"
-    amount_raw = event.metadata.get("funding_amount") or event.metadata.get("mentioned_amount")
-    amount_norm = _normalize_funding_amount_token(amount_raw)
-    lead_investor_norm = _normalize_lead_investor_token(event.metadata.get("lead_investor"))
+    round_discriminator = round_type_norm or "__missing_round__"
     return "|".join([
         str(event.startup_id),
         region_norm,
-        round_type_norm,
+        round_discriminator,
         effective_date.isoformat(),
         amount_norm,
         lead_investor_norm,

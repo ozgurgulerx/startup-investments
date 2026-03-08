@@ -275,6 +275,26 @@ describe('dedupeFundingTimelineEvents', () => {
     expect(a).toBe(b);
   });
 
+  it('falls back to amount/date dedupe when round type is missing', () => {
+    const a = getFundingTimelineFingerprint({
+      id: 'a',
+      ...baseFundingEvent,
+      event_key: '',
+      metadata_json: {
+        funding_amount: '$500.0M',
+      },
+    });
+    const b = getFundingTimelineFingerprint({
+      id: 'b',
+      ...baseFundingEvent,
+      event_key: '',
+      metadata_json: {
+        mentioned_amount: '$500M',
+      },
+    });
+    expect(a).toBe(b);
+  });
+
   it('removes exact duplicate funding events while preserving order', () => {
     const events = [
       {
@@ -300,6 +320,27 @@ describe('dedupeFundingTimelineEvents', () => {
 
     const deduped = dedupeFundingTimelineEvents(events);
     expect(deduped.map((e) => e.id)).toEqual(['1', '3']);
+  });
+
+  it('removes duplicate funding events when round type is missing', () => {
+    const events = [
+      {
+        id: '1',
+        ...baseFundingEvent,
+        event_key: '',
+        metadata_json: { funding_amount: '$500.0M' },
+      },
+      {
+        id: '2',
+        ...baseFundingEvent,
+        event_key: '',
+        cluster_id: '22222222-2222-2222-2222-222222222222',
+        metadata_json: { mentioned_amount: '$500M' },
+      },
+    ];
+
+    const deduped = dedupeFundingTimelineEvents(events);
+    expect(deduped.map((e) => e.id)).toEqual(['1']);
   });
 
   it('keeps non-funding events untouched', () => {

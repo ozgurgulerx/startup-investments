@@ -380,7 +380,11 @@ export interface TimelineEvent {
 
 function normalizeFundingAmountToken(value: unknown): string {
   if (value === null || value === undefined) return '';
-  return String(value).trim().toLowerCase().replace(/[,\s]+/g, '');
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[,\s]+/g, '')
+    .replace(/(\d+)\.0+([a-z])/g, '$1$2');
 }
 
 function normalizeLeadInvestorToken(value: unknown): string {
@@ -393,15 +397,16 @@ export function getFundingTimelineFingerprint(event: TimelineEvent): string | nu
   const roundType = String(
     event.event_key || (event.metadata_json?.['round_type'] ?? '')
   ).trim().toLowerCase();
-  if (!roundType || !event.effective_date) return null;
-
   const amountToken = normalizeFundingAmountToken(
     event.metadata_json?.['funding_amount'] ?? event.metadata_json?.['mentioned_amount']
   );
   const leadInvestorToken = normalizeLeadInvestorToken(event.metadata_json?.['lead_investor']);
+  if (!event.effective_date) return null;
+  if (!roundType && !amountToken && !leadInvestorToken) return null;
+  const roundDiscriminator = roundType || '__missing_round__';
   return [
     String(event.region || 'global').trim().toLowerCase() || 'global',
-    roundType,
+    roundDiscriminator,
     event.effective_date,
     amountToken,
     leadInvestorToken,

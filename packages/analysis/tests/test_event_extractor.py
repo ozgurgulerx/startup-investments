@@ -106,3 +106,49 @@ def test_dedupe_funding_events_drops_exact_duplicates_only():
 
     deduped = dedupe_funding_events([funding_a, funding_dup, non_funding])
     assert [e.event_type for e in deduped] == ["cap_funding_raised", "prod_launched"]
+
+
+def test_compute_funding_event_fingerprint_falls_back_when_round_type_missing():
+    e1 = ExtractedEvent(
+        event_type="cap_funding_raised",
+        confidence=0.9,
+        startup_id="11111111-1111-1111-1111-111111111111",
+        event_key="",
+        region="global",
+        event_date=datetime(2026, 2, 25, 9, 0, tzinfo=timezone.utc),
+        metadata={"funding_amount": "$500.0M"},
+    )
+    e2 = ExtractedEvent(
+        event_type="cap_funding_raised",
+        confidence=0.8,
+        startup_id="11111111-1111-1111-1111-111111111111",
+        event_key="",
+        region="global",
+        event_date=datetime(2026, 2, 25, 12, 0, tzinfo=timezone.utc),
+        metadata={"mentioned_amount": "$500M"},
+    )
+    assert compute_funding_event_fingerprint(e1) == compute_funding_event_fingerprint(e2)
+
+
+def test_dedupe_funding_events_drops_missing_round_type_duplicates():
+    funding_a = ExtractedEvent(
+        event_type="cap_funding_raised",
+        confidence=0.9,
+        startup_id="11111111-1111-1111-1111-111111111111",
+        event_key="",
+        region="global",
+        event_date=datetime(2026, 2, 25, 9, 0, tzinfo=timezone.utc),
+        metadata={"funding_amount": "$500.0M"},
+    )
+    funding_dup = ExtractedEvent(
+        event_type="cap_funding_raised",
+        confidence=0.8,
+        startup_id="11111111-1111-1111-1111-111111111111",
+        event_key="",
+        region="global",
+        event_date=datetime(2026, 2, 25, 12, 0, tzinfo=timezone.utc),
+        metadata={"mentioned_amount": "$500M"},
+    )
+
+    deduped = dedupe_funding_events([funding_a, funding_dup])
+    assert len(deduped) == 1
