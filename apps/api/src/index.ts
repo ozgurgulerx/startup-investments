@@ -984,7 +984,9 @@ app.get('/api/v1/stats', async (req, res) => {
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
     const pf = periodFilter(period);
-    const baseWhere = pf ? and(eq(startups.datasetRegion, region), pf) : eq(startups.datasetRegion, region);
+    const baseWhere = pf
+      ? and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'), pf)
+      : and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'));
 
     // Total funding (always join through startups so we can filter by dataset_region)
     const [fundingResult] = await db.select({

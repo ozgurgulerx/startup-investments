@@ -141,9 +141,13 @@ GLOBAL_PERIOD="$(find "$TARGET_DATA_ROOT" -mindepth 1 -maxdepth 1 -type d -exec 
 TR_PERIOD="$(find "$TARGET_DATA_ROOT/tr" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null \
     | grep -E '^[0-9]{4}-[0-9]{2}$' | sort -r | head -n 1 || true)"
 
-check_taxonomy "global" "$GLOBAL_PERIOD"
+if ! check_taxonomy "global" "$GLOBAL_PERIOD"; then
+    echo "WARN: vertical_taxonomy check/backfill failed for global/$GLOBAL_PERIOD — continuing with DB sync anyway."
+fi
 if [ -n "$TR_PERIOD" ]; then
-    check_taxonomy "tr" "$TR_PERIOD"
+    if ! check_taxonomy "tr" "$TR_PERIOD"; then
+        echo "WARN: vertical_taxonomy check/backfill failed for tr/$TR_PERIOD — continuing with DB sync anyway."
+    fi
 fi
 
 if [ -n "${DATABASE_URL:-}" ]; then
