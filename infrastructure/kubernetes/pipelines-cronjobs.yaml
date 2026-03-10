@@ -1467,7 +1467,7 @@ spec:
     spec:
       backoffLimit: 0
       ttlSecondsAfterFinished: 86400
-      activeDeadlineSeconds: 3900
+      activeDeadlineSeconds: 5400
       template:
         metadata:
           labels:
@@ -1483,11 +1483,13 @@ spec:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
                 - global-analysis
-                - "60"
+                - "80"
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/global-analysis.sh
                 - "2026-02"
                 - "2"
                 - "15"
+                - ""
+                - /opt/buildatlas/startup-analysis/apps/web/data/2026-02/input/skip_startups.txt
               envFrom:
                 - configMapRef:
                     name: buildatlas-pipelines-config

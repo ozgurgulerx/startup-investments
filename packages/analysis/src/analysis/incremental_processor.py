@@ -121,6 +121,7 @@ class IncrementalProcessor:
                     "completed": 0,
                     "successful": 0,
                     "error_count": 0,
+                    "remaining": 0,
                     "base_analysis_files": self.store.count_base_analysis_files(),
                 }
             )

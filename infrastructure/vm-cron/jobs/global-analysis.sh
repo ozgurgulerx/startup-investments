@@ -13,6 +13,7 @@ PERIOD="${1:-latest}"
 CONCURRENT="${2:-2}"
 MAX_STARTUPS="${3:-15}"
 STARTUP_FILE="${4:-}"
+SKIP_FILE="${5:-}"
 
 WORK_ROOT="$(mktemp -d /tmp/buildatlas-global-analysis.XXXXXX)"
 TARGET_DATA_ROOT="$WORK_ROOT/apps/web/data"
@@ -73,6 +74,9 @@ echo "Scratch period root: $PERIOD_ROOT"
 if [ -n "$STARTUP_FILE" ]; then
     echo "Startup allowlist: $STARTUP_FILE"
 fi
+if [ -n "$SKIP_FILE" ]; then
+    echo "Skip list: $SKIP_FILE"
+fi
 
 mkdir -p "$TARGET_DATA_ROOT"
 
@@ -121,12 +125,24 @@ csv_path = Path('$CSV_PATH')
 output_path = Path('$OUTPUT_DIR')
 output_path.mkdir(parents=True, exist_ok=True)
 startup_file = Path('$STARTUP_FILE') if '$STARTUP_FILE' else None
+skip_file = Path('$SKIP_FILE') if '$SKIP_FILE' else None
 
 store = AnalysisStore(output_path / 'analysis_store')
 processor = IncrementalProcessor(store)
 
 startups = load_startups_from_csv(csv_path)
 print(f'Total in CSV: {len(startups)}', flush=True)
+
+# Load skip list (permanent failures)
+skip_names = set()
+if skip_file and skip_file.exists():
+    with open(skip_file) as f:
+        skip_names = {line.strip().lower() for line in f if line.strip() and not line.startswith('#')}
+    print(f'Skip list loaded: {len(skip_names)} startups', flush=True)
+if skip_names:
+    before = len(startups)
+    startups = [s for s in startups if s.name.strip().lower() not in skip_names]
+    print(f'After skip filter: {len(startups)} (excluded {before - len(startups)})', flush=True)
 
 stats = store.get_stats()
 print(f'Already in store: {stats[\"total_startups\"]}', flush=True)
@@ -176,10 +192,28 @@ echo ""
 echo "Analysis files: $(ls "$OUTPUT_DIR/analysis_store/base_analyses/" 2>/dev/null | wc -l)"
 
 echo ""
-echo "Publishing period dataset to Blob..."
-"$VENV_DIR/bin/python" "$REPO_DIR/scripts/publish_period_data_to_blob.py" \
-    --period "$PERIOD" \
-    --region global \
-    --source-root "$PERIOD_ROOT"
+# Only publish to blob when there is no remaining delta — avoids the slow
+# blob upload killing intermediate cron runs before they finish.
+PROGRESS_FILE="$OUTPUT_DIR/analysis_store/progress.json"
+REMAINING_DELTA=$(
+    "$VENV_DIR/bin/python" -c "
+import json, sys
+try:
+    with open('$PROGRESS_FILE') as f:
+        print(json.load(f).get('remaining', -1))
+except Exception:
+    print(-1)
+" 2>/dev/null || echo "-1"
+)
+
+if [ "$REMAINING_DELTA" = "0" ]; then
+    echo "Delta is 0 — publishing period dataset to Blob..."
+    "$VENV_DIR/bin/python" "$REPO_DIR/scripts/publish_period_data_to_blob.py" \
+        --period "$PERIOD" \
+        --region global \
+        --source-root "$PERIOD_ROOT"
+else
+    echo "Remaining delta: $REMAINING_DELTA — skipping blob publish (will publish when delta=0)"
+fi
 
 echo "=== Global Analysis Pipeline complete ==="
