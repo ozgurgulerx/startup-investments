@@ -583,14 +583,18 @@ def verify_frontier_schema(
     """Validate crawl-frontier DB schema compatibility before starting a worker."""
     from src.crawl_runtime.frontier import FrontierSchemaError, UrlFrontierStore
 
-    store = UrlFrontierStore(os.getenv("DATABASE_URL"))
+    async def _run_check():
+        store = UrlFrontierStore(os.getenv("DATABASE_URL"))
+        try:
+            return await store.verify_runtime_schema()
+        finally:
+            await store.close()
+
     try:
-        report = asyncio.run(store.verify_runtime_schema())
+        report = asyncio.run(_run_check())
     except FrontierSchemaError as exc:
         console.print(f"[red]Frontier schema check failed:[/red] {exc}")
         raise typer.Exit(1)
-    finally:
-        asyncio.run(store.close())
 
     if json_output:
         console.print_json(data=report)
