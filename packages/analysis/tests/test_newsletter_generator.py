@@ -53,6 +53,8 @@ def test_generate_viral_newsletter_base_analysis_fallback(tmp_path: Path) -> Non
     assert "CloudForge looks interesting because it likely blends vertical data" in content
     assert "## Builder Lessons" in content
     assert "Verticalization on the metals supply chain" in content
+    assert (tmp_path / "viral_newsletter_data.json").exists()
+    assert not (tmp_path / "newsletter_data.json").exists()
 
 
 def test_generate_viral_newsletter_filters_weak_micro_model_meshes(tmp_path: Path) -> None:
@@ -115,3 +117,32 @@ def test_generate_viral_newsletter_filters_weak_micro_model_meshes(tmp_path: Pat
 
     assert "Vertical Data Moats" in content
     assert "Micro-model Meshes" not in content
+
+
+def test_generate_viral_newsletter_accepts_explicit_markdown_path(tmp_path: Path) -> None:
+    from src.reports.newsletter_generator import generate_viral_newsletter
+
+    analyses = [
+        {
+            "company_name": "Acme AI",
+            "company_slug": "acme-ai",
+            "description": "AI tooling",
+            "newsletter_potential": "high",
+            "technical_depth": "medium",
+            "build_patterns": [],
+            "competitive_analysis": {
+                "competitive_moat": "medium",
+                "moat_explanation": "",
+            },
+            "unique_findings": ["Interesting workflow packaging."],
+            "engineering_quality": {"score": 4, "signals": []},
+        }
+    ]
+
+    markdown_path = tmp_path / "custom-newsletter.md"
+    out = generate_viral_newsletter(analyses, markdown_path, newsletter_name="Build Patterns Monthly")
+
+    assert out == markdown_path
+    assert markdown_path.exists()
+    assert (tmp_path / "viral_newsletter_data.json").exists()
+    assert not (tmp_path / "newsletter_data.json").exists()

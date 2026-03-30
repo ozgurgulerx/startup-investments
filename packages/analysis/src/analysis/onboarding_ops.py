@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
 from src.config import settings
+from src.automation.newsletter_generator import write_newsletter_data
 from src.crawler.engine import get_company_slug
-from src.data.ingestion import load_startups_from_csv
+from src.data.ingestion import load_startups_from_csv, load_unique_startups_from_csv
 from src.data.monthly_stats import MonthlyStatistics
 from src.data.store import AnalysisStore
 from src.reports.generator import create_analysis_only_csv, create_enriched_csv
+from src.reports.newsletter_generator import generate_viral_newsletter
 
 
 def normalize_startup_name(name: str) -> str:
@@ -62,19 +64,65 @@ def regenerate_output_artifacts(
     stats_period = period or settings.extract_period_from_path(csv_path)
     monthly_stats_path = None
     monthly_summary_path = None
+    newsletter_data_path = None
+    viral_newsletter_path = None
+    viral_sidecar_path = None
     if stats_period:
         monthly_stats = MonthlyStatistics(stats_period)
         monthly_stats.generate_full_stats(startups, analyses)
         monthly_stats_path = monthly_stats.save(output_path)
         monthly_summary_path = monthly_stats.generate_summary_report(output_path.parent)
+        data_root = _resolve_data_root_from_csv(csv_path)
+        newsletter_data_path = write_newsletter_data(
+            stats_period,
+            data_root,
+            output_path / "newsletter_data.json",
+        )
+        if analyses:
+            generate_viral_newsletter(
+                [analysis.model_dump(mode="json") for analysis in analyses],
+                output_path,
+                newsletter_name="Build Patterns Monthly",
+            )
+            viral_newsletter_path = output_path / "viral_newsletter.md"
+            viral_sidecar_path = output_path / "viral_newsletter_data.json"
 
     return {
         "analysis_results_csv": str(analysis_csv),
         "startups_enriched_csv": str(enriched_csv),
         "monthly_stats_json": str(monthly_stats_path) if monthly_stats_path else "",
         "monthly_summary_report": str(monthly_summary_path) if monthly_summary_path else "",
+        "newsletter_data_json": str(newsletter_data_path) if newsletter_data_path else "",
+        "viral_newsletter_md": str(viral_newsletter_path) if viral_newsletter_path else "",
+        "viral_newsletter_data_json": str(viral_sidecar_path) if viral_sidecar_path else "",
         "base_analysis_count": str(len(analyses)),
     }
+
+
+ONBOARDING_STAGE_ORDER = [
+    "analysis",
+    "artifact_refresh",
+    "db_sync",
+    "analysis_materialization",
+    "state_backfill",
+    "logos",
+    "deep_dives",
+    "monthly_outputs",
+]
+
+
+def _resolve_data_root_from_csv(csv_path: Path) -> Path:
+    """Resolve the `apps/web/data` root from a period CSV path."""
+    csv_path = Path(csv_path)
+    if csv_path.parent.name != "input":
+        raise ValueError(f"Expected startup CSV under an input/ directory, got: {csv_path}")
+
+    period_root = csv_path.parent.parent
+    if period_root.name == "tr":
+        return period_root.parent
+    if period_root.parent.name == "tr":
+        return period_root.parent.parent
+    return period_root.parent
 
 
 def compute_onboarding_preflight(
@@ -156,6 +204,147 @@ def compute_onboarding_preflight(
     }
     report["health"] = evaluate_onboarding_health(report)
     return report
+
+
+def compute_onboarding_resume_plan(
+    csv_path: Path,
+    output_path: Path,
+    region: str = "global",
+) -> Dict[str, Any]:
+    """Determine the earliest onboarding stage that still needs to run."""
+    startups = load_startups_from_csv(csv_path)
+    unique_startups = load_unique_startups_from_csv(csv_path)
+    unique_count = len(unique_startups)
+
+    store = AnalysisStore(output_path / "analysis_store")
+    analyzed_unique = {
+        startup.name
+        for startup in unique_startups
+        if store.get_base_analysis(startup.name) is not None
+    }
+    analyzed_unique_count = len(analyzed_unique)
+    progress = _read_progress(output_path / "analysis_store" / "progress.json")
+    period = settings.extract_period_from_path(csv_path) or ""
+    db_counts = _load_db_counts(region=region, period=period)
+
+    output_files = {
+        "analysis_results_csv": output_path / "analysis_results.csv",
+        "startups_enriched_csv": output_path / "startups_enriched_with_analysis.csv",
+        "monthly_stats_json": output_path / "monthly_stats.json",
+        "newsletter_data_json": output_path / "newsletter_data.json",
+        "viral_newsletter_md": output_path / "viral_newsletter.md",
+        "deep_research_index_json": output_path / "deep_research" / "index.json",
+    }
+    output_exists = {key: path.exists() for key, path in output_files.items()}
+
+    db_total = int(db_counts.get("total") or 0)
+    with_analysis_data = int(db_counts.get("with_analysis_data") or 0)
+    state_ready = int(db_counts.get("state_ready") or 0)
+
+    monthly_outputs_complete = all(output_exists[key] for key in (
+        "monthly_stats_json",
+        "newsletter_data_json",
+        "viral_newsletter_md",
+        "deep_research_index_json",
+    ))
+
+    stage_status = {
+        "analysis": {
+            "complete": analyzed_unique_count >= unique_count and unique_count > 0,
+            "detail": f"{analyzed_unique_count}/{unique_count} unique startups have base analyses",
+        },
+        "artifact_refresh": {
+            "complete": (
+                analyzed_unique_count >= unique_count
+                and output_exists["analysis_results_csv"]
+                and output_exists["startups_enriched_csv"]
+            ),
+            "detail": (
+                f"analysis_results.csv={output_exists['analysis_results_csv']} "
+                f"startups_enriched_with_analysis.csv={output_exists['startups_enriched_csv']}"
+            ),
+        },
+        "db_sync": {
+            "complete": bool(db_counts.get("available")) and db_total >= unique_count and unique_count > 0,
+            "detail": (
+                f"database_rows={db_total}/{unique_count}"
+                if db_counts.get("available")
+                else f"database unavailable: {db_counts.get('reason')}"
+            ),
+        },
+        "analysis_materialization": {
+            "complete": bool(db_counts.get("available")) and with_analysis_data >= analyzed_unique_count and analyzed_unique_count > 0,
+            "detail": (
+                f"analysis_data_rows={with_analysis_data}/{analyzed_unique_count}"
+                if db_counts.get("available")
+                else f"database unavailable: {db_counts.get('reason')}"
+            ),
+        },
+        "state_backfill": {
+            "complete": bool(db_counts.get("available")) and state_ready >= with_analysis_data and with_analysis_data > 0,
+            "detail": (
+                f"state_ready_rows={state_ready}/{with_analysis_data}"
+                if db_counts.get("available")
+                else f"database unavailable: {db_counts.get('reason')}"
+            ),
+        },
+        "logos": {
+            "complete": monthly_outputs_complete,
+            "detail": "logos are treated as complete once later monthly outputs exist; otherwise rerun from this safe boundary",
+        },
+        "deep_dives": {
+            "complete": monthly_outputs_complete,
+            "detail": "deep dives are treated as complete once later monthly outputs exist; otherwise rerun from this safe boundary",
+        },
+        "monthly_outputs": {
+            "complete": monthly_outputs_complete,
+            "detail": (
+                f"monthly_stats={output_exists['monthly_stats_json']} "
+                f"newsletter_data={output_exists['newsletter_data_json']} "
+                f"viral_newsletter={output_exists['viral_newsletter_md']} "
+                f"deep_research_index={output_exists['deep_research_index_json']}"
+            ),
+        },
+        "blob_publish": {
+            "complete": False,
+            "detail": "blob publish is treated as a final idempotent sync step",
+        },
+        "postflight": {
+            "complete": False,
+            "detail": "postflight is always safe to rerun",
+        },
+    }
+
+    recommended_start_stage = "completed"
+    reason = "All durable onboarding stages appear complete"
+    for stage_name in ONBOARDING_STAGE_ORDER:
+        if not stage_status[stage_name]["complete"]:
+            recommended_start_stage = stage_name
+            reason = stage_status[stage_name]["detail"]
+            break
+
+    return {
+        "period": period,
+        "region": region,
+        "paths": {
+            "csv_path": str(csv_path),
+            "output_path": str(output_path),
+        },
+        "csv": {
+            "rows": len(startups),
+            "unique_startups": unique_count,
+        },
+        "analysis_store": {
+            "base_analysis_files": store.count_base_analysis_files(),
+            "analyzed_unique_startups": analyzed_unique_count,
+        },
+        "progress": progress,
+        "database": db_counts,
+        "output_files": output_exists,
+        "stages": stage_status,
+        "recommended_start_stage": recommended_start_stage,
+        "reason": reason,
+    }
 
 
 def evaluate_onboarding_health(
@@ -290,68 +479,68 @@ def _load_db_counts(region: str, period: str) -> Dict[str, Any]:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT EXISTS (
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_name = 'startups'
-                  AND column_name = 'status'
-            )
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'startups'
+              AND column_name IN ('onboarding_status', 'status', 'materialization_status')
             """
         )
-        has_status = bool(cur.fetchone()[0])
+        available_columns = {row[0] for row in cur.fetchall()}
+        status_column = "onboarding_status" if "onboarding_status" in available_columns else ("status" if "status" in available_columns else None)
+        has_materialization = "materialization_status" in available_columns
 
-        if has_status:
-            cur.execute(
-                """
-                SELECT
-                    COUNT(*) AS total,
-                    COUNT(*) FILTER (
-                        WHERE analysis_data IS NOT NULL
-                          AND analysis_data::text <> '{}'
-                    ) AS with_analysis_data,
-                    COUNT(*) FILTER (WHERE status = 'verified') AS verified,
-                    COUNT(*) FILTER (WHERE status = 'stub') AS stub
-                FROM startups
-                WHERE dataset_region = %s
-                  AND period = %s
-                """,
-                (region, period),
-            )
-        else:
-            cur.execute(
-                """
-                SELECT
-                    COUNT(*) AS total,
-                    COUNT(*) FILTER (
-                        WHERE analysis_data IS NOT NULL
-                          AND analysis_data::text <> '{}'
-                    ) AS with_analysis_data
-                FROM startups
-                WHERE dataset_region = %s
-                  AND period = %s
-                """,
-                (region, period),
-            )
-            total, with_analysis_data = cur.fetchone()
-            cur.close()
-            conn.close()
-            return {
-                "available": True,
-                "total": int(total or 0),
-                "with_analysis_data": int(with_analysis_data or 0),
-                "verified": None,
-                "stub": None,
-            }
+        select_parts = [
+            "COUNT(*) AS total",
+            """COUNT(*) FILTER (
+                WHERE analysis_data IS NOT NULL
+                  AND analysis_data::text <> '{}'
+            ) AS with_analysis_data""",
+        ]
+        if status_column:
+            select_parts.extend([
+                f"COUNT(*) FILTER (WHERE {status_column} = 'verified') AS verified",
+                f"COUNT(*) FILTER (WHERE {status_column} = 'stub') AS stub",
+            ])
+        if has_materialization:
+            select_parts.extend([
+                """COUNT(*) FILTER (
+                    WHERE COALESCE(materialization_status, 'unmaterialized') = 'analysis_ready'
+                ) AS analysis_ready""",
+                """COUNT(*) FILTER (
+                    WHERE COALESCE(materialization_status, 'unmaterialized') = 'state_ready'
+                ) AS state_ready""",
+            ])
 
-        total, with_analysis_data, verified, stub = cur.fetchone()
+        cur.execute(
+            f"""
+            SELECT
+                {', '.join(select_parts)}
+            FROM startups
+            WHERE dataset_region = %s
+              AND period = %s
+            """,
+            (region, period),
+        )
+
+        row = cur.fetchone()
         cur.close()
         conn.close()
+        total = row[0]
+        with_analysis_data = row[1]
+        verified = row[2] if status_column else None
+        stub = row[3] if status_column else None
+        analysis_ready = row[4] if status_column and has_materialization else (row[2] if has_materialization else None)
+        state_ready = row[5] if status_column and has_materialization else (row[3] if has_materialization else None)
         return {
             "available": True,
             "total": int(total or 0),
             "with_analysis_data": int(with_analysis_data or 0),
-            "verified": int(verified or 0),
-            "stub": int(stub or 0),
+            "verified": int(verified or 0) if verified is not None else None,
+            "stub": int(stub or 0) if stub is not None else None,
+            "analysis_ready": int(analysis_ready or 0) if analysis_ready is not None else None,
+            "state_ready": int(state_ready or 0) if state_ready is not None else None,
+            "status_column": status_column,
+            "materialization_column": has_materialization,
         }
     except Exception as exc:
         return {

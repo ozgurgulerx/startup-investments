@@ -104,6 +104,16 @@ class StateExtractor:
             source,
         )
 
+        await conn.execute(
+            """UPDATE startups
+               SET materialization_status = 'state_ready',
+                   state_snapshot_at = NOW(),
+                   publish_block_reason = NULL,
+                   updated_at = NOW()
+               WHERE id = $1::uuid""",
+            startup_id,
+        )
+
         # Phase 2: Diff against previous snapshot if differ is available
         if self._differ:
             await self._differ.diff_and_record(conn, startup_id, snapshot, period)

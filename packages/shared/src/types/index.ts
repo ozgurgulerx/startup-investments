@@ -141,11 +141,70 @@ export interface FounderInfo {
 
 export interface TeamSignals {
   engineering_heavy?: boolean;
+  engineering_heavy_status?: 'yes' | 'no' | 'unknown';
   has_ml_expertise?: boolean;
+  has_ml_expertise_status?: 'yes' | 'no' | 'unknown';
   has_domain_expertise?: boolean;
+  has_domain_expertise_status?: 'yes' | 'no' | 'unknown';
   hiring_signals?: string[];
   team_size_indicators?: 'small' | 'medium' | 'large';
   remote_distributed?: boolean;
+  remote_distributed_status?: 'yes' | 'no' | 'unknown';
+}
+
+export interface EvidencePacketItem {
+  source_id: string;
+  source_type?: string;
+  url?: string;
+  title?: string;
+  snippet?: string;
+  captured_at?: string;
+  confidence?: number;
+}
+
+export interface FieldProvenance {
+  evidence_refs?: string[];
+  source_count?: number;
+  confidence?: number;
+  notes?: string;
+}
+
+export interface QualityMetrics {
+  coverage_score?: number;
+  evidence_density?: number;
+  contradiction_count?: number;
+  confidence_by_section?: Record<string, number>;
+  sections_with_evidence?: number;
+  sections_total?: number;
+  low_evidence_sections?: string[];
+}
+
+export interface OpenQuestion {
+  section: string;
+  question: string;
+  reason?: string;
+}
+
+export interface CrawlCoverage {
+  pages_crawled?: number;
+  source_type_counts?: Record<string, number>;
+  seen_source_types?: string[];
+  missing_source_types?: string[];
+  enrichment_enabled?: Record<string, boolean>;
+  website_available?: boolean;
+  docs_available?: boolean;
+  blog_available?: boolean;
+  github_available?: boolean;
+}
+
+export interface FactLedgerEntry {
+  topic: string;
+  label: string;
+  value?: string;
+  evidence_refs?: string[];
+  source_count?: number;
+  confidence?: number;
+  conflicts_with?: string[];
 }
 
 export interface TeamAnalysis {
@@ -467,10 +526,19 @@ export interface StartupAnalysis {
   builder_takeaways?: BuilderTakeaway[];
 
   // Metadata
+  analysis_version?: string;
   analyzed_at?: string;
   confidence_score?: number;
   raw_content_analyzed?: number;
   sources_crawled?: number;
+  evidence_packet?: EvidencePacketItem[];
+  fact_ledger?: Record<string, FactLedgerEntry[]>;
+  field_provenance?: Record<string, FieldProvenance>;
+  section_status?: Record<string, 'ok' | 'partial' | 'missing' | 'error'>;
+  quality_metrics?: QualityMetrics;
+  open_questions?: OpenQuestion[];
+  crawl_coverage?: CrawlCoverage;
+  crawl_diagnostics?: Record<string, unknown>;
 }
 
 // -----------------------------------------------------------------------------

@@ -41,10 +41,16 @@ export const startups = pgTable('startups', {
   usesGenai: boolean('uses_genai').default(false),
   mergedIntoStartupId: uuid('merged_into_startup_id'),
   onboardingStatus: varchar('onboarding_status', { length: 20 }).notNull().default('verified'),
+  materializationStatus: varchar('materialization_status', { length: 32 }).notNull().default('unmaterialized'),
+  analysisMaterializedAt: timestamp('analysis_materialized_at', { withTimezone: true }),
+  stateSnapshotAt: timestamp('state_snapshot_at', { withTimezone: true }),
+  publishBlockReason: text('publish_block_reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (table) => ({
   uniqueSlug: uniqueIndex('idx_startups_slug').on(table.datasetRegion, table.slug),
+  materializationIdx: index('idx_startups_materialization_region_period').on(table.datasetRegion, table.materializationStatus, table.period),
+  snapshotAtIdx: index('idx_startups_state_snapshot_at').on(table.stateSnapshotAt),
 }));
 
 // Startup aliases — maps old names/slugs/domains to canonical startup after merge

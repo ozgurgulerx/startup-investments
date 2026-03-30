@@ -11,6 +11,8 @@
 # Recovery (crash mid-run):
 #   kubectl delete job global-onboarding-2026-02 -n default
 #   bash infrastructure/vm-cron/jobs/onboarding-build-and-run.sh 2026-02
+# The rerun will hydrate any mirrored analysis-store artifacts from Blob and
+# automatically resume from the earliest missing stage.
 #
 apiVersion: batch/v1
 kind: Job
@@ -21,7 +23,7 @@ metadata:
     app: buildatlas-onboarding
     job: global-onboarding
 spec:
-  backoffLimit: 0
+  backoffLimit: 1
   ttlSecondsAfterFinished: 172800
   activeDeadlineSeconds: 172800
   template:
@@ -39,7 +41,7 @@ spec:
             - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
           args:
             - global-onboarding
-            - "480"
+            - "1440"
             - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/global-onboarding.sh
             - __PERIOD__
             - "3"
@@ -49,10 +51,28 @@ spec:
             - secretRef:
                 name: buildatlas-pipelines-secrets
           env:
+            - name: BUILDATLAS_PERIOD
+              value: "__PERIOD__"
+            - name: BUILDATLAS_REGION
+              value: "global"
+            - name: BUILDATLAS_ARTIFACT_BLOB_MIRROR
+              value: "true"
+            - name: AZURE_STORAGE_AUTH_MODE
+              value: "aad"
             - name: BUILDATLAS_RUNNER
               value: "aks-job"
             - name: CRAWLER_RUNTIME
               value: "scrapy"
+            - name: INCREMENTAL_STARTUP_TIMEOUT_SEC
+              value: "1200"
+            - name: CRAWLER_MAX_PAGES_PER_STARTUP
+              value: "30"
+            - name: CRAWLER_ENABLE_WEB_SEARCH
+              value: "false"
+            - name: CRAWLER_ENABLE_NEWS
+              value: "false"
+            - name: CRAWLER_ENABLE_YOUTUBE
+              value: "false"
             - name: CRAWLER_UNBLOCK_PROVIDER
               value: "stealth"
             - name: AZURE_OPENAI_API_KEY

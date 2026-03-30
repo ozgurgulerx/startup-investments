@@ -103,6 +103,9 @@ def populate_analysis_data(conn, period: str, analyses: dict, *, region: str):
                     money_raised_usd = %s,
                     funding_stage = %s,
                     uses_genai = %s,
+                    materialization_status = 'analysis_ready',
+                    analysis_materialized_at = COALESCE(analysis_materialized_at, NOW()),
+                    publish_block_reason = 'state_snapshot_missing',
                     onboarding_status = CASE
                         WHEN COALESCE(onboarding_status, 'verified') = 'stub' THEN 'verified'
                         ELSE onboarding_status
@@ -134,6 +137,9 @@ def populate_analysis_data(conn, period: str, analyses: dict, *, region: str):
                         money_raised_usd = %s,
                         funding_stage = %s,
                         uses_genai = %s,
+                        materialization_status = 'analysis_ready',
+                        analysis_materialized_at = COALESCE(analysis_materialized_at, NOW()),
+                        publish_block_reason = 'state_snapshot_missing',
                         onboarding_status = CASE
                             WHEN COALESCE(onboarding_status, 'verified') = 'stub' THEN 'verified'
                             ELSE onboarding_status
@@ -259,6 +265,9 @@ def populate_from_csv(conn, period: str, *, region: str):
                         money_raised_usd = %s,
                         funding_stage = %s,
                         uses_genai = %s,
+                        materialization_status = 'analysis_ready',
+                        analysis_materialized_at = COALESCE(analysis_materialized_at, NOW()),
+                        publish_block_reason = 'state_snapshot_missing',
                         onboarding_status = CASE
                             WHEN COALESCE(onboarding_status, 'verified') = 'stub' THEN 'verified'
                             ELSE onboarding_status

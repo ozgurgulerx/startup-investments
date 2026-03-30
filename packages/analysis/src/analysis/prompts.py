@@ -219,11 +219,15 @@ Provide analysis in JSON format:
     ],
     "team_signals": {{
         "engineering_heavy": true/false,
+        "engineering_heavy_status": "yes" | "no" | "unknown",
         "has_ml_expertise": true/false,
+        "has_ml_expertise_status": "yes" | "no" | "unknown",
         "has_domain_expertise": true/false,
+        "has_domain_expertise_status": "yes" | "no" | "unknown",
         "hiring_signals": ["roles they're actively hiring for"],
         "team_size_indicators": "small/medium/large based on signals",
-        "remote_distributed": true/false
+        "remote_distributed": true/false,
+        "remote_distributed_status": "yes" | "no" | "unknown"
     }},
     "founder_market_fit": "assessment of whether founders' backgrounds fit this problem",
     "team_strengths": [
@@ -244,6 +248,7 @@ Look for:
 - Advisor/investor mentions indicating network quality
 
 If team information is limited, indicate low confidence and note what's missing.
+When a boolean-like team signal cannot be established from evidence, keep the legacy boolean as false and set the matching `*_status` field to `"unknown"`.
 
 Return ONLY valid JSON."""
 

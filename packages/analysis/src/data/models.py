@@ -1,6 +1,6 @@
 """Pydantic data models for startup analysis."""
 
-from typing import List, Optional, Dict, Any, get_origin
+from typing import List, Optional, Dict, Any, get_args, get_origin
 from datetime import datetime, timezone
 from enum import Enum
 import re
@@ -31,6 +31,12 @@ class LLMModel(BaseModel):
             if name not in values:
                 continue
 
+            if cls._annotation_accepts_bool(field_info.annotation):
+                normalized = cls._normalize_boolish(values[name])
+                if normalized is not None:
+                    values[name] = normalized
+                continue
+
             if get_origin(field_info.annotation) not in (list, List):
                 continue
 
@@ -55,6 +61,30 @@ class LLMModel(BaseModel):
             if isinstance(value, dict):
                 values[name] = []
         return values
+
+    @staticmethod
+    def _annotation_accepts_bool(annotation: Any) -> bool:
+        if annotation is bool:
+            return True
+        return bool in get_args(annotation)
+
+    @staticmethod
+    def _normalize_boolish(value: Any) -> Optional[bool]:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"true", "yes", "y", "1"}:
+                return True
+            if normalized in {"false", "no", "n", "0"}:
+                return False
+            if normalized in {"unknown", "unclear", "n/a", "na", "none", "null", ""}:
+                return False
+        return None
 
 
 class FundingStage(str, Enum):
@@ -117,6 +147,21 @@ class TargetMarket(str, Enum):
     B2C = "b2c"
     B2B2C = "b2b2c"
     UNKNOWN = "unknown"
+
+
+class TriState(str, Enum):
+    """Tri-state value for startup analysis signals."""
+    YES = "yes"
+    NO = "no"
+    UNKNOWN = "unknown"
+
+
+class AnalysisSectionState(str, Enum):
+    """Health state for a synthesized analysis section."""
+    OK = "ok"
+    PARTIAL = "partial"
+    MISSING = "missing"
+    ERROR = "error"
 
 
 class BuildPattern(BaseModel):
@@ -265,11 +310,15 @@ class FounderInfo(LLMModel):
 class TeamSignals(LLMModel):
     """Team composition signals."""
     engineering_heavy: bool = False
+    engineering_heavy_status: TriState = TriState.UNKNOWN
     has_ml_expertise: bool = False
+    has_ml_expertise_status: TriState = TriState.UNKNOWN
     has_domain_expertise: bool = False
+    has_domain_expertise_status: TriState = TriState.UNKNOWN
     hiring_signals: List[str] = Field(default_factory=list)
     team_size_indicators: str = "unknown"  # small, medium, large
     remote_distributed: bool = False
+    remote_distributed_status: TriState = TriState.UNKNOWN
 
 
 class TeamAnalysis(LLMModel):
@@ -464,6 +513,67 @@ class StartupInput(BaseModel):
         )
 
 
+class EvidencePacketItem(LLMModel):
+    """Evidence-first normalized source packet."""
+    source_id: str
+    source_type: str = "website"
+    url: str = ""
+    title: str = ""
+    snippet: str = ""
+    captured_at: Optional[datetime] = None
+    confidence: float = 0.0
+
+
+class FactLedgerEntry(LLMModel):
+    """Canonical fact extracted from the evidence packet."""
+    topic: str
+    label: str
+    value: str = ""
+    evidence_refs: List[str] = Field(default_factory=list)
+    source_count: int = 0
+    confidence: float = 0.0
+    conflicts_with: List[str] = Field(default_factory=list)
+
+
+class FieldProvenance(LLMModel):
+    """Evidence provenance for an important field."""
+    evidence_refs: List[str] = Field(default_factory=list)
+    source_count: int = 0
+    confidence: float = 0.0
+    notes: str = ""
+
+
+class AnalysisQualityMetrics(LLMModel):
+    """Operator-facing quality summary for a startup analysis."""
+    coverage_score: float = 0.0
+    evidence_density: float = 0.0
+    contradiction_count: int = 0
+    confidence_by_section: Dict[str, float] = Field(default_factory=dict)
+    sections_with_evidence: int = 0
+    sections_total: int = 0
+    low_evidence_sections: List[str] = Field(default_factory=list)
+
+
+class OpenQuestion(LLMModel):
+    """Missing or weakly evidenced question for operator follow-up."""
+    section: str
+    question: str
+    reason: str = ""
+
+
+class CrawlCoverage(LLMModel):
+    """Summary of what the crawl actually covered for a startup."""
+    pages_crawled: int = 0
+    source_type_counts: Dict[str, int] = Field(default_factory=dict)
+    seen_source_types: List[str] = Field(default_factory=list)
+    missing_source_types: List[str] = Field(default_factory=list)
+    enrichment_enabled: Dict[str, bool] = Field(default_factory=dict)
+    website_available: bool = False
+    docs_available: bool = False
+    blog_available: bool = False
+    github_available: bool = False
+
+
 class StartupAnalysis(BaseModel):
     """Complete analysis result for a startup."""
     # Basic info
@@ -530,14 +640,22 @@ class StartupAnalysis(BaseModel):
     # Evidence
     sources_crawled: List[CrawledSource] = Field(default_factory=list)
     evidence_quotes: List[str] = Field(default_factory=list)
+    evidence_packet: List[EvidencePacketItem] = Field(default_factory=list)
+    fact_ledger: Dict[str, List[FactLedgerEntry]] = Field(default_factory=dict)
+    field_provenance: Dict[str, FieldProvenance] = Field(default_factory=dict)
 
     # Crawl diagnostics (populated during analysis pipeline)
     crawl_diagnostics: Optional[Dict[str, Any]] = None
+    crawl_coverage: CrawlCoverage = Field(default_factory=CrawlCoverage)
 
     # Metadata
+    analysis_version: str = "v2"
     analyzed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     confidence_score: float = 0.0
     raw_content_analyzed: int = 0  # chars of content processed
+    section_status: Dict[str, AnalysisSectionState] = Field(default_factory=dict)
+    quality_metrics: AnalysisQualityMetrics = Field(default_factory=AnalysisQualityMetrics)
+    open_questions: List[OpenQuestion] = Field(default_factory=list)
 
     @staticmethod
     def to_slug(name: str) -> str:

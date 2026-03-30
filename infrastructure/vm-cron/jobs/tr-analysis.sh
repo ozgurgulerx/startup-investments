@@ -93,11 +93,32 @@ if results['errors']:
 echo ""
 echo "Analysis files: $(ls "$OUTPUT_DIR/analysis_store/base_analyses/" 2>/dev/null | wc -l)"
 
+echo ""
+echo "Regenerating output artifacts..."
+"$VENV_DIR/bin/python" -u -c "
+import sys
+sys.path.insert(0, '$REPO_DIR/packages/analysis')
+
+from pathlib import Path
+from src.analysis.onboarding_ops import regenerate_output_artifacts
+from src.data.store import AnalysisStore
+
+csv_path = Path('$CSV_PATH')
+output_path = Path('$OUTPUT_DIR')
+store = AnalysisStore(output_path / 'analysis_store')
+artifacts = regenerate_output_artifacts(csv_path=csv_path, output_path=output_path, period='$PERIOD', store=store)
+for key, value in artifacts.items():
+    print(f'{key}: {value}', flush=True)
+"
+
 # After analysis, commit and push results so the sync workflow picks them up
 echo ""
 echo "Committing results..."
 cd "$REPO_DIR"
-git add "apps/web/data/tr/$PERIOD/output/analysis_store/" || true
+git add "apps/web/data/tr/$PERIOD/output/analysis_store/" \
+        "apps/web/data/tr/$PERIOD/output/"*.json \
+        "apps/web/data/tr/$PERIOD/output/"*.csv \
+        "apps/web/data/tr/$PERIOD/output/"*.md || true
 if ! git diff --staged --quiet; then
     git commit -m "TR analysis: enrich $PERIOD startups with crawl + LLM analysis [skip ci]"
     git push

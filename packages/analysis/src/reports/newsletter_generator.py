@@ -10,6 +10,30 @@ import re
 from src.pattern_validation import filter_pattern_items
 
 
+def _resolve_viral_output_paths(output_path: Path) -> tuple[Path, Path]:
+    """Resolve markdown + sidecar paths for viral newsletter artifacts.
+
+    `output_path` may be either:
+    - a directory where the standard artifact names should be written, or
+    - an explicit markdown file path for the newsletter content.
+
+    The sidecar intentionally does not use `newsletter_data.json`, which is
+    reserved for the richer monthly newsletter visuals payload.
+    """
+
+    resolved = Path(output_path)
+    if resolved.suffix.lower() == ".md":
+        markdown_path = resolved
+        output_dir = resolved.parent
+    else:
+        output_dir = resolved
+        markdown_path = output_dir / "viral_newsletter.md"
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    sidecar_path = output_dir / "viral_newsletter_data.json"
+    return markdown_path, sidecar_path
+
+
 def generate_viral_newsletter(
     analyses: List[Dict[str, Any]],
     output_path: Path,
@@ -150,13 +174,13 @@ def generate_viral_newsletter(
 
     # Write to file
     content = "\n".join(newsletter)
-    output_file = output_path / "viral_newsletter.md"
+    output_file, sidecar_file = _resolve_viral_output_paths(output_path)
     with open(output_file, "w") as f:
         f.write(content)
 
-    # Also save raw data
-    data_file = output_path / "newsletter_data.json"
-    with open(data_file, "w") as f:
+    # Save a small viral-newsletter sidecar without colliding with the
+    # monthly newsletter visuals payload (`newsletter_data.json`).
+    with open(sidecar_file, "w") as f:
         json.dump({
             "generated_at": datetime.now().isoformat(),
             "theme": theme,

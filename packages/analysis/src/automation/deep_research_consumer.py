@@ -211,32 +211,45 @@ class DeepResearchConsumer:
 
             # Get pending items
             effective_batch = min(max(1, int(batch_size)), self.max_items_per_run)
-            items = await self.db.get_pending_research_items(limit=effective_batch)
-            logger.info(f"Found {len(items)} pending research items")
+            items = await self.db.claim_pending_research_items(limit=effective_batch)
+            logger.info("Claimed %s pending research items", len(items))
 
             if not items:
                 return results
 
-            processed_results = []
-            for item in items:
-                budget = await self._budget_state()
-                if not self._budget_allows_processing(budget):
-                    logger.warning(
-                        "Stopping run due to budget cap (daily=%.4f/%.4f monthly=%.4f/%.4f)",
-                        budget["daily_usd"], self.max_daily_usd,
-                        budget["monthly_usd"], self.max_monthly_usd,
-                    )
-                    break
-                try:
-                    result = await self._process_item(item)
-                except Exception as exc:
-                    result = ResearchResult(
-                        startup_id=str(item.get("startup_id") or ""),
-                        startup_name=item.get("startup_name", "Unknown"),
-                        success=False,
-                        error=str(exc),
-                    )
-                processed_results.append(result)
+            semaphore = asyncio.Semaphore(max(1, self.max_concurrent))
+
+            async def _run_item(item: Dict[str, Any]) -> ResearchResult:
+                async with semaphore:
+                    budget = await self._budget_state()
+                    if not self._budget_allows_processing(budget):
+                        logger.warning(
+                            "Stopping claimed work due to budget cap (daily=%.4f/%.4f monthly=%.4f/%.4f)",
+                            budget["daily_usd"], self.max_daily_usd,
+                            budget["monthly_usd"], self.max_monthly_usd,
+                        )
+                        await self.db.fail_research_item(
+                            str(item.get("id")),
+                            "Budget cap reached after item was claimed; requeue required.",
+                        )
+                        await self.db.requeue_failed_item(str(item.get("id")), self.max_retries)
+                        return ResearchResult(
+                            startup_id=str(item.get("startup_id") or ""),
+                            startup_name=item.get("startup_name", "Unknown"),
+                            success=False,
+                            error="Budget cap reached before processing",
+                        )
+                    try:
+                        return await self._process_item(item, already_claimed=True)
+                    except Exception as exc:
+                        return ResearchResult(
+                            startup_id=str(item.get("startup_id") or ""),
+                            startup_name=item.get("startup_name", "Unknown"),
+                            success=False,
+                            error=str(exc),
+                        )
+
+            processed_results = list(await asyncio.gather(*[_run_item(item) for item in items]))
 
             return processed_results
 
@@ -265,7 +278,7 @@ class DeepResearchConsumer:
         except Exception as e:
             logger.warning(f"Could not reclaim stale items: {e}")
 
-    async def _process_item(self, item: Dict[str, Any]) -> ResearchResult:
+    async def _process_item(self, item: Dict[str, Any], *, already_claimed: bool = False) -> ResearchResult:
         """Process a single research queue item."""
         start_time = datetime.now(timezone.utc)
         item_id = str(item["id"])
@@ -275,16 +288,16 @@ class DeepResearchConsumer:
         logger.info(f"Processing research for {startup_name} (depth: {item.get('research_depth', 'standard')})")
 
         try:
-            # Claim the item
-            claimed = await self.db.claim_research_item(item_id)
-            if not claimed:
-                logger.warning(f"Could not claim item {item_id}, skipping")
-                return ResearchResult(
-                    startup_id=startup_id,
-                    startup_name=startup_name,
-                    success=False,
-                    error="Could not claim item (already processing)"
-                )
+            if not already_claimed:
+                claimed = await self.db.claim_research_item(item_id)
+                if not claimed:
+                    logger.warning(f"Could not claim item {item_id}, skipping")
+                    return ResearchResult(
+                        startup_id=startup_id,
+                        startup_name=startup_name,
+                        success=False,
+                        error="Could not claim item (already processing)"
+                    )
 
             await emit_trace(
                 self.db,
@@ -311,8 +324,18 @@ class DeepResearchConsumer:
                 context_entries = []
                 logger.debug("Could not load onboarding context for %s", startup_id, exc_info=True)
 
+            try:
+                research_context = await self.db.get_startup_research_context_bundle(startup_id, event_limit=5)
+            except Exception:
+                research_context = {}
+                logger.debug("Could not load deep-research context bundle for %s", startup_id, exc_info=True)
+
             # Perform deep research
-            research_output, tokens_used = await self._perform_research(item, context_entries=context_entries)
+            research_output, tokens_used = await self._perform_research(
+                item,
+                context_entries=context_entries,
+                research_context=research_context,
+            )
 
             # Calculate cost using model-specific pricing
             input_tokens = tokens_used.get("input", 0)
@@ -420,6 +443,7 @@ class DeepResearchConsumer:
         self,
         item: Dict[str, Any],
         context_entries: Optional[List[Dict[str, Any]]] = None,
+        research_context: Optional[Dict[str, Any]] = None,
     ) -> tuple[Dict[str, Any], Dict[str, int]]:
         """Perform deep research analysis using LLM."""
         startup_name = item.get("startup_name", "Unknown")
@@ -437,8 +461,11 @@ class DeepResearchConsumer:
             prompt = self._build_standard_prompt(startup_name, website, description, focus_areas)
 
         context_block = self._build_human_context_block(context_entries or [])
-        if context_block:
-            prompt = f"{prompt}\n\n{context_block}"
+        analysis_block = self._build_existing_analysis_block(research_context or {})
+        recent_events_block = self._build_recent_events_block(research_context or {})
+        extra_blocks = [block for block in (analysis_block, recent_events_block, context_block) if block]
+        if extra_blocks:
+            prompt = f"{prompt}\n\n" + "\n\n".join(extra_blocks)
 
         # Call LLM with timeout to prevent hung slots
         try:
@@ -469,6 +496,10 @@ class DeepResearchConsumer:
             "depth": depth,
             "focus_areas": focus_areas,
             "human_context_used": len(context_entries or []),
+            "analysis_context_used": bool((research_context or {}).get("analysis_data")),
+            "recent_event_count": len((research_context or {}).get("recent_events") or []),
+            "materialization_status": (research_context or {}).get("materialization_status"),
+            "period": (research_context or {}).get("period"),
             "researched_at": datetime.now(timezone.utc).isoformat(),
             "model": self.model
         }
@@ -501,7 +532,68 @@ Your analysis should be factual, data-driven, and focused on identifying:
 4. Risk factors and concerns
 5. Investment thesis strengths and weaknesses
 
+Use the provided Existing Analysis, Recent Events, and Operator Context blocks as the primary evidence base.
+If the evidence is incomplete, explicitly say unknown instead of guessing.
 Be specific and cite evidence where possible. Avoid generic statements."""
+
+    def _build_existing_analysis_block(self, research_context: Dict[str, Any]) -> str:
+        analysis_data = research_context.get("analysis_data")
+        if not isinstance(analysis_data, dict) or not analysis_data:
+            return ""
+        lines: List[str] = [
+            "Existing Analysis (treat as prior internal synthesis, not ground truth):",
+            f"- period: {research_context.get('period') or 'unknown'}",
+            f"- materialization_status: {research_context.get('materialization_status') or 'unknown'}",
+        ]
+        for key in (
+            "description",
+            "funding_stage",
+            "funding_amount",
+            "uses_genai",
+            "genai_intensity",
+            "market_type",
+            "vertical",
+            "sub_vertical",
+            "target_market",
+        ):
+            value = analysis_data.get(key)
+            if value not in (None, "", [], {}):
+                lines.append(f"- {key}: {value}")
+
+        build_patterns = analysis_data.get("build_patterns")
+        if isinstance(build_patterns, list) and build_patterns:
+            pattern_names = [
+                str(p.get("name") if isinstance(p, dict) else p).strip()
+                for p in build_patterns
+                if p
+            ]
+            pattern_names = [name for name in pattern_names if name]
+            if pattern_names:
+                lines.append(f"- build_patterns: {', '.join(pattern_names[:8])}")
+        return "\n".join(lines)
+
+    def _build_recent_events_block(self, research_context: Dict[str, Any]) -> str:
+        events = research_context.get("recent_events") or []
+        if not isinstance(events, list) or not events:
+            return ""
+        lines: List[str] = ["Recent Events (newest first):"]
+        for idx, event in enumerate(events[:5], start=1):
+            if not isinstance(event, dict):
+                continue
+            title = str(event.get("event_title") or event.get("event_type") or "Untitled event").strip()
+            source = str(event.get("event_source") or "unknown").strip()
+            event_date = str(event.get("event_date") or event.get("detected_at") or "").strip()
+            confidence = event.get("confidence")
+            url = str(event.get("event_url") or "").strip()
+            line = f"{idx}. [{source}] {title}"
+            if event_date:
+                line += f" ({event_date})"
+            if confidence not in (None, ""):
+                line += f" confidence={confidence}"
+            if url:
+                line += f" url={url}"
+            lines.append(line)
+        return "\n".join(lines)
 
     def _build_quick_prompt(
         self,

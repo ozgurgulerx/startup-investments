@@ -1,6 +1,7 @@
 """Incremental processor - only processes new/changed startups."""
 
 import asyncio
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -298,7 +299,10 @@ class IncrementalProcessor:
             }
         )
 
-        STARTUP_TIMEOUT_SEC = 600  # 10 minutes per startup
+        STARTUP_TIMEOUT_SEC = max(
+            1,
+            int(os.getenv("INCREMENTAL_STARTUP_TIMEOUT_SEC", "600")),
+        )
 
         async def _do_process(startup: StartupInput, stage_state: Dict[str, Any]):
             """Inner work for a single startup (crawl + analyze + save).

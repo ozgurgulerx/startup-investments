@@ -35,6 +35,10 @@ echo "Job:       $JOB_NAME"
 echo "Manifest:  $JOB_YAML"
 echo ""
 
+if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
+    az account set --subscription "${AZURE_SUBSCRIPTION_ID}" --output none || true
+fi
+
 # ─── Step 1: Build image on ACR ─────────────────────────────────────────────
 echo ">>> Step 1: Building image on ACR (this takes ~15 min)..."
 az acr build \
@@ -81,3 +85,4 @@ echo ""
 echo "If it fails mid-run, recover with:"
 echo "  kubectl delete job $JOB_NAME -n default"
 echo "  bash infrastructure/vm-cron/jobs/onboarding-build-and-run.sh $PERIOD"
+echo "The rerun auto-hydrates mirrored period artifacts and resumes from the earliest missing stage."

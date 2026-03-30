@@ -5,8 +5,9 @@ import json
 import os
 import re
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, Awaitable, Callable, List
+from typing import Dict, Any, Awaitable, Callable, List, Optional, Tuple
 from openai import AzureOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -20,7 +21,6 @@ from src.data.models import (
     MarketType,
     TargetMarket,
     Vertical,
-    MoatType,
     CompetitiveAnalysis,
     Competitor,
     Differentiation,
@@ -48,6 +48,14 @@ from src.data.models import (
     FeatureDepth,
     IntegrationEcosystem,
     UseCases,
+    TriState,
+    AnalysisSectionState,
+    EvidencePacketItem,
+    FactLedgerEntry,
+    FieldProvenance,
+    AnalysisQualityMetrics,
+    OpenQuestion,
+    CrawlCoverage,
 )
 from src.analysis.prompts import (
     get_genai_detection_prompt,
@@ -67,7 +75,7 @@ from src.analysis.prompts import (
     get_product_depth_prompt,
 )
 from src.pattern_validation import filter_pattern_items
-from src.crawler.engine import StartupCrawler
+from src.crawler.engine import StartupCrawler, get_company_slug
 
 
 class AnalysisStageTimeoutError(RuntimeError):
@@ -293,6 +301,9 @@ OUTPUT (JSON only):
                 newsletter_potential="low",
             )
 
+        evidence_packet, source_search_texts = self._load_evidence_packet(startup.name)
+        crawl_coverage = self._build_crawl_coverage(evidence_packet)
+
         # Run all analyses
         funding_info = f"${startup.funding_amount:,.0f} {startup.funding_type}" if startup.funding_amount else ""
         industries_str = ", ".join(startup.industries)
@@ -390,6 +401,34 @@ OUTPUT (JSON only):
             ),
         )
 
+        segmentation = self._resolve_segmentation(
+            market_result,
+            vertical_result,
+            vertical_taxonomy_result,
+        )
+        team_analysis = self._parse_team_analysis(team_result)
+        business_model = self._parse_business_model(business_model_result)
+        product_analysis = self._parse_product_analysis(product_result)
+        evidence_quotes = self._dedupe_strings(
+            genai_result.get("evidence", [])
+            + [
+                evidence
+                for pattern in validated_build_patterns
+                for evidence in pattern.get("evidence", [])
+            ]
+            + [
+                evidence
+                for pattern in validated_discovered_patterns
+                for evidence in pattern.get("evidence", [])
+            ]
+            + business_model.pricing_model.pricing_evidence
+            + business_model.gtm_strategy.evidence
+            + product_analysis.stage_evidence
+            + product_analysis.use_cases.customer_stories
+            + team_analysis.team_strengths,
+            limit=20,
+        )
+
         # Build the analysis result
         analysis = StartupAnalysis(
             company_name=startup.name,
@@ -402,10 +441,10 @@ OUTPUT (JSON only):
             genai_intensity=self._parse_intensity(genai_result.get("genai_intensity", "unclear")),
             models_mentioned=genai_result.get("models_mentioned", []),
             build_patterns=self._parse_patterns(validated_build_patterns),
-            market_type=self._parse_market_type(market_result.get("market_type", "horizontal")),
-            vertical=self._parse_vertical(vertical_result.get("vertical", "other")),
-            sub_vertical=vertical_result.get("sub_vertical") or market_result.get("sub_vertical"),
-            sub_sub_vertical=vertical_result.get("sub_sub_vertical") or market_result.get("sub_sub_vertical"),
+            market_type=segmentation["market_type"],
+            vertical=segmentation["vertical"],
+            sub_vertical=segmentation["sub_vertical"],
+            sub_sub_vertical=segmentation["sub_sub_vertical"],
             vertical_taxonomy=vertical_taxonomy_result or {},
             target_market=self._parse_target_market(market_result.get("target_market", "unknown")),
             tech_stack=self._parse_tech_stack(tech_stack_result),
@@ -416,7 +455,9 @@ OUTPUT (JSON only):
             story_angles=self._parse_story_angles(story_angles_result.get("story_angles", [])),
             anti_patterns=self._parse_anti_patterns(anti_patterns_result.get("anti_patterns", [])),
             competitive_analysis=self._parse_competitive_analysis(competitive_result),
-            evidence_quotes=genai_result.get("evidence", []) + patterns_result.get("novel_approaches", []),
+            evidence_quotes=evidence_quotes,
+            evidence_packet=evidence_packet,
+            crawl_coverage=crawl_coverage,
             confidence_score=genai_result.get("confidence", 0.0),
             raw_content_analyzed=len(content),
             # NEW: Dynamic pattern discovery fields
@@ -431,10 +472,54 @@ OUTPUT (JSON only):
             ),
             implementation_maturity=pattern_discovery_result.get("implementation_maturity", "unknown"),
             # NEW: Business analysis fields
-            team_analysis=self._parse_team_analysis(team_result),
-            business_model=self._parse_business_model(business_model_result),
-            product_analysis=self._parse_product_analysis(product_result),
+            team_analysis=team_analysis,
+            business_model=business_model,
+            product_analysis=product_analysis,
         )
+
+        field_provenance = self._build_field_provenance(
+            analysis,
+            genai_result,
+            validated_build_patterns,
+            validated_discovered_patterns,
+            market_result,
+            vertical_result,
+            segmentation,
+            evidence_packet,
+            source_search_texts,
+        )
+        section_status = self._build_section_status(analysis, field_provenance)
+        section_confidence = {
+            "genai": genai_result.get("confidence", 0.0),
+            "patterns": max(
+                [pattern.get("confidence", 0.0) for pattern in validated_build_patterns + validated_discovered_patterns]
+                or [0.0]
+            ),
+            "segmentation": max(
+                [
+                    path_item.get("confidence", 0.0)
+                    for path_item in (vertical_taxonomy_result.get("path", []) if isinstance(vertical_taxonomy_result, dict) else [])
+                ] or [0.0]
+            ),
+            "tech_stack": 0.7 if analysis.tech_stack.approach != "unknown" or analysis.tech_stack.llm_models else 0.0,
+            "team": analysis.team_analysis.team_confidence,
+            "business_model": analysis.business_model.business_model_confidence,
+            "product": analysis.product_analysis.product_confidence,
+            "competitive": 0.7 if analysis.competitive_analysis.competitive_moat != "unknown" else 0.0,
+            "insights": 0.7 if analysis.unique_findings else 0.0,
+            "evidence": 1.0 if evidence_packet else 0.0,
+        }
+
+        analysis.field_provenance = field_provenance
+        analysis.section_status = section_status
+        analysis.quality_metrics = self._build_quality_metrics(
+            section_status,
+            field_provenance,
+            section_confidence,
+            contradiction_count=segmentation.get("contradictions", 0),
+        )
+        analysis.open_questions = self._build_open_questions(analysis)
+        analysis.fact_ledger = self._build_fact_ledger(analysis)
 
         return analysis
 
@@ -562,14 +647,17 @@ OUTPUT (JSON only):
         stage_started_at = asyncio.get_running_loop().time()
         try:
             async with self._stage_semaphore:
-                result = await stage_factory()
+                result = await asyncio.wait_for(
+                    stage_factory(),
+                    timeout=float(self.stage_timeout_sec),
+                )
             elapsed = asyncio.get_running_loop().time() - stage_started_at
             print(
                 f"[analysis-stage] startup={startup_name} stage={stage_name} status=ok duration_sec={elapsed:.1f}",
                 flush=True,
             )
             return result if isinstance(result, dict) else {}
-        except AnalysisStageTimeoutError as exc:
+        except (AnalysisStageTimeoutError, asyncio.TimeoutError) as exc:
             elapsed = asyncio.get_running_loop().time() - stage_started_at
             print(
                 f"[analysis-stage] startup={startup_name} stage={stage_name} status=timeout"
@@ -743,6 +831,660 @@ OUTPUT (JSON only):
             return default
         return str(value)
 
+    @staticmethod
+    def _normalize_text(value: Any) -> str:
+        text = str(value or "").lower()
+        text = re.sub(r"\s+", " ", text)
+        return text.strip()
+
+    @staticmethod
+    def _dedupe_strings(values: List[Any], limit: Optional[int] = None) -> List[str]:
+        deduped: List[str] = []
+        seen: set[str] = set()
+        for value in values:
+            text = str(value or "").strip()
+            if not text:
+                continue
+            key = GenAIAnalyzer._normalize_text(text)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(text)
+            if limit is not None and len(deduped) >= limit:
+                break
+        return deduped
+
+    @staticmethod
+    def _ensure_list(value: Any) -> List[Any]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, (tuple, set)):
+            return list(value)
+        text = str(value).strip()
+        return [text] if text else []
+
+    @staticmethod
+    def _coerce_confidence(value: Any, default: float = 0.0) -> float:
+        try:
+            confidence = float(value)
+        except Exception:
+            confidence = default
+        return max(0.0, min(1.0, confidence))
+
+    @staticmethod
+    def _coerce_tri_state(value: Any) -> TriState:
+        if isinstance(value, TriState):
+            return value
+        if isinstance(value, bool):
+            return TriState.YES if value else TriState.NO
+        if isinstance(value, (int, float)):
+            return TriState.YES if value else TriState.NO
+        normalized = GenAIAnalyzer._normalize_text(value)
+        if normalized in {"true", "yes", "y", "1"}:
+            return TriState.YES
+        if normalized in {"false", "no", "n", "0"}:
+            return TriState.NO
+        return TriState.UNKNOWN
+
+    @staticmethod
+    def _bool_from_tri_state(value: TriState) -> bool:
+        return value == TriState.YES
+
+    @staticmethod
+    def _detect_source_type(url: str) -> str:
+        normalized = str(url or "").lower()
+        if normalized.startswith("https://github.com") or "_github" in normalized:
+            return "github"
+        if normalized.startswith("websearch://") or "_websearch" in normalized:
+            return "web_search"
+        if normalized.startswith("youtube://") or "_youtube" in normalized:
+            return "youtube"
+        if normalized.startswith("news://") or "_news" in normalized:
+            return "news"
+        if "/blog" in normalized or "/engineering" in normalized:
+            return "blog"
+        if "/docs" in normalized or "/api" in normalized or "/developer" in normalized:
+            return "docs"
+        return "website"
+
+    @staticmethod
+    def _source_confidence(source_type: str) -> float:
+        mapping = {
+            "website": 0.9,
+            "docs": 0.95,
+            "github": 0.95,
+            "youtube": 0.85,
+            "blog": 0.8,
+            "news": 0.7,
+            "web_search": 0.65,
+        }
+        return mapping.get(source_type, 0.6)
+
+    @staticmethod
+    def _stringify_fact_value(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return "yes" if value else "no"
+        if hasattr(value, "value"):
+            return str(getattr(value, "value"))
+        if isinstance(value, list):
+            return ", ".join(str(item) for item in value if str(item).strip())
+        return str(value).strip()
+
+    def _load_evidence_packet(
+        self, company_name: str
+    ) -> Tuple[List[EvidencePacketItem], Dict[str, str]]:
+        cache_dir = getattr(self.crawler, "cache_dir", None)
+        if not cache_dir:
+            return [], {}
+
+        cache_path = Path(cache_dir)
+        if not cache_path.exists():
+            return [], {}
+
+        slug = get_company_slug(company_name)
+        alt_slug = company_name.lower().replace(" ", "-")
+        candidate_files: List[Path] = []
+        for pattern in (f"{slug}_*.json", f"{slug}*.json", f"{alt_slug}_*.json"):
+            candidate_files.extend(cache_path.glob(pattern))
+
+        pages_by_url: Dict[str, Dict[str, Any]] = {}
+        for cache_file in sorted({path.resolve() for path in candidate_files}):
+            try:
+                with cache_file.open("r", encoding="utf-8") as handle:
+                    data = json.load(handle)
+            except Exception:
+                continue
+
+            result = data.get("result", {}) if isinstance(data, dict) else {}
+            url = str(data.get("url") or "").strip()
+            content = str(result.get("content") or "").strip()
+            if not url or not content:
+                continue
+
+            title = str(result.get("title") or "").strip()
+            source_type = str(
+                (data.get("source") or {}).get("source_type")
+                or result.get("source_type")
+                or self._detect_source_type(url)
+            ).strip().lower() or "website"
+            captured_at = datetime.fromtimestamp(cache_file.stat().st_mtime, tz=timezone.utc)
+            existing = pages_by_url.get(url)
+            current = {
+                "url": url,
+                "title": title,
+                "content": content,
+                "source_type": source_type,
+                "captured_at": captured_at,
+            }
+            if existing is None or len(content) > len(existing["content"]):
+                pages_by_url[url] = current
+
+        priority = {"website": 0, "docs": 1, "github": 2, "blog": 3, "news": 4, "web_search": 5}
+        ordered_pages = sorted(
+            pages_by_url.values(),
+            key=lambda page: (priority.get(page["source_type"], 9), page["url"]),
+        )
+
+        evidence_packet: List[EvidencePacketItem] = []
+        source_search_texts: Dict[str, str] = {}
+        for index, page in enumerate(ordered_pages, start=1):
+            source_id = f"src_{index}"
+            snippet = self._coerce_string_field(page["content"], "")[:600]
+            evidence_packet.append(
+                EvidencePacketItem(
+                    source_id=source_id,
+                    source_type=page["source_type"],
+                    url=page["url"],
+                    title=page["title"],
+                    snippet=snippet,
+                    captured_at=page["captured_at"],
+                    confidence=self._source_confidence(page["source_type"]),
+                )
+            )
+            source_search_texts[source_id] = self._normalize_text(
+                f"{page['title']}\n{page['content']}"
+            )
+
+        return evidence_packet, source_search_texts
+
+    def _match_evidence_refs(
+        self,
+        evidence_items: List[Any],
+        evidence_packet: List[EvidencePacketItem],
+        source_search_texts: Dict[str, str],
+        preferred_types: Optional[List[str]] = None,
+        limit: int = 3,
+    ) -> List[str]:
+        refs: List[str] = []
+        for item in evidence_items:
+            normalized = self._normalize_text(item)
+            if len(normalized) < 12:
+                continue
+            for packet_item in evidence_packet:
+                source_text = source_search_texts.get(packet_item.source_id, "")
+                if normalized in source_text:
+                    refs.append(packet_item.source_id)
+
+        return self._dedupe_strings(refs, limit=limit)
+
+    def _build_crawl_coverage(self, evidence_packet: List[EvidencePacketItem]) -> CrawlCoverage:
+        source_type_counts: Dict[str, int] = {}
+        for packet_item in evidence_packet:
+            source_type_counts[packet_item.source_type] = source_type_counts.get(packet_item.source_type, 0) + 1
+
+        enrichment_enabled = {
+            "web_search": settings.crawler.enable_web_search,
+            "github": settings.crawler.enable_github,
+            "news": settings.crawler.enable_news,
+            "youtube": settings.crawler.enable_youtube,
+        }
+        expected_types = ["website", "docs", "blog"]
+        expected_types.extend(
+            source_type
+            for source_type, enabled in enrichment_enabled.items()
+            if enabled and source_type not in expected_types
+        )
+        missing_source_types = [
+            source_type
+            for source_type in expected_types
+            if source_type_counts.get(source_type, 0) == 0
+        ]
+
+        return CrawlCoverage(
+            pages_crawled=len(evidence_packet),
+            source_type_counts=source_type_counts,
+            seen_source_types=sorted(source_type_counts.keys()),
+            missing_source_types=missing_source_types,
+            enrichment_enabled=enrichment_enabled,
+            website_available=source_type_counts.get("website", 0) > 0,
+            docs_available=source_type_counts.get("docs", 0) > 0,
+            blog_available=source_type_counts.get("blog", 0) > 0,
+            github_available=source_type_counts.get("github", 0) > 0,
+        )
+
+    def _resolve_segmentation(
+        self,
+        market_result: Dict[str, Any],
+        vertical_result: Dict[str, Any],
+        vertical_taxonomy_result: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        taxonomy_primary = vertical_taxonomy_result.get("primary", {}) if isinstance(vertical_taxonomy_result, dict) else {}
+        taxonomy_vertical = taxonomy_primary.get("vertical_id") or taxonomy_primary.get("vertical_label")
+        taxonomy_sub_vertical = taxonomy_primary.get("sub_vertical_label")
+        taxonomy_leaf = taxonomy_primary.get("leaf_label")
+
+        fallback_vertical = self._parse_vertical(str(vertical_result.get("vertical", "other")))
+        taxonomy_vertical_enum = self._parse_vertical_taxonomy_value(taxonomy_vertical)
+        canonical_vertical = taxonomy_vertical_enum or fallback_vertical
+
+        vertical_from_stage = self._normalize_text(vertical_result.get("vertical"))
+        vertical_from_taxonomy = self._normalize_text(taxonomy_vertical)
+
+        contradictions = 0
+        if taxonomy_vertical_enum and vertical_from_stage and vertical_from_taxonomy and vertical_from_stage != vertical_from_taxonomy:
+            contradictions += 1
+
+        market_type = self._parse_market_type(market_result.get("market_type", "horizontal"))
+        if taxonomy_primary.get("vertical_id") and canonical_vertical != Vertical.OTHER:
+            market_type = MarketType.VERTICAL
+
+        market_signal = self._normalize_text(market_result.get("market_type"))
+        if market_signal == "horizontal" and taxonomy_primary.get("vertical_id"):
+            contradictions += 1
+
+        sub_vertical = self._coerce_string_field(
+            taxonomy_sub_vertical
+            or vertical_result.get("sub_vertical")
+            or market_result.get("sub_vertical"),
+            "",
+        ) or None
+        sub_sub_vertical = self._coerce_string_field(
+            taxonomy_leaf
+            or vertical_result.get("sub_sub_vertical")
+            or market_result.get("sub_sub_vertical"),
+            "",
+        ) or None
+        if sub_sub_vertical and sub_sub_vertical == sub_vertical:
+            sub_sub_vertical = None
+
+        return {
+            "market_type": market_type,
+            "vertical": canonical_vertical,
+            "sub_vertical": sub_vertical,
+            "sub_sub_vertical": sub_sub_vertical,
+            "contradictions": contradictions,
+            "taxonomy_override": bool(taxonomy_primary.get("vertical_id")),
+        }
+
+    @staticmethod
+    def _normalize_vertical_taxonomy_key(value: Any) -> str:
+        normalized = GenAIAnalyzer._normalize_text(value)
+        normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+        return normalized.strip("_")
+
+    def _parse_vertical_taxonomy_value(self, value: Any) -> Optional[Vertical]:
+        key = self._normalize_vertical_taxonomy_key(value)
+        if not key:
+            return None
+
+        alias_mapping = {
+            "it_enterprise_software": Vertical.ENTERPRISE_SAAS,
+            "enterprise_software": Vertical.ENTERPRISE_SAAS,
+            "healthcare_life_sciences": Vertical.HEALTHCARE,
+            "healthcare": Vertical.HEALTHCARE,
+            "industrial_manufacturing": Vertical.INDUSTRIAL,
+            "industrial": Vertical.INDUSTRIAL,
+            "developer_tools": Vertical.DEVELOPER_TOOLS,
+            "developer_tooling": Vertical.DEVELOPER_TOOLS,
+            "financial_services": Vertical.FINANCIAL_SERVICES,
+            "fintech": Vertical.FINANCIAL_SERVICES,
+            "hr_recruiting": Vertical.HR_RECRUITING,
+            "hr": Vertical.HR_RECRUITING,
+            "education": Vertical.EDUCATION,
+            "marketing": Vertical.MARKETING,
+            "cybersecurity": Vertical.CYBERSECURITY,
+            "ecommerce": Vertical.ECOMMERCE,
+            "consumer": Vertical.CONSUMER,
+            "media_content": Vertical.MEDIA_CONTENT,
+            "enterprise_saas": Vertical.ENTERPRISE_SAAS,
+        }
+        if key in alias_mapping:
+            return alias_mapping[key]
+
+        return self._parse_vertical(key)
+
+    @staticmethod
+    def _section_state(has_data: bool, has_evidence: bool) -> AnalysisSectionState:
+        if has_data and has_evidence:
+            return AnalysisSectionState.OK
+        if has_data:
+            return AnalysisSectionState.PARTIAL
+        return AnalysisSectionState.MISSING
+
+    def _build_field_provenance(
+        self,
+        analysis: StartupAnalysis,
+        genai_result: Dict[str, Any],
+        validated_build_patterns: List[Dict[str, Any]],
+        validated_discovered_patterns: List[Dict[str, Any]],
+        market_result: Dict[str, Any],
+        vertical_result: Dict[str, Any],
+        segmentation: Dict[str, Any],
+        evidence_packet: List[EvidencePacketItem],
+        source_search_texts: Dict[str, str],
+    ) -> Dict[str, FieldProvenance]:
+        pattern_evidence = [
+            evidence
+            for pattern in validated_build_patterns
+            for evidence in pattern.get("evidence", [])
+        ]
+        discovered_pattern_evidence = [
+            evidence
+            for pattern in validated_discovered_patterns
+            for evidence in pattern.get("evidence", [])
+        ]
+
+        def make_provenance(
+            evidence_items: Any,
+            *,
+            confidence: Any,
+            preferred_types: Optional[List[str]] = None,
+            notes: str = "",
+        ) -> FieldProvenance:
+            evidence_list = self._ensure_list(evidence_items)
+            refs = self._match_evidence_refs(
+                evidence_list,
+                evidence_packet,
+                source_search_texts,
+                preferred_types=preferred_types,
+            ) if evidence_packet else []
+            return FieldProvenance(
+                evidence_refs=refs,
+                source_count=len(refs),
+                confidence=self._coerce_confidence(confidence),
+                notes=notes,
+            )
+
+        taxonomy_note = "taxonomy-derived" if segmentation.get("taxonomy_override") else ""
+
+        return {
+            "uses_genai": make_provenance(
+                genai_result.get("evidence", []),
+                confidence=genai_result.get("confidence", 0.0),
+                preferred_types=["website", "docs", "github"],
+            ),
+            "genai_intensity": make_provenance(
+                genai_result.get("evidence", []),
+                confidence=genai_result.get("confidence", 0.0),
+                preferred_types=["website", "docs", "github"],
+            ),
+            "build_patterns": make_provenance(
+                pattern_evidence + discovered_pattern_evidence,
+                confidence=max(
+                    [pattern.get("confidence", 0.0) for pattern in validated_build_patterns + validated_discovered_patterns]
+                    or [0.0]
+                ),
+                preferred_types=["docs", "github", "website"],
+            ),
+            "market_type": make_provenance(
+                market_result.get("evidence", []),
+                confidence=0.7 if analysis.market_type != MarketType.HORIZONTAL else 0.5,
+                preferred_types=["website", "docs"],
+                notes=taxonomy_note,
+            ),
+            "vertical": make_provenance(
+                vertical_result.get("evidence", []),
+                confidence=0.8 if analysis.vertical != Vertical.OTHER else 0.4,
+                preferred_types=["website", "docs"],
+                notes=taxonomy_note,
+            ),
+            "target_market": make_provenance(
+                market_result.get("evidence", []),
+                confidence=0.6 if analysis.target_market != TargetMarket.UNKNOWN else 0.0,
+                preferred_types=["website", "docs"],
+            ),
+            "tech_stack": make_provenance(
+                analysis.tech_stack.llm_models
+                + analysis.tech_stack.frameworks
+                + analysis.tech_stack.vector_databases,
+                confidence=0.7 if analysis.tech_stack.approach != "unknown" else 0.0,
+                preferred_types=["docs", "github", "website"],
+            ),
+            "competitive_moat": make_provenance(
+                analysis.competitive_analysis.secret_sauce.evidence,
+                confidence=0.7 if analysis.competitive_analysis.competitive_moat != "unknown" else 0.3,
+                preferred_types=["website", "blog", "docs"],
+            ),
+            "team_analysis": make_provenance(
+                analysis.team_analysis.team_strengths
+                + analysis.team_analysis.team_red_flags
+                + analysis.team_analysis.team_signals.hiring_signals,
+                confidence=analysis.team_analysis.team_confidence,
+                preferred_types=["website", "blog", "github"],
+            ),
+            "pricing_model": make_provenance(
+                analysis.business_model.pricing_model.pricing_evidence,
+                confidence=analysis.business_model.business_model_confidence,
+                preferred_types=["website", "docs"],
+            ),
+            "product_stage": make_provenance(
+                analysis.product_analysis.stage_evidence,
+                confidence=analysis.product_analysis.product_confidence,
+                preferred_types=["website", "docs", "blog"],
+            ),
+            "primary_use_case": make_provenance(
+                analysis.product_analysis.use_cases.customer_stories
+                + analysis.product_analysis.feature_depth.differentiating_features,
+                confidence=analysis.product_analysis.product_confidence,
+                preferred_types=["website", "docs"],
+            ),
+            "insights": make_provenance(
+                analysis.unique_findings + analysis.evidence_quotes,
+                confidence=0.7 if analysis.unique_findings else 0.0,
+                preferred_types=["website", "docs", "blog"],
+            ),
+        }
+
+    def _build_section_status(
+        self,
+        analysis: StartupAnalysis,
+        field_provenance: Dict[str, FieldProvenance],
+    ) -> Dict[str, AnalysisSectionState]:
+        return {
+            "genai": self._section_state(
+                analysis.genai_intensity != GenAIIntensity.UNCLEAR
+                or bool(analysis.models_mentioned),
+                bool(field_provenance["uses_genai"].evidence_refs),
+            ),
+            "patterns": self._section_state(
+                bool(analysis.build_patterns or analysis.discovered_patterns or analysis.novel_approaches),
+                bool(field_provenance["build_patterns"].evidence_refs),
+            ),
+            "segmentation": self._section_state(
+                analysis.vertical != Vertical.OTHER
+                or bool(analysis.sub_vertical)
+                or analysis.target_market != TargetMarket.UNKNOWN,
+                bool(
+                    field_provenance["vertical"].evidence_refs
+                    or field_provenance["market_type"].evidence_refs
+                ),
+            ),
+            "tech_stack": self._section_state(
+                bool(
+                    analysis.tech_stack.llm_models
+                    or analysis.tech_stack.frameworks
+                    or analysis.tech_stack.vector_databases
+                    or analysis.tech_stack.approach != "unknown"
+                ),
+                analysis.crawl_coverage.docs_available or analysis.crawl_coverage.github_available,
+            ),
+            "team": self._section_state(
+                bool(
+                    analysis.team_analysis.founders
+                    or analysis.team_analysis.team_strengths
+                    or analysis.team_analysis.team_signals.hiring_signals
+                ),
+                bool(field_provenance["team_analysis"].evidence_refs),
+            ),
+            "business_model": self._section_state(
+                bool(
+                    analysis.business_model.pricing_model.type != "unknown"
+                    or analysis.business_model.gtm_strategy.primary_channel != "unknown"
+                    or analysis.business_model.revenue_model.monetization_approach
+                ),
+                bool(field_provenance["pricing_model"].evidence_refs),
+            ),
+            "product": self._section_state(
+                bool(
+                    analysis.product_analysis.use_cases.primary_use_case
+                    or analysis.product_analysis.feature_depth.core_features
+                    or analysis.product_analysis.product_stage != "unknown"
+                ),
+                bool(
+                    field_provenance["product_stage"].evidence_refs
+                    or field_provenance["primary_use_case"].evidence_refs
+                ),
+            ),
+            "competitive": self._section_state(
+                bool(
+                    analysis.competitive_analysis.competitors
+                    or analysis.competitive_analysis.differentiation.primary
+                    or analysis.competitive_analysis.competitive_moat != "unknown"
+                ),
+                bool(field_provenance["competitive_moat"].evidence_refs),
+            ),
+            "insights": self._section_state(
+                bool(analysis.unique_findings or analysis.story_angles or analysis.anti_patterns),
+                bool(analysis.evidence_quotes),
+            ),
+            "evidence": self._section_state(
+                bool(analysis.evidence_packet),
+                bool(analysis.evidence_packet),
+            ),
+        }
+
+    def _build_quality_metrics(
+        self,
+        section_status: Dict[str, AnalysisSectionState],
+        field_provenance: Dict[str, FieldProvenance],
+        section_confidence: Dict[str, float],
+        contradiction_count: int,
+    ) -> AnalysisQualityMetrics:
+        section_field_map = {
+            "genai": ["uses_genai", "genai_intensity"],
+            "patterns": ["build_patterns"],
+            "segmentation": ["market_type", "vertical", "target_market"],
+            "tech_stack": ["tech_stack"],
+            "team": ["team_analysis"],
+            "business_model": ["pricing_model"],
+            "product": ["product_stage", "primary_use_case"],
+            "competitive": ["competitive_moat"],
+            "insights": ["insights"],
+            "evidence": [],
+        }
+        sections_total = len(section_status)
+        ok_count = sum(1 for status in section_status.values() if status == AnalysisSectionState.OK)
+        partial_count = sum(1 for status in section_status.values() if status == AnalysisSectionState.PARTIAL)
+        sections_with_evidence = sum(
+            1
+            for section, fields in section_field_map.items()
+            if any(field_provenance.get(field, FieldProvenance()).source_count > 0 for field in fields)
+        )
+        total_refs = sum(len(provenance.evidence_refs) for provenance in field_provenance.values())
+        low_evidence_sections = [
+            section
+            for section, status in section_status.items()
+            if status != AnalysisSectionState.MISSING and section_confidence.get(section, 0.0) >= 0.5
+            and not any(field_provenance.get(field, FieldProvenance()).source_count > 0 for field in section_field_map.get(section, []))
+        ]
+
+        return AnalysisQualityMetrics(
+            coverage_score=round((ok_count + (0.5 * partial_count)) / max(sections_total, 1), 3),
+            evidence_density=round(total_refs / max(sections_total, 1), 3),
+            contradiction_count=contradiction_count,
+            confidence_by_section={
+                key: self._coerce_confidence(value)
+                for key, value in section_confidence.items()
+            },
+            sections_with_evidence=sections_with_evidence,
+            sections_total=sections_total,
+            low_evidence_sections=low_evidence_sections,
+        )
+
+    def _build_open_questions(self, analysis: StartupAnalysis) -> List[OpenQuestion]:
+        questions: List[OpenQuestion] = []
+
+        def add(section: str, question: str, reason: str) -> None:
+            if len(questions) >= 8:
+                return
+            questions.append(OpenQuestion(section=section, question=question, reason=reason))
+
+        if analysis.crawl_coverage.pages_crawled < 3:
+            add("evidence", "Can we expand crawl coverage beyond the primary marketing site?", "Low page count reduces evidence depth.")
+        if not analysis.crawl_coverage.docs_available:
+            add("tech_stack", "Is there technical documentation or API evidence available?", "Docs coverage is missing.")
+        if not analysis.team_analysis.founders:
+            add("team", "Who are the founders and what is their prior operating history?", "Founder identity was not established from the crawl.")
+        if not analysis.business_model.pricing_model.pricing_evidence:
+            add("business_model", "What pricing or packaging evidence exists for this startup?", "Pricing model lacks direct evidence.")
+        if analysis.product_analysis.product_stage == "unknown" or not analysis.product_analysis.stage_evidence:
+            add("product", "What evidence confirms product maturity and rollout stage?", "Product stage is weakly supported.")
+        if analysis.uses_genai and not analysis.field_provenance.get("uses_genai", FieldProvenance()).source_count:
+            add("genai", "Which source directly confirms the GenAI implementation claim?", "GenAI claim lacks matched evidence refs.")
+        if analysis.vertical == Vertical.OTHER and not analysis.sub_vertical:
+            add("segmentation", "What source best anchors the vertical classification?", "Taxonomy and heuristic classification remain weak.")
+
+        return questions
+
+    def _build_fact_ledger(self, analysis: StartupAnalysis) -> Dict[str, List[FactLedgerEntry]]:
+        ledger: Dict[str, List[FactLedgerEntry]] = {}
+
+        def add(topic: str, label: str, value: Any, provenance_key: str, confidence: float = 0.0) -> None:
+            string_value = self._stringify_fact_value(value)
+            if not string_value:
+                return
+            provenance = analysis.field_provenance.get(provenance_key, FieldProvenance())
+            ledger.setdefault(topic, []).append(
+                FactLedgerEntry(
+                    topic=topic,
+                    label=label,
+                    value=string_value,
+                    evidence_refs=provenance.evidence_refs,
+                    source_count=provenance.source_count,
+                    confidence=self._coerce_confidence(confidence or provenance.confidence),
+                )
+            )
+
+        add("company", "name", analysis.company_name, "team_analysis", confidence=1.0)
+        add("company", "website", analysis.website, "team_analysis", confidence=1.0)
+        add("company", "description", analysis.description, "team_analysis", confidence=0.8)
+        add("genai", "uses_genai", analysis.uses_genai, "uses_genai", confidence=analysis.confidence_score)
+        add("genai", "genai_intensity", analysis.genai_intensity, "genai_intensity", confidence=analysis.confidence_score)
+        add("genai", "models_mentioned", analysis.models_mentioned, "uses_genai", confidence=analysis.confidence_score)
+        add("segmentation", "market_type", analysis.market_type, "market_type", confidence=0.7)
+        add("segmentation", "vertical", analysis.vertical, "vertical", confidence=0.8)
+        add("segmentation", "sub_vertical", analysis.sub_vertical, "vertical", confidence=0.8)
+        add("segmentation", "target_market", analysis.target_market, "target_market", confidence=0.6)
+        add("team", "founders", [founder.name for founder in analysis.team_analysis.founders], "team_analysis", confidence=analysis.team_analysis.team_confidence)
+        add("team", "founder_market_fit", analysis.team_analysis.founder_market_fit, "team_analysis", confidence=analysis.team_analysis.team_confidence)
+        add("business_model", "pricing_type", analysis.business_model.pricing_model.type, "pricing_model", confidence=analysis.business_model.business_model_confidence)
+        add("business_model", "gtm_channel", analysis.business_model.gtm_strategy.primary_channel, "pricing_model", confidence=analysis.business_model.business_model_confidence)
+        add("business_model", "target_segment", analysis.business_model.gtm_strategy.target_segment, "pricing_model", confidence=analysis.business_model.business_model_confidence)
+        add("product", "product_stage", analysis.product_analysis.product_stage, "product_stage", confidence=analysis.product_analysis.product_confidence)
+        add("product", "primary_use_case", analysis.product_analysis.use_cases.primary_use_case, "primary_use_case", confidence=analysis.product_analysis.product_confidence)
+        add("product", "core_features", analysis.product_analysis.feature_depth.core_features, "primary_use_case", confidence=analysis.product_analysis.product_confidence)
+        add("competition", "competitive_moat", analysis.competitive_analysis.competitive_moat, "competitive_moat", confidence=0.7)
+        add("competition", "core_advantage", analysis.competitive_analysis.secret_sauce.core_advantage, "competitive_moat", confidence=0.7)
+        add("risks", "anti_patterns", [pattern.description for pattern in analysis.anti_patterns], "build_patterns", confidence=0.5)
+        add("risks", "product_risks", analysis.product_analysis.product_risks, "product_stage", confidence=analysis.product_analysis.product_confidence)
+        add("risks", "team_red_flags", analysis.team_analysis.team_red_flags, "team_analysis", confidence=analysis.team_analysis.team_confidence)
+
+        return ledger
+
     def _parse_tech_stack(self, data: Dict[str, Any]) -> TechStack:
         """Parse tech stack result to TechStack model."""
         return TechStack(
@@ -914,13 +1656,29 @@ OUTPUT (JSON only):
                 pass
 
         team_signals_data = data.get("team_signals", {})
+        engineering_heavy_status = self._coerce_tri_state(
+            team_signals_data.get("engineering_heavy_status", team_signals_data.get("engineering_heavy"))
+        )
+        has_ml_expertise_status = self._coerce_tri_state(
+            team_signals_data.get("has_ml_expertise_status", team_signals_data.get("has_ml_expertise"))
+        )
+        has_domain_expertise_status = self._coerce_tri_state(
+            team_signals_data.get("has_domain_expertise_status", team_signals_data.get("has_domain_expertise"))
+        )
+        remote_distributed_status = self._coerce_tri_state(
+            team_signals_data.get("remote_distributed_status", team_signals_data.get("remote_distributed"))
+        )
         team_signals = TeamSignals(
-            engineering_heavy=team_signals_data.get("engineering_heavy", False),
-            has_ml_expertise=team_signals_data.get("has_ml_expertise", False),
-            has_domain_expertise=team_signals_data.get("has_domain_expertise", False),
+            engineering_heavy=self._bool_from_tri_state(engineering_heavy_status),
+            engineering_heavy_status=engineering_heavy_status,
+            has_ml_expertise=self._bool_from_tri_state(has_ml_expertise_status),
+            has_ml_expertise_status=has_ml_expertise_status,
+            has_domain_expertise=self._bool_from_tri_state(has_domain_expertise_status),
+            has_domain_expertise_status=has_domain_expertise_status,
             hiring_signals=team_signals_data.get("hiring_signals", []),
             team_size_indicators=team_signals_data.get("team_size_indicators", "unknown"),
-            remote_distributed=team_signals_data.get("remote_distributed", False),
+            remote_distributed=self._bool_from_tri_state(remote_distributed_status),
+            remote_distributed_status=remote_distributed_status,
         )
 
         return TeamAnalysis(

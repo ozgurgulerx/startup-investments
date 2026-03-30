@@ -8,7 +8,7 @@
 # This script regenerates:
 # 1. Monthly statistics (monthly_stats.json)
 # 2. Monthly brief (monthly_brief.json)
-# 3. Newsletter content (comprehensive_newsletter.md)
+# 3. Newsletter artifacts (newsletter_data.json + viral_newsletter.md)
 # 4. Enriched CSV with analysis data
 # 5. Syncs to database
 # 6. Copies to public directories (for client-side fetching)
@@ -192,88 +192,13 @@ main().catch(e => { console.error('  Error:', e.message); process.exit(1); });
 echo ""
 
 # ============================================
-# Step 3: Regenerate Newsletter Content
+# Step 3: Regenerate Newsletter Artifacts
 # ============================================
-echo "[3/6] Regenerating newsletter content..."
+echo "[3/6] Regenerating newsletter artifacts..."
 
 cd "$PROJECT_ROOT/packages/analysis"
-
-$PYTHON << EOF
-import sys
-sys.path.insert(0, '$PROJECT_ROOT/packages/analysis')
-
-from pathlib import Path
-import json
-
-try:
-    from src.reports.newsletter_generator import generate_viral_newsletter
-
-    analysis_store_path = Path('$PROJECT_ROOT/apps/web/data/$PERIOD/output/analysis_store/base_analyses')
-    output_path = Path('$PROJECT_ROOT/apps/web/data/$PERIOD/output')
-
-    if analysis_store_path.exists():
-        analyses = []
-        for f in analysis_store_path.glob('*.json'):
-            with open(f, 'r') as fp:
-                analyses.append(json.load(fp))
-
-        if analyses:
-            # Convert to expected format
-            from src.data.models import StartupAnalysis, FundingStage, GenAIIntensity, MarketType, TargetMarket, BuildPattern
-            from src.data.models import CompetitiveAnalysis, Competitor, Differentiation, SecretSauce
-
-            parsed = []
-            for a in analyses:
-                try:
-                    # Create minimal CompetitiveAnalysis
-                    comp = CompetitiveAnalysis(
-                        competitors=[],
-                        differentiation=Differentiation(),
-                        secret_sauce=SecretSauce()
-                    )
-
-                    analysis = StartupAnalysis(
-                        company_name=a.get('company_name', 'Unknown'),
-                        company_slug=a.get('company_slug', 'unknown'),
-                        description=a.get('description', ''),
-                        website=a.get('website'),
-                        funding_amount=a.get('funding_amount'),
-                        funding_stage=FundingStage(a.get('funding_stage', 'unknown')),
-                        uses_genai=a.get('uses_genai', False),
-                        genai_intensity=GenAIIntensity(a.get('genai_intensity', 'none')),
-                        confidence_score=a.get('confidence_score', 0.5),
-                        models_mentioned=a.get('models_mentioned', []),
-                        build_patterns=[BuildPattern(name=p.get('name', p) if isinstance(p, dict) else p, confidence=0.8) for p in a.get('build_patterns', [])],
-                        unique_findings=a.get('unique_findings', []),
-                        evidence_quotes=a.get('evidence_quotes', []),
-                        market_type=MarketType(a.get('market_type', 'horizontal')),
-                        sub_vertical=a.get('sub_vertical'),
-                        target_market=TargetMarket(a.get('target_market', 'enterprise')),
-                        newsletter_potential=a.get('newsletter_potential', 'low'),
-                        technical_depth=a.get('technical_depth', 'surface'),
-                        sources_crawled=a.get('sources_crawled', []),
-                        raw_content_analyzed=a.get('raw_content_analyzed', 0),
-                        competitive_analysis=comp
-                    )
-                    parsed.append(analysis)
-                except Exception as e:
-                    continue
-
-            if parsed:
-                newsletter_path = output_path / 'comprehensive_newsletter.md'
-                generate_viral_newsletter(parsed, newsletter_path)
-                print(f"  Generated newsletter with {len(parsed)} startups")
-            else:
-                print("  No valid analyses to generate newsletter")
-        else:
-            print("  No analyses found")
-    else:
-        print("  Analysis store not found")
-except ImportError as e:
-    print(f"  Skipping newsletter (missing dependency: {e})")
-except Exception as e:
-    print(f"  Error: {e}")
-EOF
+"$PYTHON" main.py newsletter-artifacts --period "$PERIOD" \
+    || echo "  WARN: newsletter-artifacts generation failed"
 
 echo ""
 
@@ -513,7 +438,8 @@ echo ""
 echo "Updated files:"
 echo "  - apps/web/data/$PERIOD/output/monthly_stats.json"
 echo "  - apps/web/data/$PERIOD/output/monthly_brief.json"
-echo "  - apps/web/data/$PERIOD/output/comprehensive_newsletter.md"
+echo "  - apps/web/data/$PERIOD/output/newsletter_data.json"
+echo "  - apps/web/data/$PERIOD/output/viral_newsletter.md"
 echo "  - apps/web/data/$PERIOD/output/startups_enriched_with_analysis.csv"
 echo "  - apps/web/public/data/briefs/$PERIOD.json"
 echo "  - apps/web/public/data/briefings/$PERIOD.json"

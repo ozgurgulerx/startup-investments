@@ -79,6 +79,11 @@ Important headers/invariants:
   - Avoid reintroducing secret-sourced `api-build-sha` env injection (it breaks deterministic rollbacks).
 - Avoid making `/dealbook` depend on slow file-based reads in steady state:
   - When API is down, web falls back to file reads; this is a degradation mode.
+- Dossier visibility is **materialization-gated**, not `verified`-gated:
+  - `startups.onboarding_status` is identity/workflow state (`stub | verified | rejected | merged`).
+  - `startups.materialization_status` is product-readiness state (`unmaterialized | analysis_ready | state_ready`).
+  - Product surfaces (`/api/v1/dealbook`, `/api/v1/dealbook/filters`, `/api/v1/companies/:slug`, `/api/v1/stats`, `/api/v1/periods`) must only show startups with `materialization_status='state_ready'` and non-merged/non-rejected onboarding status.
+  - Do not reintroduce deep-research-driven publish shortcuts; deep research is enrichment, not dossier materialization.
 - Keep `packages/analysis/src/automation/__init__.py` import-light (no eager imports of optional heavy deps like `openai`).
   - Cron jobs import `src.automation.*` submodules; an import-time crash here can take down unrelated jobs (e.g. `event-processor`).
 - When reading DB `*_json` columns in `packages/analysis` automation, tolerate both dict and JSON-string values:
@@ -86,6 +91,13 @@ Important headers/invariants:
 - `Micro-model Meshes` is evidence-gated across startup analysis + news memory matching:
   - Only emit the pattern when there is explicit evidence of MoE, ensembles, model routing/routers, or routed/distilled task-specific models.
   - Do not infer it from multiple modalities, products, agents, workflows, integrations, or domain modules alone.
+- Startup analysis artifacts are additive-versioned:
+  - `packages/analysis` now writes `analysis_version=v2` plus internal operator metadata such as
+    `evidence_packet`, `fact_ledger`, `field_provenance`, `section_status`, `quality_metrics`,
+    `open_questions`, and `crawl_coverage`.
+  - Keep these fields additive only; downstream consumers must continue to work from legacy top-level fields.
+  - Preserve legacy team booleans (`engineering_heavy`, `has_ml_expertise`, etc.) for UI compatibility; represent uncertainty via the matching `*_status` tri-state fields instead of changing the booleans' meaning.
+  - When taxonomy classification exists, prefer `vertical_taxonomy.primary` as the canonical segmentation source and treat free-text vertical labels as fallback metadata.
 - Shell scripts must be LF-only (no CRLF / `\r` bytes):
   - Enforced by `.gitattributes` (`*.sh text eol=lf`).
   - Pipelines image hardens this at build time: `infrastructure/pipelines/Dockerfile` strips CR bytes and fails the build if any remain.
@@ -197,6 +209,20 @@ AKS runner/runtime notes:
 - `runner.sh` strips NUL bytes (`\000`) from job stdout/stderr before appending to logs so log-scanners don't treat them as binary.
 - For AKS CronJobs (`BUILDATLAS_RUNNER=aks-cronjob`), `runner.sh` streams stdout so `kubectl logs` works and logs `PIPESTATUS` on failures for faster root-cause.
 - `runner.sh` sets `AZURE_CONFIG_DIR` per job run to isolate Azure CLI auth state (prevents cross-job `az login` races when Azure CLI is available).
+- One-shot global onboarding Jobs now use Blob-backed recovery as well:
+  - they attempt best-effort period hydration from Blob before Step 1,
+  - they set `BUILDATLAS_ARTIFACT_BLOB_MIRROR=true` with `BUILDATLAS_PERIOD`/`BUILDATLAS_REGION`,
+  - `analysis_store/index.json`, `analysis_store/progress.json`, and `analysis_store/base_analyses/*.json` are mirrored into the period Blob tree during the run,
+  - after Step 1 artifact refresh, the job performs a best-effort checkpoint publish of the full period dataset so a later rerun can reuse completed analysis even if the original pod dies before Step 8,
+  - reruns call `python -m main onboarding-resume-plan --period <period> --region <region>` and automatically resume from the earliest missing stage (`analysis`, `db_sync`, `analysis_materialization`, `state_backfill`, or later),
+  - successful runs publish the full period dataset tree back to Blob at the end of the pipeline.
+- Monthly onboarding now also writes run-level DB telemetry (migration: `database/migrations/081_startup_dossier_materialization_and_onboarding_runs.sql`):
+  - `onboarding_runs` stores run heartbeat, current stage, latest startup, counts, artifact path, and terminal failure reason.
+  - `onboarding_run_items` stores best-effort per-startup stage rows from `analysis_store/progress.json`.
+  - Shell entrypoint: `infrastructure/vm-cron/jobs/global-onboarding.sh` writes these rows through `scripts/onboarding_run_tracker.py`.
+  - The same onboarding job now exports completed deep-research notes for the period to local artifacts under
+    `apps/web/data/<period>/output/deep_research/<slug>.md` plus `output/deep_research/index.json`
+    via `python -m main export-deep-research --period <period> --region <region>`.
 - Product surface canary:
   - `product-canary` runs every 30 minutes (`17,47 * * * *`) on AKS and validates:
     - brief snapshot schema (includes `verticalLandscape` + `capitalGraph`),
@@ -292,7 +318,13 @@ Frontend:
 - GitHub Actions `deploy-frontend.yml` builds and deploys App Service `buildatlas-web`.
 - Library datasets:
   - `/library` reads file-based newsletters from `DATA_PATH` (default `./data`, see `apps/web/lib/data/index.ts`).
-  - `/library` only offers months that have newsletter markdown on disk (`output/comprehensive_newsletter.md` or `output/viral_newsletter.md`) to avoid API/data mismatches.
+  - Current monthly newsletter artifacts are:
+    - `output/newsletter_data.json` for the rich monthly visuals/report payload.
+    - `output/viral_newsletter.md` for markdown shown in `/library` and deep-dive style monthly reading.
+    - `output/viral_newsletter_data.json` as the viral markdown generator sidecar.
+    - `output/deep_research/<slug>.md` for latest completed per-startup deep-research notes when available.
+  - `output/comprehensive_newsletter.md` is legacy fallback only; new regeneration should not depend on it.
+  - `/library` only offers months that have newsletter markdown on disk (`output/viral_newsletter.md` preferred, `output/comprehensive_newsletter.md` fallback) to avoid API/data mismatches.
   - Docker-based App Service deploy must include datasets at `/app/data` (see `apps/web/Dockerfile`).
 
 Backend:
@@ -482,11 +514,13 @@ News:
     - `ONBOARD_SINGLE_SOURCE_TRUST_MIN` (allow trusted single-source funding clusters to create stub startups when entity type is unknown)
     - `ONBOARD_SINGLE_SOURCE_ALLOWLIST` (comma-separated publisher domain allowlist for single-source funding onboarding)
   - Visibility invariant:
-    - Backend `GET /api/v1/dealbook`, `GET /api/v1/dealbook/filters`, and `GET /api/v1/companies/:slug` are **verified-only** (`onboarding_status='verified'`).
-    - `merged`/`stub`/`rejected` startups are excluded from those surfaces.
+    - Backend `GET /api/v1/dealbook`, `GET /api/v1/dealbook/filters`, `GET /api/v1/companies/:slug`, `GET /api/v1/stats`, and `GET /api/v1/periods` are **dossier-ready only**.
+    - Publish gate is `materialization_status='state_ready'` plus `onboarding_status NOT IN ('merged', 'rejected')`.
+    - `analysis_ready` startups are intentionally hidden until Step 5 snapshot materialization succeeds.
   - Promotion to verified:
-    - On successful deep-research completion, stub startups with website + successful crawl are promoted to `verified`.
-    - `sync-startups-to-db.py` and `populate-analysis-data.py` also promote `stub -> verified` for curated/analysis-backed records.
+    - Deep-research completion no longer promotes `stub -> verified`.
+    - `populate-analysis-data.py` marks startups `materialization_status='analysis_ready'`; `backfill-state` / `StateExtractor` is what upgrades them to `materialization_status='state_ready'`.
+    - `sync-startups-to-db.py` and `populate-analysis-data.py` may still promote curated/analysis-backed records from `stub -> verified`, but that no longer makes them product-visible by itself.
   - Quick checks:
     - If onboarding/deep research stalls but news looks healthy:
       - Check latest `news_ingestion_runs.stats_json->'events'`:
@@ -538,6 +572,10 @@ Materialization step (required for DB-driven filters):
     with durable counters (`already_processed`, `delta_total`, `completed`, `successful`, `error_count`,
     `remaining`, `base_analysis_files`, `latest_startup`, `latest_stage`, `latest_stage_started_at`,
     `latest_stage_elapsed_sec`, `elapsed_sec`, `eta_sec`).
+  - Duplicate-company monthly CSV rows are handled asymmetrically on purpose:
+    - Step 1 analysis dedupes by normalized company name so the analysis store emits one base analysis per startup.
+    - Raw `startups.csv` rows still flow into DB/funding sync so multiple rounds for the same startup are preserved.
+    - Canonical analysis row choice is: highest completeness, then higher funding amount, then first CSV row.
   - `IncrementalProcessor` writes `raw_content/` beside the period-scoped `analysis_store/` (`apps/web/data/<period>/output/raw_content`)
     so resumable analysis batches stay period-local before the Blob publish step.
   - Restart safety: `packages/analysis/src/data/store.py` reconciles existing `base_analyses/*.json`
@@ -548,6 +586,14 @@ Materialization step (required for DB-driven filters):
       keeping stale analyses after CSV edits.
   - AKS one-shot jobs set `BUILDATLAS_RUNNER=aks-job`; `infrastructure/vm-cron/lib/runner.sh` must stream stdout
     for both `aks-job` and `aks-cronjob` so `kubectl logs` shows live job output without `kubectl exec`.
+  - `infrastructure/vm-cron/jobs/onboarding-build-and-run.sh` must honor `AZURE_SUBSCRIPTION_ID` before ACR/AKS calls,
+    matching the other deploy scripts so operator-local launches don't accidentally target the wrong Azure subscription.
+  - Full monthly global onboarding is materially heavier than the recurring global-analysis cron:
+    - `IncrementalProcessor` startup timeout is now env-tunable via `INCREMENTAL_STARTUP_TIMEOUT_SEC` (default `600`).
+    - The AKS one-shot onboarding Job should run with a longer wrapper timeout (`1440m`), a higher per-startup budget
+      (`INCREMENTAL_STARTUP_TIMEOUT_SEC=1200`), and reduced crawl enrichment (`CRAWLER_MAX_PAGES_PER_STARTUP=30`,
+      `CRAWLER_ENABLE_WEB_SEARCH=false`, `CRAWLER_ENABLE_NEWS=false`, `CRAWLER_ENABLE_YOUTUBE=false`) so month-scale
+      CSVs do not spend most of Step 1 dying on crawl+analysis timeout before DB sync starts.
 - To make taxonomy filterable via the backend, we must copy those JSON blobs into Postgres:
   - Command: `python scripts/populate-analysis-data.py --period YYYY-MM`
 - Primary automation:
@@ -851,8 +897,11 @@ API behavior and performance implications:
   - `sync-data` is publish/sync only; it does not create new base analyses.
   - The owner job for latest global CSV hydration is AKS CronJob `global-analysis` (every 30 minutes, bounded batches) via
     `infrastructure/vm-cron/jobs/global-analysis.sh`. It runs `incremental`-style delta processing in scratch space,
-    regenerates `analysis_results.csv`, `startups_enriched_with_analysis.csv`, and `monthly_stats.json`, and republishes
+    regenerates `analysis_results.csv`, `startups_enriched_with_analysis.csv`, `monthly_stats.json`, `newsletter_data.json`,
+    and `viral_newsletter.md`, and republishes
     the refreshed period snapshot to Blob instead of committing it to git.
+  - `infrastructure/vm-cron/jobs/tr-analysis.sh` now regenerates the same monthly output artifact family
+    (`monthly_stats.json`, `newsletter_data.json`, `viral_newsletter.md`) before committing TR datasets to git.
 
 Quick checks:
 - `GET /api/periods?region=turkey` should return TR periods when `apps/web/data/tr/**` is deployed.

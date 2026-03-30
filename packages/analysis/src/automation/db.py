@@ -239,6 +239,55 @@ class DatabaseConnection:
         """, limit)
         return [dict(r) for r in rows]
 
+    async def claim_pending_research_items(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Atomically lease pending research items for processing."""
+        rows = await self.fetch(
+            """
+            WITH next_items AS (
+                SELECT q.id
+                FROM deep_research_queue q
+                WHERE q.status = 'pending'
+                ORDER BY q.priority ASC, q.queued_at ASC
+                LIMIT $1
+                FOR UPDATE SKIP LOCKED
+            ),
+            claimed AS (
+                UPDATE deep_research_queue q
+                SET status = 'processing',
+                    started_at = $2
+                FROM next_items ni
+                WHERE q.id = ni.id
+                RETURNING
+                    q.id,
+                    q.startup_id,
+                    q.priority,
+                    q.reason,
+                    q.research_depth,
+                    q.focus_areas,
+                    q.retry_count,
+                    q.queued_at
+            )
+            SELECT
+                c.id,
+                c.startup_id,
+                c.priority,
+                c.reason,
+                c.research_depth,
+                c.focus_areas,
+                c.retry_count,
+                c.queued_at,
+                s.name as startup_name,
+                s.website as startup_website,
+                s.description as startup_description
+            FROM claimed c
+            JOIN startups s ON c.startup_id = s.id
+            ORDER BY c.priority ASC, c.queued_at ASC
+            """,
+            max(1, int(limit)),
+            datetime.now(timezone.utc),
+        )
+        return [dict(r) for r in rows]
+
     async def claim_research_item(self, item_id: str) -> bool:
         """Claim a research item for processing (atomic operation)."""
         result = await self.execute("""
@@ -268,28 +317,6 @@ class DatabaseConnection:
             WHERE id = $1
         """, item_id, datetime.now(timezone.utc),
              json.dumps(research_output), tokens_used, cost_usd)
-        # Promote qualifying stub startups once research completes successfully.
-        await self.execute("""
-            UPDATE startups s
-            SET onboarding_status = 'verified',
-                updated_at = NOW()
-            FROM deep_research_queue q
-            WHERE q.id = $1::uuid
-              AND q.startup_id = s.id
-              AND COALESCE(s.onboarding_status, 'verified') = 'stub'
-              AND s.website IS NOT NULL
-              AND TRIM(s.website) <> ''
-              AND (
-                    s.last_crawl_at IS NOT NULL
-                    OR EXISTS (
-                        SELECT 1
-                        FROM crawl_logs cl
-                        WHERE cl.startup_id = s.id
-                          AND cl.status = 'success'
-                        LIMIT 1
-                    )
-                  )
-        """, item_id)
 
     async def fail_research_item(self, item_id: str, error_message: str):
         """Mark a research item as failed."""
@@ -625,6 +652,67 @@ class DatabaseConnection:
             max(1, int(limit)),
         )
         return [dict(r) for r in rows]
+
+    async def get_startup_research_context_bundle(
+        self,
+        startup_id: str,
+        *,
+        event_limit: int = 5,
+    ) -> Dict[str, Any]:
+        """Return existing startup analysis and recent event context for deep research."""
+        try:
+            startup_row = await self.fetchrow(
+                """
+                SELECT
+                    analysis_data,
+                    period,
+                    COALESCE(onboarding_status, 'verified') AS onboarding_status,
+                    COALESCE(materialization_status, 'unmaterialized') AS materialization_status,
+                    last_crawl_at,
+                    COALESCE(crawl_success_rate, 0)::float8 AS crawl_success_rate
+                FROM startups
+                WHERE id = $1::uuid
+                """,
+                startup_id,
+            )
+        except Exception:
+            startup_row = await self.fetchrow(
+                """
+                SELECT
+                    analysis_data,
+                    period,
+                    COALESCE(onboarding_status, 'verified') AS onboarding_status,
+                    last_crawl_at,
+                    COALESCE(crawl_success_rate, 0)::float8 AS crawl_success_rate
+                FROM startups
+                WHERE id = $1::uuid
+                """,
+                startup_id,
+            )
+
+        event_rows = await self.fetch(
+            """
+            SELECT
+                event_type,
+                event_source,
+                event_title,
+                event_url,
+                event_date,
+                detected_at,
+                confidence,
+                metadata_json
+            FROM startup_events
+            WHERE startup_id = $1::uuid
+            ORDER BY COALESCE(event_date, detected_at) DESC, detected_at DESC
+            LIMIT $2
+            """,
+            startup_id,
+            max(1, int(event_limit)),
+        )
+
+        bundle = dict(startup_row) if startup_row else {}
+        bundle["recent_events"] = [dict(r) for r in event_rows]
+        return bundle
 
     async def get_pending_onboarding_trace_notifications(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get trace events that should be sent to Slack and are not notified yet."""

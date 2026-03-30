@@ -73,9 +73,18 @@ class CrawlerConfig(BaseModel):
     feed_discovery_timeout_seconds: float = Field(default_factory=lambda: float(os.getenv("CRAWLER_FEED_DISCOVERY_TIMEOUT_SECONDS", "6")))
 
     # Data enrichment sources
-    enable_web_search: bool = True
-    enable_github: bool = True
-    enable_news: bool = True
+    enable_web_search: bool = Field(
+        default_factory=lambda: os.getenv("CRAWLER_ENABLE_WEB_SEARCH", "true").lower() == "true"
+    )
+    enable_github: bool = Field(
+        default_factory=lambda: os.getenv("CRAWLER_ENABLE_GITHUB", "true").lower() == "true"
+    )
+    enable_news: bool = Field(
+        default_factory=lambda: os.getenv("CRAWLER_ENABLE_NEWS", "true").lower() == "true"
+    )
+    enable_youtube: bool = Field(
+        default_factory=lambda: os.getenv("CRAWLER_ENABLE_YOUTUBE", "true").lower() == "true"
+    )
     web_search_results: int = 5  # Number of search results to fetch
     news_days_back: int = 90  # How many days of news to search
 

@@ -32,15 +32,15 @@ function cacheKey(region: string | undefined, period: string): string {
 
 async function hasNewsletterMarkdownForPeriod(period: string, region?: string): Promise<boolean> {
   const dataPath = getDataPath(region);
-  const comprehensivePath = path.join(dataPath, period, 'output', 'comprehensive_newsletter.md');
-  try {
-    await fs.access(comprehensivePath);
-    return true;
-  } catch { /* noop */ }
-
   const viralPath = path.join(dataPath, period, 'output', 'viral_newsletter.md');
   try {
     await fs.access(viralPath);
+    return true;
+  } catch { /* noop */ }
+
+  const comprehensivePath = path.join(dataPath, period, 'output', 'comprehensive_newsletter.md');
+  try {
+    await fs.access(comprehensivePath);
     return true;
   } catch { /* noop */ }
 
@@ -1309,7 +1309,7 @@ async function getStartupsForPeriodFromCsv(period: string, region?: string): Pro
 }
 
 /**
- * Get the comprehensive newsletter markdown
+ * Get monthly newsletter markdown
  */
 export async function getNewsletterMarkdown(period: string, region?: string): Promise<string | null> {
   const dataPath = getDataPath(region);

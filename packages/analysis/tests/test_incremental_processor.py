@@ -171,3 +171,34 @@ def test_incremental_timeout_prevents_hang(tmp_path, monkeypatch):
 
     # Verify production code passes the correct timeout value (600s)
     assert 600 in captured_timeouts
+
+
+def test_incremental_timeout_can_be_overridden_by_env(tmp_path, monkeypatch):
+    store = CapturingStore(tmp_path / "analysis_store")
+    processor = IncrementalProcessor(
+        store=store,
+        crawler_factory=HangingCrawler,
+        analyzer_factory=FakeAnalyzer,
+    )
+
+    monkeypatch.setenv("INCREMENTAL_STARTUP_TIMEOUT_SEC", "1200")
+
+    original_wait_for = asyncio.wait_for
+    captured_timeouts = []
+
+    async def short_wait_for(coro, timeout=None):
+        captured_timeouts.append(timeout)
+        return await original_wait_for(coro, timeout=1)
+
+    monkeypatch.setattr(asyncio, "wait_for", short_wait_for)
+
+    asyncio.run(
+        processor.process_incremental(
+            [_startup("Long Runner")],
+            run_base=True,
+            run_viral=False,
+            max_concurrent=1,
+        )
+    )
+
+    assert 1200 in captured_timeouts

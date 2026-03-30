@@ -119,6 +119,7 @@ SETS: dict[str, list[str]] = {
         "078_crawl_frontier_depth_telemetry.sql",
         "079_pipeline_runtime_state.sql",
         "080_funding_timeline_missing_round_dedupe.sql",
+        "081_startup_dossier_materialization_and_onboarding_runs.sql",
         # X/Twitter trend intelligence + automated posting queue
         "061_x_social_automation.sql",
         # Community features (threads, polls, shared watchlists, notification hygiene)
@@ -144,6 +145,7 @@ SETS: dict[str, list[str]] = {
         "078_crawl_frontier_depth_telemetry.sql",
         "079_pipeline_runtime_state.sql",
         "080_funding_timeline_missing_round_dedupe.sql",
+        "081_startup_dossier_materialization_and_onboarding_runs.sql",
     ],
     "news-digest": [
         "012_daily_news.sql",
@@ -205,6 +207,7 @@ SETS: dict[str, list[str]] = {
         "078_crawl_frontier_depth_telemetry.sql",
         "079_pipeline_runtime_state.sql",
         "080_funding_timeline_missing_round_dedupe.sql",
+        "081_startup_dossier_materialization_and_onboarding_runs.sql",
     ],
     "startups": [
         "008_startup_analysis_data.sql",
@@ -236,6 +239,7 @@ SETS: dict[str, list[str]] = {
         "077_funding_timeline_dedupe.sql",
         "079_pipeline_runtime_state.sql",
         "080_funding_timeline_missing_round_dedupe.sql",
+        "081_startup_dossier_materialization_and_onboarding_runs.sql",
     ],
     "performance": [
         "015_performance_indexes.sql",

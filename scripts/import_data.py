@@ -24,7 +24,6 @@ DATA_DIR = BASE_DIR / 'data' / '2026-01'
 CSV_FILE = BASE_DIR / '2601_inv - monthy-ai-startup-funding-22-01-2026.csv'
 ENRICHED_CSV = DATA_DIR / 'output' / 'startups_enriched_with_analysis.csv'
 BRIEFS_DIR = DATA_DIR / 'output' / 'briefs'
-NEWSLETTER_FILE = DATA_DIR / 'output' / 'comprehensive_newsletter.md'
 STATS_FILE = DATA_DIR / 'output' / 'monthly_stats.json'
 
 PERIOD = '2026-01'
@@ -119,6 +118,18 @@ def load_brief(startup_name):
             return brief_file.read_text()
 
     return None
+
+
+def resolve_newsletter_file():
+    """Resolve monthly newsletter markdown, preferring the current artifact name."""
+    candidates = [
+        DATA_DIR / 'output' / 'viral_newsletter.md',
+        DATA_DIR / 'output' / 'comprehensive_newsletter.md',
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def parse_timestamp(ts_str):
@@ -254,13 +265,15 @@ def import_newsletter(conn):
     """Import newsletter content."""
     print(f"\n📰 Importing newsletter...")
 
-    if not NEWSLETTER_FILE.exists():
-        print(f"  ❌ File not found: {NEWSLETTER_FILE}")
+    newsletter_file = resolve_newsletter_file()
+
+    if not newsletter_file.exists():
+        print(f"  ❌ File not found: {newsletter_file}")
         return
 
     cur = conn.cursor()
 
-    content = NEWSLETTER_FILE.read_text()
+    content = newsletter_file.read_text()
     title = f"AI Startup Funding Newsletter - {PERIOD}"
 
     # Parse period dates

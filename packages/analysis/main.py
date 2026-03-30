@@ -716,6 +716,53 @@ def consume_deep_research(
     console.print(f"[bold]Cost (run):[/bold] ${total_cost:.4f}")
 
 
+@app.command("export-deep-research")
+def export_deep_research_cmd(
+    period: str = typer.Option(..., "--period", "-p", help="Period to export (e.g. 2026-03)"),
+    region: str = typer.Option("global", "--region", "-r", help="Dataset region: global|turkey|tr"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Override output directory"),
+):
+    """Export latest completed deep-research notes as per-startup markdown artifacts."""
+    import asyncpg
+    from src.analysis.onboarding_ops import resolve_repo_dataset_paths
+    from src.reports.deep_research_exporter import export_period_deep_research
+
+    normalized_region = "turkey" if str(region or "").strip().lower() in {"turkey", "tr"} else "global"
+    target_output = output_dir or resolve_repo_dataset_paths(period, normalized_region)["output_path"]
+    target_output.mkdir(parents=True, exist_ok=True)
+
+    async def _export():
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            console.print("[red]DATABASE_URL not set[/red]")
+            raise typer.Exit(1)
+
+        conn = await asyncpg.connect(database_url)
+        try:
+            return await export_period_deep_research(
+                conn,
+                period=period,
+                region=normalized_region,
+                output_dir=target_output,
+            )
+        finally:
+            await conn.close()
+
+    try:
+        stats = asyncio.run(_export())
+    except Exception as exc:
+        console.print(f"[red]Deep research export failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    console.print(Panel.fit(
+        "[bold blue]Deep Research Export[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"[bold]Exported:[/bold] {stats.get('count', 0)} startups")
+    console.print(f"[bold]Output dir:[/bold] {stats.get('output_dir')}")
+    console.print(f"[bold]Index:[/bold] {stats.get('index_path')}")
+
+
 @app.command("consume-investor-onboarding")
 def consume_investor_onboarding(
     batch_size: int = typer.Option(10, "--batch-size", "-b", help="Max queue items to process per run"),
@@ -1469,7 +1516,8 @@ def onboarding_preflight(
     if db_info.get("available"):
         console.print(
             f"DB: total={db_info['total']} with_analysis={db_info['with_analysis_data']} "
-            f"verified={db_info['verified']} stub={db_info['stub']}"
+            f"verified={db_info['verified']} stub={db_info['stub']} "
+            f"analysis_ready={db_info.get('analysis_ready')} state_ready={db_info.get('state_ready')}"
         )
     else:
         console.print(f"DB: unavailable ({db_info.get('reason')})")
@@ -1481,6 +1529,52 @@ def onboarding_preflight(
     console.print(f"Health: {health['status']}")
     for alert in health["alerts"]:
         console.print(f"  - {alert['severity']}: {alert['message']}")
+
+
+@app.command("onboarding-resume-plan")
+def onboarding_resume_plan(
+    csv_path: Optional[Path] = typer.Argument(None, help="Path to CSV with startup data"),
+    period: Optional[str] = typer.Option(None, "--period", "-p", help="Period (e.g., 2026-03)"),
+    region: str = typer.Option("global", "--region", help="Dataset region"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
+    json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON only"),
+):
+    """Show the earliest missing onboarding stage for a period dataset."""
+    from src.analysis.onboarding_ops import compute_onboarding_resume_plan, resolve_repo_dataset_paths
+
+    detected_period = period or (settings.extract_period_from_path(csv_path) if csv_path else None)
+    if not detected_period:
+        raise typer.BadParameter("Provide --period or a CSV path under apps/web/data/<period>/input/")
+
+    if csv_path:
+        resolved_csv_path = csv_path
+        resolved_output_path = output_dir or (resolved_csv_path.parent.parent / "output")
+    else:
+        repo_paths = resolve_repo_dataset_paths(detected_period, region=region)
+        resolved_csv_path = repo_paths["csv_path"]
+        resolved_output_path = output_dir or repo_paths["output_path"]
+
+    plan = compute_onboarding_resume_plan(
+        csv_path=resolved_csv_path,
+        output_path=resolved_output_path,
+        region=region,
+    )
+
+    if json_output:
+        console.print_json(data=plan)
+        return
+
+    console.print(Panel.fit(
+        f"[bold cyan]Onboarding Resume Plan[/bold cyan]\n{detected_period} / {region}",
+        border_style="cyan"
+    ))
+    console.print(f"Recommended start stage: [bold]{plan['recommended_start_stage']}[/bold]")
+    console.print(f"Reason: {plan['reason']}")
+    for stage_name in plan["stages"]:
+        stage_info = plan["stages"][stage_name]
+        console.print(
+            f"  - {stage_name}: complete={stage_info['complete']} :: {stage_info['detail']}"
+        )
 
 
 @app.command()
@@ -1624,6 +1718,59 @@ def newsletter(
         preview = f.read()[:2000]
     from rich.markdown import Markdown
     console.print(Markdown(preview + "\n\n*... [truncated] ...*"))
+
+
+@app.command("newsletter-artifacts")
+def newsletter_artifacts(
+    period: str = typer.Option(..., "--period", "-p", help="Period (e.g., 2026-03)"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory for newsletter artifacts"),
+    data_root: Optional[Path] = typer.Option(None, "--data-root", help="Data root containing period folders"),
+    skip_visuals: bool = typer.Option(False, "--skip-visuals", help="Skip newsletter_data.json generation"),
+    skip_markdown: bool = typer.Option(False, "--skip-markdown", help="Skip viral_newsletter.md generation"),
+):
+    """Generate monthly newsletter artifacts from an existing period dataset."""
+    from src.automation.newsletter_generator import write_newsletter_data
+    from src.data.store import AnalysisStore
+    from src.reports.newsletter_generator import generate_viral_newsletter
+
+    if skip_visuals and skip_markdown:
+        console.print("[red]Nothing to do: both visuals and markdown were skipped.[/red]")
+        raise typer.Exit(1)
+
+    repo_root = Path(__file__).resolve().parents[2]
+    resolved_data_root = data_root or (repo_root / "apps" / "web" / "data")
+    output_path = output_dir or settings.get_output_dir(period)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    console.print(Panel.fit(
+        f"[bold cyan]Newsletter Artifacts[/bold cyan]\n"
+        f"Period: {period}",
+        border_style="cyan"
+    ))
+
+    if not skip_visuals:
+        visuals_path = write_newsletter_data(
+            period=period,
+            data_root=resolved_data_root,
+            output_path=output_path / "newsletter_data.json",
+        )
+        console.print(f"[green]newsletter_data.json[/green] -> {visuals_path}")
+
+    if not skip_markdown:
+        store = AnalysisStore(output_path / "analysis_store")
+        analyses = [analysis.model_dump(mode="json") for analysis in store.get_all_base_analyses()]
+        if not analyses:
+            console.print(
+                f"[yellow]No base analyses found in {output_path / 'analysis_store'}; "
+                "skipping viral_newsletter.md generation.[/yellow]"
+            )
+        else:
+            markdown_path = generate_viral_newsletter(
+                analyses,
+                output_path,
+                newsletter_name="Build Patterns Monthly",
+            )
+            console.print(f"[green]viral_newsletter.md[/green] -> {markdown_path}")
 
 
 @app.command("monthly-stats")

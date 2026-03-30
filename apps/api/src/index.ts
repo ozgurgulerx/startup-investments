@@ -215,6 +215,23 @@ function periodFilter(period: string | undefined) {
   return eq(startups.period, period);
 }
 
+function dossierReadyWhere(region: string, period: string | undefined) {
+  const pf = periodFilter(period);
+  const clauses = [
+    eq(startups.datasetRegion, region),
+    eq(startups.materializationStatus, 'state_ready'),
+    sql`COALESCE(${startups.onboardingStatus}, 'verified') NOT IN ('merged', 'rejected')`,
+  ];
+  return pf ? and(...clauses, pf) : and(...clauses);
+}
+
+function dossierReadySqlAlias(alias: string) {
+  return sql.raw(
+    `COALESCE(${alias}.onboarding_status, 'verified') NOT IN ('merged', 'rejected') ` +
+    `AND COALESCE(${alias}.materialization_status, 'unmaterialized') = 'state_ready'`,
+  );
+}
+
 function header(req: Request, name: string): string | null {
   const raw = req.headers[name.toLowerCase()];
   if (Array.isArray(raw)) {
@@ -712,21 +729,11 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
     }
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
-    const pf = periodFilter(period);
     const slugExpr = computedSlugExpr();
-
-    const whereForPeriod = pf
-      ? and(
-          eq(startups.datasetRegion, region),
-          pf,
-          eq(startups.onboardingStatus, 'verified'),
-          or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`),
-        )
-      : and(
-          eq(startups.datasetRegion, region),
-          eq(startups.onboardingStatus, 'verified'),
-          or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`),
-        );
+    const whereForPeriod = and(
+      dossierReadyWhere(region, period),
+      or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`),
+    );
 
     const baseQuery = db.select({
       id: startups.id,
@@ -776,8 +783,7 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
         .from(startups)
         .where(
           and(
-            eq(startups.datasetRegion, region),
-            eq(startups.onboardingStatus, 'verified'),
+            dossierReadyWhere(region, undefined),
             or(eq(startups.slug, slug), sql`${slugExpr} = ${slug}`),
           ) as any
         )
@@ -794,7 +800,7 @@ app.get('/api/v1/companies/:slug', async (req, res) => {
         JOIN startups s ON s.id = sa.startup_id
         WHERE sa.alias = ${slug}
           AND s.dataset_region = ${region}
-          AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+          AND ${dossierReadySqlAlias('s')}
         LIMIT 1
       `);
       if (aliasRow.rows.length > 0) {
@@ -983,10 +989,7 @@ app.get('/api/v1/stats', async (req, res) => {
     }
     res.setHeader('X-Cache', redis ? 'MISS' : 'BYPASS');
 
-    const pf = periodFilter(period);
-    const baseWhere = pf
-      ? and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'), pf)
-      : and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'));
+    const baseWhere = dossierReadyWhere(region, period);
 
     // Total funding (always join through startups so we can filter by dataset_region)
     const [fundingResult] = await db.select({
@@ -1100,6 +1103,8 @@ app.get('/api/v1/periods', async (req, res) => {
         COALESCE(SUM(${startups.moneyRaisedUsd}), 0)::text AS total_funding
       FROM ${startups}
       WHERE ${startups.datasetRegion} = ${region}
+        AND ${startups.materializationStatus} = 'state_ready'
+        AND COALESCE(${startups.onboardingStatus}, 'verified') NOT IN ('merged', 'rejected')
         AND ${startups.period} IS NOT NULL AND ${startups.period} <> ''
       GROUP BY ${startups.period}
       ORDER BY ${startups.period} DESC
@@ -1196,10 +1201,10 @@ app.get('/api/v1/dealbook', async (req, res) => {
     // Build WHERE conditions
     const conditions: ReturnType<typeof eq>[] = [];
 
-    // Dataset filter (global vs regional datasets)
+    // Dataset + dossier-ready publish gate
     conditions.push(eq(startups.datasetRegion, region));
-    // Verified-only publish gate for dealbook visibility
-    conditions.push(eq(startups.onboardingStatus, 'verified'));
+    conditions.push(eq(startups.materializationStatus, 'state_ready'));
+    conditions.push(sql`COALESCE(${startups.onboardingStatus}, 'verified') NOT IN ('merged', 'rejected')` as ReturnType<typeof eq>);
 
     // Period filter (omitted when 'all')
     const pf = periodFilter(period);
@@ -1483,9 +1488,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
 
       // Get distinct stages (prefer latest funding round type, fallback to startup funding_stage)
       const pf = periodFilter(period);
-      const baseWhere = pf
-        ? and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'), pf)
-        : and(eq(startups.datasetRegion, region), eq(startups.onboardingStatus, 'verified'));
+      const baseWhere = dossierReadyWhere(region, period);
       const stageRows = await db.execute<{ stage: string }>(
         pf
           ? sql`
@@ -1500,7 +1503,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
               ) lr ON TRUE
               WHERE ${pf}
                 AND s.dataset_region = ${region}
-                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                AND ${dossierReadySqlAlias('s')}
                 AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
             `
           : sql`
@@ -1514,7 +1517,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
               LIMIT 1
               ) lr ON TRUE
               WHERE s.dataset_region = ${region}
-                AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                AND ${dossierReadySqlAlias('s')}
                 AND COALESCE(lr.round_type, s.funding_stage) IS NOT NULL
             `
       );
@@ -1532,14 +1535,14 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
                 FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
                 WHERE ${pf2}
                   AND s.dataset_region = ${region}
-                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND ${dossierReadySqlAlias('s')}
                   AND elem->>'name' IS NOT NULL
                 GROUP BY elem->>'name'
                 ORDER BY count DESC`
           : sql`SELECT elem->>'name' AS pattern, COUNT(*) AS count
                 FROM startups s, jsonb_array_elements(s.analysis_data->'build_patterns') AS elem
                 WHERE s.dataset_region = ${region}
-                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND ${dossierReadySqlAlias('s')}
                   AND elem->>'name' IS NOT NULL
                 GROUP BY elem->>'name'
                 ORDER BY count DESC`
@@ -1552,13 +1555,13 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
                 FROM startups s
                 WHERE ${pf2}
                   AND s.dataset_region = ${region}
-                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND ${dossierReadySqlAlias('s')}
                   AND s.analysis_data->>'vertical' IS NOT NULL
                   AND s.analysis_data->>'vertical' <> ''`
           : sql`SELECT DISTINCT s.analysis_data->>'vertical' AS vertical
                 FROM startups s
                 WHERE s.dataset_region = ${region}
-                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND ${dossierReadySqlAlias('s')}
                   AND s.analysis_data->>'vertical' IS NOT NULL
                   AND s.analysis_data->>'vertical' <> ''`
       );
@@ -1573,7 +1576,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
                 FROM startups s
                 WHERE ${pf2}
                   AND s.dataset_region = ${region}
-                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND ${dossierReadySqlAlias('s')}
                   AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
                   AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
                 GROUP BY 1, 2
@@ -1584,7 +1587,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
                   COUNT(*) AS count
                 FROM startups s
                 WHERE s.dataset_region = ${region}
-                  AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                  AND ${dossierReadySqlAlias('s')}
                   AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' IS NOT NULL
                   AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' <> ''
                 GROUP BY 1, 2
@@ -1601,7 +1604,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
                     FROM startups s
                     WHERE ${pf2}
                       AND s.dataset_region = ${region}
-                      AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                      AND ${dossierReadySqlAlias('s')}
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
@@ -1613,7 +1616,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
                       COUNT(*) AS count
                     FROM startups s
                     WHERE s.dataset_region = ${region}
-                      AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                      AND ${dossierReadySqlAlias('s')}
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'vertical_id' = ${verticalId}
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' IS NOT NULL
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' <> ''
@@ -1632,7 +1635,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
                     FROM startups s
                     WHERE ${pf2}
                       AND s.dataset_region = ${region}
-                      AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                      AND ${dossierReadySqlAlias('s')}
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''
@@ -1644,7 +1647,7 @@ app.get('/api/v1/dealbook/filters', async (req, res) => {
                       COUNT(*) AS count
                     FROM startups s
                     WHERE s.dataset_region = ${region}
-                      AND COALESCE(s.onboarding_status, 'verified') = 'verified'
+                      AND ${dossierReadySqlAlias('s')}
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'sub_vertical_id' = ${subVerticalId}
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' IS NOT NULL
                       AND s.analysis_data->'vertical_taxonomy'->'primary'->>'leaf_id' <> ''

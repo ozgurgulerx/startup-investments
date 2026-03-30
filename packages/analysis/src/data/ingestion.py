@@ -2,9 +2,63 @@
 
 import csv
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from src.data.models import StartupInput
+
+
+def _normalize_startup_name(name: str) -> str:
+    return str(name or "").strip().lower()
+
+
+def _has_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, dict)):
+        return bool(value)
+    return True
+
+
+def _candidate_rank(startup: StartupInput, row: Dict[str, str], row_index: int) -> Tuple[int, float, int]:
+    completeness = sum(
+        1
+        for value in [
+            startup.website,
+            startup.description,
+            startup.location,
+            startup.industries,
+            startup.lead_investors,
+            startup.crunchbase_url,
+            row.get("Announced Date"),
+            row.get("Funding Stage"),
+        ]
+        if _has_value(value)
+    )
+    return completeness, float(startup.funding_amount or 0.0), -row_index
+
+
+def _read_startups_from_csv(
+    csv_path: Path,
+    limit: Optional[int] = None,
+) -> List[Tuple[StartupInput, Dict[str, str], int]]:
+    parsed_startups: List[Tuple[StartupInput, Dict[str, str], int]] = []
+
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for i, row in enumerate(reader):
+            if limit and i >= limit:
+                break
+
+            try:
+                startup = StartupInput.from_csv_row(row)
+                if startup.name:
+                    parsed_startups.append((startup, row, i))
+            except Exception as e:
+                print(f"Error parsing row {i}: {e}")
+
+    return parsed_startups
 
 
 def load_startups_from_csv(csv_path: Path, limit: Optional[int] = None) -> List[StartupInput]:
@@ -17,22 +71,27 @@ def load_startups_from_csv(csv_path: Path, limit: Optional[int] = None) -> List[
     Returns:
         List of StartupInput objects
     """
-    startups = []
+    return [startup for startup, _, _ in _read_startups_from_csv(csv_path, limit=limit)]
 
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for i, row in enumerate(reader):
-            if limit and i >= limit:
-                break
 
-            try:
-                startup = StartupInput.from_csv_row(row)
-                if startup.name:  # Only add if we have a name
-                    startups.append(startup)
-            except Exception as e:
-                print(f"Error parsing row {i}: {e}")
+def load_unique_startups_from_csv(csv_path: Path, limit: Optional[int] = None) -> List[StartupInput]:
+    """Load one canonical startup row per company for analysis-time onboarding.
 
-    return startups
+    This keeps the raw CSV unchanged for funding-round sync while ensuring the
+    analysis store only processes one row for companies that appear multiple
+    times in the monthly dataset.
+    """
+    selected_by_name: Dict[str, Tuple[Tuple[int, float, int], StartupInput, int]] = {}
+
+    for startup, row, row_index in _read_startups_from_csv(csv_path, limit=limit):
+        normalized_name = _normalize_startup_name(startup.name)
+        rank = _candidate_rank(startup, row, row_index)
+        current = selected_by_name.get(normalized_name)
+        if current is None or rank > current[0]:
+            selected_by_name[normalized_name] = (rank, startup, row_index)
+
+    ranked_startups = sorted(selected_by_name.values(), key=lambda item: item[2])
+    return [startup for _, startup, _ in ranked_startups]
 
 
 def filter_startups(

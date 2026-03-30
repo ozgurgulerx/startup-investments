@@ -370,7 +370,7 @@ class StartupCrawler:
         self.web_search_client = WebSearchClient() if settings.crawler.enable_web_search else None
         self.github_client = GitHubClient() if settings.crawler.enable_github else None
         self.news_client = NewsClient() if settings.crawler.enable_news else None
-        self.youtube_client = YouTubeClient() if settings.crawler.enable_web_search else None  # Use web_search setting
+        self.youtube_client = YouTubeClient() if settings.crawler.enable_youtube else None
         self.logo_extractor = LogoExtractor()
 
         if self.runtime == "scrapy" and ScrapyPlaywrightRuntime is not None:
@@ -1058,6 +1058,7 @@ class StartupCrawler:
                     "web_search": settings.crawler.enable_web_search,
                     "github": settings.crawler.enable_github,
                     "news": settings.crawler.enable_news,
+                    "youtube": settings.crawler.enable_youtube,
                 },
             }, f, indent=2)
 
