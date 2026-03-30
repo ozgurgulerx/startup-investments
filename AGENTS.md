@@ -243,6 +243,7 @@ AKS runner/runtime notes:
     - shell entrypoint runs `python main.py verify-frontier-schema` immediately after `apply-migrations.sh crawl`,
     - the runtime also calls `UrlFrontierStore.ensure_runtime_schema()` before the first lease batch,
     - if columns such as `crawl_frontier_urls.last_content_sample` are missing, the job fails fast with a migration hint instead of dying mid-batch.
+    - Required migration note: `037_crawl_diff_content_sample.sql` must remain in the `crawl`, `startups`, and `news` migration sets inside `scripts/apply_migrations.py`; removing it reintroduces `last_content_sample` drift.
   - `crawl-frontier` job retries once per scheduled run (`backoffLimit: 1`) so transient worker crashes can recover without waiting for the next cron tick.
   - Frontier telemetry:
     - Each frontier URL crawl attempt is persisted to `crawl_logs` (with `canonical_url`, `fetch_method`, `proxy_tier`, `error_category`, and optional `capture_id`) so `/api/admin/monitoring/frontier` can report 24h success/error rates.

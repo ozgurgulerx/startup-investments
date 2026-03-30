@@ -40,6 +40,8 @@ SETS: dict[str, list[str]] = {
         "012_daily_news.sql",
         "013_news_digest_and_llm_enrichment.sql",
         "014_news_llm_scoring_and_classification.sql",
+        # Crawl diff content samples used by website monitoring and frontier diff extraction.
+        "037_crawl_diff_content_sample.sql",
         # Per-source health stats used by ingest + monitoring (total_fetches, failures, alerts)
         "031_source_health_monitoring.sql",
         # Regional editions (number may vary across branches; apply whichever exists)
@@ -130,6 +132,8 @@ SETS: dict[str, list[str]] = {
     "crawl": [
         "011_frontier_and_incremental_recrawl.sql",
         "016_crawl_replay_and_policy_feedback.sql",
+        # Crawl diff content samples used by frontier URL updates.
+        "037_crawl_diff_content_sample.sql",
         "043_startup_refresh_jobs.sql",
         "058_onboarding_pipeline_activation.sql",
         "063_onboarding_trace_and_context.sql",
@@ -212,6 +216,8 @@ SETS: dict[str, list[str]] = {
     "startups": [
         "008_startup_analysis_data.sql",
         "010_add_constraints.sql",
+        # Crawl diff content samples used by website monitoring on startup rows.
+        "037_crawl_diff_content_sample.sql",
         "019_startup_vertical_taxonomy_indexes.sql",
         "021_build_patterns_and_funding_indexes.sql",
         "022_startup_dataset_region.sql",
