@@ -49,6 +49,7 @@ class ScrapyPlaywrightRuntime:
             token=settings.crawler.browserless_token,
         )
         self._startup_id_cache: Dict[str, Optional[str]] = {}
+        self._frontier_schema_verified = False
 
     async def close(self):
         await self.frontier.close()
@@ -697,6 +698,10 @@ class ScrapyPlaywrightRuntime:
                 "results": [],
                 "errors": ["Frontier disabled: DATABASE_URL not configured"],
             }
+
+        if not self._frontier_schema_verified:
+            await self.frontier.ensure_runtime_schema()
+            self._frontier_schema_verified = True
 
         recovered = await self.frontier.recover_stale_leases(20)
         batch_limit = max(1, int(limit or settings.crawler.frontier_batch_size))

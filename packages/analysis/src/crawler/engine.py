@@ -1109,6 +1109,8 @@ class StartupCrawler:
 
     async def close(self):
         """Close all HTTP clients."""
+        if self.hybrid_fetcher:
+            await self.hybrid_fetcher.close()
         if self.modern_runtime:
             await self.modern_runtime.close()
         if self.web_search_client:

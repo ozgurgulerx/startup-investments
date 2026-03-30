@@ -576,6 +576,39 @@ def crawl_frontier(
         console.print(f"[red]Errors:[/red] {len(result['errors'])}")
 
 
+@app.command("verify-frontier-schema")
+def verify_frontier_schema(
+    json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON only"),
+):
+    """Validate crawl-frontier DB schema compatibility before starting a worker."""
+    from src.crawl_runtime.frontier import FrontierSchemaError, UrlFrontierStore
+
+    store = UrlFrontierStore(os.getenv("DATABASE_URL"))
+    try:
+        report = asyncio.run(store.verify_runtime_schema())
+    except FrontierSchemaError as exc:
+        console.print(f"[red]Frontier schema check failed:[/red] {exc}")
+        raise typer.Exit(1)
+    finally:
+        asyncio.run(store.close())
+
+    if json_output:
+        console.print_json(data=report)
+    else:
+        console.print(Panel.fit(
+            "[bold blue]Frontier Schema Check[/bold blue]",
+            border_style="blue"
+        ))
+        console.print(f"[bold]Compatible:[/bold] {report['compatible']}")
+        if report["missing_by_table"]:
+            for table_name, missing in sorted(report["missing_by_table"].items()):
+                console.print(f"[red]{table_name}[/red]: missing {', '.join(missing)}")
+            console.print(report["hint"])
+
+    if not report["compatible"]:
+        raise typer.Exit(1)
+
+
 @app.command("crawl-retention")
 def crawl_retention(
     retention_days: int = typer.Option(0, "--retention-days", help="Delete raw captures older than this many days"),

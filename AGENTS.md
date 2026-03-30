@@ -239,6 +239,11 @@ AKS runner/runtime notes:
     - seed runs on interval (`CRAWL_FRONTIER_SEED_INTERVAL_HOURS`, default 6h) or resume cursor,
     - seed cursor/last-run state now lives in `pipeline_runtime_state` (with file fallback only when DB is unavailable),
     - worker execution still proceeds if seed chunk fails/times out.
+  - `crawl-frontier` now performs a hard schema preflight before refresh-job processing or worker lease execution:
+    - shell entrypoint runs `python main.py verify-frontier-schema` immediately after `apply-migrations.sh crawl`,
+    - the runtime also calls `UrlFrontierStore.ensure_runtime_schema()` before the first lease batch,
+    - if columns such as `crawl_frontier_urls.last_content_sample` are missing, the job fails fast with a migration hint instead of dying mid-batch.
+  - `crawl-frontier` job retries once per scheduled run (`backoffLimit: 1`) so transient worker crashes can recover without waiting for the next cron tick.
   - Frontier telemetry:
     - Each frontier URL crawl attempt is persisted to `crawl_logs` (with `canonical_url`, `fetch_method`, `proxy_tier`, `error_category`, and optional `capture_id`) so `/api/admin/monitoring/frontier` can report 24h success/error rates.
     - `/api/admin/monitoring/frontier` computes `runs24h` from frontier-related `crawl_logs` (canonical URLs present in `crawl_frontier_urls`) and excludes synthetic `fetch_method=runtime_missing_output` rows.
@@ -264,6 +269,12 @@ AKS runner/runtime notes:
     - `CRAWLER_FEED_DISCOVERY_MAX_URLS` (seed discovery cap per startup; default 40)
     - Prefer raising `CRAWL_FRONTIER_MAX_LOOPS` first to use the existing 40m cron window before increasing batch size.
     - Roll back if `crawl-frontier` hits the 40m timeout or `/api/admin/monitoring/frontier` shows rising `staleLeases`, worsening `runSuccessRate24h`, or worsening `domainStarvation`.
+  - Legacy/ad-hoc startup crawling (`packages/analysis/src/crawler/fetch_strategy.py`) now uses the same escalation model as the broader crawler policy:
+    - HTTP direct/datacenter first,
+    - residential HTTP retry on block/transient failures,
+    - managed unblock provider when configured (`CRAWLER_UNBLOCK_MODE=auto|provider_only`),
+    - browser render fallback last.
+    - The hybrid fetcher now reuses a single `AsyncWebCrawler` session per `StartupCrawler` instance instead of cold-starting a browser for every rendered page.
   - Daily `slack-summary` now includes subscription lifecycle metrics (created/confirmed/unsubscribed in 24h),
     segment breakdown (`region` × `digest_frequency`), masked newly-confirmed subscriber emails, and digest
     delivery totals by region.
@@ -329,6 +340,10 @@ Frontend:
   - Region-aware newsletter artifact generation:
     - Turkey library/archive reads resolve to `apps/web/data/tr/<period>/...`, so monthly artifact generation must populate both `apps/web/data/<period>/output/*` and `apps/web/data/tr/<period>/output/*`.
     - `packages/analysis/src/automation/newsletter_generator.py` supports `--data-root` for explicit dataset-root generation, and `infrastructure/vm-cron/jobs/monthly-brief.sh` is responsible for invoking it for both roots.
+    - Manual regeneration must preserve the same parity: `scripts/regenerate-data.sh` now regenerates newsletter artifacts and startup briefs for both the global data root and `apps/web/data/tr`.
+  - LinkedIn newsletter artboard exports:
+    - `apps/web/scripts/export-linkedin-funding-artboards.{ts,mjs}` now default `--out` to `apps/web/public/newsletter-assets/march-2026-ai-funding` so re-exports refresh the PNGs the site actually serves.
+    - Keep `--out` available for ad hoc exports, but treat the checked-in `public/newsletter-assets` tree as the default publish target.
   - `output/comprehensive_newsletter.md` is legacy fallback only; new regeneration should not depend on it.
   - `/library` only offers months that have newsletter markdown on disk (`output/viral_newsletter.md` preferred, `output/comprehensive_newsletter.md` fallback) to avoid API/data mismatches.
   - Docker-based App Service deploy must include datasets at `/app/data` (see `apps/web/Dockerfile`).

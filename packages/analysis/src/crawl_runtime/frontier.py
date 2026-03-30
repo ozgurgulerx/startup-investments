@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.config import settings
@@ -18,6 +18,60 @@ TRACKING_PARAMS = {
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
     "gclid", "fbclid", "msclkid", "ref", "source", "campaign",
 }
+
+REQUIRED_FRONTIER_COLUMNS: Dict[str, Set[str]] = {
+    "crawl_frontier_urls": {
+        "startup_slug",
+        "url",
+        "canonical_url",
+        "domain",
+        "page_type",
+        "priority_score",
+        "next_crawl_at",
+        "content_hash",
+        "etag",
+        "last_modified",
+        "last_status_code",
+        "last_crawled_at",
+        "change_rate",
+        "last_response_ms",
+        "last_quality_score",
+        "last_error_category",
+        "last_fetch_method",
+        "last_proxy_tier",
+        "last_blocked_detected",
+        "last_capture_id",
+        "last_content_sample",
+        "updated_at",
+    },
+    "crawl_frontier_queue": {
+        "canonical_url",
+        "available_at",
+        "leased_at",
+        "lease_owner",
+        "lease_attempts",
+        "updated_at",
+    },
+    "domain_policies": {
+        "domain",
+        "respect_robots",
+        "crawl_delay_ms",
+        "max_concurrent",
+        "blocked",
+        "proxy_tier",
+        "render_required",
+        "block_rate",
+        "consecutive_blocks",
+        "last_blocked_at",
+        "last_provider_success_at",
+        "policy_version",
+        "updated_at",
+    },
+}
+
+
+class FrontierSchemaError(RuntimeError):
+    """Raised when the frontier runtime schema is incompatible with the worker."""
 
 
 def canonicalize_url(url: str) -> str:
@@ -139,6 +193,63 @@ class UrlFrontierStore:
     @property
     def enabled(self) -> bool:
         return self.pool is not None
+
+    async def verify_runtime_schema(self) -> Dict[str, Any]:
+        """Validate that frontier tables contain the columns the runtime writes."""
+        if asyncpg is None:
+            raise FrontierSchemaError("asyncpg is required for frontier runtime schema verification")
+        if not self.database_url:
+            raise FrontierSchemaError("DATABASE_URL is required for frontier runtime schema verification")
+
+        await self.connect()
+        if not self.pool:
+            raise FrontierSchemaError("Frontier runtime is disabled because DATABASE_URL is unavailable")
+
+        table_names = list(REQUIRED_FRONTIER_COLUMNS.keys())
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT table_name, column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = ANY($1::text[])
+                """,
+                table_names,
+            )
+
+        actual_columns: Dict[str, Set[str]] = {table: set() for table in table_names}
+        for row in rows:
+            table_name = str(row["table_name"] or "")
+            column_name = str(row["column_name"] or "")
+            if table_name:
+                actual_columns.setdefault(table_name, set()).add(column_name)
+
+        missing_by_table: Dict[str, List[str]] = {}
+        for table_name, required_columns in REQUIRED_FRONTIER_COLUMNS.items():
+            missing = sorted(required_columns - actual_columns.get(table_name, set()))
+            if missing:
+                missing_by_table[table_name] = missing
+
+        return {
+            "compatible": not missing_by_table,
+            "required_tables": table_names,
+            "missing_by_table": missing_by_table,
+            "hint": (
+                "Apply the crawl/frontier migrations before running crawl-frontier "
+                "(for example: infrastructure/vm-cron/jobs/apply-migrations.sh crawl)"
+            ),
+        }
+
+    async def ensure_runtime_schema(self) -> None:
+        report = await self.verify_runtime_schema()
+        if report["compatible"]:
+            return
+
+        detail = ", ".join(
+            f"{table} missing [{', '.join(columns)}]"
+            for table, columns in sorted(report["missing_by_table"].items())
+        )
+        raise FrontierSchemaError(f"Frontier schema is incompatible: {detail}. {report['hint']}")
 
     async def enqueue_urls(
         self,

@@ -1,10 +1,11 @@
 """Hybrid Fetch Strategy for Crawler.
 
-Implements HTTP-first fetch strategy with browser fallback:
+Implements HTTP-first fetch strategy with a staged fallback ladder:
 1. Try simple HTTP fetch first (fast, cheap)
-2. Detect if page requires JavaScript rendering
-3. Fall back to browser rendering only when needed
-4. Cache domain capabilities to avoid repeated checks
+2. Retry via residential proxy on block/challenge or transient failures
+3. Escalate to managed unblock provider when configured
+4. Fall back to browser rendering only when needed
+5. Cache domain capabilities to avoid repeated checks
 """
 
 import asyncio
@@ -14,12 +15,26 @@ import random
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Any, List, Optional, Sequence, Tuple
 
 import httpx
 from bs4 import BeautifulSoup
+
+try:
+    from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
+except Exception:
+    AsyncWebCrawler = None
+    BrowserConfig = None
+    CacheMode = None
+    CrawlerRunConfig = None
+
 from src.config import settings
 from src.crawl_runtime.extraction import extract_main_content
+from src.crawl_runtime.unblock_provider import (
+    UnblockRequest,
+    build_unblock_provider,
+    is_probably_blocked,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +84,9 @@ class FetchResult:
     error: Optional[str] = None
     content_length: int = 0
     is_js_heavy: bool = False
+    blocked_detected: bool = False
+    proxy_tier: str = "none"
+    provider: str = "none"
 
 
 def detect_js_shell(html: str) -> bool:
@@ -253,6 +271,7 @@ async def fetch_with_http(
     timeout: float = 15.0,
     user_agent: str = "Mozilla/5.0 (compatible; BuildAtlasCrawler/1.0)",
     proxy_url: str = "",
+    proxy_tier: str = "none",
 ) -> FetchResult:
     """Fetch a URL using simple HTTP.
 
@@ -287,9 +306,10 @@ async def fetch_with_http(
             html = response.text
             text = extract_text_content(html)
             is_js_shell = detect_js_shell(html)
+            blocked_detected = is_probably_blocked(int(response.status_code), html)
 
             return FetchResult(
-                success=response.status_code == 200,
+                success=response.status_code == 200 and not blocked_detected,
                 url=str(response.url),  # May differ due to redirects
                 html=html,
                 text=text,
@@ -299,7 +319,9 @@ async def fetch_with_http(
                 status_code=response.status_code,
                 response_time_ms=elapsed_ms,
                 content_length=len(html),
-                is_js_heavy=is_js_shell
+                is_js_heavy=is_js_shell,
+                blocked_detected=blocked_detected,
+                proxy_tier=proxy_tier,
             )
 
     except httpx.TimeoutException:
@@ -310,7 +332,8 @@ async def fetch_with_http(
             method='http',
             status_code=0,
             response_time_ms=elapsed_ms,
-            error="Timeout"
+            error="Timeout",
+            proxy_tier=proxy_tier,
         )
 
     except Exception as e:
@@ -320,7 +343,8 @@ async def fetch_with_http(
             url=url,
             method='http',
             response_time_ms=elapsed_ms,
-            error=str(e)
+            error=str(e),
+            proxy_tier=proxy_tier,
         )
 
 
@@ -364,9 +388,17 @@ class HybridFetcher:
         self.user_agent = user_agent
         self.datacenter_proxy_url = datacenter_proxy_url or settings.crawler.datacenter_proxy_url
         self.residential_proxy_url = residential_proxy_url or settings.crawler.residential_proxy_url
+        self.unblock_provider = build_unblock_provider(
+            provider_name=settings.crawler.unblock_provider,
+            endpoint=settings.crawler.browserless_endpoint,
+            token=settings.crawler.browserless_token,
+        )
 
         # Local cache for domains without DB throttler
         self._js_domains: set = set()
+        self._browser_crawler = None
+        self._browser_init_lock = asyncio.Lock()
+        self._browser_run_lock = asyncio.Lock()
 
     async def fetch(
         self,
@@ -415,23 +447,24 @@ class HybridFetcher:
                 requires_js = await self._domain_requires_js(domain)
 
             if requires_js:
-                result = await self._fetch_with_browser(url)
+                result = await self._fetch_with_render_stack(url, prefer_provider=False)
             else:
-                # Try HTTP first
-                result = await fetch_with_http(
-                    url,
-                    timeout=self.http_timeout,
-                    user_agent=random.choice(USER_AGENTS),
-                    proxy_url=self.datacenter_proxy_url,
-                )
+                result = await self._fetch_with_http_ladder(url)
 
-                # If HTTP succeeded but content is JS shell, retry with browser
                 if result.success and result.is_js_heavy and not force_http:
-                    logger.info(f"JS shell detected for {domain}, using browser")
+                    logger.info("JS shell detected for %s, escalating to render stack", domain)
                     await self._mark_domain_requires_js(domain)
-                    browser_result = await self._fetch_with_browser(url)
-                    if browser_result.success:
-                        result = browser_result
+                    rendered = await self._fetch_with_render_stack(url, prefer_provider=False)
+                    if rendered.success:
+                        result = rendered
+                elif (
+                    (result.blocked_detected or not result.success)
+                    and not force_http
+                    and self._provider_mode_enabled()
+                ):
+                    rendered = await self._fetch_with_render_stack(url, prefer_provider=True)
+                    if rendered.success:
+                        result = rendered
 
             return result
         finally:
@@ -465,6 +498,155 @@ class HybridFetcher:
         if self.throttler:
             await self.throttler.mark_domain_requires_js(domain, True)
 
+    def _provider_mode_enabled(self) -> bool:
+        return settings.crawler.unblock_mode.strip().lower() in {"auto", "provider_only"}
+
+    def _http_proxy_sequence(self) -> Sequence[Tuple[str, str]]:
+        attempts: List[Tuple[str, str]] = []
+        datacenter_url = (self.datacenter_proxy_url or "").strip()
+        residential_url = (self.residential_proxy_url or "").strip()
+
+        if datacenter_url:
+            attempts.append(("datacenter", datacenter_url))
+        else:
+            attempts.append(("direct", ""))
+
+        if residential_url and residential_url != datacenter_url:
+            attempts.append(("residential", residential_url))
+
+        return attempts
+
+    @staticmethod
+    def _prefer_result(current: Optional[FetchResult], candidate: FetchResult) -> FetchResult:
+        if current is None:
+            return candidate
+        if candidate.success and not current.success:
+            return candidate
+        if candidate.success == current.success and candidate.content_length > current.content_length:
+            return candidate
+        if candidate.blocked_detected and not current.blocked_detected:
+            return current
+        if current.error and not candidate.error:
+            return candidate
+        return current
+
+    @staticmethod
+    def _should_try_next_http_tier(result: FetchResult) -> bool:
+        if result.blocked_detected:
+            return True
+        if result.status_code in {0, 408, 425, 429, 500, 502, 503, 504}:
+            return True
+        if result.error and not result.success:
+            return True
+        return False
+
+    async def _fetch_with_http_ladder(self, url: str) -> FetchResult:
+        best_result: Optional[FetchResult] = None
+        attempts = list(self._http_proxy_sequence())
+
+        for index, (proxy_tier, proxy_url) in enumerate(attempts):
+            result = await fetch_with_http(
+                url,
+                timeout=self.http_timeout,
+                user_agent=random.choice(USER_AGENTS),
+                proxy_url=proxy_url,
+                proxy_tier=proxy_tier,
+            )
+            best_result = self._prefer_result(best_result, result)
+
+            if result.success and not result.is_js_heavy and not result.blocked_detected:
+                return result
+
+            if index == len(attempts) - 1:
+                break
+            if not self._should_try_next_http_tier(result):
+                break
+
+        return best_result or FetchResult(success=False, url=url, error="HTTP fetch failed")
+
+    async def _fetch_with_provider(self, url: str) -> FetchResult:
+        if not self.unblock_provider:
+            return FetchResult(success=False, url=url, method="provider", error="Unblock provider not configured")
+
+        start_time = datetime.now(timezone.utc)
+        try:
+            request = UnblockRequest(
+                url=url,
+                headers={
+                    "User-Agent": random.choice(USER_AGENTS),
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.5",
+                },
+                timeout_ms=int(self.browser_timeout * 1000),
+            )
+            provider_result = await self.unblock_provider.fetch(request)
+            elapsed_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+            html = provider_result.html or ""
+            text = extract_text_content(html)
+            blocked_detected = bool(provider_result.blocked_detected)
+            return FetchResult(
+                success=bool(html.strip()) and not blocked_detected and int(provider_result.status_code or 0) < 400,
+                url=provider_result.final_url or url,
+                html=html,
+                text=text,
+                title=extract_title(html),
+                content_hash=compute_content_hash(text),
+                method=f"provider_{provider_result.provider}",
+                status_code=int(provider_result.status_code or 0),
+                response_time_ms=elapsed_ms,
+                content_length=len(html),
+                is_js_heavy=detect_js_shell(html) if html else False,
+                blocked_detected=blocked_detected,
+                proxy_tier="provider",
+                provider=provider_result.provider,
+            )
+        except Exception as exc:
+            elapsed_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+            logger.warning("Provider fetch failed for %s: %s", url, exc)
+            return FetchResult(
+                success=False,
+                url=url,
+                method="provider",
+                response_time_ms=elapsed_ms,
+                error=str(exc),
+                proxy_tier="provider",
+            )
+
+    async def _fetch_with_render_stack(self, url: str, *, prefer_provider: bool) -> FetchResult:
+        provider_enabled = self._provider_mode_enabled() and self.unblock_provider is not None
+        provider_only = settings.crawler.unblock_mode.strip().lower() == "provider_only"
+
+        if (prefer_provider or provider_only) and provider_enabled:
+            provider_result = await self._fetch_with_provider(url)
+            if provider_result.success:
+                return provider_result
+            if provider_only:
+                return provider_result
+
+        browser_result = await self._fetch_with_browser(url)
+        if browser_result.success:
+            return browser_result
+
+        if provider_enabled and not prefer_provider:
+            fallback_provider = await self._fetch_with_provider(url)
+            if fallback_provider.success:
+                return fallback_provider
+
+        return browser_result
+
+    async def _get_browser_crawler(self):
+        if self.browser_pool is not None:
+            return self.browser_pool
+        if AsyncWebCrawler is None or BrowserConfig is None:
+            raise RuntimeError("crawl4ai is not installed")
+
+        async with self._browser_init_lock:
+            if self._browser_crawler is None:
+                browser_config = BrowserConfig(headless=True, verbose=False)
+                crawler = AsyncWebCrawler(config=browser_config)
+                self._browser_crawler = await crawler.__aenter__()
+            return self._browser_crawler
+
     async def _fetch_with_browser(self, url: str) -> FetchResult:
         """Fetch URL using browser rendering.
 
@@ -473,37 +655,38 @@ class HybridFetcher:
         start_time = datetime.now(timezone.utc)
 
         try:
-            # Use crawl4ai browser pool
-            from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+            if CrawlerRunConfig is None or CacheMode is None:
+                raise RuntimeError("crawl4ai is not installed")
 
-            browser_config = BrowserConfig(headless=True, verbose=False)
             run_config = CrawlerRunConfig(
                 cache_mode=CacheMode.BYPASS,
                 page_timeout=int(self.browser_timeout * 1000)
             )
 
-            async with AsyncWebCrawler(config=browser_config) as crawler:
+            crawler = await self._get_browser_crawler()
+            async with self._browser_run_lock:
                 result = await crawler.arun(url=url, config=run_config)
 
-                elapsed_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+            elapsed_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
 
-                html = result.html if hasattr(result, 'html') else ""
-                markdown = result.markdown if hasattr(result, 'markdown') else ""
-                text = extract_text_content(html) if html else markdown
+            html = result.html if hasattr(result, 'html') else ""
+            markdown = result.markdown if hasattr(result, 'markdown') else ""
+            text = extract_text_content(html) if html else markdown
 
-                return FetchResult(
-                    success=bool(markdown or html),
-                    url=url,
-                    html=html,
-                    text=text,
-                    title=extract_title(html) or getattr(result, 'title', None),
-                    content_hash=compute_content_hash(text),
-                    method='browser',
-                    status_code=200 if (markdown or html) else 0,
-                    response_time_ms=elapsed_ms,
-                    content_length=len(html or markdown or ""),
-                    is_js_heavy=True
-                )
+            return FetchResult(
+                success=bool(markdown or html),
+                url=url,
+                html=html,
+                text=text,
+                title=extract_title(html) or getattr(result, 'title', None),
+                content_hash=compute_content_hash(text),
+                method='browser',
+                status_code=200 if (markdown or html) else 0,
+                response_time_ms=elapsed_ms,
+                content_length=len(html or markdown or ""),
+                is_js_heavy=True,
+                proxy_tier="browser",
+            )
 
         except Exception as e:
             elapsed_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
@@ -514,8 +697,19 @@ class HybridFetcher:
                 url=url,
                 method='browser',
                 response_time_ms=elapsed_ms,
-                error=str(e)
+                error=str(e),
+                proxy_tier="browser",
             )
+
+    async def close(self):
+        if self.browser_pool is not None:
+            return
+        async with self._browser_init_lock:
+            if self._browser_crawler is None:
+                return
+            crawler = self._browser_crawler
+            self._browser_crawler = None
+            await crawler.__aexit__(None, None, None)
 
 
 async def fetch_url(
@@ -539,4 +733,7 @@ async def fetch_url(
         domain_throttler=throttler,
         http_timeout=timeout,
     )
-    return await fetcher.fetch(url, force_browser=force_browser)
+    try:
+        return await fetcher.fetch(url, force_browser=force_browser)
+    finally:
+        await fetcher.close()

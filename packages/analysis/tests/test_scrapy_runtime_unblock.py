@@ -20,6 +20,9 @@ class FakeFrontier:
     async def close(self):
         return None
 
+    async def ensure_runtime_schema(self):
+        return None
+
 
 class FakeProvider:
     async def fetch(self, _request):

@@ -62,6 +62,10 @@ bash "$REPO_DIR/infrastructure/vm-cron/jobs/apply-migrations.sh" crawl
 
 cd "$REPO_DIR/packages/analysis"
 
+# Fail fast on schema drift so the worker doesn't die mid-batch on missing columns.
+echo "Verifying frontier schema..."
+"$VENV_DIR/bin/python" main.py verify-frontier-schema
+
 # Process event-driven refresh jobs (boost priority before seeding)
 echo "Processing refresh jobs..."
 if ! "$VENV_DIR/bin/python" main.py process-refresh-jobs --batch-size 50; then

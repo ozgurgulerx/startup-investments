@@ -18,6 +18,7 @@ class FakeFrontier:
         self.enqueued = []
         self._leased = []
         self._policy = None
+        self.schema_checked = False
 
     @property
     def enabled(self) -> bool:
@@ -27,6 +28,10 @@ class FakeFrontier:
         return None
 
     async def close(self):
+        return None
+
+    async def ensure_runtime_schema(self):
+        self.schema_checked = True
         return None
 
     async def recover_stale_leases(self, _minutes: int) -> int:
@@ -161,6 +166,7 @@ def test_runtime_marks_crawled_and_requeues_missing_urls():
     assert summary["leased"] == 2
     assert summary["failed"] == 0
     assert summary["processed"] == 2
+    assert frontier.schema_checked is True
     assert len(frontier.marked) == 1
     assert frontier.marked[0]["canonical_url"] == "https://acme.com/pricing"
     assert frontier.requeued == [("https://acme.com/blog", 300)]
