@@ -1,0 +1,469 @@
+{
+  "company_name": "Linq",
+  "company_slug": "linq",
+  "website": "https://linqapp.com",
+  "logo_url": null,
+  "description": "Linq is a digital business card and mobile CRM platform that helps professionals capture leads, manage contacts, and close deals.",
+  "funding_amount": 20000000.0,
+  "funding_stage": "series_a",
+  "uses_genai": false,
+  "genai_intensity": "none",
+  "models_mentioned": [],
+  "build_patterns": [],
+  "discovered_patterns": [
+    {
+      "category": "Operations & Infrastructure",
+      "pattern_name": "API-first, high-availability messaging gateway with channel fallback",
+      "confidence": 0.8,
+      "evidence": [
+        "Communications APIs and CRM Integrations for iMessage, RCS, SMS, and Voice",
+        "Uptime 99.95%",
+        "Latency <120ms",
+        "Fall back RCS"
+      ],
+      "description": "Linq presents an API-first communications platform that exposes messaging and voice channels (iMessage, RCS, SMS, Voice). They advertise strict operational SLAs (99.95% uptime) and latency targets (<120ms), and implement channel-level fallback logic (explicitly referencing RCS fallback) to maintain message delivery across heterogeneous carrier/protocol landscapes.",
+      "novelty_score": 3,
+      "why_notable": "This is a standard design for carrier/omnichannel messaging providers, but explicit SLA/latency targets plus channel fallback indicate production-grade delivery guarantees and engineering focus on reliability and routing logic."
+    },
+    {
+      "category": "Operations & Infrastructure",
+      "pattern_name": "Environment separation (Sandbox + Production) and API documentation / developer experience",
+      "confidence": 0.85,
+      "evidence": [
+        "Try Sandbox",
+        "Enterprise Sandbox",
+        "Read API docs"
+      ],
+      "description": "Linq exposes a dedicated sandbox environment for testing integrations separate from production, and emphasizes developer-facing documentation. This implies deployment/operational patterns supporting isolated test tenancy, API keys/environments, and predictable developer lifecycle (build/test/prod).",
+      "novelty_score": 2,
+      "why_notable": "Sandbox + docs is expected for API platforms; its presence strengthens evidence of mature developer ergonomics but is not unusual."
+    },
+    {
+      "category": "Safety & Trust (LLM Security)",
+      "pattern_name": "Compliance-focused security posture (SOC 2 Type II, encryption)",
+      "confidence": 0.9,
+      "evidence": [
+        "SOC 2 Type II",
+        "Encrypted Data"
+      ],
+      "description": "The product emphasizes formal compliance and data protection controls (SOC 2 Type II certification) and encrypted data handling. This suggests implemented controls for access auditing, encryption-at-rest/in-transit, and organizational processes required for enterprise/regulated customers.",
+      "novelty_score": 2,
+      "why_notable": "SOC 2 and encryption are table-stakes for enterprise offerings; notable for customers but technically standard."
+    },
+    {
+      "category": "Data Strategy",
+      "pattern_name": "CRM integration as a primary data-integration strategy",
+      "confidence": 0.7,
+      "evidence": [
+        "Communications APIs and CRM Integrations for iMessage, RCS, SMS, and Voice",
+        "CRM Integrations"
+      ],
+      "description": "Linq positions CRM integrations as a core capability, indicating an architecture that ties messaging events and metadata to CRM records. This implies webhooks, sync adapters or direct connectors to CRM systems to maintain conversation context and customer state within third-party systems.",
+      "novelty_score": 4,
+      "why_notable": "Tight CRM integrations are valuable as a vertical moat; while common among communication platforms, the emphasis suggests product differentiation around enterprise workflow integration rather than generic messaging only."
+    },
+    {
+      "category": "Operations & Infrastructure",
+      "pattern_name": "Global support / geographic distribution implication",
+      "confidence": 0.6,
+      "evidence": [
+        "Global Support",
+        "Uptime 99.95%"
+      ],
+      "description": "The marketing copy claims 'Global Support' alongside SLA commitments. This implies a multi-region or distributed deployment and operational model to meet latency and availability SLAs for geographically dispersed customers, though technical implementation details are not shown.",
+      "novelty_score": 3,
+      "why_notable": "Global presence is expected for enterprise messaging, but the combination with specific latency and uptime claims underscores operational maturity."
+    }
+  ],
+  "pattern_category_scores": {},
+  "novel_approaches": [
+    {
+      "approach": "Protocol-level fallback routing across messaging channels (explicit RCS fallback)",
+      "why_novel": "Explicit mention of 'Fall back RCS' shows channel-aware delivery logic rather than treating each channel as isolated; it signals active routing/translation to preserve delivery semantics across protocols.",
+      "potential_impact": "Improves deliverability and user experience by automatically switching channels or formats when primary protocol delivery fails, reducing lost or fragmented conversations."
+    }
+  ],
+  "model_details": {
+    "primary_models": [],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": false,
+      "orchestration_pattern": ""
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "enterprise_saas",
+  "sub_vertical": "Mobile-first CRM and lead capture with omnichannel messaging",
+  "sub_sub_vertical": "Digital business card & contact management integrated with SMS/iMessage/RCS/Voice for sales enablement",
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "it_enterprise_software",
+      "vertical_label": "Information Technology & Enterprise Software",
+      "sub_vertical_id": "business_productivity_software",
+      "sub_vertical_label": "Business Productivity Software",
+      "leaf_id": "business_productivity_software",
+      "leaf_label": "Business Productivity Software"
+    },
+    "path": [
+      {
+        "id": "it_enterprise_software",
+        "label": "Information Technology & Enterprise Software",
+        "confidence": 0.8
+      },
+      {
+        "id": "business_productivity_software",
+        "label": "Business Productivity Software",
+        "confidence": 0.8
+      }
+    ]
+  },
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 6,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "API docs are advertised (Read API docs)",
+      "Sandbox environment available (Try Sandbox) for developers",
+      "Uptime metric present (99.95%) and latency (<120 ms)",
+      "SOC 2 Type II security/compliance information",
+      "Enterprise-grade messaging with CRM/communication integrations"
+    ]
+  },
+  "implementation_maturity": "production",
+  "team_analysis": {
+    "founders": [],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": false,
+      "has_domain_expertise": true,
+      "hiring_signals": [],
+      "team_size_indicators": "unknown",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "insufficient data to assess due to lack of founder information in provided material",
+    "team_strengths": [
+      "Enterprise-grade messaging focus with API-first design",
+      "SOC 2 Type II certification indicating security and compliance maturity",
+      "Public emphasis on uptime (99.95%) and latency (<120ms) suggesting a strong operations/DevOps capability",
+      "Global support and multiple messaging channels (iMessage, RCS, SMS, Voice) implying domain specialization in communications APIs"
+    ],
+    "team_red_flags": [],
+    "team_confidence": 0.15
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "usage_based",
+      "pricing_evidence": [
+        "View Pricing",
+        "Try Sandbox",
+        "Enterprise Sandbox",
+        "APIs for communications"
+      ],
+      "free_tier_available": true,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "developer_first",
+      "evidence": [
+        "Read API docs",
+        "Try Sandbox",
+        "View Pricing",
+        "Enterprise Sandbox",
+        "CRM Integrations",
+        "SOC 2 Type II",
+        "Global Support",
+        "Customer stories"
+      ],
+      "target_segment": "enterprise",
+      "sales_motion": "hybrid"
+    },
+    "revenue_model": {
+      "monetization_approach": "API usage charges (likely per message/call) complemented by enterprise subscriptions and high-touch sales",
+      "unit_economics_signals": [],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "Sandbox and developer-first API access to accelerate adoption",
+      "CRM integrations expand ecosystem reach",
+      "Enterprise-grade security (SOC 2 Type II) and uptime commitments"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "self-serve via API docs and sandbox",
+        "pricing page and trials",
+        "sales outreach via 'Talk to an Expert'",
+        "customer stories and case studies",
+        "CRM integration partnerships"
+      ],
+      "customer_proof_points": [
+        "Customer stories",
+        "Watch How Poke Goes Viral",
+        "SOC 2 Type II and encrypted data"
+      ]
+    },
+    "business_model_clarity": "evolving",
+    "business_model_confidence": 0.6
+  },
+  "product_analysis": {
+    "product_stage": "general_availability",
+    "stage_evidence": [
+      "View Pricing",
+      "Enterprise Sandbox",
+      "Read API docs",
+      "SOC 2 Type II certified",
+      "Uptime 99.95%",
+      "Latency <120ms",
+      "Global Support"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Communications APIs for iMessage, RCS, SMS, and Voice",
+        "CRM integrations",
+        "Sandbox environment",
+        "Encrypted data",
+        "Global support",
+        "SLA-oriented uptime and performance"
+      ],
+      "differentiating_features": [
+        "SOC 2 Type II compliance",
+        "CRM integrations built into the platform",
+        "RCS fallback support",
+        "Enterprise-grade messaging focus"
+      ],
+      "roadmap_signals": [
+        "No explicit roadmap details provided; presence of sandbox and pricing pages implies ongoing productization and scale"
+      ],
+      "feature_completeness": "comprehensive"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "CRM integrations",
+        "iMessage, RCS, SMS, and Voice channels"
+      ],
+      "api_maturity": "comprehensive",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Enterprise-grade communications APIs for multi-channel messaging across iMessage, RCS, SMS, and Voice with CRM integrations",
+      "secondary_use_cases": [
+        "CRM-driven messaging workflows",
+        "Encrypted data communications",
+        "Global messaging with reliable uptime"
+      ],
+      "customer_stories": [
+        "Watch How Poke Goes Viral"
+      ],
+      "industry_focus": []
+    },
+    "product_risks": [
+      "No explicit public roadmap with dates or milestones",
+      "Limited publicly visible integrations beyond CRM and multi-channel messaging",
+      "Lack of explicit information on SDKs or webhook ecosystems"
+    ],
+    "product_strengths": [
+      "Multi-channel messaging (iMessage, RCS, SMS, Voice)",
+      "Enterprise-grade compliance (SOC 2 Type II)",
+      "High uptime (99.95%) and low latency (<120ms)",
+      "Available Sandbox and API documentation",
+      "Encryption and global support"
+    ],
+    "product_confidence": 0.68
+  },
+  "unique_findings": [
+    "Public marketing centers on a single API covering iMessage, RCS, SMS and Voice \u2014 supporting iMessage at API-level is non-trivial because Apple does not expose a generic SMS-like public API; this implies Linq has built either deep Apple Business Chat integrations, a managed on-device gateway, or carrier-level partnerships to surface iMessage as a first-class channel.",
+    "They advertise 'Fall back RCS On View' which reads like a capability-negotiation + graceful-degradation feature: messages can be routed to the richest available channel per recipient and rendered differently based on view/read state. Implementing that while preserving ordering, receipts, and message semantics across protocols is a subtle engineering effort.",
+    "Claims of <120ms latency and 99.95% uptime across global messaging implies an edge-first, multi-region relay architecture with optimized carrier/telecom peering, possibly using local POPs and adaptive routing to minimize PSTN/RCS handoff latency \u2014 not typical of simple cloud-only CPaaS builds.",
+    "One-stop CRM integrations combined with multi-channel messaging suggests real-time identity resolution and thread stitching: mapping ephemeral, channel-specific conversation fragments (iMessage threads, RCS sessions, SMS) to persistent CRM entities in a way that preserves context and analytics.",
+    "Emphasis on enterprise sandbox + SOC 2 Type II and 'Encrypted Data' hints at a hybrid product: developer-friendly APIs and tooling plus hardened compliance controls. Running both dev-friendly sandboxes and enterprise controls simultaneously introduces orchestration complexity (data segregation, key management, environment parity).",
+    "Unified rich-media handling across channels (iMessage rich cards, RCS rich messages, MMS) implies a media-transcoding and template normalization layer that can convert capabilities and degrade gracefully, which is more complex than simple channel multiplexing."
+  ],
+  "technical_depth": "low",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Linq built a channel-fallback, API-first messaging gateway that hits <120ms and 99.95% uptime",
+      "summary": "A deep-dive for engineers into Linq\u2019s architecture: API-first design, clear sandbox/production separation, and channel-fallback logic (iMessage \u2192 RCS \u2192 SMS \u2192 Voice) that preserves delivery SLAs. Explore how they balance low-latency routing, high availability, and developer experience (docs + sandbox) without exposing brittle carrier complexity to clients.",
+      "evidence": [
+        "Uptime 99.95%",
+        "Latency <120ms",
+        "API-first emphasis: 'Read API docs', 'Try Sandbox', 'Environment separation (Sandbox + Production)'",
+        "Channel fallback referenced: 'Fall back RCS On View' and multi-channel list (iMessage, RCS, SMS, Voice)"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "CRM-first: Linq\u2019s secret weapon for personalized omnichannel delivery",
+      "summary": "Rather than selling raw connectivity, Linq integrates tightly with CRMs to turn customer records into routing and personalization rules across iMessage, RCS, SMS and Voice. That data-led approach reduces churn, improves deliverability decisions, and creates product hooks higher up the stack (templates, fallbacks, compliance flags).",
+      "evidence": [
+        "CRM integrations listed as a primary capability: 'Communications APIs and CRM Integrations for iMessage, RCS, SMS, and Voice'",
+        "Enterprise focus and compliance posture (SOC 2 Type II, encrypted data) imply use cases where CRM-linked consent and security matter",
+        "Developer-facing tooling (sandbox, docs) suggests flows to map CRM test data into messaging scenarios"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "Why Linq is doubling down on carrier channels and compliance instead of building a full-blown AI personalization stack",
+      "summary": "At a time when startups rush to ship ML-driven personalization, Linq bets on reliable, compliant channel plumbing and CRM integrations \u2014 the plumbing enterprises actually need. This contrarian strategy prioritizes deterministic delivery, regulatory assurances and enterprise DX over frontier AI features, which could pay off among risk-averse customers.",
+      "evidence": [
+        "Emphasis on SOC 2 Type II and encrypted data (compliance-first)",
+        "Product positioning centers on messaging channels and CRM integrations rather than ML/AI features",
+        "Developer experience (sandbox, API docs) and uptime/latency metrics indicate focus on reliability and predictable behavior"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "How Linq claims message-savings and sub-120ms routing: operational tricks that could cut costs",
+      "summary": "A pragmatic look at where Linq might be squeezing cost and latency out of multi-channel messaging: pre-route fallbacks, payload optimizations, regional edge routing and aggregation for message-savings. For engineering teams, the question is whether these efficiencies come from smart batching, edge PoPs, or negotiated carrier routes.",
+      "evidence": [
+        "Prominent metrics: 'Latency <120ms', 'Uptime 99.95%' and copy mentioning 'S A V I N G S' in site content",
+        "Global support implication: 'Global Support' and enterprise positioning suggest investment in regional routing/peering",
+        "Sandbox and focused API docs imply tooling to test cost/latency tradeoffs before production"
+      ],
+      "uniqueness_score": 6
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "no_moat",
+      "description": "The offering is in a highly commoditized space (messaging APIs + CRM integrations) with standard claims (uptime, latency, SOC2) that are easy for competitors to match; there is no obvious proprietary data, unique protocol, or defensible technology described.",
+      "severity": "high",
+      "evidence": [
+        "Communications APIs and CRM Integrations for iMessage, RCS, SMS, and Voice",
+        "Read API docs",
+        "Uptime 99.95% 1 hour ago Latency <120ms",
+        "SOC 2 Type II Encrypted Data Global Support"
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "Product positioning appears me-too: multi-channel messaging + CRM integrations is a common offering (incumbents and large cloud providers already serve this market). Marketing language focuses on standard enterprise checklist items rather than unique capabilities.",
+      "severity": "medium",
+      "evidence": [
+        "Enterprise-grade messaging",
+        "Global Support",
+        "Try Sandbox Talk to an Expert (developer experience + sandbox focus is typical)"
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Key capabilities described (channel fallback, CRM integrations, sandbox) read like a set of features rather than a platform vision or extensible product moat; these features could be absorbed into larger platforms or incumbents' offerings without large integration costs.",
+      "severity": "medium",
+      "evidence": [
+        "channel fallback (Fall back RCS On)",
+        "Environment separation (Sandbox + Production)",
+        "CRM Integrations"
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing emphasizes enterprise-grade attributes and compliance but provides no technical specifics or differentiating metrics beyond generic uptime/latency numbers; risk of marketing-sells-what-engineering-can't-guarantee if SLAs/backing details are absent.",
+      "severity": "low",
+      "evidence": [
+        "Enterprise-grade messaging",
+        "Uptime 99.95% 1 hour ago Latency <120ms",
+        "SOC 2 Type II Encrypted Data"
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Twilio",
+        "similarity": "Provides programmable SMS, voice and chat APIs for businesses and integrations with CRMs; targets developers and enterprises for omnichannel messaging.",
+        "how_different": "Linq pairs communications APIs with a productized digital business-card + mobile CRM workflow aimed at lead capture and sales follow-up; emphasizes iMessage/RCS support and out-of-the-box CRM integrations rather than a general-purpose CPaaS."
+      },
+      {
+        "name": "MessageBird (and other CPaaS like Vonage, Sinch)",
+        "similarity": "Offers multi-channel messaging (SMS, RCS, voice) and enterprise-grade SLAs and compliance for global communications.",
+        "how_different": "Linq presents a verticalized offering that ties messaging channels directly into contact capture/lead workflows and an embedded mobile CRM rather than merely routing messages."
+      },
+      {
+        "name": "HiHello",
+        "similarity": "Digital business card platform that helps professionals share contact details digitally and manage contacts.",
+        "how_different": "HiHello is focused on card creation and personal contact sharing; Linq combines the digital card with developer-facing communications APIs, programmatic messaging (iMessage/RCS/SMS/Voice) and CRM integrations for enterprise automation."
+      },
+      {
+        "name": "Popl / Blinq / Mobilo (digital NFC/QR business card vendors)",
+        "similarity": "Hardware and software solutions for exchanging contact information (QR, NFC, digital cards) at events and in meetings.",
+        "how_different": "Linq emphasizes the software stack and developer APIs for follow-up messaging and CRM sync rather than primarily selling hardware/physical tokens; positions as an end-to-end lead capture \u2192 messaging \u2192 CRM workflow."
+      },
+      {
+        "name": "HubSpot / Salesforce (CRM platforms)",
+        "similarity": "Help sales teams manage contacts, capture leads and run follow-up workflows; extensive CRM integrations/ecosystems.",
+        "how_different": "Linq is not a full enterprise CRM but a mobile-first contact capture + messaging layer that plugs into CRMs. It positions as complementary \u2014 driving first- touch capture and channel-native messaging into existing CRMs rather than replacing them."
+      },
+      {
+        "name": "Apple Business Chat / Google RCS business messaging channels (platform-level competitors)",
+        "similarity": "Provide native channel access to iMessage or RCS for businesses to communicate with customers.",
+        "how_different": "Those are channel providers/platforms; Linq packages channel access together with APIs, fallbacks, enterprise SLAs, CRM integrations and a product flow tailored to professionals and lead capture, simplifying multi-channel orchestration across iMessage, RCS, SMS, and voice."
+      },
+      {
+        "name": "Event-focused lead capture platforms (e.g., Brella, Swapcard)",
+        "similarity": "Capture leads and networking contacts at events and integrate with CRMs for follow-up.",
+        "how_different": "Linq appears to target individual professionals and teams with a lightweight mobile CRM and communications API integration, rather than full-scale event platforms; it prioritizes native messaging channels and developer APIs for automation."
+      }
+    ],
+    "differentiation": {
+      "primary": "A combined product that merges digital business cards / mobile CRM workflows with developer-grade communications APIs that support native channels (iMessage, RCS) and built-in CRM integrations \u2014 enabling contact capture \u2192 native-channel messaging \u2192 CRM sync as a single solution.",
+      "technical": "Focus on multi-channel (iMessage, RCS, SMS, Voice) API surface with enterprise SLAs (99.95% uptime, <120ms latency claim), SOC 2 Type II compliance, fall-back logic for RCS, and a sandbox + API docs for developers. Technical differentiation appears to be channel orchestration (native messaging channels) plus low-latency enterprise delivery and prebuilt CRM integrations.",
+      "business": "Go-to-market targets professionals and sales teams who need rapid lead capture and follow-up, selling both as a productivity app (digital cards/mobile CRM) and as an API/platform for enterprises. Positioned to integrate with existing CRMs instead of displacing them, enabling easier adoption and referral channels via CRM partners.",
+      "positioning": "Not a generic CPaaS nor a full-scale CRM \u2014 Linq positions itself between those categories: a verticalized communications+CRM integration specialist for professional networking and sales that leverages native mobile messaging channels to increase engagement and conversion."
+    },
+    "secret_sauce": {
+      "core_advantage": "A productized combination of native-channel messaging (iMessage + RCS) orchestration and a mobile-first contact capture/CRM workflow delivered with enterprise-grade APIs and compliance \u2014 enabling fast, channel-native follow-up that ties directly into customers' CRMs.",
+      "defensibility": "Moderate: defensible via integrated product experience (easy contact capture \u2192 automated native-channel messaging \u2192 CRM sync), enterprise credentials (SOC 2, SLA/latency), and any prebuilt integrations or templates tailored to sales workflows. However, underlying messaging channels and CPaaS capabilities are replicable by larger vendors; the moat depends on execution, partner/channel relationships (e.g., carrier or platform access), and customer workflows/data.",
+      "evidence": [
+        "From site: 'Communications APIs and CRM Integrations for iMessage, RCS, SMS, and Voice' \u2014 indicates multi-channel native messaging focus.",
+        "From site facts: 'Enterprise-grade messaging', 'Uptime 99.95%', 'Latency <120ms', 'SOC 2 Type II' \u2014 enterprise reliability and compliance claims.",
+        "Company description: 'digital business card and mobile CRM platform that helps professionals capture leads, manage contacts, and close deals' \u2014 ties capture to CRM/workflow."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Linq\u2019s moat is primarily product-integration and go-to-market focused: combining a mobile-first contact capture UX with developer-facing messaging APIs, native channel support (iMessage/RCS), and enterprise compliance/SLA credentials creates a convenient packaged solution that is harder to replicate quickly. However, the underlying technologies (SMS/RCS/voice APIs, CRM connectors, SOC2 compliance) are available to large CPaaS vendors and CRM vendors, and digital business-card features are commoditized, so Linq\u2019s advantage relies on speed of execution, special integrations/partnerships, and customer adoption rather than protected technical IP.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "No mention of generative AI terms or language models (e.g., LLMs, GPT, Claude, embeddings, RAG, agents) in the content."
+  ],
+  "crawl_diagnostics": null,
+  "analyzed_at": "2026-03-12 16:18:01.577470+00:00",
+  "confidence_score": 0.85,
+  "raw_content_analyzed": 555,
+  "input_hash": "99fd774e28d96eb3"
+}

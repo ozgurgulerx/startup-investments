@@ -356,6 +356,8 @@ track_run stage --run-key "$RUN_KEY" --stage monthly_outputs --status running
     || echo "WARN: monthly-stats returned non-zero (continuing)"
 "$VENV_DIR/bin/python" -m main newsletter-artifacts --period "$PERIOD" \
     || echo "WARN: newsletter-artifacts returned non-zero (continuing)"
+"$VENV_DIR/bin/python" -m main export-startup-briefs --period "$PERIOD" --region global \
+    || echo "WARN: export-startup-briefs returned non-zero (continuing)"
 "$VENV_DIR/bin/python" -m main export-deep-research --period "$PERIOD" --region global \
     || echo "WARN: export-deep-research returned non-zero (continuing)"
 track_run stage --run-key "$RUN_KEY" --stage monthly_outputs --status completed

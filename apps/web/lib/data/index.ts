@@ -47,6 +47,22 @@ async function hasNewsletterMarkdownForPeriod(period: string, region?: string): 
   return false;
 }
 
+async function hasUsablePeriodData(period: string, region?: string): Promise<boolean> {
+  const outputDir = path.join(getDataPath(region), period, 'output');
+
+  try {
+    const [hasStats, hasIndex, hasCsv] = await Promise.all([
+      fs.access(path.join(outputDir, 'monthly_stats.json')).then(() => true).catch(() => false),
+      fs.access(path.join(outputDir, 'analysis_store', 'index.json')).then(() => true).catch(() => false),
+      fs.access(path.join(outputDir, 'startups_enriched_with_analysis.csv')).then(() => true).catch(() => false),
+    ]);
+
+    return hasStats && (hasIndex || hasCsv);
+  } catch {
+    return false;
+  }
+}
+
 // In-memory cache for startups data (avoids re-reading 275 files on each page)
 const startupsCache = new Map<string, {
   data: StartupAnalysis[];
@@ -178,7 +194,12 @@ export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]
 
     // Load stats for all periods in parallel for better performance
     const periodsWithStats = await Promise.all(
-      periodDirs.map(async (entry): Promise<PeriodInfo> => {
+      periodDirs.map(async (entry): Promise<PeriodInfo | null> => {
+        const hasUsableData = await hasUsablePeriodData(entry.name, region);
+        if (!hasUsableData) {
+          return null;
+        }
+
         const hasNewsletter = await hasNewsletterMarkdownForPeriod(entry.name, regionKey);
         try {
           const stats = await getMonthlyStatsInternal(entry.name, region);
@@ -200,7 +221,9 @@ export async function getAvailablePeriods(region?: string): Promise<PeriodInfo[]
     );
 
     // Sort by period descending (most recent first)
-    const sorted = periodsWithStats.sort((a, b) => b.period.localeCompare(a.period));
+    const sorted = periodsWithStats
+      .filter((period): period is PeriodInfo => Boolean(period))
+      .sort((a, b) => b.period.localeCompare(a.period));
 
     // Cache the result
     periodsCache.set(regionKey, { data: sorted, timestamp: Date.now() });

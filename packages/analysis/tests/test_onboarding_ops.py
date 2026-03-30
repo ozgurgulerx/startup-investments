@@ -2,8 +2,10 @@ import json
 from pathlib import Path
 
 from src.analysis.onboarding_ops import (
+    _resolve_data_root_from_csv,
     compute_onboarding_resume_plan,
     evaluate_onboarding_health,
+    resolve_repo_dataset_paths,
     regenerate_output_artifacts,
 )
 from src.data.ingestion import load_startups_from_csv, load_unique_startups_from_csv
@@ -83,7 +85,10 @@ def test_regenerate_output_artifacts_refreshes_csvs_and_stats(tmp_path):
     assert output_dir.joinpath("newsletter_data.json").exists()
     assert output_dir.joinpath("viral_newsletter.md").exists()
     assert output_dir.joinpath("viral_newsletter_data.json").exists()
+    assert output_dir.joinpath("briefs", "acme-ai_brief.md").exists()
+    assert output_dir.joinpath("briefs", "index.json").exists()
     assert artifacts["base_analysis_count"] == "1"
+    assert artifacts["brief_count"] == "1"
 
     monthly_stats = json.loads(output_dir.joinpath("monthly_stats.json").read_text(encoding="utf-8"))
     assert monthly_stats["deal_summary"]["total_deals"] == 1
@@ -92,6 +97,24 @@ def test_regenerate_output_artifacts_refreshes_csvs_and_stats(tmp_path):
     newsletter_data = json.loads(output_dir.joinpath("newsletter_data.json").read_text(encoding="utf-8"))
     assert newsletter_data["meta"]["period_label"] == "February 2026"
     assert newsletter_data["hero"]["total_rounds"] == 1
+    brief_index = json.loads(output_dir.joinpath("briefs", "index.json").read_text(encoding="utf-8"))
+    assert brief_index["count"] == 1
+    assert brief_index["items"][0]["slug"] == "acme-ai"
+
+
+def test_resolve_repo_dataset_paths_maps_turkey_to_tr():
+    global_paths = resolve_repo_dataset_paths("2026-02", "global")
+    turkey_paths = resolve_repo_dataset_paths("2026-02", "turkey")
+    legacy_paths = resolve_repo_dataset_paths("2026-02", "tr")
+
+    assert global_paths["period_root"].as_posix().endswith("apps/web/data/2026-02")
+    assert turkey_paths["period_root"].as_posix().endswith("apps/web/data/tr/2026-02")
+    assert legacy_paths["period_root"] == turkey_paths["period_root"]
+
+
+def test_resolve_data_root_from_csv_preserves_region_scoped_dataset_root():
+    assert _resolve_data_root_from_csv(Path("apps/web/data/2026-02/input/startups.csv")) == Path("apps/web/data")
+    assert _resolve_data_root_from_csv(Path("apps/web/data/tr/2026-02/input/startups.csv")) == Path("apps/web/data/tr")
 
 
 def test_evaluate_onboarding_health_flags_backlog_stale_progress_and_hash_gaps():

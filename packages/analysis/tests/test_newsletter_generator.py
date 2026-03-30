@@ -1,6 +1,14 @@
 from pathlib import Path
 
 
+def test_resolve_data_root_maps_turkey_to_tr(tmp_path: Path) -> None:
+    from src.automation.newsletter_generator import _resolve_data_root
+
+    project_root = tmp_path
+    assert _resolve_data_root(project_root, "global") == project_root / "apps" / "web" / "data"
+    assert _resolve_data_root(project_root, "turkey") == project_root / "apps" / "web" / "data" / "tr"
+    assert _resolve_data_root(project_root, "tr") == project_root / "apps" / "web" / "data" / "tr"
+
 def test_generate_viral_newsletter_base_analysis_fallback(tmp_path: Path) -> None:
     # Base analysis objects (no viral_hooks / contrarian_analysis) should still
     # produce non-empty Deep Dive + Builder Lessons sections.
@@ -146,3 +154,25 @@ def test_generate_viral_newsletter_accepts_explicit_markdown_path(tmp_path: Path
     assert markdown_path.exists()
     assert (tmp_path / "viral_newsletter_data.json").exists()
     assert not (tmp_path / "newsletter_data.json").exists()
+
+
+def test_generate_newsletter_data_clamps_remaining_count_for_small_batches(tmp_path: Path) -> None:
+    from src.automation.newsletter_generator import generate_newsletter_data
+
+    period = "2026-02"
+    input_dir = tmp_path / period / "input"
+    store_dir = tmp_path / period / "output" / "analysis_store"
+    input_dir.mkdir(parents=True)
+    store_dir.mkdir(parents=True)
+
+    (input_dir / "startups.csv").write_text(
+        "Transaction Name,Funding Type,Money Raised (in USD),Funding Stage,Organization Description,Organization Website,Organization Industries,Organization Location,Lead Investors\n"
+        "Seed Round - SoloAI,Seed,1000000,Seed,Single company round,https://example.com,SaaS,\"Istanbul, Turkey, Asia\",Example VC\n",
+        encoding="utf-8",
+    )
+
+    result = generate_newsletter_data(period, tmp_path)
+
+    assert result["hero"]["total_rounds"] == 1
+    assert result["top5_concentration"]["remaining_total"] == 0
+    assert result["top5_concentration"]["remaining_count"] == 0

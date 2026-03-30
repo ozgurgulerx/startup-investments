@@ -2,9 +2,25 @@
 
 When something seems wrong, follow this diagnostic sequence before taking any action.
 
+## PREREQUISITE: Verify kubectl Context
+
+**ALWAYS run this before any `kubectl` command.** The local machine has multiple AKS clusters configured. Running commands against the wrong cluster will return misleading "not found" results.
+
+```bash
+# Verify you are on the correct context
+kubectl config current-context
+# MUST show: aks-aistartuptr
+
+# If wrong, switch:
+kubectl config use-context aks-aistartuptr
+```
+
+The correct context for this project is **`aks-aistartuptr`** (cluster `aks-aistartuptr` in resource group `aistartuptr`). Other contexts (e.g. `aks-aviation-rag`, `aks-fund-rag`) belong to different projects.
+
 ## Quick Health Check (Run This First)
 
 ```bash
+kubectl config use-context aks-aistartuptr 2>/dev/null && \
 echo "=== Frontend ===" && \
 curl -s -o /dev/null -w "buildatlas.net: HTTP %{http_code} (%{time_total}s)\n" https://buildatlas.net && \
 echo "=== API ===" && \
@@ -89,18 +105,42 @@ kubectl rollout restart deployment/startup-investments-api
 
 ### Redis not connected (cache.connected = false in /health)
 
-**Diagnosis:** Redis Cache may be down or connection string may be wrong.
+**Diagnosis:** Redis Cache may be down, connection string may be wrong, or access key auth may be disabled.
 
 ```bash
 # Check Redis state
 az redis show --name aistartupstr-redis-cache --resource-group aistartupstr --query '{state:provisioningState, host:hostName, port:sslPort}' -o json
 
+# Check if access key authentication is enabled (MUST be false for our setup)
+az redis show --name aistartupstr-redis-cache --resource-group aistartupstr --query 'disableAccessKeyAuthentication' -o tsv
+# If "true" -> access key auth is DISABLED, which breaks the API connection. Fix:
+az redis update --resource-group aistartupstr --name aistartupstr-redis-cache --set disableAccessKeyAuthentication=false
+
 # If Redis is up but API can't connect, verify the K8s secret has correct REDIS_URL
 kubectl get secret startup-investments-secrets -o jsonpath='{.data.redis-url}' | base64 -d
 
-# Restart API to reconnect
+# Restart API to reconnect (the Redis client gives up after ~92 failures and won't auto-reconnect)
 kubectl rollout restart deployment/startup-investments-api
 ```
+
+**Known issue (2026-03):** Azure may disable access key auth via policy or portal changes (`disableAccessKeyAuthentication: true`). The API uses access key auth (password in K8s secret `REDIS_URL`), NOT AAD/Entra ID auth. If access key auth gets disabled, the API logs show `WRONGPASS invalid username-password pair` and eventually the Redis client gives up entirely. Fix: re-enable access key auth, then restart pods.
+
+### Frontend returning 403 (App Service stopped)
+
+**Diagnosis:** The App Service `buildatlas-web` is in Stopped state.
+
+```bash
+# Check App Service state
+az webapp show --resource-group rg-startup-analysis --name buildatlas-web --query 'state' -o tsv
+# If "Stopped":
+az webapp start --resource-group rg-startup-analysis --name buildatlas-web
+
+# Verify
+curl -s -o /dev/null -w "%{http_code}" https://buildatlas.net
+# Should return 200
+```
+
+**Known issue (2026-03):** Azure may auto-stop App Services on cheaper plans during inactivity or due to billing/quota. If `buildatlas.net` returns HTTP 403, check App Service state first.
 
 ### Frontend loading slowly (no API, file-based fallback)
 
@@ -133,6 +173,9 @@ for k in d['data']: print(f'  {k}: {len(d[\"data\"][k])} chars (base64)')
 If multiple services are down, recover in this order:
 
 ```bash
+# 0. Ensure correct kubectl context
+kubectl config use-context aks-aistartuptr
+
 # 1. PostgreSQL first (other services depend on it)
 az postgres flexible-server show --resource-group aistartupstr --name aistartupstr --query 'state' -o tsv
 # If stopped:

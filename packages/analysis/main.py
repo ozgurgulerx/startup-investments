@@ -28,6 +28,7 @@ from src.reports.generator import (
     save_startup_brief,
     create_analysis_only_csv,
     create_enriched_csv,
+    export_brief_artifacts,
     generate_batch_summary_report,
     get_logo_path_for_company,
 )
@@ -756,6 +757,44 @@ def export_deep_research_cmd(
 
     console.print(Panel.fit(
         "[bold blue]Deep Research Export[/bold blue]",
+        border_style="blue",
+    ))
+    console.print(f"[bold]Exported:[/bold] {stats.get('count', 0)} startups")
+    console.print(f"[bold]Output dir:[/bold] {stats.get('output_dir')}")
+    console.print(f"[bold]Index:[/bold] {stats.get('index_path')}")
+
+
+@app.command("export-startup-briefs")
+def export_startup_briefs_cmd(
+    period: str = typer.Option(..., "--period", "-p", help="Period to export (e.g. 2026-03)"),
+    region: str = typer.Option("global", "--region", "-r", help="Dataset region: global|turkey|tr"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Override output directory"),
+):
+    """Export local per-startup dossier markdown from saved base analyses."""
+    from src.analysis.onboarding_ops import resolve_repo_dataset_paths
+    from src.data.store import AnalysisStore
+
+    normalized_region = "turkey" if str(region or "").strip().lower() in {"turkey", "tr"} else "global"
+    repo_paths = resolve_repo_dataset_paths(period, normalized_region)
+    csv_path = repo_paths["csv_path"]
+    target_output = output_dir or repo_paths["output_path"]
+    target_output.mkdir(parents=True, exist_ok=True)
+
+    if not csv_path.exists():
+        console.print(f"[red]CSV not found:[/red] {csv_path}")
+        raise typer.Exit(1)
+
+    store = AnalysisStore(target_output / "analysis_store")
+    analyses = store.get_all_base_analyses()
+    startup_inputs = {startup.name: startup for startup in load_startups_from_csv(csv_path) if startup.name}
+    stats = export_brief_artifacts(
+        analyses=analyses,
+        startup_inputs=startup_inputs,
+        output_dir=target_output,
+    )
+
+    console.print(Panel.fit(
+        "[bold blue]Startup Brief Export[/bold blue]",
         border_style="blue",
     ))
     console.print(f"[bold]Exported:[/bold] {stats.get('count', 0)} startups")

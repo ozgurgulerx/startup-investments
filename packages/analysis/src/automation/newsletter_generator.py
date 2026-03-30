@@ -5,11 +5,11 @@ Reads startups.csv and analysis_store to produce newsletter_data.json
 with all pre-computed stats for the web/email newsletter.
 """
 
+import argparse
 import csv
 import json
 import os
 import re
-import sys
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -257,7 +257,7 @@ def generate_newsletter_data(period: str, data_root: Path) -> dict[str, Any]:
     # Top 5 concentration
     top5_total = sum(r["funding_usd"] for r in sorted(rows, key=lambda x: -x["funding_usd"])[:5])
     remaining_total = total_funding - top5_total
-    remaining_count = total_rounds - 5
+    remaining_count = max(total_rounds - len(big5), 0)
 
     # --- Section 4: Build Pattern Prevalence (from analyses) ---
     # Normalize pattern names to handle variant labels
@@ -475,14 +475,28 @@ def write_newsletter_data(period: str, data_root: Path, output_path: Path | None
     return resolved_output
 
 
+def _resolve_data_root(project_root: Path, region: str) -> Path:
+    """Resolve the on-disk dataset root for a newsletter region."""
+    normalized_region = str(region or "").strip().lower()
+    data_root = project_root / "apps" / "web" / "data"
+    if normalized_region in {"tr", "turkey"}:
+        return data_root / "tr"
+    return data_root
+
+
 def main():
     """CLI entry point."""
-    period = sys.argv[1] if len(sys.argv) > 1 else "2026-02"
+    parser = argparse.ArgumentParser(description="Generate monthly newsletter artifacts.")
+    parser.add_argument("period", nargs="?", default="2026-02")
+    parser.add_argument("--region", default="global", help="Dataset region: global|turkey|tr")
+    parser.add_argument("--data-root", type=Path, default=None, help="Override the dataset root path")
+    args = parser.parse_args()
+    period = args.period
 
     # Determine data root
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parents[3]  # packages/analysis/src/automation -> project root
-    data_root = project_root / "apps" / "web" / "data"
+    data_root = args.data_root or _resolve_data_root(project_root, args.region)
 
     print(f"Generating newsletter data for period: {period}")
     print(f"Data root: {data_root}")

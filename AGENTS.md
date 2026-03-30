@@ -223,6 +223,9 @@ AKS runner/runtime notes:
   - The same onboarding job now exports completed deep-research notes for the period to local artifacts under
     `apps/web/data/<period>/output/deep_research/<slug>.md` plus `output/deep_research/index.json`
     via `python -m main export-deep-research --period <period> --region <region>`.
+  - Monthly/global artifact regeneration also exports local per-startup dossier briefs under
+    `apps/web/data/<period>/output/briefs/<slug>_brief.md` plus `output/briefs/index.json`
+    via `python -m main export-startup-briefs --period <period> --region <region>`.
 - Product surface canary:
   - `product-canary` runs every 30 minutes (`17,47 * * * *`) on AKS and validates:
     - brief snapshot schema (includes `verticalLandscape` + `capitalGraph`),
@@ -323,6 +326,9 @@ Frontend:
     - `output/viral_newsletter.md` for markdown shown in `/library` and deep-dive style monthly reading.
     - `output/viral_newsletter_data.json` as the viral markdown generator sidecar.
     - `output/deep_research/<slug>.md` for latest completed per-startup deep-research notes when available.
+  - Region-aware newsletter artifact generation:
+    - Turkey library/archive reads resolve to `apps/web/data/tr/<period>/...`, so monthly artifact generation must populate both `apps/web/data/<period>/output/*` and `apps/web/data/tr/<period>/output/*`.
+    - `packages/analysis/src/automation/newsletter_generator.py` supports `--data-root` for explicit dataset-root generation, and `infrastructure/vm-cron/jobs/monthly-brief.sh` is responsible for invoking it for both roots.
   - `output/comprehensive_newsletter.md` is legacy fallback only; new regeneration should not depend on it.
   - `/library` only offers months that have newsletter markdown on disk (`output/viral_newsletter.md` preferred, `output/comprehensive_newsletter.md` fallback) to avoid API/data mismatches.
   - Docker-based App Service deploy must include datasets at `/app/data` (see `apps/web/Dockerfile`).

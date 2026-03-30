@@ -48,6 +48,10 @@
 | ACR | `aistartuptr` | `aistartuptr` |
 | Storage | `buildatlasstorage` | `aistartuptr` |
 
+### kubectl Context
+
+**ALWAYS verify `kubectl config current-context` is `aks-aistartuptr` before running ANY kubectl command.** This machine has multiple AKS clusters; the wrong context silently returns "not found" for our resources.
+
 ### API Security
 
 All API requests go through Front Door with `X-API-Key` header. Direct AKS access returns 403. `/health` is public. Admin endpoints use `X-Admin-Key`.

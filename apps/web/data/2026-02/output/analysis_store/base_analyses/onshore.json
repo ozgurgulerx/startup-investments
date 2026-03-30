@@ -1,0 +1,503 @@
+{
+  "company_name": "Onshore",
+  "company_slug": "onshore",
+  "website": "https://www.onshore.com",
+  "logo_url": null,
+  "description": "Onshore provides AI-powered software that automates corporate R&D tax credit and incentive analysis and reporting for businesses.",
+  "funding_amount": 31000000.0,
+  "funding_stage": "series_b",
+  "uses_genai": true,
+  "genai_intensity": "core",
+  "models_mentioned": [],
+  "build_patterns": [
+    {
+      "name": "RAG (Retrieval-Augmented Generation)",
+      "confidence": 0.8,
+      "evidence": [
+        "Upload your files or connect to tools like ADP, Netsuite, QuickBooks, Jira, and more.",
+        "Our system reviews every document and flags what\u2019s missing.",
+        "Built on contemporaneous evidence",
+        "generate your audit-ready tax package with full calculations and supporting documentation."
+      ],
+      "description": "The product likely ingests and indexes customer documents and accounting/project data, then retrieves relevant evidence to ground AI outputs (e.g., claims, calculations, supporting docs). The messaging about reviewing every document, evidence-first defensibility, and connectors to source systems strongly implies a retrieval layer grounding generative components."
+    },
+    {
+      "name": "Guardrail-as-LLM",
+      "confidence": 0.5,
+      "evidence": [
+        "It\u2019s fast, accurate, and aligned with IRS standards.",
+        "Our system reviews every document and flags what\u2019s missing.",
+        "Validate with a real expert",
+        "audit-ready"
+      ],
+      "description": "There are explicit compliance and quality constraints (IRS alignment, flagging missing items) and a validation step. This suggests automated checks or secondary validation models (or rule engines) that screen or constrain outputs before human review, functioning like guardrails for safety/compliance."
+    },
+    {
+      "name": "Vertical Data Moats",
+      "confidence": 0.6,
+      "evidence": [
+        "500+ companies supported",
+        "$600M+ in tax incentives identified",
+        "audit-grade R&D studies backed by documented evidence and expert review",
+        "Built on contemporaneous evidence, so results are owned, repeatable, and defensible."
+      ],
+      "description": "Onshore emphasizes domain-specific, evidence-backed deliverables and scale in a specialized vertical (tax incentives / R&D, 179D, cost segregation). That implies accumulation of proprietary, structured tax documentation and precedents that can become a competitive data moat for model training, retrieval corpora, and heuristics."
+    },
+    {
+      "name": "Continuous-learning Flywheels",
+      "confidence": 0.3,
+      "evidence": [
+        "One system of record",
+        "500+ companies supported",
+        "Built on contemporaneous evidence"
+      ],
+      "description": "While not explicitly stated, the presence of a single system of record and many clients suggests the potential to continuously gather labeled outcomes and audit results to improve models over time. However, the copy does not describe feedback loops, A/B testing, or model retraining pipelines, so this is speculative."
+    },
+    {
+      "name": "Knowledge Graphs",
+      "confidence": 0.2,
+      "evidence": [
+        "One system of record",
+        "Evidence-backed classifications",
+        "reviews every document"
+      ],
+      "description": "There is no explicit mention of entity linking, relationship graphs, or RBAC-aware graphs, but the need to correlate documents, people, projects, and cost centers for defensible tax positions could be implemented with a knowledge graph. The content hints at structured capture of relationships but doesn't confirm graph usage."
+    },
+    {
+      "name": "Agentic Architectures",
+      "confidence": 0.05,
+      "evidence": [
+        "Let AI do the heavy lifting",
+        "Our system reviews every document and flags what\u2019s missing."
+      ],
+      "description": "The copy describes automation but provides no evidence of autonomous agents that plan, call tools, or act without human oversight. The workflow emphasizes a human validation step, so agentic autonomy is unlikely or minimal."
+    },
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.05,
+      "evidence": [
+        "Let AI do the heavy lifting",
+        "generate your audit-ready tax package with full calculations"
+      ],
+      "description": "There is no explicit indication of converting freeform language into executable code or rules. Calculation generation is mentioned, but that could be deterministic templates or domain logic rather than NL->code synthesis."
+    }
+  ],
+  "discovered_patterns": [],
+  "pattern_category_scores": {},
+  "novel_approaches": [],
+  "model_details": {
+    "primary_models": [],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": false,
+      "orchestration_pattern": ""
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "financial_services",
+  "sub_vertical": "R&D tax credit and incentive management",
+  "sub_sub_vertical": "audit-ready AI-assisted R&D tax credit reporting",
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "financial_services",
+      "vertical_label": "Financial Services",
+      "sub_vertical_id": "regtech_compliance",
+      "sub_vertical_label": "RegTech & Compliance",
+      "leaf_id": "regtech_compliance",
+      "leaf_label": "RegTech & Compliance"
+    },
+    "path": [
+      {
+        "id": "financial_services",
+        "label": "Financial Services",
+        "confidence": 0.75
+      },
+      {
+        "id": "regtech_compliance",
+        "label": "RegTech & Compliance",
+        "confidence": 0.82
+      }
+    ]
+  },
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [],
+    "llm_models": [],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [],
+    "approach": "unknown",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 4,
+    "has_public_api": false,
+    "has_sdk": false,
+    "has_documentation": false,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Data ingestion capabilities that connect to ADP, NetSuite, QuickBooks, Jira and more",
+      "AI-powered workflow with human-in-the-loop for audit-grade outputs",
+      "Products emphasize an auditable, defensible process and single system of record"
+    ]
+  },
+  "implementation_maturity": "unknown",
+  "team_analysis": {
+    "founders": [
+      {
+        "name": "Not disclosed",
+        "role": "Unknown",
+        "background": "Not stated in provided content",
+        "previous_companies": [],
+        "technical_depth": "unknown",
+        "domain_expertise": "Tax incentives, R&D tax credits, cost segregation, 179D deduction domain"
+      }
+    ],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": true,
+      "has_domain_expertise": true,
+      "hiring_signals": [
+        "Careers page present; implies active recruitment, though specific roles are not listed in provided content"
+      ],
+      "team_size_indicators": "small",
+      "remote_distributed": false
+    },
+    "founder_market_fit": "Insufficient information to assess; founder details are not disclosed in provided content",
+    "team_strengths": [
+      "Strong domain focus on tax incentives with multiple offerings (R&D Tax Credit, 179D deduction, Cost Segregation) and defensible, evidence-backed processes",
+      "AI-powered, audit-grade, evidence-first approach with expert review and clear ownership of outcomes",
+      "Integrated data sharing with major platforms (ADP, Netsuite, QuickBooks, Jira) enabling streamlined data intake"
+    ],
+    "team_red_flags": [
+      "Lack of public information on founders and core team; no LinkedIn/profile data provided in content"
+    ],
+    "team_confidence": 0.25
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "custom",
+      "pricing_evidence": [
+        "Pricing implied to be discussed via talks with expert; 'talk to an expert' and 'Find out if Onshore is a fit' indicate customized quotes.",
+        "References to multi-year engagements and year-over-year value imply ongoing, negotiated pricing rather than fixed public pricing."
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": true,
+      "price_points": []
+    },
+    "gtm_strategy": {
+      "primary_channel": "sales_led",
+      "evidence": [
+        "Calls to action: 'talk to an expert', 'Walk through the process with our team', 'Ask questions about data, security, and compliance'.",
+        "15-minute fit for assessment and 'multi-year engagement' signals a sales-led approach.",
+        "Testimonials and case-study style content used for social proof."
+      ],
+      "target_segment": "enterprise",
+      "sales_motion": "hybrid"
+    },
+    "revenue_model": {
+      "monetization_approach": "Fees for R&D tax credit, 179D deduction, and cost segregation services; primarily professional services with potential multi-year engagements and recurring annual filings.",
+      "unit_economics_signals": [
+        "No explicit ARPU or margins provided.",
+        "Mentions 'multi-year engagement' and 'year after year' improvements imply recurring project-based revenue with ongoing services."
+      ],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "Trusted brand with 500+ companies supported and defensible, evidence-based process.",
+      "One system of record with AI-powered, human-led review and continuous validation."
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "direct sales consultations (talk to an expert)",
+        "content marketing via resources/blog (e.g., Tax AI Guide)",
+        "testimonials and case studies"
+      ],
+      "customer_proof_points": [
+        "500+ companies supported",
+        "Testimonials from finance leaders and business owners (CFOs, Owners, Controllers)"
+      ]
+    },
+    "business_model_clarity": "clear",
+    "business_model_confidence": 0.72
+  },
+  "product_analysis": {
+    "product_stage": "general_availability",
+    "stage_evidence": [
+      "Three products in one system (R&D Tax Credit, 179D, Cost Segregation)",
+      "500+ companies supported",
+      "$600M+ in tax incentives identified",
+      "2-3 week average turnaround",
+      "Audit-grade studies backed by documented evidence and expert review",
+      "Testimonials from multiple customers",
+      "Integrations with ADP, Netsuite, QuickBooks, Jira",
+      "One system of record; defensible, repeatable process"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "R&D tax credit audit-grade studies backed by documented evidence and expert review",
+        "179D deduction with defensibility built in",
+        "Cost segregation evidence-backed classifications",
+        "AI-powered heavy lifting with human validation",
+        "Single system of record for tax incentives",
+        "Data sharing: upload files or connect to tools (ADP, Netsuite, QuickBooks, Jira)",
+        "Audit-ready tax package with full calculations and documentation"
+      ],
+      "differentiating_features": [
+        "AI-powered, human-led, evidence-first approach",
+        "Defensible results year after year",
+        "End-to-end workflow from data share to filing",
+        "Onshore owns the outcome and a transparent, low-lift process"
+      ],
+      "roadmap_signals": [
+        "No explicit roadmap details in provided content; product appears mature with multi-year engagements",
+        "Possible expansion into additional incentives implied by multi-product ecosystem"
+      ],
+      "feature_completeness": "comprehensive"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "ADP",
+        "NetSuite",
+        "QuickBooks",
+        "Jira"
+      ],
+      "api_maturity": "basic",
+      "sdk_availability": [],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Identify, document, and file tax incentives (R&D tax credit, 179D deduction, cost segregation) with audit-grade evidence and defensible calculations",
+      "secondary_use_cases": [
+        "Audit-ready tax package delivery",
+        "Turnkey process to maximize incentives with minimal customer lift"
+      ],
+      "customer_stories": [
+        "Brett, Owner, System Integrator: multi-year engagement; emphasis on value and transparency",
+        "Mark, CFO, Engineering Firm: improved bottom line year after year; process simple and transparent",
+        "Keith, CFO/Owner, Manufacturing: study completed in ~10 days; efficient, well-organized, minimal effort",
+        "Jared, Owner/Engineer: Onshore gave confidence; improved quality of work",
+        "Laura, Controller, IT Firm: smoother, clearer, upgrade experience"
+      ],
+      "industry_focus": [
+        "Manufacturing",
+        "Engineering",
+        "IT/Systems Integrator",
+        "IT Firm / Services",
+        "Professional Services"
+      ]
+    },
+    "product_risks": [
+      "Reliance on Onshore to validate and defend outcomes; potential risk if data quality is poor",
+      "No disclosed pricing tiers; potential hidden costs",
+      "Security/compliance details not provided (data handling, encryption, access controls)",
+      "API maturity described as basic; potential integration fragility with downstream tools"
+    ],
+    "product_strengths": [
+      "Defensible, audit-grade deliverables with documented evidence",
+      "End-to-end workflow from data sharing to filing",
+      "AI-driven heavy lifting with human expert validation",
+      "Single system of record for multiple tax incentive products",
+      "Proven performance metrics (500+ companies, $600M+ identified, 2-3 week turnaround)",
+      "Strong customer testimonials and multi-year engagements"
+    ],
+    "product_confidence": 0.85
+  },
+  "unique_findings": [
+    "Evidence-first architecture: Onshore repeatedly emphasizes 'contemporaneous evidence' and 'audit-ready tax package' \u2014 this implies they built an evidence-first data model and provenance layer (document/time-stamped sources, deterministic mapping from source to claim line) rather than allowing opaque LLM outputs. That is a technical choice to prioritize verifiable lineage over purely probabilistic extraction.",
+    "Hybrid AI + deterministic calc engine: The product copy ('AI-powered, human-led', 'system reviews every document and flags what\u2019s missing', 'full calculations and supporting documentation') signals a two-layer stack: (1) ML/LLM-based extraction and classification to parse diverse documents, and (2) a deterministic tax-computation engine that generates line-item calculations and audit artifacts \u2014 avoiding pure LLM hallucination for numbers and legal calculations.",
+    "Unified tax-incentive data model across distinct products: They claim three distinct offerings (R&D Credit, 179D, Cost Segregation) delivered through 'one system of record'. That implies a normalized domain schema that maps payroll, project, invoice, asset, and engineering-work artifacts to multiple incentive rulesets \u2014 a non-trivial cross-product mapping enabling reuse of evidence across different tax products.",
+    "Extensive connector & multimodal ingestion layer: 'Upload files or connect to ADP, NetSuite, QuickBooks, Jira, and more. Any format works.' That suggests a robust ETL layer: payroll/accounting connectors, project-management/time-tracking, code/task systems and freeform documents (PDF/OCR) \u2014 plus reconciliation across these modalities to attribute labor/expenses to qualifying activities.",
+    "Human-in-the-loop validation designed as compliance gate: The workflow stage 'Validate with a real expert' is not just UX \u2014 it functions as a liability-control mechanism to lock outputs into defensible narratives. Technically this requires audit UI, diff/approval workflows, and reproducible change logging tied to the provenance layer.",
+    "Outcome ownership and defensibility implies risk-tolerant tooling and audit playbooks: 'Onshore owns the outcome' indicates they likely support contractual guarantees or at least undertake extensive pre-audit QA. To do this they must codify IRS rules, build scenario test suites, and maintain an internal casebase of past audits/results \u2014 technical assets that are costly to assemble.",
+    "Automated gap detection against IRS standards: Claim 'system reviews every document and flags what\u2019s missing' suggests rule-based compliance checks overlayed on extracted facts (e.g., missing contemporaneous design notes, insufficient time allocation granularity). That's more than extraction \u2014 it's a rules engine mapping evidence to regulatory acceptance criteria.",
+    "Scale & generalization challenge: Supporting 500+ companies and diverse stacks means they\u2019ve invested in robust schema alignment, entity resolution, and normalization logic (mapping different chart-of-accounts, project codes, payroll classifications) \u2014 a hidden engineering burden that\u2019s critical to produce repeatable, defensible outputs."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Onshore engineered an audit\u2011grade AI pipeline for regulated tax work \u2014 and kept humans in the loop",
+      "summary": "Dig into the engineering tradeoffs required to make LLM/ML systems produce legally defensible tax outputs: a single system of record, document ingestion connectors, automated evidence extraction, and a human validation layer that owns outcomes. This angle explores orchestration, reproducibility, and the guardrails needed to ship AI in a high\u2011risk, heavily audited domain.",
+      "evidence": [
+        "Onshore positions itself as 'AI\u2011Powered. Human Led' and 'Onshore owns the outcome'",
+        "Workflow: upload/connect to ADP, NetSuite, QuickBooks, Jira -> AI processes -> real expert validates -> audit\u2011ready tax package",
+        "Claims of 'one system of record' and 'built on contemporaneous evidence' to ensure repeatability and defensibility"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "data",
+      "headline": "Their secret weapon isn\u2019t a bigger model \u2014 it\u2019s vertical data: payroll, ERP and project traces stitched into tax evidence",
+      "summary": "Examine how Onshore\u2019s integrations with payroll/ERP/project systems (ADP, NetSuite, QuickBooks, Jira) create a proprietary corpus of contemporaneous evidence that\u2019s suited to regulatory defense rather than generic LLM tasks. This angle covers ingestion pipelines, schema harmonization, lineage, and how domain\u2011specific data moats are valued more than raw model size in financial services.",
+      "evidence": [
+        "Site copy invites customers to connect ADP, NetSuite, QuickBooks, Jira and says 'Any format works.'",
+        "Emphasis on 'contemporaneous evidence' and 'supporting documentation' in audit\u2011ready packages",
+        "Company metrics: '500+ companies supported' and '$600M+ in tax incentives identified' suggest scale of vertical data"
+      ],
+      "uniqueness_score": 9
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "They doubled down on human review and defensibility when everyone else chased full automation",
+      "summary": "Profile Onshore\u2019s deliberate choice to emphasize expert validation and 'owning outcomes' instead of promising fully autonomous credit extraction. The piece would critique the industry trend toward zero\u2011human AI, showing why regulated tax products require human\u2011in\u2011the\u2011loop guardrails and what that means for accuracy, liability, and product design.",
+      "evidence": [
+        "Repeated messaging: 'Human Led. AI Driven.' and 'Validate with a real expert' step in the workflow",
+        "Copy: 'Effort isn\u2019t accountability. Billable hours don\u2019t guarantee accuracy or ownership.' \u2014 implying trust in curated human checks over mere labor models",
+        "'Audit\u2011grade R&D studies backed by documented evidence and expert review' as core product promise"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "From data to audit\u2011ready filing in 10\u201321 days: the engineering that shrinks tax studies from months to weeks",
+      "summary": "Focus on the practical engineering and product choices that enable Onshore to deliver quick turnaround (10 days in testimonials, 2\u20133 week average). The article would break down pipeline parallelism, prioritized evidence extraction, client UX for low lift, and how automation reduces back\u2011and\u2011forth while preserving defensibility.",
+      "evidence": [
+        "Site claims '2\u20113 week average turnaround' and testimonials noting studies completed 'in about 10 days'",
+        "Value props: 'Minimal lift from your team' and automated document review that 'flags what's missing' to speed validation",
+        "One system of record and prebuilt connectors likely reduce manual integration work"
+      ],
+      "uniqueness_score": 6
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing uses broad claims about AI capabilities and defensibility without technical specifics\u2014creates a gap between promise and verifiable engineering reality.",
+      "severity": "high",
+      "evidence": [
+        "\"AI-Powered. Human Led.\" (no detail on models, training data, validation or governance)",
+        "\"Let AI do the heavy lifting\" and \"Our system reviews every document and flags what\u2019s missing\" (no technical explanation of how accuracy, false positives/negatives, or audit alignment are ensured)",
+        "\"Accuracy isn't optional\" and \"Outcomes should hold up\" presented as claims rather than demonstrated metrics or third\u2011party validation"
+      ]
+    },
+    {
+      "pattern_type": "wrapper",
+      "description": "Text emphasizes AI and integrations but provides no indication of proprietary models, unique IP, or nontrivial engineering; could be a thin product layer over third\u2011party LLMs and integrations.",
+      "severity": "medium",
+      "evidence": [
+        "\"Upload your files or connect to tools like ADP, Netsuite, QuickBooks, Jira, and more. Any format works.\" (focus on connectors and orchestration rather than core algorithmic differentiation)",
+        "Repeated references to 'AI' and 'one system' without describing proprietary components or data pipelines",
+        "Tech stack context is empty for LLMs and approach is 'unknown' in supplied analysis context"
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "Service appears like a narrowly scoped feature (automated preparation and documentation for specific tax credits) that incumbent accounting platforms or large consultancies could add.",
+      "severity": "medium",
+      "evidence": [
+        "Offerings listed are discrete tax products: \"R&D Tax Credit\", \"179D Deduction\", \"Cost Segregation\"\u2014each could be integrated into broader ERP/accounting tooling",
+        "\"One system. Three products.\" suggests modular pieces rather than a broad platform moat",
+        "Messaging such as 'Find out if Onshore is a fit for your company in 15 minutes' implies quick assessment and conversion typical of add\u2011on features"
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "No clear defensible technical or data moat described\u2014claims of 'defensible' and 'evidence-first' could be replicated by competitors with domain expertise and off\u2011the\u2011shelf ML.",
+      "severity": "medium",
+      "evidence": [
+        "No mention of proprietary datasets, unique labeling, long\u2011lived customer data assets, or exclusive partnerships that would create a vertical data moat",
+        "Claims like '500+ companies supported' and '$600M+ in tax incentives identified' show traction but not necessarily a barrier to replication",
+        "Repeated emphasis on human review suggests the competitive advantage may be people/process rather than scalable tech IP"
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "Positioning reads like common claims in the tax-tech and fintech space (AI + human review + integrations + audit-readiness) and lacks a sharply differentiated angle vs. established consultancies or fintech vendors.",
+      "severity": "medium",
+      "evidence": [
+        "\"Human Led. AI Driven.\" is a widely used positioning line across many startups and incumbents",
+        "Promises of low-lift, defensible results and integrations mirror standard selling points from other tax credit providers and large accounting firms",
+        "Absence of unique outcomes (e.g., benchmarked uplift numbers, independent audits) that would separate Onshore from competitors"
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Alliantgroup (and similar specialist R&D tax consultancies)",
+        "similarity": "Provides R&D tax credit identification, documentation and audit defense for US businesses; strong domain expertise and end-to-end advisory.",
+        "how_different": "Onshore emphasizes an AI-first workflow with integrations and an auditable system-of-record, promises faster turnaround (2\u20133 weeks average), lower client lift, fixed defensible deliverables and a software platform that automates evidence collection \u2014 while Alliantgroup is more traditional consultancy-led with heavier manual engagement and billable-hour models."
+      },
+      {
+        "name": "KBKG and other boutique cost-segregation / incentive firms",
+        "similarity": "Specialize in cost segregation, 179D and R&D studies; focus on engineering workpapers and defensibility for tax authorities.",
+        "how_different": "Onshore bundles R&D credit, 179D and cost segregation into one software-driven offering with AI extraction and integrations to accounting/dev systems; KBKG is engineering- and project-driven with more bespoke fieldwork and established practitioner networks rather than a single cloud system-of-record."
+      },
+      {
+        "name": "Big Four (Deloitte, PwC, EY, KPMG)",
+        "similarity": "Provide technically defensible R&D tax credit and incentive services, deep audit defense, and cross-service tax/advisory capabilities.",
+        "how_different": "Onshore competes on speed, transparency, and lower client effort via automated data ingestion and AI-assisted documentation. Big Four offer broader advisory/bespoke services, deep global footprint, and reputation \u2014 but are typically more expensive, slower, and less software-native for ongoing system-of-record workflows."
+      },
+      {
+        "name": "Claimable and other R&D tax automation startups",
+        "similarity": "Software-driven platforms that automate identification, qualification and documentation of R&D tax credits using data and workflows.",
+        "how_different": "Onshore markets a combined AI + human expert validated approach with integrations to ADP, NetSuite, QuickBooks, Jira and a claim that it 'owns the outcome' with audit-ready packages and explicit promises of defensibility, fast (2\u20133 week) turnaround and a single system-of-record that spans multiple incentive types (R&D, 179D, cost segregation)."
+      },
+      {
+        "name": "Regional or boutique tax advisors / local CPA firms offering R&D credits",
+        "similarity": "Help small and mid-market companies claim credits and prepare supporting documentation; may combine software and manual processes.",
+        "how_different": "Onshore differentiates by centralizing evidence in a standardized, AI-assisted platform, reducing manual lift for client teams and by scaling via software rather than bespoke engagement teams \u2014 positioning itself as more repeatable and auditable than ad hoc local approaches."
+      }
+    ],
+    "differentiation": {
+      "primary": "An AI-powered, human-reviewed platform that creates an auditable system-of-record for R&D tax credits and related incentives (179D, cost segregation), promising low client lift, fast turnaround and defensible, repeatable results.",
+      "technical": "Key technical differentiators include automated document review and extraction (AI models that 'review every document and flag what's missing'), connectors to common accounting and engineering tools (ADP, NetSuite, QuickBooks, Jira), and generation of audit-ready tax packages with calculations and supporting evidence \u2014 all housed in one platform that tracks assumptions and evidence.",
+      "business": "Onshore's GTM and business differentiators are 'outcome ownership' (they 'own the outcome'), fast time-to-value (2\u20133 week turnaround), low client effort through integrations and flexible data ingestion, and a blended model of AI automation plus expert validation which enables predictable pricing, repeatable multi-year engagements and scale across mid-market companies.",
+      "positioning": "Onshore positions itself between high-touch consultancies (Alliantgroup, KBKG, Big Four) and pure-play automation startups: more defensible and audit-ready than pure software, faster and cheaper than large consultancies, and usable as 'one system of record' for multiple incentive types."
+    },
+    "secret_sauce": {
+      "core_advantage": "A productized workflow that combines proprietary AI document- and data-extraction with curated tax/engineering expertise to produce audit-ready, evidence-first deliverables in a single platform (system-of-record) that integrates directly with client systems.",
+      "defensibility": "Defensible because it couples: (1) accumulated labeled/case evidence and tax rulings mapped to model outputs and templates, (2) integration plumbing to accounting and engineering systems that reduces client friction, (3) standardized evidence-packaging and calculation engines built to IRS/audit standards, and (4) a human expert review layer that validates outputs \u2014 creating process, data and knowledge assets that are non-trivial for new entrants or pure consulting firms to replicate quickly.",
+      "evidence": [
+        "\"AI-Powered. Human Led.\"",
+        "\"One system of record\"",
+        "\"Built on contemporaneous evidence, so results are owned, repeatable, and defensible.\"",
+        "\"500+ companies supported\"",
+        "\"$600M+ in tax incentives identified\"",
+        "\"2-3 week average turnaround\"",
+        "\"Upload your files or connect to tools like ADP, Netsuite, QuickBooks, Jira... Any format works.\"",
+        "\"We generate your audit-ready tax package with full calculations and supporting documentation.\"",
+        "\"Onshore owns the outcome\""
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Onshore has a defensible position from its combined software+expert model, integrations, documented evidence workflows, and dataset of prior engagements which enable faster, more auditable deliverables. However, the moat is not impregnable: large consultancies can replicate elements by investing in tooling and data, and specialized competitors already have deep tax subject-matter knowledge and client relationships. The moat strengthens as Onshore grows its dataset, templates, integrations, and referenceable audit outcomes \u2014 but remains medium because core components (AI extraction, connectors, and templates) can be copied over time by well-resourced competitors.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "AI-Powered. Human Led",
+    "Minimal lift from your team",
+    "AI-powered. Human Led Evidence first, reviewed by experts who stand behind it.",
+    "02 Let AI do the heavy lifting",
+    "The system reviews every document and flags what\u2019s missing. It\u2019s fast, accurate, and aligned with IRS standards.",
+    "AI Driven. Three products. One system.",
+    "Human-in-the-loop audit workflow that explicitly 'owns the outcome' \u2014 a liability/outcome-oriented service model combining AI outputs with expert sign-off to create legally defensible deliverables.",
+    "Deep connectors to finance and project systems (ADP, Netsuite, QuickBooks, Jira) to assemble contemporaneous evidence across ERP/HR/project tooling for grounded tax analysis.",
+    "Focus on producing 'audit-ready' packages (calculations + supporting documentation) as a productized deliverable rather than just recommendations \u2014 implies tight tooling for traceability, versioning, and document assembly tailored to tax audits."
+  ],
+  "crawl_diagnostics": null,
+  "analyzed_at": "2026-03-12 16:11:19.476305+00:00",
+  "confidence_score": 0.74,
+  "raw_content_analyzed": 12686,
+  "input_hash": "1d7a6f14b5c60e1f"
+}

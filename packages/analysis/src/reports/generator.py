@@ -4,6 +4,7 @@ Supports saving briefs to both local filesystem and Azure Blob Storage.
 """
 
 import csv
+import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
@@ -631,6 +632,47 @@ def save_briefs_batch(
         saved_paths.append(path)
 
     return saved_paths
+
+
+def export_brief_artifacts(
+    analyses: List[StartupAnalysis],
+    startup_inputs: Dict[str, StartupInput],
+    output_dir: Path,
+    storage_client: Optional["BlobStorageClient"] = None,
+) -> Dict[str, Any]:
+    """Write per-startup brief markdown files plus a brief index."""
+    saved_paths = save_briefs_batch(
+        analyses=analyses,
+        startup_inputs=startup_inputs,
+        output_dir=output_dir,
+        storage_client=storage_client,
+    )
+
+    briefs_dir = output_dir / "briefs"
+    briefs_dir.mkdir(parents=True, exist_ok=True)
+
+    items = []
+    for path in saved_paths:
+        path_obj = Path(path)
+        items.append(
+            {
+                "slug": path_obj.stem.removesuffix("_brief"),
+                "path": str(path_obj),
+                "filename": path_obj.name,
+            }
+        )
+
+    index_path = briefs_dir / "index.json"
+    index_path.write_text(
+        json.dumps({"count": len(items), "items": items}, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    return {
+        "output_dir": str(briefs_dir),
+        "index_path": str(index_path),
+        "count": len(items),
+    }
 
 
 def get_analysis_csv_columns() -> List[str]:

@@ -12,7 +12,7 @@ from src.crawler.engine import get_company_slug
 from src.data.ingestion import load_startups_from_csv, load_unique_startups_from_csv
 from src.data.monthly_stats import MonthlyStatistics
 from src.data.store import AnalysisStore
-from src.reports.generator import create_analysis_only_csv, create_enriched_csv
+from src.reports.generator import create_analysis_only_csv, create_enriched_csv, export_brief_artifacts
 from src.reports.newsletter_generator import generate_viral_newsletter
 
 
@@ -36,10 +36,12 @@ def resolve_repo_dataset_paths(period: str, region: str = "global") -> Dict[str,
     """Resolve repo-level apps/web dataset paths for a period and region."""
     repo_root = Path(__file__).resolve().parents[4]
     data_root = repo_root / "apps" / "web" / "data"
-    if region == "global":
+    normalized_region = str(region or "").strip().lower()
+    if normalized_region in {"", "global"}:
         period_root = data_root / period
     else:
-        period_root = data_root / region / period
+        dataset_region = "tr" if normalized_region in {"tr", "turkey"} else normalized_region
+        period_root = data_root / dataset_region / period
     return {
         "period_root": period_root,
         "csv_path": period_root / "input" / "startups.csv",
@@ -60,6 +62,12 @@ def regenerate_output_artifacts(
 
     analysis_csv = create_analysis_only_csv(analyses, output_path)
     enriched_csv = create_enriched_csv(csv_path, analyses, output_path)
+    startup_inputs = {startup.name: startup for startup in startups if startup.name}
+    brief_stats = export_brief_artifacts(
+        analyses=analyses,
+        startup_inputs=startup_inputs,
+        output_dir=output_path,
+    )
 
     stats_period = period or settings.extract_period_from_path(csv_path)
     monthly_stats_path = None
@@ -90,6 +98,9 @@ def regenerate_output_artifacts(
     return {
         "analysis_results_csv": str(analysis_csv),
         "startups_enriched_csv": str(enriched_csv),
+        "brief_output_dir": str(brief_stats["output_dir"]),
+        "brief_index_json": str(brief_stats["index_path"]),
+        "brief_count": str(brief_stats["count"]),
         "monthly_stats_json": str(monthly_stats_path) if monthly_stats_path else "",
         "monthly_summary_report": str(monthly_summary_path) if monthly_summary_path else "",
         "newsletter_data_json": str(newsletter_data_path) if newsletter_data_path else "",
@@ -112,16 +123,12 @@ ONBOARDING_STAGE_ORDER = [
 
 
 def _resolve_data_root_from_csv(csv_path: Path) -> Path:
-    """Resolve the `apps/web/data` root from a period CSV path."""
+    """Resolve the region-scoped dataset root from a period CSV path."""
     csv_path = Path(csv_path)
     if csv_path.parent.name != "input":
         raise ValueError(f"Expected startup CSV under an input/ directory, got: {csv_path}")
 
     period_root = csv_path.parent.parent
-    if period_root.name == "tr":
-        return period_root.parent
-    if period_root.parent.name == "tr":
-        return period_root.parent.parent
     return period_root.parent
 
 
@@ -234,6 +241,7 @@ def compute_onboarding_resume_plan(
         "newsletter_data_json": output_path / "newsletter_data.json",
         "viral_newsletter_md": output_path / "viral_newsletter.md",
         "deep_research_index_json": output_path / "deep_research" / "index.json",
+        "brief_index_json": output_path / "briefs" / "index.json",
     }
     output_exists = {key: path.exists() for key, path in output_files.items()}
 
@@ -302,7 +310,8 @@ def compute_onboarding_resume_plan(
                 f"monthly_stats={output_exists['monthly_stats_json']} "
                 f"newsletter_data={output_exists['newsletter_data_json']} "
                 f"viral_newsletter={output_exists['viral_newsletter_md']} "
-                f"deep_research_index={output_exists['deep_research_index_json']}"
+                f"deep_research_index={output_exists['deep_research_index_json']} "
+                f"brief_index={output_exists['brief_index_json']}"
             ),
         },
         "blob_publish": {

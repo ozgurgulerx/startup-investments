@@ -9,9 +9,10 @@
 # 1. Monthly statistics (monthly_stats.json)
 # 2. Monthly brief (monthly_brief.json)
 # 3. Newsletter artifacts (newsletter_data.json + viral_newsletter.md)
-# 4. Enriched CSV with analysis data
-# 5. Syncs to database
-# 6. Copies to public directories (for client-side fetching)
+# 4. Per-startup dossier briefs (briefs/<slug>_brief.md)
+# 5. Enriched CSV with analysis data
+# 6. Syncs to database
+# 7. Copies to public directories (for client-side fetching)
 
 set -e
 
@@ -37,7 +38,7 @@ echo ""
 # ============================================
 # Step 1: Regenerate Monthly Statistics
 # ============================================
-echo "[1/6] Regenerating monthly_stats.json..."
+echo "[1/7] Regenerating monthly_stats.json..."
 
 cd "$PROJECT_ROOT/packages/analysis"
 
@@ -169,7 +170,7 @@ echo ""
 # ============================================
 # Step 2: Regenerate Monthly Brief
 # ============================================
-echo "[2/6] Regenerating monthly_brief.json..."
+echo "[2/7] Regenerating monthly_brief.json..."
 
 cd "$PROJECT_ROOT/apps/web"
 
@@ -194,18 +195,38 @@ echo ""
 # ============================================
 # Step 3: Regenerate Newsletter Artifacts
 # ============================================
-echo "[3/6] Regenerating newsletter artifacts..."
+echo "[3/7] Regenerating newsletter artifacts..."
 
 cd "$PROJECT_ROOT/packages/analysis"
-"$PYTHON" main.py newsletter-artifacts --period "$PERIOD" \
-    || echo "  WARN: newsletter-artifacts generation failed"
+for DATA_ROOT in "$PROJECT_ROOT/apps/web/data" "$PROJECT_ROOT/apps/web/data/tr"; do
+    OUTPUT_DIR="$DATA_ROOT/$PERIOD/output"
+    echo "  -> data root: $DATA_ROOT"
+    "$PYTHON" main.py newsletter-artifacts --period "$PERIOD" \
+        --data-root "$DATA_ROOT" \
+        --output "$OUTPUT_DIR" \
+        || echo "  WARN: newsletter-artifacts generation failed for $DATA_ROOT"
+done
 
 echo ""
 
 # ============================================
-# Step 4: Regenerate Enriched CSV
+# Step 4: Regenerate Startup Briefs
 # ============================================
-echo "[4/6] Regenerating enriched CSV..."
+echo "[4/7] Regenerating startup briefs..."
+
+for REGION in global turkey; do
+    echo "  -> region: $REGION"
+    "$PYTHON" main.py export-startup-briefs --period "$PERIOD" \
+        --region "$REGION" \
+        || echo "  WARN: export-startup-briefs generation failed for $REGION"
+done
+
+echo ""
+
+# ============================================
+# Step 5: Regenerate Enriched CSV
+# ============================================
+echo "[5/7] Regenerating enriched CSV..."
 
 $PYTHON << EOF
 import sys
@@ -298,9 +319,9 @@ EOF
 echo ""
 
 # ============================================
-# Step 5: Sync to Database
+# Step 6: Sync to Database
 # ============================================
-echo "[5/6] Syncing to database..."
+echo "[6/7] Syncing to database..."
 
 # Check if DATABASE_URL exists
 if [ -f "$PROJECT_ROOT/.env" ] && grep -q "DATABASE_URL" "$PROJECT_ROOT/.env"; then
@@ -386,9 +407,9 @@ else
 fi
 
 # ============================================
-# Step 6: Copy to Public Directories
+# Step 7: Copy to Public Directories
 # ============================================
-echo "[6/6] Copying to public directories..."
+echo "[7/7] Copying to public directories..."
 
 # Copy full brief to public/data/briefs/
 cp "$PROJECT_ROOT/apps/web/data/$PERIOD/output/monthly_brief.json" "$PROJECT_ROOT/apps/web/public/data/briefs/$PERIOD.json" 2>/dev/null && echo "  Copied to public/data/briefs/$PERIOD.json" || echo "  Skipped public/data/briefs (file not found)"

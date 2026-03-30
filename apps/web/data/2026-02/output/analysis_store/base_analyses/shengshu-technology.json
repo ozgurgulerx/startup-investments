@@ -1,0 +1,424 @@
+{
+  "company_name": "Shengshu Technology",
+  "company_slug": "shengshu-technology",
+  "website": "https://www.shengshu-ai.com",
+  "logo_url": null,
+  "description": "Shengshu Technology is a generative AI infrastructure that develops native multi-modal large models such as images, 3D, and video.",
+  "funding_amount": 86390601.0,
+  "funding_stage": "series_a",
+  "uses_genai": true,
+  "genai_intensity": "tooling",
+  "models_mentioned": [
+    "Vidu viduq1",
+    "Claude",
+    "Cursor"
+  ],
+  "build_patterns": [
+    {
+      "name": "Natural-Language-to-Code",
+      "confidence": 0.6,
+      "evidence": [
+        "Use natural language prompts via Claude or Cursor to generate videos.",
+        "Advanced Example with Parameters: Generate a night cityscape video with the following parameters: Prompt: ..., Model: viduq1, Style: general, Duration: 5 seconds, Aspect Ratio: 16:9, Resolution: 1080p, Movement Amplitude: middle"
+      ],
+      "description": "The repository exposes video-generation models behind an MCP server and demonstrates mapping free-form textual prompts (and structured prompt parameters) into concrete model API calls/parameters. This is effectively translating natural language intent into executable model invocation parameters (a form of NL-to-API/code). The README shows both plain prompts and parameterized prompts that map user language to structured generation settings."
+    }
+  ],
+  "discovered_patterns": [],
+  "pattern_category_scores": {},
+  "novel_approaches": [],
+  "model_details": {
+    "primary_models": [],
+    "fine_tuning": {
+      "uses_fine_tuning": false,
+      "fine_tuning_approach": "",
+      "training_data_source": ""
+    },
+    "inference_optimization": [],
+    "model_routing": {
+      "uses_routing": false,
+      "routing_strategy": ""
+    },
+    "compound_ai": {
+      "is_compound_system": false,
+      "orchestration_pattern": ""
+    }
+  },
+  "market_type": "horizontal",
+  "vertical": "developer_tools",
+  "sub_vertical": "multi-modal AI infrastructure for content creation",
+  "sub_sub_vertical": "video content generation platform and APIs",
+  "vertical_taxonomy": {
+    "ontology_id": "startup-vertical-taxonomy",
+    "ontology_version": "2026-02-07_v1",
+    "primary": {
+      "vertical_id": "it_enterprise_software",
+      "vertical_label": "Information Technology & Enterprise Software",
+      "sub_vertical_id": "ai_ml_platforms",
+      "sub_vertical_label": "AI/ML Platforms",
+      "leaf_id": "ai_ml_platforms",
+      "leaf_label": "AI/ML Platforms"
+    },
+    "path": [
+      {
+        "id": "it_enterprise_software",
+        "label": "Information Technology & Enterprise Software",
+        "confidence": 0.75
+      },
+      {
+        "id": "ai_ml_platforms",
+        "label": "AI/ML Platforms",
+        "confidence": 0.78
+      }
+    ]
+  },
+  "target_market": "b2b",
+  "tech_stack": {
+    "llm_providers": [
+      "Anthropic"
+    ],
+    "llm_models": [
+      "Claude"
+    ],
+    "vector_databases": [],
+    "frameworks": [],
+    "hosting": [
+      "Self-hosted"
+    ],
+    "approach": "hybrid",
+    "uses_open_source_models": false,
+    "has_custom_models": false
+  },
+  "engineering_quality": {
+    "score": 5,
+    "has_public_api": true,
+    "has_sdk": false,
+    "has_documentation": true,
+    "has_engineering_blog": false,
+    "github_presence": false,
+    "github_stars": 0,
+    "github_contributors": 0,
+    "open_source_projects": [],
+    "signals": [
+      "Public GitHub repo with a Python MCP server for Vidu models",
+      "Clear MCP integration guidance and config example",
+      "Cross-application compatibility (Claude, Cursor) mentioned"
+    ]
+  },
+  "implementation_maturity": "unknown",
+  "team_analysis": {
+    "founders": [],
+    "team_signals": {
+      "engineering_heavy": true,
+      "has_ml_expertise": false,
+      "has_domain_expertise": true,
+      "hiring_signals": [],
+      "team_size_indicators": "small",
+      "remote_distributed": true
+    },
+    "founder_market_fit": "Insufficient publicly available information to assess founder backgrounds or fit to the video-generation/MCP space.",
+    "team_strengths": [
+      "Hands-on experience with API integrations and server-side tooling for model-enabled workflows",
+      "Clear documentation and sample configurations enabling MCP client integrations",
+      "Focus on practical tooling to enable Model Context Protocol adoption and use with external video generation services"
+    ],
+    "team_red_flags": [
+      "Lack of public information about founders or team members",
+      "Limited public activity beyond two repositories; no traceable history of prior companies or roles"
+    ],
+    "team_confidence": 0.25
+  },
+  "business_model": {
+    "pricing_model": {
+      "type": "api_pricing",
+      "pricing_evidence": [
+        "Vidu API key requires API credits purchased on Vidu Platform",
+        "Billing is mentioned on Vidu Platform"
+      ],
+      "free_tier_available": false,
+      "enterprise_focus": false,
+      "price_points": [
+        "credits-based pricing; no specific amounts provided"
+      ]
+    },
+    "gtm_strategy": {
+      "primary_channel": "developer_first",
+      "evidence": [
+        "Targets MCP-enabled applications (Claude, Cursor)",
+        "Developer-oriented installation, configuration, and code samples",
+        "MCP server and client configuration guides"
+      ],
+      "target_segment": "developer",
+      "sales_motion": "self_serve"
+    },
+    "revenue_model": {
+      "monetization_approach": "API-based access to Vidu video generation via MCP using paid API credits",
+      "unit_economics_signals": [
+        "credits-based pricing; no explicit unit economics provided"
+      ],
+      "recurring_revenue": true
+    },
+    "distribution_advantages": [
+      "MCP compatibility creates distribution across multiple MCP-enabled clients (e.g., Claude, Cursor)",
+      "Standardized MCP server protocol lowers friction for developers"
+    ],
+    "customer_acquisition": {
+      "acquisition_channels": [
+        "developer-focused documentation and integration guides",
+        "integration with MCP-enabled apps (Claude, Cursor)"
+      ],
+      "customer_proof_points": []
+    },
+    "business_model_clarity": "clear",
+    "business_model_confidence": 0.65
+  },
+  "product_analysis": {
+    "product_stage": "beta",
+    "stage_evidence": [
+      "Public README describes installation, configuration and usage but no production readiness claims",
+      "No customer case studies or testimonials",
+      "2 public repositories with limited documentation and no pricing or SLA details",
+      "Indicates experimental integration (MCP server) rather than enterprise-ready product",
+      "No explicit 'beta' label in docs, but absence of GA indicators suggests ongoing development"
+    ],
+    "feature_depth": {
+      "core_features": [
+        "Text-to-Video generation",
+        "Image-to-Video generation",
+        "Reference-to-Video generation",
+        "StartEnd-to-Video generation",
+        "MCP server integration to access Vidu API"
+      ],
+      "differentiating_features": [
+        "Integration with MCP-enabled clients (Claude/Cursor)",
+        "Python-based cloud MCP server that proxies Vidu API calls"
+      ],
+      "roadmap_signals": [
+        "No explicit roadmap or future features mentioned"
+      ],
+      "feature_completeness": "growing"
+    },
+    "integration_ecosystem": {
+      "integrations_mentioned": [
+        "Claude",
+        "Cursor",
+        "Vidu Platform"
+      ],
+      "api_maturity": "basic",
+      "sdk_availability": [
+        "Python (server)",
+        "TypeScript (feishu-shortcut)"
+      ],
+      "webhook_support": false,
+      "marketplace_presence": []
+    },
+    "use_cases": {
+      "primary_use_case": "Enable text-to-video, image-to-video, and related generation via MCP-enabled apps by routing requests through an MCP server to Vidu API",
+      "secondary_use_cases": [
+        "Video generation with prompts and parameters (duration, resolution, aspect ratio, etc.)"
+      ],
+      "customer_stories": [],
+      "industry_focus": []
+    },
+    "product_risks": [
+      "Dependency on Vidu API credits and API key management (cost and access control)",
+      "Limited userbase and adoption risk (low community activity: 0 followers)",
+      "Incomplete production readiness signals (no SLA, no uptime metrics, no deployment guidance)",
+      "Potential fragility of MCP integration (ENV/config reliance, uvx tool availability)",
+      "Security/privacy concerns around API keys in config files"
+    ],
+    "product_strengths": [
+      "Clear MCP-based integration path with Claude/Cursor, enabling access to video generation models",
+      "Two main components: MCP Server and client integration, allowing flexible deployment",
+      "Well-documented setup steps and example JSON config for MCP clients",
+      "Offers multiple generation modes (text, image, reference, start-end) in one tool"
+    ],
+    "product_confidence": 0.55
+  },
+  "unique_findings": [
+    "MCP-first integration: Rather than exposing Vidu as a plain HTTP API or SDK, they publish a small local MCP server adapter (vidu-mcp) so Claude, Cursor and any MCP-capable client can call video generation as if it were a local model. This shifts UX integration complexity out of clients into a single adapter process.",
+    "Use of UV/UVX as the runtime shim: The README instructs launching the MCP server via uvx (astral.sh). That is an unusual distribution/runtime choice for AI infra \u2014 bundling server launch through UVX simplifies cross-platform local launches but creates a non-standard dependency chain and runtime surface to manage.",
+    "Protocol boundary as product surface: By targeting the Model Context Protocol, they convert a heavy, asynchronous, GPU-backed service (video gen) into a synchronous/interactive primitive for chat clients. That requires non-trivial adaptation (job orchestration, progress/state mapping, error translation) even though the README hides those details.",
+    "Multi-mode generation API consolidated behind MCP: The adapter lists text-to-video, image-to-video, reference-to-video and StartEnd-to-Video. Exposing multiple modalities through a single MCP server means they likely implement a parameter mapping layer that normalizes diverse generation modes to a consistent MCP message/response contract.",
+    "Lightweight client-config UX: They provide explicit JSON snippets and per-client instructions (Claude Desktop, Cursor) so non-engineers can plug into MCP-enabled chat apps. The emphasis on easy config implies a focus on distribution via chat UIs instead of building another bespoke front-end.",
+    "Implicit handling of long-running jobs and artifact hosting: The README promises URL outputs and 30s\u20135min latency windows. To achieve that inside an MCP flow they must be managing asynchronous job lifecycle, polling/notifications, temporary storage and presigned URLs \u2014 a non-trivial engineering surface that is not documented but essential.",
+    "Security/surface-area tradeoffs surfaced but unresolved: The installation relies on env-injected API keys in a local process configuration (mcp_config.json). That is expedient but raises secrets management and trust boundaries between client app, local process and cloud \u2014 a deliberate, pragmatic engineering choice with security consequences.",
+    "Minimal repo footprint but practical go-to-market posture: The implementation is intentionally thin \u2014 an adapter and instructions \u2014 indicating a product strategy of rapid integrations into existing LLM UIs instead of competing on model research. This is a distribution and adoption play more than a heavy technical research reveal.",
+    "Cross-platform process orchestration complexity glossed over: They document an ENOENT debug path for uvx spawn errors. Handling cross-OS process launching, path resolution, and reliable restarts in third-party apps (Claude, Cursor) implies non-trivial operational engineering that they surface as FAQs rather than in-code solutions."
+  ],
+  "technical_depth": "medium",
+  "newsletter_potential": "medium",
+  "story_angles": [
+    {
+      "angle_type": "architecture",
+      "headline": "How Shengshu built a lightweight MCP bridge so LLMs can call text-to-video models without hosting GPUs",
+      "summary": "Shengshu's vidu-mcp implements a minimal Python-based MCP server that lets desktop LLM clients (Claude, Cursor) orchestrate Vidu's video-generation API. The angle explores the engineering tradeoffs of a thin API-proxy + MCP integration (UV/UVX, env-based API keys) versus bundling models locally or building full-fledged SDKs.",
+      "evidence": [
+        "vidu-mcp is a Python MCP server that communicates directly with the Vidu API",
+        "README shows MCP config snippets for Claude and Cursor that call uvx vidu-mcp with VIDU_API_KEY and VIDU_API_HOST environment variables",
+        "Installation relies on UV/UVX to run as an MCP server (points to a design that favors a small runtime shim)"
+      ],
+      "uniqueness_score": 7
+    },
+    {
+      "angle_type": "efficiency",
+      "headline": "Bring video generation into your chat client: how a lightweight MCP server short-circuits heavy infra and speeds prototyping",
+      "summary": "By exposing Vidu's cloud models over MCP, builders get text\u2192video and image\u2192video inside LLM workflows without managing GPU clusters or model artifacts. The piece will evaluate latency/throughput claims (30s\u20135min generation), developer friction (UVX install, config JSON), and the practical productivity gains for prototyping video generation features.",
+      "evidence": [
+        "Features list includes text-to-video, image-to-video and StartEnd-to-Video generation",
+        "FAQ indicates typical generation times of 30 seconds to 5 minutes \u2014 enabling interactive workflows from an LLM client",
+        "Configuration is simple JSON plus an env API key, avoiding heavy infra setup"
+      ],
+      "uniqueness_score": 6
+    },
+    {
+      "angle_type": "contrarian",
+      "headline": "They bet on MCP and API-first video instead of shipping another monolithic SDK \u2014 and that might pay off",
+      "summary": "While many startups ship large SDKs or advise running models locally, Shengshu chose an API-proxy + MCP pattern (UV/UVX + Vidu API) that pushes complexity to a cloud provider and keeps the client integration tiny. The contrarian story interrogates the risks and benefits: faster adoption in LLM UIs vs dependency on credits, vendor lock-in, and platform stability.",
+      "evidence": [
+        "Design centers on communicating with Vidu API and requiring API credits (README explicitly notes credits must be purchased)",
+        "Uses MCP to let LLM clients integrate video generation rather than embedding models in the client",
+        "FAQ and README surface operational pain points (spawn uvx ENOENT, API key validity, logs), showing tradeoffs of the approach"
+      ],
+      "uniqueness_score": 8
+    },
+    {
+      "angle_type": "vertical_expert",
+      "headline": "Putting video generation in the hands of developer tools: Shengshu\u2019s play to make LLMs multi-modal authoring platforms",
+      "summary": "Rather than targeting end users directly, Shengshu focuses on developer-facing integrations (Claude, Cursor) so LLMs can orchestrate video creation as part of developer workflows. This angle explores the product insight \u2014 treating LLMs as composition layers for media generation \u2014 and what developer UX problems remain (config friction, API keys, credit management).",
+      "evidence": [
+        "README provides client-specific instructions for Claude for Desktop and Cursor, showing a developer-tool centric approach",
+        "Repository implements connectors (MCP) rather than a consumer-facing app",
+        "Tech stack and docs emphasize integration steps (claude_desktop_config.json edits, MCP server refresh), signaling a focus on developer adoption"
+      ],
+      "uniqueness_score": 5
+    }
+  ],
+  "anti_patterns": [
+    {
+      "pattern_type": "wrapper",
+      "description": "The repo functions primarily as a connector that exposes Vidu's video-generation API via the MCP protocol, with no evidence of proprietary model code or unique algorithmic innovation.",
+      "severity": "high",
+      "evidence": [
+        "README repeatedly explains how to configure a Vidu API key and calls Vidu Platform; the project communicates 'directly with the Vidu API'.",
+        "Installation/usage requires users to obtain Vidu API credentials and credits (no hosted model or proprietary inference).",
+        "Project is described as 'a tool that allows you to access Vidu latest video generation models via applications that support the Model Context Protocol (MCP)'."
+      ]
+    },
+    {
+      "pattern_type": "feature_not_product",
+      "description": "The deliverable appears to be a single integration/feature (MCP server connector) rather than a broader product with differentiated services, packaging, or go-to-market motion.",
+      "severity": "medium",
+      "evidence": [
+        "Repository scope is narrowly focused on an MCP server to route requests to Vidu models.",
+        "Only two public repositories and modest community signals (2 repos, 5 stars on the main repo) indicate limited product breadth.",
+        "README focuses on configuration steps for various MCP clients (Claude, Cursor) rather than describing a product roadmap, enterprise features, or commercial offerings."
+      ]
+    },
+    {
+      "pattern_type": "no_moat",
+      "description": "There is little sign of defensible intellectual property, proprietary data, or network effects that would prevent an API provider or large platform from offering the same functionality.",
+      "severity": "high",
+      "evidence": [
+        "Integration logic is a thin server shim (Python MCP server) that calls an external API; such code is trivially replicable.",
+        "No mention of proprietary datasets, unique model training, or exclusive partnerships with Vidu.",
+        "Low community traction (0 followers on GitHub) and minimal repos suggest no growing user base or data advantage."
+      ]
+    },
+    {
+      "pattern_type": "undifferentiated",
+      "description": "The project targets a crowded space of connectors/integrations and lacks a clear unique angle or value proposition beyond enabling MCP access to an existing model provider.",
+      "severity": "medium",
+      "evidence": [
+        "Many platforms and open-source projects already provide API wrappers and connectors for model providers; README describes standard prompts and parameters without novel features.",
+        "The README lists common features (text-to-video, image-to-video) that are widely available from major providers and thus not unique."
+      ]
+    },
+    {
+      "pattern_type": "overclaiming",
+      "description": "Marketing language is generally factual, but there are slight risks of implying more product maturity or performance guarantees than substantiated in the repo.",
+      "severity": "low",
+      "evidence": [
+        "Readme says 'Generate high-quality videos anytime, anywhere' without benchmarks, sample outputs, or performance guarantees.",
+        "Claims like 'provide full video generation capabilities' are broad while the codebase appears focused on protocol integration rather than end-to-end platform features."
+      ]
+    }
+  ],
+  "competitive_analysis": {
+    "competitors": [
+      {
+        "name": "Runway",
+        "similarity": "Provides text-to-video and multimodal generative video tools aimed at creators and enterprises; offers APIs and desktop integrations for creative workflows.",
+        "how_different": "Shengshu emphasizes 'native' multimodal large models (images, 3D, video) and offers a developer-centric MCP server integration (Vidu MCP) to plug models into MCP-capable apps (Claude, Cursor). Runway is more UI/creator-first and broadly consumer-facing versus Shengshu's API/MCP integration focus and claims of native multimodal modeling."
+      },
+      {
+        "name": "Stability AI",
+        "similarity": "Open-model approach to generative media including image and experimental video models; provides developer APIs and community/third-party integrations.",
+        "how_different": "Stability emphasizes open weights and community models; Shengshu positions itself as a provider of native multimodal large models with a commercial API (Vidu Platform) and MCP adapter for enterprise/third-party model embedding. Shengshu appears to target integrated real-time usage in MCP workflows and 3D/video modalities specifically."
+      },
+      {
+        "name": "Synthesia",
+        "similarity": "Generative video company providing API-driven video creation for enterprises (corporate videos, synthetic presenters).",
+        "how_different": "Synthesia is specialized in synthetic avatars and corporate video production pipelines; Shengshu emphasizes general-purpose multimodal model capabilities (text-to-video, image-to-video, reference-to-video, StartEnd-to-Video) and developer integrations rather than turnkey avatar/video production SaaS."
+      },
+      {
+        "name": "Google (Imagen Video / Phenaki / VideoLM)",
+        "similarity": "Large research-backed text-to-video and multimodal video models offering high-quality synthetic video generation.",
+        "how_different": "Google is research-first with massive infrastructure and distribution; Shengshu differentiates by packaging its models as a commercial API with MCP integration and by claiming native multimodal support across image, 3D and video for product integrations. Shengshu is positioned as a more productized API partner for developers rather than a platform research release."
+      },
+      {
+        "name": "Meta (Make-A-Video / LLaMA ecosystem providers)",
+        "similarity": "Develops advanced generative video and multimodal research models and occasionally exposes APIs or research demos.",
+        "how_different": "Meta is a large platform/ research org; Shengshu's practical differences are commercial API access, developer integrations (MCP), and a focus on production features (Vidu platform, credits, inference durations) targeted at customers needing integration into MCP-capable clients."
+      },
+      {
+        "name": "OpenAI",
+        "similarity": "Develops multimodal models and may compete in high-quality generative video/vision + text space; offers API-first commercial products.",
+        "how_different": "OpenAI has extreme scale and ecosystem adoption; Shengshu's differentiation is its positioning as a native multimodal model vendor with specific tooling (UVX MCP server, Vidu API) and marketplace/credit-based access tailored to customers integrating via MCP and third-party clients like Claude/Cursor."
+      },
+      {
+        "name": "Chinese domestic players (e.g., Baidu, Alibaba Cloud, SenseTime)",
+        "similarity": "Offer generative AI models, APIs, and enterprise services for images/video and multimodal use-cases in the same regional markets.",
+        "how_different": "These large incumbents combine cloud infrastructure, enterprise sales, and model apps. Shengshu differentiates by focusing on native multimodal model development (3D + video) and offering direct developer integrations via MCP and a standalone Vidu API product/credit model that aims for quick integration into modern model-client tooling."
+      }
+    ],
+    "differentiation": {
+      "primary": "Positioning as a developer-first generative AI infrastructure that provides 'native' multi-modal large models (images, 3D, video) and easy integration into MCP-capable clients (Claude, Cursor) via a lightweight MCP server (UVX-based) and a commercial Vidu API.",
+      "technical": "Claims of native multimodal large models (jointly supporting image, 3D and video) rather than stitching single-modality models; provides specialized generation modes (text-to-video, image-to-video, reference-to-video, StartEnd-to-Video) and a named model (viduq1). Provides an MCP server (Python UV/UVX service) to expose model capabilities directly to Model Context Protocol clients.",
+      "business": "API credits / commercial access via the Vidu Platform; developer tooling (MCP adapter) enabling rapid embedding into third-party conversational/model clients; appears to target both developer/ecosystem integrations and enterprise usage rather than only a consumer SaaS UI.",
+      "positioning": "Frames itself as a technical infrastructure vendor for multimodal generation \u2014 an API-first partner for developers/third-party model clients \u2014 instead of a purely consumer creative app or purely research organization."
+    },
+    "secret_sauce": {
+      "core_advantage": "In-house native multimodal models trained to handle images, 3D and video coherently, combined with developer-focused integration tooling (Vidu API + UVX MCP server) that lets MCP-capable clients access high-quality video generation workflows quickly.",
+      "defensibility": "Medium \u2014 defensibility comes from proprietary model weights/datasets and engineering that enable native multimodal generation and low-friction MCP integrations. However, large incumbents and open-source communities can replicate models given resources; the short-term advantage persists if Shengshu has proprietary datasets, specialized 3D/video training pipelines, optimized inference, and established MCP integrations.",
+      "evidence": [
+        "COMPANY DESCRIPTION: Shengshu Technology is a generative AI infrastructure that develops native multi-modal large models such as images, 3D, and video.",
+        "Vidu MCP README: 'Vidu latest video generation models' and supports 'text-to-video, image-to-video, and more.'",
+        "Product detail: specific modes listed (Text-to-Video, Image-to-Video, Reference-to-Video, StartEnd-to-Video) and a named model 'viduq1'.",
+        "Integration emphasis: provides a Python UVX MCP Server that 'communicates directly with the Vidu API' and instructions to integrate into Claude and Cursor via Model Context Protocol.",
+        "Commercial model: requires 'Vidu API Key' and 'API Credits' purchased on the Vidu Platform, indicating a monetized API offering."
+      ]
+    },
+    "competitive_moat": "medium",
+    "moat_explanation": "Shengshu's moat rests on a combination of proprietary multimodal models (especially if they truly are 'native' across image/3D/video), optimized inference/integration tooling (UVX MCP server), and pre-built integrations with MCP clients (Claude, Cursor). These factors create a developer experience and go-to-market path that speeds adoption. However, deep learning model capabilities are expensive but replicable by large cloud/research players (Google, Meta, OpenAI, Stability) and growing open-source projects. Without unique proprietary datasets, exclusive customer contracts, or significant model-performance lead, the moat is not high; it is defensible in the near term by speed-to-market, integrations, and productization.",
+    "moat_types": []
+  },
+  "sources_crawled": [],
+  "evidence_quotes": [
+    "A tool that allows you to access Vidu latest video generation models via applications that support the Model Context Protocol (MCP)",
+    "Text-to-Video Generation",
+    "Image-to-Video Generation",
+    "Reference-to-Video Generation",
+    "StartEnd-to-Video Generation",
+    "MCP Server",
+    "Claude or Cursor",
+    "Vidu API Key",
+    "Use of the Model Context Protocol (MCP) as a lightweight adapter to expose video-generation models directly inside desktop LLM clients (Claude, Cursor) via an uvx MCP server, enabling LLM-driven multimodal generation workflows without deep integration.",
+    "Embedding explicit parameterized examples in prompt text to control model behaviors (duration, aspect ratio, resolution, movement amplitude) \u2014 a pragmatic NL-to-parameter mapping approach instead of a separate UI or DSL."
+  ],
+  "crawl_diagnostics": null,
+  "analyzed_at": "2026-03-12 06:14:37.198497+00:00",
+  "confidence_score": 0.7,
+  "raw_content_analyzed": 5307,
+  "input_hash": "d3588872e89d8f06"
+}

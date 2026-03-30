@@ -8,7 +8,9 @@ When startup data changes (CSV updates, new analyses added), multiple data artif
 |----------|------|---------|----------|
 | `monthly_stats.json` | `apps/web/data/{period}/output/` | Aggregate statistics, GenAI adoption rates | CSV change, analysis store change |
 | `monthly_brief.json` | `apps/web/data/{period}/output/` | Intelligence brief for /brief page | Stats change |
-| `comprehensive_newsletter.md` | `apps/web/data/{period}/output/` | Newsletter content for /library | Analysis store change |
+| `newsletter_data.json` | `apps/web/data/{period}/output/` | Rich monthly newsletter visuals payload for `/newsletter/[period]` | CSV change, analysis store change |
+| `viral_newsletter.md` | `apps/web/data/{period}/output/` | Preferred newsletter markdown for `/library` | Analysis store change |
+| `viral_newsletter_data.json` | `apps/web/data/{period}/output/` | Viral markdown generator sidecar metadata | Viral newsletter regeneration |
 | `startups_enriched_with_analysis.csv` | `apps/web/data/{period}/output/` | CSV with analysis columns added | CSV or analysis change |
 | `briefs/*.md` | `apps/web/data/{period}/output/briefs/` | Individual company briefs | Per-startup analysis |
 | Database tables | PostgreSQL | Startup records, funding rounds | CSV change |
@@ -17,7 +19,8 @@ When startup data changes (CSV updates, new analyses added), multiple data artif
 
 1. First: `monthly_stats.json` (depends on analysis store)
 2. Then: `monthly_brief.json` (depends on stats)
-3. Then: Enriched CSV (depends on analysis store)
+3. Then: `newsletter_data.json` + `viral_newsletter.md` (depends on stats + analysis store)
+4. Then: Enriched CSV (depends on analysis store)
 
 ## Automatic Regeneration (VM Cron)
 
@@ -39,7 +42,7 @@ VM cron job `sync-data` is the primary regeneration + sync loop (blob sync -> re
 # What it does:
 # 1. Updates monthly_stats.json with genai_analysis from analysis store
 # 2. Regenerates monthly_brief.json via TypeScript generator
-# 3. Regenerates newsletter content (if Python dependencies available)
+# 3. Regenerates newsletter_data.json + viral_newsletter.md
 # 4. Regenerates enriched CSV
 # 5. Syncs to database (if DATABASE_URL in .env)
 ```
@@ -90,6 +93,12 @@ with open(stats_path, 'w') as f:
 EOF
 ```
 
+**Regenerate monthly newsletter visuals + markdown:**
+```bash
+cd packages/analysis
+./venv/bin/python main.py newsletter-artifacts --period 2026-01
+```
+
 ## Frontend Pages and Their Data Dependencies
 
 | Page | Data Source | Key Data |
@@ -98,7 +107,8 @@ EOF
 | `/dealbook` | `analysis_store/base_analyses/*` + `monthly_stats.json` | Individual startup data, aggregate stats |
 | `/signals` | `monthly_stats.json` | Pattern distribution, GenAI adoption |
 | `/capital` | `monthly_stats.json` | Funding by stage, geography, investors |
-| `/library` | `comprehensive_newsletter.md` | Newsletter markdown content |
+| `/library` | `viral_newsletter.md` (fallback `comprehensive_newsletter.md`) | Newsletter markdown content |
+| `/newsletter/[period]` | `newsletter_data.json` | Rich monthly charts and visual report |
 | `/company/[slug]` | `analysis_store/base_analyses/{slug}.json` | Individual startup analysis |
 
 ## Data Consistency: Single Source of Truth for Counts
@@ -127,7 +137,7 @@ The primary automation is the VM cron job `sync-data` (`infrastructure/vm-cron/j
 ```
 Step 1: Sync new input blobs / datasets to disk
 Step 2: Recalculate monthly_stats.json and other output artifacts
-Step 3: Regenerate monthly_brief.json + newsletters (when enabled)
+Step 3: Regenerate monthly_brief.json + newsletter_data.json + viral_newsletter.md
 Step 4: Commit/push regenerated files (dataset-as-code)
 Step 5: Sync startups/funding rounds + analysis_data into Postgres
 Step 6: Trigger frontend deploy (so build includes the new datasets)
