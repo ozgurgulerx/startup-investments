@@ -553,6 +553,94 @@ TR_ENDEMIC_SOURCES: frozenset = frozenset(
     }
 )
 
+
+# ---------------------------------------------------------------------------
+# PR #4.2 — non-startup entity blocklist (backed by startup_exclusions table)
+# ---------------------------------------------------------------------------
+# When a Turkey item mentions an entity in this cache, the prefilter drops it
+# unless the story ALSO mentions one of the override aliases below (e.g. a
+# story about "Akbank LAB" keeps the "Akbank" mention from triggering the
+# blocklist). The cache is populated at ingest start via
+# `_install_tr_exclusions()`; in tests it can be installed directly.
+_TR_EXCLUSIONS: Dict[str, Dict[str, Any]] = {}
+
+# For each excluded entity name (lowercased), optional set of override
+# substrings. If any of these substrings appear in the item text, the
+# exclusion is skipped (the mention is considered a spinoff/venture arm).
+_TR_EXCLUSION_OVERRIDES: Dict[str, Tuple[str, ...]] = {
+    "akbank": ("akbank lab", "akbanklab"),
+    "türk telekom": (
+        "tt ventures",
+        "ttventures",
+        "türk telekom ventures",
+        "türk telekom pilot",
+        "pilot",
+    ),
+    "turk telekom": ("tt ventures", "ttventures"),
+    "turkcell": ("turkcell ventures", "turkcellventures"),
+    "garanti bbva": ("garanti bbva partners", "garanti ventures"),
+    "sabancı holding": ("sabancı ventures", "sabanci ventures", "sabancı dx"),
+    "sabanci holding": ("sabanci ventures", "sabanci dx"),
+    "arçelik": ("arçelik garage", "arcelik garage", "garage.com.tr"),
+    "arcelik": ("arçelik garage", "arcelik garage", "garage.com.tr"),
+    "denizbank": ("deniz ventures",),
+    "teb": ("tim-teb", "tim teb", "timlegirisim", "teb girişim", "tim-teb girişim evi"),
+    "yapı kredi": ("fast frwrd", "venturelab", "venturelab yapı kredi"),
+    "yapi kredi": ("fast frwrd", "venturelab"),
+    "iş bankası": ("iş girişim", "is girisim", "tibas ventures", "maxis"),
+    "is bankasi": ("iş girişim", "is girisim", "tibas ventures", "maxis"),
+    "koç holding": ("inventram", "koç 2.0", "koc 2.0"),
+    "koc holding": ("inventram",),
+}
+
+
+def _fold_tr(text: str) -> str:
+    """Casefold + strip combining marks so 'BİM' and 'bim' compare equal.
+
+    Python's casefold() on Turkish capital-I-with-dot (U+0130) produces
+    'i' + combining dot above, which breaks `\b...\b` regexes. NFKD then
+    dropping combining chars normalizes the two forms.
+    """
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _install_tr_exclusions(exclusions: Dict[str, Dict[str, Any]]) -> None:
+    """Replace the in-process exclusion cache. Called by the ingest loop and tests.
+
+    Keys are re-normalized via `_fold_tr` so they match `_fold_tr(text)` at
+    match time regardless of which Unicode form the seed/DB uses.
+    """
+    global _TR_EXCLUSIONS
+    _TR_EXCLUSIONS = {_fold_tr(k): v for k, v in exclusions.items() if k}
+
+
+def _match_excluded_entity(text: str) -> Optional[Dict[str, Any]]:
+    """Return the matched exclusion record if `text` contains an excluded
+    entity with word boundaries AND no override alias is also present.
+
+    Callers pass raw or casefolded text; this function re-normalizes via
+    `_fold_tr` so Turkish characters (İ, ı, ş, ğ, ü, ö, ç) match reliably.
+    Returns None when no exclusion fires.
+    """
+    if not _TR_EXCLUSIONS:
+        return None
+    folded = _fold_tr(text)
+    for entity_norm, info in _TR_EXCLUSIONS.items():
+        if not entity_norm:
+            continue
+        pattern = rf"(?<!\w){re.escape(entity_norm)}(?!\w)"
+        if not re.search(pattern, folded, flags=re.UNICODE):
+            continue
+        overrides = _TR_EXCLUSION_OVERRIDES.get(entity_norm, ())
+        if overrides and any(_fold_tr(ov) in folded for ov in overrides):
+            continue
+        return info
+    return None
+
+
 TR_CONSUMER_EXCLUDE_KEYWORDS: Tuple[str, ...] = (
     "iphone",
     "ipad",
@@ -3208,6 +3296,19 @@ def _turkey_prefilter(item: "NormalizedNewsItem") -> bool:
         return True
 
     text = f"{item.title} {item.summary or ''}".strip().casefold()
+
+    # PR #4.2: non-startup entity blocklist. A101 / banks / telcos / media
+    # slip through the keyword gates because they coincide with Turkish city
+    # or corporate-suffix signals. The blocklist catches them at the earliest
+    # possible stage. Empty exclusion cache = check is a no-op (back-compat).
+    excluded = _match_excluded_entity(text)
+    if excluded is not None:
+        print(
+            f"[tr-reject] non-startup src={item.source_key} "
+            f"entity={excluded.get('entity_name')!r} "
+            f"category={excluded.get('category')}"
+        )
+        return False
 
     # For broad API aggregators, require explicit Turkey context to avoid translated global chatter.
     if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
@@ -9506,6 +9607,18 @@ class DailyNewsIngestor:
 
                 await self._upsert_sources(conn, valid_sources)
                 await self._sync_source_activity(conn, valid_sources)
+
+                # PR #4.2: load the non-startup entity blocklist once per run.
+                # Missing table (pre-migration-084) is tolerated silently so
+                # deploy order doesn't matter.
+                try:
+                    from src.intelligence.ecosystem_memory import load_exclusion_index
+
+                    _install_tr_exclusions(await load_exclusion_index(conn, region="turkey"))
+                    print(f"[news-ingest] loaded {len(_TR_EXCLUSIONS)} TR exclusions")
+                except Exception as exc:
+                    _install_tr_exclusions({})
+                    print(f"[news-ingest] TR exclusion cache unavailable ({exc}); continuing")
 
                 # Resolve schema capabilities early (used by persistence paths).
                 self._regional_clusters_supported = await self._supports_regional_clusters(conn)
