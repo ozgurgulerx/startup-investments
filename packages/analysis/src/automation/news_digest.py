@@ -60,6 +60,77 @@ class DailyBrief:
     bullets: List[str]
 
 
+# Region-aware labels. `label(key, region)` returns the English default when no
+# turkey variant is defined, or when region != "turkey".
+LABELS: Dict[str, Dict[str, str]] = {
+    "fallback_summary": {
+        "global": "Signal captured in today's startup radar.",
+        "turkey": "Bugünün girişim radarında yakalanan sinyal.",
+    },
+    "fallback_takeaway": {
+        "global": "Validate the signal with customer evidence before acting.",
+        "turkey": "Harekete geçmeden önce müşteri kanıtıyla doğrula.",
+    },
+    "fallback_takeaway_text": {
+        "global": "Validate with user pull before acting.",
+        "turkey": "Harekete geçmeden önce kullanıcı talebiyle doğrula.",
+    },
+    "signals_label": {"global": "Signals:", "turkey": "Sinyaller:"},
+    "builder_view_label": {"global": "Builder view:", "turkey": "Kurucunun bakışı:"},
+    "brief_default": {"global": "TODAY'S BRIEF", "turkey": "GÜNÜN ÖZETİ"},
+    "signal_radar_header": {"global": "SIGNAL RADAR", "turkey": "SİNYAL RADARI"},
+    "scorecard": {
+        "global": "Momentum {m:.2f} · Conviction {c:.2f} · {n} companies",
+        "turkey": "Momentum {m:.2f} · Kanaat {c:.2f} · {n} şirket",
+    },
+    "top_stories_label": {"global": "TOP SIGNALS", "turkey": "TOP SİNYALLER"},
+    "intro_line": {
+        "global": "Top stories ranked by popularity and source corroboration:",
+        "turkey": "Popülerlik ve kaynak teyidine göre sıralı haberler:",
+    },
+    "turkey_section": {"global": "TURKEY ECOSYSTEM", "turkey": "TÜRKİYE EKOSİSTEMİ"},
+    "open_full_radar": {"global": "Open full radar:", "turkey": "Tüm radarı aç:"},
+    "full_radar_text": {"global": "Full radar:", "turkey": "Tüm radar:"},
+    "subscribe_footer": {
+        "global": "You're receiving this because you subscribed on Build Atlas.",
+        "turkey": "Bu e-postayı Build Atlas'a abone olduğunuz için alıyorsunuz.",
+    },
+    "unsubscribe_label": {"global": "Unsubscribe", "turkey": "Aboneliği iptal et"},
+    "source_label": {"global": "Source:", "turkey": "Kaynak:"},
+    "summary_label": {"global": "Summary:", "turkey": "Özet:"},
+    "link_label": {"global": "Link:", "turkey": "Bağlantı:"},
+    "feedback_label": {"global": "Feedback / support:", "turkey": "Geri bildirim / destek:"},
+    "feed_title": {"global": "Daily Startup Digest", "turkey": "Türkiye Sinyal Akışı"},
+    "edition_subtitle": {
+        "global": "Edition {d} · ranked by cross-source popularity",
+        "turkey": "Sayı {d} · kaynak çeşitliliğine göre sıralı",
+    },
+    "transition_prefix": {"global": "Newly", "turkey": "Yeni olarak"},
+    "transition_was": {"global": "was", "turkey": "önceden"},
+    "text_transition_was": {"global": "was", "turkey": "önceden"},
+    "subject_daily_digest": {
+        "global": "Build Atlas Daily Startup Digest",
+        "turkey": "Build Atlas Türkiye Günlük Girişim Özeti",
+    },
+    "subject_qa_daily": {
+        "global": "[QA] Build Atlas Daily Startup Digest",
+        "turkey": "[QA] Build Atlas Türkiye Günlük Girişim Özeti",
+    },
+    "subject_qa_merged": {
+        "global": "[QA-MERGED] Build Atlas Daily Startup Digest",
+        "turkey": "[QA-MERGED] Build Atlas Türkiye Günlük Girişim Özeti",
+    },
+}
+
+
+def tr(key: str, region: str = "global") -> str:
+    """Return the region-localized label, falling back to global English."""
+    entry = LABELS.get(key)
+    if not entry:
+        return key
+    return entry.get(region) or entry.get("global") or key
+
+
 class DailyNewsDigestSender:
     def __init__(self, database_url: Optional[str] = None):
         self.database_url = database_url or os.getenv("DATABASE_URL")
@@ -70,9 +141,12 @@ class DailyNewsDigestSender:
 
         self.pool: Optional[asyncpg.Pool] = None
         self.resend_api_key = os.getenv("RESEND_API_KEY", "")
-        self.from_email = _sanitize_email_header(
-            os.getenv("NEWS_DIGEST_FROM_EMAIL", "Build Atlas <news@buildatlas.net>")
-        ) or "Build Atlas <news@buildatlas.net>"
+        self.from_email = (
+            _sanitize_email_header(
+                os.getenv("NEWS_DIGEST_FROM_EMAIL", "Build Atlas <news@buildatlas.net>")
+            )
+            or "Build Atlas <news@buildatlas.net>"
+        )
         self.reply_to = _sanitize_email_header(os.getenv("NEWS_DIGEST_REPLY_TO", "")).strip()
         self.public_base_url = os.getenv("PUBLIC_BASE_URL", "https://buildatlas.net").rstrip("/")
         self.max_items = max(3, int(os.getenv("NEWS_DIGEST_MAX_ITEMS", "10")))
@@ -111,6 +185,7 @@ class DailyNewsDigestSender:
         )
         try:
             from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
             _credential = DefaultAzureCredential()
             _token_provider = get_bearer_token_provider(
                 _credential, "https://cognitiveservices.azure.com/.default"
@@ -129,7 +204,9 @@ class DailyNewsDigestSender:
                     azure_endpoint=endpoint,
                 )
 
-    async def _resolve_edition_date(self, conn: asyncpg.Connection, edition_date: Optional[str], *, region: str) -> date:
+    async def _resolve_edition_date(
+        self, conn: asyncpg.Connection, edition_date: Optional[str], *, region: str
+    ) -> date:
         if edition_date:
             # asyncpg expects Python date objects for DATE parameters.
             return datetime.strptime(edition_date, "%Y-%m-%d").date()
@@ -140,8 +217,7 @@ class DailyNewsDigestSender:
             WHERE status = 'ready' AND region = $1
             ORDER BY edition_date DESC
             LIMIT 1
-            """
-            ,
+            """,
             region,
         )
         if not row:
@@ -151,15 +227,22 @@ class DailyNewsDigestSender:
             return value
         return datetime.strptime(str(value), "%Y-%m-%d").date()
 
-    async def _load_brief(self, conn: asyncpg.Connection, edition_date: date, *, region: str) -> Optional[DailyBrief]:
+    async def _load_brief(
+        self, conn: asyncpg.Connection, edition_date: date, *, region: str
+    ) -> Optional[DailyBrief]:
         """Load the daily brief from the edition's stats_json."""
         row = await conn.fetchrow(
             "SELECT stats_json FROM news_daily_editions WHERE edition_date = $1::date AND region = $2",
-            edition_date, region,
+            edition_date,
+            region,
         )
         if not row or not row["stats_json"]:
             return None
-        stats = json.loads(row["stats_json"]) if isinstance(row["stats_json"], str) else row["stats_json"]
+        stats = (
+            json.loads(row["stats_json"])
+            if isinstance(row["stats_json"], str)
+            else row["stats_json"]
+        )
         brief = stats.get("daily_brief")
         if not brief or not brief.get("headline"):
             return None
@@ -169,7 +252,9 @@ class DailyNewsDigestSender:
             bullets=[str(b) for b in brief.get("bullets", [])],
         )
 
-    async def _load_stories(self, conn: asyncpg.Connection, edition_date: date, *, region: str) -> List[DigestStory]:
+    async def _load_stories(
+        self, conn: asyncpg.Connection, edition_date: date, *, region: str
+    ) -> List[DigestStory]:
         rows = await conn.fetch(
             """
             WITH ordered AS (
@@ -213,7 +298,9 @@ class DailyNewsDigestSender:
             )
         return stories
 
-    async def _load_subscribers(self, conn: asyncpg.Connection, *, region: str = "global") -> List[Subscriber]:
+    async def _load_subscribers(
+        self, conn: asyncpg.Connection, *, region: str = "global"
+    ) -> List[Subscriber]:
         rows = await conn.fetch(
             """
             SELECT id::text AS id, email, unsubscribe_token::text AS unsubscribe_token,
@@ -245,7 +332,8 @@ class DailyNewsDigestSender:
         rows = await conn.fetch(
             "SELECT id::text, email_normalized FROM news_email_subscriptions "
             "WHERE email_normalized = ANY($1) AND region = $2 AND status = 'active'",
-            emails, other_region,
+            emails,
+            other_region,
         )
         return {str(r["email_normalized"]): str(r["id"]) for r in rows}
 
@@ -280,18 +368,24 @@ class DailyNewsDigestSender:
             return f"{base}/news/turkey/{edition_date}"
         return f"{base}/news/{edition_date}"
 
-    def _build_story_rows_html(self, stories: List[DigestStory], edition_date: str, region: str = "global") -> str:
+    def _build_story_rows_html(
+        self, stories: List[DigestStory], edition_date: str, region: str = "global"
+    ) -> str:
         blocks = []
+        fallback_summary = tr("fallback_summary", region)
+        fallback_takeaway = tr("fallback_takeaway", region)
+        signals_label = tr("signals_label", region)
+        builder_view_label = tr("builder_view_label", region)
         for idx, story in enumerate(stories, start=1):
-            summary = story.summary or "Signal captured in today's startup radar."
-            takeaway = story.builder_takeaway or "Validate the signal with customer evidence before acting."
+            summary = story.summary or fallback_summary
+            takeaway = story.builder_takeaway or fallback_takeaway
             url = story.url or self._news_url(self.public_base_url, edition_date, region)
             signal_tags_html = ""
             if story.signal_tags:
                 tags_text = ", ".join(story.signal_tags)
                 signal_tags_html = (
                     f'<div style="margin-top:6px;font-size:11px;color:#6366f1;">'
-                    f"Signals: {tags_text}</div>"
+                    f"{signals_label} {tags_text}</div>"
                 )
             blocks.append(
                 f"""<tr>
@@ -300,7 +394,7 @@ class DailyNewsDigestSender:
                     <a href="{url}" style="display:block;margin-top:4px;font-size:18px;line-height:1.35;color:#111827;text-decoration:none;font-weight:600;">{story.title}</a>
                     <div style="margin-top:8px;font-size:14px;line-height:1.55;color:#374151;">{summary}</div>
                     <div style="margin-top:8px;padding:8px 10px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;font-size:12px;line-height:1.45;color:#9a3412;">
-                      Builder view: {takeaway}
+                      {builder_view_label} {takeaway}
                     </div>
                     {signal_tags_html}
                   </td>
@@ -309,13 +403,14 @@ class DailyNewsDigestSender:
         return "\n".join(blocks)
 
     @staticmethod
-    def _build_brief_html(brief: DailyBrief, *, label: str = "TODAY'S BRIEF") -> str:
-        bullets_html = "".join(
-            f'<li style="margin-bottom:4px;">{b}</li>' for b in brief.bullets
-        )
+    def _build_brief_html(
+        brief: DailyBrief, *, region: str = "global", header: Optional[str] = None
+    ) -> str:
+        header_text = header or tr("brief_default", region)
+        bullets_html = "".join(f'<li style="margin-bottom:4px;">{b}</li>' for b in brief.bullets)
         return f"""<tr>
                   <td style="padding:16px 0;border-bottom:1px solid #e5e7eb;">
-                    <div style="font-size:11px;color:#f59e0b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">{label}</div>
+                    <div style="font-size:11px;color:#f59e0b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">{header_text}</div>
                     <div style="margin-top:6px;font-size:18px;line-height:1.35;color:#0f172a;font-weight:600;">{brief.headline}</div>
                     <div style="margin-top:6px;font-size:14px;line-height:1.55;color:#374151;">{brief.summary}</div>
                     <ul style="margin:8px 0 0 0;padding-left:18px;font-size:13px;line-height:1.55;color:#374151;">{bullets_html}</ul>
@@ -323,62 +418,71 @@ class DailyNewsDigestSender:
                 </tr>"""
 
     @staticmethod
-    def _build_signal_radar_html(signal_context: Any) -> str:
+    def _build_signal_radar_html(signal_context: Any, region: str = "global") -> str:
         """Render the Signal Radar section as HTML table rows."""
         from src.automation.digest_signals import DigestSignalContext
+
         if not signal_context or not isinstance(signal_context, DigestSignalContext):
             return ""
         if not signal_context.top_signals:
             return ""
 
-        STATUS_COLORS = {
-            "emerging": "#10b981",       # green
-            "accelerating": "#f59e0b",   # amber
+        status_colors = {
+            "emerging": "#10b981",  # green
+            "accelerating": "#f59e0b",  # amber
         }
+        radar_header = tr("signal_radar_header", region)
+        scorecard_tpl = tr("scorecard", region)
+        transition_prefix = tr("transition_prefix", region)
+        transition_was = tr("transition_was", region)
 
         # Narrative paragraph
         narrative_html = ""
         if signal_context.narrative:
             narrative_html = (
                 f'<div style="margin-top:8px;font-size:14px;line-height:1.55;color:#374151;">'
-                f'{signal_context.narrative}</div>'
+                f"{signal_context.narrative}</div>"
             )
 
         # Signal cards
         cards: List[str] = []
         for sig in signal_context.top_signals:
-            color = STATUS_COLORS.get(sig.status, "#6b7280")
+            color = status_colors.get(sig.status, "#6b7280")
             badge = (
                 f'<span style="display:inline-block;padding:2px 8px;border-radius:4px;'
-                f'background:{color};color:#fff;font-size:10px;text-transform:uppercase;'
+                f"background:{color};color:#fff;font-size:10px;text-transform:uppercase;"
                 f'letter-spacing:0.05em;font-weight:600;">{sig.status}</span>'
             )
-            scorecard = (
-                f'<span style="font-size:11px;color:#6b7280;">'
-                f'Momentum {sig.momentum:.2f} · Conviction {sig.conviction:.2f} · '
-                f'{sig.unique_company_count} companies</span>'
+            scorecard_text = scorecard_tpl.format(
+                m=sig.momentum, c=sig.conviction, n=sig.unique_company_count
             )
+            scorecard = f'<span style="font-size:11px;color:#6b7280;">{scorecard_text}</span>'
             transition_html = ""
             if sig.lifecycle_transition:
+                prior_stage = (
+                    sig.lifecycle_transition.split(" → ")[0]
+                    if " → " in sig.lifecycle_transition
+                    else "?"
+                )
                 transition_html = (
                     f'<div style="margin-top:4px;font-size:11px;color:#8b5cf6;font-style:italic;">'
-                    f'Newly {sig.status} — was {sig.lifecycle_transition.split(" → ")[0] if " → " in sig.lifecycle_transition else "?"} '
+                    f"{transition_prefix} {sig.status} — {transition_was} {prior_stage} "
                     f'{sig.transition_recency or ""}</div>'
                 )
             cards.append(
                 f'<div style="margin-top:10px;padding:10px 12px;background:#f5f3ff;'
                 f'border:1px solid #ddd6fe;border-radius:8px;">'
-                f'{badge}'
+                f"{badge}"
                 f'<div style="margin-top:6px;font-size:14px;font-weight:600;color:#1e1b4b;">{sig.claim}</div>'
                 f'<div style="margin-top:4px;">{scorecard}</div>'
-                f'{transition_html}'
-                f'</div>'
+                f"{transition_html}"
+                f"</div>"
             )
 
         cards_html = "\n".join(cards)
         return f"""<tr>
                   <td style="padding:20px 0 4px 0;border-bottom:1px solid #e5e7eb;">
-                    <div style="font-size:11px;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">SIGNAL RADAR</div>
+                    <div style="font-size:11px;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">{radar_header}</div>
                     {narrative_html}
                     {cards_html}
                   </td>
@@ -400,13 +504,13 @@ class DailyNewsDigestSender:
         # --- Brief section ---
         brief_html = ""
         if brief:
-            brief_html = self._build_brief_html(brief)
+            brief_html = self._build_brief_html(brief, region=region)
 
         # --- Signal Radar section ---
-        signal_radar_html = self._build_signal_radar_html(signal_context)
+        signal_radar_html = self._build_signal_radar_html(signal_context, region=region)
 
         # --- Primary stories ---
-        stories_label = "TOP SİNYALLER" if region == "turkey" else "TOP SIGNALS"
+        stories_label = tr("top_stories_label", region)
         stories_html = self._build_story_rows_html(stories, edition_date, region)
         if stories_html:
             stories_html = f"""<tr>
@@ -418,33 +522,42 @@ class DailyNewsDigestSender:
         else:
             stories_html = "<tr><td>No stories found for this edition.</td></tr>"
 
-        # --- Turkey section (cross-region subscribers only) ---
+        # --- Turkey section (cross-region subscribers only; always renders in Turkish) ---
         turkey_section_html = ""
         if turkey_stories:
             turkey_brief_html = ""
             if turkey_brief:
-                turkey_brief_html = self._build_brief_html(turkey_brief, label="GÜNÜN ÖZETİ")
-            turkey_signal_radar_html = self._build_signal_radar_html(turkey_signal_context)
-            turkey_stories_html = self._build_story_rows_html(turkey_stories, edition_date, "turkey")
+                turkey_brief_html = self._build_brief_html(turkey_brief, region="turkey")
+            turkey_signal_radar_html = self._build_signal_radar_html(
+                turkey_signal_context, region="turkey"
+            )
+            turkey_stories_html = self._build_story_rows_html(
+                turkey_stories, edition_date, "turkey"
+            )
             turkey_stories_block = ""
             if turkey_stories_html:
                 turkey_stories_block = f"""<tr>
                   <td style="padding:12px 0 4px 0;">
-                    <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">TOP SİNYALLER</div>
+                    <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">{tr("top_stories_label", "turkey")}</div>
                   </td>
                 </tr>
                 {turkey_stories_html}"""
             turkey_section_html = f"""<tr>
                   <td style="padding:24px 0 0 0;border-top:2px solid #e5e7eb;">
-                    <div style="font-size:12px;color:#f59e0b;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">&#x1F1F9;&#x1F1F7; TÜRKİYE EKOSİSTEMİ</div>
+                    <div style="font-size:12px;color:#f59e0b;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">&#x1F1F9;&#x1F1F7; {tr("turkey_section", "turkey")}</div>
                   </td>
                 </tr>
                 {turkey_brief_html}
                 {turkey_signal_radar_html}
                 {turkey_stories_block}"""
 
-        # --- Subject line title ---
-        title = "Turkey Signal Feed" if region == "turkey" else "Daily Startup Digest"
+        title = tr("feed_title", region)
+        edition_subtitle = tr("edition_subtitle", region).format(d=edition_date)
+        open_full_radar = tr("open_full_radar", region)
+        feedback_label = tr("feedback_label", region)
+        subscribe_footer = tr("subscribe_footer", region)
+        unsubscribe_label = tr("unsubscribe_label", region)
+        full_url = self._news_url(self.public_base_url, edition_date, region)
 
         return f"""
         <html>
@@ -457,7 +570,7 @@ class DailyNewsDigestSender:
                       <td>
                         <div style="font-size:12px;color:#f59e0b;text-transform:uppercase;letter-spacing:0.08em;">Build Atlas</div>
                         <h1 style="margin:8px 0 4px 0;font-size:28px;line-height:1.2;color:#0f172a;">{title}</h1>
-                        <div style="font-size:14px;color:#475569;">Edition {edition_date} · ranked by cross-source popularity</div>
+                        <div style="font-size:14px;color:#475569;">{edition_subtitle}</div>
                       </td>
                     </tr>
                     {brief_html}
@@ -466,18 +579,18 @@ class DailyNewsDigestSender:
                     {turkey_section_html}
                     <tr>
                       <td style="padding-top:16px;font-size:13px;color:#6b7280;">
-                        Open full radar: <a href="{self._news_url(self.public_base_url, edition_date, region)}">{self._news_url(self.public_base_url, edition_date, region)}</a>
+                        {open_full_radar} <a href="{full_url}">{full_url}</a>
                       </td>
                     </tr>
                     <tr>
                       <td style="padding-top:8px;font-size:11px;color:#94a3b8;">
-                        Feedback / support: <a href="mailto:support@graph-atlas.com" style="color:#94a3b8;">support@graph-atlas.com</a> &middot; <a href="{self.public_base_url}/support" style="color:#94a3b8;">{self.public_base_url}/support</a>
+                        {feedback_label} <a href="mailto:support@graph-atlas.com" style="color:#94a3b8;">support@graph-atlas.com</a> &middot; <a href="{self.public_base_url}/support" style="color:#94a3b8;">{self.public_base_url}/support</a>
                       </td>
                     </tr>
                     <tr>
                       <td style="padding-top:6px;font-size:12px;color:#94a3b8;">
-                        You're receiving this because you subscribed on Build Atlas.
-                        <a href="{unsubscribe_url}">Unsubscribe</a>
+                        {subscribe_footer}
+                        <a href="{unsubscribe_url}">{unsubscribe_label}</a>
                       </td>
                     </tr>
                   </table>
@@ -489,54 +602,84 @@ class DailyNewsDigestSender:
         """
 
     @staticmethod
-    def _build_brief_text(brief: DailyBrief, *, label: str = "TODAY'S BRIEF") -> List[str]:
-        lines = [label, brief.headline, brief.summary]
+    def _build_brief_text(
+        brief: DailyBrief, *, region: str = "global", header: Optional[str] = None
+    ) -> List[str]:
+        header_text = header or tr("brief_default", region)
+        lines = [header_text, brief.headline, brief.summary]
         for b in brief.bullets:
             lines.append(f"  • {b}")
         lines.append("")
         return lines
 
     @staticmethod
-    def _build_stories_text(stories: List[DigestStory], public_base_url: str, edition_date: str, region: str = "global") -> List[str]:
+    def _build_stories_text(
+        stories: List[DigestStory], public_base_url: str, edition_date: str, region: str = "global"
+    ) -> List[str]:
         lines: List[str] = []
+        source_label = tr("source_label", region)
+        summary_label = tr("summary_label", region)
+        builder_view_label = tr("builder_view_label", region)
+        link_label = tr("link_label", region)
+        signals_label = tr("signals_label", region)
+        fallback_summary = tr("fallback_summary", region)
+        fallback_takeaway = tr("fallback_takeaway_text", region)
         for idx, story in enumerate(stories, start=1):
-            fallback = f"{public_base_url}/news/turkey/{edition_date}" if region == "turkey" else f"{public_base_url}/news/{edition_date}"
+            fallback = (
+                f"{public_base_url}/news/turkey/{edition_date}"
+                if region == "turkey"
+                else f"{public_base_url}/news/{edition_date}"
+            )
             url = story.url or fallback
-            summary = story.summary or "Signal captured in today's radar."
-            builder_takeaway = story.builder_takeaway or "Validate with user pull before acting."
-            lines.extend([
-                f"{idx}. {story.title}",
-                f"   Source: {story.source}",
-                f"   Summary: {summary}",
-                f"   Builder view: {builder_takeaway}",
-                f"   Link: {url}",
-            ])
+            summary = story.summary or fallback_summary
+            builder_takeaway = story.builder_takeaway or fallback_takeaway
+            lines.extend(
+                [
+                    f"{idx}. {story.title}",
+                    f"   {source_label} {story.source}",
+                    f"   {summary_label} {summary}",
+                    f"   {builder_view_label} {builder_takeaway}",
+                    f"   {link_label} {url}",
+                ]
+            )
             if story.signal_tags:
-                lines.append(f"   Signals: {', '.join(story.signal_tags)}")
+                lines.append(f"   {signals_label} {', '.join(story.signal_tags)}")
             lines.append("")
         return lines
 
     @staticmethod
-    def _build_signal_radar_text(signal_context: Any) -> List[str]:
+    def _build_signal_radar_text(signal_context: Any, region: str = "global") -> List[str]:
         """Render the Signal Radar section as plain text."""
         from src.automation.digest_signals import DigestSignalContext
+
         if not signal_context or not isinstance(signal_context, DigestSignalContext):
             return []
         if not signal_context.top_signals:
             return []
 
-        lines = ["SIGNAL RADAR", ""]
+        transition_was = tr("text_transition_was", region)
+        scorecard_tpl = tr("scorecard", region)
+
+        lines = [tr("signal_radar_header", region), ""]
         if signal_context.narrative:
             lines.append(signal_context.narrative)
             lines.append("")
         for sig in signal_context.top_signals:
             transition_note = ""
             if sig.lifecycle_transition:
-                transition_note = f" (was {sig.lifecycle_transition.split(' → ')[0] if ' → ' in sig.lifecycle_transition else '?'} {sig.transition_recency or ''})"
+                prior_stage = (
+                    sig.lifecycle_transition.split(" → ")[0]
+                    if " → " in sig.lifecycle_transition
+                    else "?"
+                )
+                transition_note = (
+                    f" ({transition_was} {prior_stage} {sig.transition_recency or ''})"
+                )
+            scorecard_text = scorecard_tpl.format(
+                m=sig.momentum, c=sig.conviction, n=sig.unique_company_count
+            )
             lines.append(
-                f"  [{sig.status.upper()}] {sig.claim}"
-                f"  — momentum={sig.momentum:.2f}, conviction={sig.conviction:.2f}, "
-                f"{sig.unique_company_count} companies{transition_note}"
+                f"  [{sig.status.upper()}] {sig.claim}  — {scorecard_text}{transition_note}"
             )
         lines.append("")
         return lines
@@ -554,35 +697,41 @@ class DailyNewsDigestSender:
         signal_context: Any = None,
         turkey_signal_context: Any = None,
     ) -> str:
-        title = "Turkey Signal Feed" if region == "turkey" else "Daily Startup Digest"
+        title = tr("feed_title", region)
         lines = [
             f"Build Atlas {title} ({edition_date})",
             "",
         ]
 
         if brief:
-            lines.extend(self._build_brief_text(brief))
+            lines.extend(self._build_brief_text(brief, region=region))
 
-        lines.extend(self._build_signal_radar_text(signal_context))
+        lines.extend(self._build_signal_radar_text(signal_context, region=region))
 
-        lines.append("Top stories ranked by popularity and source corroboration:")
+        lines.append(tr("intro_line", region))
         lines.append("")
         lines.extend(self._build_stories_text(stories, self.public_base_url, edition_date, region))
 
         if turkey_stories:
-            lines.extend(["---", "", "TURKEY ECOSYSTEM", ""])
+            lines.extend(["---", "", tr("turkey_section", "turkey"), ""])
             if turkey_brief:
-                lines.extend(self._build_brief_text(turkey_brief, label="GÜNÜN ÖZETİ"))
-            lines.extend(self._build_signal_radar_text(turkey_signal_context))
-            lines.extend(self._build_stories_text(turkey_stories, self.public_base_url, edition_date, "turkey"))
+                lines.extend(self._build_brief_text(turkey_brief, region="turkey"))
+            lines.extend(self._build_signal_radar_text(turkey_signal_context, region="turkey"))
+            lines.extend(
+                self._build_stories_text(
+                    turkey_stories, self.public_base_url, edition_date, "turkey"
+                )
+            )
 
-        lines.extend([
-            f"Full radar: {self._news_url(self.public_base_url, edition_date, region)}",
-            "",
-            f"Feedback / support: support@graph-atlas.com · {self.public_base_url}/support",
-            "",
-            f"Unsubscribe: {unsubscribe_url}",
-        ])
+        lines.extend(
+            [
+                f"{tr('full_radar_text', region)} {self._news_url(self.public_base_url, edition_date, region)}",
+                "",
+                f"{tr('feedback_label', region)} support@graph-atlas.com · {self.public_base_url}/support",
+                "",
+                f"{tr('unsubscribe_label', region)}: {unsubscribe_url}",
+            ]
+        )
         return "\n".join(lines)
 
     async def _record_delivery(
@@ -659,11 +808,10 @@ class DailyNewsDigestSender:
             turkey_signal_context=turkey_signal_context,
         )
         try:
-            subject_label = "Turkey Signal Feed" if region == "turkey" else "Daily Startup Digest"
             payload: Dict[str, Any] = {
                 "from": self.from_email,
                 "to": [subscriber.email],
-                "subject": f"Build Atlas {subject_label} — {resolved_date_str}",
+                "subject": f"{tr('subject_daily_digest', region)} — {resolved_date_str}",
                 "html": html,
                 "text": text,
             }
@@ -735,9 +883,7 @@ class DailyNewsDigestSender:
             if not story.cluster_id:
                 continue
             signals = cluster_signal_map.get(story.cluster_id, [])
-            story.signal_tags = list(dict.fromkeys(
-                s.cluster_name or s.claim[:40] for s in signals
-            ))
+            story.signal_tags = list(dict.fromkeys(s.cluster_name or s.claim[:40] for s in signals))
 
     async def _run_qa(
         self,
@@ -749,50 +895,67 @@ class DailyNewsDigestSender:
         brief: Optional[DailyBrief],
         qa_email: str,
         region: str,
+        qa_merged: bool = False,
     ) -> Dict[str, Any]:
-        """Send a merged global+turkey digest to a single QA email. No subscriber/dedup/delivery logic."""
-        # Always load both regions
-        if region == "global":
-            turkey_brief = await self._load_brief(conn, resolved_date, region="turkey")
-            turkey_stories = await self._load_stories(conn, resolved_date, region="turkey")
-        else:
-            # Started from turkey — load global as primary, turkey as secondary
-            global_brief = await self._load_brief(conn, resolved_date, region="global")
-            global_stories = await self._load_stories(conn, resolved_date, region="global")
-            # Swap: global becomes primary, original becomes turkey section
-            turkey_brief = brief
-            turkey_stories = stories
-            brief = global_brief
-            stories = global_stories
-            region = "global"  # render as global template with turkey section
+        """Send a QA digest to a single address. No subscriber/dedup/delivery logic.
 
-        if not turkey_stories:
-            turkey_stories = None
-            turkey_brief = None
+        Region-pure by default (`--region turkey` → pure Turkish digest).
+        When `qa_merged=True`, loads both regions and renders the opposite
+        region as the secondary "turkey section" below the primary region.
+        """
+        turkey_brief: Optional[DailyBrief] = None
+        turkey_stories: Optional[List[DigestStory]] = None
+
+        if qa_merged:
+            if region == "global":
+                turkey_brief = await self._load_brief(conn, resolved_date, region="turkey")
+                turkey_stories = await self._load_stories(conn, resolved_date, region="turkey")
+            else:
+                # Swap for render: primary shell in global, original (turkey) as secondary.
+                global_brief = await self._load_brief(conn, resolved_date, region="global")
+                global_stories = await self._load_stories(conn, resolved_date, region="global")
+                turkey_brief = brief
+                turkey_stories = stories
+                brief = global_brief
+                stories = global_stories
+                region = "global"
+
+            if not turkey_stories:
+                turkey_stories = None
+                turkey_brief = None
 
         # --- Load signal context for QA previews ---
         signal_context = None
         turkey_signal_context = None
         if self.signals_enabled:
-            from src.automation.digest_signals import load_digest_signal_context, fetch_cluster_ids_for_edition
-            global_cluster_ids = await fetch_cluster_ids_for_edition(
-                conn, resolved_date, region="global", limit=self.max_items,
+            from src.automation.digest_signals import (
+                fetch_cluster_ids_for_edition,
+                load_digest_signal_context,
+            )
+
+            primary_cluster_ids = await fetch_cluster_ids_for_edition(
+                conn,
+                resolved_date,
+                region=region,
+                limit=self.max_items,
             )
             signal_context = await load_digest_signal_context(
                 conn,
-                region="global",
-                cluster_ids=global_cluster_ids,
+                region=region,
+                cluster_ids=primary_cluster_ids,
                 max_signals=self.max_signals,
                 azure_client=self._azure_client,
                 model_name=self._azure_model_name,
                 story_titles=[s.title for s in stories],
             )
-            # Attach signal tags to global stories
             if signal_context:
                 self._attach_signal_tags(stories, signal_context.cluster_signal_map)
             if turkey_stories:
                 turkey_cluster_ids = await fetch_cluster_ids_for_edition(
-                    conn, resolved_date, region="turkey", limit=self.max_items,
+                    conn,
+                    resolved_date,
+                    region="turkey",
+                    limit=self.max_items,
                 )
                 turkey_signal_context = await load_digest_signal_context(
                     conn,
@@ -804,9 +967,13 @@ class DailyNewsDigestSender:
                     story_titles=[s.title for s in turkey_stories],
                 )
                 if turkey_signal_context:
-                    self._attach_signal_tags(turkey_stories, turkey_signal_context.cluster_signal_map)
+                    self._attach_signal_tags(
+                        turkey_stories, turkey_signal_context.cluster_signal_map
+                    )
 
-        unsubscribe_url = self._news_url(self.public_base_url, resolved_date_str, region)  # placeholder for QA
+        unsubscribe_url = self._news_url(
+            self.public_base_url, resolved_date_str, region
+        )  # placeholder for QA
         html = self._build_email_html(
             edition_date=resolved_date_str,
             stories=stories,
@@ -832,8 +999,10 @@ class DailyNewsDigestSender:
 
         result: Dict[str, Any] = {
             "qa": True,
+            "qa_merged": qa_merged,
             "qa_email": qa_email,
             "edition_date": resolved_date_str,
+            "region": region,
             "stories": len(stories),
             "turkey_stories": len(turkey_stories) if turkey_stories else 0,
             "has_brief": brief is not None,
@@ -844,13 +1013,15 @@ class DailyNewsDigestSender:
 
         if self.dry_run:
             result["dry_run"] = True
+            result["html_preview"] = html
             return result
 
         if not self.resend_api_key:
             result["error"] = "RESEND_API_KEY not configured"
             return result
 
-        subject = f"[QA] Build Atlas Daily Startup Digest — {resolved_date_str}"
+        subject_key = "subject_qa_merged" if qa_merged else "subject_qa_daily"
+        subject = f"{tr(subject_key, region)} — {resolved_date_str}"
         payload: Dict[str, Any] = {
             "from": self.from_email,
             "to": [qa_email],
@@ -893,6 +1064,7 @@ class DailyNewsDigestSender:
         target_hour: int = 8,
         target_minute: int = 45,
         qa_email: Optional[str] = None,
+        qa_merged: bool = False,
     ) -> Dict[str, Any]:
         await self.connect()
         assert self.pool is not None
@@ -914,6 +1086,7 @@ class DailyNewsDigestSender:
                     brief=brief,
                     qa_email=qa_email,
                     region=region,
+                    qa_merged=qa_merged,
                 )
 
             # --- Signal context loading ---
@@ -921,9 +1094,16 @@ class DailyNewsDigestSender:
             turkey_signal_context = None
             if self.signals_enabled:
                 try:
-                    from src.automation.digest_signals import load_digest_signal_context, fetch_cluster_ids_for_edition
+                    from src.automation.digest_signals import (
+                        fetch_cluster_ids_for_edition,
+                        load_digest_signal_context,
+                    )
+
                     cluster_ids = await fetch_cluster_ids_for_edition(
-                        conn, resolved_date, region=region, limit=self.max_items,
+                        conn,
+                        resolved_date,
+                        region=region,
+                        limit=self.max_items,
                     )
                     signal_context = await load_digest_signal_context(
                         conn,
@@ -971,12 +1151,16 @@ class DailyNewsDigestSender:
             turkey_stories: Optional[List[DigestStory]] = None
 
             if subscribers and region == "global":
-                cross_region_map = await self._find_cross_region_subs(conn, subscribers, region=region)
+                cross_region_map = await self._find_cross_region_subs(
+                    conn, subscribers, region=region
+                )
                 if cross_region_map:
                     # Load turkey data once for all cross-region subscribers.
                     try:
                         turkey_brief = await self._load_brief(conn, resolved_date, region="turkey")
-                        turkey_stories = await self._load_stories(conn, resolved_date, region="turkey")
+                        turkey_stories = await self._load_stories(
+                            conn, resolved_date, region="turkey"
+                        )
                         if not turkey_stories:
                             turkey_stories = None
                             turkey_brief = None
@@ -987,9 +1171,16 @@ class DailyNewsDigestSender:
             # Load turkey signal context for cross-region emails
             if self.signals_enabled and turkey_stories:
                 try:
-                    from src.automation.digest_signals import load_digest_signal_context, fetch_cluster_ids_for_edition
+                    from src.automation.digest_signals import (
+                        fetch_cluster_ids_for_edition,
+                        load_digest_signal_context,
+                    )
+
                     turkey_cluster_ids = await fetch_cluster_ids_for_edition(
-                        conn, resolved_date, region="turkey", limit=self.max_items,
+                        conn,
+                        resolved_date,
+                        region="turkey",
+                        limit=self.max_items,
                     )
                     turkey_signal_context = await load_digest_signal_context(
                         conn,
@@ -1001,7 +1192,9 @@ class DailyNewsDigestSender:
                         story_titles=[s.title for s in turkey_stories],
                     )
                     if turkey_signal_context:
-                        self._attach_signal_tags(turkey_stories, turkey_signal_context.cluster_signal_map)
+                        self._attach_signal_tags(
+                            turkey_stories, turkey_signal_context.cluster_signal_map
+                        )
                 except Exception as exc:
                     logger.warning("Turkey signal context loading failed: %s", exc)
                     turkey_signal_context = None
@@ -1053,7 +1246,8 @@ class DailyNewsDigestSender:
 
                     sub_turkey_signal_ctx = turkey_signal_context if is_cross else None
                     outcome = await self._send_one(
-                        client, conn,
+                        client,
+                        conn,
                         subscriber=subscriber,
                         resolved_date=resolved_date,
                         resolved_date_str=resolved_date_str,
@@ -1079,6 +1273,7 @@ async def run_news_digest_sender(
     target_hour: int = 8,
     target_minute: int = 45,
     qa_email: Optional[str] = None,
+    qa_merged: bool = False,
 ) -> Dict[str, Any]:
     sender = DailyNewsDigestSender()
     if dry_run:
@@ -1090,6 +1285,7 @@ async def run_news_digest_sender(
             target_hour=target_hour,
             target_minute=target_minute,
             qa_email=qa_email,
+            qa_merged=qa_merged,
         )
     finally:
         await sender.close()
