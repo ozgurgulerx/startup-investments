@@ -43,6 +43,14 @@ def _default_query_pack() -> Dict[str, List[str]]:
             '("yapay zeka" OR "ai startup" OR "girişim") (yatırım OR funding OR seed OR "series a") (turkiye OR türkiye OR istanbul) -is:retweet',
             '("türkiye startup" OR "turkish startup" OR girişim) ("yapay zeka" OR ai OR genai) -is:retweet',
             '("webrazzi" OR "egirisim") ("yapay zeka" OR startup OR yatırım) -is:retweet',
+            # PR #2: ecosystem orgs + government bodies that post funding,
+            # program, grant, and policy signals directly.
+            "(from:turkiyeai OR from:212vc OR from:endeavor_turkey OR "
+            "from:itucekirdek OR from:ariteknokent OR from:aitrorgtr OR "
+            "from:bilisimvadisitr OR from:startups_watch OR "
+            "from:Tubitak OR from:KOSGEB OR from:tcsanayi OR "
+            "from:teblegirisim OR from:istkaorgtr OR from:turkpatent_en) "
+            "-is:retweet",
         ],
     }
 
@@ -207,7 +215,9 @@ async def fetch_recent_search_items(
                 }
                 engagement = {
                     "like_count": int(metrics.get("like_count") or 0),
-                    "repost_count": int(metrics.get("retweet_count") or metrics.get("repost_count") or 0),
+                    "repost_count": int(
+                        metrics.get("retweet_count") or metrics.get("repost_count") or 0
+                    ),
                     "reply_count": int(metrics.get("reply_count") or 0),
                     "quote_count": int(metrics.get("quote_count") or 0),
                     "bookmark_count": int(metrics.get("bookmark_count") or 0),
