@@ -78,64 +78,41 @@ def _sanitize_signal_claim_text(text: str) -> str:
 
 @app.command()
 def analyze(
-    csv_path: Path = typer.Argument(
-        ...,
-        help="Path to the CSV file with startup data"
-    ),
+    csv_path: Path = typer.Argument(..., help="Path to the CSV file with startup data"),
     limit: Optional[int] = typer.Option(
-        None,
-        "--limit", "-l",
-        help="Limit number of startups to analyze"
+        None, "--limit", "-l", help="Limit number of startups to analyze"
     ),
-    pilot: bool = typer.Option(
-        False,
-        "--pilot", "-p",
-        help="Use curated pilot list of startups"
-    ),
+    pilot: bool = typer.Option(False, "--pilot", "-p", help="Use curated pilot list of startups"),
     output_dir: Optional[Path] = typer.Option(
-        None,
-        "--output", "-o",
-        help="Output directory for results"
+        None, "--output", "-o", help="Output directory for results"
     ),
     period: Optional[str] = typer.Option(
         None,
         "--period",
-        help="Period for analysis (e.g., 2026-01). Auto-detected from path if not specified."
+        help="Period for analysis (e.g., 2026-01). Auto-detected from path if not specified.",
     ),
     min_funding: Optional[float] = typer.Option(
-        None,
-        "--min-funding",
-        help="Minimum funding amount to include"
+        None, "--min-funding", help="Minimum funding amount to include"
     ),
     enrich_csv: bool = typer.Option(
-        True,
-        "--enrich-csv/--no-enrich-csv",
-        help="Create enriched CSV with analysis columns"
+        True, "--enrich-csv/--no-enrich-csv", help="Create enriched CSV with analysis columns"
     ),
     skip_crawl: bool = typer.Option(
-        False,
-        "--skip-crawl",
-        help="Skip crawling, use existing cached data only"
+        False, "--skip-crawl", help="Skip crawling, use existing cached data only"
     ),
     force_crawl: bool = typer.Option(
-        False,
-        "--force-crawl",
-        help="Ignore cached content, always re-crawl every startup"
+        False, "--force-crawl", help="Ignore cached content, always re-crawl every startup"
     ),
     min_content_chars: int = typer.Option(
         0,
         "--min-content-chars",
-        help="Min content chars threshold; retry with deep crawl if below this"
+        help="Min content chars threshold; retry with deep crawl if below this",
     ),
     upload_to_blob: bool = typer.Option(
-        False,
-        "--upload-to-blob",
-        help="Upload analysis JSONs and briefs to Azure Blob Storage"
+        False, "--upload-to-blob", help="Upload analysis JSONs and briefs to Azure Blob Storage"
     ),
     blob_output_prefix: str = typer.Option(
-        "",
-        "--blob-output-prefix",
-        help="Blob path prefix (e.g., periods/2026-02/)"
+        "", "--blob-output-prefix", help="Blob path prefix (e.g., periods/2026-02/)"
     ),
 ):
     """Analyze startups for GenAI usage and build patterns.
@@ -158,11 +135,13 @@ def analyze(
         output_path = output_dir or settings.data_output_dir
     output_path.mkdir(parents=True, exist_ok=True)
 
-    console.print(Panel.fit(
-        "[bold blue]Startup GenAI Analysis System[/bold blue]\n"
-        "Discovering build patterns and insights from AI startups",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Startup GenAI Analysis System[/bold blue]\n"
+            "Discovering build patterns and insights from AI startups",
+            border_style="blue",
+        )
+    )
 
     console.print(f"\n[bold]Loading startups from[/bold] {csv_path}...")
 
@@ -206,11 +185,19 @@ def analyze(
 
     # Run analysis
     console.print("\n[bold blue]Starting analysis pipeline...[/bold blue]")
-    results, startup_map = asyncio.run(_run_full_analysis(
-        startups, output_path, csv_path, enrich_csv, skip_crawl,
-        force_crawl=force_crawl, min_content_chars=min_content_chars,
-        upload_to_blob=upload_to_blob, blob_output_prefix=blob_output_prefix,
-    ))
+    results, startup_map = asyncio.run(
+        _run_full_analysis(
+            startups,
+            output_path,
+            csv_path,
+            enrich_csv,
+            skip_crawl,
+            force_crawl=force_crawl,
+            min_content_chars=min_content_chars,
+            upload_to_blob=upload_to_blob,
+            blob_output_prefix=blob_output_prefix,
+        )
+    )
 
     # Generate outputs
     console.print("\n[bold green]Analysis complete![/bold green]")
@@ -218,6 +205,7 @@ def analyze(
     # Generate monthly statistics
     if detected_period:
         from src.data.monthly_stats import MonthlyStatistics
+
         console.print(f"\n[bold]Generating monthly statistics for {detected_period}...[/bold]")
         monthly_stats = MonthlyStatistics(detected_period)
         monthly_stats.generate_full_stats(startups, results)
@@ -264,6 +252,7 @@ async def _run_full_analysis(
     if upload_to_blob:
         try:
             from src.storage.blob_client import BlobStorageClient, ContainerName
+
             blob_client = BlobStorageClient()
             console.print("[green]Blob upload enabled[/green]")
         except Exception as e:
@@ -274,7 +263,6 @@ async def _run_full_analysis(
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
-
         # Phase 1: Crawl all startups (website + enrichment sources)
         if skip_crawl:
             console.print("[yellow]Skipping crawl, using cached data...[/yellow]")
@@ -302,7 +290,9 @@ async def _run_full_analysis(
                     if existing_content and len(existing_content) > 1000:
                         diag["initial_content_chars"] = len(existing_content)
                         if min_content_chars <= 0 or len(existing_content) >= min_content_chars:
-                            console.print(f"  [dim]Using cached data for {startup.name} ({len(existing_content):,} chars)[/dim]")
+                            console.print(
+                                f"  [dim]Using cached data for {startup.name} ({len(existing_content):,} chars)[/dim]"
+                            )
                             crawl_diagnostics_map[startup.name] = diag
                             progress.advance(crawl_task)
                             continue
@@ -317,15 +307,23 @@ async def _run_full_analysis(
                     diag["initial_content_chars"] = initial_chars
 
                     # Deep crawl retry if content is below threshold
-                    if min_content_chars > 0 and initial_chars < min_content_chars and initial_chars > 0:
-                        console.print(f"  [yellow]Content below threshold ({initial_chars:,} < {min_content_chars:,}), retrying with deep crawl...[/yellow]")
+                    if (
+                        min_content_chars > 0
+                        and initial_chars < min_content_chars
+                        and initial_chars > 0
+                    ):
+                        console.print(
+                            f"  [yellow]Content below threshold ({initial_chars:,} < {min_content_chars:,}), retrying with deep crawl...[/yellow]"
+                        )
                         diag["deep_crawl_triggered"] = True
                         try:
                             sources = await crawler.deep_crawl_startup(startup)
                             retry_content = crawler.get_all_cached_content(startup.name)
                             diag["retry_content_chars"] = len(retry_content) if retry_content else 0
                         except Exception as e2:
-                            console.print(f"  [red]Deep crawl failed for {startup.name}: {e2}[/red]")
+                            console.print(
+                                f"  [red]Deep crawl failed for {startup.name}: {e2}[/red]"
+                            )
                             diag["failure_reason"] = "deep_crawl_failed"
 
                     # Count source types
@@ -335,7 +333,9 @@ async def _run_full_analysis(
                         source_types[st] = source_types.get(st, 0) + 1
                     source_summary = ", ".join(f"{k}:{v}" for k, v in source_types.items())
                     final_chars = diag.get("retry_content_chars") or diag["initial_content_chars"]
-                    console.print(f"  [dim]Saved to {content_dir} [{source_summary}] ({final_chars:,} chars)[/dim]")
+                    console.print(
+                        f"  [dim]Saved to {content_dir} [{source_summary}] ({final_chars:,} chars)[/dim]"
+                    )
                 except Exception as e:
                     console.print(f"  [red]Crawl error for {startup.name}: {e}[/red]")
                     diag["failure_reason"] = "crawl_error"
@@ -371,6 +371,7 @@ async def _run_full_analysis(
                 if blob_client and blob_output_prefix:
                     try:
                         from src.storage.blob_client import ContainerName
+
                         brief_bytes = brief_path.read_bytes()
                         blob_client.upload_blob(
                             ContainerName.BRIEFS,
@@ -405,6 +406,7 @@ async def _run_full_analysis(
             try:
                 from src.storage.blob_client import ContainerName
                 from datetime import date
+
                 json_bytes = json_str.encode("utf-8")
                 blob_client.upload_blob(
                     ContainerName.ANALYSIS_SNAPSHOTS,
@@ -417,7 +419,9 @@ async def _run_full_analysis(
                     json_bytes,
                 )
             except Exception as be:
-                console.print(f"  [dim yellow]Blob JSON upload failed for {analysis.company_slug}: {be}[/dim yellow]")
+                console.print(
+                    f"  [dim yellow]Blob JSON upload failed for {analysis.company_slug}: {be}[/dim yellow]"
+                )
 
     # Create analysis-only CSV
     analysis_csv = create_analysis_only_csv(results, output_path)
@@ -452,12 +456,14 @@ async def _run_full_analysis(
                 "newsletter_potential": r.newsletter_potential,
             }
             for r in results
-        ]
+        ],
     }
 
     for r in results:
         for p in r.build_patterns:
-            summary["pattern_distribution"][p.name] = summary["pattern_distribution"].get(p.name, 0) + 1
+            summary["pattern_distribution"][p.name] = (
+                summary["pattern_distribution"].get(p.name, 0) + 1
+            )
 
     with open(output_path / "analysis_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
@@ -466,10 +472,13 @@ async def _run_full_analysis(
     if blob_client and blob_output_prefix:
         try:
             from src.storage.blob_client import ContainerName
+
             manifest = {
                 r.company_slug: {
                     "raw_content_analyzed": r.raw_content_analyzed,
-                    "vertical": r.vertical.value if hasattr(r.vertical, "value") else str(r.vertical),
+                    "vertical": r.vertical.value
+                    if hasattr(r.vertical, "value")
+                    else str(r.vertical),
                     "has_brief": True,
                     "analyzed_at": r.analyzed_at.isoformat() if r.analyzed_at else None,
                     "uses_genai": r.uses_genai,
@@ -498,11 +507,15 @@ def _show_high_potential(results: List[StartupAnalysis]):
         console.print("\n[bold yellow]HIGH NEWSLETTER POTENTIAL FINDINGS:[/bold yellow]")
         for r in high_potential:
             console.print(f"\n[bold cyan]{r.company_name}[/bold cyan]")
-            console.print(f"  GenAI: {r.genai_intensity.value} | Patterns: {', '.join([p.name for p in r.build_patterns])}")
+            console.print(
+                f"  GenAI: {r.genai_intensity.value} | Patterns: {', '.join([p.name for p in r.build_patterns])}"
+            )
             for finding in r.unique_findings[:3]:
                 console.print(f"  [green]→[/green] {finding}")
     else:
-        console.print("\n[dim]No high newsletter potential startups identified in this batch.[/dim]")
+        console.print(
+            "\n[dim]No high newsletter potential startups identified in this batch.[/dim]"
+        )
 
 
 @app.command()
@@ -532,7 +545,9 @@ def crawl(
                         st = s.source_type or "unknown"
                         source_types[st] = source_types.get(st, 0) + 1
                     type_str = ", ".join(f"{k}:{v}" for k, v in source_types.items())
-                    console.print(f"    {success}/{len(sources)} sources [{type_str}] → {content_dir}")
+                    console.print(
+                        f"    {success}/{len(sources)} sources [{type_str}] → {content_dir}"
+                    )
                 except Exception as e:
                     console.print(f"    [red]Error: {e}[/red]")
         finally:
@@ -544,10 +559,14 @@ def crawl(
 @app.command("crawl-frontier")
 def crawl_frontier(
     once: bool = typer.Option(False, "--once", help="Run one lease/crawl iteration and exit"),
-    worker_id: Optional[str] = typer.Option(None, "--worker-id", help="Optional stable worker identifier"),
+    worker_id: Optional[str] = typer.Option(
+        None, "--worker-id", help="Optional stable worker identifier"
+    ),
     batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Max leased URLs per loop"),
     max_loops: Optional[int] = typer.Option(None, "--max-loops", help="Exit after N loops"),
-    idle_sleep_seconds: float = typer.Option(5.0, "--idle-sleep-seconds", help="Sleep when queue is empty"),
+    idle_sleep_seconds: float = typer.Option(
+        5.0, "--idle-sleep-seconds", help="Sleep when queue is empty"
+    ),
 ):
     """Run modern frontier worker (Scrapy runtime)."""
     from src.crawl_runtime.worker import run_frontier_worker
@@ -562,10 +581,7 @@ def crawl_frontier(
         )
     )
 
-    console.print(Panel.fit(
-        "[bold blue]Frontier Worker Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Frontier Worker Summary[/bold blue]", border_style="blue"))
     console.print(f"[bold]Worker:[/bold] {result.get('worker_id')}")
     console.print(f"[bold]Loops:[/bold] {result.get('loops', 0)}")
     console.print(f"[bold]Leased:[/bold] {result.get('leased', 0)}")
@@ -599,10 +615,9 @@ def verify_frontier_schema(
     if json_output:
         console.print_json(data=report)
     else:
-        console.print(Panel.fit(
-            "[bold blue]Frontier Schema Check[/bold blue]",
-            border_style="blue"
-        ))
+        console.print(
+            Panel.fit("[bold blue]Frontier Schema Check[/bold blue]", border_style="blue")
+        )
         console.print(f"[bold]Compatible:[/bold] {report['compatible']}")
         if report["missing_by_table"]:
             for table_name, missing in sorted(report["missing_by_table"].items()):
@@ -615,7 +630,9 @@ def verify_frontier_schema(
 
 @app.command("crawl-retention")
 def crawl_retention(
-    retention_days: int = typer.Option(0, "--retention-days", help="Delete raw captures older than this many days"),
+    retention_days: int = typer.Option(
+        0, "--retention-days", help="Delete raw captures older than this many days"
+    ),
 ):
     """Cleanup expired WARC-lite raw captures."""
     from src.crawl_runtime.retention import cleanup_raw_captures
@@ -628,10 +645,9 @@ def crawl_retention(
         console.print(f"[red]Raw capture cleanup failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Raw Capture Retention Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Raw Capture Retention Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Retention days:[/bold] {result.get('retention_days', days)}")
     console.print(f"[bold]Rows deleted:[/bold] {result.get('deleted_rows', 0)}")
     console.print(f"[bold]Blobs deleted:[/bold] {result.get('deleted_blobs', 0)}")
@@ -641,8 +657,12 @@ def crawl_retention(
 def seed_frontier(
     limit: int = typer.Option(5000, "--limit", "-l", help="Max startups to read from database"),
     cursor: str = typer.Option("", "--cursor", help="Cursor offset token from prior run"),
-    max_startups: int = typer.Option(0, "--max-startups", help="Stop after this many startups (0=unbounded)"),
-    max_seconds: float = typer.Option(0.0, "--max-seconds", help="Stop after this many seconds (0=unbounded)"),
+    max_startups: int = typer.Option(
+        0, "--max-startups", help="Stop after this many startups (0=unbounded)"
+    ),
+    max_seconds: float = typer.Option(
+        0.0, "--max-seconds", help="Stop after this many seconds (0=unbounded)"
+    ),
 ):
     """Seed crawl frontier queue from startups table."""
     from src.crawl_runtime.seed_frontier import run_seed_frontier
@@ -660,10 +680,7 @@ def seed_frontier(
         console.print(f"[red]Frontier seed failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Frontier Seed Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Frontier Seed Summary[/bold blue]", border_style="blue"))
     console.print(f"[bold]Cursor:[/bold] {result.get('cursor', '0')}")
     console.print(f"[bold]Next cursor:[/bold] {result.get('next_cursor') or 'none'}")
     console.print(f"[bold]Exhausted:[/bold] {result.get('exhausted', False)}")
@@ -686,10 +703,7 @@ def process_refresh_jobs(
         console.print(f"[red]Refresh job processing failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Refresh Jobs Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Refresh Jobs Summary[/bold blue]", border_style="blue"))
     console.print(f"[bold]Jobs processed:[/bold] {stats.get('jobs_processed', 0)}")
     console.print(f"[bold]URLs boosted:[/bold] {stats.get('total_urls_boosted', 0)}")
     errors = stats.get("errors", 0)
@@ -699,7 +713,9 @@ def process_refresh_jobs(
 
 @app.command("process-events")
 def process_events(
-    batch_size: int = typer.Option(50, "--batch-size", "-b", help="Max startup events to process per run"),
+    batch_size: int = typer.Option(
+        50, "--batch-size", "-b", help="Max startup events to process per run"
+    ),
 ):
     """Process unprocessed startup events and enqueue eligible deep-research jobs."""
     from src.automation.event_processor import run_event_processor
@@ -713,10 +729,7 @@ def process_events(
     processed = len(results)
     success = sum(1 for r in results if r.success)
     queued = sum(1 for r in results if r.triggered_reanalysis)
-    console.print(Panel.fit(
-        "[bold blue]Event Processor Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Event Processor Summary[/bold blue]", border_style="blue"))
     console.print(f"[bold]Events processed:[/bold] {processed}")
     console.print(f"[bold]Successful:[/bold] {success}")
     console.print(f"[bold]Research-triggering events:[/bold] {queued}")
@@ -724,8 +737,12 @@ def process_events(
 
 @app.command("consume-deep-research")
 def consume_deep_research(
-    batch_size: int = typer.Option(10, "--batch-size", "-b", help="Max queue items to process per run"),
-    max_concurrent: int = typer.Option(3, "--max-concurrent", "-c", help="Max concurrent LLM calls"),
+    batch_size: int = typer.Option(
+        10, "--batch-size", "-b", help="Max queue items to process per run"
+    ),
+    max_concurrent: int = typer.Option(
+        3, "--max-concurrent", "-c", help="Max concurrent LLM calls"
+    ),
 ):
     """Process deep_research_queue with conservative budget controls."""
     from src.automation.deep_research_consumer import run_consumer
@@ -744,10 +761,7 @@ def consume_deep_research(
     success = sum(1 for r in results if r.success)
     failed = sum(1 for r in results if not r.success)
     total_cost = sum(float(r.cost_usd or 0.0) for r in results)
-    console.print(Panel.fit(
-        "[bold blue]Deep Research Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Deep Research Summary[/bold blue]", border_style="blue"))
     console.print(f"[bold]Items processed:[/bold] {len(results)}")
     console.print(f"[bold]Success:[/bold] {success}")
     console.print(f"[bold]Failed:[/bold] {failed}")
@@ -758,15 +772,21 @@ def consume_deep_research(
 def export_deep_research_cmd(
     period: str = typer.Option(..., "--period", "-p", help="Period to export (e.g. 2026-03)"),
     region: str = typer.Option("global", "--region", "-r", help="Dataset region: global|turkey|tr"),
-    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Override output directory"),
+    output_dir: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Override output directory"
+    ),
 ):
     """Export latest completed deep-research notes as per-startup markdown artifacts."""
     import asyncpg
     from src.analysis.onboarding_ops import resolve_repo_dataset_paths
     from src.reports.deep_research_exporter import export_period_deep_research
 
-    normalized_region = "turkey" if str(region or "").strip().lower() in {"turkey", "tr"} else "global"
-    target_output = output_dir or resolve_repo_dataset_paths(period, normalized_region)["output_path"]
+    normalized_region = (
+        "turkey" if str(region or "").strip().lower() in {"turkey", "tr"} else "global"
+    )
+    target_output = (
+        output_dir or resolve_repo_dataset_paths(period, normalized_region)["output_path"]
+    )
     target_output.mkdir(parents=True, exist_ok=True)
 
     async def _export():
@@ -792,10 +812,12 @@ def export_deep_research_cmd(
         console.print(f"[red]Deep research export failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Deep Research Export[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Deep Research Export[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"[bold]Exported:[/bold] {stats.get('count', 0)} startups")
     console.print(f"[bold]Output dir:[/bold] {stats.get('output_dir')}")
     console.print(f"[bold]Index:[/bold] {stats.get('index_path')}")
@@ -805,13 +827,17 @@ def export_deep_research_cmd(
 def export_startup_briefs_cmd(
     period: str = typer.Option(..., "--period", "-p", help="Period to export (e.g. 2026-03)"),
     region: str = typer.Option("global", "--region", "-r", help="Dataset region: global|turkey|tr"),
-    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Override output directory"),
+    output_dir: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Override output directory"
+    ),
 ):
     """Export local per-startup dossier markdown from saved base analyses."""
     from src.analysis.onboarding_ops import resolve_repo_dataset_paths
     from src.data.store import AnalysisStore
 
-    normalized_region = "turkey" if str(region or "").strip().lower() in {"turkey", "tr"} else "global"
+    normalized_region = (
+        "turkey" if str(region or "").strip().lower() in {"turkey", "tr"} else "global"
+    )
     repo_paths = resolve_repo_dataset_paths(period, normalized_region)
     csv_path = repo_paths["csv_path"]
     target_output = output_dir or repo_paths["output_path"]
@@ -823,17 +849,21 @@ def export_startup_briefs_cmd(
 
     store = AnalysisStore(target_output / "analysis_store")
     analyses = store.get_all_base_analyses()
-    startup_inputs = {startup.name: startup for startup in load_startups_from_csv(csv_path) if startup.name}
+    startup_inputs = {
+        startup.name: startup for startup in load_startups_from_csv(csv_path) if startup.name
+    }
     stats = export_brief_artifacts(
         analyses=analyses,
         startup_inputs=startup_inputs,
         output_dir=target_output,
     )
 
-    console.print(Panel.fit(
-        "[bold blue]Startup Brief Export[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Startup Brief Export[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"[bold]Exported:[/bold] {stats.get('count', 0)} startups")
     console.print(f"[bold]Output dir:[/bold] {stats.get('output_dir')}")
     console.print(f"[bold]Index:[/bold] {stats.get('index_path')}")
@@ -841,8 +871,12 @@ def export_startup_briefs_cmd(
 
 @app.command("consume-investor-onboarding")
 def consume_investor_onboarding(
-    batch_size: int = typer.Option(10, "--batch-size", "-b", help="Max queue items to process per run"),
-    max_concurrent: int = typer.Option(3, "--max-concurrent", "-c", help="Max concurrent LLM calls"),
+    batch_size: int = typer.Option(
+        10, "--batch-size", "-b", help="Max queue items to process per run"
+    ),
+    max_concurrent: int = typer.Option(
+        3, "--max-concurrent", "-c", help="Max concurrent LLM calls"
+    ),
 ):
     """Process investor_onboarding_queue with conservative budget controls."""
     from src.automation.investor_onboarding_consumer import run_consumer
@@ -861,10 +895,9 @@ def consume_investor_onboarding(
     success = sum(1 for r in results if r.success)
     failed = sum(1 for r in results if not r.success)
     total_cost = sum(float(getattr(r, "cost_usd", 0.0) or 0.0) for r in results)
-    console.print(Panel.fit(
-        "[bold blue]Investor Onboarding Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Investor Onboarding Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Items processed:[/bold] {len(results)}")
     console.print(f"[bold]Success:[/bold] {success}")
     console.print(f"[bold]Failed:[/bold] {failed}")
@@ -873,7 +906,9 @@ def consume_investor_onboarding(
 
 @app.command("dispatch-onboarding-alerts")
 def dispatch_onboarding_alerts(
-    batch_size: int = typer.Option(25, "--batch-size", "-b", help="Max trace notifications to send"),
+    batch_size: int = typer.Option(
+        25, "--batch-size", "-b", help="Max trace notifications to send"
+    ),
 ):
     """Dispatch pending onboarding/deep-research trace events to Slack."""
     from src.automation.onboarding_alerts import run_dispatcher_sync
@@ -885,10 +920,9 @@ def dispatch_onboarding_alerts(
         console.print(f"[red]Onboarding alert dispatch failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Onboarding Alert Dispatch Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Onboarding Alert Dispatch Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Fetched:[/bold] {stats.get('fetched', 0)}")
     console.print(f"[bold green]Sent:[/bold green] {stats.get('sent', 0)}")
     console.print(f"[bold red]Failed:[/bold red] {stats.get('failed', 0)}")
@@ -897,9 +931,17 @@ def dispatch_onboarding_alerts(
 
 @app.command("ingest-news")
 def ingest_news(
-    lookback_hours: int = typer.Option(48, "--lookback-hours", help="How far back to collect stories"),
-    edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD"),
-    rebuild_only: bool = typer.Option(False, "--rebuild-only", help="Skip fetching, rebuild clusters/edition from existing raw items"),
+    lookback_hours: int = typer.Option(
+        48, "--lookback-hours", help="How far back to collect stories"
+    ),
+    edition_date: Optional[str] = typer.Option(
+        None, "--edition-date", help="Edition date in YYYY-MM-DD"
+    ),
+    rebuild_only: bool = typer.Option(
+        False,
+        "--rebuild-only",
+        help="Skip fetching, rebuild clusters/edition from existing raw items",
+    ),
 ):
     """Ingest daily startup news and build ranked edition snapshot."""
     from src.automation.news_ingest import run_news_ingestion
@@ -916,10 +958,9 @@ def ingest_news(
         console.print(f"[red]News ingestion failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Daily News Ingestion Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Daily News Ingestion Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Run ID:[/bold] {result.get('run_id')}")
     console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
     console.print(f"[bold]Sources attempted:[/bold] {result.get('sources_attempted', 0)}")
@@ -955,7 +996,9 @@ def ingest_news(
         console.print("[bold]Memory:[/bold] [yellow]skipped (tables may not exist yet)[/yellow]")
     stats = result.get("stats") or {}
     has_brief = bool(stats.get("daily_brief"))
-    console.print(f"[bold]Daily brief:[/bold] {'generated' if has_brief else '[yellow]not generated[/yellow]'}")
+    console.print(
+        f"[bold]Daily brief:[/bold] {'generated' if has_brief else '[yellow]not generated[/yellow]'}"
+    )
     if result.get("errors"):
         console.print(f"[yellow]Warnings:[/yellow] {len(result['errors'])}")
         for err in result["errors"]:
@@ -970,7 +1013,9 @@ def seed_theinformation_headlines(
         help="The Information section URL to scrape",
     ),
     max_items: int = typer.Option(40, "--max-items", help="Maximum headlines to upsert"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Parse and report only; do not write to DB"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Parse and report only; do not write to DB"
+    ),
 ):
     """Scrape The Information technology headlines and upsert them as paid-headline seeds."""
     from src.automation.news_ingest import run_seed_theinformation_headlines
@@ -987,10 +1032,11 @@ def seed_theinformation_headlines(
         console.print(f"[red]The Information seed run failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]The Information Headline Seed Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]The Information Headline Seed Summary[/bold blue]", border_style="blue"
+        )
+    )
     console.print(f"[bold]Status:[/bold] {result.get('status', 'unknown')}")
     console.print(f"[bold]Section:[/bold] {result.get('section_url')}")
     console.print(f"[bold]Fetched:[/bold] {result.get('fetched', 0)}")
@@ -1046,6 +1092,7 @@ def test_ainews(
             continue
 
         from datetime import datetime, timezone
+
         items = parser.parse_digest(html, published or datetime.now(timezone.utc), link)
         total += len(items)
 
@@ -1059,8 +1106,10 @@ def test_ainews(
         for i, item in enumerate(items, 1):
             section = item.payload.get("section_category", "?")
             table.add_row(
-                str(i), section,
-                item.title[:50], item.author or "",
+                str(i),
+                section,
+                item.title[:50],
+                item.author or "",
                 item.url[:40] + ("..." if len(item.url) > 40 else ""),
             )
         console.print(table)
@@ -1072,8 +1121,12 @@ def test_ainews(
 @app.command("ingest-x-trends")
 def ingest_x_trends(
     lookback_hours: int = typer.Option(24, "--lookback-hours", help="How far back to search X"),
-    edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD"),
-    rebuild_only: bool = typer.Option(False, "--rebuild-only", help="Skip source fetch and rebuild from existing items"),
+    edition_date: Optional[str] = typer.Option(
+        None, "--edition-date", help="Edition date in YYYY-MM-DD"
+    ),
+    rebuild_only: bool = typer.Option(
+        False, "--rebuild-only", help="Skip source fetch and rebuild from existing items"
+    ),
 ):
     """Run ingestion with X trend sources enabled.
 
@@ -1100,10 +1153,9 @@ def ingest_x_trends(
         else:
             os.environ["X_TRENDS_ENABLED"] = prev
 
-    console.print(Panel.fit(
-        "[bold blue]X Trends Ingestion Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]X Trends Ingestion Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Run ID:[/bold] {result.get('run_id')}")
     console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
     console.print(f"[bold]Items fetched:[/bold] {result.get('items_fetched', 0)}")
@@ -1117,7 +1169,9 @@ def ingest_x_trends(
 def generate_x_posts(
     region: str = typer.Option("all", "--region", help="global|turkey|all"),
     max_items: int = typer.Option(6, "--max-items", help="Maximum queued posts"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview candidates without writing queue"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Preview candidates without writing queue"
+    ),
 ):
     """Generate X post candidates from latest news clusters and queue them."""
     from src.automation.x_posting import run_generate_x_posts
@@ -1128,10 +1182,7 @@ def generate_x_posts(
         console.print(f"[red]Generate X posts failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Generate X Posts[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Generate X Posts[/bold blue]", border_style="blue"))
     console.print(f"[bold]Dry run:[/bold] {bool(result.get('dry_run', False))}")
     console.print(f"[bold]Candidates:[/bold] {result.get('candidates', 0)}")
     console.print(f"[bold]Queued:[/bold] {result.get('queued', 0)}")
@@ -1157,10 +1208,7 @@ def publish_x_posts(
         console.print(f"[red]Publish X posts failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Publish X Posts[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Publish X Posts[/bold blue]", border_style="blue"))
     if result.get("skipped_disabled"):
         console.print("[yellow]Posting skipped: X_POSTING_ENABLED=false[/yellow]")
         return
@@ -1177,7 +1225,9 @@ def publish_x_posts(
 
 @app.command("sync-x-post-metrics")
 def sync_x_post_metrics(
-    days_back: int = typer.Option(7, "--days-back", help="How many days of published posts to scan"),
+    days_back: int = typer.Option(
+        7, "--days-back", help="How many days of published posts to scan"
+    ),
     max_posts: int = typer.Option(100, "--max-posts", help="Maximum posts to sync"),
 ):
     """Sync X post engagement metrics into x_post_metrics_daily."""
@@ -1189,10 +1239,7 @@ def sync_x_post_metrics(
         console.print(f"[red]Sync X post metrics failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Sync X Post Metrics[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Sync X Post Metrics[/bold blue]", border_style="blue"))
     if result.get("skipped"):
         console.print(f"[yellow]Skipped:[/yellow] {result.get('skipped')}")
     console.print(f"[bold]Synced:[/bold] {result.get('synced', 0)}")
@@ -1202,12 +1249,33 @@ def sync_x_post_metrics(
 
 @app.command("send-news-digest")
 def send_news_digest(
-    edition_date: Optional[str] = typer.Option(None, "--edition-date", help="Edition date in YYYY-MM-DD (defaults to latest ready edition)"),
-    region: str = typer.Option("global", "--region", help="Subscriber region to send to (global or turkey)"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Do not send emails or write deliveries; just validate pipeline"),
-    target_hour: int = typer.Option(8, "--target-hour", help="Send to subscribers whose local time is this hour (0-23). Default 8 for 08:xx."),
-    target_minute: int = typer.Option(45, "--target-minute", help="Target minute (informational, hour-window match). Default 45."),
-    qa_email: Optional[str] = typer.Option(None, "--qa-email", help="QA mode: send merged global+turkey digest to this email only. Bypasses subscribers, timezone, dedup."),
+    edition_date: Optional[str] = typer.Option(
+        None, "--edition-date", help="Edition date in YYYY-MM-DD (defaults to latest ready edition)"
+    ),
+    region: str = typer.Option(
+        "global", "--region", help="Subscriber region to send to (global or turkey)"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Do not send emails or write deliveries; just validate pipeline"
+    ),
+    target_hour: int = typer.Option(
+        8,
+        "--target-hour",
+        help="Send to subscribers whose local time is this hour (0-23). Default 8 for 08:xx.",
+    ),
+    target_minute: int = typer.Option(
+        45, "--target-minute", help="Target minute (informational, hour-window match). Default 45."
+    ),
+    qa_email: Optional[str] = typer.Option(
+        None,
+        "--qa-email",
+        help="QA mode: render the --region digest (region-pure) and send to this email only. Bypasses subscribers, timezone, dedup.",
+    ),
+    qa_merged: bool = typer.Option(
+        False,
+        "--qa-merged",
+        help="QA-only: also include the other region as a secondary section (global+turkey combo). Requires --qa-email.",
+    ),
 ):
     """Send daily startup-news digest to active subscribers for a given region.
 
@@ -1215,13 +1283,17 @@ def send_news_digest(
     in the target hour (default 08:xx). Cron should run hourly at :45 so
     each timezone batch is reached at ~08:45 local.
 
-    With --qa-email, sends a single merged digest (global + turkey) to the
-    specified address for QA review. No subscriber or delivery records touched.
+    With --qa-email, sends a region-pure digest to the specified address for
+    QA review. Add --qa-merged to include the other region as a secondary
+    section in the same email. No subscriber or delivery records touched.
     """
     from src.automation.news_digest import run_news_digest_sender
 
     if region not in ("global", "turkey"):
         console.print(f"[red]Invalid region '{region}'. Must be 'global' or 'turkey'.[/red]")
+        raise typer.Exit(1)
+    if qa_merged and not qa_email:
+        console.print("[red]--qa-merged requires --qa-email[/red]")
         raise typer.Exit(1)
 
     try:
@@ -1233,6 +1305,7 @@ def send_news_digest(
                 target_hour=target_hour,
                 target_minute=target_minute,
                 qa_email=qa_email,
+                qa_merged=qa_merged,
             )
         )
     except Exception as exc:
@@ -1240,26 +1313,32 @@ def send_news_digest(
         raise typer.Exit(1)
 
     if result.get("qa"):
-        console.print(Panel.fit(
-            "[bold magenta]QA Digest Preview[/bold magenta]",
-            border_style="magenta"
-        ))
+        mode_label = "QA Merged Digest Preview" if result.get("qa_merged") else "QA Digest Preview"
+        console.print(
+            Panel.fit(f"[bold magenta]{mode_label}[/bold magenta]", border_style="magenta")
+        )
         console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
+        console.print(f"[bold]Primary region:[/bold] {result.get('region')}")
         console.print(f"[bold]QA email:[/bold] {result.get('qa_email')}")
-        console.print(f"[bold]Stories:[/bold] {result.get('stories', 0)} global + {result.get('turkey_stories', 0)} turkey")
-        console.print(f"[bold]Brief:[/bold] {'yes' if result.get('has_brief') else 'no'} global, {'yes' if result.get('has_turkey_brief') else 'no'} turkey")
+        console.print(
+            f"[bold]Stories:[/bold] {result.get('stories', 0)} primary + {result.get('turkey_stories', 0)} turkey-section"
+        )
+        console.print(
+            f"[bold]Brief:[/bold] primary={'yes' if result.get('has_brief') else 'no'}, turkey-section={'yes' if result.get('has_turkey_brief') else 'no'}"
+        )
         if result.get("dry_run"):
             console.print("[yellow]Dry run — email not sent[/yellow]")
         elif result.get("error"):
             console.print(f"[red]Error:[/red] {result['error']}")
         elif result.get("sent"):
-            console.print(f"[bold green]Sent![/bold green] Message ID: {result.get('provider_message_id', '—')}")
+            console.print(
+                f"[bold green]Sent![/bold green] Message ID: {result.get('provider_message_id', '—')}"
+            )
         return
 
-    console.print(Panel.fit(
-        "[bold blue]Daily News Digest Send Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Daily News Digest Send Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Edition date:[/bold] {result.get('edition_date')}")
     console.print(f"[bold]Region:[/bold] {result.get('region', 'global')}")
     console.print(f"[bold]Target local time:[/bold] {result.get('target_local_time', '08:45')}")
@@ -1301,10 +1380,7 @@ def show(
         data = json.load(f)
 
     # Display
-    console.print(Panel.fit(
-        f"[bold cyan]{data['company_name']}[/bold cyan]",
-        border_style="cyan"
-    ))
+    console.print(Panel.fit(f"[bold cyan]{data['company_name']}[/bold cyan]", border_style="cyan"))
 
     console.print(f"\n[bold]Website:[/bold] {data.get('website', 'N/A')}")
     console.print(f"[bold]Funding:[/bold] ${data.get('funding_amount', 0):,.0f}")
@@ -1317,14 +1393,16 @@ def show(
     console.print(f"\n[bold yellow]Build Patterns:[/bold yellow]")
     for p in data.get("build_patterns", []):
         console.print(f"  • {p['name']} (confidence: {p['confidence']:.0%})")
-        if p.get('description'):
+        if p.get("description"):
             console.print(f"    [dim]{p['description']}[/dim]")
 
     console.print(f"\n[bold yellow]Unique Findings:[/bold yellow]")
     for finding in data.get("unique_findings", []):
         console.print(f"  → {finding}")
 
-    console.print(f"\n[bold]Newsletter Potential:[/bold] {data.get('newsletter_potential', 'unknown').upper()}")
+    console.print(
+        f"\n[bold]Newsletter Potential:[/bold] {data.get('newsletter_potential', 'unknown').upper()}"
+    )
 
 
 @app.command()
@@ -1346,17 +1424,16 @@ def summary(
     with open(summary_path) as f:
         data = json.load(f)
 
-    console.print(Panel.fit(
-        "[bold]Analysis Summary[/bold]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold]Analysis Summary[/bold]", border_style="blue"))
 
     console.print(f"\n[bold]Total analyzed:[/bold] {data['total_analyzed']}")
-    console.print(f"[bold]Using GenAI:[/bold] {data['uses_genai_count']} ({data['uses_genai_count']/data['total_analyzed']*100:.1f}%)")
+    console.print(
+        f"[bold]Using GenAI:[/bold] {data['uses_genai_count']} ({data['uses_genai_count']/data['total_analyzed']*100:.1f}%)"
+    )
 
     console.print(f"\n[bold yellow]Pattern Distribution:[/bold yellow]")
     for pattern, count in sorted(data.get("pattern_distribution", {}).items(), key=lambda x: -x[1]):
-        pct = count / data['total_analyzed'] * 100
+        pct = count / data["total_analyzed"] * 100
         console.print(f"  {pattern}: {count} ({pct:.1f}%)")
 
     console.print(f"\n[bold yellow]Newsletter Potential:[/bold yellow]")
@@ -1393,6 +1470,7 @@ def brief(
         content = f.read()
 
     from rich.markdown import Markdown
+
     console.print(Markdown(content))
 
 
@@ -1402,7 +1480,9 @@ def incremental(
     viral: bool = typer.Option(True, "--viral/--no-viral", help="Run viral analysis"),
     force: bool = typer.Option(False, "--force", "-f", help="Force reprocess all startups"),
     max_concurrent: int = typer.Option(3, "--concurrent", "-c", help="Max concurrent API calls"),
-    max_startups: Optional[int] = typer.Option(None, "--max-startups", help="Process at most N delta startups"),
+    max_startups: Optional[int] = typer.Option(
+        None, "--max-startups", help="Process at most N delta startups"
+    ),
     startup_file: Optional[Path] = typer.Option(
         None,
         "--startup-file",
@@ -1438,11 +1518,12 @@ def incremental(
     store = AnalysisStore(output_path / "analysis_store")
     processor = IncrementalProcessor(store)
 
-    console.print(Panel.fit(
-        "[bold cyan]Incremental Analysis[/bold cyan]\n"
-        "Processing only NEW/changed startups",
-        border_style="cyan"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Incremental Analysis[/bold cyan]\n" "Processing only NEW/changed startups",
+            border_style="cyan",
+        )
+    )
 
     # Load all startups
     startups = load_startups_from_csv(csv_path)
@@ -1459,7 +1540,8 @@ def incremental(
     if startup_file:
         startup_allowlist = load_startup_allowlist(startup_file)
         delta = [
-            startup for startup in delta
+            startup
+            for startup in delta
             if normalize_startup_name(startup.name) in startup_allowlist
         ]
     if max_startups is not None and max_startups >= 0:
@@ -1497,7 +1579,7 @@ def incremental(
     console.print(f"\n[bold green]Processing complete![/bold green]")
     console.print(f"  New base analyses: {results['new_base_analyses']}")
     console.print(f"  New viral analyses: {results['new_viral_analyses']}")
-    if results['errors']:
+    if results["errors"]:
         console.print(f"  [red]Errors: {len(results['errors'])}[/red]")
 
     # Show updated store status
@@ -1509,6 +1591,7 @@ def incremental(
     # Generate monthly statistics
     if detected_period:
         from src.data.monthly_stats import MonthlyStatistics
+
         console.print(f"\n[bold]Updating monthly statistics for {detected_period}...[/bold]")
         all_analyses = store.get_all_base_analyses()
         monthly_stats = MonthlyStatistics(detected_period)
@@ -1537,7 +1620,9 @@ def onboarding_preflight(
 
     detected_period = period or (settings.extract_period_from_path(csv_path) if csv_path else None)
     if not detected_period:
-        raise typer.BadParameter("Provide --period or a CSV path under apps/web/data/<period>/input/")
+        raise typer.BadParameter(
+            "Provide --period or a CSV path under apps/web/data/<period>/input/"
+        )
 
     if csv_path:
         resolved_csv_path = csv_path
@@ -1565,10 +1650,12 @@ def onboarding_preflight(
     db_info = report["database"]
     creds = report["credentials"]
 
-    console.print(Panel.fit(
-        f"[bold cyan]Onboarding Preflight[/bold cyan]\n{detected_period} / {region}",
-        border_style="cyan"
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Onboarding Preflight[/bold cyan]\n{detected_period} / {region}",
+            border_style="cyan",
+        )
+    )
     console.print(
         f"CSV rows: {csv_info['rows']} | unique startups: {csv_info['unique_startups']} | "
         f"analyzed unique: {store_info['analyzed_unique_startups']} | backlog: {store_info['backlog_unique']}"
@@ -1616,11 +1703,16 @@ def onboarding_resume_plan(
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON only"),
 ):
     """Show the earliest missing onboarding stage for a period dataset."""
-    from src.analysis.onboarding_ops import compute_onboarding_resume_plan, resolve_repo_dataset_paths
+    from src.analysis.onboarding_ops import (
+        compute_onboarding_resume_plan,
+        resolve_repo_dataset_paths,
+    )
 
     detected_period = period or (settings.extract_period_from_path(csv_path) if csv_path else None)
     if not detected_period:
-        raise typer.BadParameter("Provide --period or a CSV path under apps/web/data/<period>/input/")
+        raise typer.BadParameter(
+            "Provide --period or a CSV path under apps/web/data/<period>/input/"
+        )
 
     if csv_path:
         resolved_csv_path = csv_path
@@ -1640,10 +1732,12 @@ def onboarding_resume_plan(
         console.print_json(data=plan)
         return
 
-    console.print(Panel.fit(
-        f"[bold cyan]Onboarding Resume Plan[/bold cyan]\n{detected_period} / {region}",
-        border_style="cyan"
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Onboarding Resume Plan[/bold cyan]\n{detected_period} / {region}",
+            border_style="cyan",
+        )
+    )
     console.print(f"Recommended start stage: [bold]{plan['recommended_start_stage']}[/bold]")
     console.print(f"Reason: {plan['reason']}")
     for stage_name in plan["stages"]:
@@ -1669,10 +1763,7 @@ def store_status(
 
     stats = store.get_stats()
 
-    console.print(Panel.fit(
-        "[bold]Analysis Store Status[/bold]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold]Analysis Store Status[/bold]", border_style="blue"))
 
     console.print(f"\n[bold]Total startups:[/bold] {stats['total_startups']}")
     console.print(f"[bold]With base analysis:[/bold] {stats['with_base_analysis']}")
@@ -1680,7 +1771,7 @@ def store_status(
     console.print(f"[bold]Missing viral:[/bold] {stats['missing_viral']}")
     console.print(f"[bold]Last updated:[/bold] {stats['last_updated']}")
 
-    if stats['total_startups'] > 0:
+    if stats["total_startups"] > 0:
         console.print(f"\n[dim]Store location: {output_path / 'analysis_store'}[/dim]")
 
 
@@ -1711,11 +1802,13 @@ def newsletter(
     else:
         output_path = output_dir or settings.data_output_dir
 
-    console.print(Panel.fit(
-        "[bold magenta]Viral Newsletter Generator[/bold magenta]\n"
-        "Creating high-impact, unique voice content",
-        border_style="magenta"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold magenta]Viral Newsletter Generator[/bold magenta]\n"
+            "Creating high-impact, unique voice content",
+            border_style="magenta",
+        )
+    )
 
     # Load startups
     if pilot:
@@ -1765,7 +1858,9 @@ def newsletter(
 
                 contrarian = viral_result.get("contrarian_analysis", {})
                 if contrarian.get("honest_take"):
-                    console.print(f"  [yellow]Honest take:[/yellow] {contrarian['honest_take'][:100]}...")
+                    console.print(
+                        f"  [yellow]Honest take:[/yellow] {contrarian['honest_take'][:100]}..."
+                    )
 
             except Exception as e:
                 console.print(f"  [red]Error: {e}[/red]")
@@ -1793,16 +1888,25 @@ def newsletter(
     with open(newsletter_path) as f:
         preview = f.read()[:2000]
     from rich.markdown import Markdown
+
     console.print(Markdown(preview + "\n\n*... [truncated] ...*"))
 
 
 @app.command("newsletter-artifacts")
 def newsletter_artifacts(
     period: str = typer.Option(..., "--period", "-p", help="Period (e.g., 2026-03)"),
-    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory for newsletter artifacts"),
-    data_root: Optional[Path] = typer.Option(None, "--data-root", help="Data root containing period folders"),
-    skip_visuals: bool = typer.Option(False, "--skip-visuals", help="Skip newsletter_data.json generation"),
-    skip_markdown: bool = typer.Option(False, "--skip-markdown", help="Skip viral_newsletter.md generation"),
+    output_dir: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Output directory for newsletter artifacts"
+    ),
+    data_root: Optional[Path] = typer.Option(
+        None, "--data-root", help="Data root containing period folders"
+    ),
+    skip_visuals: bool = typer.Option(
+        False, "--skip-visuals", help="Skip newsletter_data.json generation"
+    ),
+    skip_markdown: bool = typer.Option(
+        False, "--skip-markdown", help="Skip viral_newsletter.md generation"
+    ),
 ):
     """Generate monthly newsletter artifacts from an existing period dataset."""
     from src.automation.newsletter_generator import write_newsletter_data
@@ -1818,11 +1922,12 @@ def newsletter_artifacts(
     output_path = output_dir or settings.get_output_dir(period)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    console.print(Panel.fit(
-        f"[bold cyan]Newsletter Artifacts[/bold cyan]\n"
-        f"Period: {period}",
-        border_style="cyan"
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Newsletter Artifacts[/bold cyan]\n" f"Period: {period}",
+            border_style="cyan",
+        )
+    )
 
     if not skip_visuals:
         visuals_path = write_newsletter_data(
@@ -1854,7 +1959,9 @@ def monthly_stats(
     csv_path: Optional[Path] = typer.Argument(None, help="Path to CSV with startup data"),
     period: Optional[str] = typer.Option(None, "--period", "-p", help="Period (e.g., 2026-01)"),
     output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
-    view_only: bool = typer.Option(False, "--view", "-v", help="Only view existing stats, don't regenerate"),
+    view_only: bool = typer.Option(
+        False, "--view", "-v", help="Only view existing stats, don't regenerate"
+    ),
 ):
     """Generate or view monthly statistics.
 
@@ -1881,10 +1988,12 @@ def monthly_stats(
         output_path = output_dir or settings.data_output_dir
         period_dir = output_path.parent
 
-    console.print(Panel.fit(
-        f"[bold blue]Monthly Statistics: {detected_period or 'Current'}[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold blue]Monthly Statistics: {detected_period or 'Current'}[/bold blue]",
+            border_style="blue",
+        )
+    )
 
     stats_file = output_path / "monthly_stats.json"
 
@@ -1905,13 +2014,19 @@ def monthly_stats(
 
             if "funding_by_stage" in data:
                 console.print(f"\n[bold]Funding by Stage[/bold]")
-                for stage, info in sorted(data["funding_by_stage"].items(), key=lambda x: -x[1]["total_usd"])[:5]:
+                for stage, info in sorted(
+                    data["funding_by_stage"].items(), key=lambda x: -x[1]["total_usd"]
+                )[:5]:
                     console.print(f"  {stage}: {info['count']} deals, ${info['total_usd']:,.0f}")
 
             if "funding_by_continent" in data:
                 console.print(f"\n[bold]Funding by Region[/bold]")
-                for region, info in sorted(data["funding_by_continent"].items(), key=lambda x: -x[1]["total_usd"]):
-                    console.print(f"  {region.replace('_', ' ').title()}: {info['count']} deals, ${info['total_usd']:,.0f}")
+                for region, info in sorted(
+                    data["funding_by_continent"].items(), key=lambda x: -x[1]["total_usd"]
+                ):
+                    console.print(
+                        f"  {region.replace('_', ' ').title()}: {info['count']} deals, ${info['total_usd']:,.0f}"
+                    )
 
             if "genai_analysis" in data and data["genai_analysis"].get("total_analyzed", 0) > 0:
                 ga = data["genai_analysis"]
@@ -1978,9 +2093,15 @@ def intelligence(
     period: Optional[str] = typer.Option(None, "--period", "-p", help="Period (e.g., 2026-01)"),
     limit: int = typer.Option(10, "--limit", "-l", help="Number of startups to process"),
     output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
-    skip_providers: bool = typer.Option(False, "--skip-providers", help="Skip startup database lookups"),
-    skip_tech_programs: bool = typer.Option(False, "--skip-tech-programs", help="Skip tech program checks"),
-    skip_accelerators: bool = typer.Option(False, "--skip-accelerators", help="Skip accelerator checks"),
+    skip_providers: bool = typer.Option(
+        False, "--skip-providers", help="Skip startup database lookups"
+    ),
+    skip_tech_programs: bool = typer.Option(
+        False, "--skip-tech-programs", help="Skip tech program checks"
+    ),
+    skip_accelerators: bool = typer.Option(
+        False, "--skip-accelerators", help="Skip accelerator checks"
+    ),
     skip_vc_resources: bool = typer.Option(False, "--skip-vc-resources", help="Skip VC resources"),
 ):
     """Collect external intelligence for startups.
@@ -2011,11 +2132,13 @@ def intelligence(
     else:
         output_path = output_dir or settings.data_output_dir
 
-    console.print(Panel.fit(
-        f"[bold blue]External Intelligence Collection[/bold blue]\n"
-        f"Period: {detected_period}",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold blue]External Intelligence Collection[/bold blue]\n"
+            f"Period: {detected_period}",
+            border_style="blue",
+        )
+    )
 
     # Load startups
     startups = load_startups_from_csv(csv_path, limit=limit)
@@ -2032,10 +2155,18 @@ def intelligence(
 
     # Show what will be collected
     console.print(f"\n[bold]Collection targets:[/bold]")
-    console.print(f"  - Startup databases: {'[yellow]skipped[/yellow]' if skip_providers else '[green]enabled[/green]'}")
-    console.print(f"  - Tech programs: {'[yellow]skipped[/yellow]' if skip_tech_programs else '[green]enabled[/green]'}")
-    console.print(f"  - Accelerators: {'[yellow]skipped[/yellow]' if skip_accelerators else '[green]enabled[/green]'}")
-    console.print(f"  - VC resources: {'[yellow]skipped[/yellow]' if skip_vc_resources else '[green]enabled[/green]'}")
+    console.print(
+        f"  - Startup databases: {'[yellow]skipped[/yellow]' if skip_providers else '[green]enabled[/green]'}"
+    )
+    console.print(
+        f"  - Tech programs: {'[yellow]skipped[/yellow]' if skip_tech_programs else '[green]enabled[/green]'}"
+    )
+    console.print(
+        f"  - Accelerators: {'[yellow]skipped[/yellow]' if skip_accelerators else '[green]enabled[/green]'}"
+    )
+    console.print(
+        f"  - VC resources: {'[yellow]skipped[/yellow]' if skip_vc_resources else '[green]enabled[/green]'}"
+    )
 
     if not typer.confirm(f"\nCollect intelligence for {len(startups)} startups?"):
         raise typer.Exit()
@@ -2087,7 +2218,9 @@ def intelligence(
                         parts.append(f"vc:{len(intel.vc_resources)}")
 
                     summary = ", ".join(parts) if parts else "no data"
-                    console.print(f"  [dim]{startup.name}: [{summary}] score={intel.intelligence_score:.2f}[/dim]")
+                    console.print(
+                        f"  [dim]{startup.name}: [{summary}] score={intel.intelligence_score:.2f}[/dim]"
+                    )
 
                 except Exception as e:
                     console.print(f"  [red]Error for {startup.name}: {e}[/red]")
@@ -2111,7 +2244,11 @@ def intelligence(
     with_providers = sum(1 for i in intelligence_data.values() if i.provider_data)
     with_tech = sum(1 for i in intelligence_data.values() if i.tech_programs)
     with_accel = sum(1 for i in intelligence_data.values() if i.accelerators)
-    avg_score = sum(i.intelligence_score for i in intelligence_data.values()) / len(intelligence_data) if intelligence_data else 0
+    avg_score = (
+        sum(i.intelligence_score for i in intelligence_data.values()) / len(intelligence_data)
+        if intelligence_data
+        else 0
+    )
 
     console.print(f"  With provider data: {with_providers}")
     console.print(f"  In tech programs: {with_tech}")
@@ -2122,7 +2259,8 @@ def intelligence(
 
     # Show notable findings
     notable = [
-        (slug, intel) for slug, intel in intelligence_data.items()
+        (slug, intel)
+        for slug, intel in intelligence_data.items()
         if intel.accelerators or len(intel.tech_programs) >= 2
     ]
     if notable:
@@ -2194,7 +2332,9 @@ def memory_backfill(
                     """,
                     str(days),
                 )
-            console.print(f"[bold]Found {len(rows)} clusters from last {days} days (region={region})[/bold]")
+            console.print(
+                f"[bold]Found {len(rows)} clusters from last {days} days (region={region})[/bold]"
+            )
 
             processed = 0
             facts_written = 0
@@ -2213,7 +2353,11 @@ def memory_backfill(
                 if not dry_run:
                     await gate.persist_extraction(conn, row["id"], result)
                     facts_written += await gate.persist_facts(
-                        conn, row["id"], row["canonical_url"] or "", result, region=region,
+                        conn,
+                        row["id"],
+                        row["canonical_url"] or "",
+                        result,
+                        region=region,
                     )
                 processed += 1
 
@@ -2232,10 +2376,9 @@ def memory_backfill(
     if not stats:
         return
 
-    console.print(Panel.fit(
-        f"[bold blue]Memory Backfill Summary ({region})[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit(f"[bold blue]Memory Backfill Summary ({region})[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Clusters processed:[/bold] {stats.get('clusters_processed', 0)}")
     console.print(f"[bold]Entities linked:[/bold] {stats.get('entities_linked', 0)}")
     console.print(f"[bold]Claims extracted:[/bold] {stats.get('claims_extracted', 0)}")
@@ -2250,7 +2393,9 @@ def memory_backfill(
 @app.command("backfill-evidence-objects")
 def backfill_evidence_objects(
     days: int = typer.Option(30, "--days", help="Lookback window for news rows to backfill"),
-    region: str = typer.Option("all", "--region", help="Region filter for clusters: global|turkey|all"),
+    region: str = typer.Option(
+        "all", "--region", help="Region filter for clusters: global|turkey|all"
+    ),
     limit: int = typer.Option(2000, "--limit", help="Max rows per table to backfill"),
 ):
     """Backfill canonical evidence_objects for news items + clusters (idempotent).
@@ -2279,10 +2424,9 @@ def backfill_evidence_objects(
         console.print(f"[red]Evidence object backfill failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Evidence Objects Backfill Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Evidence Objects Backfill Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Raw items seen:[/bold] {stats.get('raw_items_seen', 0)}")
     console.print(f"[bold]Raw items backfilled:[/bold] {stats.get('raw_items_backfilled', 0)}")
     console.print(f"[bold]Clusters seen:[/bold] {stats.get('clusters_seen', 0)}")
@@ -2296,11 +2440,17 @@ def backfill_evidence_objects(
 def embed_backfill(
     days: int = typer.Option(0, "--days", help="Limit to clusters from last N days (0 = all)"),
     batch_size: int = typer.Option(100, "--batch-size", help="Embedding batch size"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Count unembedded clusters without processing"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Count unembedded clusters without processing"
+    ),
     limit: int = typer.Option(0, "--limit", help="Max clusters to process (0 = all)"),
     order: str = typer.Option("newest", "--order", help="Processing order: 'newest' or 'oldest'"),
     sleep_ms: int = typer.Option(0, "--sleep-ms", help="Milliseconds to sleep between batches"),
-    populate_related: bool = typer.Option(True, "--populate-related/--no-populate-related", help="Populate related_cluster_ids after embedding"),
+    populate_related: bool = typer.Option(
+        True,
+        "--populate-related/--no-populate-related",
+        help="Populate related_cluster_ids after embedding",
+    ),
 ):
     """Backfill embeddings for existing news clusters.
 
@@ -2331,11 +2481,13 @@ def embed_backfill(
         azure_client = None
         try:
             from openai import AsyncAzureOpenAI as _AsyncAzureOpenAI
+
             endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
             if endpoint:
                 try:
                     from azure.identity import DefaultAzureCredential as _DAC
                     from azure.identity import get_bearer_token_provider as _gbtp
+
                     _cred = _DAC()
                     _tp = _gbtp(_cred, "https://cognitiveservices.azure.com/.default")
                     azure_client = _AsyncAzureOpenAI(
@@ -2367,11 +2519,19 @@ def embed_backfill(
                 # Dry-run: just count and return
                 if dry_run:
                     clusters = await fetch_unembedded_clusters(
-                        conn, limit=limit, order=order, days=days,
+                        conn,
+                        limit=limit,
+                        order=order,
+                        days=days,
                     )
                     count = len(clusters)
                     console.print(f"[bold]Found {count} unembedded clusters[/bold]")
-                    return {"selected": count, "stored": 0, "populate_related_updated": 0, "dry_run": True}
+                    return {
+                        "selected": count,
+                        "stored": 0,
+                        "populate_related_updated": 0,
+                        "dry_run": True,
+                    }
 
                 stats = await backfill_cluster_embeddings(
                     conn,
@@ -2396,10 +2556,12 @@ def embed_backfill(
     if not result:
         return
 
-    console.print(Panel.fit(
-        "[bold blue]Embedding Backfill Results[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Embedding Backfill Results[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"[bold]Selected:[/bold] {result.get('selected', 0)}")
     console.print(f"[bold]Stored:[/bold] {result.get('stored', 0)}")
     console.print(f"[bold]Failed:[/bold] {result.get('failed', 0)}")
@@ -2415,7 +2577,9 @@ def backfill_turkish_enrichments(
     until: str = typer.Option("", "--until", help="Override end date (YYYY-MM-DD)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Count clusters without calling LLM"),
     concurrency: int = typer.Option(4, "--concurrency", help="Max parallel LLM calls"),
-    include_briefs: bool = typer.Option(True, "--include-briefs/--no-briefs", help="Also regenerate daily briefs"),
+    include_briefs: bool = typer.Option(
+        True, "--include-briefs/--no-briefs", help="Also regenerate daily briefs"
+    ),
 ):
     """Re-enrich Turkey news clusters in Turkish.
 
@@ -2479,7 +2643,9 @@ def backfill_turkish_enrichments(
                 end_date,
             )
 
-        console.print(f"[bold]Found {len(rows)} Turkey clusters with existing LLM enrichment[/bold]")
+        console.print(
+            f"[bold]Found {len(rows)} Turkey clusters with existing LLM enrichment[/bold]"
+        )
 
         if dry_run or len(rows) == 0:
             await pool.close()
@@ -2514,19 +2680,29 @@ def backfill_turkish_enrichments(
                     builder_takeaway=row["builder_takeaway"],
                     llm_summary=row["llm_summary"],
                     llm_model=row["llm_model"],
-                    llm_signal_score=float(row["llm_signal_score"]) if row["llm_signal_score"] else None,
-                    llm_confidence_score=float(row["llm_confidence_score"]) if row["llm_confidence_score"] else None,
+                    llm_signal_score=float(row["llm_signal_score"])
+                    if row["llm_signal_score"]
+                    else None,
+                    llm_confidence_score=float(row["llm_confidence_score"])
+                    if row["llm_confidence_score"]
+                    else None,
                     llm_topic_tags=list(row["llm_topic_tags"] or []),
                     llm_story_type=row["llm_story_type"],
                     members=[],
-                    research_context=json.loads(row["research_context"]) if isinstance(row["research_context"], str) else row["research_context"],
-                    impact=json.loads(row["impact"]) if isinstance(row["impact"], str) else row["impact"],
+                    research_context=json.loads(row["research_context"])
+                    if isinstance(row["research_context"], str)
+                    else row["research_context"],
+                    impact=json.loads(row["impact"])
+                    if isinstance(row["impact"], str)
+                    else row["impact"],
                 )
 
                 try:
                     result = await ingestor._llm_enrich_cluster(cluster, region="turkey")
                     if result.error_code or result.timed_out:
-                        console.print(f"  [yellow]SKIP {cluster.title[:50]}… (error={result.error_code}, timeout={result.timed_out})[/yellow]")
+                        console.print(
+                            f"  [yellow]SKIP {cluster.title[:50]}… (error={result.error_code}, timeout={result.timed_out})[/yellow]"
+                        )
                         failed += 1
                         return
 
@@ -2557,7 +2733,11 @@ def backfill_turkish_enrichments(
                         )
 
                     enriched += 1
-                    pub_date = row["published_at"].date() if hasattr(row["published_at"], "date") else row["published_at"]
+                    pub_date = (
+                        row["published_at"].date()
+                        if hasattr(row["published_at"], "date")
+                        else row["published_at"]
+                    )
                     edition_dates.add(pub_date)
                     console.print(f"  [green]OK[/green] {cluster.title[:60]}…")
                 except Exception as exc:
@@ -2573,7 +2753,9 @@ def backfill_turkish_enrichments(
         # Regenerate daily briefs for affected edition dates
         briefs_regenerated = 0
         if include_briefs and edition_dates:
-            console.print(f"\n[bold]Regenerating daily briefs for {len(edition_dates)} edition dates…[/bold]")
+            console.print(
+                f"\n[bold]Regenerating daily briefs for {len(edition_dates)} edition dates…[/bold]"
+            )
             for ed in sorted(edition_dates):
                 try:
                     async with pool.acquire() as conn:
@@ -2619,18 +2801,29 @@ def backfill_turkish_enrichments(
                                 builder_takeaway=cr["builder_takeaway"],
                                 llm_summary=cr["llm_summary"],
                                 llm_model=cr["llm_model"],
-                                llm_signal_score=float(cr["llm_signal_score"]) if cr["llm_signal_score"] else None,
-                                llm_confidence_score=float(cr["llm_confidence_score"]) if cr["llm_confidence_score"] else None,
+                                llm_signal_score=float(cr["llm_signal_score"])
+                                if cr["llm_signal_score"]
+                                else None,
+                                llm_confidence_score=float(cr["llm_confidence_score"])
+                                if cr["llm_confidence_score"]
+                                else None,
                                 llm_topic_tags=list(cr["llm_topic_tags"] or []),
                                 llm_story_type=cr["llm_story_type"],
                                 members=[],
-                                research_context=json.loads(cr["research_context"]) if isinstance(cr["research_context"], str) else cr["research_context"],
-                                impact=json.loads(cr["impact"]) if isinstance(cr["impact"], str) else cr["impact"],
+                                research_context=json.loads(cr["research_context"])
+                                if isinstance(cr["research_context"], str)
+                                else cr["research_context"],
+                                impact=json.loads(cr["impact"])
+                                if isinstance(cr["impact"], str)
+                                else cr["impact"],
                             )
                             brief_clusters.append(sc)
 
                         brief = await ingestor._llm_generate_daily_brief(
-                            conn=conn, edition_date=ed, region="turkey", clusters=brief_clusters,
+                            conn=conn,
+                            edition_date=ed,
+                            region="turkey",
+                            clusters=brief_clusters,
                         )
 
                         if brief:
@@ -2639,7 +2832,11 @@ def backfill_turkish_enrichments(
                                 "SELECT stats_json FROM news_daily_editions WHERE edition_date = $1 AND region = 'turkey'",
                                 ed,
                             )
-                            stats = json.loads(existing_stats) if existing_stats and isinstance(existing_stats, str) else (existing_stats or {})
+                            stats = (
+                                json.loads(existing_stats)
+                                if existing_stats and isinstance(existing_stats, str)
+                                else (existing_stats or {})
+                            )
                             if not isinstance(stats, dict):
                                 stats = {}
                             stats["daily_brief"] = brief
@@ -2661,23 +2858,32 @@ def backfill_turkish_enrichments(
                     console.print(f"  [red]Brief failed for {ed}: {exc}[/red]")
 
         await pool.close()
-        return {"total": len(rows), "enriched": enriched, "failed": failed, "briefs": briefs_regenerated, "dry_run": False}
+        return {
+            "total": len(rows),
+            "enriched": enriched,
+            "failed": failed,
+            "briefs": briefs_regenerated,
+            "dry_run": False,
+        }
 
     try:
         result = asyncio.run(run())
     except Exception as exc:
         console.print(f"[red]Turkish enrichment backfill failed:[/red] {exc}")
         import traceback
+
         traceback.print_exc()
         raise typer.Exit(1)
 
     if not result:
         return
 
-    console.print(Panel.fit(
-        "[bold blue]Turkish Enrichment Backfill Results[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Turkish Enrichment Backfill Results[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"[bold]Total clusters:[/bold] {result.get('total', 0)}")
     console.print(f"[bold]Re-enriched:[/bold] {result.get('enriched', 0)}")
     console.print(f"[bold]Failed:[/bold] {result.get('failed', 0)}")
@@ -2689,7 +2895,9 @@ def backfill_turkish_enrichments(
 @app.command("generate-weekly-brief")
 def generate_weekly_brief(
     region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
-    week: str = typer.Option("", "--week", help="Monday of the week (YYYY-MM-DD). Defaults to last week."),
+    week: str = typer.Option(
+        "", "--week", help="Monday of the week (YYYY-MM-DD). Defaults to last week."
+    ),
 ):
     """Generate a weekly intelligence brief.
 
@@ -2707,6 +2915,7 @@ def generate_weekly_brief(
     if week:
         try:
             from datetime import date as dt_date
+
             week_start = dt_date.fromisoformat(week)
         except ValueError:
             console.print(f"[red]Invalid date '{week}'. Use YYYY-MM-DD format.[/red]")
@@ -2737,12 +2946,13 @@ def generate_weekly_brief(
         console.print("[yellow]No stories found for the period.[/yellow]")
         return
 
-    console.print(Panel.fit(
-        f"[bold blue]Weekly Brief Generated ({region})[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit(f"[bold blue]Weekly Brief Generated ({region})[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Title:[/bold] {result.get('title', '')}")
-    console.print(f"[bold]Period:[/bold] {result.get('period_start')} to {result.get('period_end')}")
+    console.print(
+        f"[bold]Period:[/bold] {result.get('period_start')} to {result.get('period_end')}"
+    )
     console.print(f"[bold]Stories:[/bold] {result.get('story_count', 0)}")
     console.print(f"[bold]LLM narrative:[/bold] {'Yes' if result.get('has_narrative') else 'No'}")
     console.print(f"[bold]Status:[/bold] {result.get('status')}")
@@ -2793,12 +3003,13 @@ def generate_monthly_brief_news(
         console.print("[yellow]No stories found for the period.[/yellow]")
         return
 
-    console.print(Panel.fit(
-        f"[bold blue]Monthly Brief Generated ({region})[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit(f"[bold blue]Monthly Brief Generated ({region})[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Title:[/bold] {result.get('title', '')}")
-    console.print(f"[bold]Period:[/bold] {result.get('period_start')} to {result.get('period_end')}")
+    console.print(
+        f"[bold]Period:[/bold] {result.get('period_start')} to {result.get('period_end')}"
+    )
     console.print(f"[bold]Stories:[/bold] {result.get('story_count', 0)}")
     console.print(f"[bold]LLM narrative:[/bold] {'Yes' if result.get('has_narrative') else 'No'}")
     console.print(f"[bold]Status:[/bold] {result.get('status')}")
@@ -2806,8 +3017,12 @@ def generate_monthly_brief_news(
 
 @app.command("extract-logos")
 def extract_logos(
-    use_database: bool = typer.Option(True, "--db/--local", help="Save to PostgreSQL database (default) or local files"),
-    max_concurrent: int = typer.Option(5, "--concurrent", "-c", help="Maximum concurrent extractions"),
+    use_database: bool = typer.Option(
+        True, "--db/--local", help="Save to PostgreSQL database (default) or local files"
+    ),
+    max_concurrent: int = typer.Option(
+        5, "--concurrent", "-c", help="Maximum concurrent extractions"
+    ),
 ):
     """Extract and save company logos for existing startups.
 
@@ -2830,10 +3045,7 @@ def extract_logos(
     """
     from src.crawler.logo_extractor import extract_logos_for_existing_startups
 
-    console.print(Panel.fit(
-        "[bold blue]Logo Extraction[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Logo Extraction[/bold blue]", border_style="blue"))
 
     storage_type = "PostgreSQL database" if use_database else "Local storage"
     console.print(f"[bold]Storage:[/bold] {storage_type}")
@@ -2846,8 +3058,7 @@ def extract_logos(
 
     async def run_extraction():
         results = await extract_logos_for_existing_startups(
-            use_database=use_database,
-            max_concurrent=max_concurrent
+            use_database=use_database, max_concurrent=max_concurrent
         )
         return results
 
@@ -2861,9 +3072,9 @@ def extract_logos(
     console.print(f"  [yellow]Skipped:[/yellow] {len(results['skipped'])}")
 
     # Show some successful extractions
-    if results['success'][:5]:
+    if results["success"][:5]:
         console.print(f"\n[bold]Sample logos extracted:[/bold]")
-        for item in results['success'][:5]:
+        for item in results["success"][:5]:
             console.print(f"  {item['name']}: {item['logo_url']}")
 
 
@@ -2936,10 +3147,7 @@ def research_topics(
         console.print(f"[red]Topic research failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Topic Research Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Topic Research Summary[/bold blue]", border_style="blue"))
     console.print(f"[bold]Processed:[/bold] {stats.get('processed', 0)}")
     console.print(f"[bold]Succeeded:[/bold] {stats.get('succeeded', 0)}")
     console.print(f"[bold]Failed:[/bold] {stats.get('failed', 0)}")
@@ -2961,10 +3169,7 @@ def test_research(
         console.print(f"[red]Test research failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Test Research Results[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Test Research Results[/bold blue]", border_style="blue"))
     console.print(f"[bold]Queries:[/bold] {result.get('queries', [])}")
     console.print(f"[bold]Search results:[/bold] {len(result.get('search_results', []))}")
     console.print(f"[bold]Articles fetched:[/bold] {result.get('articles_fetched', 0)}")
@@ -2978,12 +3183,16 @@ def test_research(
             console.print("[bold]Key findings:[/bold]")
             for f in findings:
                 console.print(f"  • {f}")
-        console.print(f"[bold]Builder implications:[/bold] {output.get('builder_implications', '')}")
+        console.print(
+            f"[bold]Builder implications:[/bold] {output.get('builder_implications', '')}"
+        )
         sources = output.get("sources_used", [])
         if sources:
             console.print(f"[bold]Sources:[/bold] {len(sources)}")
     else:
-        console.print("[yellow]No LLM synthesis output (Azure client may not be configured)[/yellow]")
+        console.print(
+            "[yellow]No LLM synthesis output (Azure client may not be configured)[/yellow]"
+        )
 
 
 @app.command("investigate-seeds")
@@ -2999,10 +3208,9 @@ def investigate_seeds(
         console.print(f"[red]Investigation pipeline failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Investigation Pipeline Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Investigation Pipeline Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Triaged:[/bold] {stats.get('triaged', 0)}")
     console.print(f"[bold]Enqueued:[/bold] {stats.get('enqueued', 0)}")
     console.print(f"[bold]Processed:[/bold] {stats.get('processed', 0)}")
@@ -3025,10 +3233,9 @@ def recheck_corroboration():
         console.print(f"[red]Corroboration recheck failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Corroboration Recheck Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Corroboration Recheck Summary[/bold blue]", border_style="blue")
+    )
     console.print(f"[bold]Rechecked:[/bold] {stats.get('corroboration_rechecked', 0)}")
     console.print(f"[bold]Upgraded:[/bold] {stats.get('corroboration_upgraded', 0)}")
 
@@ -3048,8 +3255,12 @@ def seed_signals():
 
 @app.command("aggregate-signals")
 def aggregate_signals(
-    lookback_days: int = typer.Option(30, "--lookback-days", help="How far back to aggregate events"),
-    region: Optional[str] = typer.Option(None, "--region", help="Region: 'global', 'turkey', or None for both"),
+    lookback_days: int = typer.Option(
+        30, "--lookback-days", help="How far back to aggregate events"
+    ),
+    region: Optional[str] = typer.Option(
+        None, "--region", help="Region: 'global', 'turkey', or None for both"
+    ),
 ):
     """Aggregate events into signals, score, and update lifecycle."""
     from src.automation.signal_engine import run_signal_aggregation
@@ -3065,10 +3276,9 @@ def aggregate_signals(
         console.print(f"[red]Signal aggregation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Signal Aggregation Summary[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Signal Aggregation Summary[/bold blue]", border_style="blue")
+    )
     for r, stats in result.items():
         console.print(f"\n[bold]Region: {r}[/bold]")
         console.print(f"  Candidates: {stats.get('candidates', 0)}")
@@ -3092,9 +3302,7 @@ def diagnose_signals():
         conn = await asyncpg.connect(database_url)
         try:
             # 1. Last cron run time
-            last_run = await conn.fetchval(
-                "SELECT MAX(updated_at) FROM signals"
-            )
+            last_run = await conn.fetchval("SELECT MAX(updated_at) FROM signals")
 
             # 2. Signal counts by status
             status_rows = await conn.fetch(
@@ -3141,10 +3349,9 @@ def diagnose_signals():
             await conn.close()
 
         # --- Display ---
-        console.print(Panel.fit(
-            "[bold blue]Signal Engine Diagnostics[/bold blue]",
-            border_style="blue"
-        ))
+        console.print(
+            Panel.fit("[bold blue]Signal Engine Diagnostics[/bold blue]", border_style="blue")
+        )
         console.print(f"[bold]Last signal update:[/bold] {last_run or '[yellow]never[/yellow]'}")
 
         # Status table
@@ -3231,10 +3438,7 @@ def repair_signal_claims(
 
         conn = await asyncpg.connect(database_url)
         try:
-            malformed_where = (
-                "WHERE claim ~ '\\$\\$+[0-9]' "
-                "OR claim ~ '\\$\\s+[0-9]'"
-            )
+            malformed_where = "WHERE claim ~ '\\$\\$+[0-9]' " "OR claim ~ '\\$\\s+[0-9]'"
             if limit > 0:
                 rows = await conn.fetch(
                     f"""SELECT id::text, claim
@@ -3278,10 +3482,12 @@ def repair_signal_claims(
             await conn.close()
 
         mode = "DRY RUN" if dry_run else "APPLIED"
-        console.print(Panel.fit(
-            f"[bold blue]Signal Claim Repair ({mode})[/bold blue]",
-            border_style="blue",
-        ))
+        console.print(
+            Panel.fit(
+                f"[bold blue]Signal Claim Repair ({mode})[/bold blue]",
+                border_style="blue",
+            )
+        )
         console.print(f"  Scanned malformed claims: {scanned}")
         console.print(f"  Updated: {updated}")
         console.print(f"  Unchanged after sanitize: {unchanged}")
@@ -3291,10 +3497,20 @@ def repair_signal_claims(
 
 @app.command("backfill-state")
 def backfill_state(
-    period: Optional[str] = typer.Option(None, "--period", "-p", help="Period to backfill (e.g., 2026-02). All periods if omitted."),
-    with_diffs: bool = typer.Option(True, "--diffs/--no-diffs", help="Compute architecture diffs between periods"),
-    with_events: bool = typer.Option(True, "--events/--no-events", help="Emit transition events for signal engine"),
-    with_embeddings: bool = typer.Option(False, "--embeddings/--no-embeddings", help="Generate state embeddings (requires Azure OpenAI)"),
+    period: Optional[str] = typer.Option(
+        None, "--period", "-p", help="Period to backfill (e.g., 2026-02). All periods if omitted."
+    ),
+    with_diffs: bool = typer.Option(
+        True, "--diffs/--no-diffs", help="Compute architecture diffs between periods"
+    ),
+    with_events: bool = typer.Option(
+        True, "--events/--no-events", help="Emit transition events for signal engine"
+    ),
+    with_embeddings: bool = typer.Option(
+        False,
+        "--embeddings/--no-embeddings",
+        help="Generate state embeddings (requires Azure OpenAI)",
+    ),
 ):
     """Backfill startup state snapshots from existing analysis_data.
 
@@ -3325,25 +3541,31 @@ def backfill_state(
 
             if with_events:
                 from src.intelligence.dossier.transition_emitter import TransitionEmitter
+
                 emitter = TransitionEmitter()
 
             if with_diffs:
                 from src.intelligence.dossier.state_differ import StateDiffer
+
                 differ = StateDiffer(emitter=emitter)
 
             if with_embeddings:
                 try:
                     from src.automation.embedding import EmbeddingService
                     from src.config import AzureOpenAIConfig
+
                     azure_config = AzureOpenAIConfig()
                     embedding_service = EmbeddingService(
                         azure_client=azure_config.get_async_client(),
-                        deployment_name=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"),
+                        deployment_name=os.getenv(
+                            "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
+                        ),
                     )
                 except Exception as exc:
                     console.print(f"[yellow]Embedding service unavailable: {exc}[/yellow]")
 
             from src.intelligence.dossier.state_extractor import StateExtractor
+
             extractor = StateExtractor(differ=differ, embedding_service=embedding_service)
 
             with Progress(
@@ -3360,10 +3582,12 @@ def backfill_state(
 
                 progress.update(task, completed=True)
 
-            console.print(Panel.fit(
-                "[bold blue]State Snapshot Backfill Complete[/bold blue]",
-                border_style="blue",
-            ))
+            console.print(
+                Panel.fit(
+                    "[bold blue]State Snapshot Backfill Complete[/bold blue]",
+                    border_style="blue",
+                )
+            )
             console.print(f"  Extracted: [green]{stats['extracted']}[/green]")
             console.print(f"  Skipped:   [yellow]{stats['skipped']}[/yellow]")
             console.print(f"  Errors:    [red]{stats['errors']}[/red]")
@@ -3417,14 +3641,16 @@ def merge_startups_cmd(
                 console.print(f"[red]TO startup {to_id} not found[/red]")
                 raise typer.Exit(1)
 
-            console.print(Panel.fit(
-                f"[bold red]FROM (merge away):[/bold red] {from_row['name']} ({from_id})\n"
-                f"  slug: {from_row['slug']}  website: {from_row['website']}\n\n"
-                f"[bold green]TO (canonical):[/bold green] {to_row['name']} ({to_id})\n"
-                f"  slug: {to_row['slug']}  website: {to_row['website']}",
-                border_style="yellow",
-                title="Startup Merge" + (" [DRY RUN]" if dry_run else ""),
-            ))
+            console.print(
+                Panel.fit(
+                    f"[bold red]FROM (merge away):[/bold red] {from_row['name']} ({from_id})\n"
+                    f"  slug: {from_row['slug']}  website: {from_row['website']}\n\n"
+                    f"[bold green]TO (canonical):[/bold green] {to_row['name']} ({to_id})\n"
+                    f"  slug: {to_row['slug']}  website: {to_row['website']}",
+                    border_style="yellow",
+                    title="Startup Merge" + (" [DRY RUN]" if dry_run else ""),
+                )
+            )
 
             if not dry_run:
                 if not typer.confirm("\nProceed with merge? This cannot be undone."):
@@ -3454,12 +3680,15 @@ def merge_startups_cmd(
             if dry_run:
                 console.print("\n[yellow]Dry run — no changes were made.[/yellow]")
             else:
-                console.print(f"\n[bold green]Merge complete![/bold green] {from_row['name']} → {to_row['name']}")
+                console.print(
+                    f"\n[bold green]Merge complete![/bold green] {from_row['name']} → {to_row['name']}"
+                )
 
         finally:
             await conn.close()
 
     import asyncpg
+
     asyncio.run(_merge())
 
 
@@ -3472,17 +3701,14 @@ def collect_github_metrics_cmd(
     from src.automation.github_metrics import run_github_metrics_collection
 
     try:
-        result = asyncio.run(
-            run_github_metrics_collection(startup_id=startup_id, limit=limit)
-        )
+        result = asyncio.run(run_github_metrics_collection(startup_id=startup_id, limit=limit))
     except Exception as exc:
         console.print(f"[red]GitHub metrics collection failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]GitHub Metrics Collection[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]GitHub Metrics Collection[/bold blue]", border_style="blue")
+    )
     console.print(f"  Processed: {result.get('processed', 0)}")
     console.print(f"  Collected: {result.get('collected', 0)}")
     console.print(f"  Errors: {result.get('errors', 0)}")
@@ -3502,6 +3728,7 @@ def compute_signal_occurrences_cmd(
             console.print("[red]DATABASE_URL not set[/red]")
             raise typer.Exit(1)
         import asyncpg
+
         conn = await asyncpg.connect(database_url)
         try:
             return await compute_signal_occurrences(conn, signal_id, region)
@@ -3514,10 +3741,9 @@ def compute_signal_occurrences_cmd(
         console.print(f"[red]Occurrence scoring failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Signal Occurrence Scoring[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit("[bold blue]Signal Occurrence Scoring[/bold blue]", border_style="blue")
+    )
     console.print(f"  Signals processed: {result.get('signals_processed', 0)}")
     console.print(f"  Occurrences upserted: {result.get('occurrences_upserted', 0)}")
 
@@ -3527,7 +3753,9 @@ def generate_deep_dives_cmd(
     signal_id: Optional[str] = typer.Option(None, "--signal-id", help="Specific signal UUID"),
     top_n: int = typer.Option(15, "--top-n", help="Max signals to process"),
     region: Optional[str] = typer.Option(None, "--region", help="Region: 'global', 'turkey'"),
-    force: bool = typer.Option(False, "--force", help="Force re-generation even if evidence unchanged"),
+    force: bool = typer.Option(
+        False, "--force", help="Force re-generation even if evidence unchanged"
+    ),
 ):
     """Generate deep dives: evidence enrichment → occurrence scoring → move extraction → synthesis."""
     from src.automation.deep_dive_engine import generate_deep_dives
@@ -3545,10 +3773,7 @@ def generate_deep_dives_cmd(
         console.print(f"[red]Deep dive generation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Deep Dive Generation[/bold blue]",
-        border_style="blue"
-    ))
+    console.print(Panel.fit("[bold blue]Deep Dive Generation[/bold blue]", border_style="blue"))
     console.print(f"  Evidence enriched: {result.get('evidence_enriched', 0)}")
     console.print(f"  Occurrences computed: {result.get('occurrences_computed', 0)}")
     console.print(f"  Moves extracted: {result.get('moves_extracted', 0)}")
@@ -3561,9 +3786,15 @@ def backfill_deep_dives_cmd(
     region: Optional[str] = typer.Option(None, "--region", help="Region: 'global', 'turkey'"),
     limit: int = typer.Option(40, "--limit", "-l", help="Max missing signals to process"),
     mode: str = typer.Option("coverage", "--mode", help="coverage|full"),
-    force: bool = typer.Option(False, "--force", help="Force re-generation even if evidence unchanged"),
-    enqueue_research: bool = typer.Option(False, "--enqueue-research", help="Enqueue deep research for related startups (best-effort)"),
-    research_per_signal: int = typer.Option(2, "--research-per-signal", help="Max startups to enqueue per signal"),
+    force: bool = typer.Option(
+        False, "--force", help="Force re-generation even if evidence unchanged"
+    ),
+    enqueue_research: bool = typer.Option(
+        False, "--enqueue-research", help="Enqueue deep research for related startups (best-effort)"
+    ),
+    research_per_signal: int = typer.Option(
+        2, "--research-per-signal", help="Max startups to enqueue per signal"
+    ),
     research_depth: str = typer.Option("quick", "--research-depth", help="quick|standard|deep"),
 ):
     """Backfill missing deep dives so every non-decaying signal has at least one."""
@@ -3585,10 +3816,12 @@ def backfill_deep_dives_cmd(
         console.print(f"[red]Deep dive backfill failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Deep Dive Backfill[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Deep Dive Backfill[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"  Mode: {result.get('mode', 'coverage')}")
     console.print(f"  Signals targeted: {result.get('signals_targeted', 0)}")
     console.print(f"  Trend dives synthesized: {result.get('trend_synthesized', 0)}")
@@ -3601,7 +3834,9 @@ def backfill_deep_dives_cmd(
 
 @app.command("generate-deltas")
 def generate_deltas_cmd(
-    period: str = typer.Option(..., "--period", "-p", help="Period to generate deltas for (e.g., 2026-02)"),
+    period: str = typer.Option(
+        ..., "--period", "-p", help="Period to generate deltas for (e.g., 2026-02)"
+    ),
     region: str = typer.Option("global", "--region", help="Region: 'global' or 'turkey'"),
 ):
     """Generate delta events by diffing startup state across periods.
@@ -3620,14 +3855,25 @@ def generate_deltas_cmd(
         console.print(f"[red]Delta generation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Delta Generation Summary[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Delta Generation Summary[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"  Total inserted: [green]{result.get('total', 0)}[/green]")
     console.print(f"  Duplicates skipped: [yellow]{result.get('skipped_duplicate', 0)}[/yellow]")
-    for dtype in ("funding_round", "pattern_added", "pattern_removed", "score_change",
-                   "stage_change", "employee_change", "signal_spike", "new_entry", "gtm_shift"):
+    for dtype in (
+        "funding_round",
+        "pattern_added",
+        "pattern_removed",
+        "score_change",
+        "stage_change",
+        "employee_change",
+        "signal_spike",
+        "new_entry",
+        "gtm_shift",
+    ):
         count = result.get(dtype, 0)
         if count > 0:
             console.print(f"  {dtype}: [cyan]{count}[/cyan]")
@@ -3654,10 +3900,12 @@ def compute_neighbors_cmd(
         console.print(f"[red]Neighbor computation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Neighbors Computation[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Neighbors Computation[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"  Processed: [green]{result.get('processed', 0)}[/green]")
     console.print(f"  Neighbors inserted: [cyan]{result.get('neighbors_inserted', 0)}[/cyan]")
     console.print(f"  Errors: [red]{result.get('errors', 0)}[/red]")
@@ -3684,10 +3932,12 @@ def compute_benchmarks_cmd(
         console.print(f"[red]Benchmark computation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Cohort Benchmarks[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Cohort Benchmarks[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"  Cohorts computed: [green]{result.get('cohorts_computed', 0)}[/green]")
     console.print(f"  Benchmarks inserted: [cyan]{result.get('benchmarks_inserted', 0)}[/cyan]")
     console.print(f"  Skipped (small cohort): [yellow]{result.get('skipped_small', 0)}[/yellow]")
@@ -3714,10 +3964,12 @@ def compute_benchmarks_extended_cmd(
         console.print(f"[red]Extended benchmark computation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Extended Benchmarks + Startup Ranks[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Extended Benchmarks + Startup Ranks[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"  Cohorts computed: [green]{result.get('cohorts_computed', 0)}[/green]")
     console.print(f"  Benchmarks inserted: [cyan]{result.get('benchmarks_inserted', 0)}[/cyan]")
     console.print(f"  Skipped (small): [yellow]{result.get('skipped_small', 0)}[/yellow]")
@@ -3746,10 +3998,12 @@ def compute_investor_dna_cmd(
         console.print(f"[red]Investor DNA computation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Investor DNA[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Investor DNA[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"  Investors processed: [green]{result.get('investors_processed', 0)}[/green]")
     console.print(f"  Mix entries inserted: [cyan]{result.get('mix_inserted', 0)}[/cyan]")
     console.print(f"  Co-invest edges: [cyan]{result.get('edges_inserted', 0)}[/cyan]")
@@ -3760,7 +4014,9 @@ def compute_investor_dna_cmd(
 def generate_alerts_cmd(
     period: str = typer.Option(..., "--period", "-p", help="Period (e.g., 2026-02)"),
     scope: str = typer.Option("global", "--scope", help="Scope: 'global' or 'turkey'"),
-    narratives: bool = typer.Option(True, "--narratives/--no-narratives", help="Generate LLM narratives"),
+    narratives: bool = typer.Option(
+        True, "--narratives/--no-narratives", help="Generate LLM narratives"
+    ),
 ):
     """Generate user alerts from delta_events + subscriptions.
 
@@ -3778,10 +4034,12 @@ def generate_alerts_cmd(
         console.print(f"[red]Alert generation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Alert Generation[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Alert Generation[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"  Deltas checked: [green]{result.get('deltas_checked', 0)}[/green]")
     console.print(f"  Alerts inserted: [cyan]{result.get('alerts_inserted', 0)}[/cyan]")
     console.print(f"  Narratives generated: [cyan]{result.get('narratives_generated', 0)}[/cyan]")
@@ -3809,10 +4067,12 @@ def generate_weekly_digest_cmd(
         console.print(f"[red]Digest generation failed:[/red] {exc}")
         raise typer.Exit(1)
 
-    console.print(Panel.fit(
-        "[bold blue]Weekly Digest[/bold blue]",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Weekly Digest[/bold blue]",
+            border_style="blue",
+        )
+    )
     console.print(f"  Users processed: [green]{result.get('users_processed', 0)}[/green]")
     console.print(f"  Digests created: [cyan]{result.get('digests_created', 0)}[/cyan]")
     console.print(f"  Errors: [red]{result.get('errors', 0)}[/red]")
