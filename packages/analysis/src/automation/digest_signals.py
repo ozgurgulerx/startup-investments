@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DigestSignal:
     id: str
@@ -34,20 +35,25 @@ class DigestSignal:
     evidence_count: int
     unique_company_count: int
     lifecycle_transition: Optional[str] = None  # e.g. "emerging → accelerating"
-    transition_recency: Optional[str] = None    # e.g. "2d ago"
+    transition_recency: Optional[str] = None  # e.g. "2d ago"
 
 
 @dataclass
 class DigestSignalContext:
-    top_signals: List[DigestSignal]                                  # Top 3-5 by momentum
-    cluster_signal_map: Dict[str, List[DigestSignal]] = field(default_factory=dict)  # cluster_id → linked signals
-    narrative: Optional[str] = None                                  # LLM-generated paragraph
-    new_transitions: List[DigestSignal] = field(default_factory=list)  # Signals with transitions in last 48h
+    top_signals: List[DigestSignal]  # Top 3-5 by momentum
+    cluster_signal_map: Dict[str, List[DigestSignal]] = field(
+        default_factory=dict
+    )  # cluster_id → linked signals
+    narrative: Optional[str] = None  # LLM-generated paragraph
+    new_transitions: List[DigestSignal] = field(
+        default_factory=list
+    )  # Signals with transitions in last 48h
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _sanitize_claim_text(text: str) -> str:
     """Normalize claim text that can include malformed currency symbols."""
@@ -119,6 +125,7 @@ def _row_to_digest_signal(row: Any, *, cutoff: datetime) -> DigestSignal:
 # ---------------------------------------------------------------------------
 # DB queries
 # ---------------------------------------------------------------------------
+
 
 async def _fetch_top_signals(
     conn: Any,
@@ -208,11 +215,13 @@ async def fetch_cluster_ids_for_edition(
 # LLM narrative
 # ---------------------------------------------------------------------------
 
+
 async def _generate_signal_narrative(
     azure_client: Any,
     model_name: str,
     top_signals: List[DigestSignal],
     story_titles: List[str],
+    region: str = "global",
 ) -> Optional[str]:
     """Generate a short narrative connecting today's stories to signal trends."""
     if not azure_client or not top_signals:
@@ -233,6 +242,11 @@ async def _generate_signal_narrative(
         "Write 2-4 sentences. Be specific — reference signal names and story themes. "
         "Do NOT use bullet points. Output only the paragraph, no preamble."
     )
+    if region == "turkey":
+        system_prompt += (
+            "\n\nIMPORTANT: Write the output in Turkish (Türkçe). "
+            "Use native Turkish phrasing, not machine-translated English."
+        )
     user_prompt = (
         f"Today's top stories:\n{stories_text}\n\n"
         f"Active signals:\n{signals_text}\n\n"
@@ -260,6 +274,7 @@ async def _generate_signal_narrative(
 # Orchestrator
 # ---------------------------------------------------------------------------
 
+
 async def load_digest_signal_context(
     conn: Any,
     *,
@@ -279,14 +294,20 @@ async def load_digest_signal_context(
         return None
 
     cluster_signal_map = await _fetch_cluster_signal_map(
-        conn, cluster_ids=cluster_ids, region=region,
+        conn,
+        cluster_ids=cluster_ids,
+        region=region,
     )
 
-    # Narrative (best-effort LLM call)
+    # Narrative (best-effort LLM call) — honors region for Turkish output.
     narrative: Optional[str] = None
     if azure_client and model_name and story_titles:
         narrative = await _generate_signal_narrative(
-            azure_client, model_name, top_signals, story_titles,
+            azure_client,
+            model_name,
+            top_signals,
+            story_titles,
+            region=region,
         )
 
     # Signals with recent transitions
