@@ -1,0 +1,248 @@
+# Seed ecosystem facts — baseline long-horizon context for the daily brief.
+#
+# Loader: python main.py seed-ecosystem-memory (PR #4.4)
+# Re-running upserts via (region, sector, fact_key) supersession.
+# Facts are regenerated when the underlying source is re-ingested, but
+# curated entries survive as the stable baseline if reports lag.
+
+# =========================================================================
+# Turkey — market-wide
+# =========================================================================
+- region: turkey
+  sector: null
+  fact_key: unicorn_count
+  fact_value: { value: 7, unit: count }
+  narrative: >-
+    Türkiye'de 2026 itibarıyla 7 unicorn bulunuyor: Getir (son değerleme düştü),
+    Trendyol, Peak Games, Dream Games, Insider, Hepsiburada ve Jotform.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.9
+
+- region: turkey
+  sector: null
+  fact_key: ecosystem_rank_europe
+  fact_value: { value: 8, unit: rank_in_europe }
+  narrative: >-
+    Türkiye girişim ekosistemi Avrupa'da fon büyüklüğüne göre ilk 10'da;
+    İngiltere, Almanya, Fransa ve İsveç'in gerisinde ancak Doğu Avrupa
+    pazarlarının önünde.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.75
+
+- region: turkey
+  sector: null
+  fact_key: annual_funding_usd_2024
+  fact_value: { value: 430000000, unit: USD, period: 2024_full_year }
+  narrative: >-
+    2024'te Türk girişimlerine yaklaşık 430M USD yatırım yapıldı;
+    2022 zirvesine (1.5B USD) göre belirgin düşüş, küresel pazar
+    daralmasıyla paralel.
+  source_type: curated
+  as_of_date: 2025-01-15
+  confidence: 0.85
+
+# =========================================================================
+# Turkey — by sector
+# =========================================================================
+- region: turkey
+  sector: mobile_gaming
+  fact_key: sector_strength
+  fact_value: { rank_in_europe: 1, note: "leading market" }
+  narrative: >-
+    Türkiye mobil oyun ekosisteminde Avrupa'da lider konumda; Peak Games (Zynga
+    tarafından $1.8B satın alındı) ve Dream Games ($2.75B unicorn) global çapta
+    en büyük çıkışları üretti. Istanbul mobile-first hyper-casual ve puzzle
+    oyunlarının merkezi.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.95
+
+- region: turkey
+  sector: mobile_gaming
+  fact_key: unicorn_share
+  fact_value: { unicorns_in_sector: 2, pct_of_tr_unicorns: 0.29 }
+  narrative: >-
+    7 Türk unicornun 2'si (Peak Games, Dream Games) mobil oyun şirketi;
+    sektör TR ekosisteminin küresel görünürlüğünü belirleyen en güçlü dikey.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.95
+
+- region: turkey
+  sector: fintech
+  fact_key: active_startup_count
+  fact_value: { value: 90, unit: count }
+  narrative: >-
+    Türkiye'de 90+ aktif fintech girişim var; BDDK ve SPK düzenlemeleri hızla
+    olgunlaşıyor, Istanbul Finans Merkezi projesi sektörün altyapısını
+    büyütüyor.
+  source_type: curated
+  as_of_date: 2026-03-01
+  confidence: 0.8
+
+- region: turkey
+  sector: fintech
+  fact_key: crypto_tax_regime
+  fact_value: { rate: 0.1, effective_from: 2026-03-01 }
+  narrative: >-
+    Mart 2026 itibarıyla kripto işlemlerinden %10 stopaj vergisi uygulanıyor;
+    BTCTurk ve Paribu gibi borsaların hacim profiline belirgin etkisi var,
+    regülasyonun deal-flow üzerindeki etkisi yakından izleniyor.
+  source_type: curated
+  as_of_date: 2026-03-01
+  confidence: 0.9
+
+- region: turkey
+  sector: ai
+  fact_key: adoption_momentum
+  fact_value: { trend: accelerating, note: "post-2024 inflection" }
+  narrative: >-
+    2024 sonrası Türkiye'de kurumsal yapay zeka adaptasyonu hızlandı;
+    Türkiye AI Inisiyatifi (TRAI) 480+ yerel startup haritalandırdı,
+    ITU Çekirdek başta olmak üzere kuluçkaların AI programları yoğunlaştı.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.8
+
+- region: turkey
+  sector: e_commerce
+  fact_key: sector_strength
+  fact_value: { rank_global: null, note: "Trendyol + Hepsiburada unicorns" }
+  narrative: >-
+    Trendyol (Alibaba kontrolünde, ~$16.5B değerleme) ve Hepsiburada (NASDAQ listed)
+    Türkiye e-ticaret manzarasını domine ediyor; yeni girişimler nichere yöneliyor
+    (B2B pazar yerleri, cross-border).
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.9
+
+- region: turkey
+  sector: quick_commerce
+  fact_key: getir_trajectory
+  fact_value:
+    {
+      peak_valuation_usd: 11800000000,
+      current_status: "downround_turkey_focused",
+    }
+  narrative: >-
+    Getir 2022'de $11.8B pik değerlemeye ulaştı, ardından Avrupa/ABD operasyonlarını
+    kapatarak Türkiye'ye çekildi; quick-commerce teması küresel olarak soğudu,
+    TR'de benzer aşamada olan girişim kalmadı.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.9
+
+- region: turkey
+  sector: defense_tech
+  fact_key: ecosystem_tie
+  fact_value: { note: "ASELSAN/TUSAŞ/HAVELSAN spillover" }
+  narrative: >-
+    ASELSAN, TUSAŞ ve HAVELSAN etrafında savunma-teknoloji spinoff aktivitesi
+    yüksek; savunma ihracatı ve TULPAR/BAYKAR deneyiminden ilham alan
+    dual-use startuplar (insansız sistem, yazılım, sensör) artıyor.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.7
+
+- region: turkey
+  sector: logistics
+  fact_key: sector_snapshot
+  fact_value: { note: "Trendyol Express + Hepsijet consolidation" }
+  narrative: >-
+    Lojistik startup segmenti Trendyol Express ve Hepsijet gibi e-ticaret
+    operatörlerinin dikey entegrasyonu nedeniyle sıkışık; bağımsız last-mile
+    startupları sınırlı.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.7
+
+# =========================================================================
+# Turkey — governmental / policy context
+# =========================================================================
+- region: turkey
+  sector: null
+  fact_key: tubitak_bigg_program
+  fact_value: { annual_cohorts: true, grant_size_try: 200000 }
+  narrative: >-
+    TÜBİTAK BİGG programı pre-seed aşama için 200K TL karşılıksız hibe
+    sağlıyor; yıllık kohortlar ekosistem için en büyük kamu girişim
+    finansman kaynağı.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.85
+
+- region: turkey
+  sector: null
+  fact_key: tech_visa
+  fact_value: { launched: 2022, purpose: "foreign founder attraction" }
+  narrative: >-
+    Türkiye Tech Visa programı 2022'de başlatıldı; yabancı kurucuları
+    ekosisteme çekmek için vize/ikamet kolaylıkları sağlıyor,
+    2025'ten itibaren başvuru hacmi artıyor.
+  source_type: curated
+  as_of_date: 2026-04-01
+  confidence: 0.75
+
+# =========================================================================
+# Global — parallel context for Turkey-vs-global contrast in commentary
+# =========================================================================
+- region: global
+  sector: null
+  fact_key: total_funding_usd_2025
+  fact_value: { value: 290000000000, unit: USD, period: 2025_full_year }
+  narrative: >-
+    Global girişim sermayesi 2025'te yaklaşık $290B seviyesinde kaldı;
+    2021 pikinden (~$650B) belirgin uzakta, ancak AI odaklı mega-round'lar
+    pastayı dengede tutuyor.
+  source_type: curated
+  as_of_date: 2026-02-15
+  confidence: 0.85
+
+- region: global
+  sector: ai
+  fact_key: share_of_funding
+  fact_value: { pct: 0.52, period: 2025_full_year }
+  narrative: >-
+    2025'te global girişim sermayesinin yaklaşık %52'si AI startuplarına aktı;
+    bu oran 2024'te %35, 2023'te %22 idi — AI sektör dominasyonu hızlanıyor.
+  source_type: curated
+  as_of_date: 2026-02-15
+  confidence: 0.8
+
+- region: global
+  sector: agentic_ai
+  fact_key: emerging_theme
+  fact_value: { stage: "accelerating", note: "2025 H2 momentum" }
+  narrative: >-
+    Ajanik AI (agentic AI) 2025 H2'de en hızlı büyüyen yatırım teması;
+    tool-use, çok-adımlı otonom iş akışları ve vertical-specific agent
+    startuplarına milyar-dolar raundları yoğunlaşıyor.
+  source_type: curated
+  as_of_date: 2026-03-01
+  confidence: 0.85
+
+- region: global
+  sector: infrastructure
+  fact_key: data_center_capex
+  fact_value: { trend: "hyperscaler_led_boom" }
+  narrative: >-
+    Hyperscaler'ların (Microsoft, Meta, Alphabet, Amazon) 2024-2025 AI
+    veri-merkezi yatırımları $300B+ seviyesine ulaştı; bu dalga chip, güç,
+    soğutma ve ağ altyapısı startuplarına dolaylı finansman akıtıyor.
+  source_type: curated
+  as_of_date: 2026-03-15
+  confidence: 0.8
+
+- region: global
+  sector: governance
+  fact_key: ai_regulation_momentum
+  fact_value: { jurisdictions: ["EU", "US", "UK", "JP", "TR"] }
+  narrative: >-
+    AI düzenlemeleri küresel olarak sertleşiyor: AB AI Act uygulaması
+    2026'da genişledi, ABD'de eyalet bazlı yasalar artıyor, Türkiye
+    çerçeve yasa çalışması son aşamada.
+  source_type: curated
+  as_of_date: 2026-03-01
+  confidence: 0.8

@@ -1,0 +1,284 @@
+# Seed startup_exclusions — known Turkish non-startup entities.
+#
+# Loader: python main.py seed-startup-exclusions (PR #4.1–4.2)
+# Upsert via (entity_name_norm, region).
+#
+# `overridden_by_startup_id` is set later via a UUID lookup in the
+# `startups` table for the venture/lab arm, so the exclusion fires on
+# the parent brand but not on the startup spinoff. The loader leaves
+# this NULL at seed time; PR #4.2 resolves overrides at ingest start.
+
+# -------------------------------------------------------------------------
+# Grocery retail chains — big source of A101/BIM-style noise
+# -------------------------------------------------------------------------
+- entity_name: "A101"
+  category: grocery_retail
+  reason: "Indirim market chain — retail expansion news is not startup signal"
+
+- entity_name: "BIM"
+  category: grocery_retail
+  reason: "BİM Birleşik Mağazalar — public grocery retailer"
+
+- entity_name: "BİM"
+  category: grocery_retail
+  reason: "Turkish-language spelling"
+
+- entity_name: "Migros"
+  category: grocery_retail
+  reason: "Listed supermarket chain"
+
+- entity_name: "Migros Ticaret"
+  category: grocery_retail
+
+- entity_name: "CarrefourSA"
+  category: grocery_retail
+
+- entity_name: "Şok Marketler"
+  category: grocery_retail
+
+- entity_name: "Sok Marketler"
+  category: grocery_retail
+
+- entity_name: "File Market"
+  category: grocery_retail
+
+# -------------------------------------------------------------------------
+# Banks (the bank itself — their VC arms like Akbank LAB are whitelisted)
+# -------------------------------------------------------------------------
+- entity_name: "Ziraat Bankası"
+  category: bank
+
+- entity_name: "Ziraat"
+  category: bank
+  reason: "Ambiguous but usually refers to the bank"
+
+- entity_name: "Yapı Kredi"
+  category: bank
+
+- entity_name: "İş Bankası"
+  category: bank
+
+- entity_name: "Is Bankasi"
+  category: bank
+
+- entity_name: "Türkiye İş Bankası"
+  category: bank
+
+- entity_name: "Garanti BBVA"
+  category: bank
+  reason: "The bank. Garanti BBVA Partners VC arm is a separate signal."
+
+- entity_name: "Akbank"
+  category: bank
+  reason: "The bank. Akbank LAB (akbanklab) is whitelisted in news_ingest."
+
+- entity_name: "Halkbank"
+  category: bank
+
+- entity_name: "DenizBank"
+  category: bank
+  reason: "The bank. Deniz Ventures is a separate signal."
+
+- entity_name: "QNB Finansbank"
+  category: bank
+
+- entity_name: "Finansbank"
+  category: bank
+
+- entity_name: "TEB"
+  category: bank
+  reason: "Türk Ekonomi Bankası — TİM-TEB Girişim Evi is a separate signal."
+
+- entity_name: "Vakıfbank"
+  category: bank
+
+- entity_name: "VakıfBank"
+  category: bank
+
+# -------------------------------------------------------------------------
+# Telecom incumbents — their ventures (TT Ventures, Turkcell Ventures)
+# are whitelisted
+# -------------------------------------------------------------------------
+- entity_name: "Turkcell"
+  category: telecom
+  reason: "Telecom operator. Turkcell Ventures is a separate signal."
+
+- entity_name: "Türk Telekom"
+  category: telecom
+  reason: "Telecom operator. TT Ventures (ttventures) is a separate signal."
+
+- entity_name: "Turk Telekom"
+  category: telecom
+
+- entity_name: "Vodafone Türkiye"
+  category: telecom
+
+- entity_name: "Vodafone Turkiye"
+  category: telecom
+
+# -------------------------------------------------------------------------
+# Media outlets — editorial, not startup actors
+# -------------------------------------------------------------------------
+- entity_name: "NTV"
+  category: media
+
+- entity_name: "CNN Türk"
+  category: media
+
+- entity_name: "CNN Turk"
+  category: media
+
+- entity_name: "Hürriyet"
+  category: media
+
+- entity_name: "Sabah"
+  category: media
+
+- entity_name: "Sözcü"
+  category: media
+
+- entity_name: "A Haber"
+  category: media
+
+- entity_name: "Habertürk"
+  category: media
+
+- entity_name: "Haber Türk"
+  category: media
+
+- entity_name: "Cumhuriyet"
+  category: media
+
+# -------------------------------------------------------------------------
+# Large industrial / consumer holdings
+# -------------------------------------------------------------------------
+- entity_name: "Koç Holding"
+  category: holding
+
+- entity_name: "Koc Holding"
+  category: holding
+
+- entity_name: "Sabancı Holding"
+  category: holding
+  reason: "Holding. Sabancı Ventures + Sabancı DX are separate signals."
+
+- entity_name: "Sabanci Holding"
+  category: holding
+
+- entity_name: "Doğan Holding"
+  category: holding
+
+- entity_name: "Dogan Holding"
+  category: holding
+
+- entity_name: "Alarko Holding"
+  category: holding
+
+- entity_name: "Zorlu Holding"
+  category: holding
+
+- entity_name: "Eczacıbaşı Holding"
+  category: holding
+
+- entity_name: "Yıldız Holding"
+  category: holding
+
+- entity_name: "Yildiz Holding"
+  category: holding
+
+- entity_name: "Anadolu Endüstri Holding"
+  category: holding
+
+# -------------------------------------------------------------------------
+# Consumer brands (some have innovation arms that ARE signals — handle via
+# override at ingest time; the base brand is a non-startup)
+# -------------------------------------------------------------------------
+- entity_name: "Arçelik"
+  category: consumer_brand
+  reason: "White-goods manufacturer. Arçelik Garage innovation hub is separate."
+
+- entity_name: "Arcelik"
+  category: consumer_brand
+
+- entity_name: "Beko"
+  category: consumer_brand
+
+- entity_name: "Vestel"
+  category: consumer_brand
+
+- entity_name: "Ülker"
+  category: consumer_brand
+
+- entity_name: "Ulker"
+  category: consumer_brand
+
+# -------------------------------------------------------------------------
+# Public corporations — state-owned or listed incumbents
+# -------------------------------------------------------------------------
+- entity_name: "Türk Hava Yolları"
+  category: public_corp
+
+- entity_name: "THY"
+  category: public_corp
+
+- entity_name: "Turkish Airlines"
+  category: public_corp
+
+- entity_name: "TÜPRAŞ"
+  category: public_corp
+
+- entity_name: "TUPRAŞ"
+  category: public_corp
+
+- entity_name: "TPAO"
+  category: public_corp
+
+- entity_name: "BOTAŞ"
+  category: public_corp
+
+# -------------------------------------------------------------------------
+# Defense primes — spinoffs handled case-by-case
+# -------------------------------------------------------------------------
+- entity_name: "ASELSAN"
+  category: defense_prime
+  reason: "Defense prime. Spinoff startups are legit and should be tracked separately."
+
+- entity_name: "TUSAŞ"
+  category: defense_prime
+
+- entity_name: "TUSAS"
+  category: defense_prime
+
+- entity_name: "HAVELSAN"
+  category: defense_prime
+
+- entity_name: "ROKETSAN"
+  category: defense_prime
+
+- entity_name: "MKE"
+  category: defense_prime
+  reason: "Makina ve Kimya Endüstrisi — state weapons manufacturer"
+
+# -------------------------------------------------------------------------
+# Energy incumbents
+# -------------------------------------------------------------------------
+- entity_name: "Enerjisa"
+  category: energy
+
+- entity_name: "Zorlu Enerji"
+  category: energy
+
+- entity_name: "Aksa Enerji"
+  category: energy
+
+# -------------------------------------------------------------------------
+# Real estate / construction (big developers, not startups)
+# -------------------------------------------------------------------------
+- entity_name: "Emlak Konut"
+  category: real_estate
+
+- entity_name: "Rönesans Holding"
+  category: real_estate
+
+- entity_name: "Ronesans Holding"
+  category: real_estate
