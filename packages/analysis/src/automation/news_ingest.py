@@ -6748,6 +6748,29 @@ class DailyNewsIngestor:
             except Exception as exc:
                 print(f"[news-ingest] editorial memory: entity facts query failed: {exc}")
 
+        # --- PR #4.3: ecosystem facts (long-horizon context) ---
+        # One-way region merge: turkey reads global+turkey, global reads global.
+        # Missing table (pre-migration-084) is logged and skipped.
+        try:
+            from src.intelligence.ecosystem_memory import load_ecosystem_facts_for_brief
+
+            eco_rows = await load_ecosystem_facts_for_brief(
+                conn, region=region, limit=12, freshness_months=18
+            )
+            if eco_rows:
+                # Group by region so the LLM can contrast TR vs global.
+                tr_facts = [r["narrative"] for r in eco_rows if r["region"] == "turkey"]
+                global_facts = [r["narrative"] for r in eco_rows if r["region"] == "global"]
+                ecosystem_memory_block: Dict[str, Any] = {}
+                if tr_facts:
+                    ecosystem_memory_block["turkey"] = tr_facts
+                if global_facts:
+                    ecosystem_memory_block["global"] = global_facts
+                if ecosystem_memory_block:
+                    memory["ecosystem_facts"] = ecosystem_memory_block
+        except Exception as exc:
+            print(f"[news-ingest] editorial memory: ecosystem facts query failed: {exc}")
+
         return memory
 
     async def _llm_generate_daily_brief(
@@ -6804,6 +6827,23 @@ class DailyNewsIngestor:
             "(3) Highlight emerging multi-day patterns or trend reversals. "
             "Weave continuity naturally into your summary — do NOT list prior headlines. "
             "If no editorial_memory is provided, write the brief as a standalone edition. "
+            "\n\n"
+            "ECOSYSTEM CONTEXT: If 'editorial_memory.ecosystem_facts' is provided, "
+            "treat those items as long-horizon context about the market "
+            "(unicorn count, sector dominance, capital velocity, regulatory "
+            "regime). Reference them ONLY when a fact genuinely illuminates "
+            "today's stories — e.g. a mobile-gaming funding round today lets "
+            "you note TR's Europe-leading position in that sector; a fintech "
+            "round lets you cite the 90+ active fintech count. Do NOT list "
+            "ecosystem facts. Weave them naturally and sparingly. Do not "
+            "force irrelevant facts into the narrative. "
+            "\n\n"
+            "GLOBAL VS TURKEY CONTRAST: For Turkey editions where "
+            "editorial_memory.ecosystem_facts contains both 'turkey' and "
+            "'global' entries, contrast TR trajectory with global patterns "
+            "when the day's stories warrant it (e.g. 'global funding pivots "
+            "toward agentic AI, but TR activity stays consumer-tech weighted'). "
+            "Use this for clarity — never to fill space. "
             "\n\n"
             "Return strict JSON with keys: "
             "headline (<=120 chars, thematic — no company names), "
