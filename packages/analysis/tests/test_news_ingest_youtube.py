@@ -191,12 +191,35 @@ def test_turkey_source_registry_has_ecosystem_and_gov(monkeypatch):
         "startups_watch_yt",
         "bilisim_vadisi_yt",
         "techstars_istanbul_yt",
+        # PR #3 — sector + VC/CVC + editorial
+        "fintechistanbul",
+        "fintr",
+        "toged",
+        "revo_capital",
+        "ttventures",
+        "akbanklab",
+        "sabanci_ventures",
+        "arcelik_garage",
+        "arya_women",
+        "startup_istanbul_newsletter",
+        "trvc_podcast",
+        "bosteels_medium",
     }
     missing = must_have - turkey_keys
     assert not missing, f"Missing Turkey sources: {missing}"
 
-    # Ecosystem orgs + gov bodies are endemic (exempt from nexus check).
-    for k in ("itu_cekirdek", "bilisim_vadisi", "tubitak", "kosgeb", "istka"):
+    # Ecosystem orgs, gov bodies, and PR #3 sources are all endemic.
+    for k in (
+        "itu_cekirdek",
+        "bilisim_vadisi",
+        "tubitak",
+        "kosgeb",
+        "istka",
+        "fintechistanbul",
+        "revo_capital",
+        "arya_women",
+        "toged",
+    ):
         assert k in TR_ENDEMIC_SOURCES, f"{k} should be TR_ENDEMIC"
 
 
@@ -220,6 +243,26 @@ def test_linkedin_bridges_env_gated(monkeypatch):
     sources = {s.source_key: s for s in ni.DEFAULT_SOURCES}
     assert sources["linkedin_itucekirdek"].enabled is True
     assert sources["linkedin_itucekirdek"].base_url == "https://rss.app/feed/abc123.xml"
+
+
+def test_turkey_x_query_pack_includes_pr3_handles(monkeypatch):
+    """The PR #3 sector-association + VC/CVC handles must be in the Turkey X pack."""
+    from src.automation.x_trends import load_query_pack
+
+    pack = load_query_pack()
+    turkey_queries = pack.get("turkey") or []
+    joined = " ".join(turkey_queries).lower()
+    for handle in [
+        "fintechistanbul",
+        "fintech_tr",
+        "toged_tr",
+        "revovc",
+        "ttventures",
+        "akbanklab",
+        "sabanciventures",
+        "aryawomen",
+    ]:
+        assert f"from:{handle}".lower() in joined, f"Missing PR #3 handle: {handle}"
 
 
 def test_turkey_x_query_pack_includes_ecosystem_handles(monkeypatch):

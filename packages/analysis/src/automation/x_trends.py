@@ -51,6 +51,11 @@ def _default_query_pack() -> Dict[str, List[str]]:
             "from:Tubitak OR from:KOSGEB OR from:tcsanayi OR "
             "from:teblegirisim OR from:istkaorgtr OR from:turkpatent_en) "
             "-is:retweet",
+            # PR #3: sector associations + VC/CVC handles that announce
+            # TR funding rounds, program launches, and policy shifts.
+            "(from:FinTechIstanbul OR from:fintech_tr OR from:TOGED_TR OR "
+            "from:RevoVC OR from:ttventures OR from:AkbankLab OR "
+            "from:sabanciventures OR from:aryawomen) -is:retweet",
         ],
     }
 

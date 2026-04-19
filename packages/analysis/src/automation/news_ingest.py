@@ -22,7 +22,10 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional, Sequence, Set, Tuple
+
+if TYPE_CHECKING:
+    from .ainews_parser import DigestParserConfig
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
@@ -259,7 +262,6 @@ AI_HARDWARE_SOURCE_KEYS: Tuple[str, ...] = (
     "theregister_ai_datacenter",
     "trendforce",
     "reuters_technology",
-    "mlcommons_mlperf",
     "nvidia_developer_blog",
     "amd_ir",
     "intel_newsroom_ai",
@@ -534,6 +536,20 @@ TR_ENDEMIC_SOURCES: frozenset = frozenset(
         "istka",
         "ibb_tech_istanbul",
         "tubitak",
+        "tim_teb",
+        # PR #3 — sector associations, VCs, CVCs, women-in-tech, editorial
+        "fintechistanbul",
+        "fintr",
+        "toged",
+        "revo_capital",
+        "ttventures",
+        "akbanklab",
+        "sabanci_ventures",
+        "arcelik_garage",
+        "arya_women",
+        "startup_istanbul_newsletter",
+        "trvc_podcast",
+        "bosteels_medium",
     }
 )
 
@@ -889,7 +905,8 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     # ---------------------------------------------------------------------
     # PR #2 — Turkey ecosystem expansion
     # ---------------------------------------------------------------------
-    # University incubator (İTÜ Çekirdek) — active Turkish blog.
+    # University incubator (İTÜ Çekirdek) — active Turkish-language blog,
+    # frequent startup-spotlight and Big Bang Challenge posts.
     SourceDefinition(
         "itu_cekirdek",
         "İTÜ Çekirdek",
@@ -900,7 +917,7 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         credibility_weight=0.74,
         lookback_hours_override=168,
     ),
-    # Technology Development Zone — sparse output, 720h lookback.
+    # Technology Development Zone (Bilişim Vadisi) — sparse output, 168h window.
     SourceDefinition(
         "bilisim_vadisi",
         "Bilişim Vadisi",
@@ -911,8 +928,10 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         credibility_weight=0.62,
         lookback_hours_override=720,
     ),
-    # Governmental bodies (HIGH priority). Most publish HTML news indexes
-    # without RSS, so they run via the crawler fetch mode.
+    # Governmental bodies (HIGH priority only). Most Turkish public-sector
+    # sites publish HTML news indexes without RSS, so they run through the
+    # crawler fetch mode. TÜBİTAK has no reliable RSS surface; we rely on
+    # the crawler's frontier-based discovery via `crawl_seed_urls`.
     SourceDefinition(
         "tubitak",
         "TÜBİTAK",
@@ -973,7 +992,9 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         lookback_hours_override=336,
         crawl_seed_urls=("https://teknolojiatolyeleri.ibb.istanbul/haberler",),
     ),
-    # TİM-TEB Girişim Evi: no working RSS; crawl the landing page instead.
+    # TİM-TEB Girişim Evi: `timlegirisim.com/feed` currently returns 500 and
+    # `www.timlegirisim.com/feed` serves HTML, so we crawl the landing page
+    # as a fallback. Revisit if they publish a working RSS surface.
     SourceDefinition(
         "tim_teb",
         "TİM-TEB Girişim Evi",
@@ -985,6 +1006,150 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         credibility_weight=0.68,
         lookback_hours_override=336,
         crawl_seed_urls=("https://timlegirisim.com/",),
+    ),
+    # ---------------------------------------------------------------------
+    # PR #3 — Turkey ecosystem + policy expansion
+    # ---------------------------------------------------------------------
+    # Sector associations (fintech, gaming) and active VC/CVC blogs.
+    SourceDefinition(
+        "fintechistanbul",
+        "FinTech İstanbul",
+        "rss",
+        "https://fintechistanbul.org/feed/",
+        region="turkey",
+        language="tr",
+        credibility_weight=0.76,
+        lookback_hours_override=168,
+    ),
+    # FINTR Medium is semi-dormant (last post May 2024 as of this writing);
+    # keeping it wired so new posts land automatically, low weight.
+    SourceDefinition(
+        "fintr",
+        "FinTech Türkiye Derneği (FINTR)",
+        "rss",
+        "https://fintr.medium.com/feed",
+        region="turkey",
+        language="en",
+        credibility_weight=0.60,
+        lookback_hours_override=720,
+    ),
+    # TOGED (Turkish Game Developers Association) — regulatory signals around
+    # the 2026 gaming law debate. No RSS; the /haberler page is server-rendered.
+    SourceDefinition(
+        "toged",
+        "TOGED (Oyun Geliştiricileri Derneği)",
+        "crawler",
+        "https://www.toged.org/haberler",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.72,
+        lookback_hours_override=336,
+        crawl_seed_urls=("https://www.toged.org/haberler",),
+    ),
+    # VCs / corporate VCs with active public content surfaces.
+    SourceDefinition(
+        "revo_capital",
+        "Revo Capital",
+        "rss",
+        "https://revo.vc/feed/",
+        region="turkey",
+        language="en",
+        credibility_weight=0.78,
+        lookback_hours_override=168,
+    ),
+    SourceDefinition(
+        "ttventures",
+        "Türk Telekom Ventures (PİLOT)",
+        "crawler",
+        "https://ttventures.com.tr/blog/",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.74,
+        lookback_hours_override=168,
+        crawl_seed_urls=("https://ttventures.com.tr/blog/",),
+    ),
+    SourceDefinition(
+        "akbanklab",
+        "Akbank LAB",
+        "crawler",
+        "https://www.akbanklab.com/en/news",
+        region="turkey",
+        language="en",
+        fetch_mode="crawler",
+        credibility_weight=0.70,
+        lookback_hours_override=336,
+        crawl_seed_urls=("https://www.akbanklab.com/en/news",),
+    ),
+    SourceDefinition(
+        "sabanci_ventures",
+        "Sabancı Ventures",
+        "crawler",
+        "https://www.sabanciventures.com/en/news",
+        region="turkey",
+        language="en",
+        fetch_mode="crawler",
+        credibility_weight=0.68,
+        lookback_hours_override=720,
+        crawl_seed_urls=("https://www.sabanciventures.com/en/news",),
+    ),
+    SourceDefinition(
+        "arcelik_garage",
+        "Arçelik Garage",
+        "crawler",
+        "https://garage.com.tr/",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.68,
+        lookback_hours_override=720,
+        crawl_seed_urls=("https://garage.com.tr/",),
+    ),
+    # Arya Women: feed mixes portfolio job postings with investment news;
+    # long lookback because new-round posts are monthly-ish.
+    SourceDefinition(
+        "arya_women",
+        "Arya Women Investment Platform",
+        "rss",
+        "https://fund.aryawomen.com/feed/",
+        region="turkey",
+        language="tr",
+        credibility_weight=0.66,
+        lookback_hours_override=720,
+    ),
+    # Independent editorial: newsletter + podcast + investor-profile series.
+    SourceDefinition(
+        "startup_istanbul_newsletter",
+        "Startup Istanbul Newsletter",
+        "rss",
+        "https://newsletter.startupistanbul.com/feed",
+        region="turkey",
+        language="en",
+        credibility_weight=0.72,
+        lookback_hours_override=168,
+    ),
+    SourceDefinition(
+        "trvc_podcast",
+        "TRVC — The Turkish VC Podcast",
+        "rss",
+        "https://anchor.fm/s/100d85fd0/podcast/rss",
+        region="turkey",
+        language="en",
+        credibility_weight=0.65,
+        lookback_hours_override=336,
+    ),
+    # Bosteels Medium is effectively archived (latest post 2022); wired in
+    # case he resumes publishing. Low weight, quarterly-ish lookback.
+    SourceDefinition(
+        "bosteels_medium",
+        "Patrick Bosteels — TR VC Interview Series",
+        "rss",
+        "https://patrickbosteels.medium.com/feed",
+        region="turkey",
+        language="en",
+        credibility_weight=0.55,
+        lookback_hours_override=2160,
     ),
     # NOTE: Consumer-tech feeds (e.g. phone/app updates) are intentionally excluded from the Turkey edition.
     SourceDefinition(
@@ -1195,17 +1360,6 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         max_items_per_source=0,
     ),
     SourceDefinition(
-        "mlcommons_mlperf",
-        "MLCommons MLPerf",
-        "crawler",
-        "https://mlcommons.org/benchmarks/",
-        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
-        fetch_mode="latest_posts",
-        crawl_seed_urls=("https://mlcommons.org/benchmarks/",),
-        max_items_per_source=20,
-        crawl_delay_ms=600,
-    ),
-    SourceDefinition(
         "nvidia_developer_blog",
         "NVIDIA Developer Blog",
         "crawler",
@@ -1398,7 +1552,8 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
     # ---------------------------------------------------------------------
     # PR #2 — YouTube channels (ecosystem demos, summits, interviews)
     # ---------------------------------------------------------------------
-    # Uses yt-dlp to list recent videos — no YouTube Data API key needed.
+    # Uses yt-dlp to list recent videos without a YouTube Data API key.
+    # Titles + descriptions pass through the same relevance filter as RSS.
     SourceDefinition(
         "trai_yt",
         "TRAI (YouTube)",
@@ -1461,11 +1616,11 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
 # ---------------------------------------------------------------------------
 # PR #2 — LinkedIn via RSS.app bridge (opt-in, env-gated)
 # ---------------------------------------------------------------------------
-# LinkedIn has no public RSS and aggressively blocks scraping. The only
-# viable path is wrapping each Company Page via a 3rd-party bridge like
-# RSS.app. Each feed URL is supplied through env vars so operations can
-# provision bridges incrementally without code changes. Unset env vars
-# leave the corresponding SourceDefinition disabled.
+# LinkedIn has no public RSS and aggressively blocks scraping. The only viable
+# path is wrapping each Company Page via a 3rd-party bridge like RSS.app.
+# Each feed URL is supplied through env vars so operations can provision
+# bridges incrementally without code changes. Unset env vars leave the
+# corresponding SourceDefinition disabled (the fetch loop skips it).
 _LINKEDIN_BRIDGE_ENV = (
     ("linkedin_turkiyeai", "İTÜ/TRAI LinkedIn", "LINKEDIN_BRIDGE_TURKIYEAI_URL"),
     ("linkedin_212vc", "212 VC LinkedIn", "LINKEDIN_BRIDGE_212VC_URL"),
@@ -1492,12 +1647,12 @@ for _key, _name, _env_var in _LINKEDIN_BRIDGE_ENV:
             _key,
             _name,
             "rss",
-            _url or f"linkedin-bridge://{_key}",
+            _url or f"linkedin-bridge://{_key}",  # placeholder stays out of fetch path
             region="turkey",
             language="tr",
             fetch_mode="rss",
             enabled=bool(_url),
-            credibility_weight=0.55,
+            credibility_weight=0.55,  # bridges can be lossy; weight below primary sources
             lookback_hours_override=168,
         )
     )
@@ -3017,19 +3172,6 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     if item.source_key not in TR_ENDEMIC_SOURCES and not _has_turkey_nexus(item):
         return False
 
-    is_trusted_rss = item.source_key in {
-        "webrazzi",
-        "egirisim",
-        "foundern",
-        "swipeline",
-        "n24_business",
-        "startups_watch",
-        "vc_212",
-        "finberg",
-        "endeavor_turkey",
-        "startupcentrum_tr",
-    }
-
     # For broad API aggregators, require explicit Turkey context to avoid global chatter.
     if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
         if not _contains_any(text, TR_CONTEXT_KEYWORDS) and not has_ecosystem:
@@ -3385,6 +3527,7 @@ class DailyNewsIngestor:
 
         self.pool: Optional[asyncpg.Pool] = None
         self.http_timeout = float(os.getenv("NEWS_HTTP_TIMEOUT_SECONDS", "20"))
+        self.source_timeout_seconds = float(os.getenv("NEWS_SOURCE_TIMEOUT_SECONDS", "120"))
         self.max_per_source = int(os.getenv("NEWS_MAX_ITEMS_PER_SOURCE", "40"))
         self.product_hunt_token = os.getenv("PRODUCT_HUNT_TOKEN", "")
         self.newsapi_key = os.getenv("NEWS_API_KEY", "") or os.getenv("NEWSAPI_KEY", "")
@@ -5204,23 +5347,24 @@ class DailyNewsIngestor:
     ) -> List[NormalizedNewsItem]:
         """Fetch recent videos from a YouTube channel via yt-dlp.
 
-        No YouTube Data API key required. Title + description feed through
-        the same Turkey relevance prefilter / LLM classifier as RSS entries,
-        so the Istanbul-only Techstars channel is handled by existing
-        filters rather than a source-specific hack.
+        No YouTube Data API key required. Returns at most `max_per_source`
+        items whose upload date is within the lookback window. Title +
+        description feed into the same Turkey relevance prefilter / LLM
+        classifier as RSS entries, so the Istanbul-only Techstars channel
+        is handled by existing filters rather than a source-specific hack.
         """
         try:
             import yt_dlp  # type: ignore
         except ImportError:
-            print(f"[youtube] yt-dlp not installed; skipping source={source.source_key}")
+            print("[youtube] yt-dlp not installed; skipping source={}".format(source.source_key))
             return []
 
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
         limit = max(5, min(self.max_per_source, 25))
 
-        # yt-dlp returns tab entries (Videos/Live/Shorts) when you give it
-        # the channel root with extract_flat. Forcing the /videos tab
-        # returns the actual video list.
+        # yt-dlp returns tab entries (Videos/Live/Shorts) when you give it the
+        # channel root with extract_flat. Forcing the /videos tab returns the
+        # actual video list.
         channel_url = source.base_url.rstrip("/")
         if not channel_url.endswith(("/videos", "/streams", "/shorts")):
             channel_url = f"{channel_url}/videos"
@@ -5260,6 +5404,10 @@ class DailyNewsIngestor:
                 str(entry.get("url") or "").strip() or f"https://www.youtube.com/watch?v={video_id}"
             )
 
+            # `extract_flat` returns sparse metadata — description/upload_date
+            # usually require a second per-video resolve. We keep the first
+            # pass cheap and accept `now` when the upload date is missing,
+            # trusting the lookback filter on subsequent runs.
             upload_str = str(entry.get("upload_date") or entry.get("release_date") or "").strip()
             published = now
             if upload_str and len(upload_str) == 8 and upload_str.isdigit():
@@ -5841,57 +5989,61 @@ class DailyNewsIngestor:
                 attempted += 1
                 t0 = time.monotonic()
                 source_lookback = source.lookback_hours_override or lookback_hours
+                source_timeout = (
+                    self.source_timeout_seconds if self.source_timeout_seconds > 0 else None
+                )
                 try:
+                    fetch_coro: Awaitable[List[NormalizedNewsItem]]
                     if source.fetch_mode == "rss":
-                        items = await self._fetch_rss_source(client, source, source_lookback)
+                        fetch_coro = self._fetch_rss_source(client, source, source_lookback)
                     elif source.source_key == "hackernews_api":
-                        items = await self._fetch_hackernews_api(client, source, source_lookback)
+                        fetch_coro = self._fetch_hackernews_api(client, source, source_lookback)
                     elif source.source_key == "producthunt_api":
-                        items = await self._fetch_producthunt_api(client, source)
+                        fetch_coro = self._fetch_producthunt_api(client, source)
                     elif source.source_key == "newsapi":
-                        items = await self._fetch_newsapi(client, source, source_lookback)
+                        fetch_coro = self._fetch_newsapi(client, source, source_lookback)
                     elif source.source_key == "gnews":
-                        items = await self._fetch_gnews(client, source, source_lookback)
+                        fetch_coro = self._fetch_gnews(client, source, source_lookback)
                     elif source.source_key == "github_trending_ai":
-                        items = await self._fetch_github_trending_ai(
+                        fetch_coro = self._fetch_github_trending_ai(
                             conn, client, source, source_lookback
                         )
                     elif source.source_key == "amazon_new_releases_ai":
-                        items = await self._fetch_amazon_new_releases_ai(
+                        fetch_coro = self._fetch_amazon_new_releases_ai(
                             conn, source, source_lookback
                         )
                     elif source.source_key == "newsapi_turkey":
-                        items = await self._fetch_newsapi_turkey(client, source, source_lookback)
+                        fetch_coro = self._fetch_newsapi_turkey(client, source, source_lookback)
                     elif source.source_key == "gnews_turkey":
-                        items = await self._fetch_gnews_turkey(client, source, source_lookback)
+                        fetch_coro = self._fetch_gnews_turkey(client, source, source_lookback)
                     elif source.fetch_mode == "x_recent_search":
-                        items = await self._fetch_x_recent_search(client, source, source_lookback)
+                        fetch_coro = self._fetch_x_recent_search(client, source, source_lookback)
                     elif source.fetch_mode == "youtube_channel":
-                        items = await self._fetch_youtube_channel(source, source_lookback)
+                        fetch_coro = self._fetch_youtube_channel(source, source_lookback)
                     elif source.source_key == "startup_owned_feeds":
-                        items = await self._fetch_startup_owned_sources(
+                        fetch_coro = self._fetch_startup_owned_sources(
                             conn, client, source, source_lookback
                         )
                     elif source.source_key == "vc_turkey_blogs":
-                        items = await self._fetch_vc_turkey_blogs(client, source, source_lookback)
+                        fetch_coro = self._fetch_vc_turkey_blogs(client, source, source_lookback)
                     elif source.source_key == "huggingface_papers":
-                        items = await self._fetch_huggingface_papers(
-                            client, source, source_lookback
-                        )
+                        fetch_coro = self._fetch_huggingface_papers(client, source, source_lookback)
                     elif source.fetch_mode == "digest_rss":
-                        items = await self._fetch_digest_rss(client, source, source_lookback)
+                        fetch_coro = self._fetch_digest_rss(client, source, source_lookback)
                     elif source.fetch_mode == "paid_headlines":
-                        items = await self._fetch_paid_headline_seeds(
+                        fetch_coro = self._fetch_paid_headline_seeds(
                             conn, client, source, source_lookback
                         )
                     elif source.fetch_mode == "latest_posts":
-                        items = await self._fetch_latest_posts(client, source, source_lookback)
+                        fetch_coro = self._fetch_latest_posts(client, source, source_lookback)
                     elif source.fetch_mode == "crawler":
-                        items = await self._fetch_frontier_candidates(
+                        fetch_coro = self._fetch_frontier_candidates(
                             conn, client, source, source_lookback
                         )
                     else:
-                        items = []
+                        fetch_coro = asyncio.sleep(0, result=[])
+
+                    items = await asyncio.wait_for(fetch_coro, timeout=source_timeout)
 
                     # Turkey pipeline: three-stage filter (heuristic → LLM → nexus check).
                     if (source.region or "global") == "turkey":
@@ -5902,7 +6054,6 @@ class DailyNewsIngestor:
                         # Nexus check: for non-endemic sources, require a Turkey-connection signal
                         # to reject foreign startup news translated into Turkish.
                         if source.source_key not in TR_ENDEMIC_SOURCES:
-                            pre_nexus = len(items)
                             dropped = [i.title for i in items if not _has_turkey_nexus(i)]
                             items = [i for i in items if _has_turkey_nexus(i)]
                             if dropped:
@@ -5928,6 +6079,24 @@ class DailyNewsIngestor:
                         )
                     )
                     collected.extend(items)
+                except asyncio.TimeoutError:
+                    elapsed_ms = int((time.monotonic() - t0) * 1000)
+                    timeout_value = (
+                        source_timeout
+                        if source_timeout is not None
+                        else self.source_timeout_seconds
+                    )
+                    timeout_msg = f"timed out after {timeout_value:g}s"
+                    print(f"[news-ingest] {source.source_key}: {timeout_msg}")
+                    fetch_results.append(
+                        SourceFetchResult(
+                            source_key=source.source_key,
+                            success=False,
+                            duration_ms=elapsed_ms,
+                            error=timeout_msg,
+                        )
+                    )
+                    errors.append(f"{source.source_key}: {timeout_msg}")
                 except Exception as exc:
                     elapsed_ms = int((time.monotonic() - t0) * 1000)
                     fetch_results.append(
@@ -6900,11 +7069,11 @@ class DailyNewsIngestor:
                     result.append(i)
             return result
 
-        BATCH_SIZE = 20
+        batch_size = 20
         kept: List["NormalizedNewsItem"] = []
 
-        for batch_start in range(0, len(items), BATCH_SIZE):
-            batch = items[batch_start : batch_start + BATCH_SIZE]
+        for batch_start in range(0, len(items), batch_size):
+            batch = items[batch_start : batch_start + batch_size]
             article_lines = []
             for idx, item in enumerate(batch, 1):
                 title = (item.title or "").strip()[:200]
@@ -8155,10 +8324,10 @@ class DailyNewsIngestor:
         Returns stats dict with decision distribution.
         """
         from .memory_gate import (
-            PatternMatcher,
+            GatingRouter,
             GTMClassifier,
             HeuristicScorer,
-            GatingRouter,
+            PatternMatcher,
             detect_narrative_dup,
         )
 
@@ -8447,10 +8616,10 @@ class DailyNewsIngestor:
             from .event_extractor import (
                 EventExtractor,
                 enqueue_refresh_for_events,
+                onboard_unknown_startups,
                 persist_events,
                 upsert_capital_graph_from_events,
                 upsert_funding_from_events,
-                onboard_unknown_startups,
             )
         except ImportError:
             print("[news-ingest] event_extractor module not available, skipping event extraction")
@@ -9132,14 +9301,14 @@ class DailyNewsIngestor:
         ]
 
         # Enforce per-entity diversity: max 2 stories per primary entity
-        MAX_PER_ENTITY = 2
+        max_per_entity = 2
         entity_counts: Dict[str, int] = {}
         diverse: List[StoryCluster] = []
         for c in eligible:
             ent = c.entities[0].lower() if c.entities else None
             if ent:
                 count = entity_counts.get(ent, 0)
-                if count >= MAX_PER_ENTITY:
+                if count >= max_per_entity:
                     continue
                 entity_counts[ent] = count + 1
             diverse.append(c)
@@ -9758,7 +9927,7 @@ class DailyNewsIngestor:
                                         f"*Run ID:* `{run_id}`",
                                         f"*Region:* `{rkey}`",
                                         f"*Extracted:* `{extracted}`",
-                                        f"*Persisted:* `0`",
+                                        "*Persisted:* `0`",
                                         f"*Persist errors:* `{persist_errors}`",
                                         f"*First error:* `{first_error[:500]}`",
                                     ]
