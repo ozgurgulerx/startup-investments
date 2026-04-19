@@ -4078,5 +4078,156 @@ def generate_weekly_digest_cmd(
     console.print(f"  Errors: [red]{result.get('errors', 0)}[/red]")
 
 
+# ---------------------------------------------------------------------------
+# PR #4.4 – 4.6: ecosystem memory ingestion CLI
+# ---------------------------------------------------------------------------
+
+
+@app.command("seed-ecosystem-memory")
+def seed_ecosystem_memory() -> None:
+    """Upsert curated ecosystem facts + startup exclusions from YAML seeds.
+
+    Idempotent: re-running supersedes changed facts and leaves identical
+    rows untouched. Requires migration 084 applied.
+    """
+    import asyncio
+
+    import asyncpg
+
+    from src.intelligence.ecosystem_memory import (
+        load_ecosystem_facts_seed,
+        load_startup_exclusions_seed,
+    )
+
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        console.print("[red]DATABASE_URL not set[/red]")
+        raise typer.Exit(1)
+
+    async def _run() -> Dict[str, Any]:
+        pool = await asyncpg.create_pool(database_url, min_size=1, max_size=2)
+        try:
+            async with pool.acquire() as conn:
+                facts_stats = await load_ecosystem_facts_seed(conn)
+                excl_stats = await load_startup_exclusions_seed(conn)
+        finally:
+            await pool.close()
+        return {"facts": facts_stats, "exclusions": excl_stats}
+
+    result = asyncio.run(_run())
+    console.print(
+        Panel.fit("[bold magenta]Ecosystem Memory Seed[/bold magenta]", border_style="magenta")
+    )
+    console.print(f"  Facts: [green]{result['facts']}[/green]")
+    console.print(f"  Exclusions: [green]{result['exclusions']}[/green]")
+
+
+@app.command("ingest-ecosystem")
+def ingest_ecosystem(
+    source: str = typer.Option(
+        ...,
+        "--source",
+        help="Source set: kpmg | startups-watch | youtube",
+    ),
+    channel: Optional[str] = typer.Option(
+        None,
+        "--channel",
+        help="YouTube channel URL (required when --source youtube)",
+    ),
+    max_videos: int = typer.Option(
+        5,
+        "--max-videos",
+        help="For --source youtube: how many recent videos to transcribe+distill.",
+    ),
+) -> None:
+    """Fetch, distill, and upsert external ecosystem-memory documents (PR #4.4–4.6).
+
+    Examples:
+      python main.py ingest-ecosystem --source kpmg
+      python main.py ingest-ecosystem --source startups-watch
+      python main.py ingest-ecosystem --source youtube --channel https://www.youtube.com/@startupswatch
+    """
+    import asyncio
+
+    import asyncpg
+    import httpx
+
+    from src.automation.news_digest import DailyNewsDigestSender  # reuse Azure client init
+    from src.intelligence.ecosystem_ingest import (
+        ingest_kpmg_reports,
+        ingest_startups_watch_blog,
+        ingest_youtube_channel,
+        make_ingest_http_client,
+    )
+
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        console.print("[red]DATABASE_URL not set[/red]")
+        raise typer.Exit(1)
+    if source == "youtube" and not channel:
+        console.print("[red]--channel is required for --source youtube[/red]")
+        raise typer.Exit(1)
+
+    async def _run() -> List[Dict[str, Any]]:
+        # Reuse the digest sender's Azure client init — same credentials / deployment.
+        sender = DailyNewsDigestSender()
+        pool = await asyncpg.create_pool(database_url, min_size=1, max_size=2)
+        try:
+            async with pool.acquire() as conn:
+                async with make_ingest_http_client() as http:
+                    if source == "kpmg":
+                        return await ingest_kpmg_reports(
+                            conn,
+                            azure_client=sender._azure_client,
+                            model_name=sender._azure_model_name or "gpt-5-nano",
+                            http_client=http,
+                        )
+                    if source == "startups-watch":
+                        return await ingest_startups_watch_blog(
+                            conn,
+                            azure_client=sender._azure_client,
+                            model_name=sender._azure_model_name or "gpt-5-nano",
+                            http_client=http,
+                        )
+                    if source == "youtube":
+                        return await ingest_youtube_channel(
+                            conn,
+                            channel or "",
+                            azure_client=sender._azure_client,
+                            model_name=sender._azure_model_name or "gpt-5-nano",
+                            max_videos=max_videos,
+                        )
+                    raise typer.Exit(1)
+        finally:
+            await pool.close()
+
+    if source not in ("kpmg", "startups-watch", "youtube"):
+        console.print(f"[red]Unknown --source {source!r}[/red]")
+        raise typer.Exit(1)
+
+    results = asyncio.run(_run())
+    console.print(
+        Panel.fit(
+            f"[bold magenta]Ecosystem Ingestion — {source}[/bold magenta]",
+            border_style="magenta",
+        )
+    )
+    for row in results:
+        key = row.get("source_key", "?")
+        if "error" in row:
+            console.print(f"  [red]{key}[/red]: {row['error']}")
+            continue
+        if row.get("skipped"):
+            console.print(f"  [yellow]{key}[/yellow]: unchanged (skip)")
+            continue
+        console.print(
+            f"  [green]{key}[/green]: "
+            f"distilled={row.get('distilled', 0)} "
+            f"inserted={row.get('inserted', 0)} "
+            f"superseded={row.get('superseded', 0)} "
+            f"unchanged={row.get('unchanged', 0)}"
+        )
+
+
 if __name__ == "__main__":
     app()
