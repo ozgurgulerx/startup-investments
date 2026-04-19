@@ -63,7 +63,11 @@ except Exception:  # pragma: no cover - optional import at module import time
 ENRICHMENT_PROMPT_VERSION = "intel-v2"
 
 # Feature gate: set INTEL_FIRST_PROMPT=true on the VM to enable the new intel-first LLM prompt
-INTEL_FIRST_PROMPT_ENABLED = os.getenv("INTEL_FIRST_PROMPT", "false").lower() in ("1", "true", "yes")
+INTEL_FIRST_PROMPT_ENABLED = os.getenv("INTEL_FIRST_PROMPT", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 INTEL_SOURCE_REVIEW_ERROR_CODES = {
     "intel_source_review_count_missing",
@@ -101,18 +105,72 @@ FRONTIER_LISTING_PATHS = {
 
 STOPWORDS = {
     # English
-    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "in", "is", "it",
-    "its", "of", "on", "or", "that", "the", "to", "with", "will", "new", "startup", "startups",
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "has",
+    "in",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "to",
+    "with",
+    "will",
+    "new",
+    "startup",
+    "startups",
     # Turkish
-    "bir", "ve", "bu", "da", "de", "ile", "için", "olan", "den", "dan", "mi", "mı",
+    "bir",
+    "ve",
+    "bu",
+    "da",
+    "de",
+    "ile",
+    "için",
+    "olan",
+    "den",
+    "dan",
+    "mi",
+    "mı",
 }
 
 GENERIC_ENTITIES = {
-    "AI", "Startup", "Startups", "Today", "Breaking", "News", "Tech", "Series", "Funding", "Round",
+    "AI",
+    "Startup",
+    "Startups",
+    "Today",
+    "Breaking",
+    "News",
+    "Tech",
+    "Series",
+    "Funding",
+    "Round",
 }
 
 TOPIC_KEYWORDS: Dict[str, Tuple[str, ...]] = {
-    "funding": ("raises", "raised", "funding", "series a", "series b", "series c", "seed", "pre-seed", "valuation"),
+    "funding": (
+        "raises",
+        "raised",
+        "funding",
+        "series a",
+        "series b",
+        "series c",
+        "seed",
+        "pre-seed",
+        "valuation",
+    ),
     "ai": ("ai", "genai", "llm", "model", "agent", "inference", "gpu", "foundation model"),
     "ai_hardware": (
         "hbm",
@@ -210,10 +268,20 @@ AI_HARDWARE_SOURCE_KEY_SET = frozenset(AI_HARDWARE_SOURCE_KEYS)
 VALID_NEWS_SOURCE_TYPES = frozenset({"rss", "api", "community", "crawler"})
 
 IMPACT_FRAMES = {
-    "UNDERWRITING_TAKE", "ADOPTION_PLAY", "COST_CURVE", "LATENCY_LEVER",
-    "BENCHMARK_TRAP", "DATA_MOAT", "PROCUREMENT_WEDGE", "REGULATORY_CONSTRAINT",
-    "ATTACK_SURFACE", "CONSOLIDATION_SIGNAL", "HIRING_SIGNAL",
-    "PLATFORM_SHIFT", "GO_TO_MARKET_EDGE", "EARLY_SIGNAL",
+    "UNDERWRITING_TAKE",
+    "ADOPTION_PLAY",
+    "COST_CURVE",
+    "LATENCY_LEVER",
+    "BENCHMARK_TRAP",
+    "DATA_MOAT",
+    "PROCUREMENT_WEDGE",
+    "REGULATORY_CONSTRAINT",
+    "ATTACK_SURFACE",
+    "CONSOLIDATION_SIGNAL",
+    "HIRING_SIGNAL",
+    "PLATFORM_SHIFT",
+    "GO_TO_MARKET_EDGE",
+    "EARLY_SIGNAL",
 }
 
 FRAME_LABELS = {
@@ -359,35 +427,115 @@ TR_CONTEXT_KEYWORDS: Tuple[str, ...] = (
 # Used by _has_turkey_nexus() to reject foreign startup news from Turkish-language sources.
 TR_NEXUS_SIGNALS: Tuple[str, ...] = (
     # Country / nationality
-    "türkiye", "turkiye", "turkey", "türk", "turk", "turkish",
+    "türkiye",
+    "turkiye",
+    "turkey",
+    "türk",
+    "turk",
+    "turkish",
     # Major cities
-    "istanbul", "ankara", "izmir", "antalya", "bursa", "gaziantep",
-    "eskişehir", "eskisehir", "kocaeli", "konya", "adana", "mersin",
-    "kayseri", "samsun", "trabzon", "diyarbakır", "diyarbakir",
+    "istanbul",
+    "ankara",
+    "izmir",
+    "antalya",
+    "bursa",
+    "gaziantep",
+    "eskişehir",
+    "eskisehir",
+    "kocaeli",
+    "konya",
+    "adana",
+    "mersin",
+    "kayseri",
+    "samsun",
+    "trabzon",
+    "diyarbakır",
+    "diyarbakir",
     # Institutions / regulators
-    "tübitak", "tubitak", "kosgeb", "teknopark", "teknokent",
-    "borsa istanbul", "borsa İstanbul", "bist", "spk", "btk", "bddk",
-    "tobb", "müsiad", "musiad", "tüsiad", "tusiad",
+    "tübitak",
+    "tubitak",
+    "kosgeb",
+    "teknopark",
+    "teknokent",
+    "borsa istanbul",
+    "borsa İstanbul",
+    "bist",
+    "spk",
+    "btk",
+    "bddk",
+    "tobb",
+    "müsiad",
+    "musiad",
+    "tüsiad",
+    "tusiad",
     # Corporate suffixes (Turkish legal forms)
-    "a.ş.", "a.s.",
+    "a.ş.",
+    "a.s.",
 )
 
 # Well-known Turkish startups whose name alone signals Turkey relevance.
 TR_KNOWN_ENTITIES: Tuple[str, ...] = (
-    "getir", "trendyol", "hepsiburada", "peak games", "dream games",
-    "papara", "insider", "iyzico", "jotform", "opsgenie", "foriba",
-    "parasut", "paraşüt", "modanisa", "armut", "scotty", "vivense",
-    "tapu.com", "martı", "marti", "obilet", "ikas", "storyly",
-    "segmentify", "rakam", "useinsider", "clockin", "fibabanka",
-    "colendi", "param", "simpra", "logo yazılım", "logo yazilim",
-    "softtech", "intertech", "etiya", "akinon", "invio",
+    "getir",
+    "trendyol",
+    "hepsiburada",
+    "peak games",
+    "dream games",
+    "papara",
+    "insider",
+    "iyzico",
+    "jotform",
+    "opsgenie",
+    "foriba",
+    "parasut",
+    "paraşüt",
+    "modanisa",
+    "armut",
+    "scotty",
+    "vivense",
+    "tapu.com",
+    "martı",
+    "marti",
+    "obilet",
+    "ikas",
+    "storyly",
+    "segmentify",
+    "rakam",
+    "useinsider",
+    "clockin",
+    "fibabanka",
+    "colendi",
+    "param",
+    "simpra",
+    "logo yazılım",
+    "logo yazilim",
+    "softtech",
+    "intertech",
+    "etiya",
+    "akinon",
+    "invio",
 )
 
 # Sources that exclusively cover the Turkish ecosystem — exempt from nexus check.
-TR_ENDEMIC_SOURCES: frozenset = frozenset({
-    "startups_watch", "vc_212", "finberg", "endeavor_turkey",
-    "startupcentrum_tr", "vc_turkey_blogs", "startup_owned_feeds",
-})
+TR_ENDEMIC_SOURCES: frozenset = frozenset(
+    {
+        "startups_watch",
+        "vc_212",
+        "finberg",
+        "endeavor_turkey",
+        "startupcentrum_tr",
+        "vc_turkey_blogs",
+        "startup_owned_feeds",
+        # Ecosystem orgs (PR #2)
+        "itu_cekirdek",
+        "bilisim_vadisi",
+        # Governmental bodies (PR #2) — all endemic by definition
+        "kosgeb",
+        "sanayi_teknoloji_bakanlik",
+        "istka",
+        "ibb_tech_istanbul",
+        "tubitak",
+    }
+)
 
 TR_CONSUMER_EXCLUDE_KEYWORDS: Tuple[str, ...] = (
     "iphone",
@@ -442,21 +590,30 @@ class SourceDefinition:
     source_type: str
     base_url: str
     region: str = "global"  # global|turkey
-    fetch_mode: str = "rss"  # rss|api|crawler|digest_rss|x_recent_search|paid_headlines|latest_posts
+    fetch_mode: str = (
+        "rss"  # rss|api|crawler|digest_rss|x_recent_search|paid_headlines|latest_posts
+    )
     enabled: bool = True  # if False, source is kept in registry but skipped by collector
     credibility_weight: float = 0.65
     legal_mode: str = "headline_snippet"
     language: str = ""  # override auto-detection (e.g. "en" for English Turkey sources)
     lookback_hours_override: int = 0  # 0 = use global default; set >0 for low-frequency sources
-    topic_tags: Tuple[str, ...] = ()  # deterministic tags forced for all clusters sourced from this source
-    crawl_seed_urls: Tuple[str, ...] = ()  # optional alternate entry URLs (seed pages for latest-posts modes)
+    topic_tags: Tuple[
+        str, ...
+    ] = ()  # deterministic tags forced for all clusters sourced from this source
+    crawl_seed_urls: Tuple[
+        str, ...
+    ] = ()  # optional alternate entry URLs (seed pages for latest-posts modes)
     crawl_delay_ms: int = 500  # polite pacing between page fetches when frontier-style crawling
-    max_items_per_source: int = 0  # override max items for this source (0 = use self.max_per_source)
+    max_items_per_source: int = (
+        0  # override max items for this source (0 = use self.max_per_source)
+    )
 
 
 @dataclass
 class SourceFetchResult:
     """Outcome of a single source fetch attempt for health tracking."""
+
     source_key: str
     success: bool
     items_count: int = 0
@@ -519,14 +676,37 @@ def _env_float(name: str, default: float) -> float:
     except Exception:
         return float(default)
 
+
 # 30+ sources across publishers, community, and aggregators.
 DEFAULT_SOURCES: List[SourceDefinition] = [
-    SourceDefinition("techcrunch", "TechCrunch", "rss", "https://techcrunch.com/feed/", credibility_weight=0.92),
-    SourceDefinition("techcrunch_startups", "TechCrunch Startups", "rss", "https://techcrunch.com/category/startups/feed/", credibility_weight=0.94),
-    SourceDefinition("venturebeat", "VentureBeat", "rss", "https://venturebeat.com/feed/", credibility_weight=0.86),
-    SourceDefinition("wired", "WIRED", "rss", "https://www.wired.com/feed/rss", credibility_weight=0.80),
+    SourceDefinition(
+        "techcrunch", "TechCrunch", "rss", "https://techcrunch.com/feed/", credibility_weight=0.92
+    ),
+    SourceDefinition(
+        "techcrunch_startups",
+        "TechCrunch Startups",
+        "rss",
+        "https://techcrunch.com/category/startups/feed/",
+        credibility_weight=0.94,
+    ),
+    SourceDefinition(
+        "venturebeat",
+        "VentureBeat",
+        "rss",
+        "https://venturebeat.com/feed/",
+        credibility_weight=0.86,
+    ),
+    SourceDefinition(
+        "wired", "WIRED", "rss", "https://www.wired.com/feed/rss", credibility_weight=0.80
+    ),
     SourceDefinition("sifted", "Sifted", "rss", "https://sifted.eu/feed", credibility_weight=0.78),
-    SourceDefinition("crunchbase_news", "Crunchbase News", "rss", "https://news.crunchbase.com/feed/", credibility_weight=0.85),
+    SourceDefinition(
+        "crunchbase_news",
+        "Crunchbase News",
+        "rss",
+        "https://news.crunchbase.com/feed/",
+        credibility_weight=0.85,
+    ),
     # SemiAnalysis RSS appears low-frequency and may not reflect the most recent updates.
     # Keep a long lookback window so we still ingest the latest feed entries reliably.
     SourceDefinition(
@@ -539,55 +719,411 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         lookback_hours_override=8760,
         topic_tags=(AI_HARDWARE_TOPIC_TAG,),
     ),
-    SourceDefinition("webrazzi", "Webrazzi", "rss", "https://webrazzi.com/feed/", region="turkey", credibility_weight=0.74),
-    SourceDefinition("egirisim", "Egirisim", "rss", "https://egirisim.com/feed/", region="turkey", credibility_weight=0.70),
+    SourceDefinition(
+        "webrazzi",
+        "Webrazzi",
+        "rss",
+        "https://webrazzi.com/feed/",
+        region="turkey",
+        credibility_weight=0.74,
+    ),
+    SourceDefinition(
+        "egirisim",
+        "Egirisim",
+        "rss",
+        "https://egirisim.com/feed/",
+        region="turkey",
+        credibility_weight=0.70,
+    ),
     # Turkey: AI-focused feeds (keeps the Turkey edition AI-heavy without pulling in consumer-tech noise)
-    SourceDefinition("webrazzi_yapay_zeka", "Webrazzi (Yapay Zeka)", "rss", "https://webrazzi.com/etiket/yapay-zeka/feed/", region="turkey", credibility_weight=0.76, language="tr"),
-    SourceDefinition("egirisim_yapay_zeka", "Egirisim (Yapay Zeka)", "rss", "https://egirisim.com/etiket/yapay-zeka/feed/", region="turkey", credibility_weight=0.72, language="tr"),
-    SourceDefinition("techinside_yapay_zeka", "TechInside (Yapay Zeka)", "rss", "https://www.techinside.com/yapay-zeka/feed/", region="turkey", credibility_weight=0.65, language="tr"),
-    SourceDefinition("turkiye_ai", "Turkiye AI (TRAI)", "rss", "https://turkiye.ai/feed/", region="turkey", credibility_weight=0.66, language="tr", lookback_hours_override=168),
+    SourceDefinition(
+        "webrazzi_yapay_zeka",
+        "Webrazzi (Yapay Zeka)",
+        "rss",
+        "https://webrazzi.com/etiket/yapay-zeka/feed/",
+        region="turkey",
+        credibility_weight=0.76,
+        language="tr",
+    ),
+    SourceDefinition(
+        "egirisim_yapay_zeka",
+        "Egirisim (Yapay Zeka)",
+        "rss",
+        "https://egirisim.com/etiket/yapay-zeka/feed/",
+        region="turkey",
+        credibility_weight=0.72,
+        language="tr",
+    ),
+    SourceDefinition(
+        "techinside_yapay_zeka",
+        "TechInside (Yapay Zeka)",
+        "rss",
+        "https://www.techinside.com/yapay-zeka/feed/",
+        region="turkey",
+        credibility_weight=0.65,
+        language="tr",
+    ),
+    SourceDefinition(
+        "turkiye_ai",
+        "Turkiye AI (TRAI)",
+        "rss",
+        "https://turkiye.ai/feed/",
+        region="turkey",
+        credibility_weight=0.66,
+        language="tr",
+        lookback_hours_override=168,
+    ),
     # Turkey: API sources (Turkish language queries via existing API keys)
-    SourceDefinition("gnews_turkey", "GNews Turkey", "api", "https://gnews.io/api/v4/search", region="turkey", fetch_mode="api", credibility_weight=0.66),
-    SourceDefinition("newsapi_turkey", "NewsAPI Turkey", "api", "https://newsapi.org/v2/everything", region="turkey", fetch_mode="api", credibility_weight=0.67),
+    SourceDefinition(
+        "gnews_turkey",
+        "GNews Turkey",
+        "api",
+        "https://gnews.io/api/v4/search",
+        region="turkey",
+        fetch_mode="api",
+        credibility_weight=0.66,
+    ),
+    SourceDefinition(
+        "newsapi_turkey",
+        "NewsAPI Turkey",
+        "api",
+        "https://newsapi.org/v2/everything",
+        region="turkey",
+        fetch_mode="api",
+        credibility_weight=0.67,
+    ),
     # Turkey: Additional RSS sources (Turkish ecosystem-focused)
-    SourceDefinition("foundern", "FounderN", "rss", "https://foundern.com/feed/", region="turkey", credibility_weight=0.72, language="en"),
-    SourceDefinition("swipeline", "Swipeline", "rss", "https://swipeline.co/feed/", region="turkey", credibility_weight=0.70, language="en"),
-    SourceDefinition("n24_business", "N24 Business", "rss", "https://n24.com.tr/feed", region="turkey", credibility_weight=0.60),
-    SourceDefinition("daily_sabah_tech", "Daily Sabah Tech", "rss", "https://www.dailysabah.com/rss/business/tech", region="turkey", credibility_weight=0.58, language="en"),
-    SourceDefinition("startups_watch", "Startups.watch", "rss", "https://medium.com/feed/startups-watch", region="turkey", credibility_weight=0.75, language="en"),
+    SourceDefinition(
+        "foundern",
+        "FounderN",
+        "rss",
+        "https://foundern.com/feed/",
+        region="turkey",
+        credibility_weight=0.72,
+        language="en",
+    ),
+    SourceDefinition(
+        "swipeline",
+        "Swipeline",
+        "rss",
+        "https://swipeline.co/feed/",
+        region="turkey",
+        credibility_weight=0.70,
+        language="en",
+    ),
+    SourceDefinition(
+        "n24_business",
+        "N24 Business",
+        "rss",
+        "https://n24.com.tr/feed",
+        region="turkey",
+        credibility_weight=0.60,
+    ),
+    SourceDefinition(
+        "daily_sabah_tech",
+        "Daily Sabah Tech",
+        "rss",
+        "https://www.dailysabah.com/rss/business/tech",
+        region="turkey",
+        credibility_weight=0.58,
+        language="en",
+    ),
+    SourceDefinition(
+        "startups_watch",
+        "Startups.watch",
+        "rss",
+        "https://medium.com/feed/startups-watch",
+        region="turkey",
+        credibility_weight=0.75,
+        language="en",
+    ),
     # Turkey: VC & ecosystem RSS feeds
-    SourceDefinition("vc_212", "212 VC", "rss", "https://212.vc/feed/", region="turkey", credibility_weight=0.70, language="en", lookback_hours_override=168),
-    SourceDefinition("finberg", "Finberg", "rss", "https://finberg.com.tr/feed", region="turkey", credibility_weight=0.68, lookback_hours_override=168),
-    SourceDefinition("endeavor_turkey", "Endeavor Türkiye", "rss", "https://turkiye.endeavor.org/feed", region="turkey", credibility_weight=0.68, lookback_hours_override=168),
-    SourceDefinition("startupcentrum_tr", "StartupCentrum TR", "rss", "https://media.startupcentrum.com/tr/feed", region="turkey", credibility_weight=0.65, lookback_hours_override=168),
+    SourceDefinition(
+        "vc_212",
+        "212 VC",
+        "rss",
+        "https://212.vc/feed/",
+        region="turkey",
+        credibility_weight=0.70,
+        language="en",
+        lookback_hours_override=168,
+    ),
+    SourceDefinition(
+        "finberg",
+        "Finberg",
+        "rss",
+        "https://finberg.com.tr/feed",
+        region="turkey",
+        credibility_weight=0.68,
+        lookback_hours_override=168,
+    ),
+    SourceDefinition(
+        "endeavor_turkey",
+        "Endeavor Türkiye",
+        "rss",
+        "https://turkiye.endeavor.org/feed",
+        region="turkey",
+        credibility_weight=0.68,
+        lookback_hours_override=168,
+    ),
+    SourceDefinition(
+        "startupcentrum_tr",
+        "StartupCentrum TR",
+        "rss",
+        "https://media.startupcentrum.com/tr/feed",
+        region="turkey",
+        credibility_weight=0.65,
+        lookback_hours_override=168,
+    ),
     # Turkey: VC blog crawler (non-RSS VC sites — tries RSS discovery, falls back to HTML)
-    SourceDefinition("vc_turkey_blogs", "Turkey VC Blogs", "crawler", "vc://turkey-blogs", region="turkey", fetch_mode="crawler", credibility_weight=0.65, lookback_hours_override=168),
+    SourceDefinition(
+        "vc_turkey_blogs",
+        "Turkey VC Blogs",
+        "crawler",
+        "vc://turkey-blogs",
+        region="turkey",
+        fetch_mode="crawler",
+        credibility_weight=0.65,
+        lookback_hours_override=168,
+    ),
+    # ---------------------------------------------------------------------
+    # PR #2 — Turkey ecosystem expansion
+    # ---------------------------------------------------------------------
+    # University incubator (İTÜ Çekirdek) — active Turkish blog.
+    SourceDefinition(
+        "itu_cekirdek",
+        "İTÜ Çekirdek",
+        "rss",
+        "https://blog.itucekirdek.com/feed/",
+        region="turkey",
+        language="tr",
+        credibility_weight=0.74,
+        lookback_hours_override=168,
+    ),
+    # Technology Development Zone — sparse output, 720h lookback.
+    SourceDefinition(
+        "bilisim_vadisi",
+        "Bilişim Vadisi",
+        "rss",
+        "https://bilisimvadisi.com.tr/feed/",
+        region="turkey",
+        language="tr",
+        credibility_weight=0.62,
+        lookback_hours_override=720,
+    ),
+    # Governmental bodies (HIGH priority). Most publish HTML news indexes
+    # without RSS, so they run via the crawler fetch mode.
+    SourceDefinition(
+        "tubitak",
+        "TÜBİTAK",
+        "crawler",
+        "https://www.tubitak.gov.tr/tr/haberler",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.80,
+        lookback_hours_override=168,
+        crawl_seed_urls=("https://www.tubitak.gov.tr/tr/haberler",),
+    ),
+    SourceDefinition(
+        "kosgeb",
+        "KOSGEB",
+        "crawler",
+        "https://www.kosgeb.gov.tr/site/tr/genel/liste/4/tum-haberler",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.78,
+        lookback_hours_override=168,
+        crawl_seed_urls=("https://www.kosgeb.gov.tr/site/tr/genel/liste/4/tum-haberler",),
+    ),
+    SourceDefinition(
+        "sanayi_teknoloji_bakanlik",
+        "Sanayi ve Teknoloji Bakanlığı",
+        "crawler",
+        "https://www.sanayi.gov.tr/haberler",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.78,
+        lookback_hours_override=168,
+        crawl_seed_urls=("https://www.sanayi.gov.tr/haberler",),
+    ),
+    SourceDefinition(
+        "istka",
+        "İSTKA (İstanbul Kalkınma Ajansı)",
+        "crawler",
+        "https://www.istka.org.tr/haberler",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.72,
+        lookback_hours_override=168,
+        crawl_seed_urls=("https://www.istka.org.tr/haberler",),
+    ),
+    SourceDefinition(
+        "ibb_tech_istanbul",
+        "İBB Tech Istanbul",
+        "crawler",
+        "https://teknolojiatolyeleri.ibb.istanbul/haberler",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.68,
+        lookback_hours_override=336,
+        crawl_seed_urls=("https://teknolojiatolyeleri.ibb.istanbul/haberler",),
+    ),
+    # TİM-TEB Girişim Evi: no working RSS; crawl the landing page instead.
+    SourceDefinition(
+        "tim_teb",
+        "TİM-TEB Girişim Evi",
+        "crawler",
+        "https://timlegirisim.com/",
+        region="turkey",
+        language="tr",
+        fetch_mode="crawler",
+        credibility_weight=0.68,
+        lookback_hours_override=336,
+        crawl_seed_urls=("https://timlegirisim.com/",),
+    ),
     # NOTE: Consumer-tech feeds (e.g. phone/app updates) are intentionally excluded from the Turkey edition.
-    SourceDefinition("producthunt_feed", "Product Hunt Feed", "rss", "https://www.producthunt.com/feed", credibility_weight=0.82),
-    SourceDefinition("entrepreneur", "Entrepreneur", "rss", "https://www.entrepreneur.com/latest.rss", credibility_weight=0.72),
+    SourceDefinition(
+        "producthunt_feed",
+        "Product Hunt Feed",
+        "rss",
+        "https://www.producthunt.com/feed",
+        credibility_weight=0.82,
+    ),
+    SourceDefinition(
+        "entrepreneur",
+        "Entrepreneur",
+        "rss",
+        "https://www.entrepreneur.com/latest.rss",
+        credibility_weight=0.72,
+    ),
     SourceDefinition("inc", "Inc", "rss", "https://www.inc.com/rss", credibility_weight=0.74),
-    SourceDefinition("fastcompany", "Fast Company", "rss", "https://www.fastcompany.com/rss", credibility_weight=0.75),
+    SourceDefinition(
+        "fastcompany",
+        "Fast Company",
+        "rss",
+        "https://www.fastcompany.com/rss",
+        credibility_weight=0.75,
+    ),
     SourceDefinition("techeu", "Tech.eu", "rss", "https://tech.eu/feed/", credibility_weight=0.81),
-    SourceDefinition("mashable", "Mashable", "rss", "https://mashable.com/feeds/rss/all", credibility_weight=0.68),
-    SourceDefinition("hackernoon", "HackerNoon", "rss", "https://hackernoon.com/feed", credibility_weight=0.64),
-    SourceDefinition("yc_blog", "Y Combinator Blog", "rss", "https://www.ycombinator.com/blog/rss/", credibility_weight=0.78),
+    SourceDefinition(
+        "mashable", "Mashable", "rss", "https://mashable.com/feeds/rss/all", credibility_weight=0.68
+    ),
+    SourceDefinition(
+        "hackernoon", "HackerNoon", "rss", "https://hackernoon.com/feed", credibility_weight=0.64
+    ),
+    SourceDefinition(
+        "yc_blog",
+        "Y Combinator Blog",
+        "rss",
+        "https://www.ycombinator.com/blog/rss/",
+        credibility_weight=0.78,
+    ),
     SourceDefinition("avc_blog", "AVC", "rss", "https://avc.com/feed/", credibility_weight=0.74),
-    SourceDefinition("strictlyvc", "StrictlyVC", "rss", "https://strictlyvc.com/feed", credibility_weight=0.80),
-    SourceDefinition("hn_rss_startup", "HN RSS Startup", "community", "https://hnrss.org/newest?q=startup", credibility_weight=0.83),
-    SourceDefinition("hn_rss_funding", "HN RSS Funding", "community", "https://hnrss.org/newest?q=startup+funding", credibility_weight=0.85),
-    SourceDefinition("hn_rss_ai", "HN RSS AI", "community", "https://hnrss.org/newest?q=ai+startup", credibility_weight=0.84),
-    SourceDefinition("lobsters", "Lobsters", "community", "https://lobste.rs/rss", credibility_weight=0.70),
-    SourceDefinition("reddit_startups", "Reddit r/startups", "community", "https://www.reddit.com/r/startups/.rss", credibility_weight=0.62),
-    SourceDefinition("reddit_technology", "Reddit r/technology", "community", "https://www.reddit.com/r/technology/.rss", credibility_weight=0.60),
-    SourceDefinition("reddit_machinelearning", "Reddit r/MachineLearning", "community", "https://www.reddit.com/r/MachineLearning/.rss", credibility_weight=0.66),
-    SourceDefinition("devto_startups", "Dev.to Startups", "community", "https://dev.to/feed/tag/startups", credibility_weight=0.63),
-    SourceDefinition("devto_ai", "Dev.to AI", "community", "https://dev.to/feed/tag/ai", credibility_weight=0.62),
-    SourceDefinition("prnewswire_tech", "PR Newswire Tech", "rss", "https://www.prnewswire.com/rss/technology-latest-news/technology-latest-news-list.rss", credibility_weight=0.68),
-    SourceDefinition("businesswire_tech", "BusinessWire Tech", "rss", "https://feed.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFtWWQ==", credibility_weight=0.66),
+    SourceDefinition(
+        "strictlyvc", "StrictlyVC", "rss", "https://strictlyvc.com/feed", credibility_weight=0.80
+    ),
+    SourceDefinition(
+        "hn_rss_startup",
+        "HN RSS Startup",
+        "community",
+        "https://hnrss.org/newest?q=startup",
+        credibility_weight=0.83,
+    ),
+    SourceDefinition(
+        "hn_rss_funding",
+        "HN RSS Funding",
+        "community",
+        "https://hnrss.org/newest?q=startup+funding",
+        credibility_weight=0.85,
+    ),
+    SourceDefinition(
+        "hn_rss_ai",
+        "HN RSS AI",
+        "community",
+        "https://hnrss.org/newest?q=ai+startup",
+        credibility_weight=0.84,
+    ),
+    SourceDefinition(
+        "lobsters", "Lobsters", "community", "https://lobste.rs/rss", credibility_weight=0.70
+    ),
+    SourceDefinition(
+        "reddit_startups",
+        "Reddit r/startups",
+        "community",
+        "https://www.reddit.com/r/startups/.rss",
+        credibility_weight=0.62,
+    ),
+    SourceDefinition(
+        "reddit_technology",
+        "Reddit r/technology",
+        "community",
+        "https://www.reddit.com/r/technology/.rss",
+        credibility_weight=0.60,
+    ),
+    SourceDefinition(
+        "reddit_machinelearning",
+        "Reddit r/MachineLearning",
+        "community",
+        "https://www.reddit.com/r/MachineLearning/.rss",
+        credibility_weight=0.66,
+    ),
+    SourceDefinition(
+        "devto_startups",
+        "Dev.to Startups",
+        "community",
+        "https://dev.to/feed/tag/startups",
+        credibility_weight=0.63,
+    ),
+    SourceDefinition(
+        "devto_ai", "Dev.to AI", "community", "https://dev.to/feed/tag/ai", credibility_weight=0.62
+    ),
+    SourceDefinition(
+        "prnewswire_tech",
+        "PR Newswire Tech",
+        "rss",
+        "https://www.prnewswire.com/rss/technology-latest-news/technology-latest-news-list.rss",
+        credibility_weight=0.68,
+    ),
+    SourceDefinition(
+        "businesswire_tech",
+        "BusinessWire Tech",
+        "rss",
+        "https://feed.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFtWWQ==",
+        credibility_weight=0.66,
+    ),
     # AI Hardware news pack (chip/AI infra + AI datacenter coverage)
-    SourceDefinition("nextplatform", "The Next Platform", "rss", "https://www.nextplatform.com/feed/", topic_tags=(AI_HARDWARE_TOPIC_TAG,), max_items_per_source=20, crawl_delay_ms=650),
-    SourceDefinition("servethehome", "ServeTheHome", "rss", "https://www.servethehome.com/feed/", topic_tags=(AI_HARDWARE_TOPIC_TAG,), max_items_per_source=20, crawl_delay_ms=700),
-    SourceDefinition("chipsandcheese", "Chips and Cheese", "rss", "https://chipsandcheese.com/feed/", topic_tags=(AI_HARDWARE_TOPIC_TAG,), max_items_per_source=20, crawl_delay_ms=650),
+    SourceDefinition(
+        "nextplatform",
+        "The Next Platform",
+        "rss",
+        "https://www.nextplatform.com/feed/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        max_items_per_source=20,
+        crawl_delay_ms=650,
+    ),
+    SourceDefinition(
+        "servethehome",
+        "ServeTheHome",
+        "rss",
+        "https://www.servethehome.com/feed/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        max_items_per_source=20,
+        crawl_delay_ms=700,
+    ),
+    SourceDefinition(
+        "chipsandcheese",
+        "Chips and Cheese",
+        "rss",
+        "https://chipsandcheese.com/feed/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        max_items_per_source=20,
+        crawl_delay_ms=650,
+    ),
     SourceDefinition(
         "eetimes_ai_accelerator",
         "EE Times (AI accelerator)",
@@ -597,7 +1133,15 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         max_items_per_source=20,
         crawl_delay_ms=800,
     ),
-    SourceDefinition("blocksandfiles", "Blocks & Files", "rss", "https://blocksandfiles.com/feed/", topic_tags=(AI_HARDWARE_TOPIC_TAG,), max_items_per_source=20, crawl_delay_ms=700),
+    SourceDefinition(
+        "blocksandfiles",
+        "Blocks & Files",
+        "rss",
+        "https://blocksandfiles.com/feed/",
+        topic_tags=(AI_HARDWARE_TOPIC_TAG,),
+        max_items_per_source=20,
+        crawl_delay_ms=700,
+    ),
     SourceDefinition(
         "datacenterdynamics_ai",
         "DataCenterDynamics (AI)",
@@ -605,7 +1149,10 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         "https://www.datacenterdynamics.com/en/news/",
         topic_tags=(AI_HARDWARE_TOPIC_TAG,),
         fetch_mode="latest_posts",
-        crawl_seed_urls=("https://www.datacenterdynamics.com/en/news/", "https://www.datacenterdynamics.com/en/news/tag/semiconductor/"),
+        crawl_seed_urls=(
+            "https://www.datacenterdynamics.com/en/news/",
+            "https://www.datacenterdynamics.com/en/news/tag/semiconductor/",
+        ),
         max_items_per_source=20,
         crawl_delay_ms=850,
     ),
@@ -616,7 +1163,11 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         "https://www.theregister.com/",
         topic_tags=(AI_HARDWARE_TOPIC_TAG,),
         fetch_mode="latest_posts",
-        crawl_seed_urls=("https://www.theregister.com", "https://www.theregister.com/AI/", "https://www.theregister.com/Datacenter/"),
+        crawl_seed_urls=(
+            "https://www.theregister.com",
+            "https://www.theregister.com/AI/",
+            "https://www.theregister.com/Datacenter/",
+        ),
         max_items_per_source=20,
         crawl_delay_ms=900,
     ),
@@ -701,13 +1252,59 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         crawl_delay_ms=800,
     ),
     # Big-tech startup program blogs
-    SourceDefinition("ms_startups", "Microsoft for Startups", "rss", "https://www.microsoft.com/en-us/startups/blog/feed/", credibility_weight=0.68),
-    SourceDefinition("aws_ml_blog", "AWS ML Blog", "rss", "https://aws.amazon.com/blogs/machine-learning/feed/", credibility_weight=0.65),
-    SourceDefinition("google_startups", "Google for Startups", "rss", "https://blog.google/outreach-initiatives/entrepreneurs/rss/", credibility_weight=0.62),
-    SourceDefinition("producthunt_api", "Product Hunt API", "api", "https://api.producthunt.com/v2/api/graphql", fetch_mode="api", credibility_weight=0.86),
-    SourceDefinition("hackernews_api", "Hacker News API", "api", "https://hacker-news.firebaseio.com/v0", fetch_mode="api", credibility_weight=0.88),
-    SourceDefinition("newsapi", "NewsAPI", "api", "https://newsapi.org/v2/everything", fetch_mode="api", credibility_weight=0.67),
-    SourceDefinition("gnews", "GNews", "api", "https://gnews.io/api/v4/search", fetch_mode="api", credibility_weight=0.66),
+    SourceDefinition(
+        "ms_startups",
+        "Microsoft for Startups",
+        "rss",
+        "https://www.microsoft.com/en-us/startups/blog/feed/",
+        credibility_weight=0.68,
+    ),
+    SourceDefinition(
+        "aws_ml_blog",
+        "AWS ML Blog",
+        "rss",
+        "https://aws.amazon.com/blogs/machine-learning/feed/",
+        credibility_weight=0.65,
+    ),
+    SourceDefinition(
+        "google_startups",
+        "Google for Startups",
+        "rss",
+        "https://blog.google/outreach-initiatives/entrepreneurs/rss/",
+        credibility_weight=0.62,
+    ),
+    SourceDefinition(
+        "producthunt_api",
+        "Product Hunt API",
+        "api",
+        "https://api.producthunt.com/v2/api/graphql",
+        fetch_mode="api",
+        credibility_weight=0.86,
+    ),
+    SourceDefinition(
+        "hackernews_api",
+        "Hacker News API",
+        "api",
+        "https://hacker-news.firebaseio.com/v0",
+        fetch_mode="api",
+        credibility_weight=0.88,
+    ),
+    SourceDefinition(
+        "newsapi",
+        "NewsAPI",
+        "api",
+        "https://newsapi.org/v2/everything",
+        fetch_mode="api",
+        credibility_weight=0.67,
+    ),
+    SourceDefinition(
+        "gnews",
+        "GNews",
+        "api",
+        "https://gnews.io/api/v4/search",
+        fetch_mode="api",
+        credibility_weight=0.66,
+    ),
     # Paid source leads (headline-only); used as triggers for open-web corroboration.
     SourceDefinition(
         "theinformation",
@@ -718,27 +1315,196 @@ DEFAULT_SOURCES: List[SourceDefinition] = [
         credibility_weight=0.05,
         legal_mode="headline_only",
     ),
-    SourceDefinition("x_recent_search_global", "X Recent Search (Global)", "api", "https://api.x.com/2/tweets/search/recent", fetch_mode="x_recent_search", credibility_weight=0.64),
-    SourceDefinition("x_recent_search_turkey", "X Recent Search (Turkey)", "api", "https://api.x.com/2/tweets/search/recent", region="turkey", fetch_mode="x_recent_search", credibility_weight=0.65, language="tr"),
+    SourceDefinition(
+        "x_recent_search_global",
+        "X Recent Search (Global)",
+        "api",
+        "https://api.x.com/2/tweets/search/recent",
+        fetch_mode="x_recent_search",
+        credibility_weight=0.64,
+    ),
+    SourceDefinition(
+        "x_recent_search_turkey",
+        "X Recent Search (Turkey)",
+        "api",
+        "https://api.x.com/2/tweets/search/recent",
+        region="turkey",
+        fetch_mode="x_recent_search",
+        credibility_weight=0.65,
+        language="tr",
+    ),
     # Diff-based sources (daily snapshots + deltas), fetched from the hourly job.
-    SourceDefinition("github_trending_ai", "GitHub Trending AI (Search)", "api", "github://search/repositories", fetch_mode="api", credibility_weight=0.70),
-    SourceDefinition("amazon_new_releases_ai", "Amazon New Releases (AI Books)", "community", "amazon://new-releases", fetch_mode="api", credibility_weight=0.55),
-    SourceDefinition("frontier_news", "Frontier News URLs", "crawler", "frontier://news", fetch_mode="crawler", credibility_weight=0.62),
-    SourceDefinition("startup_owned_feeds", "Startup-Owned Sources", "crawler", "startup://owned", fetch_mode="crawler", credibility_weight=0.79),
+    SourceDefinition(
+        "github_trending_ai",
+        "GitHub Trending AI (Search)",
+        "api",
+        "github://search/repositories",
+        fetch_mode="api",
+        credibility_weight=0.70,
+    ),
+    SourceDefinition(
+        "amazon_new_releases_ai",
+        "Amazon New Releases (AI Books)",
+        "community",
+        "amazon://new-releases",
+        fetch_mode="api",
+        credibility_weight=0.55,
+    ),
+    SourceDefinition(
+        "frontier_news",
+        "Frontier News URLs",
+        "crawler",
+        "frontier://news",
+        fetch_mode="crawler",
+        credibility_weight=0.62,
+    ),
+    SourceDefinition(
+        "startup_owned_feeds",
+        "Startup-Owned Sources",
+        "crawler",
+        "startup://owned",
+        fetch_mode="crawler",
+        credibility_weight=0.79,
+    ),
     # Newsletter digests (parsed into individual items)
-    SourceDefinition("ainews_digest", "AINews by swyx", "rss", "https://news.smol.ai/rss.xml", fetch_mode="digest_rss", credibility_weight=0.88, language="en"),
-    SourceDefinition("latentspace_digest", "Latent Space by swyx", "rss", "https://www.latent.space/feed", fetch_mode="digest_rss", credibility_weight=0.85, language="en", lookback_hours_override=168),
+    SourceDefinition(
+        "ainews_digest",
+        "AINews by swyx",
+        "rss",
+        "https://news.smol.ai/rss.xml",
+        fetch_mode="digest_rss",
+        credibility_weight=0.88,
+        language="en",
+    ),
+    SourceDefinition(
+        "latentspace_digest",
+        "Latent Space by swyx",
+        "rss",
+        "https://www.latent.space/feed",
+        fetch_mode="digest_rss",
+        credibility_weight=0.85,
+        language="en",
+        lookback_hours_override=168,
+    ),
     # Research papers (community-curated trending arXiv papers)
-    SourceDefinition("huggingface_papers", "HF Daily Papers", "api", "https://huggingface.co/api/daily_papers", fetch_mode="api", credibility_weight=0.72),
+    SourceDefinition(
+        "huggingface_papers",
+        "HF Daily Papers",
+        "api",
+        "https://huggingface.co/api/daily_papers",
+        fetch_mode="api",
+        credibility_weight=0.72,
+    ),
+    # ---------------------------------------------------------------------
+    # PR #2 — YouTube channels (ecosystem demos, summits, interviews)
+    # ---------------------------------------------------------------------
+    # Uses yt-dlp to list recent videos — no YouTube Data API key needed.
+    SourceDefinition(
+        "trai_yt",
+        "TRAI (YouTube)",
+        "api",
+        "https://www.youtube.com/@turkiyeyapayzekainisiyatifi",
+        region="turkey",
+        language="tr",
+        fetch_mode="youtube_channel",
+        credibility_weight=0.72,
+        lookback_hours_override=168,
+    ),
+    SourceDefinition(
+        "itu_cekirdek_yt",
+        "İTÜ Çekirdek (YouTube)",
+        "api",
+        "https://www.youtube.com/@itucekirdek",
+        region="turkey",
+        language="tr",
+        fetch_mode="youtube_channel",
+        credibility_weight=0.72,
+        lookback_hours_override=168,
+    ),
+    SourceDefinition(
+        "startups_watch_yt",
+        "Startups.watch (YouTube)",
+        "api",
+        "https://www.youtube.com/@startupswatch",
+        region="turkey",
+        language="tr",
+        fetch_mode="youtube_channel",
+        credibility_weight=0.70,
+        lookback_hours_override=168,
+    ),
+    SourceDefinition(
+        "bilisim_vadisi_yt",
+        "Bilişim Vadisi (YouTube)",
+        "api",
+        "https://www.youtube.com/channel/UCsgrQQz_g-Xbx3z-XqWLcsA",
+        region="turkey",
+        language="tr",
+        fetch_mode="youtube_channel",
+        credibility_weight=0.62,
+        lookback_hours_override=336,
+    ),
+    # Techstars global channel — title must mention Istanbul to pass relevance.
+    SourceDefinition(
+        "techstars_istanbul_yt",
+        "Techstars (YouTube, Istanbul filter)",
+        "api",
+        "https://www.youtube.com/@Techstars",
+        region="turkey",
+        language="en",
+        fetch_mode="youtube_channel",
+        credibility_weight=0.65,
+        lookback_hours_override=336,
+    ),
 ]
 
 
-SOURCE_TOPIC_TAGS_BY_SOURCE: Dict[str, Tuple[str, ...]] = {
-    src.source_key: tuple(
-        str(tag).strip().lower()
-        for tag in src.topic_tags
-        if str(tag).strip()
+# ---------------------------------------------------------------------------
+# PR #2 — LinkedIn via RSS.app bridge (opt-in, env-gated)
+# ---------------------------------------------------------------------------
+# LinkedIn has no public RSS and aggressively blocks scraping. The only
+# viable path is wrapping each Company Page via a 3rd-party bridge like
+# RSS.app. Each feed URL is supplied through env vars so operations can
+# provision bridges incrementally without code changes. Unset env vars
+# leave the corresponding SourceDefinition disabled.
+_LINKEDIN_BRIDGE_ENV = (
+    ("linkedin_turkiyeai", "İTÜ/TRAI LinkedIn", "LINKEDIN_BRIDGE_TURKIYEAI_URL"),
+    ("linkedin_212vc", "212 VC LinkedIn", "LINKEDIN_BRIDGE_212VC_URL"),
+    ("linkedin_endeavor_turkey", "Endeavor Türkiye LinkedIn", "LINKEDIN_BRIDGE_ENDEAVOR_URL"),
+    ("linkedin_itucekirdek", "İTÜ Çekirdek LinkedIn", "LINKEDIN_BRIDGE_ITUCEKIRDEK_URL"),
+    ("linkedin_ari_teknokent", "İTÜ ARI Teknokent LinkedIn", "LINKEDIN_BRIDGE_ARITEKNOKENT_URL"),
+    ("linkedin_startups_watch", "Startups.watch LinkedIn", "LINKEDIN_BRIDGE_STARTUPSWATCH_URL"),
+    ("linkedin_bilisim_vadisi", "Bilişim Vadisi LinkedIn", "LINKEDIN_BRIDGE_BILISIMVADISI_URL"),
+    (
+        "linkedin_techstars_istanbul",
+        "Techstars Istanbul LinkedIn",
+        "LINKEDIN_BRIDGE_TECHSTARS_IST_URL",
+    ),
+    ("linkedin_kosgeb", "KOSGEB LinkedIn", "LINKEDIN_BRIDGE_KOSGEB_URL"),
+    ("linkedin_sanayi", "Sanayi Bakanlığı LinkedIn", "LINKEDIN_BRIDGE_SANAYI_URL"),
+    ("linkedin_istka", "İSTKA LinkedIn", "LINKEDIN_BRIDGE_ISTKA_URL"),
+    ("linkedin_ibb_tech", "İBB Tech Istanbul LinkedIn", "LINKEDIN_BRIDGE_IBB_TECH_URL"),
+    ("linkedin_tim_teb", "TİM-TEB LinkedIn", "LINKEDIN_BRIDGE_TIM_TEB_URL"),
+)
+for _key, _name, _env_var in _LINKEDIN_BRIDGE_ENV:
+    _url = os.getenv(_env_var, "").strip()
+    DEFAULT_SOURCES.append(
+        SourceDefinition(
+            _key,
+            _name,
+            "rss",
+            _url or f"linkedin-bridge://{_key}",
+            region="turkey",
+            language="tr",
+            fetch_mode="rss",
+            enabled=bool(_url),
+            credibility_weight=0.55,
+            lookback_hours_override=168,
+        )
     )
+
+
+SOURCE_TOPIC_TAGS_BY_SOURCE: Dict[str, Tuple[str, ...]] = {
+    src.source_key: tuple(str(tag).strip().lower() for tag in src.topic_tags if str(tag).strip())
     for src in DEFAULT_SOURCES
 }
 
@@ -754,7 +1520,9 @@ def _source_topic_tags_for_members(members: Sequence["NormalizedNewsItem"]) -> T
     return tuple(tags)
 
 
-def _apply_source_topic_overrides(topic_tags: Sequence[str], members: Sequence["NormalizedNewsItem"]) -> List[str]:
+def _apply_source_topic_overrides(
+    topic_tags: Sequence[str], members: Sequence["NormalizedNewsItem"]
+) -> List[str]:
     ordered: List[str] = []
     seen: set[str] = set()
     for tag in topic_tags:
@@ -1040,7 +1808,11 @@ def canonicalize_url(url: str) -> str:
     path = parsed.path or "/"
     if path != "/" and path.endswith("/"):
         path = path[:-1]
-    pairs = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if k.lower() not in TRACKING_PARAMS]
+    pairs = [
+        (k, v)
+        for k, v in parse_qsl(parsed.query, keep_blank_values=False)
+        if k.lower() not in TRACKING_PARAMS
+    ]
     pairs.sort(key=lambda kv: (kv[0], kv[1]))
     query = urlencode(pairs)
     return urlunparse((scheme, host, path, "", query, ""))
@@ -1063,7 +1835,11 @@ def normalize_image_url(url: str, base_url: str = "") -> str:
         return ""
     # Only strip UTM params, keep everything else (CDN params like source, ref, etc.)
     utm_params = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"}
-    pairs = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if k.lower() not in utm_params]
+    pairs = [
+        (k, v)
+        for k, v in parse_qsl(parsed.query, keep_blank_values=False)
+        if k.lower() not in utm_params
+    ]
     query = urlencode(pairs)
     return urlunparse((parsed.scheme or "https", parsed.netloc, parsed.path, "", query, ""))
 
@@ -1274,12 +2050,14 @@ def parse_theinformation_technology_headlines(
             return
         safe_title = normalize_text(title or "")
         seen.add(canonical)
-        out.append({
-            "url": url,
-            "canonical_url": canonical,
-            "title": safe_title,
-            "published_at": published_at,
-        })
+        out.append(
+            {
+                "url": url,
+                "canonical_url": canonical,
+                "title": safe_title,
+                "published_at": published_at,
+            }
+        )
 
     if BeautifulSoup is None:
         # Regex fallback if bs4 isn't installed.
@@ -1304,19 +2082,27 @@ def parse_theinformation_technology_headlines(
 
         # Prefer explicit publication date in/near anchor tag.
         candidate_dt: Optional[datetime] = None
-        for probe in [anchor, getattr(anchor, "parent", None), getattr(getattr(anchor, "parent", None), "parent", None)]:
+        for probe in [
+            anchor,
+            getattr(anchor, "parent", None),
+            getattr(getattr(anchor, "parent", None), "parent", None),
+        ]:
             if not probe:
                 continue
             if not hasattr(probe, "find"):
                 continue
             time_node = probe.find("time")
             if time_node:
-                candidate_dt = _parse_open_datetime(time_node.get("datetime") or time_node.get_text(" ", strip=True))
+                candidate_dt = _parse_open_datetime(
+                    time_node.get("datetime") or time_node.get_text(" ", strip=True)
+                )
             if candidate_dt is not None:
                 break
 
         if candidate_dt is None:
-            candidate_dt = _parse_open_datetime(anchor.get("data-date") or anchor.get("data-time") or anchor.get("title"))
+            candidate_dt = _parse_open_datetime(
+                anchor.get("data-date") or anchor.get("data-time") or anchor.get("title")
+            )
 
         text = normalize_text(anchor.get_text(" ", strip=True))
         _record(href, text, candidate_dt)
@@ -1326,7 +2112,6 @@ def parse_theinformation_technology_headlines(
             break
 
     return out[:limit]
-
 
 
 THEINFORMATION_FETCH_HEADERS: Dict[str, str] = {
@@ -1404,7 +2189,9 @@ async def _fetch_theinformation_section_page(
                 await asyncio.sleep(delay)
                 continue
 
-            blocked = _is_cloudflare_challenge_page(response.text or "", status_code=response.status_code)
+            blocked = _is_cloudflare_challenge_page(
+                response.text or "", status_code=response.status_code
+            )
             if response.status_code < 400 and not blocked:
                 return response
 
@@ -1507,7 +2294,7 @@ def build_paid_headline_search_query(title: str) -> str:
 
     parts: List[str] = []
     if anchor:
-        parts.append(f"\"{anchor}\"")
+        parts.append(f'"{anchor}"')
 
     for tok in tokens:
         if tok in used:
@@ -1650,13 +2437,10 @@ def compute_cluster_scores(
         points = float(item.engagement.get("points") or item.engagement.get("votes") or 0.0)
         engagement_raw = max(engagement_raw, min(1.0, points / 500.0))
 
-    member_text = " ".join(
-        [
-            item.title + " " + (item.summary or "")
-            for item in effective_members
-        ]
+    member_text = " ".join([item.title + " " + (item.summary or "") for item in effective_members])
+    ai_hardware_source_hit = any(
+        m.source_key in AI_HARDWARE_SOURCE_KEY_SET for m in effective_members
     )
-    ai_hardware_source_hit = any(m.source_key in AI_HARDWARE_SOURCE_KEY_SET for m in effective_members)
     ai_hardware_keyword_hit = bool(member_text) and _contains_ai_hardware_keywords(member_text)
     cluster_tags = {str(tag).strip().lower() for tag in topic_tags}
     has_ai_hardware_topic = AI_HARDWARE_TOPIC_TAG.lower() in cluster_tags
@@ -1706,7 +2490,9 @@ def compute_cluster_scores(
     return rank_score, trust_score, ", ".join(reasons[:3])
 
 
-def extract_html_title_summary(html: str, source_url: str = "") -> Tuple[str, str, Optional[datetime], Optional[str]]:
+def extract_html_title_summary(
+    html: str, source_url: str = ""
+) -> Tuple[str, str, Optional[datetime], Optional[str]]:
     if not html:
         return "", "", None, None
 
@@ -1722,11 +2508,15 @@ def extract_html_title_summary(html: str, source_url: str = "") -> Tuple[str, st
     if soup.title and soup.title.string:
         title = normalize_text(soup.title.string)
 
-    meta_desc = soup.find("meta", attrs={"name": "description"}) or soup.find("meta", attrs={"property": "og:description"})
+    meta_desc = soup.find("meta", attrs={"name": "description"}) or soup.find(
+        "meta", attrs={"property": "og:description"}
+    )
     if meta_desc and meta_desc.get("content"):
         summary = normalize_text(meta_desc.get("content"))
 
-    meta_published = soup.find("meta", attrs={"property": "article:published_time"}) or soup.find("meta", attrs={"name": "publish-date"})
+    meta_published = soup.find("meta", attrs={"property": "article:published_time"}) or soup.find(
+        "meta", attrs={"name": "publish-date"}
+    )
     if meta_published and meta_published.get("content"):
         raw = meta_published.get("content")
         try:
@@ -1738,7 +2528,9 @@ def extract_html_title_summary(html: str, source_url: str = "") -> Tuple[str, st
         except Exception:
             published = None
 
-    meta_image = soup.find("meta", attrs={"property": "og:image"}) or soup.find("meta", attrs={"name": "twitter:image"})
+    meta_image = soup.find("meta", attrs={"property": "og:image"}) or soup.find(
+        "meta", attrs={"name": "twitter:image"}
+    )
     if meta_image and meta_image.get("content"):
         raw_image = str(meta_image.get("content")).strip()
         if raw_image:
@@ -1872,7 +2664,9 @@ def _is_amazon_bot_page(html: str) -> bool:
     return False
 
 
-def _parse_amazon_new_releases_html(html: str, *, category_url: str, max_items: int) -> List[Dict[str, Any]]:
+def _parse_amazon_new_releases_html(
+    html: str, *, category_url: str, max_items: int
+) -> List[Dict[str, Any]]:
     """Best-effort parser for Amazon "New Releases" pages.
 
     We only extract lightweight metadata (ASIN/title/author/rank) for diff alerts.
@@ -2046,6 +2840,7 @@ def _azure_token_budget(model_name: str, desired_output_tokens: int) -> int:
         return desired_output_tokens * 8
     return desired_output_tokens
 
+
 def _azure_supports_temperature(model_name: str) -> bool:
     """
     Some Azure deployments (notably GPT-5 family, Feb 2026) reject non-default
@@ -2145,8 +2940,21 @@ def _is_relevant_turkey_news_item_strict(item: "NormalizedNewsItem") -> bool:
     has_startup_context = _contains_any(text, TR_STARTUP_CONTEXT_KEYWORDS)
     has_mna = _contains_any(text, TR_MNA_KEYWORDS)
     has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
-    has_strong_ecosystem = has_ecosystem and (has_startup_context or ("yatırım" in text) or ("yatirim" in text))
-    is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch", "vc_212", "finberg", "endeavor_turkey", "startupcentrum_tr"}
+    has_strong_ecosystem = has_ecosystem and (
+        has_startup_context or ("yatırım" in text) or ("yatirim" in text)
+    )
+    is_trusted_rss = item.source_key in {
+        "webrazzi",
+        "egirisim",
+        "foundern",
+        "swipeline",
+        "n24_business",
+        "startups_watch",
+        "vc_212",
+        "finberg",
+        "endeavor_turkey",
+        "startupcentrum_tr",
+    }
     if is_trusted_rss:
         if not (has_policy or has_ecosystem or has_mna):
             return False
@@ -2193,7 +3001,9 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     has_startup_context = _contains_any(text, TR_STARTUP_CONTEXT_KEYWORDS)
     has_mna = _contains_any(text, TR_MNA_KEYWORDS)
     has_ecosystem = _contains_any(text, TR_ECOSYSTEM_KEYWORDS)
-    has_strong_ecosystem = has_ecosystem and (has_startup_context or ("yatırım" in text) or ("yatirim" in text))
+    has_strong_ecosystem = has_ecosystem and (
+        has_startup_context or ("yatırım" in text) or ("yatirim" in text)
+    )
 
     # Core signal: must have startup/ecosystem OR policy OR (AI + startup context).
     # This removes the hard AI gate — a fintech funding round without "AI" now passes.
@@ -2207,7 +3017,18 @@ def _is_relevant_turkey_news_item(item: "NormalizedNewsItem") -> bool:
     if item.source_key not in TR_ENDEMIC_SOURCES and not _has_turkey_nexus(item):
         return False
 
-    is_trusted_rss = item.source_key in {"webrazzi", "egirisim", "foundern", "swipeline", "n24_business", "startups_watch", "vc_212", "finberg", "endeavor_turkey", "startupcentrum_tr"}
+    is_trusted_rss = item.source_key in {
+        "webrazzi",
+        "egirisim",
+        "foundern",
+        "swipeline",
+        "n24_business",
+        "startups_watch",
+        "vc_212",
+        "finberg",
+        "endeavor_turkey",
+        "startupcentrum_tr",
+    }
 
     # For broad API aggregators, require explicit Turkey context to avoid global chatter.
     if item.source_key in {"gnews_turkey", "newsapi_turkey"}:
@@ -2320,9 +3141,9 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
             continue
         llm_score = (m.payload or {}).get("turkey_priority")
         if llm_score is not None and llm_score >= 1:
-            relevant_members.append(m)        # LLM already approved
+            relevant_members.append(m)  # LLM already approved
         elif _is_relevant_turkey_news_item(m):
-            relevant_members.append(m)        # No LLM score — apply heuristic
+            relevant_members.append(m)  # No LLM score — apply heuristic
     if not relevant_members:
         return None
 
@@ -2331,7 +3152,9 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
     # so cross-source counts remain meaningful (e.g. TR RSS + global coverage).
     primary_candidates = [m for m in relevant_members if m.language == "tr"] or relevant_members
 
-    primary = sorted(primary_candidates, key=lambda m: (m.source_weight, m.published_at), reverse=True)[0]
+    primary = sorted(
+        primary_candidates, key=lambda m: (m.source_weight, m.published_at), reverse=True
+    )[0]
     tags = _apply_source_topic_overrides(
         classify_topic_tags(primary.title, primary.summary),
         relevant_members,
@@ -2344,8 +3167,7 @@ def _build_turkey_cluster(c: "StoryCluster", turkey_source_keys: set) -> Optiona
 
     # Boost AI/ML-priority items (turkey_priority == 2) in Turkey edition ranking
     has_ai_priority = any(
-        (m.payload or {}).get("turkey_priority", 0) >= 2
-        for m in relevant_members
+        (m.payload or {}).get("turkey_priority", 0) >= 2 for m in relevant_members
     )
     if has_ai_priority:
         rank_score = min(1.0, rank_score + 0.10)
@@ -2429,46 +3251,99 @@ Articles:
 Respond ONLY with a JSON array of integers (0, 1, or 2), one per article. Example: [2, 0, 1]"""
 
 
-def build_builder_takeaway(*, story_type: str, tags: Sequence[str], title: str, summary: str, entities: Sequence[str]) -> str:
+def build_builder_takeaway(
+    *, story_type: str, tags: Sequence[str], title: str, summary: str, entities: Sequence[str]
+) -> str:
     focus = entities[0] if entities else "the company"
     text = f"{title} {summary}".lower()
 
     if story_type == "funding":
         if "series a" in text or "series b" in text or "series c" in text:
-            return _shorten_text(f"{focus} is entering a scaling phase. Watch hiring and infra spend signals before copying the stack.")
-        return _shorten_text(f"{focus} just raised capital. Track whether they ship product velocity or mostly narrative in the next 60 days.")
+            return _shorten_text(
+                f"{focus} is entering a scaling phase. Watch hiring and infra spend signals before copying the stack."
+            )
+        return _shorten_text(
+            f"{focus} just raised capital. Track whether they ship product velocity or mostly narrative in the next 60 days."
+        )
 
     if story_type == "launch":
-        return _shorten_text(f"{focus} is shipping now. Builders should evaluate adoption risk, integration friction, and pricing durability before switching.")
+        return _shorten_text(
+            f"{focus} is shipping now. Builders should evaluate adoption risk, integration friction, and pricing durability before switching."
+        )
 
     if story_type == "mna":
-        return _shorten_text(f"{focus} indicates market consolidation. Builders should expect tighter distribution and fewer independent integration points.")
+        return _shorten_text(
+            f"{focus} indicates market consolidation. Builders should expect tighter distribution and fewer independent integration points."
+        )
 
     if story_type == "regulation":
-        return _shorten_text(f"{focus} highlights compliance pressure. Factor governance and auditability into roadmap decisions this quarter.")
+        return _shorten_text(
+            f"{focus} highlights compliance pressure. Factor governance and auditability into roadmap decisions this quarter."
+        )
 
     if "ai" in tags or "machine learning" in tags or "llm" in tags:
-        if _contains_any(text, ["infrastructure", "cloud", "compute", "gpu", "data center", "chip", "semiconductor"]):
-            return _shorten_text(f"{focus} is building at the infrastructure layer. Builders should watch pricing signals and capacity constraints that affect downstream costs.")
-        if _contains_any(text, ["developer", "api", "sdk", "platform", "devtool", "open source", "open-source", "framework"]):
-            return _shorten_text(f"{focus} targets the developer layer. Evaluate lock-in risk, migration cost, and whether the abstraction ages well before adopting.")
-        if _contains_any(text, ["agent", "agentic", "autonomous", "orchestrat", "workflow", "automat"]):
-            return _shorten_text(f"{focus} is in the agentic space. Builders should watch for reliability benchmarks and real-world failure modes before integrating.")
-        if _contains_any(text, ["data", "analytics", "observab", "monitoring", "eval", "benchmark"]):
-            return _shorten_text(f"{focus} is tackling the data/eval layer. Prioritize integration depth and whether the product compounds with your existing data stack.")
-        if _contains_any(text, ["security", "compliance", "governance", "privacy", "trust", "safety"]):
-            return _shorten_text(f"{focus} addresses AI governance. Factor regulatory tailwinds and whether their approach becomes a de facto standard in your vertical.")
+        if _contains_any(
+            text,
+            ["infrastructure", "cloud", "compute", "gpu", "data center", "chip", "semiconductor"],
+        ):
+            return _shorten_text(
+                f"{focus} is building at the infrastructure layer. Builders should watch pricing signals and capacity constraints that affect downstream costs."
+            )
+        if _contains_any(
+            text,
+            [
+                "developer",
+                "api",
+                "sdk",
+                "platform",
+                "devtool",
+                "open source",
+                "open-source",
+                "framework",
+            ],
+        ):
+            return _shorten_text(
+                f"{focus} targets the developer layer. Evaluate lock-in risk, migration cost, and whether the abstraction ages well before adopting."
+            )
+        if _contains_any(
+            text, ["agent", "agentic", "autonomous", "orchestrat", "workflow", "automat"]
+        ):
+            return _shorten_text(
+                f"{focus} is in the agentic space. Builders should watch for reliability benchmarks and real-world failure modes before integrating."
+            )
+        if _contains_any(
+            text, ["data", "analytics", "observab", "monitoring", "eval", "benchmark"]
+        ):
+            return _shorten_text(
+                f"{focus} is tackling the data/eval layer. Prioritize integration depth and whether the product compounds with your existing data stack."
+            )
+        if _contains_any(
+            text, ["security", "compliance", "governance", "privacy", "trust", "safety"]
+        ):
+            return _shorten_text(
+                f"{focus} addresses AI governance. Factor regulatory tailwinds and whether their approach becomes a de facto standard in your vertical."
+            )
         if _contains_any(text, ["enterprise", "b2b", "saas", "vertical", "industry"]):
-            return _shorten_text(f"{focus} is going vertical. Builders in the same space should assess whether this narrows or expands the addressable integration surface.")
-        return _shorten_text(f"{focus} signals momentum in the AI landscape. Builders should assess whether this shifts build-vs-buy math for their current roadmap.")
+            return _shorten_text(
+                f"{focus} is going vertical. Builders in the same space should assess whether this narrows or expands the addressable integration surface."
+            )
+        return _shorten_text(
+            f"{focus} signals momentum in the AI landscape. Builders should assess whether this shifts build-vs-buy math for their current roadmap."
+        )
 
     if _contains_any(text, ["hiring", "hire", "team", "talent", "layoff", "headcount"]):
-        return _shorten_text(f"{focus} is reshaping its team. Watch whether talent moves signal a strategic pivot or just operational scaling.")
+        return _shorten_text(
+            f"{focus} is reshaping its team. Watch whether talent moves signal a strategic pivot or just operational scaling."
+        )
 
     if _contains_any(text, ["partner", "integrat", "ecosystem", "alliance", "collaborat"]):
-        return _shorten_text(f"{focus} is expanding its ecosystem. Builders should evaluate whether this opens new integration paths or creates dependency risk.")
+        return _shorten_text(
+            f"{focus} is expanding its ecosystem. Builders should evaluate whether this opens new integration paths or creates dependency risk."
+        )
 
-    return _shorten_text(f"{focus} is a useful market signal. Validate demand with customer pull, not just headline momentum.")
+    return _shorten_text(
+        f"{focus} is a useful market signal. Validate demand with customer pull, not just headline momentum."
+    )
 
 
 def determine_frame_override(
@@ -2515,7 +3390,9 @@ class DailyNewsIngestor:
         self.newsapi_key = os.getenv("NEWS_API_KEY", "") or os.getenv("NEWSAPI_KEY", "")
         self.gnews_key = os.getenv("GNEWS_API_KEY", "")
         self.github_token = os.getenv("GITHUB_TOKEN", "")
-        self.github_trending_topics = os.getenv("GITHUB_TRENDING_TOPICS", "artificial-intelligence,llm,generative-ai")
+        self.github_trending_topics = os.getenv(
+            "GITHUB_TRENDING_TOPICS", "artificial-intelligence,llm,generative-ai"
+        )
         self.github_trending_created_days = _env_int("GITHUB_TRENDING_CREATED_DAYS", 30)
         self.github_trending_min_stars = _env_int("GITHUB_TRENDING_MIN_STARS", 50)
         self.github_trending_limit = _env_int("GITHUB_TRENDING_LIMIT", 30)
@@ -2543,8 +3420,8 @@ class DailyNewsIngestor:
             os.getenv("AZURE_OPENAI_FALLBACK_DEPLOYMENT_NAME") or "gpt-5-nano"
         )
         # Embedding deployment for semantic search (text-embedding-3-small)
-        self.azure_openai_embedding_deployment = (
-            os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
+        self.azure_openai_embedding_deployment = os.getenv(
+            "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
         )
         # Daily briefs benefit from higher-quality synthesis. Prefer the "reasoning" deployment
         # (often gpt-5-mini) with low effort, but always fall back to the primary deployment.
@@ -2556,7 +3433,12 @@ class DailyNewsIngestor:
         self.azure_openai_daily_brief_effort = (
             os.getenv("AZURE_OPENAI_DAILY_BRIEF_EFFORT", "low").strip().lower() or "low"
         )
-        self.llm_enrichment_enabled = os.getenv("NEWS_LLM_ENRICHMENT", "false").lower() in {"1", "true", "yes", "on"}
+        self.llm_enrichment_enabled = os.getenv("NEWS_LLM_ENRICHMENT", "false").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         self.llm_model = os.getenv("NEWS_LLM_MODEL", "gpt-5-nano")
         self.llm_max_clusters = max(0, int(os.getenv("NEWS_LLM_MAX_CLUSTERS", "200")))
         self.llm_concurrency = max(1, min(16, int(os.getenv("NEWS_LLM_CONCURRENCY", "8"))))
@@ -2565,7 +3447,9 @@ class DailyNewsIngestor:
             self.llm_daily_brief_enabled = daily_brief_env in {"1", "true", "yes", "on"}
         else:
             self.llm_daily_brief_enabled = bool(self.llm_enrichment_enabled)
-        self.llm_daily_brief_max_clusters = max(3, int(os.getenv("NEWS_LLM_DAILY_BRIEF_MAX_CLUSTERS", "10")))
+        self.llm_daily_brief_max_clusters = max(
+            3, int(os.getenv("NEWS_LLM_DAILY_BRIEF_MAX_CLUSTERS", "10"))
+        )
         self._llm_metrics: Dict[str, Any] = {
             "enabled": bool(self.llm_enrichment_enabled),
             "model": self.llm_model,
@@ -2664,7 +3548,9 @@ class DailyNewsIngestor:
         Note: This currently scans all `news_items_raw` rows. It's intentionally
         simple/robust, but can be optimized later if the table grows large.
         """
-        raw_rows = await conn.fetch("SELECT id::text, source_id::text, external_id FROM news_items_raw")
+        raw_rows = await conn.fetch(
+            "SELECT id::text, source_id::text, external_id FROM news_items_raw"
+        )
         source_id_map = await self._get_source_id_map(conn)
         source_lookup: Dict[str, str] = {v: k for k, v in source_id_map.items()}
         raw_lookup: Dict[Tuple[str, str], str] = {}
@@ -2674,7 +3560,9 @@ class DailyNewsIngestor:
                 raw_lookup[(source_key, row["external_id"])] = row["id"]
         return raw_lookup
 
-    async def _upsert_sources(self, conn: asyncpg.Connection, sources: Sequence[SourceDefinition]) -> None:
+    async def _upsert_sources(
+        self, conn: asyncpg.Connection, sources: Sequence[SourceDefinition]
+    ) -> None:
         for src in sources:
             await conn.execute(
                 """
@@ -2703,7 +3591,9 @@ class DailyNewsIngestor:
                 bool(src.enabled),
             )
 
-    async def _sync_source_activity(self, conn: asyncpg.Connection, sources: Sequence[SourceDefinition]) -> None:
+    async def _sync_source_activity(
+        self, conn: asyncpg.Connection, sources: Sequence[SourceDefinition]
+    ) -> None:
         """
         Keep `news_sources.is_active` aligned with DEFAULT_SOURCES.
 
@@ -2829,7 +3719,9 @@ class DailyNewsIngestor:
             return "tr"
         return "en"
 
-    async def _fetch_rss_source(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_rss_source(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         if feedparser is None:
             return []
 
@@ -2891,6 +3783,7 @@ class DailyNewsIngestor:
         """Return parser config for a digest source."""
         if not DailyNewsIngestor._DIGEST_CONFIGS:
             from .ainews_parser import DigestParserConfig
+
             DailyNewsIngestor._DIGEST_CONFIGS = {
                 "ainews_digest": DigestParserConfig(
                     source_key="ainews_digest",
@@ -2910,7 +3803,9 @@ class DailyNewsIngestor:
             DailyNewsIngestor._DIGEST_CONFIGS["ainews_digest"],
         )
 
-    async def _fetch_digest_rss(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_digest_rss(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         """Fetch a digest newsletter via RSS and parse each entry into individual items."""
         if feedparser is None:
             return []
@@ -2954,10 +3849,14 @@ class DailyNewsIngestor:
                 print(f"[news-ingest] {source.source_key}: failed to parse entry {link}: {exc}")
                 continue
 
-        print(f"[news-ingest] {source.source_key}: extracted {len(all_items)} items from {len(parsed.entries)} RSS entries")
+        print(
+            f"[news-ingest] {source.source_key}: extracted {len(all_items)} items from {len(parsed.entries)} RSS entries"
+        )
         return all_items
 
-    async def _fetch_hackernews_api(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_hackernews_api(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         # Lightweight enrichment from official HN API.
         list_resp = await client.get(f"{source.base_url}/newstories.json")
         list_resp.raise_for_status()
@@ -2979,7 +3878,11 @@ class DailyNewsIngestor:
                     return None
 
                 ts = int(data.get("time") or 0)
-                published = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else datetime.now(timezone.utc)
+                published = (
+                    datetime.fromtimestamp(ts, tz=timezone.utc)
+                    if ts
+                    else datetime.now(timezone.utc)
+                )
                 if published < cutoff:
                     return None
 
@@ -2994,7 +3897,10 @@ class DailyNewsIngestor:
                     published_at=published,
                     language="en",
                     author=None,
-                    engagement={"points": int(data.get("score") or 0), "comments": int(data.get("descendants") or 0)},
+                    engagement={
+                        "points": int(data.get("score") or 0),
+                        "comments": int(data.get("descendants") or 0),
+                    },
                     payload={"hn_id": data.get("id")},
                     source_weight=source.credibility_weight,
                 ).with_external_id()
@@ -3002,7 +3908,7 @@ class DailyNewsIngestor:
                 return None
 
         for batch_start in range(0, len(ids), 25):
-            batch = [fetch_item(i) for i in ids[batch_start: batch_start + 25]]
+            batch = [fetch_item(i) for i in ids[batch_start : batch_start + 25]]
             for result in await asyncio.gather(*batch):
                 if result is not None:
                     items.append(result)
@@ -3011,7 +3917,9 @@ class DailyNewsIngestor:
 
         return items
 
-    async def _fetch_producthunt_api(self, client: httpx.AsyncClient, source: SourceDefinition) -> List[NormalizedNewsItem]:
+    async def _fetch_producthunt_api(
+        self, client: httpx.AsyncClient, source: SourceDefinition
+    ) -> List[NormalizedNewsItem]:
         if not self.product_hunt_token:
             return []
 
@@ -3044,7 +3952,7 @@ class DailyNewsIngestor:
             return []
 
         body = resp.json() or {}
-        edges = (((body.get("data") or {}).get("posts") or {}).get("edges") or [])
+        edges = ((body.get("data") or {}).get("posts") or {}).get("edges") or []
         items: List[NormalizedNewsItem] = []
 
         for edge in edges:
@@ -3124,9 +4032,7 @@ class DailyNewsIngestor:
 
             url = f"https://arxiv.org/abs/{arxiv_id}"
 
-            summary_text = normalize_text(
-                str(paper_data.get("summary") or "")
-            )[:300]
+            summary_text = normalize_text(str(paper_data.get("summary") or ""))[:300]
 
             authors = []
             for a in paper_data.get("authors") or []:
@@ -3171,7 +4077,9 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
-    async def _fetch_newsapi(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_newsapi(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         if not self.newsapi_key:
             return []
 
@@ -3223,7 +4131,9 @@ class DailyNewsIngestor:
                 payload={
                     "provider": "newsapi",
                     "source": art.get("source"),
-                    "image_url": normalize_image_url(str(art.get("urlToImage") or "")) if art.get("urlToImage") else None,
+                    "image_url": normalize_image_url(str(art.get("urlToImage") or ""))
+                    if art.get("urlToImage")
+                    else None,
                 },
                 source_weight=source.credibility_weight,
             ).with_external_id()
@@ -3231,7 +4141,9 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
-    async def _fetch_gnews(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_gnews(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         if not self.gnews_key:
             return []
 
@@ -3281,7 +4193,9 @@ class DailyNewsIngestor:
                 author=normalize_text(str(art.get("source", {}).get("name") or "")) or None,
                 payload={
                     "provider": "gnews",
-                    "image_url": normalize_image_url(str(art.get("image") or "")) if art.get("image") else None,
+                    "image_url": normalize_image_url(str(art.get("image") or ""))
+                    if art.get("image")
+                    else None,
                 },
                 source_weight=source.credibility_weight,
             ).with_external_id()
@@ -3346,7 +4260,9 @@ class DailyNewsIngestor:
                 "origin": "paid_headline_expand",
                 "seed": seed_meta,
                 "source": art.get("source"),
-                "image_url": normalize_image_url(str(art.get("urlToImage") or "")) if art.get("urlToImage") else None,
+                "image_url": normalize_image_url(str(art.get("urlToImage") or ""))
+                if art.get("urlToImage")
+                else None,
             }
             item = NormalizedNewsItem(
                 source_key="newsapi",
@@ -3423,7 +4339,9 @@ class DailyNewsIngestor:
                 "provider": "gnews",
                 "origin": "paid_headline_expand",
                 "seed": seed_meta,
-                "image_url": normalize_image_url(str(art.get("image") or "")) if art.get("image") else None,
+                "image_url": normalize_image_url(str(art.get("image") or ""))
+                if art.get("image")
+                else None,
             }
             item = NormalizedNewsItem(
                 source_key="gnews",
@@ -3463,7 +4381,9 @@ class DailyNewsIngestor:
         expand_max_per_seed = max(1, min(25, _env_int("PAID_HEADLINE_EXPAND_MAX_PER_SEED", 8)))
         max_attempts = max(1, _env_int("PAID_HEADLINE_MAX_ATTEMPTS", 3))
 
-        expand_sources_raw = (os.getenv("PAID_HEADLINE_EXPAND_SOURCES", "gnews,newsapi") or "").strip()
+        expand_sources_raw = (
+            os.getenv("PAID_HEADLINE_EXPAND_SOURCES", "gnews,newsapi") or ""
+        ).strip()
         expand_sources: List[str] = []
         for raw in expand_sources_raw.split(","):
             key = raw.strip().lower()
@@ -3491,7 +4411,9 @@ class DailyNewsIngestor:
                 max_seeds,
             )
         except Exception as exc:
-            print(f"[news-ingest] {publisher_key}: paid headline seeds skipped (migration missing?): {exc}")
+            print(
+                f"[news-ingest] {publisher_key}: paid headline seeds skipped (migration missing?): {exc}"
+            )
             return []
 
         if not rows:
@@ -3503,7 +4425,9 @@ class DailyNewsIngestor:
         for row in rows:
             seed_id = str(row.get("id") or "").strip()
             seed_url = str(row.get("url") or "").strip()
-            seed_canonical_url = str(row.get("canonical_url") or "").strip() or canonicalize_url(seed_url)
+            seed_canonical_url = str(row.get("canonical_url") or "").strip() or canonicalize_url(
+                seed_url
+            )
             seed_title_db = normalize_text(str(row.get("title") or ""))
             seed_summary_db = normalize_text(str(row.get("summary") or ""))
             seed_published_at_db = row.get("published_at")
@@ -3544,7 +4468,9 @@ class DailyNewsIngestor:
                         },
                     )
                     if resp.status_code < 400:
-                        t, s, p, img = extract_html_title_summary(resp.text or "", source_url=seed_url)
+                        t, s, p, img = extract_html_title_summary(
+                            resp.text or "", source_url=seed_url
+                        )
                         extracted_title = normalize_text(t)
                         extracted_summary = normalize_text(s)
                         extracted_published_at = p
@@ -3721,7 +4647,9 @@ class DailyNewsIngestor:
         min_star_delta = max(1, int(self.github_trending_min_star_delta))
 
         # Avoid unnecessary hourly calls if today's snapshot is already present.
-        existing = await self._count_snapshot_rows(conn, source_key=source.source_key, snapshot_date=snapshot_date)
+        existing = await self._count_snapshot_rows(
+            conn, source_key=source.source_key, snapshot_date=snapshot_date
+        )
         if existing >= max(5, min(12, limit // 2)):
             return []
 
@@ -3745,7 +4673,9 @@ class DailyNewsIngestor:
                 "order": "desc",
                 "per_page": per_page,
             }
-            resp = await client.get("https://api.github.com/search/repositories", params=params, headers=headers)
+            resp = await client.get(
+                "https://api.github.com/search/repositories", params=params, headers=headers
+            )
             if resp.status_code >= 400:
                 continue
             body = resp.json() or {}
@@ -3843,10 +4773,14 @@ class DailyNewsIngestor:
                     title=f"GitHub repo: {full_name}"[:300],
                     url=html_url,
                     canonical_url=canonical,
-                    summary=_shorten_text(description or f"GitHub repo snapshot ({stars_today} stars).")[:300],
+                    summary=_shorten_text(
+                        description or f"GitHub repo snapshot ({stars_today} stars)."
+                    )[:300],
                     published_at=hidden_published_at,
                     language="en",
-                    external_id=_stable_external_id(source.source_key, "snapshot", snapshot_date, canonical),
+                    external_id=_stable_external_id(
+                        source.source_key, "snapshot", snapshot_date, canonical
+                    ),
                     payload=snapshot_payload,
                     source_weight=source.credibility_weight,
                 )
@@ -3868,7 +4802,9 @@ class DailyNewsIngestor:
 
             if delta_type == "added":
                 delta_title = f"GitHub trending repo: {full_name}"
-                delta_summary = _shorten_text(f"New repo in trending-like AI set: {full_name}. {description}")
+                delta_summary = _shorten_text(
+                    f"New repo in trending-like AI set: {full_name}. {description}"
+                )
             else:
                 delta_title = f"GitHub repo mover: {full_name}"
                 delta_summary = _shorten_text(
@@ -3900,7 +4836,9 @@ class DailyNewsIngestor:
                     summary=delta_summary[:300],
                     published_at=today_midnight,
                     language="en",
-                    external_id=_stable_external_id(source.source_key, "delta", snapshot_date, delta_type, canonical),
+                    external_id=_stable_external_id(
+                        source.source_key, "delta", snapshot_date, delta_type, canonical
+                    ),
                     payload=delta_payload,
                     source_weight=source.credibility_weight,
                 )
@@ -4007,7 +4945,9 @@ class DailyNewsIngestor:
                     except Exception:
                         rank = 0
 
-                    snapshot_id = _stable_external_id(source.source_key, "snapshot", snapshot_date, category_url, canonical_url)
+                    snapshot_id = _stable_external_id(
+                        source.source_key, "snapshot", snapshot_date, category_url, canonical_url
+                    )
                     if snapshot_id not in seen_snapshot_ids:
                         seen_snapshot_ids.add(snapshot_id)
                         snapshot_payload = {
@@ -4022,7 +4962,8 @@ class DailyNewsIngestor:
                             "origin": "amazon_new_releases",
                         }
                         summary = _shorten_text(
-                            f"Amazon AI book snapshot (rank #{rank}). " + (f"by {author}." if author else "")
+                            f"Amazon AI book snapshot (rank #{rank}). "
+                            + (f"by {author}." if author else "")
                         )
                         items.append(
                             NormalizedNewsItem(
@@ -4061,7 +5002,9 @@ class DailyNewsIngestor:
                         continue
 
                     # Dedupe delta items across categories to keep the feed readable.
-                    delta_id = _stable_external_id(source.source_key, "delta", snapshot_date, delta_type, canonical_url)
+                    delta_id = _stable_external_id(
+                        source.source_key, "delta", snapshot_date, delta_type, canonical_url
+                    )
                     if delta_id in seen_delta_ids:
                         continue
                     seen_delta_ids.add(delta_id)
@@ -4069,7 +5012,9 @@ class DailyNewsIngestor:
                     if delta_type == "added":
                         delta_title = f"Amazon AI new release: {title or asin}"
                         delta_summary = _shorten_text(
-                            f"New on Amazon AI new releases (rank #{rank}). " + (f"by {author}. " if author else "") + title
+                            f"New on Amazon AI new releases (rank #{rank}). "
+                            + (f"by {author}. " if author else "")
+                            + title
                         )
                     else:
                         delta_title = f"Amazon AI mover: {title or asin}"
@@ -4121,7 +5066,9 @@ class DailyNewsIngestor:
 
         return items
 
-    async def _fetch_newsapi_turkey(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_newsapi_turkey(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         if not self.newsapi_key:
             print("[news-ingest] newsapi_turkey: skipped (no NEWS_API_KEY)")
             return []
@@ -4175,7 +5122,9 @@ class DailyNewsIngestor:
                 payload={
                     "provider": "newsapi",
                     "source": art.get("source"),
-                    "image_url": normalize_image_url(str(art.get("urlToImage") or "")) if art.get("urlToImage") else None,
+                    "image_url": normalize_image_url(str(art.get("urlToImage") or ""))
+                    if art.get("urlToImage")
+                    else None,
                 },
                 source_weight=source.credibility_weight,
             ).with_external_id()
@@ -4183,7 +5132,9 @@ class DailyNewsIngestor:
 
         return items[: self.max_per_source]
 
-    async def _fetch_gnews_turkey(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_gnews_turkey(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         if not self.gnews_key:
             print("[news-ingest] gnews_turkey: skipped (no GNEWS_API_KEY)")
             return []
@@ -4236,13 +5187,124 @@ class DailyNewsIngestor:
                 author=normalize_text(str(art.get("source", {}).get("name") or "")) or None,
                 payload={
                     "provider": "gnews",
-                    "image_url": normalize_image_url(str(art.get("image") or "")) if art.get("image") else None,
+                    "image_url": normalize_image_url(str(art.get("image") or ""))
+                    if art.get("image")
+                    else None,
                 },
                 source_weight=source.credibility_weight,
             ).with_external_id()
             items.append(item)
 
         return items[: self.max_per_source]
+
+    async def _fetch_youtube_channel(
+        self,
+        source: SourceDefinition,
+        lookback_hours: int,
+    ) -> List[NormalizedNewsItem]:
+        """Fetch recent videos from a YouTube channel via yt-dlp.
+
+        No YouTube Data API key required. Title + description feed through
+        the same Turkey relevance prefilter / LLM classifier as RSS entries,
+        so the Istanbul-only Techstars channel is handled by existing
+        filters rather than a source-specific hack.
+        """
+        try:
+            import yt_dlp  # type: ignore
+        except ImportError:
+            print(f"[youtube] yt-dlp not installed; skipping source={source.source_key}")
+            return []
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        limit = max(5, min(self.max_per_source, 25))
+
+        # yt-dlp returns tab entries (Videos/Live/Shorts) when you give it
+        # the channel root with extract_flat. Forcing the /videos tab
+        # returns the actual video list.
+        channel_url = source.base_url.rstrip("/")
+        if not channel_url.endswith(("/videos", "/streams", "/shorts")):
+            channel_url = f"{channel_url}/videos"
+
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "extract_flat": "in_playlist",
+            "playlistend": limit,
+            "socket_timeout": 15,
+        }
+
+        def _extract_flat() -> Dict[str, Any]:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(channel_url, download=False) or {}
+
+        try:
+            info = await asyncio.to_thread(_extract_flat)
+        except Exception as exc:
+            print(f"[youtube] {source.source_key}: extract_flat failed: {exc}")
+            return []
+
+        entries = info.get("entries") or []
+        items: List[NormalizedNewsItem] = []
+        now = datetime.now(timezone.utc)
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            video_id = str(entry.get("id") or "").strip()
+            title = normalize_text(str(entry.get("title") or ""))
+            if not video_id or not title:
+                continue
+
+            url = (
+                str(entry.get("url") or "").strip() or f"https://www.youtube.com/watch?v={video_id}"
+            )
+
+            upload_str = str(entry.get("upload_date") or entry.get("release_date") or "").strip()
+            published = now
+            if upload_str and len(upload_str) == 8 and upload_str.isdigit():
+                try:
+                    published = datetime.strptime(upload_str, "%Y%m%d").replace(tzinfo=timezone.utc)
+                except ValueError:
+                    published = now
+            if published < cutoff:
+                continue
+
+            summary_raw = str(entry.get("description") or entry.get("title") or "")
+            summary = normalize_text(summary_raw)[:280]
+            thumbnail = (
+                str(entry.get("thumbnail") or "")
+                or f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+            )
+
+            items.append(
+                NormalizedNewsItem(
+                    source_key=source.source_key,
+                    source_name=source.display_name,
+                    source_type=source.source_type,
+                    title=title[:300],
+                    url=url,
+                    canonical_url=canonicalize_url(url),
+                    summary=summary,
+                    published_at=published,
+                    language=source.language or "tr",
+                    payload={
+                        "origin": "youtube",
+                        "video_id": video_id,
+                        "channel_url": source.base_url,
+                        "image_url": thumbnail,
+                    },
+                    source_weight=source.credibility_weight,
+                ).with_external_id()
+            )
+            if len(items) >= limit:
+                break
+
+        print(
+            f"[youtube] {source.source_key}: fetched {len(entries)} entries, "
+            f"kept {len(items)} within {lookback_hours}h lookback"
+        )
+        return items
 
     async def _fetch_x_recent_search(
         self,
@@ -4269,7 +5331,13 @@ class DailyNewsIngestor:
             )
         return items[: self.max_per_source]
 
-    async def _fetch_frontier_candidates(self, conn: asyncpg.Connection, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_frontier_candidates(
+        self,
+        conn: asyncpg.Connection,
+        client: httpx.AsyncClient,
+        source: SourceDefinition,
+        lookback_hours: int,
+    ) -> List[NormalizedNewsItem]:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
         rows = await conn.fetch(
             """
@@ -4304,7 +5372,9 @@ class DailyNewsIngestor:
                 if resp.status_code >= 400:
                     return None
                 html = resp.text or ""
-                title, summary, page_published, image_url = extract_html_title_summary(html, source_url=url)
+                title, summary, page_published, image_url = extract_html_title_summary(
+                    html, source_url=url
+                )
                 if not title:
                     return None
                 return NormalizedNewsItem(
@@ -4320,7 +5390,9 @@ class DailyNewsIngestor:
                     payload={
                         "origin": "frontier",
                         "page_type": row.get("page_type"),
-                        "image_url": normalize_image_url(image_url, base_url=url) if image_url else None,
+                        "image_url": normalize_image_url(image_url, base_url=url)
+                        if image_url
+                        else None,
                     },
                     source_weight=source.credibility_weight,
                 ).with_external_id()
@@ -4329,7 +5401,7 @@ class DailyNewsIngestor:
 
         out: List[NormalizedNewsItem] = []
         for chunk_start in range(0, len(rows), 30):
-            chunk_rows = rows[chunk_start: chunk_start + 30]
+            chunk_rows = rows[chunk_start : chunk_start + 30]
             chunk_tasks = [parse_url(r) for r in chunk_rows]
             for item in await asyncio.gather(*chunk_tasks):
                 if item is not None:
@@ -4339,7 +5411,9 @@ class DailyNewsIngestor:
 
         return out
 
-    async def _fetch_latest_posts(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_latest_posts(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         if BeautifulSoup is None:
             return []
 
@@ -4383,7 +5457,11 @@ class DailyNewsIngestor:
             except Exception:
                 continue
 
-        deduped_candidates = [url for i, url in enumerate(dict.fromkeys(candidate_urls)) if i < max(source_limit * 3, 40)]
+        deduped_candidates = [
+            url
+            for i, url in enumerate(dict.fromkeys(candidate_urls))
+            if i < max(source_limit * 3, 40)
+        ]
         out: List[NormalizedNewsItem] = []
         sem = asyncio.Semaphore(6)
 
@@ -4395,7 +5473,9 @@ class DailyNewsIngestor:
                     resp = await client.get(url)
                 if resp.status_code >= 400:
                     return None
-                title, summary, page_published, image_url = extract_html_title_summary(resp.text or "", source_url=url)
+                title, summary, page_published, image_url = extract_html_title_summary(
+                    resp.text or "", source_url=url
+                )
                 if not title:
                     return None
                 published_at = page_published or datetime.now(timezone.utc)
@@ -4414,7 +5494,9 @@ class DailyNewsIngestor:
                     payload={
                         "origin": "latest_posts",
                         "seed_urls": list(seeds)[:5],
-                        "image_url": normalize_image_url(image_url, base_url=url) if image_url else None,
+                        "image_url": normalize_image_url(image_url, base_url=url)
+                        if image_url
+                        else None,
                     },
                     source_weight=source.credibility_weight,
                 ).with_external_id()
@@ -4422,7 +5504,7 @@ class DailyNewsIngestor:
                 return None
 
         for idx in range(0, len(deduped_candidates), 12):
-            chunk = deduped_candidates[idx: idx + 12]
+            chunk = deduped_candidates[idx : idx + 12]
             for item in await asyncio.gather(*[fetch_article(u) for u in chunk]):
                 if item is not None:
                     out.append(item)
@@ -4434,7 +5516,13 @@ class DailyNewsIngestor:
         out.sort(key=lambda item: item.published_at, reverse=True)
         return out[:source_limit]
 
-    async def _fetch_startup_owned_sources(self, conn: asyncpg.Connection, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_startup_owned_sources(
+        self,
+        conn: asyncpg.Connection,
+        client: httpx.AsyncClient,
+        source: SourceDefinition,
+        lookback_hours: int,
+    ) -> List[NormalizedNewsItem]:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
         startup_rows = await conn.fetch(
             """
@@ -4486,7 +5574,9 @@ class DailyNewsIngestor:
         sem = asyncio.Semaphore(12)
         items: List[NormalizedNewsItem] = []
 
-        async def parse_candidate(url: str, startup_slug: str, startup_name: str, startup_country: str) -> List[NormalizedNewsItem]:
+        async def parse_candidate(
+            url: str, startup_slug: str, startup_name: str, startup_country: str
+        ) -> List[NormalizedNewsItem]:
             try:
                 async with sem:
                     resp = await client.get(url)
@@ -4497,7 +5587,9 @@ class DailyNewsIngestor:
                 body = resp.text or ""
                 out: List[NormalizedNewsItem] = []
 
-                if ("/feed" in url or "xml" in content_type or "rss" in content_type) and feedparser is not None:
+                if (
+                    "/feed" in url or "xml" in content_type or "rss" in content_type
+                ) and feedparser is not None:
                     parsed_feed = feedparser.parse(body)
                     for entry in parsed_feed.entries[:2]:
                         title = normalize_text(entry.get("title", ""))
@@ -4536,7 +5628,9 @@ class DailyNewsIngestor:
                         )
                     return out
 
-                title, summary, page_published, image_url = extract_html_title_summary(body, source_url=url)
+                title, summary, page_published, image_url = extract_html_title_summary(
+                    body, source_url=url
+                )
                 if not title:
                     return []
                 out.append(
@@ -4555,7 +5649,9 @@ class DailyNewsIngestor:
                             "startup_slug": startup_slug,
                             "startup_name": startup_name,
                             "startup_country": startup_country,
-                            "image_url": normalize_image_url(image_url, base_url=url) if image_url else None,
+                            "image_url": normalize_image_url(image_url, base_url=url)
+                            if image_url
+                            else None,
                         },
                         source_weight=source.credibility_weight,
                     ).with_external_id()
@@ -4565,8 +5661,10 @@ class DailyNewsIngestor:
                 return []
 
         for idx in range(0, len(deduped_candidates), 24):
-            chunk = deduped_candidates[idx: idx + 24]
-            chunk_tasks = [parse_candidate(url, slug, name, country) for url, slug, name, country in chunk]
+            chunk = deduped_candidates[idx : idx + 24]
+            chunk_tasks = [
+                parse_candidate(url, slug, name, country) for url, slug, name, country in chunk
+            ]
             for produced in await asyncio.gather(*chunk_tasks):
                 if produced:
                     items.extend(produced)
@@ -4591,7 +5689,9 @@ class DailyNewsIngestor:
             return True
         return False
 
-    async def _fetch_vc_turkey_blogs(self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _fetch_vc_turkey_blogs(
+        self, client: httpx.AsyncClient, source: SourceDefinition, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         """Fetch recent posts from Turkish VC/ecosystem blogs.
 
         For each VC URL, tries RSS discovery (/feed, /blog/feed, /news/feed),
@@ -4618,7 +5718,10 @@ class DailyNewsIngestor:
                     ct = str(resp.headers.get("content-type") or "").lower()
                     if not ("xml" in ct or "rss" in ct or "atom" in ct):
                         # Could be an HTML error page; skip.
-                        if "<rss" not in (resp.text or "")[:500].lower() and "<feed" not in (resp.text or "")[:500].lower():
+                        if (
+                            "<rss" not in (resp.text or "")[:500].lower()
+                            and "<feed" not in (resp.text or "")[:500].lower()
+                        ):
                             continue
                     if feedparser is None:
                         continue
@@ -4672,7 +5775,9 @@ class DailyNewsIngestor:
                     resp = await client.get(base_url)
                 if resp.status_code >= 400:
                     return []
-                title, summary, page_published, image_url = extract_html_title_summary(resp.text or "", source_url=base_url)
+                title, summary, page_published, image_url = extract_html_title_summary(
+                    resp.text or "", source_url=base_url
+                )
                 if not title:
                     return []
                 if self._is_vc_homepage_junk(title, base_url, parsed.netloc):
@@ -4691,7 +5796,9 @@ class DailyNewsIngestor:
                         payload={
                             "origin": "vc_blog",
                             "vc_name": vc_name,
-                            "image_url": normalize_image_url(image_url, base_url=base_url) if image_url else None,
+                            "image_url": normalize_image_url(image_url, base_url=base_url)
+                            if image_url
+                            else None,
                         },
                         source_weight=source.credibility_weight,
                     ).with_external_id()
@@ -4701,7 +5808,7 @@ class DailyNewsIngestor:
             return out
 
         for idx in range(0, len(_TURKEY_VC_BLOG_URLS), 12):
-            chunk = _TURKEY_VC_BLOG_URLS[idx: idx + 12]
+            chunk = _TURKEY_VC_BLOG_URLS[idx : idx + 12]
             tasks = [_try_vc(name, url) for name, url in chunk]
             for produced in await asyncio.gather(*tasks):
                 if produced:
@@ -4723,7 +5830,11 @@ class DailyNewsIngestor:
         fetch_results: List[SourceFetchResult] = []
 
         timeout = httpx.Timeout(self.http_timeout)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers={"User-Agent": "BuildAtlasNewsBot/2026 (+https://buildatlas.net)"}) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+            headers={"User-Agent": "BuildAtlasNewsBot/2026 (+https://buildatlas.net)"},
+        ) as client:
             for source in sources:
                 if not source.enabled:
                     continue
@@ -4742,29 +5853,43 @@ class DailyNewsIngestor:
                     elif source.source_key == "gnews":
                         items = await self._fetch_gnews(client, source, source_lookback)
                     elif source.source_key == "github_trending_ai":
-                        items = await self._fetch_github_trending_ai(conn, client, source, source_lookback)
+                        items = await self._fetch_github_trending_ai(
+                            conn, client, source, source_lookback
+                        )
                     elif source.source_key == "amazon_new_releases_ai":
-                        items = await self._fetch_amazon_new_releases_ai(conn, source, source_lookback)
+                        items = await self._fetch_amazon_new_releases_ai(
+                            conn, source, source_lookback
+                        )
                     elif source.source_key == "newsapi_turkey":
                         items = await self._fetch_newsapi_turkey(client, source, source_lookback)
                     elif source.source_key == "gnews_turkey":
                         items = await self._fetch_gnews_turkey(client, source, source_lookback)
                     elif source.fetch_mode == "x_recent_search":
                         items = await self._fetch_x_recent_search(client, source, source_lookback)
+                    elif source.fetch_mode == "youtube_channel":
+                        items = await self._fetch_youtube_channel(source, source_lookback)
                     elif source.source_key == "startup_owned_feeds":
-                        items = await self._fetch_startup_owned_sources(conn, client, source, source_lookback)
+                        items = await self._fetch_startup_owned_sources(
+                            conn, client, source, source_lookback
+                        )
                     elif source.source_key == "vc_turkey_blogs":
                         items = await self._fetch_vc_turkey_blogs(client, source, source_lookback)
                     elif source.source_key == "huggingface_papers":
-                        items = await self._fetch_huggingface_papers(client, source, source_lookback)
+                        items = await self._fetch_huggingface_papers(
+                            client, source, source_lookback
+                        )
                     elif source.fetch_mode == "digest_rss":
                         items = await self._fetch_digest_rss(client, source, source_lookback)
                     elif source.fetch_mode == "paid_headlines":
-                        items = await self._fetch_paid_headline_seeds(conn, client, source, source_lookback)
+                        items = await self._fetch_paid_headline_seeds(
+                            conn, client, source, source_lookback
+                        )
                     elif source.fetch_mode == "latest_posts":
                         items = await self._fetch_latest_posts(client, source, source_lookback)
                     elif source.fetch_mode == "crawler":
-                        items = await self._fetch_frontier_candidates(conn, client, source, source_lookback)
+                        items = await self._fetch_frontier_candidates(
+                            conn, client, source, source_lookback
+                        )
                     else:
                         items = []
 
@@ -4781,24 +5906,38 @@ class DailyNewsIngestor:
                             dropped = [i.title for i in items if not _has_turkey_nexus(i)]
                             items = [i for i in items if _has_turkey_nexus(i)]
                             if dropped:
-                                print(f"[turkey-nexus] {source.source_key}: dropped {len(dropped)} items without Turkey nexus: {dropped[:5]}")
+                                print(
+                                    f"[turkey-nexus] {source.source_key}: dropped {len(dropped)} items without Turkey nexus: {dropped[:5]}"
+                                )
                         if pre_filter > 0 or (source.region or "global") == "turkey":
-                            hi = sum(1 for i in items if (i.payload or {}).get("turkey_priority", 0) >= 2)
+                            hi = sum(
+                                1 for i in items if (i.payload or {}).get("turkey_priority", 0) >= 2
+                            )
                             lo = len(items) - hi
-                            print(f"[news-ingest] {source.source_key}: {pre_filter} fetched → {pre_llm} prefilter → {len(items)} LLM+nexus-passed (ai={hi} other={lo})")
+                            print(
+                                f"[news-ingest] {source.source_key}: {pre_filter} fetched → {pre_llm} prefilter → {len(items)} LLM+nexus-passed (ai={hi} other={lo})"
+                            )
 
                     elapsed_ms = int((time.monotonic() - t0) * 1000)
-                    fetch_results.append(SourceFetchResult(
-                        source_key=source.source_key, success=True,
-                        items_count=len(items), duration_ms=elapsed_ms,
-                    ))
+                    fetch_results.append(
+                        SourceFetchResult(
+                            source_key=source.source_key,
+                            success=True,
+                            items_count=len(items),
+                            duration_ms=elapsed_ms,
+                        )
+                    )
                     collected.extend(items)
                 except Exception as exc:
                     elapsed_ms = int((time.monotonic() - t0) * 1000)
-                    fetch_results.append(SourceFetchResult(
-                        source_key=source.source_key, success=False,
-                        duration_ms=elapsed_ms, error=str(exc)[:500],
-                    ))
+                    fetch_results.append(
+                        SourceFetchResult(
+                            source_key=source.source_key,
+                            success=False,
+                            duration_ms=elapsed_ms,
+                            error=str(exc)[:500],
+                        )
+                    )
                     errors.append(f"{source.source_key}: {exc}")
 
         # Canonical dedupe pass by source_key + canonical + title fingerprint
@@ -4813,7 +5952,9 @@ class DailyNewsIngestor:
 
         return deduped, errors, attempted, fetch_results
 
-    async def _insert_raw_items(self, conn: asyncpg.Connection, items: Sequence[NormalizedNewsItem]) -> int:
+    async def _insert_raw_items(
+        self, conn: asyncpg.Connection, items: Sequence[NormalizedNewsItem]
+    ) -> int:
         source_ids = await self._get_source_id_map(conn)
         inserted = 0
 
@@ -4906,9 +6047,13 @@ class DailyNewsIngestor:
 
             try:
                 raw_id = str(row["id"]) if row and row.get("id") else ""
-                existing_evidence_id = str(row["evidence_object_id"]) if row and row.get("evidence_object_id") else ""
+                existing_evidence_id = (
+                    str(row["evidence_object_id"]) if row and row.get("evidence_object_id") else ""
+                )
                 if raw_id and not existing_evidence_id:
-                    h = stable_hash(["news_item", item.source_key, item.external_id, item.canonical_url])
+                    h = stable_hash(
+                        ["news_item", item.source_key, item.external_id, item.canonical_url]
+                    )
                     evidence_id = await upsert_evidence_object(
                         conn,
                         evidence_type="news_item",
@@ -4936,7 +6081,9 @@ class DailyNewsIngestor:
                     )
             except Exception as exc:
                 # Best-effort: don't block ingestion if evidence_objects are misconfigured.
-                print(f"[evidence] raw item evidence persist failed for {item.source_key}:{item.external_id}: {exc}")
+                print(
+                    f"[evidence] raw item evidence persist failed for {item.source_key}:{item.external_id}: {exc}"
+                )
 
         return inserted
 
@@ -4965,7 +6112,9 @@ class DailyNewsIngestor:
                             last_fetch_duration_ms = $3
                         WHERE source_key = $1
                         """,
-                        r.source_key, r.items_count, r.duration_ms,
+                        r.source_key,
+                        r.items_count,
+                        r.duration_ms,
                     )
                 else:
                     await conn.execute(
@@ -4979,7 +6128,9 @@ class DailyNewsIngestor:
                             last_fetch_duration_ms = $3
                         WHERE source_key = $1
                         """,
-                        r.source_key, r.error, r.duration_ms,
+                        r.source_key,
+                        r.error,
+                        r.duration_ms,
                     )
         except Exception as exc:
             # Backward compat: migration may not be applied yet
@@ -5008,22 +6159,31 @@ class DailyNewsIngestor:
 
             blocks = [
                 {"type": "header", "text": {"type": "plain_text", "text": "🚨 News Source Alert"}},
-                {"type": "section", "text": {"type": "mrkdwn", "text": (
-                    f"*{len(rows)} source(s)* with 5+ consecutive failures:"
-                )}},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (f"*{len(rows)} source(s)* with 5+ consecutive failures:"),
+                    },
+                },
             ]
             for row in rows[:10]:  # cap at 10 to avoid Slack block limits
                 last_ok = row["last_success_at"]
                 ok_str = last_ok.strftime("%Y-%m-%d %H:%M UTC") if last_ok else "never"
                 err_preview = (row["last_error"] or "")[:120]
-                blocks.append({
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": (
-                        f"*{row['display_name']}* (`{row['source_key']}`)\n"
-                        f"Failures: {row['consecutive_failures']} | Last OK: {ok_str}\n"
-                        f"Error: _{err_preview}_"
-                    )},
-                })
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": (
+                                f"*{row['display_name']}* (`{row['source_key']}`)\n"
+                                f"Failures: {row['consecutive_failures']} | Last OK: {ok_str}\n"
+                                f"Error: _{err_preview}_"
+                            ),
+                        },
+                    }
+                )
 
             payload = json.dumps({"blocks": blocks})
             req = urllib.request.Request(
@@ -5047,7 +6207,9 @@ class DailyNewsIngestor:
         except Exception as exc:
             print(f"[news-ingest] source alert check failed: {exc}")
 
-    async def _load_recent_items(self, conn: asyncpg.Connection, lookback_hours: int) -> List[NormalizedNewsItem]:
+    async def _load_recent_items(
+        self, conn: asyncpg.Connection, lookback_hours: int
+    ) -> List[NormalizedNewsItem]:
         since = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
         rows = await conn.fetch(
             """
@@ -5097,7 +6259,11 @@ class DailyNewsIngestor:
         return items
 
     def _is_same_story(self, item: NormalizedNewsItem, cluster: StoryCluster) -> bool:
-        if item.canonical_url and cluster.canonical_url and item.canonical_url == cluster.canonical_url:
+        if (
+            item.canonical_url
+            and cluster.canonical_url
+            and item.canonical_url == cluster.canonical_url
+        ):
             return True
 
         sim = title_similarity(item.title, cluster.title)
@@ -5129,7 +6295,9 @@ class DailyNewsIngestor:
                     members = list(cluster.members)
                     members.append(item)
 
-                    primary = sorted(members, key=lambda m: (m.source_weight, m.published_at), reverse=True)[0]
+                    primary = sorted(
+                        members, key=lambda m: (m.source_weight, m.published_at), reverse=True
+                    )[0]
                     tags = _apply_source_topic_overrides(
                         classify_topic_tags(primary.title, primary.summary),
                         members,
@@ -5256,11 +6424,13 @@ class DailyNewsIngestor:
                                 themes = [str(t) for t in parsed[:4]]
                         except Exception:
                             pass
-                    recent_briefs.append({
-                        "date": row["edition_date"].isoformat(),
-                        "headline": _shorten_text(row["headline"] or "", 60),
-                        "themes": themes,
-                    })
+                    recent_briefs.append(
+                        {
+                            "date": row["edition_date"].isoformat(),
+                            "headline": _shorten_text(row["headline"] or "", 60),
+                            "themes": themes,
+                        }
+                    )
                 if recent_briefs:
                     memory["recent_briefs"] = recent_briefs
         except Exception as exc:
@@ -5269,9 +6439,9 @@ class DailyNewsIngestor:
         # --- Entity fact trends (for entities in today's clusters) ---
         if entity_names:
             try:
-                names_lower = list(dict.fromkeys(
-                    n.strip().lower() for n in entity_names if n.strip()
-                ))[:20]
+                names_lower = list(
+                    dict.fromkeys(n.strip().lower() for n in entity_names if n.strip())
+                )[:20]
                 if names_lower:
                     if region == "turkey":
                         region_clause = "AND region IN ('global', 'turkey')"
@@ -5310,7 +6480,14 @@ class DailyNewsIngestor:
 
         return memory
 
-    async def _llm_generate_daily_brief(self, *, conn: Optional["asyncpg.Connection"] = None, edition_date: date, region: str = "global", clusters: Sequence[StoryCluster]) -> Optional[Dict[str, Any]]:
+    async def _llm_generate_daily_brief(
+        self,
+        *,
+        conn: Optional["asyncpg.Connection"] = None,
+        edition_date: date,
+        region: str = "global",
+        clusters: Sequence[StoryCluster],
+    ) -> Optional[Dict[str, Any]]:
         if not clusters:
             print("[news-ingest] daily brief skipped: no clusters")
             return None
@@ -5325,9 +6502,13 @@ class DailyNewsIngestor:
         top_clusters = list(clusters)[:top_n]
 
         lang_instruction = (
-            "\n\nIMPORTANT: Write ALL output values (headline, summary, bullets) in Turkish (Türkçe). "
-            "Use native Turkish phrasing, not machine-translated English. JSON keys stay in English."
-        ) if region == "turkey" else ""
+            (
+                "\n\nIMPORTANT: Write ALL output values (headline, summary, bullets) in Turkish (Türkçe). "
+                "Use native Turkish phrasing, not machine-translated English. JSON keys stay in English."
+            )
+            if region == "turkey"
+            else ""
+        )
 
         prompt = (
             "You are a senior technology correspondent writing a daily briefing "
@@ -5359,8 +6540,7 @@ class DailyNewsIngestor:
             "summary (<=550 chars, editorial synthesis paragraph), "
             "bullets (array of 4-6 strings, each <=120 chars, each a different story), "
             "themes (array of up to 6 lowercase hyphenated tags). "
-            "Be concrete, cite specifics. No prose outside JSON."
-            + lang_instruction
+            "Be concrete, cite specifics. No prose outside JSON." + lang_instruction
         )
 
         # Collect entity names from today's clusters for memory lookup
@@ -5369,7 +6549,7 @@ class DailyNewsIngestor:
             all_entity_names.extend(c.entities)
             mr = getattr(c, "memory_result", None)
             if mr:
-                for le in (getattr(mr, "linked_entities", None) or []):
+                for le in getattr(mr, "linked_entities", None) or []:
                     if getattr(le, "entity_name", None):
                         all_entity_names.append(le.entity_name)
 
@@ -5446,7 +6626,9 @@ class DailyNewsIngestor:
         if editorial_memory:
             user_payload["editorial_memory"] = editorial_memory
 
-        def parse_daily_brief(parsed: Dict[str, Any], model_label: Optional[str]) -> Optional[Dict[str, Any]]:
+        def parse_daily_brief(
+            parsed: Dict[str, Any], model_label: Optional[str]
+        ) -> Optional[Dict[str, Any]]:
             headline = _shorten_text(str(parsed.get("headline") or ""), 120)
             summary = _shorten_text(str(parsed.get("summary") or ""), 550)
             raw_bullets = parsed.get("bullets") or []
@@ -5489,11 +6671,13 @@ class DailyNewsIngestor:
             for c in top_clusters:
                 rc = getattr(c, "research_context", None)
                 if rc and isinstance(rc, dict) and rc.get("deep_dive_markdown"):
-                    deep_dives.append({
-                        "title": c.title,
-                        "body": rc["deep_dive_markdown"],
-                        "sources": rc.get("sources_used", []),
-                    })
+                    deep_dives.append(
+                        {
+                            "title": c.title,
+                            "body": rc["deep_dive_markdown"],
+                            "sources": rc.get("sources_used", []),
+                        }
+                    )
                     if len(deep_dives) >= 2:
                         break
             if deep_dives:
@@ -5501,7 +6685,9 @@ class DailyNewsIngestor:
 
             return brief_result
 
-        print(f"[news-ingest] generating daily brief for {edition_date} ({len(top_clusters)} clusters)")
+        print(
+            f"[news-ingest] generating daily brief for {edition_date} ({len(top_clusters)} clusters)"
+        )
 
         if self.azure_client is not None:
             # Prefer responses API when available so we can set reasoning effort.
@@ -5579,10 +6765,14 @@ class DailyNewsIngestor:
                         parsed = json.loads(content) if isinstance(content, str) else {}
                         brief = parse_daily_brief(parsed, None)
                         if brief is not None:
-                            print(f"[news-ingest] daily brief generated via Azure (responses): \"{brief.get('headline', '')}\"")
+                            print(
+                                f"[news-ingest] daily brief generated via Azure (responses): \"{brief.get('headline', '')}\""
+                            )
                             return brief
                     except Exception as exc:
-                        print(f"[news-ingest] Azure daily brief failed (responses model={model_name}): {exc}")
+                        print(
+                            f"[news-ingest] Azure daily brief failed (responses model={model_name}): {exc}"
+                        )
 
             for model_name in preferred_models:
                 for with_response_format in (True, False):
@@ -5602,26 +6792,40 @@ class DailyNewsIngestor:
 
                     try:
                         try:
-                            response = await self.azure_client.chat.completions.create(**azure_payload)
+                            response = await self.azure_client.chat.completions.create(
+                                **azure_payload
+                            )
                         except Exception as exc:
                             if _is_unsupported_temperature_exception(exc):
                                 azure_payload.pop("temperature", None)
-                                response = await self.azure_client.chat.completions.create(**azure_payload)
+                                response = await self.azure_client.chat.completions.create(
+                                    **azure_payload
+                                )
                             else:
                                 raise
 
-                        content = ((response.choices or [None])[0].message.content if response.choices else "{}") or "{}"
+                        content = (
+                            (response.choices or [None])[0].message.content
+                            if response.choices
+                            else "{}"
+                        ) or "{}"
                         parsed = json.loads(content) if isinstance(content, str) else {}
                         brief = parse_daily_brief(parsed, None)
                         if brief is not None:
-                            print(f"[news-ingest] daily brief generated via Azure: \"{brief.get('headline', '')}\"")
+                            print(
+                                f"[news-ingest] daily brief generated via Azure: \"{brief.get('headline', '')}\""
+                            )
                             return brief
                         else:
                             mode = "json_object" if with_response_format else "no_response_format"
-                            print(f"[news-ingest] Azure daily brief parse returned None ({mode} model={model_name}), content: {content[:200]}")
+                            print(
+                                f"[news-ingest] Azure daily brief parse returned None ({mode} model={model_name}), content: {content[:200]}"
+                            )
                     except Exception as exc:
                         mode = "json_object" if with_response_format else "no_response_format"
-                        print(f"[news-ingest] Azure daily brief failed ({mode} model={model_name}): {exc}")
+                        print(
+                            f"[news-ingest] Azure daily brief failed ({mode} model={model_name}): {exc}"
+                        )
 
         if self.openai_api_key:
             try:
@@ -5645,19 +6849,24 @@ class DailyNewsIngestor:
                         },
                     )
                     if response.status_code >= 400:
-                        print(f"[news-ingest] OpenAI daily brief failed ({response.status_code}): {response.text[:200]}")
+                        print(
+                            f"[news-ingest] OpenAI daily brief failed ({response.status_code}): {response.text[:200]}"
+                        )
                         return None
                     payload = response.json() or {}
-                    content = (
-                        ((payload.get("choices") or [{}])[0].get("message") or {}).get("content")
-                        or "{}"
-                    )
+                    content = ((payload.get("choices") or [{}])[0].get("message") or {}).get(
+                        "content"
+                    ) or "{}"
                     parsed = json.loads(content) if isinstance(content, str) else {}
                     brief = parse_daily_brief(parsed, self.llm_model)
                     if brief is not None:
-                        print(f"[news-ingest] daily brief generated via OpenAI: \"{brief.get('headline', '')}\"")
+                        print(
+                            f"[news-ingest] daily brief generated via OpenAI: \"{brief.get('headline', '')}\""
+                        )
                     else:
-                        print(f"[news-ingest] OpenAI daily brief parse returned None, content: {content[:200]}")
+                        print(
+                            f"[news-ingest] OpenAI daily brief parse returned None, content: {content[:200]}"
+                        )
                     return brief
             except Exception as exc:
                 print(f"[news-ingest] OpenAI daily brief exception: {exc}")
@@ -5730,7 +6939,9 @@ class DailyNewsIngestor:
 
         return kept
 
-    async def _call_turkey_classifier_llm(self, prompt: str, expected_count: int) -> Optional[List[int]]:
+    async def _call_turkey_classifier_llm(
+        self, prompt: str, expected_count: int
+    ) -> Optional[List[int]]:
         """Call Azure OpenAI (or OpenAI fallback) with the turkey relevance prompt."""
         messages = [{"role": "user", "content": prompt}]
 
@@ -5757,7 +6968,11 @@ class DailyNewsIngestor:
                             response = await self.azure_client.chat.completions.create(**payload)
                         else:
                             raise
-                    content = ((response.choices or [None])[0].message.content if response.choices else "[]") or "[]"
+                    content = (
+                        (response.choices or [None])[0].message.content
+                        if response.choices
+                        else "[]"
+                    ) or "[]"
                     return self._parse_classification_response(content, expected_count)
                 except Exception:
                     continue
@@ -5769,7 +6984,10 @@ class DailyNewsIngestor:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     resp = await client.post(
                         "https://api.openai.com/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {self.openai_api_key}", "Content-Type": "application/json"},
+                        headers={
+                            "Authorization": f"Bearer {self.openai_api_key}",
+                            "Content-Type": "application/json",
+                        },
                         json={
                             "model": self.llm_model,
                             "temperature": 0.0,
@@ -5817,17 +7035,25 @@ class DailyNewsIngestor:
         except (json.JSONDecodeError, TypeError, ValueError):
             return None
 
-    async def _llm_enrich_cluster(self, cluster: StoryCluster, region: str = "global") -> LLMEnrichmentResult:
+    async def _llm_enrich_cluster(
+        self, cluster: StoryCluster, region: str = "global"
+    ) -> LLMEnrichmentResult:
         if not self.openai_api_key and not self.azure_client:
-            return LLMEnrichmentResult(None, None, None, None, None, None, None, error_code="no_provider")
+            return LLMEnrichmentResult(
+                None, None, None, None, None, None, None, error_code="no_provider"
+            )
 
         lang_instruction = (
-            "\n\nIMPORTANT: Write ALL output values (builder_takeaway, summary, "
-            "impact.kicker, impact.builder_move, impact.investor_angle, impact.watchout, "
-            "impact.validation, ba_title, ba_bullets, why_it_matters) in Turkish (Türkçe). "
-            "Use native Turkish phrasing, not machine-translated English. "
-            "JSON keys stay in English."
-        ) if region == "turkey" else ""
+            (
+                "\n\nIMPORTANT: Write ALL output values (builder_takeaway, summary, "
+                "impact.kicker, impact.builder_move, impact.investor_angle, impact.watchout, "
+                "impact.validation, ba_title, ba_bullets, why_it_matters) in Turkish (Türkçe). "
+                "Use native Turkish phrasing, not machine-translated English. "
+                "JSON keys stay in English."
+            )
+            if region == "turkey"
+            else ""
+        )
 
         ranked_members = sorted(
             _non_lead_members(cluster.members),
@@ -5847,7 +7073,9 @@ class DailyNewsIngestor:
                     "source_rank": i,
                     "publisher": member.source_key,
                     "source_weight": round(float(member.source_weight), 3),
-                    "published_at": member.published_at.isoformat() if member.published_at else None,
+                    "published_at": member.published_at.isoformat()
+                    if member.published_at
+                    else None,
                     "canonical_url": canonical_url or raw_url,
                     "headline": _shorten_text(member.title or "", 140),
                     "summary": _shorten_text(member.summary or "", 180),
@@ -5868,8 +7096,8 @@ class DailyNewsIngestor:
                 "CONSTRAINTS:\n"
                 "- ba_title is a SHORT punchy intel headline (max 80 chars). State the core signal in one clause. "
                 "Do NOT pack implications, qualifiers, or secondary analysis into the title — those belong in why_it_matters and ba_bullets. "
-                "Good: \"Anthropic's $30B raise intensifies the AI capital race\" "
-                "Bad: \"Anthropic's $30B Series G underscores a high-velocity AI capital race, signaling intensified competition and a higher-ceiling valuation trajectory\"\n"
+                'Good: "Anthropic\'s $30B raise intensifies the AI capital race" '
+                'Bad: "Anthropic\'s $30B Series G underscores a high-velocity AI capital race, signaling intensified competition and a higher-ceiling valuation trajectory"\n'
                 "- You MUST review every item in sources[] before producing any intel fields.\n"
                 "- ba_bullets must be abstract claims about implications, not story narration.\n"
                 "- Quotes are DISALLOWED by default. If exactly one short quote (<=20 words) adds unique value, "
@@ -5878,7 +7106,8 @@ class DailyNewsIngestor:
                 "- All text must be original paraphrase. Do not copy phrases >8 consecutive words from any source.\n"
                 "- Set reviewed_source_count to the exact number of sources you actually reviewed.\n"
                 "- Set reviewed_source_urls to the canonical_url values for ALL reviewed sources.\n"
-                + lang_instruction + "\n\n"
+                + lang_instruction
+                + "\n\n"
             )
         else:
             prompt = (
@@ -5905,8 +7134,7 @@ class DailyNewsIngestor:
                 "investor_angle — <=120 char thesis-level insight for VCs; "
                 "watchout — OPTIONAL <=120 char risk or gotcha; "
                 "validation — OPTIONAL <=120 char how to verify the claim). "
-                "No prose outside JSON."
-                + lang_instruction
+                "No prose outside JSON." + lang_instruction
             )
             user_prompt_prefix = ""
         user_payload = {
@@ -5918,7 +7146,9 @@ class DailyNewsIngestor:
             "source_count": _count_non_lead_members(cluster.members),
             "source_count_expected": expected_source_count,
             "source_count_payload": expected_source_count,
-            "source_urls_expected": [row.get("canonical_url") for row in source_rows if row.get("canonical_url")],
+            "source_urls_expected": [
+                row.get("canonical_url") for row in source_rows if row.get("canonical_url")
+            ],
             "sources": source_rows,
             "rank_reason": cluster.rank_reason,
             "current_rank_score": cluster.rank_score,
@@ -5961,7 +7191,20 @@ class DailyNewsIngestor:
             if not isinstance(value, dict):
                 return {}
             # If the object already looks like the expected shape, keep it.
-            if _pick(value, ["builder_takeaway", "builderTakeaway", "builder_takeaways", "summary", "topic_tags", "story_type"]) is not None:
+            if (
+                _pick(
+                    value,
+                    [
+                        "builder_takeaway",
+                        "builderTakeaway",
+                        "builder_takeaways",
+                        "summary",
+                        "topic_tags",
+                        "story_type",
+                    ],
+                )
+                is not None
+            ):
                 return value
             # Common wrapper keys (some models nest the payload).
             for wrapper in ("result", "output", "data", "response", "payload"):
@@ -6053,11 +7296,24 @@ class DailyNewsIngestor:
                     return {}
             return {}
 
-        def parse_llm_payload(parsed: Dict[str, Any], model_label: Optional[str]) -> LLMEnrichmentResult:
+        def parse_llm_payload(
+            parsed: Dict[str, Any], model_label: Optional[str]
+        ) -> LLMEnrichmentResult:
             root = _unwrap_obj(parsed)
             # Support a few common key variants to avoid silent empty outputs.
             summary_raw = _pick(root, ["summary", "short_summary", "brief", "tldr", "tl;dr"])
-            takeaway_raw = _pick(root, ["builder_takeaway", "builderTakeaway", "builder_takeaways", "why_it_matters", "whyItMatters", "builder_view", "takeaway"])
+            takeaway_raw = _pick(
+                root,
+                [
+                    "builder_takeaway",
+                    "builderTakeaway",
+                    "builder_takeaways",
+                    "why_it_matters",
+                    "whyItMatters",
+                    "builder_view",
+                    "takeaway",
+                ],
+            )
             topic_raw = _pick(root, ["topic_tags", "topicTags"])
             story_raw = _pick(root, ["story_type", "storyType"])
             signal_raw = _pick(root, ["signal_score", "signalScore"])
@@ -6078,7 +7334,9 @@ class DailyNewsIngestor:
             impact_raw = _pick(root, ["impact", "impact_object", "structured_impact"])
             impact_obj: Optional[Dict[str, Any]] = None
             if isinstance(impact_raw, dict):
-                frame = str(impact_raw.get("frame") or "").upper().replace("-", "_").replace(" ", "_")
+                frame = (
+                    str(impact_raw.get("frame") or "").upper().replace("-", "_").replace(" ", "_")
+                )
                 if frame not in IMPACT_FRAMES:
                     frame = "EARLY_SIGNAL"
                 kicker = _shorten_text(str(impact_raw.get("kicker") or ""), 48)
@@ -6086,8 +7344,12 @@ class DailyNewsIngestor:
                     impact_obj = {
                         "frame": frame,
                         "kicker": kicker,
-                        "builder_move": _shorten_text(str(impact_raw.get("builder_move") or ""), 120),
-                        "investor_angle": _shorten_text(str(impact_raw.get("investor_angle") or ""), 120),
+                        "builder_move": _shorten_text(
+                            str(impact_raw.get("builder_move") or ""), 120
+                        ),
+                        "investor_angle": _shorten_text(
+                            str(impact_raw.get("investor_angle") or ""), 120
+                        ),
                     }
                     watchout = _shorten_text(str(impact_raw.get("watchout") or ""), 120)
                     validation = _shorten_text(str(impact_raw.get("validation") or ""), 120)
@@ -6111,17 +7373,27 @@ class DailyNewsIngestor:
             ba_bullets_raw = _pick(root, ["ba_bullets", "baBullets", "intel_bullets"])
             why_it_matters_raw = _pick(root, ["why_it_matters", "whyItMatters", "implication"])
             quote_allowed_raw = _pick(root, ["quote_allowed", "quoteAllowed"])
-            reviewed_source_count_raw = _pick(root, ["reviewed_source_count", "reviewedSourceCount"])
+            reviewed_source_count_raw = _pick(
+                root, ["reviewed_source_count", "reviewedSourceCount"]
+            )
             reviewed_source_urls_raw = _pick(root, ["reviewed_source_urls", "reviewedSourceUrls"])
 
-            ba_title = _shorten_text(_coerce_text(ba_title_raw), 120) or None if ba_title_raw else None
+            ba_title = (
+                _shorten_text(_coerce_text(ba_title_raw), 120) or None if ba_title_raw else None
+            )
             ba_bullets: Optional[List[str]] = None
             if isinstance(ba_bullets_raw, list):
                 ba_bullets = [_coerce_text(b) for b in ba_bullets_raw if _coerce_text(b)]
-            why_it_matters = _shorten_text(_coerce_text(why_it_matters_raw), 160) or None if why_it_matters_raw else None
+            why_it_matters = (
+                _shorten_text(_coerce_text(why_it_matters_raw), 160) or None
+                if why_it_matters_raw
+                else None
+            )
 
             reviewed_source_count: Optional[int] = None
-            if reviewed_source_count_raw is not None and not isinstance(reviewed_source_count_raw, bool):
+            if reviewed_source_count_raw is not None and not isinstance(
+                reviewed_source_count_raw, bool
+            ):
                 try:
                     reviewed_source_count = max(0, int(reviewed_source_count_raw))
                 except (TypeError, ValueError):
@@ -6173,7 +7445,9 @@ class DailyNewsIngestor:
                     if normalized:
                         normalized_reviewed_urls.add(normalized)
 
-                if expected_review_url_set and not expected_review_url_set.issubset(normalized_reviewed_urls):
+                if expected_review_url_set and not expected_review_url_set.issubset(
+                    normalized_reviewed_urls
+                ):
                     return "intel_source_review_urls_mismatch"
                 return None
 
@@ -6211,7 +7485,11 @@ class DailyNewsIngestor:
                     "builder_takeaway": {"type": "string", "minLength": 1, "maxLength": 800},
                     "summary": {"type": "string", "maxLength": 200},
                     "story_type": {"type": "string", "enum": list(ALLOWED_STORY_TYPES)},
-                    "topic_tags": {"type": "array", "maxItems": 6, "items": {"type": "string", "maxLength": 32}},
+                    "topic_tags": {
+                        "type": "array",
+                        "maxItems": 6,
+                        "items": {"type": "string", "maxLength": 32},
+                    },
                     "signal_score": {"type": "number", "minimum": 0, "maximum": 1},
                     "confidence_score": {"type": "number", "minimum": 0, "maximum": 1},
                     "impact": {
@@ -6225,13 +7503,33 @@ class DailyNewsIngestor:
                             "watchout": {"type": "string", "maxLength": 150},
                             "validation": {"type": "string", "maxLength": 150},
                         },
-                        "required": ["frame", "kicker", "builder_move", "investor_angle", "watchout", "validation"],
+                        "required": [
+                            "frame",
+                            "kicker",
+                            "builder_move",
+                            "investor_angle",
+                            "watchout",
+                            "validation",
+                        ],
                     },
                 }
-                json_schema_required = ["builder_takeaway", "summary", "story_type", "topic_tags", "signal_score", "confidence_score", "impact"]
+                json_schema_required = [
+                    "builder_takeaway",
+                    "summary",
+                    "story_type",
+                    "topic_tags",
+                    "signal_score",
+                    "confidence_score",
+                    "impact",
+                ]
                 if INTEL_FIRST_PROMPT_ENABLED:
                     json_schema_props["ba_title"] = {"type": "string", "maxLength": 90}
-                    json_schema_props["ba_bullets"] = {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "string", "maxLength": 180}}
+                    json_schema_props["ba_bullets"] = {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 4,
+                        "items": {"type": "string", "maxLength": 180},
+                    }
                     json_schema_props["why_it_matters"] = {"type": "string", "maxLength": 160}
                     json_schema_props["reviewed_source_count"] = {"type": "integer", "minimum": 0}
                     json_schema_props["reviewed_source_urls"] = {
@@ -6240,23 +7538,38 @@ class DailyNewsIngestor:
                         "maxItems": 256,
                         "items": {"type": "string", "minLength": 1, "maxLength": 600},
                     }
-                    json_schema_props["key_claims"] = {"type": "array", "maxItems": 4, "items": {"type": "string"}}
-                    json_schema_props["entities"] = {"type": "array", "maxItems": 6, "items": {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}}, "required": ["name", "type"], "additionalProperties": False}}
+                    json_schema_props["key_claims"] = {
+                        "type": "array",
+                        "maxItems": 4,
+                        "items": {"type": "string"},
+                    }
+                    json_schema_props["entities"] = {
+                        "type": "array",
+                        "maxItems": 6,
+                        "items": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string"}, "type": {"type": "string"}},
+                            "required": ["name", "type"],
+                            "additionalProperties": False,
+                        },
+                    }
                     json_schema_props["quote_allowed"] = {"type": "boolean"}
                     json_schema_props["quote_text"] = {"type": ["string", "null"]}
                     json_schema_props["quote_source_url"] = {"type": ["string", "null"]}
-                    json_schema_required.extend([
-                        "ba_title",
-                        "ba_bullets",
-                        "why_it_matters",
-                        "reviewed_source_count",
-                        "reviewed_source_urls",
-                        "key_claims",
-                        "entities",
-                        "quote_allowed",
-                        "quote_text",
-                        "quote_source_url",
-                    ])
+                    json_schema_required.extend(
+                        [
+                            "ba_title",
+                            "ba_bullets",
+                            "why_it_matters",
+                            "reviewed_source_count",
+                            "reviewed_source_urls",
+                            "key_claims",
+                            "entities",
+                            "quote_allowed",
+                            "quote_text",
+                            "quote_source_url",
+                        ]
+                    )
                 json_schema = {
                     "type": "object",
                     "additionalProperties": False,
@@ -6269,7 +7582,10 @@ class DailyNewsIngestor:
                             "model": model_name,
                             "input": [
                                 {"role": "system", "content": prompt},
-                                {"role": "user", "content": user_prompt_prefix + json.dumps(user_payload)},
+                                {
+                                    "role": "user",
+                                    "content": user_prompt_prefix + json.dumps(user_payload),
+                                },
                             ],
                             # Keep ample budget for GPT-5 reasoning tokens while capping runaway costs.
                             "max_output_tokens": min(2048, _azure_token_budget(model_name, 500)),
@@ -6306,13 +7622,19 @@ class DailyNewsIngestor:
                         if not result.builder_takeaway:
                             last_error_code = "azure_empty_builder_takeaway"
                             if debug_llm:
-                                print(f"[news-ingest] Azure responses enrichment missing builder_takeaway (model={model_name}) content: {str(content)[:200]}")
+                                print(
+                                    f"[news-ingest] Azure responses enrichment missing builder_takeaway (model={model_name}) content: {str(content)[:200]}"
+                                )
                             continue
                         return result
                     except Exception as exc:
                         if debug_llm:
-                            print(f"[news-ingest] Azure responses enrichment failed (model={model_name}): {exc}")
-                        last_error_code = "azure_timeout" if _is_timeout_exception(exc) else "azure_error"
+                            print(
+                                f"[news-ingest] Azure responses enrichment failed (model={model_name}): {exc}"
+                            )
+                        last_error_code = (
+                            "azure_timeout" if _is_timeout_exception(exc) else "azure_error"
+                        )
 
             for model_name in candidate_models:
                 for with_response_format in (True, False):
@@ -6321,7 +7643,10 @@ class DailyNewsIngestor:
                         "model": model_name,
                         "messages": [
                             {"role": "system", "content": prompt},
-                            {"role": "user", "content": user_prompt_prefix + json.dumps(user_payload)},
+                            {
+                                "role": "user",
+                                "content": user_prompt_prefix + json.dumps(user_payload),
+                            },
                         ],
                     }
                     if _azure_supports_temperature(model_name):
@@ -6332,11 +7657,15 @@ class DailyNewsIngestor:
 
                     try:
                         try:
-                            response = await self.azure_client.chat.completions.create(**azure_payload)
+                            response = await self.azure_client.chat.completions.create(
+                                **azure_payload
+                            )
                         except Exception as exc:
                             if _is_unsupported_temperature_exception(exc):
                                 azure_payload.pop("temperature", None)
-                                response = await self.azure_client.chat.completions.create(**azure_payload)
+                                response = await self.azure_client.chat.completions.create(
+                                    **azure_payload
+                                )
                             else:
                                 raise
 
@@ -6348,21 +7677,31 @@ class DailyNewsIngestor:
                         finish = choice.finish_reason if choice else None
                         if result.llm_model and not result.builder_takeaway and finish == "length":
                             if debug_llm:
-                                print(f"[news-ingest] Azure LLM empty output (finish_reason=length, model={model_name}) — token budget exhausted")
+                                print(
+                                    f"[news-ingest] Azure LLM empty output (finish_reason=length, model={model_name}) — token budget exhausted"
+                                )
                             last_error_code = "azure_token_exhausted"
                             continue  # try next model/format
                         if not result.builder_takeaway:
                             last_error_code = "azure_empty_builder_takeaway"
                             if debug_llm:
-                                mode = "json_object" if with_response_format else "no_response_format"
-                                print(f"[news-ingest] Azure LLM missing builder_takeaway ({mode} model={model_name}) content: {str(raw_content)[:200]}")
+                                mode = (
+                                    "json_object" if with_response_format else "no_response_format"
+                                )
+                                print(
+                                    f"[news-ingest] Azure LLM missing builder_takeaway ({mode} model={model_name}) content: {str(raw_content)[:200]}"
+                                )
                             continue
                         return result
                     except Exception as exc:
                         if debug_llm:
                             mode = "json_object" if with_response_format else "no_response_format"
-                            print(f"[news-ingest] Azure LLM enrichment failed ({mode} model={model_name}): {exc}")
-                        last_error_code = "azure_timeout" if _is_timeout_exception(exc) else "azure_error"
+                            print(
+                                f"[news-ingest] Azure LLM enrichment failed ({mode} model={model_name}): {exc}"
+                            )
+                        last_error_code = (
+                            "azure_timeout" if _is_timeout_exception(exc) else "azure_error"
+                        )
 
         if self.openai_api_key:
             try:
@@ -6381,13 +7720,18 @@ class DailyNewsIngestor:
                             "response_format": {"type": "json_object"},
                             "messages": [
                                 {"role": "system", "content": prompt},
-                                {"role": "user", "content": user_prompt_prefix + json.dumps(user_payload)},
+                                {
+                                    "role": "user",
+                                    "content": user_prompt_prefix + json.dumps(user_payload),
+                                },
                             ],
                         },
                     )
                     if response.status_code >= 400:
                         if debug_llm:
-                            print(f"[news-ingest] OpenAI LLM enrichment failed ({response.status_code}): {response.text[:200]}")
+                            print(
+                                f"[news-ingest] OpenAI LLM enrichment failed ({response.status_code}): {response.text[:200]}"
+                            )
                         return LLMEnrichmentResult(
                             None,
                             None,
@@ -6400,10 +7744,9 @@ class DailyNewsIngestor:
                             error_code=f"openai_http_{response.status_code}",
                         )
                     payload = response.json() or {}
-                    content = (
-                        ((payload.get("choices") or [{}])[0].get("message") or {}).get("content")
-                        or "{}"
-                    )
+                    content = ((payload.get("choices") or [{}])[0].get("message") or {}).get(
+                        "content"
+                    ) or "{}"
                     parsed = _parse_json_payload(content)
                     result = parse_llm_payload(parsed, self.llm_model)
                     if not result.builder_takeaway:
@@ -6446,7 +7789,9 @@ class DailyNewsIngestor:
             error_code=last_error_code or "llm_unavailable",
         )
 
-    async def _enrich_clusters_with_llm(self, clusters: Sequence[StoryCluster], region: str = "global") -> None:
+    async def _enrich_clusters_with_llm(
+        self, clusters: Sequence[StoryCluster], region: str = "global"
+    ) -> None:
         self._llm_metrics = {
             "enabled": bool(self.llm_enrichment_enabled),
             "model": self.llm_model,
@@ -6480,7 +7825,8 @@ class DailyNewsIngestor:
         # Hard exclude: never spend LLM budget on lead-only clusters.
         before_leads = len(enrichment_candidates)
         enrichment_candidates = [
-            c for c in enrichment_candidates
+            c
+            for c in enrichment_candidates
             if _count_non_lead_members(getattr(c, "members", [])) > 0
         ]
         skipped_by_lead_only = before_leads - len(enrichment_candidates)
@@ -6492,7 +7838,8 @@ class DailyNewsIngestor:
         if sig_agg and sig_agg.loaded:
             before = len(enrichment_candidates)
             enrichment_candidates = [
-                c for c in enrichment_candidates
+                c
+                for c in enrichment_candidates
                 if not sig_agg.has_negative_signal_pattern(
                     primary_source_key=c.primary_source_key,
                     topic_tags=c.topic_tags,
@@ -6527,7 +7874,7 @@ class DailyNewsIngestor:
         intel_missing_source_proof = 0
         intel_rejection_reasons: Dict[str, int] = {}
 
-        for (cluster, llm_result, _) in results:
+        for cluster, llm_result, _ in results:
             llm_summary = llm_result.llm_summary
             builder_takeaway = llm_result.builder_takeaway
             llm_model = llm_result.llm_model
@@ -6554,16 +7901,22 @@ class DailyNewsIngestor:
                 cluster.llm_topic_tags = list(merged_tags)
                 cluster.topic_tags = list(merged_tags)
             else:
-                cluster.topic_tags = _apply_source_topic_overrides(cluster.topic_tags, cluster.members)
+                cluster.topic_tags = _apply_source_topic_overrides(
+                    cluster.topic_tags, cluster.members
+                )
             if llm_story_type:
                 cluster.llm_story_type = llm_story_type
                 cluster.story_type = llm_story_type
             if llm_signal_score is not None:
                 cluster.llm_signal_score = llm_signal_score
-                cluster.rank_score = max(0.0, min(1.0, cluster.rank_score * 0.75 + llm_signal_score * 0.25))
+                cluster.rank_score = max(
+                    0.0, min(1.0, cluster.rank_score * 0.75 + llm_signal_score * 0.25)
+                )
             if llm_confidence_score is not None:
                 cluster.llm_confidence_score = llm_confidence_score
-                cluster.trust_score = max(0.0, min(1.0, cluster.trust_score * 0.8 + llm_confidence_score * 0.2))
+                cluster.trust_score = max(
+                    0.0, min(1.0, cluster.trust_score * 0.8 + llm_confidence_score * 0.2)
+                )
             if cluster.llm_model and "llm-enriched" not in cluster.rank_reason:
                 cluster.rank_reason = f"{cluster.rank_reason}, llm-enriched"
 
@@ -6577,9 +7930,15 @@ class DailyNewsIngestor:
             if llm_result.why_it_matters:
                 cluster.why_it_matters = llm_result.why_it_matters
 
-            if INTEL_FIRST_PROMPT_ENABLED and llm_result.error_code and llm_result.error_code.startswith("intel_"):
+            if (
+                INTEL_FIRST_PROMPT_ENABLED
+                and llm_result.error_code
+                and llm_result.error_code.startswith("intel_")
+            ):
                 intel_rejected_validation += 1
-                intel_rejection_reasons[llm_result.error_code] = intel_rejection_reasons.get(llm_result.error_code, 0) + 1
+                intel_rejection_reasons[llm_result.error_code] = (
+                    intel_rejection_reasons.get(llm_result.error_code, 0) + 1
+                )
                 if llm_result.error_code in INTEL_SOURCE_REVIEW_ERROR_CODES:
                     intel_missing_source_proof += 1
 
@@ -6632,10 +7991,7 @@ class DailyNewsIngestor:
         for cluster in clusters:
             if _count_non_lead_members(cluster.members) == 0:
                 continue
-            has_any_image = any(
-                m.payload.get("image_url")
-                for m in cluster.members
-            )
+            has_any_image = any(m.payload.get("image_url") for m in cluster.members)
             if has_any_image:
                 continue
             # Pick the primary (highest-weight) member to fetch
@@ -6771,10 +8127,16 @@ class DailyNewsIngestor:
             try:
                 await gate.persist_extraction(conn, cid, result)
                 facts_written += await gate.persist_facts(
-                    conn, cid, cluster.canonical_url or "", result, region=region,
+                    conn,
+                    cid,
+                    cluster.canonical_url or "",
+                    result,
+                    region=region,
                 )
             except Exception as exc:
-                print(f"[memory_gate:{region}] Persist failed for cluster {cluster.cluster_key}: {exc}")
+                print(
+                    f"[memory_gate:{region}] Persist failed for cluster {cluster.cluster_key}: {exc}"
+                )
 
         return facts_written
 
@@ -6818,13 +8180,14 @@ class DailyNewsIngestor:
             for entity in cluster.entities:
                 key = entity.lower().strip()
                 if key:
-                    entity_cluster_index.setdefault(key, []).append(
-                        (cluster, cluster.published_at)
-                    )
+                    entity_cluster_index.setdefault(key, []).append((cluster, cluster.published_at))
 
         decision_counts: Dict[str, int] = {
-            "publish": 0, "borderline": 0, "watchlist": 0,
-            "accumulate": 0, "drop": 0,
+            "publish": 0,
+            "borderline": 0,
+            "watchlist": 0,
+            "accumulate": 0,
+            "drop": 0,
         }
 
         for cluster in clusters:
@@ -6883,9 +8246,7 @@ class DailyNewsIngestor:
                 # 4. Heuristic scoring
                 non_lead_members = _non_lead_members(cluster.members)
                 source_count = len(non_lead_members)
-                source_credibility = max(
-                    (m.source_weight for m in non_lead_members), default=0.65
-                )
+                source_credibility = max((m.source_weight for m in non_lead_members), default=0.65)
                 sig_agg = getattr(self, "_signal_aggregator", None)
                 cid = (cluster_ids or {}).get(cluster.cluster_key)
                 scores = scorer.score(
@@ -6928,8 +8289,10 @@ class DailyNewsIngestor:
                 cluster.gating_decision = "publish"
                 cluster.gating_reason = f"Gating error: {exc}"
                 cluster.gating_scores = {
-                    "builder_insight": 0, "pattern_novelty": 0,
-                    "gtm_uniqueness": 0, "evidence_quality": 0,
+                    "builder_insight": 0,
+                    "pattern_novelty": 0,
+                    "gtm_uniqueness": 0,
+                    "evidence_quality": 0,
                     "composite": 0.0,
                 }
                 decision_counts["publish"] = decision_counts.get("publish", 0) + 1
@@ -6940,12 +8303,16 @@ class DailyNewsIngestor:
                 try:
                     if cluster.gating_patterns:
                         await pattern_matcher.update_counts(
-                            conn, cluster.gating_patterns,
-                            cluster.cluster_key, region,
+                            conn,
+                            cluster.gating_patterns,
+                            cluster.cluster_key,
+                            region,
                         )
                     if cluster.gating_gtm_tags:
                         await gtm_classifier.update_counts(
-                            conn, cluster.gating_gtm_tags, region,
+                            conn,
+                            cluster.gating_gtm_tags,
+                            region,
                         )
                 except Exception:
                     pass  # Non-critical
@@ -6961,7 +8328,8 @@ class DailyNewsIngestor:
         return {
             "total": total,
             "decisions": dict(decision_counts),
-            "llm_candidates": decision_counts.get("publish", 0) + decision_counts.get("borderline", 0),
+            "llm_candidates": decision_counts.get("publish", 0)
+            + decision_counts.get("borderline", 0),
         }
 
     async def _persist_gating_decisions(
@@ -7013,10 +8381,7 @@ class DailyNewsIngestor:
                     scores.get("composite", 0.0),
                     cluster.gating_decision,
                     cluster.gating_reason or "",
-                    bool(
-                        cluster.memory_result
-                        and cluster.memory_result.has_contradictions
-                    ),
+                    bool(cluster.memory_result and cluster.memory_result.has_contradictions),
                     json.dumps(
                         [
                             {
@@ -7095,7 +8460,9 @@ class DailyNewsIngestor:
             extractor = EventExtractor()
             await extractor.load(conn)
         except Exception as exc:
-            print(f"[news-ingest] Failed to load EventExtractor (event_registry table may not exist): {exc}")
+            print(
+                f"[news-ingest] Failed to load EventExtractor (event_registry table may not exist): {exc}"
+            )
             return stats
 
         all_events = []
@@ -7125,7 +8492,9 @@ class DailyNewsIngestor:
         # otherwise generate noisy missing_startup_id trace events.
         actionable_events = [e for e in all_events if getattr(e, "startup_id", None)]
 
-        inserted, inserted_events, persist_diag = await persist_events(conn, actionable_events, extractor._registry)
+        inserted, inserted_events, persist_diag = await persist_events(
+            conn, actionable_events, extractor._registry
+        )
         stats["persisted"] = inserted
         if isinstance(persist_diag, dict):
             stats["persist_errors"] = int(persist_diag.get("persist_errors") or 0)
@@ -7147,7 +8516,12 @@ class DailyNewsIngestor:
 
         # Sync investor/startup graph edges from funding events (can be disabled).
         # Runs after onboarding for the same reason as funding upsert.
-        graph_sync_enabled = os.getenv("NEWS_GRAPH_SYNC_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+        graph_sync_enabled = os.getenv("NEWS_GRAPH_SYNC_ENABLED", "true").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         if graph_sync_enabled:
             try:
                 graph_stats = await upsert_capital_graph_from_events(conn, actionable_events)
@@ -7398,13 +8772,20 @@ class DailyNewsIngestor:
                 continue
 
             cluster_ids[cluster.cluster_key] = str(cluster_id)
-            await conn.execute("DELETE FROM news_cluster_items WHERE cluster_id = $1::uuid", str(cluster_id))
+            await conn.execute(
+                "DELETE FROM news_cluster_items WHERE cluster_id = $1::uuid", str(cluster_id)
+            )
 
-            ranked_members = sorted(cluster.members, key=lambda m: (m.source_weight, m.published_at), reverse=True)
+            ranked_members = sorted(
+                cluster.members, key=lambda m: (m.source_weight, m.published_at), reverse=True
+            )
             primary_idx = 0
             if cluster.primary_source_key and cluster.primary_external_id:
                 for i, m in enumerate(ranked_members):
-                    if m.source_key == cluster.primary_source_key and m.external_id == cluster.primary_external_id:
+                    if (
+                        m.source_key == cluster.primary_source_key
+                        and m.external_id == cluster.primary_external_id
+                    ):
                         primary_idx = i
                         break
             for i, member in enumerate(ranked_members):
@@ -7428,7 +8809,11 @@ class DailyNewsIngestor:
             # Canonical Evidence Object contract for the cluster itself + member mapping.
             if self._evidence_objects_supported:
                 try:
-                    from .evidence_objects import replace_members, stable_hash, upsert_evidence_object
+                    from .evidence_objects import (
+                        replace_members,
+                        stable_hash,
+                        upsert_evidence_object,
+                    )
 
                     primary_lang = "en"
                     try:
@@ -7480,7 +8865,9 @@ class DailyNewsIngestor:
                             """,
                             raw_ids,
                         )
-                    raw_to_evidence = {r["id"]: r["evidence_id"] for r in member_rows if r.get("evidence_id")}
+                    raw_to_evidence = {
+                        r["id"]: r["evidence_id"] for r in member_rows if r.get("evidence_id")
+                    }
 
                     members = []
                     for i, member in enumerate(ranked_members):
@@ -7493,7 +8880,9 @@ class DailyNewsIngestor:
 
                     await replace_members(conn, evidence_id=cluster_evidence_id, members=members)
                 except Exception as exc:
-                    print(f"[evidence:{region}] cluster evidence persist failed for {cluster.cluster_key}: {exc}")
+                    print(
+                        f"[evidence:{region}] cluster evidence persist failed for {cluster.cluster_key}: {exc}"
+                    )
 
         return cluster_ids
 
@@ -7657,7 +9046,9 @@ class DailyNewsIngestor:
             if target is not None:
                 # Merge c into target — target is higher-ranked (appeared first)
                 existing_keys = {(m.source_key, m.external_id) for m in target.members}
-                new_members = [m for m in c.members if (m.source_key, m.external_id) not in existing_keys]
+                new_members = [
+                    m for m in c.members if (m.source_key, m.external_id) not in existing_keys
+                ]
                 target.members = target.members + new_members
 
                 # Union entities (target-first ordering)
@@ -7727,12 +9118,15 @@ class DailyNewsIngestor:
                     sig = sig_agg.cluster_signal_score(cid)
                     if sig > 0:
                         c.rank_score = min(1.0, c.rank_score + sig * 0.08)
-        ranked = sorted(clusters, key=lambda c: (c.rank_score, c.trust_score, c.published_at), reverse=True)
+        ranked = sorted(
+            clusters, key=lambda c: (c.rank_score, c.trust_score, c.published_at), reverse=True
+        )
 
         # Merge clusters that share a primary entity + similar title, then take top 50
         merged = self._merge_entity_duplicates(ranked)
         eligible = [
-            c for c in merged
+            c
+            for c in merged
             if c.cluster_key in cluster_ids
             and cluster_ids[c.cluster_key] not in excluded_cluster_ids
         ]
@@ -7790,11 +9184,15 @@ class DailyNewsIngestor:
             "total_clusters": len(clusters),
             "top_story_count": len(top_ids),
             "story_type_counts": story_type_counts,
-            "topic_counts": dict(sorted(topic_counts.items(), key=lambda kv: kv[1], reverse=True)[:15]),
+            "topic_counts": dict(
+                sorted(topic_counts.items(), key=lambda kv: kv[1], reverse=True)[:15]
+            ),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        daily_brief = await self._llm_generate_daily_brief(conn=conn, edition_date=edition_date, region=region, clusters=top)
+        daily_brief = await self._llm_generate_daily_brief(
+            conn=conn, edition_date=edition_date, region=region, clusters=top
+        )
         if daily_brief:
             stats["daily_brief"] = daily_brief
         else:
@@ -7810,7 +9208,9 @@ class DailyNewsIngestor:
                     prev = json.loads(existing) if isinstance(existing, str) else existing
                     if isinstance(prev, dict) and prev.get("headline"):
                         stats["daily_brief"] = prev
-                        print(f"[news-ingest] preserving existing daily brief for {edition_date} {region}")
+                        print(
+                            f"[news-ingest] preserving existing daily brief for {edition_date} {region}"
+                        )
                 except Exception:
                     pass
 
@@ -7943,7 +9343,12 @@ class DailyNewsIngestor:
                 self._evidence_objects_supported = await self._supports_evidence_objects(conn)
 
                 if not rebuild_only:
-                    collected, collect_errors, sources_attempted, fetch_results = await self._collect_items(
+                    (
+                        collected,
+                        collect_errors,
+                        sources_attempted,
+                        fetch_results,
+                    ) = await self._collect_items(
                         conn,
                         lookback_hours,
                         valid_sources,
@@ -7961,7 +9366,9 @@ class DailyNewsIngestor:
                 # Build Turkey-specific cluster copies: Turkey-relevant members
                 # (Turkey sources + Turkey-context global coverage) with a TR-safe
                 # representative selection to prevent global leakage.
-                turkey_source_keys = {s.source_key for s in valid_sources if (s.region or "global") == "turkey"}
+                turkey_source_keys = {
+                    s.source_key for s in valid_sources if (s.region or "global") == "turkey"
+                }
                 turkey_clusters: List[StoryCluster] = []
                 for c in clusters:
                     tc = _build_turkey_cluster(c, turkey_source_keys)
@@ -7970,15 +9377,21 @@ class DailyNewsIngestor:
 
                 # Funnel diagnostics: turkey cluster composition
                 _tr_llm_members = sum(
-                    1 for tc in turkey_clusters for m in tc.members
+                    1
+                    for tc in turkey_clusters
+                    for m in tc.members
                     if (m.payload or {}).get("turkey_classified_by") == "llm"
                 )
                 _tr_heur_members = sum(
-                    1 for tc in turkey_clusters for m in tc.members
+                    1
+                    for tc in turkey_clusters
+                    for m in tc.members
                     if (m.payload or {}).get("turkey_classified_by") == "heuristic"
                 )
                 _tr_uncl_members = sum(
-                    1 for tc in turkey_clusters for m in tc.members
+                    1
+                    for tc in turkey_clusters
+                    for m in tc.members
                     if not (m.payload or {}).get("turkey_classified_by")
                 )
                 print(
@@ -7987,7 +9400,12 @@ class DailyNewsIngestor:
                 )
 
                 # --- Editorial rules: load admin-curated & auto-generated filters ---
-                from .editorial_rules import EditorialRuleEngine, generate_rule_suggestions, load_rejected_cluster_ids
+                from .editorial_rules import (
+                    EditorialRuleEngine,
+                    generate_rule_suggestions,
+                    load_rejected_cluster_ids,
+                )
+
                 _ed_engine_global = EditorialRuleEngine()
                 await _ed_engine_global.load(conn, region="global")
                 _ed_engine_turkey = EditorialRuleEngine()
@@ -7998,13 +9416,16 @@ class DailyNewsIngestor:
                 if _ed_engine_global.loaded:
                     pre_filter_count = len(items_for_clustering)
                     items_for_clustering = [
-                        item for item in items_for_clustering
+                        item
+                        for item in items_for_clustering
                         if not _ed_engine_global.should_exclude_item(item)
                     ]
                     excluded = pre_filter_count - len(items_for_clustering)
                     if excluded:
                         editorial_stats["items_excluded_pre_clustering"] = excluded
-                        print(f"[editorial] excluded {excluded} items pre-clustering (global rules)")
+                        print(
+                            f"[editorial] excluded {excluded} items pre-clustering (global rules)"
+                        )
                     # Re-cluster after filtering
                     if excluded:
                         clusters = self._cluster_items(items_for_clustering)
@@ -8017,7 +9438,9 @@ class DailyNewsIngestor:
 
                 # --- Memory gate: run per-region (global then turkey) ---
                 memory_stats_global = await self._run_memory_gate(conn, clusters, region="global")
-                memory_stats_turkey = await self._run_memory_gate(conn, turkey_clusters, region="turkey")
+                memory_stats_turkey = await self._run_memory_gate(
+                    conn, turkey_clusters, region="turkey"
+                )
                 memory_stats = {
                     "global": memory_stats_global,
                     "turkey": memory_stats_turkey,
@@ -8025,13 +9448,18 @@ class DailyNewsIngestor:
 
                 # --- Signal feedback: load community signals for ranking/gating ---
                 from .signal_feedback import SignalAggregator
+
                 _sig_agg_global = SignalAggregator()
                 await _sig_agg_global.load(conn, lookback_days=14, region="global")
-                await _sig_agg_global.load_editorial_signals(conn, lookback_days=14, region="global")
+                await _sig_agg_global.load_editorial_signals(
+                    conn, lookback_days=14, region="global"
+                )
                 self._signal_aggregator = _sig_agg_global
                 _sig_agg_turkey = SignalAggregator()
                 await _sig_agg_turkey.load(conn, lookback_days=14, region="turkey")
-                await _sig_agg_turkey.load_editorial_signals(conn, lookback_days=14, region="turkey")
+                await _sig_agg_turkey.load_editorial_signals(
+                    conn, lookback_days=14, region="turkey"
+                )
 
                 # Apply source credibility adjustments from signals
                 signal_stats: Dict[str, Any] = {}
@@ -8050,7 +9478,9 @@ class DailyNewsIngestor:
                             source_adj_applied.append({"source": sk, **info})
                     if source_adj_applied:
                         signal_stats["source_signal_adjustments"] = source_adj_applied
-                        print(f"[signals] applied source adjustments: {len(source_adj_applied)} sources")
+                        print(
+                            f"[signals] applied source adjustments: {len(source_adj_applied)} sources"
+                        )
 
                 # Apply editorial source downweight rules
                 if _ed_engine_global.loaded:
@@ -8089,12 +9519,18 @@ class DailyNewsIngestor:
 
                 # --- Scoring + gating: heuristic filter (no LLM) ---
                 gating_stats_global = await self._run_scoring_and_gating(
-                    conn, clusters, region="global", cluster_ids=existing_cids_global,
+                    conn,
+                    clusters,
+                    region="global",
+                    cluster_ids=existing_cids_global,
                 )
                 # Swap signal aggregator for turkey scoring, then restore
                 self._signal_aggregator = _sig_agg_turkey
                 gating_stats_turkey = await self._run_scoring_and_gating(
-                    conn, turkey_clusters, region="turkey", cluster_ids=existing_cids_turkey,
+                    conn,
+                    turkey_clusters,
+                    region="turkey",
+                    cluster_ids=existing_cids_turkey,
                 )
                 self._signal_aggregator = _sig_agg_global
                 gating_stats = {
@@ -8103,10 +9539,16 @@ class DailyNewsIngestor:
                 }
 
                 # --- Load research context from prior research runs ---
-                research_loaded_global = await self._load_research_context(conn, clusters, region="global")
-                research_loaded_turkey = await self._load_research_context(conn, turkey_clusters, region="turkey")
+                research_loaded_global = await self._load_research_context(
+                    conn, clusters, region="global"
+                )
+                research_loaded_turkey = await self._load_research_context(
+                    conn, turkey_clusters, region="turkey"
+                )
                 if research_loaded_global or research_loaded_turkey:
-                    print(f"[topic-research] loaded research context: global={research_loaded_global} turkey={research_loaded_turkey}")
+                    print(
+                        f"[topic-research] loaded research context: global={research_loaded_global} turkey={research_loaded_turkey}"
+                    )
 
                 # Enrich all clusters with LLM (gated by NEWS_LLM_MAX_CLUSTERS)
                 await self._enrich_clusters_with_llm(clusters, region="global")
@@ -8131,27 +9573,46 @@ class DailyNewsIngestor:
                             continue
                         for reason, count in source_map.items():
                             key = str(reason)
-                            merged_intel_reasons[key] = merged_intel_reasons.get(key, 0) + int(count or 0)
+                            merged_intel_reasons[key] = merged_intel_reasons.get(key, 0) + int(
+                                count or 0
+                            )
                     self._llm_metrics = {
                         "enabled": llm_metrics_global.get("enabled", False),
                         "model": llm_metrics_global.get("model", ""),
                         "max_clusters": int(llm_metrics_global.get("max_clusters", 0)),
                         "concurrency": int(llm_metrics_global.get("concurrency", 0)),
-                        "attempted": int(llm_metrics_global.get("attempted", 0)) + int(llm_metrics_turkey.get("attempted", 0)),
-                        "succeeded": int(llm_metrics_global.get("succeeded", 0)) + int(llm_metrics_turkey.get("succeeded", 0)),
-                        "failed": int(llm_metrics_global.get("failed", 0)) + int(llm_metrics_turkey.get("failed", 0)),
-                        "timeouts": int(llm_metrics_global.get("timeouts", 0)) + int(llm_metrics_turkey.get("timeouts", 0)),
-                        "intel_attempted": int(llm_metrics_global.get("intel_attempted", 0)) + int(llm_metrics_turkey.get("intel_attempted", 0)),
-                        "intel_accepted": int(llm_metrics_global.get("intel_accepted", 0)) + int(llm_metrics_turkey.get("intel_accepted", 0)),
-                        "intel_rejected_validation": int(llm_metrics_global.get("intel_rejected_validation", 0)) + int(llm_metrics_turkey.get("intel_rejected_validation", 0)),
-                        "intel_missing_source_proof": int(llm_metrics_global.get("intel_missing_source_proof", 0)) + int(llm_metrics_turkey.get("intel_missing_source_proof", 0)),
+                        "attempted": int(llm_metrics_global.get("attempted", 0))
+                        + int(llm_metrics_turkey.get("attempted", 0)),
+                        "succeeded": int(llm_metrics_global.get("succeeded", 0))
+                        + int(llm_metrics_turkey.get("succeeded", 0)),
+                        "failed": int(llm_metrics_global.get("failed", 0))
+                        + int(llm_metrics_turkey.get("failed", 0)),
+                        "timeouts": int(llm_metrics_global.get("timeouts", 0))
+                        + int(llm_metrics_turkey.get("timeouts", 0)),
+                        "intel_attempted": int(llm_metrics_global.get("intel_attempted", 0))
+                        + int(llm_metrics_turkey.get("intel_attempted", 0)),
+                        "intel_accepted": int(llm_metrics_global.get("intel_accepted", 0))
+                        + int(llm_metrics_turkey.get("intel_accepted", 0)),
+                        "intel_rejected_validation": int(
+                            llm_metrics_global.get("intel_rejected_validation", 0)
+                        )
+                        + int(llm_metrics_turkey.get("intel_rejected_validation", 0)),
+                        "intel_missing_source_proof": int(
+                            llm_metrics_global.get("intel_missing_source_proof", 0)
+                        )
+                        + int(llm_metrics_turkey.get("intel_missing_source_proof", 0)),
                         "intel_rejection_reasons": dict(
                             sorted(merged_intel_reasons.items(), key=lambda kv: (-kv[1], kv[0]))
                         ),
-                        "skipped_by_gating": int(llm_metrics_global.get("skipped_by_gating", 0)) + int(llm_metrics_turkey.get("skipped_by_gating", 0)),
-                        "skipped_by_signal": int(llm_metrics_global.get("skipped_by_signal", 0)) + int(llm_metrics_turkey.get("skipped_by_signal", 0)),
+                        "skipped_by_gating": int(llm_metrics_global.get("skipped_by_gating", 0))
+                        + int(llm_metrics_turkey.get("skipped_by_gating", 0)),
+                        "skipped_by_signal": int(llm_metrics_global.get("skipped_by_signal", 0))
+                        + int(llm_metrics_turkey.get("skipped_by_signal", 0)),
                         "latency_ms_p50": llm_metrics_global.get("latency_ms_p50", 0.0),
-                        "latency_ms_p95": max(llm_metrics_global.get("latency_ms_p95", 0.0), llm_metrics_turkey.get("latency_ms_p95", 0.0)),
+                        "latency_ms_p95": max(
+                            llm_metrics_global.get("latency_ms_p95", 0.0),
+                            llm_metrics_turkey.get("latency_ms_p95", 0.0),
+                        ),
                         "latency_ms_avg": llm_metrics_global.get("latency_ms_avg", 0.0),
                     }
 
@@ -8159,9 +9620,13 @@ class DailyNewsIngestor:
 
                 # Persist clusters per-region when supported. Otherwise fall back
                 # to legacy shared clusters (global-only persistence).
-                cluster_ids_global = await self._persist_clusters(conn, clusters, region="global", raw_lookup=raw_lookup)
+                cluster_ids_global = await self._persist_clusters(
+                    conn, clusters, region="global", raw_lookup=raw_lookup
+                )
                 if self._regional_clusters_supported:
-                    cluster_ids_turkey = await self._persist_clusters(conn, turkey_clusters, region="turkey", raw_lookup=raw_lookup)
+                    cluster_ids_turkey = await self._persist_clusters(
+                        conn, turkey_clusters, region="turkey", raw_lookup=raw_lookup
+                    )
                 else:
                     cluster_ids_turkey = {}
                     turkey_clusters = []
@@ -8170,14 +9635,24 @@ class DailyNewsIngestor:
                     errors.append(msg)
 
                 # Persist memory gate results per-region
-                mem_facts_global = await self._persist_memory_results(conn, clusters, cluster_ids_global, region="global")
-                mem_facts_turkey = await self._persist_memory_results(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
+                mem_facts_global = await self._persist_memory_results(
+                    conn, clusters, cluster_ids_global, region="global"
+                )
+                mem_facts_turkey = await self._persist_memory_results(
+                    conn, turkey_clusters, cluster_ids_turkey, region="turkey"
+                )
                 memory_stats["facts_written"] = mem_facts_global + mem_facts_turkey
 
                 # Persist gating decisions per-region
-                gating_persisted_global = await self._persist_gating_decisions(conn, clusters, cluster_ids_global, region="global")
-                gating_persisted_turkey = await self._persist_gating_decisions(conn, turkey_clusters, cluster_ids_turkey, region="turkey")
-                gating_stats["decisions_persisted"] = gating_persisted_global + gating_persisted_turkey
+                gating_persisted_global = await self._persist_gating_decisions(
+                    conn, clusters, cluster_ids_global, region="global"
+                )
+                gating_persisted_turkey = await self._persist_gating_decisions(
+                    conn, turkey_clusters, cluster_ids_turkey, region="turkey"
+                )
+                gating_stats["decisions_persisted"] = (
+                    gating_persisted_global + gating_persisted_turkey
+                )
 
                 # --- Editorial post-gating: force-drop clusters matching editorial rules ---
                 # Runs BEFORE events/research/embedding so dropped clusters don't
@@ -8192,7 +9667,9 @@ class DailyNewsIngestor:
                             ed_post_excluded += 1
                     if ed_post_excluded:
                         editorial_stats["clusters_excluded_post_gating"] = ed_post_excluded
-                        print(f"[editorial] force-dropped {ed_post_excluded} clusters via post-gating rules")
+                        print(
+                            f"[editorial] force-dropped {ed_post_excluded} clusters via post-gating rules"
+                        )
 
                 if _ed_engine_turkey.loaded:
                     for c in turkey_clusters:
@@ -8202,9 +9679,22 @@ class DailyNewsIngestor:
                             c.gating_reason = f"editorial: {reason}"
 
                 # Persist editorial drops back to news_item_decisions so admin review is accurate
-                ed_drops_global = [c for c in clusters if c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:")]
-                ed_drops_turkey = [c for c in turkey_clusters if c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:")]
-                for drop_list, cid_map in [(ed_drops_global, cluster_ids_global), (ed_drops_turkey, cluster_ids_turkey)]:
+                ed_drops_global = [
+                    c
+                    for c in clusters
+                    if c.gating_decision == "drop"
+                    and (c.gating_reason or "").startswith("editorial:")
+                ]
+                ed_drops_turkey = [
+                    c
+                    for c in turkey_clusters
+                    if c.gating_decision == "drop"
+                    and (c.gating_reason or "").startswith("editorial:")
+                ]
+                for drop_list, cid_map in [
+                    (ed_drops_global, cluster_ids_global),
+                    (ed_drops_turkey, cluster_ids_turkey),
+                ]:
                     for c in drop_list:
                         cid = cid_map.get(c.cluster_key)
                         if cid:
@@ -8214,24 +9704,37 @@ class DailyNewsIngestor:
                                 SET decision = 'drop', decision_reason = $2
                                 WHERE cluster_id = $1::uuid
                                 """,
-                                cid, c.gating_reason or "editorial: rule match",
+                                cid,
+                                c.gating_reason or "editorial: rule match",
                             )
 
                 # Build filtered lists excluding editorially-dropped clusters
                 non_dropped_global = [
-                    c for c in clusters
-                    if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                    c
+                    for c in clusters
+                    if not (
+                        c.gating_decision == "drop"
+                        and (c.gating_reason or "").startswith("editorial:")
+                    )
                     and _count_non_lead_members(c.members) > 0
                 ]
                 non_dropped_turkey = [
-                    c for c in turkey_clusters
-                    if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                    c
+                    for c in turkey_clusters
+                    if not (
+                        c.gating_decision == "drop"
+                        and (c.gating_reason or "").startswith("editorial:")
+                    )
                     and _count_non_lead_members(c.members) > 0
                 ]
 
                 # --- Extract structured events from clusters ---
-                events_global = await self._extract_events(conn, non_dropped_global, cluster_ids_global, region="global")
-                events_turkey = await self._extract_events(conn, non_dropped_turkey, cluster_ids_turkey, region="turkey")
+                events_global = await self._extract_events(
+                    conn, non_dropped_global, cluster_ids_global, region="global"
+                )
+                events_turkey = await self._extract_events(
+                    conn, non_dropped_turkey, cluster_ids_turkey, region="turkey"
+                )
 
                 # Guardrail: extracted>0 but persisted==0 with DB errors means downstream onboarding/research stalls.
                 for rkey, rstats in (("global", events_global), ("turkey", events_turkey)):
@@ -8273,16 +9776,18 @@ class DailyNewsIngestor:
                         # Best-effort: don't block the ingest if Slack or stats parsing fails.
                         pass
 
-                event_extraction_total = int(events_global.get("persisted") or 0) + int(events_turkey.get("persisted") or 0)
+                event_extraction_total = int(events_global.get("persisted") or 0) + int(
+                    events_turkey.get("persisted") or 0
+                )
                 if event_extraction_total > 0:
                     print(
                         f"[events] extracted {int(events_global.get('persisted') or 0)} global + "
                         f"{int(events_turkey.get('persisted') or 0)} turkey structured events"
                     )
 
-                graph_edges_upserted = int(events_global.get("graph", {}).get("edges_upserted") or 0) + int(
-                    events_turkey.get("graph", {}).get("edges_upserted") or 0
-                )
+                graph_edges_upserted = int(
+                    events_global.get("graph", {}).get("edges_upserted") or 0
+                ) + int(events_turkey.get("graph", {}).get("edges_upserted") or 0)
                 graph_views_refreshed = False
                 if graph_edges_upserted > 0:
                     graph_views_refreshed = await self._refresh_capital_graph_views(conn)
@@ -8296,7 +9801,9 @@ class DailyNewsIngestor:
                 )
 
                 # --- Embed clusters (non-blocking) ---
-                embed_stats = await self._embed_clusters(conn, non_dropped_global, cluster_ids_global)
+                embed_stats = await self._embed_clusters(
+                    conn, non_dropped_global, cluster_ids_global
+                )
                 related_count = await self._populate_related_clusters(conn, cluster_ids_global)
 
                 # Load admin-rejected cluster IDs to exclude from editions
@@ -8304,15 +9811,21 @@ class DailyNewsIngestor:
                 rejected_turkey = await load_rejected_cluster_ids(conn, "turkey")
                 if rejected_global or rejected_turkey:
                     editorial_stats["rejected_cluster_ids"] = len(rejected_global | rejected_turkey)
-                    print(f"[editorial] excluding {len(rejected_global)} global + {len(rejected_turkey)} turkey rejected clusters from editions")
+                    print(
+                        f"[editorial] excluding {len(rejected_global)} global + {len(rejected_turkey)} turkey rejected clusters from editions"
+                    )
 
                 # Turkey edition: only exclude admin-rejected clusters (via editorial rules),
                 # not heuristic gating drops. The gating scorer is uncalibrated and drops
                 # ~80% of TR clusters, starving the edition. Global already passes all
                 # clusters through — match that behaviour for Turkey.
                 turkey_clusters_for_edition = [
-                    c for c in turkey_clusters
-                    if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                    c
+                    for c in turkey_clusters
+                    if not (
+                        c.gating_decision == "drop"
+                        and (c.gating_reason or "").startswith("editorial:")
+                    )
                     and _count_non_lead_members(c.members) > 0
                 ]
                 if len(turkey_clusters_for_edition) < 5:
@@ -8322,8 +9835,12 @@ class DailyNewsIngestor:
                     )
 
                 global_clusters_for_edition = [
-                    c for c in clusters
-                    if not (c.gating_decision == "drop" and (c.gating_reason or "").startswith("editorial:"))
+                    c
+                    for c in clusters
+                    if not (
+                        c.gating_decision == "drop"
+                        and (c.gating_reason or "").startswith("editorial:")
+                    )
                     and _count_non_lead_members(c.members) > 0
                 ]
 
@@ -8337,9 +9854,13 @@ class DailyNewsIngestor:
                         global_clusters_for_edition.extend(inv_clusters)
                         investigation_count = len(inv_clusters)
                         if inv_clusters:
-                            print(f"[investigation] added {len(inv_clusters)} Signal Watch clusters to global edition")
+                            print(
+                                f"[investigation] added {len(inv_clusters)} Signal Watch clusters to global edition"
+                            )
                     except Exception as exc:
-                        print(f"[investigation] load investigation clusters failed (non-fatal): {exc}")
+                        print(
+                            f"[investigation] load investigation clusters failed (non-fatal): {exc}"
+                        )
 
                 global_stats = await self._persist_edition(
                     conn,
@@ -8398,17 +9919,34 @@ class DailyNewsIngestor:
                 }
 
                 # --- Turkey pipeline diagnostic summary ---
-                _tr_src_keys = {s.source_key for s in valid_sources if (s.region or "global") == "turkey"}
-                _tr_fetched = [fr for fr in fetch_results if fr.source_key in _tr_src_keys] if not rebuild_only else []
+                _tr_src_keys = {
+                    s.source_key for s in valid_sources if (s.region or "global") == "turkey"
+                }
+                _tr_fetched = (
+                    [fr for fr in fetch_results if fr.source_key in _tr_src_keys]
+                    if not rebuild_only
+                    else []
+                )
                 _tr_src_ok = sum(1 for fr in _tr_fetched if fr.success)
                 _tr_src_fail = sum(1 for fr in _tr_fetched if not fr.success)
                 _tr_items_collected = sum(fr.items_count for fr in _tr_fetched)
                 _tr_ed_clusters = len(turkey_clusters_for_edition)
-                _tr_ed_top = int(turkey_stats.get("top_story_count") or 0) if isinstance(turkey_stats, dict) else 0
-                _tr_has_brief = bool(turkey_stats.get("daily_brief")) if isinstance(turkey_stats, dict) else False
-                _tr_failed_details = ", ".join(
-                    f"{fr.source_key}({fr.error[:60]})" for fr in _tr_fetched if not fr.success
-                ) or "none"
+                _tr_ed_top = (
+                    int(turkey_stats.get("top_story_count") or 0)
+                    if isinstance(turkey_stats, dict)
+                    else 0
+                )
+                _tr_has_brief = (
+                    bool(turkey_stats.get("daily_brief"))
+                    if isinstance(turkey_stats, dict)
+                    else False
+                )
+                _tr_failed_details = (
+                    ", ".join(
+                        f"{fr.source_key}({fr.error[:60]})" for fr in _tr_fetched if not fr.success
+                    )
+                    or "none"
+                )
                 print(
                     f"\n[turkey-summary] sources: {_tr_src_ok} ok / {_tr_src_fail} failed (of {len(_tr_src_keys)} defined)"
                     f"\n[turkey-summary] failed sources: {_tr_failed_details}"
@@ -8470,7 +10008,11 @@ class DailyNewsIngestor:
                     """,
                     str(run_id),
                     json.dumps(_sanitize_for_pg(errors)),
-                    json.dumps(_sanitize_for_pg({"edition_date": e_date.isoformat(), "llm": dict(self._llm_metrics)})),
+                    json.dumps(
+                        _sanitize_for_pg(
+                            {"edition_date": e_date.isoformat(), "llm": dict(self._llm_metrics)}
+                        )
+                    ),
                 )
                 raise
 
