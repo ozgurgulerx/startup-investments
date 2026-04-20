@@ -37,7 +37,7 @@ import hashlib
 import json
 import logging
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -174,7 +174,7 @@ async def load_ecosystem_facts_seed(
             fact_key,
         )
 
-        fact_value_json = json.dumps(fact_value, sort_keys=True, ensure_ascii=False)
+        fact_value_json = json.dumps(fact_value, sort_keys=True, ensure_ascii=False, default=str)
         if existing:
             if (
                 existing["narrative"] == narrative
@@ -310,17 +310,28 @@ async def load_startup_exclusions_seed(
             )
             updated += 1
         else:
-            await conn.execute(
-                """
-                INSERT INTO startup_exclusions (entity_name, category, reason, region)
-                VALUES ($1, $2, $3, $4)
-                """,
-                entity_name,
-                category,
-                reason,
-                region,
-            )
-            inserted += 1
+            # Postgres's generated `entity_name_norm` column may collapse two
+            # visually-different entries (e.g. ASCII "BIM" vs Turkish "BİM")
+            # to the same normalized key via its locale-specific lower().
+            # Our Python normalization doesn't always match that collapse,
+            # so fall back to the unique-index conflict: on dup, update.
+            try:
+                await conn.execute(
+                    """
+                    INSERT INTO startup_exclusions (entity_name, category, reason, region)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    entity_name,
+                    category,
+                    reason,
+                    region,
+                )
+                inserted += 1
+            except Exception as exc:
+                if "idx_startup_exclusions_name" not in str(exc):
+                    raise
+                # Same normalized key already inserted this run — treat as dup.
+                unchanged += 1
 
     return {
         "inserted": inserted,
@@ -346,18 +357,24 @@ async def load_ecosystem_facts_for_brief(
 
     Turkey briefs receive global + turkey facts (one-way merge, same
     convention as news_entity_facts). Ordering favors higher confidence
-    and more-recent facts.
+    and more-recent facts. Publisher info is joined in so callers can
+    route startups.watch-derived trend facts into a dedicated prompt
+    bucket (PR #4.9).
     """
     regions: Sequence[str] = ("global",) if region == "global" else ("global", "turkey")
     rows = await conn.fetch(
         """
-        SELECT region, sector, fact_key, narrative, as_of_date, confidence
-        FROM news_ecosystem_facts
-        WHERE is_current = TRUE
-          AND region = ANY($1::text[])
-          AND as_of_date >= (CURRENT_DATE - ($2::int || ' months')::interval)
-        ORDER BY (confidence * (1.0 / GREATEST(1, CURRENT_DATE - as_of_date))) DESC,
-                 as_of_date DESC
+        SELECT f.region, f.sector, f.fact_key, f.narrative,
+               f.as_of_date, f.confidence,
+               s.publisher, s.source_type AS source_doc_type,
+               s.period_covered
+        FROM news_ecosystem_facts f
+        LEFT JOIN news_ecosystem_sources s ON f.source_ref_id = s.id
+        WHERE f.is_current = TRUE
+          AND f.region = ANY($1::text[])
+          AND f.as_of_date >= (CURRENT_DATE - ($2::int || ' months')::interval)
+        ORDER BY (f.confidence * (1.0 / GREATEST(1, CURRENT_DATE - f.as_of_date))) DESC,
+                 f.as_of_date DESC
         LIMIT $3
         """,
         list(regions),
@@ -372,6 +389,9 @@ async def load_ecosystem_facts_for_brief(
             "narrative": r["narrative"],
             "as_of_date": r["as_of_date"].isoformat() if r["as_of_date"] else None,
             "confidence": float(r["confidence"]),
+            "publisher": r["publisher"],
+            "source_doc_type": r["source_doc_type"],
+            "period_covered": r["period_covered"],
         }
         for r in rows
     ]

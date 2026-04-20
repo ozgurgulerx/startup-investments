@@ -6748,24 +6748,51 @@ class DailyNewsIngestor:
             except Exception as exc:
                 print(f"[news-ingest] editorial memory: entity facts query failed: {exc}")
 
-        # --- PR #4.3: ecosystem facts (long-horizon context) ---
+        # --- PR #4.3 + 4.9: ecosystem facts (long-horizon context) ---
         # One-way region merge: turkey reads global+turkey, global reads global.
-        # Missing table (pre-migration-084) is logged and skipped.
+        # We also split startups.watch-derived facts into their own bucket so
+        # the brief prompt can explicitly anchor commentary on their published
+        # funding-series trends (PR #4.9).
         try:
             from src.intelligence.ecosystem_memory import load_ecosystem_facts_for_brief
 
+            # Load a wider set than PR #4.3 so startups.watch trends don't get
+            # crowded out by curated facts. Split 20 total across buckets below.
             eco_rows = await load_ecosystem_facts_for_brief(
-                conn, region=region, limit=12, freshness_months=18
+                conn, region=region, limit=25, freshness_months=18
             )
             if eco_rows:
-                # Group by region so the LLM can contrast TR vs global.
-                tr_facts = [r["narrative"] for r in eco_rows if r["region"] == "turkey"]
-                global_facts = [r["narrative"] for r in eco_rows if r["region"] == "global"]
                 ecosystem_memory_block: Dict[str, Any] = {}
+
+                # Bucket 1: startups.watch canonical trends (funding series
+                # anchor). Both blog posts and YouTube transcripts count.
+                sw_facts = [
+                    r["narrative"]
+                    for r in eco_rows
+                    if (r.get("publisher") or "").lower().startswith("startups.watch")
+                    or "@startupswatch" in (r.get("publisher") or "").lower()
+                ]
+                if sw_facts:
+                    ecosystem_memory_block["startups_watch_trends"] = sw_facts[:8]
+
+                # Bucket 2+3: remaining facts grouped by region for TR-vs-global
+                # contrast. Excludes the startups.watch ones so the LLM doesn't
+                # see them twice.
+                sw_set = set(sw_facts)
+                tr_facts = [
+                    r["narrative"]
+                    for r in eco_rows
+                    if r["region"] == "turkey" and r["narrative"] not in sw_set
+                ]
+                global_facts = [
+                    r["narrative"]
+                    for r in eco_rows
+                    if r["region"] == "global" and r["narrative"] not in sw_set
+                ]
                 if tr_facts:
-                    ecosystem_memory_block["turkey"] = tr_facts
+                    ecosystem_memory_block["turkey"] = tr_facts[:8]
                 if global_facts:
-                    ecosystem_memory_block["global"] = global_facts
+                    ecosystem_memory_block["global"] = global_facts[:6]
                 if ecosystem_memory_block:
                     memory["ecosystem_facts"] = ecosystem_memory_block
         except Exception as exc:
@@ -6844,6 +6871,18 @@ class DailyNewsIngestor:
             "when the day's stories warrant it (e.g. 'global funding pivots "
             "toward agentic AI, but TR activity stays consumer-tech weighted'). "
             "Use this for clarity — never to fill space. "
+            "\n\n"
+            "STARTUPS.WATCH TREND ALIGNMENT: If "
+            "'editorial_memory.ecosystem_facts.startups_watch_trends' is "
+            "provided, treat those items as the canonical funding-series "
+            "benchmarks for the Turkish ecosystem (YoY deal count/size "
+            "growth, CVC count, BiGG sector leaders, annual totals, etc.). "
+            "When today's Turkish stories touch a sector or funding stage "
+            "those benchmarks cover, anchor your commentary to them: e.g. "
+            "'today's seed round fits startups.watch's Q3 fintech cadence' "
+            "or 'this extends the +31% YoY deal-count trend'. Prefer cited, "
+            "specific benchmark language over generic phrasing. Still weave "
+            "naturally — do not list benchmarks verbatim. "
             "\n\n"
             "Return strict JSON with keys: "
             "headline (<=120 chars, thematic — no company names), "

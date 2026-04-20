@@ -231,17 +231,54 @@ def _parse_webvtt(vtt_text: str) -> str:
     return " ".join(lines)
 
 
+def _extract_video_id(video_url: str) -> str:
+    """Pull the v= or watch ID out of any YouTube URL form."""
+    if "watch?v=" in video_url:
+        return video_url.split("watch?v=", 1)[1].split("&", 1)[0]
+    if "youtu.be/" in video_url:
+        return video_url.split("youtu.be/", 1)[1].split("?", 1)[0]
+    return video_url
+
+
 async def fetch_youtube_transcript(
     video_url: str,
     *,
     prefer_langs: Tuple[str, ...] = ("tr", "en"),
 ) -> Tuple[str, str]:
-    """Fetch the auto-caption transcript for a YouTube video via yt-dlp.
+    """Fetch the auto-caption transcript for a YouTube video.
 
-    Runs yt-dlp in a thread (blocking) to avoid its internal event loop.
+    Two-tier fetcher:
+      1. youtube-transcript-api — lightweight, less aggressively rate-limited
+         than yt-dlp, returns segments directly without VTT parsing.
+      2. yt-dlp fallback — only if the first library is unavailable.
+
+    yt-dlp's caption endpoint is rate-limited per-IP and frequently 429s
+    when running multiple videos back-to-back; the transcript-api uses
+    a different endpoint that's more permissive.
     """
+    video_id = _extract_video_id(video_url)
+
+    # --- Strategy 1: youtube-transcript-api (preferred) ---
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+
+        def _fetch_via_api() -> str:
+            api = YouTubeTranscriptApi()
+            fetched = api.fetch(video_id, languages=list(prefer_langs))
+            return " ".join(s.text for s in fetched)
+
+        text = await asyncio.to_thread(_fetch_via_api)
+        text = (text or "").strip()
+        if text:
+            return text, _hash_text(text)
+    except ImportError:
+        pass
+    except Exception as exc:
+        logger.warning("youtube-transcript-api failed for %s: %s", video_id, exc)
+
+    # --- Strategy 2: yt-dlp fallback ---
     if yt_dlp is None:
-        raise RuntimeError("yt-dlp is not installed")
+        raise RuntimeError("Neither youtube-transcript-api nor yt-dlp is installed")
 
     def _download_sub() -> str:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -257,13 +294,11 @@ async def fetch_youtube_transcript(
             }
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.extract_info(video_url, download=True)
-            # Find the best-matching VTT file
             for lang in prefer_langs:
                 for ext in (f".{lang}.vtt", f".{lang}-auto.vtt"):
                     matches = list(Path(tmpdir).glob(f"*{ext}"))
                     if matches:
                         return matches[0].read_text(encoding="utf-8")
-            # Fallback: any vtt in the dir
             any_vtt = list(Path(tmpdir).glob("*.vtt"))
             if any_vtt:
                 return any_vtt[0].read_text(encoding="utf-8")
