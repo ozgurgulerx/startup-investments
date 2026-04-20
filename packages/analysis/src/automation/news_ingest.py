@@ -6750,51 +6750,45 @@ class DailyNewsIngestor:
 
         # --- PR #4.3 + 4.9: ecosystem facts (long-horizon context) ---
         # One-way region merge: turkey reads global+turkey, global reads global.
-        # We also split startups.watch-derived facts into their own bucket so
-        # the brief prompt can explicitly anchor commentary on their published
-        # funding-series trends (PR #4.9).
+        # startups.watch-derived facts get a dedicated bucket via a separate
+        # query (they have older as_of_date and lose the confidence×recency
+        # ranking against curated + fresh transcripts).
         try:
-            from src.intelligence.ecosystem_memory import load_ecosystem_facts_for_brief
-
-            # Load a wider set than PR #4.3 so startups.watch trends don't get
-            # crowded out by curated facts. Split 20 total across buckets below.
-            eco_rows = await load_ecosystem_facts_for_brief(
-                conn, region=region, limit=25, freshness_months=18
+            from src.intelligence.ecosystem_memory import (
+                load_ecosystem_facts_for_brief,
+                load_startups_watch_facts,
             )
-            if eco_rows:
-                ecosystem_memory_block: Dict[str, Any] = {}
 
-                # Bucket 1: startups.watch canonical trends (funding series
-                # anchor). Both blog posts and YouTube transcripts count.
-                sw_facts = [
-                    r["narrative"]
-                    for r in eco_rows
-                    if (r.get("publisher") or "").lower().startswith("startups.watch")
-                    or "@startupswatch" in (r.get("publisher") or "").lower()
+            # Bucket 1 — guaranteed startups.watch representation.
+            sw_rows = await load_startups_watch_facts(
+                conn, region=region, limit=10, freshness_months=36
+            )
+            # Bucket 2+3 — everything else, ranked by confidence×recency.
+            eco_rows = await load_ecosystem_facts_for_brief(
+                conn, region=region, limit=20, freshness_months=18
+            )
+            ecosystem_memory_block: Dict[str, Any] = {}
+            if sw_rows:
+                ecosystem_memory_block["startups_watch_trends"] = [
+                    r["narrative"] for r in sw_rows[:8]
                 ]
-                if sw_facts:
-                    ecosystem_memory_block["startups_watch_trends"] = sw_facts[:8]
-
-                # Bucket 2+3: remaining facts grouped by region for TR-vs-global
-                # contrast. Excludes the startups.watch ones so the LLM doesn't
-                # see them twice.
-                sw_set = set(sw_facts)
-                tr_facts = [
-                    r["narrative"]
-                    for r in eco_rows
-                    if r["region"] == "turkey" and r["narrative"] not in sw_set
-                ]
-                global_facts = [
-                    r["narrative"]
-                    for r in eco_rows
-                    if r["region"] == "global" and r["narrative"] not in sw_set
-                ]
-                if tr_facts:
-                    ecosystem_memory_block["turkey"] = tr_facts[:8]
-                if global_facts:
-                    ecosystem_memory_block["global"] = global_facts[:6]
-                if ecosystem_memory_block:
-                    memory["ecosystem_facts"] = ecosystem_memory_block
+            sw_texts = {r["narrative"] for r in sw_rows}
+            tr_facts = [
+                r["narrative"]
+                for r in eco_rows
+                if r["region"] == "turkey" and r["narrative"] not in sw_texts
+            ]
+            global_facts = [
+                r["narrative"]
+                for r in eco_rows
+                if r["region"] == "global" and r["narrative"] not in sw_texts
+            ]
+            if tr_facts:
+                ecosystem_memory_block["turkey"] = tr_facts[:8]
+            if global_facts:
+                ecosystem_memory_block["global"] = global_facts[:6]
+            if ecosystem_memory_block:
+                memory["ecosystem_facts"] = ecosystem_memory_block
         except Exception as exc:
             print(f"[news-ingest] editorial memory: ecosystem facts query failed: {exc}")
 

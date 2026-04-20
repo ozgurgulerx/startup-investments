@@ -346,6 +346,59 @@ async def load_startup_exclusions_seed(
 # ---------------------------------------------------------------------------
 
 
+async def load_startups_watch_facts(
+    conn: "asyncpg.Connection",
+    *,
+    region: str = "turkey",
+    limit: int = 10,
+    freshness_months: int = 36,
+) -> List[Dict[str, Any]]:
+    """Fetch startups.watch-attributed facts specifically.
+
+    Separate from the global ranking because startups.watch quarterly/annual
+    reports naturally have older as_of_dates and get outranked on a
+    confidence×recency ordering. Daily-brief commentary benefits from a
+    guaranteed floor of these benchmark facts (+31% YoY deal count, CVC
+    count, sector cadence) as a canonical trend anchor.
+    """
+    regions: Sequence[str] = ("global",) if region == "global" else ("global", "turkey")
+    rows = await conn.fetch(
+        """
+        SELECT f.region, f.sector, f.fact_key, f.narrative,
+               f.as_of_date, f.confidence,
+               s.publisher, s.source_type AS source_doc_type,
+               s.period_covered
+        FROM news_ecosystem_facts f
+        JOIN news_ecosystem_sources s ON f.source_ref_id = s.id
+        WHERE f.is_current = TRUE
+          AND f.region = ANY($1::text[])
+          AND f.as_of_date >= (CURRENT_DATE - ($2::int || ' months')::interval)
+          AND (
+            lower(coalesce(s.publisher,'')) LIKE 'startups.watch%'
+            OR lower(coalesce(s.publisher,'')) LIKE '%@startupswatch%'
+          )
+        ORDER BY f.confidence DESC, f.as_of_date DESC
+        LIMIT $3
+        """,
+        list(regions),
+        freshness_months,
+        limit,
+    )
+    return [
+        {
+            "region": str(r["region"]),
+            "sector": r["sector"],
+            "fact_key": r["fact_key"],
+            "narrative": r["narrative"],
+            "as_of_date": r["as_of_date"].isoformat() if r["as_of_date"] else None,
+            "confidence": float(r["confidence"]),
+            "publisher": r["publisher"],
+            "period_covered": r["period_covered"],
+        }
+        for r in rows
+    ]
+
+
 async def load_ecosystem_facts_for_brief(
     conn: "asyncpg.Connection",
     *,
