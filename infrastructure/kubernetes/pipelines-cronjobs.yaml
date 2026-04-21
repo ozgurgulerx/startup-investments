@@ -17,7 +17,12 @@ spec:
     spec:
       backoffLimit: 0
       ttlSecondsAfterFinished: 86400
-      activeDeadlineSeconds: 1920
+      # 3600s = 60 min. Bumped from 2820 after PR #4 (Turkey source expansion
+      # + ecosystem memory) pushed runs past 32-47 min. Pods that hit the
+      # old deadline were killed between gating and edition persist, so
+      # `news_daily_editions` never got today's row and the digest fell back
+      # to yesterday's content.
+      activeDeadlineSeconds: 3600
       template:
         metadata:
           labels:
@@ -33,7 +38,7 @@ spec:
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/lib/runner.sh
               args:
                 - news-ingest
-                - "30"
+                - "45"
                 - /opt/buildatlas/startup-analysis/infrastructure/vm-cron/jobs/news-ingest.sh
               envFrom:
                 - configMapRef:
@@ -59,6 +64,7 @@ metadata:
     job: news-digest
 spec:
   schedule: "45 * * * *"
+  suspend: false
   startingDeadlineSeconds: 7200
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
@@ -140,6 +146,9 @@ spec:
                     name: buildatlas-pipelines-config
                 - secretRef:
                     name: buildatlas-pipelines-secrets
+              env:
+                - name: LIVE_ONBOARDING_ENABLE_PROMOTION
+                  value: "false"
               resources:
                 requests:
                   cpu: "250m"
@@ -190,6 +199,11 @@ spec:
                     name: buildatlas-pipelines-config
                 - secretRef:
                     name: buildatlas-pipelines-secrets
+              env:
+                - name: DEEP_RESEARCH_ENABLE_RESPONSES_WORKFLOW
+                  value: "false"
+                - name: DEEP_RESEARCH_REQUIRE_CITATIONS
+                  value: "false"
               resources:
                 requests:
                   cpu: "250m"
@@ -410,6 +424,7 @@ metadata:
 spec:
   schedule: "28 * * * *"
   startingDeadlineSeconds: 7200
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
