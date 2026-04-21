@@ -91,6 +91,14 @@ LABELS: Dict[str, Dict[str, str]] = {
     "turkey_section": {"global": "TURKEY ECOSYSTEM", "turkey": "TÜRKİYE EKOSİSTEMİ"},
     "open_full_radar": {"global": "Open full radar:", "turkey": "Tüm radarı aç:"},
     "full_radar_text": {"global": "Full radar:", "turkey": "Tüm radar:"},
+    "all_news_cta": {
+        "global": "See all news from today",
+        "turkey": "Bugünün tüm haberlerini gör",
+    },
+    "all_news_subtitle": {
+        "global": "Every story we tracked on the Build Atlas feed for this edition.",
+        "turkey": "Bu sayıda Build Atlas akışında takip ettiğimiz tüm haberler.",
+    },
     "subscribe_footer": {
         "global": "You're receiving this because you subscribed on Build Atlas.",
         "turkey": "Bu e-postayı Build Atlas'a abone olduğunuz için alıyorsunuz.",
@@ -557,7 +565,31 @@ class DailyNewsDigestSender:
         feedback_label = tr("feedback_label", region)
         subscribe_footer = tr("subscribe_footer", region)
         unsubscribe_label = tr("unsubscribe_label", region)
+        all_news_cta = tr("all_news_cta", region)
+        all_news_subtitle = tr("all_news_subtitle", region)
         full_url = self._news_url(self.public_base_url, edition_date, region)
+
+        # Prominent "see all news" button block — rendered between the top
+        # stories and the cross-region Turkey section so readers see it
+        # regardless of whether they scroll the full digest.
+        all_news_block = f"""<tr>
+                      <td style="padding:24px 0 8px 0;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                               style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;">
+                          <tr>
+                            <td style="padding:16px 18px;">
+                              <div style="font-size:12px;color:#64748b;margin-bottom:6px;">{all_news_subtitle}</div>
+                              <a href="{full_url}"
+                                 style="display:inline-block;padding:10px 18px;
+                                        background:#0f172a;color:#ffffff;border-radius:8px;
+                                        font-size:14px;font-weight:600;text-decoration:none;">
+                                {all_news_cta} →
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>"""
 
         return f"""
         <html>
@@ -576,6 +608,7 @@ class DailyNewsDigestSender:
                     {brief_html}
                     {signal_radar_html}
                     {stories_html}
+                    {all_news_block}
                     {turkey_section_html}
                     <tr>
                       <td style="padding-top:16px;font-size:13px;color:#6b7280;">
@@ -711,6 +744,15 @@ class DailyNewsDigestSender:
         lines.append(tr("intro_line", region))
         lines.append("")
         lines.extend(self._build_stories_text(stories, self.public_base_url, edition_date, region))
+
+        # Prominent "see all news" CTA in the plain-text digest too.
+        lines.append("")
+        lines.append(
+            f"{tr('all_news_cta', region)}: "
+            f"{self._news_url(self.public_base_url, edition_date, region)}"
+        )
+        lines.append(tr("all_news_subtitle", region))
+        lines.append("")
 
         if turkey_stories:
             lines.extend(["---", "", tr("turkey_section", "turkey"), ""])
